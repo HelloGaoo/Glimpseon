@@ -19,7 +19,7 @@ import shutil
 from config import cfg, get_default_config_dict
 from logger import logger, setup_exception_hook
 from version import VERSION, BUILD_DATE
-from version_updater import get_version_from_github
+from version_updater import get_version_from_github, get_changelog_from_github
 from constants import APP_NAME
 from city_selector import RegionDatabase
 import datetime
@@ -388,7 +388,12 @@ class UpdateInterface(BaseScrollAreaInterface):
                     logger.info(f"GitHub 最新版本：{github_version} 构建日期：{github_build_date}")
                     logger.info(f"当前版本：{VERSION}")
                     if github_version != VERSION:
-                        changelog = f"新版本：{github_version}\n构建日期：{github_build_date}\n当前版本：{VERSION}"
+                        # 获取更新日志
+                        github_changelog = get_changelog_from_github()
+                        if github_changelog:
+                            changelog = github_changelog
+                        else:
+                            changelog = f"新版本：{github_version}\n构建日期：{github_build_date}\n当前版本：{VERSION}"
                         return True, github_version, changelog
                     else:
                         return False, None, None
