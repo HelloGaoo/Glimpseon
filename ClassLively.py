@@ -13,11 +13,13 @@ import os
 import platform
 import ctypes
 import json
+import threading
 from setting import SettingInterface
 import shutil
 from config import cfg, get_default_config_dict
 from logger import logger, setup_exception_hook
 from version import VERSION, BUILD_DATE
+from version_updater import get_version_from_github
 from constants import APP_NAME
 from city_selector import RegionDatabase
 import datetime
@@ -260,7 +262,7 @@ class UpdateInterface(BaseScrollAreaInterface):
     
     def __connectSignalToSlot(self):
         """ 连接信号与槽 """
-        cfg.themeChanged.connect(self.__onThemeChanged)
+        cfg.themeChanged.connect(self._onThemeChanged)
     
     def __setQss(self):
         """ 设置样式表 """
@@ -275,9 +277,8 @@ class UpdateInterface(BaseScrollAreaInterface):
         except Exception:
             pass
     
-    def __onThemeChanged(self, theme: Theme):
+    def _onThemeChanged(self, theme: Theme):
         """ 主题变更槽函数 """
-        setTheme(theme)
         self.__setQss()
     
     def __initWidgets(self):
@@ -308,6 +309,17 @@ class UpdateInterface(BaseScrollAreaInterface):
         self.versionHeaderLayout.addWidget(self.versionIcon)
         self.versionHeaderLayout.addLayout(self.versionInfoLayout)
         
+        # 更新状态显示
+        self.updateStatusLayout = QHBoxLayout()
+        self.updateStatusLayout.setSpacing(8)
+        self.updateStatusIcon = QLabel(self.versionCard)
+        self.updateStatusIcon.setFixedSize(16, 16)
+        self.updateStatusIcon.setStyleSheet("background-color: #999999; border-radius: 8px;")
+        self.updateStatusLabel = QLabel("已就绪", self.versionCard)
+        self.updateStatusLabel.setStyleSheet("color: #999999; font-size: 14px;")
+        self.updateStatusLayout.addWidget(self.updateStatusIcon)
+        self.updateStatusLayout.addWidget(self.updateStatusLabel)
+        
         # 检查更新按钮
         self.checkUpdateButton = PrimaryPushButton(FIF.SYNC, "检查更新", self.versionCard)
         self.checkUpdateButton.setFixedHeight(36)
@@ -315,6 +327,7 @@ class UpdateInterface(BaseScrollAreaInterface):
         
         self.versionLayout.addLayout(self.versionHeaderLayout)
         self.versionLayout.addStretch()
+        self.versionLayout.addLayout(self.updateStatusLayout)
         self.versionLayout.addWidget(self.checkUpdateButton)
         
         # 更新日志卡片
@@ -369,29 +382,69 @@ class UpdateInterface(BaseScrollAreaInterface):
         self.updateStatusIcon.setStyleSheet("background-color: #0078D4; border-radius: 8px;")
         
         def check():
+            """ 模拟检查更新 """
             import time
             time.sleep(1.5)
+            # 返回 是否有更新，新版本号，更新日志
             return False, None, None
         
-        import threading
+        from PyQt5.QtCore import QMetaObject, Qt, Q_ARG
         def thread_func():
-            has_update, new_version, changelog = check()
-            
-            def update_ui():
-                if has_update:
-                    self.updateStatusLabel.setText(f"发现新版本：{new_version}")
-                    self.updateStatusLabel.setStyleSheet("color: #107C10;")
-                    self.updateStatusIcon.setStyleSheet("background-color: #107C10; border-radius: 8px;")
-                    self.changelogContent.setText(changelog)
-                else:
-                    self.updateStatusLabel.setText("已是最新版本")
-                    self.updateStatusLabel.setStyleSheet("color: #107C10;")
-                    self.updateStatusIcon.setStyleSheet("background-color: #107C10; border-radius: 8px;")
-                self.checkUpdateButton.setEnabled(True)
-            
-            QTimer.singleShot(0, update_ui)
+            try:
+                has_update, new_version, changelog = check()
+                QMetaObject.invokeMethod(
+                    self.updateStatusLabel,
+                    "setText",
+                    Qt.QueuedConnection,
+                    Q_ARG(str, "已是最新版本" if not has_update else f"发现新版本：{new_version}")
+                )
+                color = "#107C10"
+                QMetaObject.invokeMethod(
+                    self.updateStatusLabel,
+                    "setStyleSheet",
+                    Qt.QueuedConnection,
+                    Q_ARG(str, f"color: {color};")
+                )
+                
+                QMetaObject.invokeMethod(
+                    self.updateStatusIcon,
+                    "setStyleSheet",
+                    Qt.QueuedConnection,
+                    Q_ARG(str, f"background-color: {color}; border-radius: 8px;")
+                )
+    
+
+
+                if has_update and changelog:
+                    QMetaObject.invokeMethod(
+                        self.changelogContent,
+                        "setText",
+                        Qt.QueuedConnection,
+                        Q_ARG(str, changelog)
+                    )
+                
+                QMetaObject.invokeMethod(
+                    self.checkUpdateButton,
+                    "setEnabled",
+                    Qt.QueuedConnection,
+                    Q_ARG(bool, True)
+                )
+            except Exception as e:
+                logger.error(f"检查更新时出错：{str(e)}")
+                QMetaObject.invokeMethod(
+                    self.checkUpdateButton,
+                    "setEnabled",
+                    Qt.QueuedConnection,
+                    Q_ARG(bool, True)
+                )
+                QMetaObject.invokeMethod(
+                    self.updateStatusLabel,
+                    "setText",
+                    Qt.QueuedConnection,
+                    Q_ARG(str, "检查失败")
+                )
         
-        thread = threading.Thread(target=thread_func)
+        thread = threading.Thread(target=thread_func, daemon=True)
         thread.start()
 
 
@@ -448,6 +501,11 @@ class WallpaperInterface(ScrollArea):
         self.autoSyncCheckTimer.timeout.connect(self.__checkAutoSync)
 
         self.__initWidget()
+        self.__connectSignalToSlot()
+    
+    def _onThemeChanged(self, theme: Theme):
+        """ 主题变更槽函数 """
+        self.__setQss()
 
     def __initWidget(self):
         """ 初始化界面 """
@@ -459,7 +517,6 @@ class WallpaperInterface(ScrollArea):
 
         self.__setQss()
         self.__initLayout()
-        self.__connectSignalToSlot()
         
         # 程序运行时获取壁纸
         self.__getWallpaper()
@@ -1168,6 +1225,11 @@ class MainWindow(FluentWindow):
         self.aboutInterface = AboutInterface(parent=self)
         logger.info("添加关于界面到导航")
         self.addSubInterface(self.aboutInterface, FIF.INFO, "关于", NavigationItemPosition.BOTTOM)
+        
+        # 连接主题切换信号
+        cfg.themeChanged.connect(self.updateInterface._onThemeChanged)
+        cfg.themeChanged.connect(self.wallpaper._onThemeChanged)
+        
         logger.info("设置导航初始化完成")
 
     def resizeEvent(self, event):
@@ -1759,5 +1821,28 @@ if __name__ == "__main__":
     logger.info(f"{APP_NAME}环境信息：")
     logger.info(f"系统版本：Windows {platform.version()} Python 版本：{platform.python_version()}")
     logger.info(f"软件运行路径：{BASE_DIR}")
+    def fetch_latest_version():
+        try:
+            github_version, github_build_date = get_version_from_github()
+            if github_version and github_build_date:
+                logger.info(f"GitHub 最新版本：{github_version} 构建日期：{github_build_date}")
+                if github_version != VERSION:
+                    logger.info(f"发现新版本：{github_version}，当前版本：{VERSION}")
+                    if cfg.autoCheckUpdate.value:
+                        from PyQt5.QtCore import QTimer
+                        def show_new_version_info():
+                            InfoBar.info(
+                                title="发现新版本",
+                                content=f"GitHub 最新版本：{github_version} (构建日期：{github_build_date})\n当前版本：{VERSION}\n请在'更新'页面检查更新。",
+                                duration=10000,
+                                parent=window
+                            )
+                        QTimer.singleShot(3000, show_new_version_info)
+        except Exception as e:
+            logger.error(f"获取 GitHub 版本信息失败：{str(e)}")
+    
+    # 后台线程
+    version_thread = threading.Thread(target=fetch_latest_version, daemon=True)
+    version_thread.start()
     
     sys.exit(app.exec_())

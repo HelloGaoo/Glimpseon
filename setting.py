@@ -520,6 +520,12 @@ class SettingInterface(ScrollArea):
                 # 重新加载配置
                 qconfig.load(config_path, cfg)
                 
+                # 触发主题刷新
+                from qfluentwidgets import setTheme, Theme
+                current_theme = cfg.theme.value
+                setTheme(current_theme)
+                cfg.themeChanged.emit(Theme(current_theme))
+                
                 InfoBar.success(
                     "成功",
                     "所有设置已恢复到默认值",

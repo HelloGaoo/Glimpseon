@@ -13,3 +13,10 @@ QLabel#settingLabel {
     font: 33px;
     background-color: transparent;
 }
+
+/* 卡片 */
+CardWidget {
+    background-color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 8px;
+}
