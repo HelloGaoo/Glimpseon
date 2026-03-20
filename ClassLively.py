@@ -1,11 +1,11 @@
-from PyQt5.QtWidgets import QApplication, QWidget, QSystemTrayIcon, QMenu, QAction, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QSpacerItem, QSizePolicy, QFileDialog, QGraphicsBlurEffect,QStackedLayout
+from PyQt5.QtWidgets import QApplication, QWidget, QSystemTrayIcon, QMenu, QAction, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QSpacerItem, QSizePolicy, QFileDialog, QGraphicsBlurEffect,QStackedLayout, QPlainTextEdit
 from PyQt5.QtCore import QTimer, Qt, QTime, QDate
 from PyQt5.QtCore import QLocale, QTranslator, QUrl
 from PyQt5.QtGui import QFontDatabase, QFont, QIcon, QPixmap, QImage, QPainter, QColor
 from qfluentwidgets import (
     setTheme, Theme, FluentWindow, FluentTranslator,
     FluentIcon as FIF, NavigationItemPosition, RoundMenu, Action, MessageBox, ScrollArea, SmoothScrollArea, ExpandLayout, isDarkTheme,
-    PushButton, CardWidget, ProgressBar, InfoBar, ImageLabel, qconfig, SwitchSettingCard, PrimaryPushButton, SettingCardGroup
+    PushButton, CardWidget, ProgressBar, InfoBar, ImageLabel, qconfig, SwitchSettingCard, PrimaryPushButton, SettingCardGroup, TextEdit
 )
 import requests
 import sys
@@ -339,18 +339,17 @@ class UpdateInterface(BaseScrollAreaInterface):
         self.changelogTitle = QLabel("更新日志", self.changelogCard)
         self.changelogTitle.setObjectName("changelogTitle")
         
-        self.changelogScroll = SmoothScrollArea(self.changelogCard)
-        self.changelogScroll.setViewportMargins(0, 0, 0, 0)
-        self.changelogScroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.changelogScroll.setWidgetResizable(True)
-        self.changelogContent = QLabel("暂无更新记录")
-        self.changelogContent.setWordWrap(True)
-        self.changelogContent.setObjectName("changelogContent")
-        self.changelogScroll.setWidget(self.changelogContent)
-        self.changelogScroll.setFixedHeight(200)
+        # 使用 Fluent Widgets 的 TextEdit 组件
+        self.changelogContent = TextEdit(self.changelogCard)
+        self.changelogContent.setReadOnly(True)
+        self.changelogContent.setPlaceholderText("正在加载更新日志...")
+        self.changelogContent.setFixedHeight(200)
         
         self.changelogLayout.addWidget(self.changelogTitle)
-        self.changelogLayout.addWidget(self.changelogScroll)
+        self.changelogLayout.addWidget(self.changelogContent)
+        
+        # 初始化时加载更新日志
+        self.__loadChangelog()
         self.autoCheckUpdateCard = SwitchSettingCard(
             FIF.UPDATE,
             "自动检查更新",
@@ -373,6 +372,50 @@ class UpdateInterface(BaseScrollAreaInterface):
         self.mainLayout.addWidget(self.autoCheckUpdateCard)
         self.mainLayout.addWidget(self.autoUpdateCard)
         self.mainLayout.addStretch()
+    
+    def __loadChangelog(self):
+        """ 加载更新日志 """
+        def load():
+            try:
+                # 先尝试从 GitHub 获取
+                changelog = get_changelog_from_github()
+                if changelog:
+                    logger.info("成功从 GitHub 获取更新日志")
+                    return changelog
+                else:
+                    # GitHub 获取失败，尝试读取本地文件
+                    logger.info("GitHub 获取失败，尝试读取本地更新日志")
+                    changelog_path = os.path.join(BASE_DIR, 'changelog.md')
+                    if os.path.exists(changelog_path):
+                        try:
+                            with open(changelog_path, 'r', encoding='utf-8') as f:
+                                local_changelog = f.read()
+                            if local_changelog.strip():
+                                logger.info("成功从本地读取更新日志")
+                                return local_changelog
+                        except Exception as e:
+                            logger.error(f"读取本地更新日志失败：{str(e)}")
+                    
+                    # 本地也没有，返回提示
+                    return "暂无更新记录\n\n提示：更新日志文件尚未上传到 GitHub"
+            except Exception as e:
+                logger.error(f"加载更新日志失败：{str(e)}")
+                return "加载失败"
+        
+        from PyQt5.QtCore import QMetaObject, Qt, Q_ARG
+     
+        def thread_func():
+            changelog_text = load()
+            # 使用 TextEdit 的 setPlainText 方法
+            QMetaObject.invokeMethod(
+                self.changelogContent,
+                "setPlainText",
+                Qt.QueuedConnection,
+                Q_ARG(str, changelog_text)
+            )
+        
+        thread = threading.Thread(target=thread_func, daemon=True)
+        thread.start()
     
     def __checkUpdate(self):
         """ 检查更新 """
@@ -433,7 +476,7 @@ class UpdateInterface(BaseScrollAreaInterface):
                     if changelog:
                         QMetaObject.invokeMethod(
                             self.changelogContent,
-                            "setText",
+                            "setPlainText",
                             Qt.QueuedConnection,
                             Q_ARG(str, changelog)
                         )

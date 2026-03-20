@@ -29,6 +29,12 @@ def get_changelog_from_github(max_retries=3):
             if attempt == max_retries - 1:
                 logger.error(f"获取更新日志失败：多次重试后仍超时")
                 return None
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                logger.error(f"获取更新日志失败：文件不存在 (404)")
+                return None
+            logger.error(f"获取更新日志失败：{str(e)}")
+            return None
         except requests.exceptions.RequestException as e:
             logger.error(f"获取更新日志失败：{str(e)}")
             return None
