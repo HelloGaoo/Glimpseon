@@ -382,45 +382,76 @@ class UpdateInterface(BaseScrollAreaInterface):
         self.updateStatusIcon.setStyleSheet("background-color: #0078D4; border-radius: 8px;")
         
         def check():
-            """ 模拟检查更新 """
-            import time
-            time.sleep(1.5)
-            # 返回 是否有更新，新版本号，更新日志
-            return False, None, None
+            try:
+                github_version, github_build_date = get_version_from_github()
+                if github_version and github_build_date:
+                    logger.info(f"GitHub 最新版本：{github_version} 构建日期：{github_build_date}")
+                    logger.info(f"当前版本：{VERSION}")
+                    if github_version != VERSION:
+                        changelog = f"新版本：{github_version}\n构建日期：{github_build_date}\n当前版本：{VERSION}"
+                        return True, github_version, changelog
+                    else:
+                        return False, None, None
+                else:
+                    logger.warning("无法获取 GitHub 版本信息")
+                    return False, None, None
+            except Exception as e:
+                logger.error(f"检查更新失败：{str(e)}")
+                raise
         
         from PyQt5.QtCore import QMetaObject, Qt, Q_ARG
         def thread_func():
             try:
                 has_update, new_version, changelog = check()
-                QMetaObject.invokeMethod(
-                    self.updateStatusLabel,
-                    "setText",
-                    Qt.QueuedConnection,
-                    Q_ARG(str, "已是最新版本" if not has_update else f"发现新版本：{new_version}")
-                )
-                color = "#107C10"
-                QMetaObject.invokeMethod(
-                    self.updateStatusLabel,
-                    "setStyleSheet",
-                    Qt.QueuedConnection,
-                    Q_ARG(str, f"color: {color};")
-                )
-                
-                QMetaObject.invokeMethod(
-                    self.updateStatusIcon,
-                    "setStyleSheet",
-                    Qt.QueuedConnection,
-                    Q_ARG(str, f"background-color: {color}; border-radius: 8px;")
-                )
-    
-
-
-                if has_update and changelog:
+                if has_update:
                     QMetaObject.invokeMethod(
-                        self.changelogContent,
+                        self.updateStatusLabel,
                         "setText",
                         Qt.QueuedConnection,
-                        Q_ARG(str, changelog)
+                        Q_ARG(str, f"发现新版本：{new_version}")
+                    )
+                    color = "#FF8C00"
+                    QMetaObject.invokeMethod(
+                        self.updateStatusLabel,
+                        "setStyleSheet",
+                        Qt.QueuedConnection,
+                        Q_ARG(str, f"color: {color};")
+                    )
+                    
+                    QMetaObject.invokeMethod(
+                        self.updateStatusIcon,
+                        "setStyleSheet",
+                        Qt.QueuedConnection,
+                        Q_ARG(str, f"background-color: {color}; border-radius: 8px;")
+                    )
+
+                    if changelog:
+                        QMetaObject.invokeMethod(
+                            self.changelogContent,
+                            "setText",
+                            Qt.QueuedConnection,
+                            Q_ARG(str, changelog)
+                        )
+                else:
+                    QMetaObject.invokeMethod(
+                        self.updateStatusLabel,
+                        "setText",
+                        Qt.QueuedConnection,
+                        Q_ARG(str, "已是最新版本")
+                    )
+                    color = "#107C10"
+                    QMetaObject.invokeMethod(
+                        self.updateStatusLabel,
+                        "setStyleSheet",
+                        Qt.QueuedConnection,
+                        Q_ARG(str, f"color: {color};")
+                    )
+                    
+                    QMetaObject.invokeMethod(
+                        self.updateStatusIcon,
+                        "setStyleSheet",
+                        Qt.QueuedConnection,
+                        Q_ARG(str, f"background-color: {color}; border-radius: 8px;")
                     )
                 
                 QMetaObject.invokeMethod(
@@ -441,7 +472,21 @@ class UpdateInterface(BaseScrollAreaInterface):
                     self.updateStatusLabel,
                     "setText",
                     Qt.QueuedConnection,
-                    Q_ARG(str, "检查失败")
+                    Q_ARG(str, f"检查失败：{str(e)}")
+                )
+                color = "#FF0000"
+                QMetaObject.invokeMethod(
+                    self.updateStatusLabel,
+                    "setStyleSheet",
+                    Qt.QueuedConnection,
+                    Q_ARG(str, f"color: {color};")
+                )
+                
+                QMetaObject.invokeMethod(
+                    self.updateStatusIcon,
+                    "setStyleSheet",
+                    Qt.QueuedConnection,
+                    Q_ARG(str, f"background-color: {color}; border-radius: 8px;")
                 )
         
         thread = threading.Thread(target=thread_func, daemon=True)
