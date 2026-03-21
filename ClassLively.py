@@ -427,6 +427,9 @@ class UpdateInterface(BaseScrollAreaInterface):
             self.__downloadUpdate()
             return
         
+        check_type = "自动检查" if auto_check else "手动检查"
+        logger.info(f"{check_type}：开始检查版本")
+        
         if not auto_check:
             self.checkUpdateButton.setEnabled(False)
             self.updateStatusLabel.setText("正在检查更新")
@@ -435,12 +438,10 @@ class UpdateInterface(BaseScrollAreaInterface):
         
         def do_check():
             try:
-                logger.info("开始检查版本...")
                 result = check_version_from_github()
-                logger.info(f"检查完成，结果：success={result['success']}, version={result.get('version')}")
                 
                 if not result['success']:
-                    logger.warning(f"检查更新失败：{result.get('error', '未知错误')}")
+                    logger.warning(f"{check_type}：检查版本失败 - {result.get('error', '未知错误')}")
                     if not auto_check:
                         self.checkUpdateButton.setEnabled(True)
                         self.updateStatusLabel.setText(f"检查失败：{result.get('error', '未知错误')}")
@@ -452,13 +453,13 @@ class UpdateInterface(BaseScrollAreaInterface):
                 github_build_date = result['build_date']
                 changelog = result['changelog']
                 
-                logger.info(f"GitHub 最新版本：{github_version} 构建日期：{github_build_date}")
-                logger.info(f"当前版本：{VERSION}")
+                logger.info(f"{check_type}：GitHub 最新版本：{github_version} (构建日期：{github_build_date})，当前版本：{VERSION}")
                 
                 has_update = (github_version != VERSION)
-                logger.info(f"是否有更新：{has_update}")
                 
                 if has_update:
+                    logger.info(f"{check_type}：发现新版本 {github_version}")
+                    
                     self.has_new_version = True
                     self.new_version = github_version
                     self.build_date = github_build_date
@@ -475,8 +476,9 @@ class UpdateInterface(BaseScrollAreaInterface):
                     if changelog:
                         self.changelogContent.setPlainText(changelog)
                         
-                    logger.info("UI 已更新：新版本")
                 else:
+                    logger.info(f"{check_type}：已是最新版本")
+                    
                     self.updateStatusLabel.setText("已是最新版本")
                     self.updateStatusLabel.setStyleSheet("color: #107C10;")
                     self.updateStatusIcon.setStyleSheet("background-color: #107C10; border-radius: 8px;")
@@ -486,11 +488,9 @@ class UpdateInterface(BaseScrollAreaInterface):
                     
                     if changelog:
                         self.changelogContent.setPlainText(changelog)
-                        
-                    logger.info("UI 已更新：已是最新版本")
                 
             except Exception as e:
-                logger.error(f"检查更新时出错：{str(e)}")
+                logger.error(f"{check_type}：检查更新时出错 - {str(e)}")
                 if not auto_check:
                     self.checkUpdateButton.setEnabled(True)
                     self.updateStatusLabel.setText(f"更新 UI 失败：{str(e)}")
