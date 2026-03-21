@@ -469,12 +469,17 @@ class UpdateInterface(BaseScrollAreaInterface):
                     self.updateStatusLabel.setStyleSheet("color: #FF8C00;")
                     self.updateStatusIcon.setStyleSheet("background-color: #FF8C00; border-radius: 8px;")
                     
-                    self.checkUpdateButton.setText("下载更新")
-                    self.checkUpdateButton.setIcon(FIF.DOWNLOAD)
-                    self.checkUpdateButton.setEnabled(True)
+                    if not auto_check:
+                        self.checkUpdateButton.setText("下载更新")
+                        self.checkUpdateButton.setIcon(FIF.DOWNLOAD)
+                        self.checkUpdateButton.setEnabled(True)
                     
                     if changelog:
                         self.changelogContent.setPlainText(changelog)
+                    
+                    if auto_check and cfg.autoUpdate.value:
+                        logger.info("自动检查：启用自动更新，开始下载")
+                        QTimer.singleShot(2000, self.__downloadUpdate)
                         
                 else:
                     logger.info(f"{check_type}：已是最新版本")
@@ -495,8 +500,6 @@ class UpdateInterface(BaseScrollAreaInterface):
                     self.checkUpdateButton.setEnabled(True)
                     self.updateStatusLabel.setText(f"更新 UI 失败：{str(e)}")
         
-        # QTimer
-        from PyQt5.QtCore import QTimer
         QTimer.singleShot(100, do_check)
     
     def __downloadUpdate(self):
