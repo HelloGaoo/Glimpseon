@@ -1,5 +1,6 @@
 DownloadInterface {
     background-color: rgb(39, 39, 39);
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 DownloadInterface #scrollWidget {
@@ -17,6 +18,7 @@ QLabel#settingLabel {
     font: 33px;
     background-color: transparent;
     color: white;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 卡片 */
@@ -24,6 +26,7 @@ CardWidget {
     background-color: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 CardWidget:hover {
@@ -35,10 +38,22 @@ QLabel#softwareNameLabel {
     font-size: 18px;
     font-weight: bold;
     color: white;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 软件描述 */
 QLabel#softwareDescLabel {
     font-size: 14px;
     color: #888888;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 分区标题 */
+QLabel#sectionTitleLabel {
+    font-size: 20px;
+    font-weight: bold;
+    color: white;
+    margin-top: 20px;
+    margin-bottom: 10px;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }

@@ -1,4 +1,4 @@
-# ClassLively
+﻿﻿# ClassLively
 # Copyright (C) 2026 HelloGaoo & WHYOS
 #
 # This program is free software: you can redistribute it and/or modify
@@ -954,7 +954,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         
         theme = 'dark' if isDarkTheme() else 'light'
         try:
-            qss_path = get_resource_path(os.path.join('resource', 'qss', theme, 'setting_interface.qss'))
+            qss_path = get_resource_path(os.path.join('resource', 'qss', theme, 'download_interface.qss'))
             with open(qss_path, encoding='utf-8') as f:
                 self.setStyleSheet(f.read())
         except Exception:
@@ -967,23 +967,43 @@ class DownloadInterface(BaseScrollAreaInterface):
     def __initWidgets(self):
         """ 初始化控件 """
         self.softwareContainer = QWidget(self.scrollWidget)
-        self.softwareLayout = QGridLayout(self.softwareContainer)
+        self.softwareLayout = QVBoxLayout(self.softwareContainer)
         self.softwareLayout.setContentsMargins(0, 0, 0, 0)
-        self.softwareLayout.setSpacing(12)
-        self.softwareLayout.setColumnStretch(0, 1)
-        self.softwareLayout.setColumnStretch(1, 1)
+        self.softwareLayout.setSpacing(16)
         self.currentRow = 0
         self.currentCol = 0
         self.minColumns = 2
+        self.currentGridLayout = None
     
     def __initLayout(self):
         """ 初始化布局 """
         self.mainLayout.addWidget(self.softwareContainer)
     
+    def addSection(self, title):
+        """ 添加分区标题 """
+        sectionLabel = QLabel(title, self.softwareContainer)
+        sectionLabel.setObjectName("sectionTitleLabel")
+        sectionLabel.setStyleSheet("font-size: 20px; font-weight: bold; color: white; margin-top: 20px; margin-bottom: 10px;")
+        self.softwareLayout.addWidget(sectionLabel)
+        
+        gridWidget = QWidget()
+        self.currentGridLayout = QGridLayout(gridWidget)
+        self.currentGridLayout.setContentsMargins(0, 0, 0, 0)
+        self.currentGridLayout.setSpacing(12)
+        self.currentGridLayout.setColumnStretch(0, 1)
+        self.currentGridLayout.setColumnStretch(1, 1)
+        self.currentRow = 0
+        self.currentCol = 0
+        
+        self.softwareLayout.addWidget(gridWidget)
+    
     def addSoftware(self, icon_path, name, description):
         """ 添加一个软件到列表 """
+        if self.currentGridLayout is None:
+            self.addSection("常用软件")
+        
         softwareCard = CardWidget(self.softwareContainer)
-        softwareCard.setMinimumHeight(50)
+        softwareCard.setMinimumHeight(100)
         softwareCard.setMaximumHeight(100)
         softwareCard.setMinimumWidth(400)
         
@@ -1023,7 +1043,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         cardLayout.addLayout(infoLayout, 1)
         cardLayout.addWidget(checkBox)
         
-        self.softwareLayout.addWidget(softwareCard, self.currentRow, self.currentCol)
+        self.currentGridLayout.addWidget(softwareCard, self.currentRow, self.currentCol)
         
         self.softwareList.append({
             'card': softwareCard,
@@ -1668,7 +1688,7 @@ class MainWindow(FluentWindow):
             color: #FFFFFF; 
             font-size: 14px; 
             font-weight: bold; 
-            font-family: 'Microsoft YaHei';
+            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
         
@@ -1684,7 +1704,7 @@ class MainWindow(FluentWindow):
             color: #FFFFFF; 
             font-size: 16px; 
             font-weight: bold; 
-            font-family: 'Microsoft YaHei';
+            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
         self.poetryLabel.setWordWrap(False)
@@ -1751,30 +1771,13 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.downloadInterface, FIF.DOWNLOAD, "软件下载")
         
         icon_path = get_resource_path(os.path.join('resource', 'icons', 'CY.png'))
-        self.downloadInterface.addSoftware(icon_path, "ClassLively", "天气、诗词")
+        
+        self.downloadInterface.addSection("常用软件")
+        self.downloadInterface.addSoftware(icon_path, "ClassLively", "")
         self.downloadInterface.addSoftware(icon_path, "微信", "即时通讯软件")
-        self.downloadInterface.addSoftware(icon_path, "ClassLively", "天气、诗词")
-        self.downloadInterface.addSoftware(icon_path, "微信", "即时通讯软件")
-        self.downloadInterface.addSoftware(icon_path, "ClassLively", "天气、诗词")
-        self.downloadInterface.addSoftware(icon_path, "微信", "即时通讯软件")
-        self.downloadInterface.addSoftware(icon_path, "ClassLively", "天气、诗词")
-        self.downloadInterface.addSoftware(icon_path, "微信", "即时通讯软件")
-        self.downloadInterface.addSoftware(icon_path, "ClassLively", "天气、诗词")
-        self.downloadInterface.addSoftware(icon_path, "微信", "即时通讯软件")
-        self.downloadInterface.addSoftware(icon_path, "ClassLively", "天气、诗词")
-        self.downloadInterface.addSoftware(icon_path, "微信", "即时通讯软件")
-        self.downloadInterface.addSoftware(icon_path, "ClassLively", "天气、诗词")
-        self.downloadInterface.addSoftware(icon_path, "微信", "即时通讯软件")
-        self.downloadInterface.addSoftware(icon_path, "ClassLively", "天气、诗词")
-        self.downloadInterface.addSoftware(icon_path, "微信", "即时通讯软件")
-        self.downloadInterface.addSoftware(icon_path, "ClassLively", "天气、诗词")
-        self.downloadInterface.addSoftware(icon_path, "微信", "即时通讯软件")
-        self.downloadInterface.addSoftware(icon_path, "ClassLively", "天气、诗词")
-        self.downloadInterface.addSoftware(icon_path, "微信", "即时通讯软件")
-        self.downloadInterface.addSoftware(icon_path, "ClassLively", "天气、诗词")
-        self.downloadInterface.addSoftware(icon_path, "微信", "即时通讯软件")
-        self.downloadInterface.addSoftware(icon_path, "ClassLively", "天气、诗词")
-        self.downloadInterface.addSoftware(icon_path, "微信", "即时通讯软件")
+        
+        self.downloadInterface.addSection("办公软件")
+        self.downloadInterface.addSoftware(icon_path, "Microsoft Office", "办公软件套件")
 
 
     def initSettingsNavigation(self):
@@ -1872,7 +1875,7 @@ class MainWindow(FluentWindow):
             color: {color_str}; 
             font-size: {clock_size}px; 
             font-weight: bold; 
-            font-family: 'Segoe UI', 'Microsoft YaHei';
+            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
         
@@ -1880,7 +1883,7 @@ class MainWindow(FluentWindow):
             color: {color_str}; 
             font-size: {date_size}px; 
             font-weight: bold; 
-            font-family: 'Microsoft YaHei';
+            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
         
@@ -1888,7 +1891,7 @@ class MainWindow(FluentWindow):
             color: {color_str}; 
             font-size: {poetry_size}px; 
             font-weight: bold; 
-            font-family: 'Microsoft YaHei';
+            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
         
@@ -1896,7 +1899,7 @@ class MainWindow(FluentWindow):
             color: {color_str}; 
             font-size: {weather_size}px; 
             font-weight: bold; 
-            font-family: 'Microsoft YaHei';
+            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
     
@@ -2369,23 +2372,41 @@ if __name__ == "__main__":
     logger.info(f"系统版本：Windows {platform.version()} Python 版本：{platform.python_version()}")
     logger.info(f"软件运行路径：{BASE_DIR}")
 
+    # 加载鸿蒙字体
     font_dir = get_resource_path(os.path.join("font", "HarmonyOS_Sans"))
-    font_files = [
-        "HarmonyOS_Sans_Thin.ttf",
-        "HarmonyOS_Sans_Light.ttf",
-        "HarmonyOS_Sans_Regular.ttf",
-        "HarmonyOS_Sans_Medium.ttf",
-        "HarmonyOS_Sans_Bold.ttf",
-        "HarmonyOS_Sans_Black.ttf"
-    ]
-
-    for font_file in font_files:
-        font_path = os.path.join(font_dir, font_file)
-        if os.path.exists(font_path):
-            QFontDatabase.addApplicationFont(font_path)
-
-    QApplication.setFont(QFont("HarmonyOS Sans SC", 10))
-    logger.info("字体已设置为：HarmonyOS Sans SC")
+    font_loaded = False
+    
+    if os.path.exists(font_dir):
+        font_files = [
+            "HarmonyOS_Sans_Thin.ttf",
+            "HarmonyOS_Sans_Light.ttf",
+            "HarmonyOS_Sans_Regular.ttf",
+            "HarmonyOS_Sans_Medium.ttf",
+            "HarmonyOS_Sans_Bold.ttf",
+            "HarmonyOS_Sans_Black.ttf"
+        ]
+        
+        for font_file in font_files:
+            try:
+                font_path = os.path.join(font_dir, font_file)
+                if os.path.exists(font_path):
+                    font_id = QFontDatabase.addApplicationFont(font_path)
+                    if font_id != -1:
+                        font_loaded = True
+                        logger.debug(f"成功加载字体：{font_file}")
+                    else:
+                        logger.warning(f"字体加载失败：{font_file}")
+            except Exception as e:
+                logger.warning(f"加载字体 {font_file} 时发生错误：{e}")
+    else:
+        logger.warning(f"字体目录不存在：{font_dir}")
+    
+    if font_loaded:
+        QApplication.setFont(QFont("HarmonyOS Sans SC", 10))
+        logger.info("字体已设置为：HarmonyOS Sans SC")
+    else:
+        QApplication.setFont(QFont("Microsoft YaHei", 10))
+        logger.info("HarmonyOS Sans SC加载失败，已使用备用字体：Microsoft YaHei")
     
     # 设置全局异常钩子
     setup_exception_hook()

@@ -1,5 +1,6 @@
 SettingInterface, #scrollWidget {
     background-color: rgb(249, 249, 249);
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 QScrollArea {
@@ -12,6 +13,7 @@ QScrollArea {
 QLabel#settingLabel {
     font: 33px;
     background-color: transparent;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 卡片 */
@@ -19,6 +21,7 @@ CardWidget {
     background-color: rgba(255, 255, 255, 0.8);
     border: 1px solid rgba(0, 0, 0, 0.06);
     border-radius: 8px;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 CardWidget:hover {
