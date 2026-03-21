@@ -23,19 +23,15 @@ CardWidget {
 
 CardWidget:hover {
     background-color: rgba(255, 255, 255, 1);
-    border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
-/* SettingCard 悬停效果 */
-SettingCard, 
-SettingCard:hover,
+/* SettingCard 样式 */
+SettingCard,
 LineEditSettingCard,
-LineEditSettingCard:hover,
 SpinBoxSettingCard,
-SpinBoxSettingCard:hover,
-ButtonSettingCard,
-ButtonSettingCard:hover {
+ButtonSettingCard {
     background-color: transparent;
+    border-radius: 8px;
 }
 
 SettingCard:hover,
@@ -43,6 +39,7 @@ LineEditSettingCard:hover,
 SpinBoxSettingCard:hover,
 ButtonSettingCard:hover {
     background-color: rgba(0, 0, 0, 0.03);
+    border-radius: 8px;
 }
 
 /* PushButton 悬停效果 */

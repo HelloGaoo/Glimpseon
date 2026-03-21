@@ -21,6 +21,10 @@ CardWidget {
     border-radius: 8px;
 }
 
+CardWidget:hover {
+    background-color: rgba(255, 255, 255, 1);
+}
+
 /* SmoothScrollArea */
 SmoothScrollArea {
     background-color: transparent;
@@ -54,7 +58,7 @@ QLabel#buildDate {
     font-size: 13px;
 }
 
-/* SettingCard 悬停效果 */
+/* SettingCard 样式 */
 SettingCard {
     background-color: rgba(255, 255, 255, 0.8);
     border: 1px solid rgba(0, 0, 0, 0.06);
@@ -62,15 +66,15 @@ SettingCard {
 }
 
 SettingCard:hover {
-    background-color: rgba(255, 255, 255, 0.9);
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    background-color: rgba(255, 255, 255, 1);
 }
 
-SwitchSettingCard,
-SwitchSettingCard:hover {
-    background-color: transparent;
+SwitchSettingCard {
+    background-color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 8px;
 }
 
 SwitchSettingCard:hover {
-    background-color: rgba(0, 0, 0, 0.03);
+    background-color: rgba(255, 255, 255, 1);
 }
