@@ -470,7 +470,7 @@ class UpdateInterface(BaseScrollAreaInterface):
                     self.updateStatusIcon.setStyleSheet("background-color: #FF8C00; border-radius: 8px;")
                     
                     self.checkUpdateButton.setText("下载更新")
-                    self.checkUpdateButton.setIcon(QIcon(FIF.DOWNLOAD.value))
+                    self.checkUpdateButton.setIcon(FIF.DOWNLOAD)
                     self.checkUpdateButton.setEnabled(True)
                     
                     if changelog:
