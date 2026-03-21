@@ -479,7 +479,7 @@ class UpdateInterface(BaseScrollAreaInterface):
                     
                     if auto_check and cfg.autoUpdate.value:
                         logger.info("自动检查：启用自动更新，开始下载")
-                        QTimer.singleShot(2000, self.__downloadUpdate)
+                        QTimer.singleShot(2000, lambda: self.__downloadUpdate(auto_update=True))
                         
                 else:
                     logger.info(f"{check_type}：已是最新版本")
@@ -502,22 +502,27 @@ class UpdateInterface(BaseScrollAreaInterface):
         
         QTimer.singleShot(100, do_check)
     
-    def __downloadUpdate(self):
-        """ 下载并安装更新 """
+    def __downloadUpdate(self, auto_update=False):
+        """下载并安装更新"""
         self.checkUpdateButton.setEnabled(False)
         self.updateStatusLabel.setText("正在下载更新")
+        self.updateStatusLabel.setStyleSheet("color: #0078D4;")
         
         update_folder = os.path.join(BASE_DIR, 'update_temp')
         download_path = os.path.join(update_folder, 'update.7z')
+        backup_folder = os.path.join(BASE_DIR, 'update_backup')
         
         from PyQt5.QtCore import QMetaObject, Qt, Q_ARG
+        from PyQt5.QtWidgets import QMessageBox
         
         def download_thread():
             try:
+                # 清理旧的更新文件夹
                 if os.path.exists(update_folder):
                     shutil.rmtree(update_folder)
                 os.makedirs(update_folder)
                 
+                # 下载进度回调
                 def progress_callback(current, total):
                     percent = (current / total) * 100
                     QMetaObject.invokeMethod(
@@ -528,9 +533,34 @@ class UpdateInterface(BaseScrollAreaInterface):
                     )
                 
                 logger.info(f"正在从 {self.update_url} 下载更新")
-                if not download_update(download_path, progress_callback):
-                    raise Exception("下载失败")
+                download_success = False
+                max_download_retries = 3
                 
+                for retry in range(max_download_retries):
+                    try:
+                        if retry > 0:
+                            logger.info(f"下载更新重试 {retry}/{max_download_retries}")
+                            QMetaObject.invokeMethod(
+                                self.updateStatusLabel,
+                                "setText",
+                                Qt.QueuedConnection,
+                                Q_ARG(str, f"下载失败，重试 {retry}/{max_download_retries}...")
+                            )
+                        
+                        if download_update(download_path, progress_callback):
+                            download_success = True
+                            break
+                        else:
+                            if os.path.exists(download_path):
+                                os.remove(download_path)
+                    except Exception as e:
+                        logger.warning(f"下载尝试 {retry + 1} 失败：{str(e)}")
+                        if os.path.exists(download_path):
+                            os.remove(download_path)
+                
+                if not download_success:
+                    raise Exception("下载更新失败，已达到最大重试次数")
+
                 QMetaObject.invokeMethod(
                     self.updateStatusLabel,
                     "setText",
@@ -540,34 +570,71 @@ class UpdateInterface(BaseScrollAreaInterface):
                 
                 extract_folder = os.path.join(update_folder, 'extracted')
                 if not extract_update(download_path, extract_folder):
-                    raise Exception("解压失败")
+                    raise Exception("解压更新失败")
                 
+                # 删除下载的压缩包
                 if os.path.exists(download_path):
                     os.remove(download_path)
                 
+                # 创建备份
+                if auto_update:
+                    QMetaObject.invokeMethod(
+                        self.updateStatusLabel,
+                        "setText",
+                        Qt.QueuedConnection,
+                        Q_ARG(str, "正在备份当前版本")
+                    )
+                    
+                    try:
+                        if os.path.exists(backup_folder):
+                            shutil.rmtree(backup_folder)
+                        shutil.copytree(BASE_DIR, backup_folder, 
+                                     ignore=shutil.ignore_patterns('update_temp', 'update_backup', 'logs', '*.log'))
+                        logger.info("已创建版本备份")
+                    except Exception as e:
+                        logger.warning(f"创建备份失败：{str(e)}")
+
                 script_path = create_update_script(BASE_DIR, extract_folder)
                 if not script_path:
                     raise Exception("创建更新脚本失败")
+                QMetaObject.invokeMethod(
+                    self.updateStatusLabel,
+                    "setText",
+                    Qt.QueuedConnection,
+                    Q_ARG(str, "正在准备更新，程序即将重启")
+                )
                 
                 import subprocess
-                subprocess.Popen([script_path], creationflags=subprocess.DETACHED_PROCESS)
+                # 使用 CREATE_NEW_PROCESS_GROUP 和 DETACHED_PROCESS 让脚本完全独立运行
+                subprocess.Popen(
+                    f'cmd /c start "ClassLively Update" /MIN "{script_path}"',
+                    shell=True,
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+                )
+                
+                logger.info("更新脚本已启动，准备退出应用")
                 
                 QMetaObject.invokeMethod(
                     self.updateStatusLabel,
                     "setText",
                     Qt.QueuedConnection,
-                    Q_ARG(str, "正在重启应用")
+                    Q_ARG(str, "更新完成，正在重启应用")
                 )
                 
                 QApplication.instance().quit()
                 
             except Exception as e:
                 logger.error(f"更新失败：{str(e)}")
+                if os.path.exists(update_folder):
+                    try:
+                        shutil.rmtree(update_folder)
+                    except Exception:
+                        pass
                 QMetaObject.invokeMethod(
                     self.checkUpdateButton,
                     "setText",
                     Qt.QueuedConnection,
-                    Q_ARG(str, "检查更新")
+                    Q_ARG(str, "重试更新")
                 )
                 QMetaObject.invokeMethod(
                     self.checkUpdateButton,
@@ -587,23 +654,20 @@ class UpdateInterface(BaseScrollAreaInterface):
                     Qt.QueuedConnection,
                     Q_ARG(str, f"更新失败：{str(e)}")
                 )
-                color = "#FF0000"
                 QMetaObject.invokeMethod(
                     self.updateStatusLabel,
                     "setStyleSheet",
                     Qt.QueuedConnection,
-                    Q_ARG(str, f"color: {color};")
+                    Q_ARG(str, "color: #FF0000;")
                 )
                 QMetaObject.invokeMethod(
                     self.updateStatusIcon,
                     "setStyleSheet",
                     Qt.QueuedConnection,
-                    Q_ARG(str, f"background-color: {color}; border-radius: 8px;")
+                    Q_ARG(str, "background-color: #FF0000; border-radius: 8px;")
                 )
                 
                 self.has_new_version = False
-                if os.path.exists(update_folder):
-                    shutil.rmtree(update_folder, ignore_errors=True)
         
         thread = threading.Thread(target=download_thread, daemon=True)
         thread.start()

@@ -170,34 +170,84 @@ chcp 65001 >nul
 echo   ClassLively
 echo.
 
-echo [1/4] 等待进程关闭
+echo [1/5] 等待进程关闭
 timeout /t 3 /nobreak >nul
 
-echo [2/4] 复制更新文件
-xcopy /E /Y /I /H "{update_folder}\\*" "{app_dir}"
+echo [2/5] 备份当前版本
+if exist "{app_dir}\\update_backup" (
+    echo 发现旧备份，正在删除...
+    rmdir /S /Q "{app_dir}\\update_backup"
+)
+echo 正在创建新备份...
+xcopy /E /Y /I /H /EXCLUDE:exclude_list.txt "{app_dir}" "{app_dir}\\update_backup\\" >nul
 if errorlevel 1 (
-    echo 文件复制失败！
-    pause
-    exit /b 1
+    echo 备份创建失败，但将继续更新...
 )
 
-echo [3/4] 清理临时文件
+echo [3/5] 复制更新文件
+echo 正在复制新文件...
+xcopy /E /Y /I /H "{update_folder}\\*" "{app_dir}"
+if errorlevel 1 (
+    echo.
+    echo 错误：文件复制失败！
+    echo 正在尝试恢复
+    timeout /t 2 /nobreak >nul
+    goto :restore
+)
+
+echo [4/5] 清理临时文件
 timeout /t 1 /nobreak >nul
 rmdir /S /Q "{update_folder}"
+if exist "{app_dir}\\exclude_list.txt" (
+    del "{app_dir}\\exclude_list.txt"
+)
 
-echo [4/4] 启动 ClassLively
+echo [5/5] 启动 ClassLively
 timeout /t 1 /nobreak >nul
 start "" "{app_dir}\\ClassLively.exe"
 
 echo.
 echo   更新完成
 timeout /t 2 /nobreak >nul
-exit
+exit /b 0
+
+:restore
+echo.
+echo 正在从备份恢复...
+if exist "{app_dir}\\update_backup\\*" (
+    xcopy /E /Y /I /H "{app_dir}\\update_backup\\*" "{app_dir}"
+    if errorlevel 1 (
+        echo 恢复失败！请手动检查。
+        pause
+        exit /b 1
+    )
+    echo 恢复完成！
+    timeout /t 2 /nobreak >nul
+    start "" "{app_dir}\\ClassLively.exe"
+    exit /b 0
+) else (
+    echo 备份不存在，无法恢复！
+    pause
+    exit /b 1
+)
+'''
+    
+    # 创建排除列表
+    exclude_list = f'''update_temp\\
+update_backup\\
+logs\\
+*.log
+*.tmp
 '''
     
     try:
         with open(script_path, 'w', encoding='utf-8') as f:
             f.write(bat_content)
+        
+        # 写入排除列表
+        exclude_path = os.path.join(app_dir, 'exclude_list.txt')
+        with open(exclude_path, 'w', encoding='utf-8') as f:
+            f.write(exclude_list)
         
         logger.info(f"更新脚本已创建：{script_path}")
         return script_path
