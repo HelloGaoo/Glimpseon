@@ -961,8 +961,8 @@ class MainWindow(FluentWindow):
         super().__init__()
         logger.info("父类构造函数调用完成")
         
-        setTheme(Theme.DARK)
-        logger.info("主题已设置为深色模式")
+        setTheme(cfg.themeMode.value)
+        logger.info(f"主题已设置为：{cfg.themeMode.value}")
         
         # 设置窗口图标
         icon_path = get_resource_path(os.path.join("resource", "icons", "CY.png"))
