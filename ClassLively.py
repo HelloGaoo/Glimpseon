@@ -19,7 +19,7 @@ import shutil
 from config import cfg, get_default_config_dict
 from logger import logger, setup_exception_hook
 from version import VERSION, BUILD_DATE
-from version_updater import get_version_from_github, get_changelog_from_github
+from version_updater import check_version_from_github, download_update, extract_update, create_update_script
 from constants import APP_NAME
 from city_selector import RegionDatabase
 import datetime
@@ -417,46 +417,97 @@ class UpdateInterface(BaseScrollAreaInterface):
         thread = threading.Thread(target=thread_func, daemon=True)
         thread.start()
     
-    def __checkUpdate(self):
-        """ 检查更新 """
-        self.checkUpdateButton.setEnabled(False)
-        self.updateStatusLabel.setText("正在检查更新")
-        self.updateStatusLabel.setStyleSheet("color: #0078D4;")
-        self.updateStatusIcon.setStyleSheet("background-color: #0078D4; border-radius: 8px;")
+    def __checkUpdate(self, auto_check=False):
+        """
+        检查更新
+        Args:
+            auto_check: 是否为自动检查
+        """
+        if hasattr(self, 'has_new_version') and self.has_new_version:
+            self.__downloadUpdate()
+            return
         
-        def check():
-            try:
-                github_version, github_build_date = get_version_from_github()
-                if github_version and github_build_date:
-                    logger.info(f"GitHub 最新版本：{github_version} 构建日期：{github_build_date}")
-                    logger.info(f"当前版本：{VERSION}")
-                    if github_version != VERSION:
-                        # 获取更新日志
-                        github_changelog = get_changelog_from_github()
-                        if github_changelog:
-                            changelog = github_changelog
-                        else:
-                            changelog = f"新版本：{github_version}\n构建日期：{github_build_date}\n当前版本：{VERSION}"
-                        return True, github_version, changelog
-                    else:
-                        return False, None, None
-                else:
-                    logger.warning("无法获取 GitHub 版本信息")
-                    return False, None, None
-            except Exception as e:
-                logger.error(f"检查更新失败：{str(e)}")
-                raise
+        if not auto_check:
+            self.checkUpdateButton.setEnabled(False)
+            self.updateStatusLabel.setText("正在检查更新")
+            self.updateStatusLabel.setStyleSheet("color: #0078D4;")
+            self.updateStatusIcon.setStyleSheet("background-color: #0078D4; border-radius: 8px;")
         
         from PyQt5.QtCore import QMetaObject, Qt, Q_ARG
+        
         def thread_func():
             try:
-                has_update, new_version, changelog = check()
+                result = check_version_from_github()
+                
+                if not result['success']:
+                    if not auto_check:
+                        QMetaObject.invokeMethod(
+                            self.checkUpdateButton,
+                            "setEnabled",
+                            Qt.QueuedConnection,
+                            Q_ARG(bool, True)
+                        )
+                        QMetaObject.invokeMethod(
+                            self.updateStatusLabel,
+                            "setText",
+                            Qt.QueuedConnection,
+                            Q_ARG(str, f"检查失败：{result['error']}")
+                        )
+                        color = "#FF0000"
+                        QMetaObject.invokeMethod(
+                            self.updateStatusLabel,
+                            "setStyleSheet",
+                            Qt.QueuedConnection,
+                            Q_ARG(str, f"color: {color};")
+                        )
+                        QMetaObject.invokeMethod(
+                            self.updateStatusIcon,
+                            "setStyleSheet",
+                            Qt.QueuedConnection,
+                            Q_ARG(str, f"background-color: {color}; border-radius: 8px;")
+                        )
+                    return
+                
+                github_version = result['version']
+                github_build_date = result['build_date']
+                changelog = result['changelog']
+                
+                logger.info(f"GitHub 最新版本：{github_version} 构建日期：{github_build_date}")
+                logger.info(f"当前版本：{VERSION}")
+                
+                has_update = (github_version != VERSION)
+                
                 if has_update:
+                    self.has_new_version = True
+                    self.new_version = github_version
+                    self.build_date = github_build_date
+                    self.update_url = result['update_url']
+                    
+                    if not auto_check:
+                        QMetaObject.invokeMethod(
+                            self.checkUpdateButton,
+                            "setText",
+                            Qt.QueuedConnection,
+                            Q_ARG(str, "下载更新")
+                        )
+                        QMetaObject.invokeMethod(
+                            self.checkUpdateButton,
+                            "setIcon",
+                            Qt.QueuedConnection,
+                            Q_ARG(QIcon, QIcon(FIF.DOWNLOAD.value))
+                        )
+                        QMetaObject.invokeMethod(
+                            self.checkUpdateButton,
+                            "setEnabled",
+                            Qt.QueuedConnection,
+                            Q_ARG(bool, True)
+                        )
+                    
                     QMetaObject.invokeMethod(
                         self.updateStatusLabel,
                         "setText",
                         Qt.QueuedConnection,
-                        Q_ARG(str, f"发现新版本：{new_version}")
+                        Q_ARG(str, f"发现新版本：{github_version}")
                     )
                     color = "#FF8C00"
                     QMetaObject.invokeMethod(
@@ -465,14 +516,13 @@ class UpdateInterface(BaseScrollAreaInterface):
                         Qt.QueuedConnection,
                         Q_ARG(str, f"color: {color};")
                     )
-                    
                     QMetaObject.invokeMethod(
                         self.updateStatusIcon,
                         "setStyleSheet",
                         Qt.QueuedConnection,
                         Q_ARG(str, f"background-color: {color}; border-radius: 8px;")
                     )
-
+                    
                     if changelog:
                         QMetaObject.invokeMethod(
                             self.changelogContent,
@@ -481,35 +531,146 @@ class UpdateInterface(BaseScrollAreaInterface):
                             Q_ARG(str, changelog)
                         )
                 else:
+                    if not auto_check:
+                        QMetaObject.invokeMethod(
+                            self.updateStatusLabel,
+                            "setText",
+                            Qt.QueuedConnection,
+                            Q_ARG(str, "已是最新版本")
+                        )
+                        color = "#107C10"
+                        QMetaObject.invokeMethod(
+                            self.updateStatusLabel,
+                            "setStyleSheet",
+                            Qt.QueuedConnection,
+                            Q_ARG(str, f"color: {color};")
+                        )
+                        QMetaObject.invokeMethod(
+                            self.updateStatusIcon,
+                            "setStyleSheet",
+                            Qt.QueuedConnection,
+                            Q_ARG(str, f"background-color: {color}; border-radius: 8px;")
+                        )
+                        QMetaObject.invokeMethod(
+                            self.checkUpdateButton,
+                            "setEnabled",
+                            Qt.QueuedConnection,
+                            Q_ARG(bool, True)
+                        )
+                    
+                    if changelog:
+                        QMetaObject.invokeMethod(
+                            self.changelogContent,
+                            "setPlainText",
+                            Qt.QueuedConnection,
+                            Q_ARG(str, changelog)
+                        )
+                        
+            except Exception as e:
+                logger.error(f"检查更新时出错：{str(e)}")
+                if not auto_check:
+                    QMetaObject.invokeMethod(
+                        self.checkUpdateButton,
+                        "setEnabled",
+                        Qt.QueuedConnection,
+                        Q_ARG(bool, True)
+                    )
                     QMetaObject.invokeMethod(
                         self.updateStatusLabel,
                         "setText",
                         Qt.QueuedConnection,
-                        Q_ARG(str, "已是最新版本")
+                        Q_ARG(str, f"检查失败：{str(e)}")
                     )
-                    color = "#107C10"
+                    color = "#FF0000"
                     QMetaObject.invokeMethod(
                         self.updateStatusLabel,
                         "setStyleSheet",
                         Qt.QueuedConnection,
                         Q_ARG(str, f"color: {color};")
                     )
-                    
                     QMetaObject.invokeMethod(
                         self.updateStatusIcon,
                         "setStyleSheet",
                         Qt.QueuedConnection,
                         Q_ARG(str, f"background-color: {color}; border-radius: 8px;")
                     )
+        
+        thread = threading.Thread(target=thread_func, daemon=True)
+        thread.start()
+    
+    def __downloadUpdate(self):
+        """ 下载并安装更新 """
+        self.checkUpdateButton.setEnabled(False)
+        self.updateStatusLabel.setText("正在下载更新")
+        
+        update_folder = os.path.join(BASE_DIR, 'update_temp')
+        download_path = os.path.join(update_folder, 'update.7z')
+        
+        from PyQt5.QtCore import QMetaObject, Qt, Q_ARG
+        
+        def download_thread():
+            try:
+                if os.path.exists(update_folder):
+                    shutil.rmtree(update_folder)
+                os.makedirs(update_folder)
+                
+                def progress_callback(current, total):
+                    percent = (current / total) * 100
+                    QMetaObject.invokeMethod(
+                        self.updateStatusLabel,
+                        "setText",
+                        Qt.QueuedConnection,
+                        Q_ARG(str, f"正在下载更新：{percent:.1f}%")
+                    )
+                
+                logger.info(f"正在从 {self.update_url} 下载更新")
+                if not download_update(download_path, progress_callback):
+                    raise Exception("下载失败")
                 
                 QMetaObject.invokeMethod(
-                    self.checkUpdateButton,
-                    "setEnabled",
+                    self.updateStatusLabel,
+                    "setText",
                     Qt.QueuedConnection,
-                    Q_ARG(bool, True)
+                    Q_ARG(str, "正在解压更新")
                 )
+                
+                extract_folder = os.path.join(update_folder, 'extracted')
+                if not extract_update(download_path, extract_folder):
+                    raise Exception("解压失败")
+                
+                if os.path.exists(download_path):
+                    os.remove(download_path)
+                
+                script_path = create_update_script(BASE_DIR, extract_folder)
+                if not script_path:
+                    raise Exception("创建更新脚本失败")
+                
+                import subprocess
+                subprocess.Popen([script_path], creationflags=subprocess.DETACHED_PROCESS)
+                
+                QMetaObject.invokeMethod(
+                    self.updateStatusLabel,
+                    "setText",
+                    Qt.QueuedConnection,
+                    Q_ARG(str, "正在重启应用")
+                )
+                
+                QApplication.instance().quit()
+                
             except Exception as e:
-                logger.error(f"检查更新时出错：{str(e)}")
+                logger.error(f"更新失败：{str(e)}")
+                QMetaObject.invokeMethod(
+                    self.checkUpdateButton,
+                    "setText",
+                    Qt.QueuedConnection,
+                    Q_ARG(str, "检查更新")
+                )
+                QMetaObject.invokeMethod(
+                    self.checkUpdateButton,
+                    "setIcon",
+                    Qt.QueuedConnection,
+                    Q_ARG(QIcon, QIcon(FIF.SYNC.value))
+                )
                 QMetaObject.invokeMethod(
                     self.checkUpdateButton,
                     "setEnabled",
@@ -520,7 +681,7 @@ class UpdateInterface(BaseScrollAreaInterface):
                     self.updateStatusLabel,
                     "setText",
                     Qt.QueuedConnection,
-                    Q_ARG(str, f"检查失败：{str(e)}")
+                    Q_ARG(str, f"更新失败：{str(e)}")
                 )
                 color = "#FF0000"
                 QMetaObject.invokeMethod(
@@ -529,15 +690,18 @@ class UpdateInterface(BaseScrollAreaInterface):
                     Qt.QueuedConnection,
                     Q_ARG(str, f"color: {color};")
                 )
-                
                 QMetaObject.invokeMethod(
                     self.updateStatusIcon,
                     "setStyleSheet",
                     Qt.QueuedConnection,
                     Q_ARG(str, f"background-color: {color}; border-radius: 8px;")
                 )
+                
+                self.has_new_version = False
+                if os.path.exists(update_folder):
+                    shutil.rmtree(update_folder, ignore_errors=True)
         
-        thread = threading.Thread(target=thread_func, daemon=True)
+        thread = threading.Thread(target=download_thread, daemon=True)
         thread.start()
 
 
@@ -1146,6 +1310,11 @@ class MainWindow(FluentWindow):
         """ 显示窗口 """
         logger.info("显示主窗口")
         super().show()
+        
+        if cfg.autoCheckUpdate.value:
+            logger.info("自动检查更新已启用，检查更新中")
+            if hasattr(self, 'updateInterface'):
+                QTimer.singleShot(1000, lambda: self.updateInterface._UpdateInterface__checkUpdate(auto_check=True))
     
     def hide(self):
         """ 隐藏窗口 """
