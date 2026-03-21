@@ -1893,12 +1893,11 @@ if __name__ == "__main__":
     
     app = QApplication(sys.argv)
     
-    # 检查是否已经有实例在运行
+    # 加载翻译
+    locale = QLocale(QLocale.Chinese, QLocale.China)
+    fluentTranslator = FluentTranslator(locale)
+    app.installTranslator(fluentTranslator)
     if not check_single_instance():
-        # 加载翻译
-        locale = QLocale(QLocale.Chinese, QLocale.China)
-        fluentTranslator = FluentTranslator(locale)
-        app.installTranslator(fluentTranslator)
         
         # 创建一个全屏临时窗口作为父窗口
         temp_widget = QWidget()
