@@ -53,3 +53,17 @@ QLabel#buildDate {
     color: rgba(0, 0, 0, 0.4);
     font-size: 13px;
 }
+
+/* 设置卡片 */
+SwitchSettingCard {
+    background-color: transparent;
+    border-radius: 8px;
+}
+
+SwitchSettingCard:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+SwitchSettingCard:pressed {
+    background-color: rgba(0, 0, 0, 0.08);
+}
