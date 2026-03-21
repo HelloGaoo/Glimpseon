@@ -55,16 +55,23 @@ QLabel#buildDate {
     font-size: 13px;
 }
 
-/* 设置卡片 */
-SwitchSettingCard {
-    background-color: transparent;
+/* SettingCard 悬停效果 */
+SettingCard {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
 }
 
-SwitchSettingCard:hover {
+SettingCard:hover {
     background-color: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
-SwitchSettingCard:pressed {
-    background-color: rgba(255, 255, 255, 0.12);
+SwitchSettingCard,
+SwitchSettingCard:hover {
+    background-color: transparent;
+}
+
+SwitchSettingCard:hover {
+    background-color: rgba(255, 255, 255, 0.05);
 }
