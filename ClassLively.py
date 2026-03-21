@@ -2001,32 +2001,5 @@ if __name__ == "__main__":
     logger.info(f"{APP_NAME}环境信息：")
     logger.info(f"系统版本：Windows {platform.version()} Python 版本：{platform.python_version()}")
     logger.info(f"软件运行路径：{BASE_DIR}")
-    def fetch_latest_version():
-        try:
-            result = check_version_from_github()
-            if result['success']:
-                github_version = result['version']
-                github_build_date = result['build_date']
-                logger.info(f"GitHub 最新版本：{github_version} 构建日期：{github_build_date}")
-                if github_version != VERSION:
-                    logger.info(f"发现新版本：{github_version}，当前版本：{VERSION}")
-                    if cfg.autoCheckUpdate.value:
-                        from PyQt5.QtCore import QTimer
-                        def show_new_version_info():
-                            InfoBar.info(
-                                title="发现新版本",
-                                content=f"GitHub 最新版本：{github_version} (构建日期：{github_build_date})\n当前版本：{VERSION}\n请在'更新'页面检查更新。",
-                                duration=10000,
-                                parent=window
-                            )
-                        QTimer.singleShot(3000, show_new_version_info)
-            else:
-                logger.error(f"获取 GitHub 版本信息失败：{result['error']}")
-        except Exception as e:
-            logger.error(f"获取 GitHub 版本信息失败：{str(e)}")
-    
-    # 后台线程
-    version_thread = threading.Thread(target=fetch_latest_version, daemon=True)
-    version_thread.start()
     
     sys.exit(app.exec_())
