@@ -670,6 +670,309 @@ class AboutInterface(BaseScrollAreaInterface):
     def __init__(self, parent=None):
         super().__init__("关于", parent)
         self.setObjectName("about")
+        
+        self.scrollWidget = QWidget()
+        self.mainLayout = QVBoxLayout(self.scrollWidget)
+        
+        # 关于卡片
+        self.aboutCard = CardWidget(self.scrollWidget)
+        self.aboutLayout = QVBoxLayout(self.aboutCard)
+        self.aboutLayout.setContentsMargins(16, 16, 16, 16)
+        self.aboutLayout.setSpacing(12)
+        
+        # 主内容水平布局
+        mainContentLayout = QHBoxLayout()
+        mainContentLayout.setSpacing(24)
+        
+        # 左侧：应用图标和名称
+        leftLayout = QVBoxLayout()
+        leftLayout.setSpacing(12)
+        
+        # 应用图标和名称水平布局
+        appInfoLayout = QHBoxLayout()
+        appInfoLayout.setSpacing(16)
+        
+        # 软件图标
+        self.appIconLabel = QLabel(self.aboutCard)
+        self.appIconLabel.setFixedSize(64, 64)
+        self.appIconLabel.setObjectName("appIconLabel")
+        
+        # 尝试加载应用图标
+        try:
+            icon_path = get_resource_path(os.path.join('resource', 'icons', 'CY.png'))
+            if os.path.exists(icon_path):
+                pixmap = QPixmap(icon_path)
+                self.appIconLabel.setPixmap(pixmap.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            else:
+                self.appIconLabel.setText("📱")
+                self.appIconLabel.setAlignment(Qt.AlignCenter)
+                self.appIconLabel.setStyleSheet("font-size: 48px;")
+        except Exception:
+            self.appIconLabel.setText("📱")
+            self.appIconLabel.setAlignment(Qt.AlignCenter)
+            self.appIconLabel.setStyleSheet("font-size: 48px;")
+        
+        self.appNameLabel = QLabel("ClassLively", self.aboutCard)
+        self.appNameLabel.setObjectName("appNameLabel")
+        
+        appInfoLayout.addWidget(self.appIconLabel)
+        appInfoLayout.addWidget(self.appNameLabel, 1)
+        
+        self.descriptionLabel = QLabel("114514", self.aboutCard)
+        self.descriptionLabel.setObjectName("descriptionLabel")
+        self.descriptionLabel.setWordWrap(True)
+        
+        leftLayout.addLayout(appInfoLayout)
+        leftLayout.addWidget(self.descriptionLabel)
+        
+        # 右侧：版本和开发者信息
+        rightLayout = QVBoxLayout()
+        rightLayout.setSpacing(8)
+        rightLayout.setContentsMargins(0, 0, 0, 0)
+        
+        # 版本信息
+        self.versionInfo = QLabel(f"当前版本：{VERSION}\n构建日期：{BUILD_DATE}", self.aboutCard)
+        self.versionInfo.setObjectName("versionInfo")
+        self.versionInfo.setWordWrap(True)
+        rightLayout.addWidget(self.versionInfo)
+        
+        # 开发者信息
+        self.developerLabel = QLabel("开发者：HelloGaoo & WHYOS", self.aboutCard)
+        self.developerLabel.setObjectName("developerLabel")
+        rightLayout.addWidget(self.developerLabel)
+        
+        self.copyrightLabel = QLabel("© 2026 ClassLively. All rights reserved.", self.aboutCard)
+        self.copyrightLabel.setObjectName("copyrightLabel")
+        rightLayout.addWidget(self.copyrightLabel)
+        
+        # 添加到主水平布局
+        mainContentLayout.addLayout(leftLayout, 1)
+        mainContentLayout.addLayout(rightLayout)
+        
+        self.aboutLayout.addLayout(mainContentLayout)
+        
+        # 相关链接卡片
+        self.githubCard = CardWidget(self.scrollWidget)
+        self.githubLayout = QHBoxLayout(self.githubCard)
+        self.githubLayout.setContentsMargins(16, 16, 16, 16)
+        
+        self.githubIcon = QLabel(self.githubCard)
+        self.githubIcon.setFixedSize(24, 24)
+        self.githubIcon.setObjectName("githubIcon")
+        
+        self.githubLabel = QLabel("GitHub 仓库", self.githubCard)
+        self.githubLabel.setObjectName("linkLabel")
+        
+        self.githubButton = PushButton(FIF.GITHUB, "查看", self.githubCard)
+        self.githubButton.setObjectName("linkButton")
+        
+        self.githubLayout.addWidget(self.githubIcon)
+        self.githubLayout.addWidget(self.githubLabel, 1)
+        self.githubLayout.addWidget(self.githubButton)
+        
+        # 检查更新卡片
+        self.checkUpdateCard = CardWidget(self.scrollWidget)
+        self.checkUpdateLayout = QHBoxLayout(self.checkUpdateCard)
+        self.checkUpdateLayout.setContentsMargins(16, 16, 16, 16)
+        
+        self.updateIcon = QLabel(self.checkUpdateCard)
+        self.updateIcon.setFixedSize(24, 24)
+        self.updateIcon.setObjectName("updateIcon")
+        
+        self.updateLabel = QLabel("检查更新", self.checkUpdateCard)
+        self.updateLabel.setObjectName("linkLabel")
+        
+        self.checkUpdateButton = PushButton(FIF.SYNC, "检查", self.checkUpdateCard)
+        self.checkUpdateButton.setObjectName("linkButton")
+        
+        self.checkUpdateLayout.addWidget(self.updateIcon)
+        self.checkUpdateLayout.addWidget(self.updateLabel, 1)
+        self.checkUpdateLayout.addWidget(self.checkUpdateButton)
+        
+        self.__initWidget()
+        self.__connectSignalToSlot()
+    
+    def _onThemeChanged(self, theme: Theme):
+        """ 主题变更槽函数 """
+        self.__setQss()
+    
+    def __initWidget(self):
+        """ 初始化界面 """
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setWidget(self.scrollWidget)
+        self.setWidgetResizable(True)
+        
+        self.__setQss()
+        self.__initLayout()
+    
+    def __initLayout(self):
+        """ 初始化布局 """
+        self.mainLayout.setSpacing(12)
+        self.mainLayout.setContentsMargins(60, 0, 60, 40)
+        
+        # 添加关于卡片
+        self.mainLayout.addWidget(self.aboutCard)
+        
+        # 添加链接卡片组标题
+        linkGroupLabel = QLabel("相关链接", self.scrollWidget)
+        linkGroupLabel.setObjectName("groupLabel")
+        self.mainLayout.addWidget(linkGroupLabel)
+        
+        # 添加链接卡片
+        self.mainLayout.addWidget(self.githubCard)
+        self.mainLayout.addWidget(self.checkUpdateCard)
+        
+        # 添加底部间距
+        self.mainLayout.addSpacing(20)
+    
+    def __setQss(self):
+        """ 设置样式表 """
+        self.scrollWidget.setObjectName('scrollWidget')
+        
+        theme = 'dark' if isDarkTheme() else 'light'
+        try:
+            qss_path = get_resource_path(os.path.join('resource', 'qss', theme, 'setting_interface.qss'))
+            with open(qss_path, encoding='utf-8') as f:
+                qss_content = f.read()
+                
+                # 根据主题设置颜色
+                if theme == 'dark':
+                    # 深色主题
+                    custom_qss = """
+                    QLabel#appIconLabel {
+                        background-color: transparent;
+                    }
+                    
+                    QLabel#appNameLabel {
+                        font: bold 32px;
+                        color: #FFFFFF;
+                        background-color: transparent;
+                    }
+                    
+                    QLabel#descriptionLabel {
+                        font: 14px;
+                        color: #999999;
+                        background-color: transparent;
+                    }
+                    
+                    QLabel#versionInfo {
+                        font: 13px;
+                        color: #CCCCCC;
+                        background-color: transparent;
+                    }
+                    
+                    QLabel#developerLabel,
+                    QLabel#copyrightLabel {
+                        font: 13px;
+                        color: #CCCCCC;
+                        background-color: transparent;
+                    }
+                    
+                    QLabel#linkLabel {
+                        font: 14px;
+                        color: #CCCCCC;
+                        background-color: transparent;
+                    }
+                    
+                    QLabel#groupLabel {
+                        font: 16px;
+                        font-weight: bold;
+                        color: #FFFFFF;
+                        background-color: transparent;
+                        margin-top: 20px;
+                        margin-bottom: 8px;
+                    }
+                    
+                    PushButton#linkButton {
+                        min-width: 80px;
+                    }
+                    
+                    QLabel#githubIcon {
+                        background-color: transparent;
+                    }
+                    
+                    QLabel#updateIcon {
+                        background-color: transparent;
+                    }
+                    """
+                else:
+                    # 浅色主题
+                    custom_qss = """
+                    QLabel#appIconLabel {
+                        background-color: transparent;
+                    }
+                    
+                    QLabel#appNameLabel {
+                        font: bold 32px;
+                        color: #000000;
+                        background-color: transparent;
+                    }
+                    
+                    QLabel#descriptionLabel {
+                        font: 14px;
+                        color: #666666;
+                        background-color: transparent;
+                    }
+                    
+                    QLabel#versionInfo {
+                        font: 13px;
+                        color: #333333;
+                        background-color: transparent;
+                    }
+                    
+                    QLabel#developerLabel,
+                    QLabel#copyrightLabel {
+                        font: 13px;
+                        color: #333333;
+                        background-color: transparent;
+                    }
+                    
+                    QLabel#linkLabel {
+                        font: 14px;
+                        color: #333333;
+                        background-color: transparent;
+                    }
+                    
+                    QLabel#groupLabel {
+                        font: 16px;
+                        font-weight: bold;
+                        color: #333333;
+                        background-color: transparent;
+                        margin-top: 20px;
+                        margin-bottom: 8px;
+                    }
+                    
+                    PushButton#linkButton {
+                        min-width: 80px;
+                    }
+                    
+                    QLabel#githubIcon {
+                        background-color: transparent;
+                    }
+                    
+                    QLabel#updateIcon {
+                        background-color: transparent;
+                    }
+                    """
+                
+                self.setStyleSheet(qss_content + custom_qss)
+        except Exception:
+            pass
+    
+    def __connectSignalToSlot(self):
+        """ 连接信号与槽 """
+        self.githubButton.clicked.connect(self.__openGithub)
+        self.checkUpdateButton.clicked.connect(self.__checkUpdate)
+    
+    def __openGithub(self):
+        """ 打开 GitHub 仓库 """
+        import webbrowser
+        webbrowser.open("https://github.com/your-repo")
+    
+    def __checkUpdate(self):
+        """ 检查更新 - 跳转到更新页面 """
+        if self.parent() and hasattr(self.parent(), 'updateInterface'):
+            self.parent().stackedWidget.setCurrentWidget(self.parent().updateInterface)
 
 
 class WallpaperInterface(ScrollArea):
@@ -1398,6 +1701,7 @@ class MainWindow(FluentWindow):
         # 连接主题切换信号
         cfg.themeChanged.connect(self.updateInterface._onThemeChanged)
         cfg.themeChanged.connect(self.wallpaper._onThemeChanged)
+        cfg.themeChanged.connect(self.aboutInterface._onThemeChanged)
 
     def resizeEvent(self, event):
         """ 窗口大小变化时调整图片大小 """

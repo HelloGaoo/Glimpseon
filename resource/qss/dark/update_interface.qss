@@ -1,4 +1,8 @@
-UpdateInterface, #scrollWidget {
+UpdateInterface {
+    background-color: rgb(39, 39, 39);
+}
+
+UpdateInterface #scrollWidget {
     background-color: rgb(39, 39, 39);
 }
 
@@ -41,7 +45,7 @@ QLabel#changelogTitle {
 
 /* 更新日志内容 */
 QLabel#changelogContent {
-    color: rgba(255, 255, 255, 0.6);
+    color: #CCCCCC;
     line-height: 1.8;
     font-size: 13px;
 }
@@ -55,7 +59,7 @@ QLabel#versionTitle {
 
 /* 构建日期 */
 QLabel#buildDate {
-    color: rgba(255, 255, 255, 0.4);
+    color: #CCCCCC;
     font-size: 13px;
 }
 
