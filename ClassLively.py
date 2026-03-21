@@ -770,25 +770,6 @@ class AboutInterface(BaseScrollAreaInterface):
         self.githubLayout.addWidget(self.githubLabel, 1)
         self.githubLayout.addWidget(self.githubButton)
         
-        # 检查更新卡片
-        self.checkUpdateCard = CardWidget(self.scrollWidget)
-        self.checkUpdateLayout = QHBoxLayout(self.checkUpdateCard)
-        self.checkUpdateLayout.setContentsMargins(16, 16, 16, 16)
-        
-        self.updateIcon = QLabel(self.checkUpdateCard)
-        self.updateIcon.setFixedSize(24, 24)
-        self.updateIcon.setObjectName("updateIcon")
-        
-        self.updateLabel = QLabel("检查更新", self.checkUpdateCard)
-        self.updateLabel.setObjectName("linkLabel")
-        
-        self.checkUpdateButton = PushButton(FIF.SYNC, "检查", self.checkUpdateCard)
-        self.checkUpdateButton.setObjectName("linkButton")
-        
-        self.checkUpdateLayout.addWidget(self.updateIcon)
-        self.checkUpdateLayout.addWidget(self.updateLabel, 1)
-        self.checkUpdateLayout.addWidget(self.checkUpdateButton)
-        
         self.__initWidget()
         self.__connectSignalToSlot()
     
@@ -820,7 +801,6 @@ class AboutInterface(BaseScrollAreaInterface):
         
         # 添加链接卡片
         self.mainLayout.addWidget(self.githubCard)
-        self.mainLayout.addWidget(self.checkUpdateCard)
         
         # 添加底部间距
         self.mainLayout.addSpacing(20)
@@ -962,19 +942,12 @@ class AboutInterface(BaseScrollAreaInterface):
     def __connectSignalToSlot(self):
         """ 连接信号与槽 """
         self.githubButton.clicked.connect(self.__openGithub)
-        self.checkUpdateButton.clicked.connect(self.__checkUpdate)
     
     def __openGithub(self):
         """ 打开 GitHub 仓库 """
         import webbrowser
-        webbrowser.open("https://github.com/your-repo")
+        webbrowser.open("https://github.com/HelloGaoo/ClassLively")
     
-    def __checkUpdate(self):
-        """ 检查更新 - 跳转到更新页面 """
-        if self.parent() and hasattr(self.parent(), 'updateInterface'):
-            self.parent().stackedWidget.setCurrentWidget(self.parent().updateInterface)
-
-
 class WallpaperInterface(ScrollArea):
     """ 壁纸界面 """
 
