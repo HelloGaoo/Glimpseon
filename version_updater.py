@@ -2,6 +2,7 @@ import requests
 import re
 import urllib3
 from logger import logger
+from version import VERSION_URL, CHANGELOG_URL
 
 # 禁用 SSL 警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -9,7 +10,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def get_changelog_from_github(max_retries=3):
     """从 GitHub 获取更新日志"""
-    url = "https://ghfile.geekertao.top/https://raw.githubusercontent.com/HelloGaoo/ClassLively/main/changelog.md"
+    url = CHANGELOG_URL
     
     for attempt in range(max_retries):
         try:
@@ -46,7 +47,7 @@ def get_changelog_from_github(max_retries=3):
 
 
 def get_version_from_github(max_retries=3):
-    url = "https://ghfile.geekertao.top/https://raw.githubusercontent.com/HelloGaoo/ClassLively/main/version.py"
+    url = VERSION_URL
     
     for attempt in range(max_retries):
         try:
