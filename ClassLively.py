@@ -1,6 +1,5 @@
-from PyQt5.QtWidgets import QApplication, QWidget, QSystemTrayIcon, QMenu, QAction, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QSpacerItem, QSizePolicy, QFileDialog, QGraphicsBlurEffect,QStackedLayout, QPlainTextEdit
-from PyQt5.QtCore import QTimer, Qt, QTime, QDate
-from PyQt5.QtCore import QLocale, QTranslator, QUrl
+from PyQt5.QtWidgets import QApplication, QWidget, QSystemTrayIcon, QMenu, QAction, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QSpacerItem, QSizePolicy, QFileDialog, QGraphicsBlurEffect, QStackedLayout, QPlainTextEdit, QMessageBox
+from PyQt5.QtCore import QTimer, Qt, QTime, QDate, QLocale, QTranslator, QUrl, QMetaObject, Q_ARG
 from PyQt5.QtGui import QFontDatabase, QFont, QIcon, QPixmap, QImage, QPainter, QColor
 from qfluentwidgets import (
     setTheme, Theme, FluentWindow, FluentTranslator,
@@ -14,18 +13,20 @@ import platform
 import ctypes
 import json
 import threading
-from setting import SettingInterface
 import shutil
+import datetime
+import cnlunar
+import winreg
+import logging
+import subprocess
+from setting import SettingInterface
 from config import cfg, get_default_config_dict
 from logger import logger, setup_exception_hook
 from version import VERSION, BUILD_DATE
 from version_updater import check_version_from_github, download_update, extract_update, create_update_script, get_changelog_from_github
 from constants import APP_NAME
 from city_selector import RegionDatabase
-import datetime
-import cnlunar
-import winreg
-import logging
+
 def check_single_instance():
     """ 检查是否已经有实例 """
     config_path = os.path.join(BASE_DIR, 'config', 'config.json')
@@ -402,11 +403,8 @@ class UpdateInterface(BaseScrollAreaInterface):
                 logger.error(f"加载更新日志失败：{str(e)}")
                 return "加载失败"
         
-        from PyQt5.QtCore import QMetaObject, Qt, Q_ARG
-     
         def thread_func():
             changelog_text = load()
-            # 使用 TextEdit 的 setPlainText 方法
             QMetaObject.invokeMethod(
                 self.changelogContent,
                 "setPlainText",
@@ -512,9 +510,6 @@ class UpdateInterface(BaseScrollAreaInterface):
         download_path = os.path.join(update_folder, 'update.7z')
         backup_folder = os.path.join(BASE_DIR, 'update_backup')
         
-        from PyQt5.QtCore import QMetaObject, Qt, Q_ARG
-        from PyQt5.QtWidgets import QMessageBox
-        
         def download_thread():
             try:
                 # 清理旧的更新文件夹
@@ -604,8 +599,6 @@ class UpdateInterface(BaseScrollAreaInterface):
                     Q_ARG(str, "正在准备更新，程序即将重启")
                 )
                 
-                import subprocess
-                # 使用 CREATE_NEW_PROCESS_GROUP 和 DETACHED_PROCESS
                 subprocess.Popen(
                     f'cmd /c start "ClassLively Update" /MIN "{script_path}"',
                     shell=True,

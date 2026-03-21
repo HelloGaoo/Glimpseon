@@ -3,6 +3,7 @@ import re
 import urllib3
 import os
 import py7zr
+import zipfile
 import shutil
 from logger import logger
 from version import VERSION_URL, UPDATE_URL, CHANGELOG_URL
@@ -145,7 +146,6 @@ def extract_update(archive_path, extract_folder):
             with py7zr.SevenZipFile(archive_path, 'r') as archive:
                 archive.extractall(extract_folder)
         elif archive_path.endswith('.zip'):
-            import zipfile
             with zipfile.ZipFile(archive_path, 'r') as zip_ref:
                 zip_ref.extractall(extract_folder)
         else:

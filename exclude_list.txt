@@ -1,5 +1,0 @@
-update_temp\
-update_backup\
-logs\
-*.log
-*.tmp

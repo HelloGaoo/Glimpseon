@@ -521,7 +521,6 @@ class SettingInterface(ScrollArea):
                 qconfig.load(config_path, cfg)
                 
                 # 触发主题刷新
-                from qfluentwidgets import setTheme, Theme
                 current_theme = cfg.theme.value
                 setTheme(current_theme)
                 cfg.themeChanged.emit(Theme(current_theme))

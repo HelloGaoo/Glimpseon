@@ -6,6 +6,7 @@ from qfluentwidgets import (
 import sqlite3
 import os
 import sys
+from config import cfg
 
 # 路径配置
 if getattr(sys, 'frozen', False):
@@ -168,7 +169,6 @@ class RegionSelectorDialog(MessageBoxBase):
     def _select_current(self):
         """选中当前配置的地区"""
         try:
-            from config import cfg
             current = cfg.city.value
             if current:
                 items = self._region_list.findItems(current, Qt.MatchExactly)
