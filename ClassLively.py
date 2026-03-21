@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QApplication, QWidget, QSystemTrayIcon, QMenu, QAction, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QSpacerItem, QSizePolicy, QFileDialog, QGraphicsBlurEffect, QStackedLayout, QPlainTextEdit, QMessageBox
+﻿from PyQt5.QtWidgets import QApplication, QWidget, QSystemTrayIcon, QMenu, QAction, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QSpacerItem, QSizePolicy, QFileDialog, QGraphicsBlurEffect, QStackedLayout, QPlainTextEdit, QMessageBox
 from PyQt5.QtCore import QTimer, Qt, QTime, QDate, QLocale, QTranslator, QUrl, QMetaObject, Q_ARG
 from PyQt5.QtGui import QFontDatabase, QFont, QIcon, QPixmap, QImage, QPainter, QColor
 from qfluentwidgets import (
@@ -216,7 +216,6 @@ def sync_auto_start_with_config():
                     logger.info(f"已将配置更新为与实际状态一致: {actual_auto_start}")
             return result
         else:
-            logger.info("自启动状态已同步，无需更改")
             return True
             
     except Exception as e:
@@ -381,7 +380,6 @@ class UpdateInterface(BaseScrollAreaInterface):
                 # 先尝试从 GitHub 获取
                 changelog = get_changelog_from_github()
                 if changelog:
-                    logger.info("成功从 GitHub 获取更新日志")
                     return changelog
                 else:
                     # GitHub 获取失败，尝试读取本地文件
@@ -451,7 +449,7 @@ class UpdateInterface(BaseScrollAreaInterface):
                 github_build_date = result['build_date']
                 changelog = result['changelog']
                 
-                logger.info(f"{check_type}：GitHub 最新版本：{github_version} (构建日期：{github_build_date})，当前版本：{VERSION}")
+                logger.info(f"{check_type}：GitHub 最新版本：{github_version} (构建日期：{github_build_date})，更新日志长度：{len(changelog) if changelog else 0}，当前版本：{VERSION}")
                 
                 has_update = (github_version != VERSION)
                 
@@ -882,13 +880,11 @@ class WallpaperInterface(ScrollArea):
                 
                 # 管理壁纸保存量
                 save_limit = cfg.wallpaperSaveLimit.value
-                logger.info(f"管理壁纸保存量，限制: {save_limit}")
                 self.__manageWallpaperLimit(wallpaper_dir, save_limit)
                 
                 self.current_pixmap = QPixmap(wallpaper_path)
                 self.current_wallpaper_path = wallpaper_path
                 if not self.current_pixmap.isNull():
-                    logger.info("壁纸加载成功，更新界面显示")
                     self.imageLabel.setPixmap(self.current_pixmap)
                     # 更新主界面的背景照片
                     if self.mainWindow and hasattr(self.mainWindow, 'homeBackgroundImage'):
@@ -898,7 +894,6 @@ class WallpaperInterface(ScrollArea):
                         scaled_pixmap = self.current_pixmap.scaled(available_width, available_height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
                         self.mainWindow.homeBackgroundImage.setPixmap(scaled_pixmap)
                         QApplication.processEvents()
-                        logger.info("主界面背景已更新")
                 
                 InfoBar.success(
                     "成功",
@@ -908,7 +903,6 @@ class WallpaperInterface(ScrollArea):
                 )
                 
                 if cfg.autoSyncToDesktop.value:
-                    logger.info("自动同步到桌面已启用")
                     self.__setWallpaper(show_notification=True)
                     self.last_sync_path = wallpaper_path
             else:
@@ -1032,7 +1026,6 @@ class WallpaperInterface(ScrollArea):
     
     def __setWallpaper(self, show_notification=True):
         """ 设为桌面壁纸 """
-        logger.info("开始设置桌面壁纸")
         if self.current_wallpaper_path is None:
             logger.warning("没有可设置的壁纸")
             if show_notification:
@@ -1082,44 +1075,31 @@ class MainWindow(FluentWindow):
     """ 主窗口 """
 
     def __init__(self):
-        logger.info("开始初始化主窗口")
         super().__init__()
-        logger.info("父类构造函数调用完成")
         
         setTheme(cfg.themeMode.value)
-        logger.info(f"主题已设置为：{cfg.themeMode.value}")
         
         # 设置窗口图标
         icon_path = get_resource_path(os.path.join("resource", "icons", "CY.png"))
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
-            logger.info(f"窗口图标已设置: {icon_path}")
         else:
             logger.warning("窗口图标文件不存在")
         
-        logger.info("开始初始化主界面导航")
         self.initMainNavigation()
-        logger.info("主界面导航初始化完成")
         
-        logger.info("开始初始化设置导航")
         self.initSettingsNavigation()
-        logger.info("设置导航初始化完成")
         
         self.setWindowTitle(APP_NAME)
-        logger.info(f"窗口标题已设置为: {APP_NAME}")
         
         self.resize(1100, 700)
         self.setMinimumSize(400, 300)
         self.moveToCenter()
-        logger.info(f"窗口大小已设置: 1100x700，最小大小: 400x300")
         
         # 初始化系统托盘
-        logger.info("开始初始化系统托盘")
         self.initSystemTray()
-        logger.info("系统托盘初始化完成")
         
         # 时钟更新定时器
-        logger.info("开始初始化时钟更新定时器")
         self.clockTimer = QTimer(self)
         self.clockTimer.timeout.connect(self.__updateClock)
         self.clockTimer.start(1000)
@@ -1132,7 +1112,6 @@ class MainWindow(FluentWindow):
         cfg.weatherSize.valueChanged.connect(self.updateClockStyle)
         cfg.weatherIconSize.valueChanged.connect(self.__updateWeatherIcon)
         self.__updateClock()
-        logger.info("时钟更新定时器初始化完成")
         
         # 诗词更新定时器
         logger.info("开始初始化诗词更新定时器")
@@ -1142,27 +1121,21 @@ class MainWindow(FluentWindow):
         cfg.poetryApiUrl.valueChanged.connect(self.__updatePoetry)
         cfg.poetryUpdateInterval.valueChanged.connect(self.__updatePoetryInterval)
         self.__updatePoetryInterval()
-        logger.info("诗词更新定时器初始化完成")
         
         # 天气更新定时器
-        logger.info("开始初始化天气更新定时器")
         self.weatherTimer = QTimer(self)
         self.weatherTimer.timeout.connect(self.__updateWeather)
         cfg.weatherUpdateInterval.valueChanged.connect(self.__updateWeatherInterval)
         
         # 初始更新天气
         self.__updateWeatherInterval()
-        logger.info("天气更新定时器初始化完成")
-
         # 同步自启动状态
-        logger.info("开始同步开机自启动状态")
         sync_auto_start_with_config()
         
         # 连接配置变化信号到设置函数
         cfg.autoStart.valueChanged.connect(lambda value: set_auto_start(value))
         
         # 空闲检测定时器
-        logger.info("开始初始化空闲检测定时器")
         self.idleTimer = QTimer(self)
         self.idleTimer.timeout.connect(self.__checkIdle)
         self.lastMouseActivity = QTime.currentTime()
@@ -1172,9 +1145,8 @@ class MainWindow(FluentWindow):
         cfg.autoOpenOnIdle.valueChanged.connect(self.__updateIdleTimer)
         cfg.idleMinutes.valueChanged.connect(self.__updateIdleTimer)
         self.__updateIdleTimer()
-        logger.info("空闲检测定时器初始化完成")
         
-        logger.info("主窗口初始化完成!")
+        logger.info("主窗口初始化完成")
     
     def initSystemTray(self):
         """ 初始化系统托盘 """
@@ -1269,7 +1241,6 @@ class MainWindow(FluentWindow):
     
     def show(self):
         """ 显示窗口 """
-        logger.info("显示主窗口")
         super().show()
         
         if cfg.autoCheckUpdate.value:
@@ -1285,7 +1256,6 @@ class MainWindow(FluentWindow):
     
     def closeEvent(self, event):
         """ 关闭事件处理 """
-        logger.info("关闭事件触发")
         if cfg.closeAction.value == "minimize":
             # 最小化到托盘
             logger.info("关闭行为: 最小化到托盘")
@@ -1311,19 +1281,15 @@ class MainWindow(FluentWindow):
 
     def initMainNavigation(self):
         """ 初始化主界面导航 """
-        logger.info("开始初始化主界面导航")
         home = QWidget()
         home.setObjectName("home")
-        logger.info("创建主界面对象")
         
         # 创建主界面的照片显示控件
-        logger.info("创建背景图片控件")
         self.homeBackgroundImage = QLabel()
         self.homeBackgroundImage.setAlignment(Qt.AlignCenter)
         self.originalPixmap = None
         
         # 时钟和日期标签
-        logger.info("创建时钟和日期标签")
         self.clockLabel = QLabel("00:00:00")
         self.clockLabel.setAlignment(Qt.AlignCenter)
         
@@ -1331,7 +1297,6 @@ class MainWindow(FluentWindow):
         self.dateLabel.setAlignment(Qt.AlignCenter)
         
         # 天气温度标签
-        logger.info("创建天气温度标签")
         self.weatherTempLabel = QLabel("")
         self.weatherTempLabel.setAlignment(Qt.AlignVCenter | Qt.AlignRight)
         self.weatherTempLabel.setStyleSheet("""
@@ -1343,13 +1308,11 @@ class MainWindow(FluentWindow):
         """)
         
         # 天气图标
-        logger.info("创建天气图标")
         self.weatherIconLabel = QLabel("")
         self.weatherIconLabel.setAlignment(Qt.AlignTop | Qt.AlignRight)
         self.weatherIconLabel.setStyleSheet("background-color: transparent;")
         
         # 诗词标签
-        logger.info("创建诗词标签")
         self.poetryLabel = QLabel("")
         self.poetryLabel.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
         self.poetryLabel.setStyleSheet("""
@@ -1361,11 +1324,9 @@ class MainWindow(FluentWindow):
         """)
         self.poetryLabel.setWordWrap(False)
         
-        logger.info("更新时钟样式")
         self.updateClockStyle()
         
         # 时钟容器
-        logger.info("创建时钟容器")
         clockContainer = QWidget()
         clockLayout = QVBoxLayout(clockContainer)
         clockLayout.setAlignment(Qt.AlignTop)
@@ -1377,7 +1338,6 @@ class MainWindow(FluentWindow):
         clockContainer.setStyleSheet("background-color: transparent;")
         
         # 天气容器
-        logger.info("创建天气容器")
         weatherContainer = QWidget()
         weatherLayout = QHBoxLayout(weatherContainer)
         weatherLayout.setAlignment(Qt.AlignTop | Qt.AlignRight)
@@ -1392,7 +1352,6 @@ class MainWindow(FluentWindow):
         weatherContainer.setStyleSheet("background-color: transparent;")
     
         # 诗词容器
-        logger.info("创建诗词容器")
         poetryContainer = QWidget()
         poetryLayout = QVBoxLayout(poetryContainer)
         poetryLayout.setAlignment(Qt.AlignBottom)
@@ -1400,7 +1359,7 @@ class MainWindow(FluentWindow):
         poetryLayout.addWidget(self.poetryLabel)
         poetryContainer.setStyleSheet("background-color: transparent;")
     
-        logger.info("创建网格布局")
+        # 网格布局
         gridLayout = QGridLayout()
         gridLayout.setContentsMargins(0, 0, 0, 0)
         gridLayout.addWidget(self.homeBackgroundImage, 0, 0, 1, 1)
@@ -1412,48 +1371,33 @@ class MainWindow(FluentWindow):
         gridWidget.setLayout(gridLayout)
         
         # 主界面布局
-        logger.info("设置主界面布局")
         homeLayout = QVBoxLayout(home)
         homeLayout.setAlignment(Qt.AlignCenter)
         homeLayout.setContentsMargins(0, 0, 0, 0)
         homeLayout.addWidget(gridWidget)
         
-        logger.info("添加主界面到导航")
         self.addSubInterface(home, FIF.HOME, "主界面")
         
-        logger.info("创建壁纸界面")
         self.wallpaper = WallpaperInterface(mainWindow=self)
         self.wallpaper.setObjectName("wallpaper")
-        logger.info("添加壁纸界面到导航")
         self.addSubInterface(self.wallpaper, FIF.PHOTO, "壁纸")
-        
-        logger.info("主界面导航初始化完成")
 
     def initSettingsNavigation(self):
         """ 初始化设置导航 """
-        logger.info("开始初始化设置导航")
         
-        logger.info("创建设置界面")
         self.settingInterface = SettingInterface(parent=self)
         self.settingInterface.setObjectName("setting")
-        logger.info("添加设置界面到导航")
         self.addSubInterface(self.settingInterface, FIF.SETTING, "设置", NavigationItemPosition.BOTTOM)
         
-        logger.info("创建更新界面")
         self.updateInterface = UpdateInterface(parent=self)
-        logger.info("添加更新界面到导航")
         self.addSubInterface(self.updateInterface, FIF.SYNC, "更新", NavigationItemPosition.BOTTOM)
         
-        logger.info("创建关于界面")
         self.aboutInterface = AboutInterface(parent=self)
-        logger.info("添加关于界面到导航")
         self.addSubInterface(self.aboutInterface, FIF.INFO, "关于", NavigationItemPosition.BOTTOM)
         
         # 连接主题切换信号
         cfg.themeChanged.connect(self.updateInterface._onThemeChanged)
         cfg.themeChanged.connect(self.wallpaper._onThemeChanged)
-        
-        logger.info("设置导航初始化完成")
 
     def resizeEvent(self, event):
         """ 窗口大小变化时调整图片大小 """
@@ -1668,7 +1612,6 @@ class MainWindow(FluentWindow):
     
     def __updateWeather(self):
         """ 更新天气显示 """
-        logger.info("获取天气数据")
         try:
             city = cfg.city.value
             logger.info(f"正在更新天气，使用城市：{city}")
@@ -1798,7 +1741,6 @@ class MainWindow(FluentWindow):
                     
                     self.__updateWeatherIcon()
                     logger.info(f"已更新天气图标：天气代码={weather_code}, 天气状况={weather}")
-                logger.info("已获取天气数据")
             else:
                 logger.error(f"天气 API 请求失败，状态码：{response.status_code}，响应内容：{response.text}")
         except Exception as e:
@@ -2006,18 +1948,30 @@ if __name__ == "__main__":
         max_count=cfg.logMaxCount.value,
         max_days=cfg.logMaxDays.value
     )
-    logger.info(f"读取日志禁用配置: {cfg.disableLog.value}")
-    logger.info(f"读取重复启动开关配置: {cfg.allowMultipleInstances.value}")
-    logger.info(f"读取主题配置设置: {cfg.themeMode.value}")
-    logger.info(f"读取颜色配置设置: {cfg.themeColor.value.name() if hasattr(cfg.themeColor.value, 'name') else cfg.themeColor.value}")
-    logger.info(f"读取日志级别配置: {cfg.logLevel.value}")
-    logger.info(f"读取日志数量上限配置: {cfg.logMaxCount.value}")
-    logger.info(f"读取日志时间上限配置: {cfg.logMaxDays.value}")
-    logger.info(f"读取关闭事件行为配置: {cfg.closeAction.value}")
+    # 输出所有配置读取信息
+    logger.info("ClassLively")
 
-    locale = QLocale(QLocale.Chinese, QLocale.China)
-    fluentTranslator = FluentTranslator(locale)
-    app.installTranslator(fluentTranslator)
+    theme_mode_str = str(cfg.themeMode.value) if not hasattr(cfg.themeMode.value, 'name') else cfg.themeMode.value.name
+    theme_color = cfg.themeColor.value
+    theme_color_str = theme_color.name() if hasattr(theme_color, 'name') else str(theme_color)
+    dpi_scale = cfg.dpiScale.value
+    dpi_scale_str = str(dpi_scale) if not hasattr(dpi_scale, 'value') else str(dpi_scale.value)
+    language = cfg.language.value
+    language_str = str(language) if not hasattr(language, 'name') else language.name
+    logger.info(f"主窗口配置：主题模式={theme_mode_str}, 主题颜色={theme_color_str}, DPI 缩放={dpi_scale_str}, 语言={language_str}")
+    logger.info(f"日志配置：禁用日志={cfg.disableLog.value}, 日志级别={log_level_str}, 最大条目数={cfg.logMaxCount.value}, 最大保留天数={cfg.logMaxDays.value}")
+    logger.info(f"其他配置：关闭动作={cfg.closeAction.value}, 允许多实例={cfg.allowMultipleInstances.value}, 开发者模式={cfg.developerMode.value}, 自动启动={cfg.autoStart.value}")
+    logger.info(f"壁纸配置：保存限制={cfg.wallpaperSaveLimit.value}, 获取间隔={cfg.autoGetInterval.value}, 自动同步桌面={cfg.autoSyncToDesktop.value}, API={cfg.wallpaperApi.value}")
+    logger.info(f"外观配置：背景模糊半径={cfg.backgroundBlurRadius.value}")
+    logger.info(f"时间配置：显示秒={cfg.showClockSeconds.value}, 显示农历={cfg.showLunarCalendar.value}, 时钟颜色={cfg.clockColor.value.name() if hasattr(cfg.clockColor.value, 'name') else str(cfg.clockColor.value)}, 时钟大小={cfg.clockSize.value}, 日期大小={cfg.dateSize.value}")
+    logger.info(f"诗词配置：显示诗词={cfg.showPoetry.value}, API 地址={cfg.poetryApiUrl.value}, 更新间隔={cfg.poetryUpdateInterval.value}, 字体大小={cfg.poetrySize.value}")
+    logger.info(f"天气配置：字体大小={cfg.weatherSize.value}, 图标大小={cfg.weatherIconSize.value}, 更新间隔={cfg.weatherUpdateInterval.value}, 城市={cfg.city.value}")
+    logger.info(f"自动配置：空闲自动打开={cfg.autoOpenOnIdle.value}, 空闲分钟={cfg.idleMinutes.value}, 自动打开最大化={cfg.autoOpenMaximize.value}, 自动检查更新={cfg.autoCheckUpdate.value}, 自动更新={cfg.autoUpdate.value}")
+    logger.info(f"{APP_NAME}版本信息：")
+    logger.info(f"版本号：{VERSION} 构建日期：{BUILD_DATE}")
+    logger.info(f"{APP_NAME}环境信息：")
+    logger.info(f"系统版本：Windows {platform.version()} Python 版本：{platform.python_version()}")
+    logger.info(f"软件运行路径：{BASE_DIR}")
 
     font_dir = get_resource_path(os.path.join("font", "HarmonyOS_Sans"))
     font_files = [
@@ -2039,7 +1993,6 @@ if __name__ == "__main__":
     
     # 设置全局异常钩子
     setup_exception_hook()
-    logger.info("已设置全局异常钩子")
 
     window = MainWindow()
     
@@ -2055,11 +2008,5 @@ if __name__ == "__main__":
     else:
         window.show()
         logger.info("正常启动模式：显示主窗口")
-    
-    logger.info(f"{APP_NAME}版本信息：")
-    logger.info(f"版本号：{VERSION} 构建日期：{BUILD_DATE}")
-    logger.info(f"{APP_NAME}环境信息：")
-    logger.info(f"系统版本：Windows {platform.version()} Python 版本：{platform.python_version()}")
-    logger.info(f"软件运行路径：{BASE_DIR}")
     
     sys.exit(app.exec_())

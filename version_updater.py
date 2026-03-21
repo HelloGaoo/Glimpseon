@@ -24,7 +24,6 @@ def get_changelog_from_github(max_retries=3):
             response.raise_for_status()
             
             content = response.text
-            logger.info(f"成功获取更新日志，长度：{len(content)}")
             return content
             
         except requests.exceptions.Timeout:
@@ -67,7 +66,6 @@ def check_version_from_github(max_retries=3):
             result['version'] = version_match.group(1)
             result['build_date'] = build_date_match.group(1)
             result['success'] = True
-            logger.info(f"成功获取版本信息：{result['version']} ({result['build_date']})")
             
             changelog = get_changelog_from_github()
             if changelog:
