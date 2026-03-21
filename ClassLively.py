@@ -605,7 +605,7 @@ class UpdateInterface(BaseScrollAreaInterface):
                 )
                 
                 import subprocess
-                # 使用 CREATE_NEW_PROCESS_GROUP 和 DETACHED_PROCESS 让脚本完全独立运行
+                # 使用 CREATE_NEW_PROCESS_GROUP 和 DETACHED_PROCESS
                 subprocess.Popen(
                     f'cmd /c start "ClassLively Update" /MIN "{script_path}"',
                     shell=True,
