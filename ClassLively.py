@@ -433,19 +433,19 @@ class UpdateInterface(BaseScrollAreaInterface):
             self.updateStatusLabel.setStyleSheet("color: #0078D4;")
             self.updateStatusIcon.setStyleSheet("background-color: #0078D4; border-radius: 8px;")
         
-        def check_and_update_ui(result_data):
-            """更新 UI"""
+        def do_check():
             try:
-                result = result_data
+                logger.info("开始检查版本...")
+                result = check_version_from_github()
+                logger.info(f"检查完成，结果：success={result['success']}, version={result.get('version')}")
                 
                 if not result['success']:
-                    logger.warning(f"检查更新失败: {result.get('error', '未知错误')}")
+                    logger.warning(f"检查更新失败：{result.get('error', '未知错误')}")
                     if not auto_check:
                         self.checkUpdateButton.setEnabled(True)
                         self.updateStatusLabel.setText(f"检查失败：{result.get('error', '未知错误')}")
-                        color = "#FF0000"
-                        self.updateStatusLabel.setStyleSheet(f"color: {color};")
-                        self.updateStatusIcon.setStyleSheet(f"background-color: {color}; border-radius: 8px;")
+                        self.updateStatusLabel.setStyleSheet("color: #FF0000;")
+                        self.updateStatusIcon.setStyleSheet("background-color: #FF0000; border-radius: 8px;")
                     return
                 
                 github_version = result['version']
@@ -465,9 +465,8 @@ class UpdateInterface(BaseScrollAreaInterface):
                     self.update_url = result['update_url']
                     
                     self.updateStatusLabel.setText(f"发现新版本：{github_version}")
-                    color = "#FF8C00"
-                    self.updateStatusLabel.setStyleSheet(f"color: {color};")
-                    self.updateStatusIcon.setStyleSheet(f"background-color: {color}; border-radius: 8px;")
+                    self.updateStatusLabel.setStyleSheet("color: #FF8C00;")
+                    self.updateStatusIcon.setStyleSheet("background-color: #FF8C00; border-radius: 8px;")
                     
                     self.checkUpdateButton.setText("下载更新")
                     self.checkUpdateButton.setIcon(QIcon(FIF.DOWNLOAD.value))
@@ -476,12 +475,11 @@ class UpdateInterface(BaseScrollAreaInterface):
                     if changelog:
                         self.changelogContent.setPlainText(changelog)
                         
-                    logger.info("UI已更新：新版本")
+                    logger.info("UI 已更新：新版本")
                 else:
                     self.updateStatusLabel.setText("已是最新版本")
-                    color = "#107C10"
-                    self.updateStatusLabel.setStyleSheet(f"color: {color};")
-                    self.updateStatusIcon.setStyleSheet(f"background-color: {color}; border-radius: 8px;")
+                    self.updateStatusLabel.setStyleSheet("color: #107C10;")
+                    self.updateStatusIcon.setStyleSheet("background-color: #107C10; border-radius: 8px;")
                     
                     if not auto_check:
                         self.checkUpdateButton.setEnabled(True)
@@ -489,37 +487,17 @@ class UpdateInterface(BaseScrollAreaInterface):
                     if changelog:
                         self.changelogContent.setPlainText(changelog)
                         
-                    logger.info("UI已更新：已是最新版本")
-                    
-                self.checkUpdateButton.repaint()
-                QApplication.processEvents()
-                    
-            except Exception as e:
-                logger.error(f"更新UI时出错：{str(e)}")
-                if not auto_check:
-                    self.checkUpdateButton.setEnabled(True)
-                    self.updateStatusLabel.setText(f"更新UI失败：{str(e)}")
-        
-        def thread_func():
-            try:
-                logger.info("开始检查版本...")
-                result = check_version_from_github()
-                logger.info(f"检查完成，结果: {result}")
-                from PyQt5.QtCore import QTimer
-                QTimer.singleShot(0, lambda: check_and_update_ui(result))
-                logger.info("UI更新已调度")
+                    logger.info("UI 已更新：已是最新版本")
                 
             except Exception as e:
                 logger.error(f"检查更新时出错：{str(e)}")
-                from PyQt5.QtCore import QTimer
-                error_result = {
-                    'success': False,
-                    'error': str(e)
-                }
-                QTimer.singleShot(0, lambda: check_and_update_ui(error_result))
+                if not auto_check:
+                    self.checkUpdateButton.setEnabled(True)
+                    self.updateStatusLabel.setText(f"更新 UI 失败：{str(e)}")
         
-        thread = threading.Thread(target=thread_func, daemon=True)
-        thread.start()
+        # QTimer
+        from PyQt5.QtCore import QTimer
+        QTimer.singleShot(100, do_check)
     
     def __downloadUpdate(self):
         """ 下载并安装更新 """
