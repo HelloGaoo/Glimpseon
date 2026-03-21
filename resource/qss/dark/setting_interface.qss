@@ -21,3 +21,95 @@ CardWidget {
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
 }
+
+CardWidget:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* SettingCard 悬停效果 */
+SettingCard, 
+SettingCard:hover,
+LineEditSettingCard,
+LineEditSettingCard:hover,
+SpinBoxSettingCard,
+SpinBoxSettingCard:hover,
+ButtonSettingCard,
+ButtonSettingCard:hover {
+    background-color: transparent;
+}
+
+SettingCard:hover,
+LineEditSettingCard:hover,
+SpinBoxSettingCard:hover,
+ButtonSettingCard:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* PushButton 悬停效果 */
+PushButton,
+PushButton:hover {
+    background-color: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 5px;
+}
+
+PushButton:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* SwitchButton 悬停效果 */
+SwitchButton:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* ComboBox 悬停效果 */
+ComboBox,
+ComboBox:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 5px;
+}
+
+ComboBox:hover {
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* LineEdit 悬停效果 */
+LineEdit,
+LineEdit:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 5px;
+    padding: 4px 8px;
+}
+
+LineEdit:hover {
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* SpinBox 悬停效果 */
+SpinBox,
+SpinBox:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 5px;
+    padding: 4px 8px;
+}
+
+SpinBox:hover {
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* 选项卡 */
+OptionsSettingCard:hover,
+RangeSettingCard:hover,
+SwitchSettingCard:hover,
+CustomColorSettingCard:hover,
+ComboBoxSettingCard:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
