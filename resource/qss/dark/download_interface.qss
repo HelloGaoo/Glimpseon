@@ -32,10 +32,13 @@ CardWidget:hover {
 
 /* 软件名称 */
 QLabel#softwareNameLabel {
+    font-size: 18px;
+    font-weight: bold;
     color: white;
 }
 
 /* 软件描述 */
 QLabel#softwareDescLabel {
+    font-size: 14px;
     color: #888888;
 }
