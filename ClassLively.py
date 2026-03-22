@@ -20,7 +20,8 @@ from PyQt5.QtGui import QFontDatabase, QFont, QIcon, QPixmap, QImage, QPainter, 
 from qfluentwidgets import (
     setTheme, Theme, FluentWindow, FluentTranslator,
     FluentIcon as FIF, NavigationItemPosition, RoundMenu, Action, MessageBox, ScrollArea, SmoothScrollArea, ExpandLayout, isDarkTheme,
-    PushButton, CardWidget, ProgressBar, InfoBar, ImageLabel, qconfig, SwitchSettingCard, PrimaryPushButton, SettingCardGroup, TextEdit
+    PushButton, CardWidget, ProgressBar, InfoBar, ImageLabel, qconfig, SwitchSettingCard, PrimaryPushButton, SettingCardGroup, TextEdit,
+    CheckBox
 )
 import requests
 import sys
@@ -1021,6 +1022,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         
         infoLayout = QVBoxLayout()
         infoLayout.setSpacing(4)
+        infoLayout.setContentsMargins(0, 8, 0, 8)
         
         nameLabel = QLabel(name, softwareCard)
         nameLabel.setObjectName("softwareNameLabel")
@@ -1034,20 +1036,20 @@ class DownloadInterface(BaseScrollAreaInterface):
         infoLayout.addWidget(nameLabel)
         infoLayout.addWidget(descLabel)
         
-        checkBox = PushButton("下载", softwareCard)
-        checkBox.setObjectName("downloadButton")
-        checkBox.setFixedSize(100, 40)
+        downloadButton = PrimaryPushButton(FIF.DOWNLOAD, "下载", softwareCard)
+        downloadButton.setFixedHeight(32)
+        downloadButton.setFixedWidth(100)
         
         cardLayout.addWidget(iconLabel)
         cardLayout.addLayout(infoLayout, 1)
-        cardLayout.addWidget(checkBox)
+        cardLayout.addWidget(downloadButton)
         
         self.currentGridLayout.addWidget(softwareCard, self.currentRow, self.currentCol)
         
         self.softwareList.append({
             'card': softwareCard,
             'name': name,
-            'checkBox': checkBox
+            'button': downloadButton
         })
         
         self.currentCol += 1
