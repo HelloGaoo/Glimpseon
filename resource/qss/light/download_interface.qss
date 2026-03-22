@@ -15,7 +15,7 @@ QScrollArea {
 
 /* 标签 */
 QLabel#settingLabel {
-    font: 33px;
+    font-size: 33px;
     background-color: transparent;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
@@ -49,7 +49,7 @@ QLabel#softwareDescLabel {
 /* 分区标题 */
 QLabel#sectionTitleLabel {
     font-size: 20px;
-    color: black;
+    color: #000000;
     margin-top: 20px;
     margin-bottom: 10px;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;

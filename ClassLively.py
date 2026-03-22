@@ -983,7 +983,6 @@ class DownloadInterface(BaseScrollAreaInterface):
         """ 添加分区标题 """
         sectionLabel = QLabel(title, self.softwareContainer)
         sectionLabel.setObjectName("sectionTitleLabel")
-        sectionLabel.setStyleSheet("font-size: 20px; font-weight: bold; color: white; margin-top: 20px; margin-bottom: 10px;")
         self.softwareLayout.addWidget(sectionLabel)
         
         gridWidget = QWidget()

@@ -15,7 +15,7 @@ QScrollArea {
 
 /* 标签 */
 QLabel#settingLabel {
-    font: 33px;
+    font-size: 33px;
     background-color: transparent;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
@@ -74,7 +74,7 @@ QLabel#appNameLabel {
 
 /* 描述标签 */
 QLabel#descriptionLabel {
-    font: 14px;
+    font-size: 14px;
     color: #666666;
     background-color: transparent;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
@@ -82,7 +82,7 @@ QLabel#descriptionLabel {
 
 /* 版本信息 */
 QLabel#versionInfo {
-    font: 13px;
+    font-size: 13px;
     color: #333333;
     background-color: transparent;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
@@ -91,7 +91,7 @@ QLabel#versionInfo {
 /* 开发者和版权标签 */
 QLabel#developerLabel,
 QLabel#copyrightLabel {
-    font: 13px;
+    font-size: 13px;
     color: #333333;
     background-color: transparent;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
@@ -99,7 +99,7 @@ QLabel#copyrightLabel {
 
 /* 链接标签 */
 QLabel#linkLabel {
-    font: 14px;
+    font-size: 14px;
     color: #333333;
     background-color: transparent;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
@@ -107,7 +107,7 @@ QLabel#linkLabel {
 
 /* 分组标签 */
 QLabel#groupLabel {
-    font: 16px;
+    font-size: 16px;
     color: #333333;
     background-color: transparent;
     margin-top: 20px;
