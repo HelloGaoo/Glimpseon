@@ -989,8 +989,6 @@ class DownloadInterface(BaseScrollAreaInterface):
         self.currentGridLayout = QGridLayout(gridWidget)
         self.currentGridLayout.setContentsMargins(0, 0, 0, 0)
         self.currentGridLayout.setSpacing(12)
-        self.currentGridLayout.setColumnStretch(0, 1)
-        self.currentGridLayout.setColumnStretch(1, 1)
         self.currentRow = 0
         self.currentCol = 0
         
