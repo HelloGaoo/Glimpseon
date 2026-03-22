@@ -1,4 +1,4 @@
-﻿from PyQt5.QtWidgets import QApplication, QWidget, QSystemTrayIcon, QMenu, QAction, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QSpacerItem, QSizePolicy, QFileDialog, QGraphicsBlurEffect, QStackedLayout, QPlainTextEdit, QMessageBox
+from PyQt5.QtWidgets import QApplication, QWidget, QSystemTrayIcon, QMenu, QAction, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QSpacerItem, QSizePolicy, QFileDialog, QGraphicsBlurEffect, QStackedLayout, QPlainTextEdit, QMessageBox
 from PyQt5.QtCore import QTimer, Qt, QTime, QDate, QLocale, QTranslator, QUrl, QMetaObject, Q_ARG
 from PyQt5.QtGui import QFontDatabase, QFont, QIcon, QPixmap, QImage, QPainter, QColor
 from qfluentwidgets import (
@@ -770,6 +770,44 @@ class AboutInterface(BaseScrollAreaInterface):
         self.githubLayout.addWidget(self.githubLabel, 1)
         self.githubLayout.addWidget(self.githubButton)
         
+        # 作者主页卡片
+        self.authorCard = CardWidget(self.scrollWidget)
+        self.authorLayout = QHBoxLayout(self.authorCard)
+        self.authorLayout.setContentsMargins(16, 16, 16, 16)
+        
+        self.authorIcon = QLabel(self.authorCard)
+        self.authorIcon.setFixedSize(24, 24)
+        self.authorIcon.setObjectName("authorIcon")
+        
+        self.authorLabel = QLabel("作者主页", self.authorCard)
+        self.authorLabel.setObjectName("linkLabel")
+        
+        self.authorButton = PushButton(FIF.PEOPLE, "查看", self.authorCard)
+        self.authorButton.setObjectName("linkButton")
+        
+        self.authorLayout.addWidget(self.authorIcon)
+        self.authorLayout.addWidget(self.authorLabel, 1)
+        self.authorLayout.addWidget(self.authorButton)
+        
+        # 开源许可证卡片
+        self.licenseCard = CardWidget(self.scrollWidget)
+        self.licenseLayout = QHBoxLayout(self.licenseCard)
+        self.licenseLayout.setContentsMargins(16, 16, 16, 16)
+        
+        self.licenseIcon = QLabel(self.licenseCard)
+        self.licenseIcon.setFixedSize(24, 24)
+        self.licenseIcon.setObjectName("licenseIcon")
+        
+        self.licenseLabel = QLabel("GNU General Public License Version 3 开源许可证", self.licenseCard)
+        self.licenseLabel.setObjectName("linkLabel")
+        
+        self.viewLicenseButton = PushButton(FIF.DOCUMENT, "查看", self.licenseCard)
+        self.viewLicenseButton.setObjectName("linkButton")
+        
+        self.licenseLayout.addWidget(self.licenseIcon)
+        self.licenseLayout.addWidget(self.licenseLabel, 1)
+        self.licenseLayout.addWidget(self.viewLicenseButton)
+        
         self.__initWidget()
         self.__connectSignalToSlot()
     
@@ -801,6 +839,8 @@ class AboutInterface(BaseScrollAreaInterface):
         
         # 添加链接卡片
         self.mainLayout.addWidget(self.githubCard)
+        self.mainLayout.addWidget(self.authorCard)
+        self.mainLayout.addWidget(self.licenseCard)
         
         # 添加底部间距
         self.mainLayout.addSpacing(20)
@@ -811,142 +851,62 @@ class AboutInterface(BaseScrollAreaInterface):
         
         theme = 'dark' if isDarkTheme() else 'light'
         try:
-            qss_path = get_resource_path(os.path.join('resource', 'qss', theme, 'setting_interface.qss'))
+            qss_path = get_resource_path(os.path.join('resource', 'qss', theme, 'about_interface.qss'))
             with open(qss_path, encoding='utf-8') as f:
-                qss_content = f.read()
-                
-                # 根据主题设置颜色
-                if theme == 'dark':
-                    # 深色主题
-                    custom_qss = """
-                    QLabel#appIconLabel {
-                        background-color: transparent;
-                    }
-                    
-                    QLabel#appNameLabel {
-                        font: bold 32px;
-                        color: #FFFFFF;
-                        background-color: transparent;
-                    }
-                    
-                    QLabel#descriptionLabel {
-                        font: 14px;
-                        color: #999999;
-                        background-color: transparent;
-                    }
-                    
-                    QLabel#versionInfo {
-                        font: 13px;
-                        color: #CCCCCC;
-                        background-color: transparent;
-                    }
-                    
-                    QLabel#developerLabel,
-                    QLabel#copyrightLabel {
-                        font: 13px;
-                        color: #CCCCCC;
-                        background-color: transparent;
-                    }
-                    
-                    QLabel#linkLabel {
-                        font: 14px;
-                        color: #CCCCCC;
-                        background-color: transparent;
-                    }
-                    
-                    QLabel#groupLabel {
-                        font: 16px;
-                        font-weight: bold;
-                        color: #FFFFFF;
-                        background-color: transparent;
-                        margin-top: 20px;
-                        margin-bottom: 8px;
-                    }
-                    
-                    PushButton#linkButton {
-                        min-width: 80px;
-                    }
-                    
-                    QLabel#githubIcon {
-                        background-color: transparent;
-                    }
-                    
-                    QLabel#updateIcon {
-                        background-color: transparent;
-                    }
-                    """
-                else:
-                    # 浅色主题
-                    custom_qss = """
-                    QLabel#appIconLabel {
-                        background-color: transparent;
-                    }
-                    
-                    QLabel#appNameLabel {
-                        font: bold 32px;
-                        color: #000000;
-                        background-color: transparent;
-                    }
-                    
-                    QLabel#descriptionLabel {
-                        font: 14px;
-                        color: #666666;
-                        background-color: transparent;
-                    }
-                    
-                    QLabel#versionInfo {
-                        font: 13px;
-                        color: #333333;
-                        background-color: transparent;
-                    }
-                    
-                    QLabel#developerLabel,
-                    QLabel#copyrightLabel {
-                        font: 13px;
-                        color: #333333;
-                        background-color: transparent;
-                    }
-                    
-                    QLabel#linkLabel {
-                        font: 14px;
-                        color: #333333;
-                        background-color: transparent;
-                    }
-                    
-                    QLabel#groupLabel {
-                        font: 16px;
-                        font-weight: bold;
-                        color: #333333;
-                        background-color: transparent;
-                        margin-top: 20px;
-                        margin-bottom: 8px;
-                    }
-                    
-                    PushButton#linkButton {
-                        min-width: 80px;
-                    }
-                    
-                    QLabel#githubIcon {
-                        background-color: transparent;
-                    }
-                    
-                    QLabel#updateIcon {
-                        background-color: transparent;
-                    }
-                    """
-                
-                self.setStyleSheet(qss_content + custom_qss)
+                self.setStyleSheet(f.read())
         except Exception:
             pass
     
     def __connectSignalToSlot(self):
         """ 连接信号与槽 """
         self.githubButton.clicked.connect(self.__openGithub)
+        self.authorButton.clicked.connect(self.__openAuthorPage)
+        self.viewLicenseButton.clicked.connect(self.__viewLicense)
     
     def __openGithub(self):
         """ 打开 GitHub 仓库 """
         import webbrowser
         webbrowser.open("https://github.com/HelloGaoo/ClassLively")
+    
+    def __openAuthorPage(self):
+        """ 打开作者主页 """
+        import webbrowser
+        webbrowser.open("https://space.bilibili.com/1498602348")
+    
+    def __viewLicense(self):
+        """ 查看许可证文件 """
+        theme = 'dark' if isDarkTheme() else 'light'
+        
+        license_path = get_resource_path("LICENSE")
+        license_text = ""
+        
+        if os.path.exists(license_path):
+            with open(license_path, 'r', encoding='utf-8') as f:
+                license_text = f.read()
+        else:
+            license_text = "GNU GENERAL PUBLIC LICENSE\nVersion 3, 29 June 2007\n\nCopyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>\n\n此项目基于 GPL-3.0 许可证授权发布。"
+        
+        # 创建消息框
+        msg_box = MessageBox(
+            title="软件许可协议",
+            content="此项目 (ClassLively) 基于GNU General Public License Version 3许可证发布：",
+            parent=self
+        )
+        msg_box.cancelButton.hide()
+        
+        text_edit = TextEdit()
+        text_edit.setPlainText(license_text)
+        text_edit.setReadOnly(True)
+        text_edit.setMinimumHeight(400)
+        text_edit.setMinimumWidth(500)
+        text_edit.setFont(QFont('Consolas', 12))
+        
+        msg_box.textLayout.addWidget(text_edit)
+        msg_box.textLayout.insertSpacing(0, 10)
+        
+        msg_box.setMinimumWidth(600)
+        
+        msg_box.exec_()
     
 class WallpaperInterface(ScrollArea):
     """ 壁纸界面 """
