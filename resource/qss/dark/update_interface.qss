@@ -42,7 +42,6 @@ SmoothScrollArea {
 /* 更新日志标题 */
 QLabel#changelogTitle {
     font-size: 16px;
-    font-weight: bold;
     color: white;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
@@ -58,7 +57,6 @@ QLabel#changelogContent {
 /* 版本标题 */
 QLabel#versionTitle {
     font-size: 20px;
-    font-weight: bold;
     color: white;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }

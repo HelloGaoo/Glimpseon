@@ -35,7 +35,6 @@ CardWidget:hover {
 /* 软件名称 */
 QLabel#softwareNameLabel {
     font-size: 18px;
-    font-weight: bold;
     color: black;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
@@ -50,7 +49,6 @@ QLabel#softwareDescLabel {
 /* 分区标题 */
 QLabel#sectionTitleLabel {
     font-size: 20px;
-    font-weight: bold;
     color: black;
     margin-top: 20px;
     margin-bottom: 10px;

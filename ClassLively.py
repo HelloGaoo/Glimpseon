@@ -1,4 +1,4 @@
-﻿﻿# ClassLively
+﻿# ClassLively
 # Copyright (C) 2026 HelloGaoo & WHYOS
 #
 # This program is free software: you can redistribute it and/or modify
@@ -1687,7 +1687,6 @@ class MainWindow(FluentWindow):
         self.weatherTempLabel.setStyleSheet("""
             color: #FFFFFF; 
             font-size: 14px; 
-            font-weight: bold; 
             font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
@@ -1703,7 +1702,6 @@ class MainWindow(FluentWindow):
         self.poetryLabel.setStyleSheet("""
             color: #FFFFFF; 
             font-size: 16px; 
-            font-weight: bold; 
             font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
@@ -1875,14 +1873,13 @@ class MainWindow(FluentWindow):
             color: {color_str}; 
             font-size: {clock_size}px; 
             font-weight: bold; 
-            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            font-family: "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
         
         self.dateLabel.setStyleSheet(f"""
             color: {color_str}; 
             font-size: {date_size}px; 
-            font-weight: bold; 
             font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
@@ -1890,7 +1887,6 @@ class MainWindow(FluentWindow):
         self.poetryLabel.setStyleSheet(f"""
             color: {color_str}; 
             font-size: {poetry_size}px; 
-            font-weight: bold; 
             font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
@@ -1898,7 +1894,6 @@ class MainWindow(FluentWindow):
         self.weatherTempLabel.setStyleSheet(f"""
             color: {color_str}; 
             font-size: {weather_size}px; 
-            font-weight: bold; 
             font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)

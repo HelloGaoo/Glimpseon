@@ -109,7 +109,6 @@ QLabel#linkLabel {
 /* 分组标签 */
 QLabel#groupLabel {
     font: 16px;
-    font-weight: bold;
     color: #FFFFFF;
     background-color: transparent;
     margin-top: 20px;
