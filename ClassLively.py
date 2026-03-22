@@ -1,4 +1,4 @@
-﻿# ClassLively
+# ClassLively
 # Copyright (C) 2026 HelloGaoo & WHYOS
 #
 # This program is free software: you can redistribute it and/or modify
@@ -970,8 +970,11 @@ class DownloadInterface(BaseScrollAreaInterface):
         self.softwareLayout = QGridLayout(self.softwareContainer)
         self.softwareLayout.setContentsMargins(0, 0, 0, 0)
         self.softwareLayout.setSpacing(12)
+        self.softwareLayout.setColumnStretch(0, 1)
+        self.softwareLayout.setColumnStretch(1, 1)
         self.currentRow = 0
         self.currentCol = 0
+        self.minColumns = 2
     
     def __initLayout(self):
         """ 初始化布局 """
@@ -980,7 +983,8 @@ class DownloadInterface(BaseScrollAreaInterface):
     def addSoftware(self, icon_path, name, description):
         """ 添加一个软件到列表 """
         softwareCard = CardWidget(self.softwareContainer)
-        softwareCard.setFixedHeight(100)
+        softwareCard.setMinimumHeight(50)
+        softwareCard.setMaximumHeight(100)
         softwareCard.setMinimumWidth(400)
         
         cardLayout = QHBoxLayout(softwareCard)
@@ -1028,7 +1032,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         })
         
         self.currentCol += 1
-        if self.currentCol >= 2:
+        if self.currentCol >= self.minColumns:
             self.currentCol = 0
             self.currentRow += 1
 
