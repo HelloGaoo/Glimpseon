@@ -1,4 +1,4 @@
-﻿﻿# ClassLively
+﻿# ClassLively
 # Copyright (C) 2026 HelloGaoo & WHYOS
 #
 # This program is free software: you can redistribute it and/or modify
@@ -924,6 +924,55 @@ class AboutInterface(BaseScrollAreaInterface):
         
         msg_box.exec_()
     
+class DownloadInterface(BaseScrollAreaInterface):
+    """ 软件下载界面 """
+    
+    def __init__(self, parent=None):
+        super().__init__("软件下载", parent)
+        self.setObjectName("download")
+        
+        self.mainLayout = QVBoxLayout(self.scrollWidget)
+        self.mainLayout.setContentsMargins(60, 0, 60, 40)
+        self.mainLayout.setSpacing(16)
+        
+        self.__initWidgets()
+        self.__initLayout()
+        self.__setQss()
+        self.__connectSignalToSlot()
+    
+    def __connectSignalToSlot(self):
+        """ 连接信号与槽 """
+        cfg.themeChanged.connect(self._onThemeChanged)
+    
+    def __setQss(self):
+        """ 设置样式表 """
+        self.scrollWidget.setObjectName('scrollWidget')
+        self.titleLabel.setObjectName('settingLabel')
+        
+        theme = 'dark' if isDarkTheme() else 'light'
+        try:
+            qss_path = get_resource_path(os.path.join('resource', 'qss', theme, 'setting_interface.qss'))
+            with open(qss_path, encoding='utf-8') as f:
+                self.setStyleSheet(f.read())
+        except Exception:
+            pass
+    
+    def _onThemeChanged(self, theme: Theme):
+        """ 主题变更槽函数 """
+        self.__setQss()
+    
+    def __initWidgets(self):
+        """ 初始化控件 """
+        self.contentCard = CardWidget(self.scrollWidget)
+        self.contentLayout = QVBoxLayout(self.contentCard)
+        self.contentLayout.setContentsMargins(24, 24, 24, 24)
+        self.contentLayout.setSpacing(16)
+    
+    def __initLayout(self):
+        """ 初始化布局 """
+        self.mainLayout.addWidget(self.contentCard)
+
+
 class WallpaperInterface(ScrollArea):
     """ 壁纸界面 """
 
@@ -1633,6 +1682,9 @@ class MainWindow(FluentWindow):
         self.wallpaper = WallpaperInterface(mainWindow=self)
         self.wallpaper.setObjectName("wallpaper")
         self.addSubInterface(self.wallpaper, FIF.PHOTO, "壁纸")
+        
+        self.downloadInterface = DownloadInterface(parent=self)
+        self.addSubInterface(self.downloadInterface, FIF.DOWNLOAD, "软件下载")
 
     def initSettingsNavigation(self):
         """ 初始化设置导航 """
@@ -1649,6 +1701,7 @@ class MainWindow(FluentWindow):
         
         # 连接主题切换信号
         cfg.themeChanged.connect(self.updateInterface._onThemeChanged)
+        cfg.themeChanged.connect(self.downloadInterface._onThemeChanged)
         cfg.themeChanged.connect(self.wallpaper._onThemeChanged)
         cfg.themeChanged.connect(self.aboutInterface._onThemeChanged)
 
