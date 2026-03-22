@@ -1035,8 +1035,8 @@ class DownloadInterface(BaseScrollAreaInterface):
         infoLayout.addWidget(descLabel)
         
         checkBox = PushButton("下载", softwareCard)
-        checkBox.setFixedHeight(30)
-        checkBox.setMinimumWidth(60)
+        checkBox.setObjectName("downloadButton")
+        checkBox.setFixedSize(100, 40)
         
         cardLayout.addWidget(iconLabel)
         cardLayout.addLayout(infoLayout, 1)
