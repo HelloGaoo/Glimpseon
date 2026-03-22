@@ -20,7 +20,8 @@ from PyQt5.QtGui import QFontDatabase, QFont, QIcon, QPixmap, QImage, QPainter, 
 from qfluentwidgets import (
     setTheme, Theme, FluentWindow, FluentTranslator,
     FluentIcon as FIF, NavigationItemPosition, RoundMenu, Action, MessageBox, ScrollArea, SmoothScrollArea, ExpandLayout, isDarkTheme,
-    PushButton, CardWidget, ProgressBar, InfoBar, ImageLabel, qconfig, SwitchSettingCard, PrimaryPushButton, SettingCardGroup, TextEdit
+    PushButton, CardWidget, ProgressBar, InfoBar, ImageLabel, qconfig, SwitchSettingCard, PrimaryPushButton, SettingCardGroup, TextEdit,
+    CheckBox
 )
 import requests
 import sys
@@ -935,6 +936,8 @@ class DownloadInterface(BaseScrollAreaInterface):
         self.mainLayout.setContentsMargins(60, 0, 60, 40)
         self.mainLayout.setSpacing(16)
         
+        self.softwareList = []
+        
         self.__initWidgets()
         self.__initLayout()
         self.__setQss()
@@ -963,14 +966,73 @@ class DownloadInterface(BaseScrollAreaInterface):
     
     def __initWidgets(self):
         """ 初始化控件 """
-        self.contentCard = CardWidget(self.scrollWidget)
-        self.contentLayout = QVBoxLayout(self.contentCard)
-        self.contentLayout.setContentsMargins(24, 24, 24, 24)
-        self.contentLayout.setSpacing(16)
+        self.softwareContainer = QWidget(self.scrollWidget)
+        self.softwareLayout = QGridLayout(self.softwareContainer)
+        self.softwareLayout.setContentsMargins(0, 0, 0, 0)
+        self.softwareLayout.setSpacing(12)
+        self.currentRow = 0
+        self.currentCol = 0
     
     def __initLayout(self):
         """ 初始化布局 """
-        self.mainLayout.addWidget(self.contentCard)
+        self.mainLayout.addWidget(self.softwareContainer)
+    
+    def addSoftware(self, icon_path, name, description):
+        """ 添加一个软件到列表 """
+        softwareCard = CardWidget(self.softwareContainer)
+        softwareCard.setFixedHeight(100)
+        softwareCard.setMinimumWidth(400)
+        
+        cardLayout = QHBoxLayout(softwareCard)
+        cardLayout.setContentsMargins(20, 16, 20, 16)
+        cardLayout.setSpacing(16)
+        
+        iconLabel = QLabel(softwareCard)
+        iconLabel.setFixedSize(64, 64)
+        if os.path.exists(icon_path):
+            pixmap = QPixmap(icon_path).scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            iconLabel.setPixmap(pixmap)
+        else:
+            iconLabel.setText("📦")
+            iconLabel.setAlignment(Qt.AlignCenter)
+            iconLabel.setStyleSheet("font-size: 32px;")
+        
+        infoLayout = QVBoxLayout()
+        infoLayout.setSpacing(4)
+        
+        nameLabel = QLabel(name, softwareCard)
+        nameLabel.setObjectName("softwareNameLabel")
+        nameLabel.setStyleSheet("font-size: 18px; font-weight: bold;")
+        nameLabel.setWordWrap(True)
+        
+        descLabel = QLabel(description, softwareCard)
+        descLabel.setObjectName("softwareDescLabel")
+        descLabel.setStyleSheet("font-size: 14px; color: #888888;")
+        descLabel.setWordWrap(True)
+        descLabel.setFixedHeight(40)
+        
+        infoLayout.addWidget(nameLabel)
+        infoLayout.addWidget(descLabel)
+        
+        checkBox = CheckBox("下载", softwareCard)
+        checkBox.setFixedHeight(30)
+        
+        cardLayout.addWidget(iconLabel)
+        cardLayout.addLayout(infoLayout, 1)
+        cardLayout.addWidget(checkBox)
+        
+        self.softwareLayout.addWidget(softwareCard, self.currentRow, self.currentCol)
+        
+        self.softwareList.append({
+            'card': softwareCard,
+            'name': name,
+            'checkBox': checkBox
+        })
+        
+        self.currentCol += 1
+        if self.currentCol >= 2:
+            self.currentCol = 0
+            self.currentRow += 1
 
 
 class WallpaperInterface(ScrollArea):
@@ -1685,6 +1747,11 @@ class MainWindow(FluentWindow):
         
         self.downloadInterface = DownloadInterface(parent=self)
         self.addSubInterface(self.downloadInterface, FIF.DOWNLOAD, "软件下载")
+        
+        icon_path = get_resource_path(os.path.join('resource', 'icons', 'CY.png'))
+        self.downloadInterface.addSoftware(icon_path, "ClassLively", "天气、诗词")
+        self.downloadInterface.addSoftware(icon_path, "微信", "即时通讯软件")
+
 
     def initSettingsNavigation(self):
         """ 初始化设置导航 """
