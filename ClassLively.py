@@ -20,8 +20,7 @@ from PyQt5.QtGui import QFontDatabase, QFont, QIcon, QPixmap, QImage, QPainter, 
 from qfluentwidgets import (
     setTheme, Theme, FluentWindow, FluentTranslator,
     FluentIcon as FIF, NavigationItemPosition, RoundMenu, Action, MessageBox, ScrollArea, SmoothScrollArea, ExpandLayout, isDarkTheme,
-    PushButton, CardWidget, ProgressBar, InfoBar, ImageLabel, qconfig, SwitchSettingCard, PrimaryPushButton, SettingCardGroup, TextEdit,
-    CheckBox
+    PushButton, CardWidget, ProgressBar, InfoBar, ImageLabel, qconfig, SwitchSettingCard, PrimaryPushButton, SettingCardGroup, TextEdit
 )
 import requests
 import sys
@@ -1035,8 +1034,9 @@ class DownloadInterface(BaseScrollAreaInterface):
         infoLayout.addWidget(nameLabel)
         infoLayout.addWidget(descLabel)
         
-        checkBox = CheckBox("下载", softwareCard)
+        checkBox = PushButton("下载", softwareCard)
         checkBox.setFixedHeight(30)
+        checkBox.setMinimumWidth(60)
         
         cardLayout.addWidget(iconLabel)
         cardLayout.addLayout(infoLayout, 1)
