@@ -21,7 +21,7 @@ from qfluentwidgets import (
     setTheme, Theme, FluentWindow, FluentTranslator,
     FluentIcon as FIF, NavigationItemPosition, RoundMenu, Action, MessageBox, ScrollArea, SmoothScrollArea, ExpandLayout, isDarkTheme,
     PushButton, CardWidget, ProgressBar, InfoBar, ImageLabel, qconfig, SwitchSettingCard, PrimaryPushButton, SettingCardGroup, TextEdit,
-    CheckBox
+    CheckBox, RadioButton
 )
 import requests
 import sys
@@ -1052,27 +1052,38 @@ class DownloadInterface(BaseScrollAreaInterface):
         # 模式切换控件
         self.modeContainer = QWidget(self.scrollWidget)
         self.modeLayout = QHBoxLayout(self.modeContainer)
-        self.modeLayout.setContentsMargins(0, 0, 0, 0)
-        self.modeLayout.setSpacing(16)
+        self.modeLayout.setContentsMargins(0, 10, 0, 10)
+        self.modeLayout.setSpacing(20)
         
-        self.modeLabel = QLabel("选择模式:", self.modeContainer)
+        # 模式选择组
+        modeGroup = QWidget(self.modeContainer)
+        modeGroupLayout = QHBoxLayout(modeGroup)
+        modeGroupLayout.setContentsMargins(0, 0, 0, 0)
+        modeGroupLayout.setSpacing(16)
+        modeGroupLayout.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        modeGroup.setFixedHeight(36)
+        
+        self.modeLabel = QLabel("选择模式:", modeGroup)
         self.modeLabel.setObjectName("modeLabel")
         
-        self.singleModeButton = RadioButton("单选", self.modeContainer)
+        self.singleModeButton = RadioButton("单选", modeGroup)
         self.singleModeButton.setChecked(True)
         
-        self.multiModeButton = RadioButton("多选", self.modeContainer)
+        self.multiModeButton = RadioButton("多选", modeGroup)
+        
+        modeGroupLayout.addWidget(self.modeLabel)
+        modeGroupLayout.addWidget(self.singleModeButton)
+        modeGroupLayout.addWidget(self.multiModeButton)
         
         self.startButton = PrimaryPushButton(FIF.PLAY, "开始下载", self.modeContainer)
-        self.startButton.setFixedHeight(32)
+        self.startButton.setFixedHeight(36)
         self.startButton.setFixedWidth(120)
         self.startButton.hide()
         
-        self.modeLayout.addWidget(self.modeLabel)
-        self.modeLayout.addWidget(self.singleModeButton)
-        self.modeLayout.addWidget(self.multiModeButton)
+        self.modeLayout.addWidget(modeGroup)
         self.modeLayout.addStretch()
         self.modeLayout.addWidget(self.startButton)
+        self.modeLayout.setAlignment(Qt.AlignVCenter)
         
         # 软件容器
         self.softwareContainer = QWidget(self.scrollWidget)

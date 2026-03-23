@@ -55,3 +55,41 @@ QLabel#sectionTitleLabel {
     margin-bottom: 10px;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
+
+/* 模式选择容器 */
+DownloadInterface #modeContainer {
+    margin-top: 8px;
+    margin-bottom: 8px;
+}
+
+/* 模式选择标签 */
+QLabel#modeLabel {
+    font-size: 14px;
+    font-weight: 500;
+    color: white;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 模式选择单选按钮 */
+QRadioButton {
+    font-size: 14px;
+    color: white;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+QRadioButton::indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    border: 2px solid #888888;
+    background-color: transparent;
+}
+
+QRadioButton::indicator:checked {
+    border: 2px solid #ff6b9d;
+    background-color: #ff6b9d;
+}
+
+QRadioButton::indicator:hover {
+    border: 2px solid #ff8fb3;
+}
