@@ -1,4 +1,4 @@
-﻿# ClassLively
+# ClassLively
 # Copyright (C) 2026 HelloGaoo & WHYOS
 #
 # This program is free software: you can redistribute it and/or modify
@@ -43,6 +43,7 @@ from version import VERSION, BUILD_DATE
 from version_updater import check_version_from_github, download_update, extract_update, create_update_script, get_changelog_from_github
 from constants import APP_NAME
 from city_selector import RegionDatabase
+from downloader import Downloader
 
 def check_single_instance():
     """ 检查是否已经有实例 """
@@ -75,6 +76,14 @@ else:
     # 脚本运行时
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     MEIPASS_DIR = None
+
+# 添加config目录到Python路径
+sys.path.append(os.path.join(BASE_DIR, 'config'))
+try:
+    from url import url_dir
+except ImportError:
+    logger.warning("无法导入url模块，下载功能可能无法正常工作")
+    url_dir = []
 
 def extract_bundled_files():
     """从打包文件中提取必要的文件夹和文件"""
@@ -937,6 +946,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         self.mainLayout.setSpacing(16)
         
         self.softwareList = []
+        self.downloader = Downloader(logger)
         
         self.__initWidgets()
         self.__initLayout()
@@ -946,6 +956,9 @@ class DownloadInterface(BaseScrollAreaInterface):
     def __connectSignalToSlot(self):
         """ 连接信号与槽 """
         cfg.themeChanged.connect(self._onThemeChanged)
+        self.singleModeButton.toggled.connect(self.__handleModeChange)
+        self.multiModeButton.toggled.connect(self.__handleModeChange)
+        self.startButton.clicked.connect(self.__handleStartDownload)
     
     def __setQss(self):
         """ 设置样式表 """
@@ -964,8 +977,104 @@ class DownloadInterface(BaseScrollAreaInterface):
         """ 主题变更槽函数 """
         self.__setQss()
     
+    def __handleDownload(self, software_name):
+        """ 处理下载按钮点击事件 """
+        msg_box = MessageBox(
+            "确认下载",
+            f"确定要下载并安装 {software_name} 吗？",
+            self
+        )
+        
+        result = msg_box.exec_()
+        if result != 1:
+            return
+        info_bar = InfoBar.success(
+            "开始下载",
+            f"正在下载 {software_name}，请稍候...",
+            parent=self,
+            duration=3000
+        )
+        
+        def download_thread():
+            try:
+                processed_name = software_name.replace(" ", "").replace("[", "").replace("]", "")
+                install_method_name = f"_install_{processed_name}"
+                if hasattr(self.downloader, install_method_name):
+                    # 从url_dir中获取下载链接
+                    cache_file = None
+                    for item in url_dir:
+                        if item.get("filename", "").startswith(software_name):
+                            cache_file = item.copy()
+                            # 添加hash字段（如果不存在）
+                            if "hash" not in cache_file:
+                                cache_file["hash"] = ""
+                            break
+                    
+                    if not cache_file:
+                        # 如果没有找到对应的下载链接，显示错误提示
+                        QTimer.singleShot(0, lambda: self.showInstallError(software_name, "未找到对应的下载链接"))
+                        return
+                    
+                    # 调用安装方法
+                    getattr(self.downloader, install_method_name)(software_name, cache_file)
+                    
+                    # 显示安装完成提示
+                    QTimer.singleShot(0, lambda: self.showInstallComplete(software_name))
+                else:
+                    # 显示未找到安装方法的提示
+                    QTimer.singleShot(0, lambda: self.showInstallError(software_name, "未找到对应的安装方法"))
+            except Exception as e:
+                QTimer.singleShot(0, lambda: self.showInstallError(software_name, str(e)))
+        
+        thread = threading.Thread(target=download_thread, daemon=True)
+        thread.start()
+    
+    def showInstallComplete(self, software_name):
+        """ 显示安装完成提示 """
+        InfoBar.success(
+            "安装完成",
+            f"{software_name} 已成功安装！",
+            parent=self,
+            duration=3000
+        )
+    
+    def showInstallError(self, software_name, error_msg):
+        """ 显示安装错误提示 """
+        InfoBar.error(
+            "安装失败",
+            f"{software_name} 安装失败：{error_msg}",
+            parent=self,
+            duration=5000
+        )
+    
     def __initWidgets(self):
         """ 初始化控件 """
+        # 模式切换控件
+        self.modeContainer = QWidget(self.scrollWidget)
+        self.modeLayout = QHBoxLayout(self.modeContainer)
+        self.modeLayout.setContentsMargins(0, 0, 0, 0)
+        self.modeLayout.setSpacing(16)
+        
+        self.modeLabel = QLabel("选择模式:", self.modeContainer)
+        self.modeLabel.setObjectName("modeLabel")
+        
+        self.singleModeButton = RadioButton("单选", self.modeContainer)
+        self.singleModeButton.setChecked(True)
+        
+        self.multiModeButton = RadioButton("多选", self.modeContainer)
+        
+        self.startButton = PrimaryPushButton(FIF.PLAY, "开始下载", self.modeContainer)
+        self.startButton.setFixedHeight(32)
+        self.startButton.setFixedWidth(120)
+        self.startButton.hide()
+        
+        self.modeLayout.addWidget(self.modeLabel)
+        self.modeLayout.addWidget(self.singleModeButton)
+        self.modeLayout.addWidget(self.multiModeButton)
+        self.modeLayout.addStretch()
+        self.modeLayout.addWidget(self.startButton)
+        
+        # 软件容器
         self.softwareContainer = QWidget(self.scrollWidget)
         self.softwareLayout = QVBoxLayout(self.softwareContainer)
         self.softwareLayout.setContentsMargins(0, 0, 0, 0)
@@ -974,9 +1083,12 @@ class DownloadInterface(BaseScrollAreaInterface):
         self.currentCol = 0
         self.minColumns = 2
         self.currentGridLayout = None
+        
+        self.selectedSoftware = []
     
     def __initLayout(self):
         """ 初始化布局 """
+        self.mainLayout.addWidget(self.modeContainer)
         self.mainLayout.addWidget(self.softwareContainer)
     
     def addSection(self, title):
@@ -1034,26 +1146,135 @@ class DownloadInterface(BaseScrollAreaInterface):
         infoLayout.addWidget(nameLabel)
         infoLayout.addWidget(descLabel)
         
+        # 创建下载按钮或复选框
         downloadButton = PrimaryPushButton(FIF.DOWNLOAD, "下载", softwareCard)
         downloadButton.setFixedHeight(32)
         downloadButton.setFixedWidth(100)
         
+        checkbox = CheckBox(softwareCard)
+        checkbox.setFixedSize(32, 32)
+        checkbox.hide()  # 初始隐藏
+        
         cardLayout.addWidget(iconLabel)
         cardLayout.addLayout(infoLayout, 1)
         cardLayout.addWidget(downloadButton)
+        cardLayout.addWidget(checkbox)
         
         self.currentGridLayout.addWidget(softwareCard, self.currentRow, self.currentCol)
         
         self.softwareList.append({
             'card': softwareCard,
             'name': name,
-            'button': downloadButton
+            'button': downloadButton,
+            'checkbox': checkbox
         })
+        
+        downloadButton.clicked.connect(lambda: self.__handleDownload(name))
+        checkbox.stateChanged.connect(lambda state, n=name: self.__handleCheckboxChange(n, state))
         
         self.currentCol += 1
         if self.currentCol >= self.minColumns:
             self.currentCol = 0
             self.currentRow += 1
+    
+    def __handleCheckboxChange(self, software_name, state):
+        """ 处理复选框状态变更 """
+        if state == Qt.Checked:
+            if software_name not in self.selectedSoftware:
+                self.selectedSoftware.append(software_name)
+        else:
+            if software_name in self.selectedSoftware:
+                self.selectedSoftware.remove(software_name)
+    
+    def __handleModeChange(self):
+        """ 处理模式切换 """
+        is_single_mode = self.singleModeButton.isChecked()
+        
+        for software in self.softwareList:
+            if is_single_mode:
+                software['button'].show()
+                software['checkbox'].hide()
+            else:
+                software['button'].hide()
+                software['checkbox'].show()
+        
+        # 显示或隐藏开始按钮
+        if is_single_mode:
+            self.startButton.hide()
+        else:
+            self.startButton.show()
+    
+    def __handleStartDownload(self):
+        """ 处理开始下载按钮点击 """
+        if not self.selectedSoftware:
+            InfoBar.warning(
+                "未选择软件",
+                "请先选择要下载的软件",
+                parent=self,
+                duration=3000
+            )
+            return
+        
+        # 显示确认对话框
+        software_list = "\n".join(self.selectedSoftware)
+        msg_box = MessageBox(
+            "确认下载",
+            f"确定要下载并安装以下软件吗？\n{software_list}",
+            self
+        )
+        
+        result = msg_box.exec_()
+        if result != 1:
+            return
+        
+        # 显示下载中提示
+        info_bar = InfoBar.success(
+            "开始下载",
+            f"正在下载 {len(self.selectedSoftware)} 个软件，请稍候...",
+            parent=self,
+            duration=3000
+        )
+        
+        # 在后台线程中执行下载和安装
+        def download_thread():
+            for software_name in self.selectedSoftware:
+                try:
+                    # 处理软件名称中的特殊字符和空格
+                    processed_name = software_name.replace(" ", "").replace("[", "").replace("]", "")
+                    install_method_name = f"_install_{processed_name}"
+                    if hasattr(self.downloader, install_method_name):
+                        # 从url_dir中获取下载链接
+                        cache_file = None
+                        for item in url_dir:
+                            if item.get("filename", "").startswith(software_name):
+                                cache_file = item.copy()
+                                # 添加hash字段（如果不存在）
+                                if "hash" not in cache_file:
+                                    cache_file["hash"] = ""
+                                break
+                        
+                        if not cache_file:
+                            QTimer.singleShot(0, lambda: self.showInstallError(software_name, "未找到对应的下载链接"))
+                            continue
+                        
+                        # 调用安装方法
+                        getattr(self.downloader, install_method_name)(software_name, cache_file)
+                        
+                        # 显示安装完成提示
+                        QTimer.singleShot(0, lambda: self.showInstallComplete(software_name))
+                    else:
+                        # 显示未找到安装方法的提示
+                        QTimer.singleShot(0, lambda: self.showInstallError(software_name, "未找到对应的安装方法"))
+                except Exception as e:
+                    # 显示错误提示
+                    QTimer.singleShot(0, lambda: self.showInstallError(software_name, str(e)))
+            
+            # 下载完成后清空选择
+            QTimer.singleShot(0, lambda: self.selectedSoftware.clear())
+        
+        # 启动下载线程
+        thread = threading.Thread(target=download_thread, daemon=True)
+        thread.start()
 
 
 class WallpaperInterface(ScrollArea):

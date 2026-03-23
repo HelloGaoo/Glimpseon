@@ -188,9 +188,9 @@ class Logger:
         """ 警告日志 """
         self.logger.warning(message)
     
-    def error(self, message):
+    def error(self, message, exc_info=None):
         """ 错误日志 """
-        self.logger.error(message)
+        self.logger.error(message, exc_info=exc_info)
     
     def exception(self, message):
         """ 异常日志 """
