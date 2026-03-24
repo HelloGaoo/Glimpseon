@@ -1027,12 +1027,11 @@ class DownloadInterface(BaseScrollAreaInterface):
                         QTimer.singleShot(0, lambda: self.__showDownloadError(software_item, software_name, "未找到对应的下载链接"))
                         return
                     
-                    # 调用安装方法，传入进度回调函数
+                    # 进度回调：下载阶段 0-70%
                     def update_progress(progress, item=software_item):
                         if item:
                             adjusted_progress = int(progress * 0.7)
                             logger.info(f"收到进度更新：{software_name} - 下载{progress:.1f}% -> 总进度{adjusted_progress}%")
-                            # QMetaObject.invokeMethod
                             QMetaObject.invokeMethod(
                                 item['progressBar'], 
                                 'setValue', 
@@ -1040,8 +1039,10 @@ class DownloadInterface(BaseScrollAreaInterface):
                                 Q_ARG(int, adjusted_progress)
                             )
                     
+                    # 下载完成回调：设置进度为 70%
                     def on_download_complete(item=software_item):
                         if item:
+                            logger.info(f"{software_name}: 下载完成，设置进度为 70%")
                             QMetaObject.invokeMethod(
                                 item['progressBar'], 
                                 'setValue', 
@@ -1049,10 +1050,41 @@ class DownloadInterface(BaseScrollAreaInterface):
                                 Q_ARG(int, 70)
                             )
                     
-                    getattr(self.downloader, install_method_name)(software_name, cache_file, progress_callback=update_progress, download_complete_callback=on_download_complete)
+                    # 安装完成回调：设置进度为 100% 并隐藏进度环
+                    def on_install_complete(item=software_item):
+                        if item:
+                            logger.info(f"{software_name}: 安装完成，设置进度为 100%")
+                            QMetaObject.invokeMethod(
+                                item['progressBar'], 
+                                'setValue', 
+                                Qt.QueuedConnection, 
+                                Q_ARG(int, 100)
+                            )
+                            # 延迟 500ms 隐藏进度环
+                            QTimer.singleShot(500, lambda: self.__showDownloadComplete(item, software_name))
                     
-                    # 显示安装完成提示
-                    QTimer.singleShot(0, lambda: self.__showDownloadComplete(software_item, software_name))
+                    # 执行安装的函数
+                    def run_install():
+                        try:
+                            logger.info(f"{software_name}: 开始调用安装函数 {install_method_name}")
+                            # 调用安装函数，传入进度回调和下载完成回调
+                            getattr(self.downloader, install_method_name)(
+                                software_name, 
+                                cache_file, 
+                                progress_callback=update_progress, 
+                                download_complete_callback=on_download_complete
+                            )
+                            logger.info(f"{software_name}: 安装函数正常返回，准备调用 on_install_complete")
+                            # 安装成功，调用安装完成回调
+                            logger.info(f"{software_name}: 准备调用 on_install_complete")
+                            QTimer.singleShot(0, lambda: on_install_complete(software_item))
+                        except Exception as e:
+                            logger.error(f"{software_name}: 安装函数异常 - {e}", exc_info=True)
+                            QTimer.singleShot(0, lambda: self.__showDownloadError(software_item, software_name, str(e)))
+                    
+                    # 启动安装线程
+                    thread = threading.Thread(target=run_install, daemon=True)
+                    thread.start()
                 else:
                     # 显示未找到安装方法的提示
                     QTimer.singleShot(0, lambda: self.__showDownloadError(software_item, software_name, "未找到对应的安装方法"))
@@ -1065,8 +1097,15 @@ class DownloadInterface(BaseScrollAreaInterface):
     def __showDownloadComplete(self, software_item, software_name):
         """ 显示下载完成 """
         if software_item:
-            software_item['progressBar'].hide()
-            software_item['progressBar'].setValue(100)
+            # 先设置进度为 100%
+            QMetaObject.invokeMethod(
+                software_item['progressBar'], 
+                'setValue', 
+                Qt.QueuedConnection, 
+                Q_ARG(int, 100)
+            )
+            # 延迟隐藏进度环，让用户看到 100%
+            QTimer.singleShot(500, lambda: software_item['progressBar'].hide())
             software_item['button'].show()
         
         InfoBar.success(
