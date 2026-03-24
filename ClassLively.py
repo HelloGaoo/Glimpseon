@@ -1030,16 +1030,26 @@ class DownloadInterface(BaseScrollAreaInterface):
                     # 调用安装方法，传入进度回调函数
                     def update_progress(progress, item=software_item):
                         if item:
-                            logger.info(f"收到进度更新：{software_name} - {progress}%")
+                            adjusted_progress = int(progress * 0.7)
+                            logger.info(f"收到进度更新：{software_name} - 下载{progress:.1f}% -> 总进度{adjusted_progress}%")
                             # QMetaObject.invokeMethod
                             QMetaObject.invokeMethod(
                                 item['progressBar'], 
                                 'setValue', 
                                 Qt.QueuedConnection, 
-                                Q_ARG(int, int(progress))
+                                Q_ARG(int, adjusted_progress)
                             )
                     
-                    getattr(self.downloader, install_method_name)(software_name, cache_file, progress_callback=update_progress)
+                    def on_download_complete(item=software_item):
+                        if item:
+                            QMetaObject.invokeMethod(
+                                item['progressBar'], 
+                                'setValue', 
+                                Qt.QueuedConnection, 
+                                Q_ARG(int, 70)
+                            )
+                    
+                    getattr(self.downloader, install_method_name)(software_name, cache_file, progress_callback=update_progress, download_complete_callback=on_download_complete)
                     
                     # 显示安装完成提示
                     QTimer.singleShot(0, lambda: self.__showDownloadComplete(software_item, software_name))
