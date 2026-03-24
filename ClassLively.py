@@ -1265,20 +1265,20 @@ class DownloadInterface(BaseScrollAreaInterface):
                                 break
                         
                         if not cache_file:
-                            QTimer.singleShot(0, lambda: self.showInstallError(software_name, "未找到对应的下载链接"))
+                            QTimer.singleShot(0, lambda name=software_name: self.showInstallError(name, "未找到对应的下载链接"))
                             continue
                         
                         # 调用安装方法
                         getattr(self.downloader, install_method_name)(software_name, cache_file)
                         
                         # 显示安装完成提示
-                        QTimer.singleShot(0, lambda: self.showInstallComplete(software_name))
+                        QTimer.singleShot(0, lambda name=software_name: self.showInstallComplete(name))
                     else:
                         # 显示未找到安装方法的提示
-                        QTimer.singleShot(0, lambda: self.showInstallError(software_name, "未找到对应的安装方法"))
+                        QTimer.singleShot(0, lambda name=software_name: self.showInstallError(name, "未找到对应的安装方法"))
                 except Exception as e:
                     # 显示错误提示
-                    QTimer.singleShot(0, lambda: self.showInstallError(software_name, str(e)))
+                    QTimer.singleShot(0, lambda name=software_name, err=str(e): self.showInstallError(name, err))
             
             # 下载完成后清空选择
             QTimer.singleShot(0, lambda: self.selectedSoftware.clear())
@@ -1709,7 +1709,7 @@ class MainWindow(FluentWindow):
         self.setWindowTitle(APP_NAME)
         
         self.resize(1100, 700)
-        self.setMinimumSize(400, 300)
+        self.setMinimumSize(1100, 700)
         self.moveToCenter()
         
         # 初始化系统托盘

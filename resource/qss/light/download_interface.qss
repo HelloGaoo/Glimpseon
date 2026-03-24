@@ -63,8 +63,7 @@ DownloadInterface #modeContainer {
 
 /* 模式选择标签 */
 QLabel#modeLabel {
-    font-size: 14px;
-    font-weight: 500;
+    font-size: 18px;
     color: #333333;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
