@@ -91,3 +91,13 @@ QRadioButton::indicator:checked {
 QRadioButton::indicator:hover {
     border: 2px solid #ff8fb3;
 }
+
+/* 进度环 */
+ProgressRing {
+    background-color: transparent;
+}
+
+ProgressRing::chunk {
+    background-color: #00c853;
+    border-radius: 30px;
+}

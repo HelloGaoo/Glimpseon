@@ -1,4 +1,4 @@
-# ClassLively
+﻿# ClassLively
 # Copyright (C) 2026 HelloGaoo & WHYOS
 #
 # This program is free software: you can redistribute it and/or modify
@@ -174,9 +174,9 @@ class Downloader:
                 self.installer_logger.error(f"{software_name}: 终止进程时出错 - {str(err)}")
 
     # 剪辑师安装函数
-    def _install_剪辑师(self, software_name, cache_file):
+    def _install_剪辑师(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -191,9 +191,9 @@ class Downloader:
 
     
     # 知识胶囊安装函数
-    def _install_知识胶囊(self, software_name, cache_file):
+    def _install_知识胶囊(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -207,9 +207,9 @@ class Downloader:
             raise
     
     # 掌上看班安装函数
-    def _install_掌上看班(self, software_name, cache_file):
+    def _install_掌上看班(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -223,11 +223,11 @@ class Downloader:
             raise
     
     # 激活工具安装函数
-    def _install_激活工具(self, software_name, cache_file):
+    def _install_激活工具(self, software_name, cache_file, progress_callback=None):
         try:
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 开始下载")
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             output_dir = r"C:\Program Files (x86)\Seewo"
             self._decompress_7Z(software_name, installer_path, output_dir)
@@ -255,12 +255,12 @@ class Downloader:
             raise
     
     # 希沃壁纸安装函数
-    def _install_希沃壁纸(self, software_name, cache_file):
+    def _install_希沃壁纸(self, software_name, cache_file, progress_callback=None):
         try:
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 开始下载")
             self._update_status(software_name, "下载中")
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             output_dir = r"C:\Windows\Web"
             self._update_status(software_name, "解压中")
@@ -301,7 +301,7 @@ class Downloader:
             raise
     
     # 希沃管家安装函数
-    def _install_希沃管家(self, software_name, cache_file):
+    def _install_希沃管家(self, software_name, cache_file, progress_callback=None):
         """安装希沃管家 07
         
         Args:
@@ -309,7 +309,7 @@ class Downloader:
             cache_file: 缓存文件信息
         """
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -325,9 +325,9 @@ class Downloader:
 
     
     # 希沃快传安装函数
-    def _install_希沃快传(self, software_name, cache_file):
+    def _install_希沃快传(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -341,9 +341,9 @@ class Downloader:
             raise
     
     # 希沃集控安装函数
-    def _install_希沃集控(self, software_name, cache_file):
+    def _install_希沃集控(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -359,9 +359,9 @@ class Downloader:
 
     
     # 希沃智能笔安装函数
-    def _install_希沃智能笔(self, software_name, cache_file):
+    def _install_希沃智能笔(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -377,9 +377,9 @@ class Downloader:
 
     
     # 希沃易课堂安装函数
-    def _install_希沃易课堂(self, software_name, cache_file):
+    def _install_希沃易课堂(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -393,9 +393,9 @@ class Downloader:
             raise
     
     # 希沃输入法安装函数
-    def _install_希沃输入法(self, software_name, cache_file):
+    def _install_希沃输入法(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -409,9 +409,9 @@ class Downloader:
             raise
     
     # PPT小工具安装函数
-    def _install_PPT小工具(self, software_name, cache_file):
+    def _install_PPT小工具(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -425,9 +425,9 @@ class Downloader:
             raise
     
     # 希沃轻白板安装函数
-    def _install_希沃轻白板(self, software_name, cache_file):
+    def _install_希沃轻白板(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -441,9 +441,9 @@ class Downloader:
             raise
     
     # 希沃白板5安装函数
-    def _install_希沃白板5(self, software_name, cache_file):
+    def _install_希沃白板5(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -459,9 +459,9 @@ class Downloader:
 
     
     # 希沃课堂助手安装函数
-    def _install_希沃课堂助手(self, software_name, cache_file):
+    def _install_希沃课堂助手(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -475,9 +475,9 @@ class Downloader:
             raise
     
     # 希沃电脑助手安装函数
-    def _install_希沃电脑助手(self, software_name, cache_file):
+    def _install_希沃电脑助手(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -491,9 +491,9 @@ class Downloader:
             raise
     
     # 希沃导播助手安装函数
-    def _install_希沃导播助手(self, software_name, cache_file):
+    def _install_希沃导播助手(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -507,9 +507,9 @@ class Downloader:
             raise
     
     # 希沃视频展台安装函数
-    def _install_希沃视频展台(self, software_name, cache_file):
+    def _install_希沃视频展台(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -523,9 +523,9 @@ class Downloader:
             raise
     
     # 希沃物联校园安装函数
-    def _install_希沃物联校园(self, software_name, cache_file):
+    def _install_希沃物联校园(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -540,9 +540,9 @@ class Downloader:
     
 
     # 远程互动课堂安装函数
-    def _install_远程互动课堂(self, software_name, cache_file):
+    def _install_远程互动课堂(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -558,11 +558,11 @@ class Downloader:
 
     
     # 省平台登录插件安装函数
-    def _install_省平台登录插件(self, software_name, cache_file):
+    def _install_省平台登录插件(self, software_name, cache_file, progress_callback=None):
         try:
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 开始下载")
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 开始安装")
@@ -585,9 +585,9 @@ class Downloader:
             raise
     
     # 希象传屏[发送端]安装函数
-    def _install_希象传屏发送端(self, software_name, cache_file):
+    def _install_希象传屏发送端(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -601,9 +601,9 @@ class Downloader:
             raise
     
     # 希象传屏[接收端]安装函数
-    def _install_希象传屏接收端(self, software_name, cache_file):
+    def _install_希象传屏接收端(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -617,7 +617,7 @@ class Downloader:
             raise
     
     # 希沃品课[小组端]安装函数
-    def _install_希沃品课小组端(self, software_name, cache_file):
+    def _install_希沃品课小组端(self, software_name, cache_file, progress_callback=None):
         try:
             install_dir = r"C:\Program Files (x86)\Seewo\SeewoPinK"
             if self.installer_logger:
@@ -626,7 +626,7 @@ class Downloader:
             
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 开始下载")
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 开始静默安装")
@@ -652,11 +652,11 @@ class Downloader:
             raise
     
     # 希沃品课[教师端]安装函数
-    def _install_希沃品课教师端(self, software_name, cache_file):
+    def _install_希沃品课教师端(self, software_name, cache_file, progress_callback=None):
         try:
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 开始下载")
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 开始静默安装")
@@ -686,9 +686,9 @@ class Downloader:
 
     
     # 微信安装函数
-    def _install_微信(self, software_name, cache_file):
+    def _install_微信(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -702,9 +702,9 @@ class Downloader:
             raise
     
     # QQ安装函数
-    def _install_QQ(self, software_name, cache_file):
+    def _install_QQ(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -718,9 +718,9 @@ class Downloader:
             raise
     
     # UU远程安装函数
-    def _install_UU远程(self, software_name, cache_file):
+    def _install_UU远程(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -734,9 +734,9 @@ class Downloader:
             raise
     
     # 网易云音乐安装函数
-    def _install_网易云音乐(self, software_name, cache_file):
+    def _install_网易云音乐(self, software_name, cache_file, progress_callback=None):
         try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             self.silent_installation(software_name, installer_path)
             
@@ -750,11 +750,11 @@ class Downloader:
             raise
     
     # office2021安装函数
-    def _install_office2021(self, software_name, cache_file):
+    def _install_office2021(self, software_name, cache_file, progress_callback=None):
         try:            
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 开始下载")
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 开始安装")
@@ -807,11 +807,11 @@ class Downloader:
             raise
     
     # ClassIsland2安装函数
-    def _install_ClassIsland2(self, software_name, cache_file):
+    def _install_ClassIsland2(self, software_name, cache_file, progress_callback=None):
         try:
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 开始下载")
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 开始安装")
@@ -864,11 +864,11 @@ class Downloader:
             raise
     
     # ClassWidgets安装函数
-    def _install_ClassWidgets(self, software_name, cache_file):
+    def _install_ClassWidgets(self, software_name, cache_file, progress_callback=None):
         try:
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 开始下载")
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback)
             
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 开始安装")
@@ -937,7 +937,7 @@ class Downloader:
             return f"{prefix}{cache_file['github_path']}"
         return None
     
-    def _download_file(self, software_name, cache_file, download_location="Temporary"):
+    def _download_file(self, software_name, cache_file, download_location="Temporary", progress_callback=None):
         """下载文件
         
         Args:
@@ -970,6 +970,7 @@ class Downloader:
             
             total_size = int(response.headers.get('content-length', 0))
             downloaded_size = 0
+            last_reported_progress = -1
             
             with open(save_path, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
@@ -980,11 +981,16 @@ class Downloader:
                         # 计算下载进度
                         if total_size > 0:
                             progress = (downloaded_size / total_size) * 100
-                            if self.installer_logger and int(progress) % 10 == 0:
-                                self.installer_logger.info(f"{software_name}: 下载进度: {progress:.1f}%")
+                            if int(progress) > last_reported_progress:
+                                last_reported_progress = int(progress)
+                                if self.installer_logger:
+                                    self.installer_logger.info(f"{software_name}: 下载进度：{progress:.1f}%")
+                                if progress_callback:
+                                    self.installer_logger.info(f"{software_name}: 调用进度回调，进度={progress:.1f}%")
+                                    progress_callback(progress)
             
             if self.installer_logger:
-                self.installer_logger.info(f"{software_name}: 下载完成: {save_path}")
+                self.installer_logger.info(f"{software_name}: 下载完成：{save_path}")
             
             return save_path
         except Exception as err:

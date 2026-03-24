@@ -21,7 +21,7 @@ from qfluentwidgets import (
     setTheme, Theme, FluentWindow, FluentTranslator,
     FluentIcon as FIF, NavigationItemPosition, RoundMenu, Action, MessageBox, ScrollArea, SmoothScrollArea, ExpandLayout, isDarkTheme,
     PushButton, CardWidget, ProgressBar, InfoBar, ImageLabel, qconfig, SwitchSettingCard, PrimaryPushButton, SettingCardGroup, TextEdit,
-    CheckBox, RadioButton
+    CheckBox, RadioButton, ProgressRing
 )
 import requests
 import sys
@@ -988,6 +988,18 @@ class DownloadInterface(BaseScrollAreaInterface):
         result = msg_box.exec_()
         if result != 1:
             return
+        software_item = None
+        for item in self.softwareList:
+            if item['name'] == software_name:
+                software_item = item
+                break
+        
+        if software_item:
+            # 显示进度环，隐藏下载按钮
+            software_item['progressBar'].show()
+            software_item['progressBar'].setValue(0)
+            software_item['button'].hide()
+        
         info_bar = InfoBar.success(
             "开始下载",
             f"正在下载 {software_name}，请稍候...",
@@ -1012,25 +1024,41 @@ class DownloadInterface(BaseScrollAreaInterface):
                     
                     if not cache_file:
                         # 如果没有找到对应的下载链接，显示错误提示
-                        QTimer.singleShot(0, lambda: self.showInstallError(software_name, "未找到对应的下载链接"))
+                        QTimer.singleShot(0, lambda: self.__showDownloadError(software_item, software_name, "未找到对应的下载链接"))
                         return
                     
-                    # 调用安装方法
-                    getattr(self.downloader, install_method_name)(software_name, cache_file)
+                    # 调用安装方法，传入进度回调函数
+                    def update_progress(progress, item=software_item):
+                        if item:
+                            logger.info(f"收到进度更新：{software_name} - {progress}%")
+                            # QMetaObject.invokeMethod
+                            QMetaObject.invokeMethod(
+                                item['progressBar'], 
+                                'setValue', 
+                                Qt.QueuedConnection, 
+                                Q_ARG(int, int(progress))
+                            )
+                    
+                    getattr(self.downloader, install_method_name)(software_name, cache_file, progress_callback=update_progress)
                     
                     # 显示安装完成提示
-                    QTimer.singleShot(0, lambda: self.showInstallComplete(software_name))
+                    QTimer.singleShot(0, lambda: self.__showDownloadComplete(software_item, software_name))
                 else:
                     # 显示未找到安装方法的提示
-                    QTimer.singleShot(0, lambda: self.showInstallError(software_name, "未找到对应的安装方法"))
+                    QTimer.singleShot(0, lambda: self.__showDownloadError(software_item, software_name, "未找到对应的安装方法"))
             except Exception as e:
-                QTimer.singleShot(0, lambda: self.showInstallError(software_name, str(e)))
+                QTimer.singleShot(0, lambda: self.__showDownloadError(software_item, software_name, str(e)))
         
         thread = threading.Thread(target=download_thread, daemon=True)
         thread.start()
     
-    def showInstallComplete(self, software_name):
-        """ 显示安装完成提示 """
+    def __showDownloadComplete(self, software_item, software_name):
+        """ 显示下载完成 """
+        if software_item:
+            software_item['progressBar'].hide()
+            software_item['progressBar'].setValue(100)
+            software_item['button'].show()
+        
         InfoBar.success(
             "安装完成",
             f"{software_name} 已成功安装！",
@@ -1038,8 +1066,12 @@ class DownloadInterface(BaseScrollAreaInterface):
             duration=3000
         )
     
-    def showInstallError(self, software_name, error_msg):
-        """ 显示安装错误提示 """
+    def __showDownloadError(self, software_item, software_name, error_msg):
+        """ 显示下载错误 """
+        if software_item:
+            software_item['progressBar'].hide()
+            software_item['button'].show()
+        
         InfoBar.error(
             "安装失败",
             f"{software_name} 安装失败：{error_msg}",
@@ -1137,7 +1169,7 @@ class DownloadInterface(BaseScrollAreaInterface):
             pixmap = QPixmap(icon_path).scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             iconLabel.setPixmap(pixmap)
         else:
-            iconLabel.setText("📦")
+            iconLabel.setText("")
             iconLabel.setAlignment(Qt.AlignCenter)
             iconLabel.setStyleSheet("font-size: 32px;")
         
@@ -1157,6 +1189,13 @@ class DownloadInterface(BaseScrollAreaInterface):
         infoLayout.addWidget(nameLabel)
         infoLayout.addWidget(descLabel)
         
+        # 创建进度环
+        progressBar = ProgressRing(softwareCard)
+        progressBar.setFixedSize(60, 60)
+        progressBar.setValue(0)
+        progressBar.setTextVisible(True)
+        progressBar.hide()
+        
         # 创建下载按钮或复选框
         downloadButton = PrimaryPushButton(FIF.DOWNLOAD, "下载", softwareCard)
         downloadButton.setFixedHeight(32)
@@ -1168,6 +1207,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         
         cardLayout.addWidget(iconLabel)
         cardLayout.addLayout(infoLayout, 1)
+        cardLayout.addWidget(progressBar)
         cardLayout.addWidget(downloadButton)
         cardLayout.addWidget(checkbox)
         
@@ -1177,7 +1217,8 @@ class DownloadInterface(BaseScrollAreaInterface):
             'card': softwareCard,
             'name': name,
             'button': downloadButton,
-            'checkbox': checkbox
+            'checkbox': checkbox,
+            'progressBar': progressBar
         })
         
         downloadButton.clicked.connect(lambda: self.__handleDownload(name))
@@ -1246,6 +1287,14 @@ class DownloadInterface(BaseScrollAreaInterface):
             duration=3000
         )
         
+        for software_name in self.selectedSoftware:
+            for software_item in self.softwareList:
+                if software_item['name'] == software_name:
+                    software_item['progressBar'].show()
+                    software_item['progressBar'].setValue(0)
+                    software_item['button'].hide()
+                    break
+        
         # 在后台线程中执行下载和安装
         def download_thread():
             for software_name in self.selectedSoftware:
@@ -1265,20 +1314,20 @@ class DownloadInterface(BaseScrollAreaInterface):
                                 break
                         
                         if not cache_file:
-                            QTimer.singleShot(0, lambda name=software_name: self.showInstallError(name, "未找到对应的下载链接"))
+                            QTimer.singleShot(0, lambda name=software_name: self.__showDownloadError(None, name, "未找到对应的下载链接"))
                             continue
                         
                         # 调用安装方法
                         getattr(self.downloader, install_method_name)(software_name, cache_file)
                         
                         # 显示安装完成提示
-                        QTimer.singleShot(0, lambda name=software_name: self.showInstallComplete(name))
+                        QTimer.singleShot(0, lambda name=software_name: self.__showDownloadComplete(None, name))
                     else:
                         # 显示未找到安装方法的提示
-                        QTimer.singleShot(0, lambda name=software_name: self.showInstallError(name, "未找到对应的安装方法"))
+                        QTimer.singleShot(0, lambda name=software_name: self.__showDownloadError(None, name, "未找到对应的安装方法"))
                 except Exception as e:
                     # 显示错误提示
-                    QTimer.singleShot(0, lambda name=software_name, err=str(e): self.showInstallError(name, err))
+                    QTimer.singleShot(0, lambda name=software_name, err=str(e): self.__showDownloadError(None, name, err))
             
             # 下载完成后清空选择
             QTimer.singleShot(0, lambda: self.selectedSoftware.clear())
