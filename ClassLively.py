@@ -2075,6 +2075,13 @@ class MainWindow(FluentWindow):
             else:
                 logger.info("双击托盘图标，显示主窗口")
                 self.show()
+        elif reason == QSystemTrayIcon.Trigger:
+            if self.isVisible():
+                logger.info("单击托盘图标，隐藏主窗口")
+                self.hide()
+            else:
+                logger.info("单击托盘图标，显示主窗口")
+                self.show()
     
     def __updateIdleTimer(self):
         """ 更新空闲检测定时器 """
@@ -2140,16 +2147,21 @@ class MainWindow(FluentWindow):
     
     def __installGlobalHooks(self):
         try:
+            # 回调函数类型
+            HOOKPROC = ctypes.CFUNCTYPE(ctypes.c_long, ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong)
+            
+            self.keyboardProcWrapper = HOOKPROC(self.keyboardProc)
+            self.mouseProcWrapper = HOOKPROC(self.mouseProc)
             self.keyboardHook = ctypes.windll.user32.SetWindowsHookExW(
                 13,  # WH_KEYBOARD_LL
-                self.keyboardProc,
+                self.keyboardProcWrapper,
                 ctypes.windll.kernel32.GetModuleHandleW(None),
                 0
             )
             
             self.mouseHook = ctypes.windll.user32.SetWindowsHookExW(
                 14,  # WH_MOUSE_LL
-                self.mouseProc,
+                self.mouseProcWrapper,
                 ctypes.windll.kernel32.GetModuleHandleW(None),
                 0
             )
@@ -2160,7 +2172,19 @@ class MainWindow(FluentWindow):
     def keyboardProc(self, nCode, wParam, lParam):
         """ 键盘钩子回调函数 """
         if nCode >= 0:
-            keyCode = lParam.contents.vkCode
+            # KBDLLHOOKSTRUCT结构体
+            class KBDLLHOOKSTRUCT(ctypes.Structure):
+                _fields_ = [
+                    ("vkCode", ctypes.c_uint),
+                    ("scanCode", ctypes.c_uint),
+                    ("flags", ctypes.c_uint),
+                    ("time", ctypes.c_uint),
+                    ("dwExtraInfo", ctypes.c_ulong)
+                ]
+            
+            # lParam
+            kbd_struct = KBDLLHOOKSTRUCT.from_address(lParam)
+            keyCode = kbd_struct.vkCode
             if keyCode in [33, 34]:  # PageUp/PageDown
                 self.lastPageOperation = QTime.currentTime()
                 logger.debug("检测到翻页操作")
@@ -2187,6 +2211,10 @@ class MainWindow(FluentWindow):
     def show(self):
         """ 显示窗口 """
         super().show()
+
+        if cfg.autoOpenOnIdle.value:
+            self.idleTimer.stop()
+            logger.debug("窗口显示，已停止空闲检测")
         
         if cfg.autoCheckUpdate.value:
             logger.info("自动检查更新已启用，检查更新中")
@@ -2197,6 +2225,11 @@ class MainWindow(FluentWindow):
         """ 隐藏窗口 """
         logger.info("隐藏主窗口")
         self.hasTriggeredAutoOpen = False
+
+        if cfg.autoOpenOnIdle.value:
+            self.idleTimer.start(self.idleCheckInterval)
+            logger.debug("窗口隐藏，已启动空闲检测")
+        
         super().hide()
     
     def closeEvent(self, event):
@@ -2205,6 +2238,11 @@ class MainWindow(FluentWindow):
             # 最小化到托盘
             logger.info("关闭行为: 最小化到托盘")
             event.ignore()
+
+            if cfg.autoOpenOnIdle.value:
+                self.idleTimer.start(self.idleCheckInterval)
+                logger.debug("应用最小化，已启动空闲检测")
+            
             self.hide()
             self.tray_icon.showMessage(
                 APP_NAME,
@@ -2214,7 +2252,15 @@ class MainWindow(FluentWindow):
             )
         else:
             # 退出应用
-            logger.info("关闭行为: 退出应用")
+            logger.info("关闭行为：退出应用")
+            
+            if hasattr(self, 'keyboardHook') and self.keyboardHook:
+                ctypes.windll.user32.UnhookWindowsHookEx(self.keyboardHook)
+                logger.debug("键盘钩子已卸载")
+            if hasattr(self, 'mouseHook') and self.mouseHook:
+                ctypes.windll.user32.UnhookWindowsHookEx(self.mouseHook)
+                logger.debug("鼠标钩子已卸载")
+            
             QApplication.quit()
     
     def onCurrentInterfaceChanged(self, index):
