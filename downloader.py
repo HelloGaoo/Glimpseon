@@ -652,21 +652,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    # 希象传屏[接收端]安装函数
-    def _install_希象传屏接收端(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
-        try:
-            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
-            
-            self.silent_installation(software_name, installer_path)
-            
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
-            
-            self._set_progress_percent(software_name, 100)
-        except Exception as err:
-            if self.installer_logger:
-                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
-            raise
     
     # 希沃品课[小组端]安装函数
     def _install_希沃品课小组端(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):

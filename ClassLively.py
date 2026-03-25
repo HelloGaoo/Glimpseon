@@ -2305,7 +2305,6 @@ class MainWindow(FluentWindow):
         self.downloadInterface.addSoftware(icon_path, "远程互动课堂", "")
         self.downloadInterface.addSoftware(icon_path, "省平台登录插件", "")
         self.downloadInterface.addSoftware(icon_path, "希象传屏 [发送端]", "")
-        self.downloadInterface.addSoftware(icon_path, "希象传屏 [接收端]", "")
         self.downloadInterface.addSoftware(icon_path, "希沃品课 [小组端]", "")
         self.downloadInterface.addSoftware(icon_path, "希沃品课 [教师端]", "")
         
