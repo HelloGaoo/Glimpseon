@@ -81,7 +81,7 @@ else:
 # 添加config目录到Python路径
 sys.path.append(os.path.join(BASE_DIR, 'config'))
 try:
-    from url import url_dir
+    from url import url_dir  # type: ignore
 except ImportError:
     logger.warning("无法导入url模块，下载功能可能无法正常工作")
     url_dir = []
