@@ -2029,12 +2029,16 @@ class MainWindow(FluentWindow):
         self.idleTimer = QTimer(self)
         self.idleTimer.timeout.connect(self.__checkIdle)
         self.lastMouseActivity = QTime.currentTime()
+        self.lastKeyboardActivity = QTime.currentTime()
+        self.lastPageOperation = QTime.currentTime()
         self.isMinimized = False
         self.idleCheckInterval = 10000  # 10 秒
         self.hasTriggeredAutoOpen = False
+        self.isVideoPlaying = False
         cfg.autoOpenOnIdle.valueChanged.connect(self.__updateIdleTimer)
         cfg.idleMinutes.valueChanged.connect(self.__updateIdleTimer)
         self.__updateIdleTimer()
+        self.__installGlobalHooks()
         
         logger.info("主窗口初始化完成")
     
@@ -2100,17 +2104,22 @@ class MainWindow(FluentWindow):
                        ("dwTime", ctypes.c_uint)]
         
         try:
+            if self.isVideoPlaying:
+                return
             last_input = LASTINPUTINFO()
             last_input.cbSize = ctypes.sizeof(LASTINPUTINFO)
             ctypes.windll.user32.GetLastInputInfo(ctypes.byref(last_input))
             ticks = ctypes.windll.kernel32.GetTickCount()
             idle_time_ms = (ticks - last_input.dwTime)
             
+            now = QTime.currentTime()
+            page_operation_elapsed = self.lastPageOperation.msecsTo(now)
+            is_recent_page_operation = page_operation_elapsed < 5000
+            
             idle_minutes = cfg.idleMinutes.value
             idle_threshold = idle_minutes * 60 * 1000
             
-            # 系统空闲时间超过阈值且未触发过时触发
-            if idle_time_ms > idle_threshold and not self.hasTriggeredAutoOpen:
+            if idle_time_ms > idle_threshold and not self.hasTriggeredAutoOpen and not is_recent_page_operation:
                 logger.info(f"检测到电脑空闲超过{idle_minutes}分钟，自动打开界面")
                 self.__autoOpenFromMinimized()
                 self.lastMouseActivity = QTime.currentTime()
@@ -2128,6 +2137,52 @@ class MainWindow(FluentWindow):
         if cfg.autoOpenMaximize.value:
             logger.info("自动最大化窗口")
             self.showMaximized()
+    
+    def __installGlobalHooks(self):
+        try:
+            self.keyboardHook = ctypes.windll.user32.SetWindowsHookExW(
+                13,  # WH_KEYBOARD_LL
+                self.keyboardProc,
+                ctypes.windll.kernel32.GetModuleHandleW(None),
+                0
+            )
+            
+            self.mouseHook = ctypes.windll.user32.SetWindowsHookExW(
+                14,  # WH_MOUSE_LL
+                self.mouseProc,
+                ctypes.windll.kernel32.GetModuleHandleW(None),
+                0
+            )
+            
+        except Exception as e:
+            logger.error(f"全局钩子安装失败：{e}")
+    
+    def keyboardProc(self, nCode, wParam, lParam):
+        """ 键盘钩子回调函数 """
+        if nCode >= 0:
+            keyCode = lParam.contents.vkCode
+            if keyCode in [33, 34]:  # PageUp/PageDown
+                self.lastPageOperation = QTime.currentTime()
+                logger.debug("检测到翻页操作")
+        
+        return ctypes.windll.user32.CallNextHookEx(self.keyboardHook, nCode, wParam, lParam)
+    
+    def mouseProc(self, nCode, wParam, lParam):
+        """ 鼠标钩子回调函数 """
+        if nCode >= 0:
+            if wParam == 0x020A:  # WM_MOUSEWHEEL
+                self.lastPageOperation = QTime.currentTime()
+                logger.debug("检测到鼠标滚轮操作")
+        
+        return ctypes.windll.user32.CallNextHookEx(self.mouseHook, nCode, wParam, lParam)
+    
+    def setVideoPlaying(self, playing):
+        """ 设置视频播放状态 """
+        self.isVideoPlaying = playing
+        if playing:
+            logger.debug("视频播放，暂停空闲检测")
+        else:
+            logger.debug("视频结束，恢复空闲检测")
     
     def show(self):
         """ 显示窗口 """
