@@ -764,7 +764,7 @@ class AboutInterface(BaseScrollAreaInterface):
         rightLayout.addWidget(self.versionInfo)
         
         # 开发者信息
-        self.developerLabel = QLabel("开发者：HelloGaoo & WHYOS", self.aboutCard)
+        self.developerLabel = QLabel("开发作者：HelloGaoo & WHYOS", self.aboutCard)
         self.developerLabel.setObjectName("developerLabel")
         rightLayout.addWidget(self.developerLabel)
         
@@ -2104,7 +2104,6 @@ class MainWindow(FluentWindow):
             self.hasTriggeredAutoOpen = False
             return
         
-        # 窗口隐藏时，检测全局鼠标活动
         # Windows API
         class LASTINPUTINFO(ctypes.Structure):
             _fields_ = [("cbSize", ctypes.c_uint),
@@ -2147,7 +2146,6 @@ class MainWindow(FluentWindow):
     
     def __installGlobalHooks(self):
         try:
-            # 回调函数类型
             HOOKPROC = ctypes.CFUNCTYPE(ctypes.c_long, ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong)
             
             self.keyboardProcWrapper = HOOKPROC(self.keyboardProc)
@@ -2211,7 +2209,7 @@ class MainWindow(FluentWindow):
     def show(self):
         """ 显示窗口 """
         super().show()
-
+        
         if cfg.autoOpenOnIdle.value:
             self.idleTimer.stop()
             logger.debug("窗口显示，已停止空闲检测")
@@ -2225,7 +2223,7 @@ class MainWindow(FluentWindow):
         """ 隐藏窗口 """
         logger.info("隐藏主窗口")
         self.hasTriggeredAutoOpen = False
-
+        
         if cfg.autoOpenOnIdle.value:
             self.idleTimer.start(self.idleCheckInterval)
             logger.debug("窗口隐藏，已启动空闲检测")
@@ -2233,6 +2231,33 @@ class MainWindow(FluentWindow):
         super().hide()
     
     def closeEvent(self, event):
+        """ 关闭事件处理 """
+        if cfg.closeAction.value == "minimize":
+            logger.info("关闭行为：最小化到托盘")
+            event.ignore()
+            
+            if cfg.autoOpenOnIdle.value:
+                self.idleTimer.start(self.idleCheckInterval)
+                logger.debug("应用最小化，已启动空闲检测")
+            
+            self.hide()
+            self.tray_icon.showMessage(
+                APP_NAME,
+                "应用已最小化到系统托盘",
+                QSystemTrayIcon.Information,
+                2000
+            )
+        else:
+            logger.info("关闭行为：退出应用")
+            
+            if hasattr(self, 'keyboardHook') and self.keyboardHook:
+                ctypes.windll.user32.UnhookWindowsHookEx(self.keyboardHook)
+            if hasattr(self, 'mouseHook') and self.mouseHook:
+                ctypes.windll.user32.UnhookWindowsHookEx(self.mouseHook)
+            
+            QApplication.quit()
+    
+    def onCurrentInterfaceChanged(self, index):
         """ 关闭事件处理 """
         if cfg.closeAction.value == "minimize":
             # 最小化到托盘
