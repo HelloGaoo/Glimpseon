@@ -14,4 +14,21 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import os
+import sys
+
 APP_NAME = "ClassLively"
+
+# 获取项目根目录
+if getattr(sys, 'frozen', False):
+    BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def get_resource_path(relative_path):
+    """获取资源的绝对路径"""
+    if hasattr(sys, '_MEIPASS'):
+        # PyInstaller 打包后的临时目录
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
