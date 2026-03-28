@@ -2105,63 +2105,136 @@ class EditPanel(QWidget):
         self.mainWindow = mainWindow
         self._width = width
         self.setFixedWidth(self._width)
-        self.setObjectName('editPanel')
-        self.setAttribute(Qt.WA_TranslucentBackground, True)
-
-        from qfluentwidgets import ListWidget, PrimaryPushButton, PushButton, BodyLabel, LineEdit
+        self.setObjectName('EditPanel')
+        
+        from qfluentwidgets import (
+            ListWidget, PrimaryPushButton, PushButton, StrongBodyLabel, 
+            BodyLabel, LineEdit, FluentIcon as FIF, Theme, isDarkTheme
+        )
+        
+        # 设置不透明背景
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setAutoFillBackground(True)
+        self._updateTheme()
+        
+        # 主布局
+        v = QVBoxLayout(self)
+        v.setContentsMargins(16, 16, 16, 16)
+        v.setSpacing(12)
+        
+        # 组件库标题
+        titleLabel = StrongBodyLabel('组件库', self)
+        v.addWidget(titleLabel)
+        
+        # 组件列表
         self.list = ListWidget(self)
+        self.list.setFixedHeight(120)
+        
+        # 添加列表项
         for t in ('时钟', '天气', '诗词'):
             self.list.addItem(t)
-
-        self.addButton = PrimaryPushButton('添加', self)  # 组件按钮
-        self.deleteButton = PushButton('删除', self)  # 删除组件按钮
-        self.closeButton = PushButton('关闭', self)  # 关闭面板按钮
-        self.propLabel = BodyLabel('文本属性', self)  # 文本属性标签
-        self.propEdit = LineEdit(self)  # 文本属性输入框
-        self.sizeLabel = BodyLabel('大小配置', self)  # 大小配置标签
-        sizeLayout = QHBoxLayout()  # 大小配置水平布局
-        self.widthLabel = BodyLabel('宽度:', self)  # 宽度标签
-        self.widthEdit = LineEdit(self)  # 宽度输入框
+        
+        v.addWidget(self.list)
+        
+        # 添加按钮
+        self.addButton = PrimaryPushButton('添加', self, icon=FIF.ADD)
+        self.addButton.setFixedHeight(32)
+        v.addWidget(self.addButton)
+        
+        # 分隔区域
+        v.addSpacing(8)
+        
+        # 文本属性
+        self.propLabel = StrongBodyLabel('文本属性', self)
+        self.propLabel.setObjectName('propLabel')
+        v.addWidget(self.propLabel)
+        self.propEdit = LineEdit(self)
+        self.propEdit.setPlaceholderText('输入文本内容')
+        self.propEdit.setFixedHeight(32)
+        v.addWidget(self.propEdit)
+        
+        # 大小配置
+        self.sizeLabel = StrongBodyLabel('大小配置', self)
+        self.sizeLabel.setObjectName('sizeLabel')
+        v.addWidget(self.sizeLabel)
+        
+        # 大小输入布局
+        sizeWidget = QWidget()
+        sizeLayout = QHBoxLayout(sizeWidget)
+        sizeLayout.setContentsMargins(0, 0, 0, 0)
+        sizeLayout.setSpacing(8)
+        
+        self.widthLabel = BodyLabel('宽度:', self)
+        self.widthEdit = LineEdit(self)
         self.widthEdit.setPlaceholderText('宽度')
-        self.heightLabel = BodyLabel('高度:', self)  # 高度标签
-        self.heightEdit = LineEdit(self)  # 高度输入框
+        self.widthEdit.setFixedHeight(32)
+        
+        self.heightLabel = BodyLabel('高度:', self)
+        self.heightEdit = LineEdit(self)
         self.heightEdit.setPlaceholderText('高度')
+        self.heightEdit.setFixedHeight(32)
+        
         sizeLayout.addWidget(self.widthLabel)
-        sizeLayout.addWidget(self.widthEdit)
+        sizeLayout.addWidget(self.widthEdit, 1)
         sizeLayout.addWidget(self.heightLabel)
-        sizeLayout.addWidget(self.heightEdit)
-        v = QVBoxLayout(self)
-        v.setContentsMargins(12, 12, 12, 12)  # 内边距
-        v.setSpacing(10)  # 间距
-        v.addWidget(BodyLabel('组件库', self))  # 组件库标题
-        v.addWidget(self.list)  # 组件列表
-        v.addWidget(self.addButton)  # 添加按钮
-        v.addSpacing(12)  # 间距
-        v.addWidget(self.propLabel)  # 文本属性标签
-        v.addWidget(self.propEdit)  # 文本属性输入框
-        v.addWidget(self.sizeLabel)  # 大小配置标签
-        v.addLayout(sizeLayout)  # 大小配置布局
-        v.addWidget(self.deleteButton)  # 删除按钮
-        v.addStretch()  # 弹性空间
-        v.addWidget(self.closeButton)  # 关闭按钮
-        self.addButton.clicked.connect(self._onAdd)  # 按钮点击
-        self.deleteButton.clicked.connect(self._onDelete)  # 删除按钮点击
-        self.closeButton.clicked.connect(self.hidePanel)  # 关闭按钮点击
-        self.propEdit.textChanged.connect(self._onPropEdit)  # 文本属性输入
-        self.widthEdit.textChanged.connect(self._onSizeEdit)  # 宽度输入
-        self.heightEdit.textChanged.connect(self._onSizeEdit)  # 高度输入
+        sizeLayout.addWidget(self.heightEdit, 1)
+        
+        v.addWidget(sizeWidget)
+        
+        self.deleteButton = PushButton('删除', self, icon=FIF.DELETE)
+        self.deleteButton.setFixedHeight(32)
+        v.addWidget(self.deleteButton)
+        
+        v.addStretch()
+        
+        self.closeButton = PushButton('关闭', self, icon=FIF.CLOSE)
+        self.closeButton.setFixedHeight(32)
+        v.addWidget(self.closeButton)
+        
+        self.addButton.clicked.connect(self._onAdd)
+        self.deleteButton.clicked.connect(self._onDelete)
+        self.closeButton.clicked.connect(self.hidePanel)
+        self.propEdit.textChanged.connect(self._onPropEdit)
+        self.widthEdit.textChanged.connect(self._onSizeEdit)
+        self.heightEdit.textChanged.connect(self._onSizeEdit)
+        
         self.anim = QPropertyAnimation(self, b'geometry')
         self.hide()
     
-    def paintEvent(self, event):
-        """背景"""
-        from PyQt5.QtGui import QPainter, QBrush, QColor
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)  # 抗锯齿
-        rect = self.rect()
-        brush = QBrush(QColor(255, 255, 255, 217))  # 0.85
-        painter.setBrush(brush)
-        painter.drawRoundedRect(rect, 8, 8)  # 8 是圆角半径
+    def _updateTheme(self):
+        """更新主题"""
+        from PyQt5.QtGui import QColor, QPalette
+        from qfluentwidgets import isDarkTheme
+        
+        if isDarkTheme():
+            self.setStyleSheet("""
+                #EditPanel {
+                    background-color: rgb(32, 32, 32);
+                    border-radius: 12px;
+                }
+            """)
+        else:
+            self.setStyleSheet("""
+                #EditPanel {
+                    background-color: rgb(255, 255, 255);
+                    border-radius: 12px;
+                }
+            """)
+    
+    def _updateListStyle(self):
+        """更新列表样式"""
+        from PyQt5.QtGui import QColor, QPalette
+        from qfluentwidgets import isDarkTheme
+        
+        palette = self.list.palette()
+        if isDarkTheme():
+            palette.setColor(QPalette.Base, QColor(40, 40, 40))
+            palette.setColor(QPalette.Text, QColor(255, 255, 255))
+        else:
+            palette.setColor(QPalette.Base, QColor(245, 245, 245))
+            palette.setColor(QPalette.Text, QColor(0, 0, 0))
+        
+        self.list.setPalette(palette)
 
     def showPanel(self):
         """显示编辑面板"""
@@ -2169,8 +2242,10 @@ class EditPanel(QWidget):
         if not parent:
             return
         
-        # 设置透明度
-        self.setWindowOpacity(0.85)
+        # 更新主题
+        self._updateTheme()
+        self._updateListStyle()
+        
         self.show()
 
         pr = parent.rect()
@@ -2259,6 +2334,11 @@ class EditPanel(QWidget):
                 self.mainWindow.selectedComponent.resize(width, height)
             except Exception:
                 pass
+    
+    def updateListItemColors(self):
+        """主题切换时调用"""
+        self._updateTheme()
+        self._updateListStyle()
 
 
 class MainWindow(FluentWindow):
@@ -2277,6 +2357,17 @@ class MainWindow(FluentWindow):
             logger.warning("窗口图标文件不存在")
         
         self.initMainNavigation()
+        
+        # 初始化设置导航
+        self.settingInterface = SettingInterface(parent=self)
+        self.settingInterface.setObjectName("setting")
+        self.addSubInterface(self.settingInterface, FIF.SETTING, "设置", NavigationItemPosition.BOTTOM)
+        
+        self.updateInterface = UpdateInterface(parent=self)
+        self.addSubInterface(self.updateInterface, FIF.SYNC, "更新", NavigationItemPosition.BOTTOM)
+        
+        self.aboutInterface = AboutInterface(parent=self)
+        self.addSubInterface(self.aboutInterface, FIF.INFO, "关于", NavigationItemPosition.BOTTOM)
         
         self.initSettingsNavigation()
         
@@ -2319,10 +2410,10 @@ class MainWindow(FluentWindow):
         
         # 初始更新天气
         self.__updateWeatherInterval()
-        # 同步自启动状态
+        # 同步自启动
         sync_auto_start_with_config()
         
-        # 连接配置变化信号到设置函数
+        # 自动启动配置
         cfg.autoStart.valueChanged.connect(lambda value: set_auto_start(value))
         
         # 空闲检测定时器
@@ -2340,13 +2431,19 @@ class MainWindow(FluentWindow):
         self.__updateIdleTimer()
         self.__installGlobalHooks()
         
-        # 加载编辑面板样式
         self.__loadEditPanelStyleSheet()
+        cfg.themeMode.valueChanged.connect(self.__onThemeChanged)
+        
+        # 连接主题信号
+        cfg.themeChanged.connect(self.updateInterface._onThemeChanged)
+        cfg.themeChanged.connect(self.downloadInterface._onThemeChanged)
+        cfg.themeChanged.connect(self.wallpaper._onThemeChanged)
+        cfg.themeChanged.connect(self.aboutInterface._onThemeChanged)
         
         logger.info("主窗口初始化完成")
     
     def __loadEditPanelStyleSheet(self):
-        """加载编辑面板样式表"""
+        """编辑面板样式表"""
         theme = cfg.themeMode.value
         if theme == "dark":
             theme = "dark"
@@ -2357,11 +2454,20 @@ class MainWindow(FluentWindow):
         if os.path.exists(qss_path):
             try:
                 with open(qss_path, 'r', encoding='utf-8') as f:
-                    self.setStyleSheet(f.read())
+                    qss_content = f.read()
+                    if hasattr(self, 'editPanel') and self.editPanel:
+                        self.editPanel.setStyleSheet(qss_content)
             except Exception as e:
                 logger.error(f"加载编辑面板样式失败：{e}")
         else:
             logger.warning(f"编辑面板样式文件不存在：{qss_path}")
+    
+    def __onThemeChanged(self):
+        """主题变化时重新加载编辑面板样式"""
+        self.__loadEditPanelStyleSheet()
+        # 更新列表项颜色
+        if hasattr(self, 'editPanel') and self.editPanel:
+            self.editPanel.updateListItemColors()
     
     def initSystemTray(self):
         """ 初始化系统托盘 """
@@ -2644,6 +2750,8 @@ class MainWindow(FluentWindow):
         if hasattr(self, 'editPanel') and self.editPanel is not None:
             return
         self.editPanel = EditPanel(self)
+        # 加载编辑面板样式
+        self.__loadEditPanelStyleSheet()
         # 初始位置放在右侧外面
         pr = self.rect()
         self.editPanel.setGeometry(pr.width(), 0, self.editPanel._width, pr.height())
@@ -3287,32 +3395,177 @@ class MainWindow(FluentWindow):
         self.downloadInterface.addSection("课表软件")
         self.downloadInterface.addSoftware(icon_path, "ClassIsland2", "")
         self.downloadInterface.addSoftware(icon_path, "ClassWidgets", "")
+    
     def initSettingsNavigation(self):
-        # 创建右侧编辑面板
+        # 创建编辑面板
         try:
             self.__createEditPanel()
         except Exception:
             logger.exception('创建编辑面板失败')
 
-    def initSettingsNavigation(self):
-        """ 初始化设置导航 """
+    def initMainNavigation(self):
+        """ 初始化主界面导航 """
+        home = QWidget()
+        home.setObjectName("home")
         
-        self.settingInterface = SettingInterface(parent=self)
-        self.settingInterface.setObjectName("setting")
-        self.addSubInterface(self.settingInterface, FIF.SETTING, "设置", NavigationItemPosition.BOTTOM)
+        # 创建主界面的照片显示控件
+        self.homeBackgroundImage = QLabel()
+        self.homeBackgroundImage.setAlignment(Qt.AlignCenter)
+        self.originalPixmap = None
         
-        self.updateInterface = UpdateInterface(parent=self)
-        self.addSubInterface(self.updateInterface, FIF.SYNC, "更新", NavigationItemPosition.BOTTOM)
+        # 时钟和日期标签
+        self.clockLabel = QLabel("00:00:00")
+        self.clockLabel.setAlignment(Qt.AlignCenter)
         
-        self.aboutInterface = AboutInterface(parent=self)
-        self.addSubInterface(self.aboutInterface, FIF.INFO, "关于", NavigationItemPosition.BOTTOM)
+        self.dateLabel = QLabel("")
+        self.dateLabel.setAlignment(Qt.AlignCenter)
         
-        # 连接主题切换信号
-        cfg.themeChanged.connect(self.updateInterface._onThemeChanged)
-        cfg.themeChanged.connect(self.downloadInterface._onThemeChanged)
-        cfg.themeChanged.connect(self.wallpaper._onThemeChanged)
-        cfg.themeChanged.connect(self.aboutInterface._onThemeChanged)
+        # 天气温度标签
+        self.weatherTempLabel = QLabel("")
+        self.weatherTempLabel.setAlignment(Qt.AlignVCenter | Qt.AlignRight)
+        self.weatherTempLabel.setStyleSheet("""
+            color: #FFFFFF; 
+            font-size: 14px; 
+            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            background-color: transparent;
+        """)
+        
+        # 天气图标
+        self.weatherIconLabel = QLabel("")
+        self.weatherIconLabel.setAlignment(Qt.AlignTop | Qt.AlignRight)
+        self.weatherIconLabel.setStyleSheet("background-color: transparent;")
+        
+        # 诗词标签
+        self.poetryLabel = QLabel("")
+        self.poetryLabel.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
+        self.poetryLabel.setStyleSheet("""
+            color: #FFFFFF; 
+            font-size: 16px; 
+            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            background-color: transparent;
+        """)
+        self.poetryLabel.setWordWrap(False)
+        
+        self.updateClockStyle()
+        
+        # 时钟容器
+        clockContainer = QWidget()
+        clockLayout = QVBoxLayout(clockContainer)
+        clockLayout.setAlignment(Qt.AlignTop)
+        clockLayout.setContentsMargins(0, 100, 0, 0)
+        clockLayout.setSpacing(0)  # 时钟和日期之间的间距
+        
+        clockLayout.addWidget(self.clockLabel)
+        clockLayout.addWidget(self.dateLabel)
+        clockContainer.setStyleSheet("background-color: transparent;")
+        
+        # 天气容器
+        weatherContainer = QWidget()
+        weatherLayout = QHBoxLayout(weatherContainer)
+        weatherLayout.setAlignment(Qt.AlignTop | Qt.AlignRight)
+        weatherLayout.setContentsMargins(0, 20, 20, 0)
+        weatherLayout.setSpacing(10)
+        self.weatherTempLabel.setAlignment(Qt.AlignCenter)
+        self.weatherIconLabel.setAlignment(Qt.AlignCenter)
 
+        
+        weatherLayout.addWidget(self.weatherTempLabel)
+        weatherLayout.addWidget(self.weatherIconLabel)
+        weatherContainer.setStyleSheet("background-color: transparent;")
+    
+        # 诗词容器
+        poetryContainer = QWidget()
+        poetryLayout = QVBoxLayout(poetryContainer)
+        poetryLayout.setAlignment(Qt.AlignBottom)
+        poetryLayout.setContentsMargins(0, 0, 0, 20)  # 最后一个为底部向上预留
+        poetryLayout.addWidget(self.poetryLabel)
+        poetryContainer.setStyleSheet("background-color: transparent;")
+    
+        # 网格布局
+        gridLayout = QGridLayout()
+        gridLayout.setContentsMargins(0, 0, 0, 0)
+        gridLayout.addWidget(self.homeBackgroundImage, 0, 0, 1, 1)
+        gridLayout.addWidget(clockContainer, 0, 0, 1, 1)
+        gridLayout.addWidget(weatherContainer, 0, 0, 1, 1)
+        gridLayout.addWidget(poetryContainer, 0, 0, 1, 1)
+        
+        self.homeContent = QWidget()
+        self.homeContent.setLayout(gridLayout)
+        gridWidget = self.homeContent
+        
+        # 编辑按钮
+        editContainer = QWidget()
+        editLayout = QVBoxLayout(editContainer)
+        editLayout.setAlignment(Qt.AlignBottom)
+        editLayout.setContentsMargins(0, 0, 0, 20)
+        
+        self.editButton = PushButton("编辑", parent=home)
+        self.editButton.setObjectName("editButton")
+        self.editButton.setFixedSize(80, 32)
+        self.editButton.clicked.connect(self.__enterEditMode)
+        
+        editLayout.addWidget(self.editButton)
+        editContainer.setStyleSheet("background-color: transparent;")
+        
+        # 主界面布局
+        homeLayout = QVBoxLayout(home)
+        homeLayout.setAlignment(Qt.AlignCenter)
+        homeLayout.setContentsMargins(0, 0, 0, 0)
+        homeLayout.addWidget(gridWidget)
+        
+        gridLayout.addWidget(editContainer, 0, 0, 1, 1)
+        
+        self.addSubInterface(home, FIF.HOME, "主界面")
+        
+        self.wallpaper = WallpaperInterface(mainWindow=self)
+        self.wallpaper.setObjectName("wallpaper")
+        self.addSubInterface(self.wallpaper, FIF.PHOTO, "壁纸")
+        
+        self.downloadInterface = DownloadInterface(parent=self)
+        self.addSubInterface(self.downloadInterface, FIF.DOWNLOAD, "软件下载")
+        
+        icon_path = get_resource_path(os.path.join('resource', 'icons', 'CY.png'))
+        
+        self.downloadInterface.addSection("常用软件")
+        self.downloadInterface.addSoftware(icon_path, "微信", "")
+        self.downloadInterface.addSoftware(icon_path, "QQ", "")
+        self.downloadInterface.addSoftware(icon_path, "UU 远程", "")
+        self.downloadInterface.addSoftware(icon_path, "网易云音乐", "")
+        self.downloadInterface.addSoftware(icon_path, "office2021", "")
+
+        self.downloadInterface.addSection("希沃系列")
+        self.downloadInterface.addSoftware(icon_path, "希沃白板 5", "")
+        self.downloadInterface.addSoftware(icon_path, "剪辑师", "")
+        self.downloadInterface.addSoftware(icon_path, "知识胶囊", "")
+        self.downloadInterface.addSoftware(icon_path, "掌上看班", "")
+        self.downloadInterface.addSoftware(icon_path, "希沃轻白板", "")
+        self.downloadInterface.addSoftware(icon_path, "希沃智能笔", "")
+        self.downloadInterface.addSoftware(icon_path, "希沃输入法", "")
+        self.downloadInterface.addSoftware(icon_path, "希沃快传", "")
+        self.downloadInterface.addSoftware(icon_path, "希沃管家", "")
+        self.downloadInterface.addSoftware(icon_path, "希沃壁纸", "")
+        self.downloadInterface.addSoftware(icon_path, "希沃集控", "")
+        self.downloadInterface.addSoftware(icon_path, "希沃导播助手", "")
+        self.downloadInterface.addSoftware(icon_path, "希沃视频展台", "")
+        self.downloadInterface.addSoftware(icon_path, "希沃课堂助手", "")
+        self.downloadInterface.addSoftware(icon_path, "希沃电脑助手", "")
+        self.downloadInterface.addSoftware(icon_path, "希沃易课堂", "")
+        self.downloadInterface.addSoftware(icon_path, "PPT 小工具", "")
+        self.downloadInterface.addSoftware(icon_path, "希沃轻录播", "")
+        self.downloadInterface.addSoftware(icon_path, "希沃物联校园", "")
+        self.downloadInterface.addSoftware(icon_path, "远程互动课堂", "")
+        self.downloadInterface.addSoftware(icon_path, "省平台登录插件", "")
+        self.downloadInterface.addSoftware(icon_path, "希象传屏 [发送端]", "")
+        self.downloadInterface.addSoftware(icon_path, "希沃品课 [小组端]", "")
+        self.downloadInterface.addSoftware(icon_path, "希沃品课 [教师端]", "")
+        
+        self.downloadInterface.addSection("系统工具")
+        self.downloadInterface.addSoftware(icon_path, "激活工具", "")
+        
+        self.downloadInterface.addSection("课表软件")
+        self.downloadInterface.addSoftware(icon_path, "ClassIsland2", "")
+        self.downloadInterface.addSoftware(icon_path, "ClassWidgets", "")
+    
     def resizeEvent(self, event):
         """ 窗口大小变化时调整图片大小 """
         super().resizeEvent(event)

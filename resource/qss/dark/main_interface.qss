@@ -1,78 +1,118 @@
 /* 主界面样式 - 深色主题 */
 
 /* 编辑面板 */
-EditPanel {
-    background-color: rgba(32, 32, 32, 0.85);
-    border-radius: 8px;
+#EditPanel {
+    background-color: rgb(32, 32, 32);
+    border-radius: 12px;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-EditPanel QWidget {
-    background-color: transparent;
-}
-
 /* 组件库标题 */
-EditPanel BodyLabel {
-    font-size: 16px;
+#EditPanel StrongBodyLabel {
+    font-size: 20px;
     font-weight: bold;
     color: #FFFFFF;
+    background-color: transparent;
+    padding: 4px 0;
 }
 
 /* 列表组件 */
-EditPanel ListWidget {
+#EditPanel ListWidget {
     background-color: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 8px;
     outline: none;
+    font-size: 14px;
+    show-decoration-selected: 1;
 }
 
 EditPanel ListWidget::item {
-    height: 40px;
-    border-radius: 4px;
+    height: 36px;
+    border-radius: 6px;
     margin: 2px;
-    padding-left: 10px;
-    color: #FFFFFF;
+    padding-left: 12px;
+    color: #FFFFFF !important;
+    font-weight: normal;
 }
 
 EditPanel ListWidget::item:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(255, 255, 255, 0.12);
 }
 
 EditPanel ListWidget::item:selected {
-    background-color: rgba(0, 120, 212, 0.3);
-    color: #4CC2FF;
+    background-color: rgba(0, 120, 212, 0.35);
+    color: #FFFFFF;
+    font-weight: bold;
+    border-left: 3px solid #4CC2FF;
+    padding-left: 9px;
 }
 
 /* 按钮样式 */
-EditPanel PrimaryPushButton,
-EditPanel PushButton {
-    min-height: 32px;
+#EditPanel PrimaryPushButton,
+#EditPanel PushButton {
     border-radius: 8px;
-    padding: 0 20px;
+    font-weight: bold;
+    font-size: 14px;
 }
 
 /* 输入框样式 */
-EditPanel LineEdit {
-    background-color: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    padding: 8px 12px;
+#EditPanel LineEdit {
+    background-color: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 6px 12px;
     outline: none;
     color: #FFFFFF;
+    font-size: 13px;
 }
 
 EditPanel LineEdit:focus {
     border: 1px solid #4CC2FF;
-    background-color: rgba(255, 255, 255, 0.15);
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 EditPanel LineEdit::placeholder {
-    color: rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 13px;
 }
 
 /* 标签样式 */
-EditPanel BodyLabel {
-    font-size: 14px;
+#EditPanel StrongBodyLabel#propLabel,
+#EditPanel StrongBodyLabel#sizeLabel {
+    font-size: 16px;
+    font-weight: bold;
+    color: #E0E0E0;
+    padding: 8px 0 4px 0;
+}
+
+#EditPanel BodyLabel {
+    font-size: 13px;
     color: #FFFFFF;
+    font-weight: normal;
     background-color: transparent;
+}
+
+/* 滚动条样式 */
+EditPanel QScrollBar:vertical {
+    width: 6px;
+    border: none;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+}
+
+EditPanel QScrollBar::handle:vertical {
+    background: rgba(255, 255, 255, 0.4);
+    border-radius: 3px;
+    min-height: 20px;
+}
+
+EditPanel QScrollBar::handle:vertical:hover {
+    background: rgba(255, 255, 255, 0.6);
+}
+
+EditPanel QScrollBar::add-line:vertical,
+EditPanel QScrollBar::sub-line:vertical,
+EditPanel QScrollBar::add-page:vertical,
+EditPanel QScrollBar::sub-page:vertical {
+    height: 0px;
 }
