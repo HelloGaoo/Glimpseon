@@ -1,0 +1,76 @@
+/* 主界面样式 - 浅色主题 */
+
+/* 编辑面板 */
+EditPanel {
+    background-color: rgba(255, 255, 255, 0.85);
+    border-radius: 8px;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+EditPanel QWidget {
+    background-color: transparent;
+}
+
+/* 组件库标题 */
+EditPanel BodyLabel {
+    font-size: 16px;
+    font-weight: bold;
+    color: #000000;
+}
+
+/* 列表组件 */
+EditPanel ListWidget {
+    background-color: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    outline: none;
+}
+
+EditPanel ListWidget::item {
+    height: 40px;
+    border-radius: 4px;
+    margin: 2px;
+    padding-left: 10px;
+}
+
+EditPanel ListWidget::item:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+EditPanel ListWidget::item:selected {
+    background-color: rgba(0, 120, 212, 0.1);
+    color: #0078D4;
+}
+
+/* 按钮样式 */
+EditPanel PrimaryPushButton,
+EditPanel PushButton {
+    min-height: 32px;
+    border-radius: 8px;
+    padding: 0 20px;
+}
+
+/* 输入框样式 */
+EditPanel LineEdit {
+    background-color: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    padding: 8px 12px;
+    outline: none;
+}
+
+EditPanel LineEdit:focus {
+    border: 1px solid #0078D4;
+    background-color: rgba(255, 255, 255, 0.9);
+}
+
+EditPanel LineEdit::placeholder {
+    color: rgba(0, 0, 0, 0.4);
+}
+
+/* 标签样式 */
+EditPanel BodyLabel {
+    font-size: 14px;
+    color: #000000;
+    background-color: transparent;
+}

@@ -2340,7 +2340,28 @@ class MainWindow(FluentWindow):
         self.__updateIdleTimer()
         self.__installGlobalHooks()
         
+        # 加载编辑面板样式
+        self.__loadEditPanelStyleSheet()
+        
         logger.info("主窗口初始化完成")
+    
+    def __loadEditPanelStyleSheet(self):
+        """加载编辑面板样式表"""
+        theme = cfg.themeMode.value
+        if theme == "dark":
+            theme = "dark"
+        else:
+            theme = "light"
+        
+        qss_path = get_resource_path(os.path.join('resource', 'qss', theme, 'main_interface.qss'))
+        if os.path.exists(qss_path):
+            try:
+                with open(qss_path, 'r', encoding='utf-8') as f:
+                    self.setStyleSheet(f.read())
+            except Exception as e:
+                logger.error(f"加载编辑面板样式失败：{e}")
+        else:
+            logger.warning(f"编辑面板样式文件不存在：{qss_path}")
     
     def initSystemTray(self):
         """ 初始化系统托盘 """
