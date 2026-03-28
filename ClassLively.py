@@ -15,8 +15,9 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from PyQt5.QtWidgets import QApplication, QWidget, QSystemTrayIcon, QMenu, QAction, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QSpacerItem, QSizePolicy, QFileDialog, QGraphicsBlurEffect, QStackedLayout, QPlainTextEdit, QMessageBox
-from PyQt5.QtCore import QTimer, Qt, QTime, QDate, QLocale, QTranslator, QUrl, QMetaObject, Q_ARG, pyqtSlot
+from PyQt5.QtCore import QTimer, Qt, QTime, QDate, QLocale, QTranslator, QUrl, QMetaObject, Q_ARG, pyqtSlot, QPropertyAnimation, QRect
 from PyQt5.QtGui import QFontDatabase, QFont, QIcon, QPixmap, QImage, QPainter, QColor
+from PyQt5.QtWidgets import QListWidget, QListWidgetItem, QLineEdit, QFrame
 from qfluentwidgets import (
     setTheme, Theme, FluentWindow, FluentTranslator,
     FluentIcon as FIF, NavigationItemPosition, RoundMenu, Action, MessageBox, ScrollArea, SmoothScrollArea, ExpandLayout, isDarkTheme,
@@ -1961,6 +1962,305 @@ class WallpaperInterface(ScrollArea):
                     parent=self
                 )
 
+class MovableWidget(QWidget):
+    """包装任意控件为可拖拽、可选择的容器"""
+    def __init__(self, inner_widget, mainWindow, parent=None):
+        super().__init__(parent or getattr(mainWindow, 'homeContent', None))
+        self.mainWindow = mainWindow
+        self.inner = inner_widget
+        self.inner.setParent(self)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.inner)
+        self._drag_pos = None
+        self._resize_pos = None
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setSelected(False)
+        self.isDraggable = True
+        if hasattr(self.inner, 'layout'):
+            layout = self.inner.layout()
+            if layout:
+                for i in range(layout.count()):
+                    widget = layout.itemAt(i).widget()
+                    if isinstance(widget, QLabel) and ':' in widget.text():
+                        # 是时钟组件，添加定时器
+                        self.clockTimer = QTimer(self)
+                        self.clockTimer.timeout.connect(self.updateClock)
+                        self.clockTimer.start(1000)
+                        # 保存时钟和日期标签
+                        self.clockLabel = widget
+                        if i + 1 < layout.count():
+                            self.dateLabel = layout.itemAt(i + 1).widget()
+                        break
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.LeftButton and self.isDraggable:
+            rect = self.rect()
+            resize_area = QRect(rect.width() - 10, rect.height() - 10, 10, 10)
+            if resize_area.contains(e.pos()):
+                self._resize_pos = e.pos()
+            else:
+                self._drag_pos = e.pos()
+                try:
+                    self.raise_()
+                except Exception:
+                    pass
+                if hasattr(self.mainWindow, 'selectComponent'):
+                    self.mainWindow.selectComponent(self)
+        super().mousePressEvent(e)
+
+    def mouseMoveEvent(self, e):
+        if self.isDraggable:
+            rect = self.rect()
+            resize_area = QRect(rect.width() - 10, rect.height() - 10, 10, 10)
+            if resize_area.contains(e.pos()):
+                self.setCursor(Qt.SizeFDiagCursor)
+            else:
+                self.setCursor(Qt.ArrowCursor)
+        else:
+            self.setCursor(Qt.ArrowCursor)
+        
+        # 调整大小
+        if self.isDraggable and self._resize_pos and (e.buttons() & Qt.LeftButton):
+            delta = e.pos() - self._resize_pos
+            new_width = max(50, self.width() + delta.x())
+            new_height = max(50, self.height() + delta.y())
+            self.resize(new_width, new_height)
+            self._resize_pos = e.pos()
+        # 拖动
+        elif self.isDraggable and self._drag_pos and (e.buttons() & Qt.LeftButton):
+            new_pos = self.mapToParent(e.pos() - self._drag_pos)
+            parent_rect = self.parent().rect() if self.parent() else QRect(0, 0, 10000, 10000)
+            x = max(0, min(new_pos.x(), parent_rect.width() - self.width()))
+            y = max(0, min(new_pos.y(), parent_rect.height() - self.height()))
+            self.move(x, y)
+        super().mouseMoveEvent(e)
+        
+    def updateClock(self):
+        """更新时钟显示"""
+        if hasattr(self, 'clockLabel'):
+            import datetime
+            import cnlunar
+            from config import cfg
+            
+            currentTime = QTime.currentTime()
+            currentDate = QDate.currentDate()
+            
+            if cfg.showClockSeconds.value:
+                timeString = currentTime.toString("HH:mm:ss")
+            else:
+                timeString = currentTime.toString("HH:mm")
+            self.clockLabel.setText(timeString)
+            
+            # 公历日期
+            solarString = currentDate.toString("yyyy 年 M 月 d 日 dddd")
+            
+            # 根据配置决定是否显示农历
+            if hasattr(self, 'dateLabel') and cfg.showLunarCalendar.value:
+                # 农历日期
+                try:
+                    # 将 QDate 转换为 datetime.datetime 对象
+                    py_datetime = datetime.datetime(currentDate.year(), currentDate.month(), currentDate.day(), 0, 0, 0)
+                    lunar = cnlunar.Lunar(py_datetime)
+                    lunarMonthCn = lunar.lunarMonthCn
+                    lunarDayCn = lunar.lunarDayCn
+                    # 去掉月份中的"大"、"小"字
+                    lunarMonthCn = lunarMonthCn.replace("大", "").replace("小", "")
+                    lunarString = f"{lunarMonthCn}{lunarDayCn}"
+                    dateString = f"{solarString} {lunarString}"
+                except Exception as e:
+                    import logging
+                    logging.error(f"农历显示错误：{e}")
+                    dateString = solarString
+                
+                self.dateLabel.setText(dateString)
+
+    def mouseReleaseEvent(self, e):
+        self._drag_pos = None
+        self._resize_pos = None
+        self.setCursor(Qt.ArrowCursor)
+        super().mouseReleaseEvent(e)
+
+    def setSelected(self, selected: bool):
+        if selected:
+            self.setStyleSheet('border: 2px dashed #0078D4;')
+        else:
+            self.setStyleSheet('border: none;')
+
+    def text(self):
+        if isinstance(self.inner, (QLabel, QPushButton)):
+            return self.inner.text()
+        return ''
+
+    def setText(self, txt: str):
+        if isinstance(self.inner, (QLabel, QPushButton)):
+            self.inner.setText(txt)
+
+
+class EditPanel(QWidget):
+    """编辑面板"""
+    def __init__(self, mainWindow, width=300):
+        """初始"""
+        super().__init__(parent=mainWindow)
+        self.mainWindow = mainWindow
+        self._width = width
+        self.setFixedWidth(self._width)
+        self.setObjectName('editPanel')
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+
+        from qfluentwidgets import ListWidget, PrimaryPushButton, PushButton, BodyLabel, LineEdit
+        self.list = ListWidget(self)
+        for t in ('时钟', '天气', '诗词'):
+            self.list.addItem(t)
+
+        self.addButton = PrimaryPushButton('添加', self)  # 组件按钮
+        self.deleteButton = PushButton('删除', self)  # 删除组件按钮
+        self.closeButton = PushButton('关闭', self)  # 关闭面板按钮
+        self.propLabel = BodyLabel('文本属性', self)  # 文本属性标签
+        self.propEdit = LineEdit(self)  # 文本属性输入框
+        self.sizeLabel = BodyLabel('大小配置', self)  # 大小配置标签
+        sizeLayout = QHBoxLayout()  # 大小配置水平布局
+        self.widthLabel = BodyLabel('宽度:', self)  # 宽度标签
+        self.widthEdit = LineEdit(self)  # 宽度输入框
+        self.widthEdit.setPlaceholderText('宽度')
+        self.heightLabel = BodyLabel('高度:', self)  # 高度标签
+        self.heightEdit = LineEdit(self)  # 高度输入框
+        self.heightEdit.setPlaceholderText('高度')
+        sizeLayout.addWidget(self.widthLabel)
+        sizeLayout.addWidget(self.widthEdit)
+        sizeLayout.addWidget(self.heightLabel)
+        sizeLayout.addWidget(self.heightEdit)
+        v = QVBoxLayout(self)
+        v.setContentsMargins(12, 12, 12, 12)  # 内边距
+        v.setSpacing(10)  # 间距
+        v.addWidget(BodyLabel('组件库', self))  # 组件库标题
+        v.addWidget(self.list)  # 组件列表
+        v.addWidget(self.addButton)  # 添加按钮
+        v.addSpacing(12)  # 间距
+        v.addWidget(self.propLabel)  # 文本属性标签
+        v.addWidget(self.propEdit)  # 文本属性输入框
+        v.addWidget(self.sizeLabel)  # 大小配置标签
+        v.addLayout(sizeLayout)  # 大小配置布局
+        v.addWidget(self.deleteButton)  # 删除按钮
+        v.addStretch()  # 弹性空间
+        v.addWidget(self.closeButton)  # 关闭按钮
+        self.addButton.clicked.connect(self._onAdd)  # 按钮点击
+        self.deleteButton.clicked.connect(self._onDelete)  # 删除按钮点击
+        self.closeButton.clicked.connect(self.hidePanel)  # 关闭按钮点击
+        self.propEdit.textChanged.connect(self._onPropEdit)  # 文本属性输入
+        self.widthEdit.textChanged.connect(self._onSizeEdit)  # 宽度输入
+        self.heightEdit.textChanged.connect(self._onSizeEdit)  # 高度输入
+        self.anim = QPropertyAnimation(self, b'geometry')
+        self.hide()
+    
+    def paintEvent(self, event):
+        """背景"""
+        from PyQt5.QtGui import QPainter, QBrush, QColor
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)  # 抗锯齿
+        rect = self.rect()
+        brush = QBrush(QColor(255, 255, 255, 217))  # 0.85
+        painter.setBrush(brush)
+        painter.drawRoundedRect(rect, 8, 8)  # 8 是圆角半径
+
+    def showPanel(self):
+        """显示编辑面板"""
+        parent = self.parent()
+        if not parent:
+            return
+        
+        # 设置透明度
+        self.setWindowOpacity(0.85)
+        self.show()
+
+        pr = parent.rect()
+        end_rect = QRect(pr.width() - self._width, 0, self._width, pr.height())
+        start_rect = QRect(pr.width(), 0, self._width, pr.height())
+        self.setGeometry(start_rect)
+        
+        try:
+            self.anim.finished.disconnect(self._onHideFinished)
+        except Exception:
+            pass
+        self.anim.stop()
+        self.anim.setDuration(220)
+        self.anim.setStartValue(start_rect)
+        self.anim.setEndValue(end_rect)
+        self.anim.start()
+
+    def hidePanel(self):
+        """隐藏编辑面板"""
+        parent = self.parent()
+        if not parent:
+            return
+        
+        if hasattr(parent, 'deselectComponent'):
+            parent.deselectComponent()
+        
+        # 禁用拖动
+        if hasattr(parent, 'homeContent'):
+            for widget in parent.homeContent.findChildren(MovableWidget):
+                widget.isDraggable = False
+        
+        # 动画起始和结束位置
+        pr = parent.rect()
+        start_rect = QRect(pr.width() - self._width, 0, self._width, pr.height())
+        end_rect = QRect(pr.width(), 0, self._width, pr.height())
+        
+        # 滑出动画
+        self.anim.stop()
+        self.anim.setDuration(180)
+        self.anim.setStartValue(start_rect)
+        self.anim.setEndValue(end_rect)
+        
+        try:
+            self.anim.finished.disconnect(self._onHideFinished)
+        except Exception:
+            pass
+        self.anim.finished.connect(self._onHideFinished)
+        self.anim.start()
+
+    def _onHideFinished(self):
+        try:
+            self.hide()
+        finally:
+            try:
+                self.anim.finished.disconnect(self._onHideFinished)
+            except Exception:
+                pass
+
+    def _onAdd(self):
+        """添加组件"""
+        item = self.list.currentItem()
+        t = item.text() if item else '时钟'
+        if hasattr(self.mainWindow, 'addComponent'):
+            self.mainWindow.addComponent(t)
+
+    def _onDelete(self):
+        """删除组件"""
+        if hasattr(self.mainWindow, 'deleteSelectedComponent'):
+            self.mainWindow.deleteSelectedComponent()
+
+    def _onPropEdit(self, txt):
+        """文本属性编辑"""
+        if hasattr(self.mainWindow, 'applyPropertyChanges'):
+            self.mainWindow.applyPropertyChanges(txt)
+    
+    def _onSizeEdit(self):
+        """大小输入框的变化"""
+        if hasattr(self.mainWindow, 'selectedComponent') and self.mainWindow.selectedComponent:
+            try:
+                # 获取输入的宽度和高度
+                width = int(self.widthEdit.text()) if self.widthEdit.text().isdigit() else self.mainWindow.selectedComponent.width()
+                height = int(self.heightEdit.text()) if self.heightEdit.text().isdigit() else self.mainWindow.selectedComponent.height()
+                width = max(50, width)
+                height = max(50, height)
+                # 调整组件大小
+                self.mainWindow.selectedComponent.resize(width, height)
+            except Exception:
+                pass
+
+
 class MainWindow(FluentWindow):
     """ 主窗口 """
 
@@ -2293,7 +2593,516 @@ class MainWindow(FluentWindow):
         if hasattr(self, '_subInterfaces'):
             if 0 <= index < len(self._subInterfaces):
                 interface = self._subInterfaces[index]
-                logger.info(f"切换到界面: {interface.text()}")
+                logger.info(f"切换到界面：{interface.text()}")
+    
+    def __enterEditMode(self):
+        """ 切换编辑模式（显示/隐藏右侧编辑面板） """
+        logger.info("切换编辑模式")
+        if not hasattr(self, 'editPanel'):
+            try:
+                self.__createEditPanel()
+            except Exception:
+                logger.exception('创建编辑面板失败')
+                InfoBar.error('编辑模式', '无法创建编辑面板', parent=self, duration=3000)
+                return
+
+        if self.editPanel.isVisible():
+            self.editPanel.hidePanel()
+            # 退出编辑模式取消选择组件
+            self.deselectComponent()
+            for widget in self.homeContent.findChildren(MovableWidget):
+                widget.isDraggable = False
+            InfoBar.info(title='编辑模式', content='已退出编辑模式', parent=self, duration=2000)
+        else:
+            self.editPanel.showPanel()
+            # 启用组件拖动功能
+            for widget in self.homeContent.findChildren(MovableWidget):
+                widget.isDraggable = True
+    def __createEditPanel(self):
+        """创建右侧编辑面板实例并初始化编辑相关状态"""
+        if hasattr(self, 'editPanel') and self.editPanel is not None:
+            return
+        self.editPanel = EditPanel(self)
+        # 初始位置放在右侧外面
+        pr = self.rect()
+        self.editPanel.setGeometry(pr.width(), 0, self.editPanel._width, pr.height())
+        self.editPanel.hide()
+        self.selectedComponent = None
+
+    def selectComponent(self, comp_widget):
+        """在主窗口内选择一个组件（MovableWidget 实例）"""
+        try:
+            if getattr(self, 'selectedComponent', None) is comp_widget:
+                return
+            if getattr(self, 'selectedComponent', None):
+                try:
+                    self.selectedComponent.setSelected(False)
+                except Exception:
+                    pass
+            self.selectedComponent = comp_widget
+            try:
+                self.selectedComponent.setSelected(True)
+            except Exception:
+                pass
+            # 把属性显示到面板
+            if hasattr(self, 'editPanel') and self.editPanel is not None:
+                txt = getattr(comp_widget, 'text', lambda: '')()
+                self.editPanel.propEdit.setText(txt)
+                # 显示当前大小
+                self.editPanel.widthEdit.setText(str(comp_widget.width()))
+                self.editPanel.heightEdit.setText(str(comp_widget.height()))
+        except Exception:
+            logger.exception('选择组件失败')
+
+    def deselectComponent(self):
+        if getattr(self, 'selectedComponent', None):
+            try:
+                self.selectedComponent.setSelected(False)
+            except Exception:
+                pass
+        self.selectedComponent = None
+        if hasattr(self, 'editPanel') and self.editPanel is not None:
+            self.editPanel.propEdit.setText('')
+            # 清除大小输入框内容
+            self.editPanel.widthEdit.setText('')
+            self.editPanel.heightEdit.setText('')
+
+    def addComponent(self, comp_type: str):
+        """向主界面添加一个新组件并选中它"""
+        try:
+            if comp_type == 'Label':
+                w = QLabel('新标签')
+                w.setStyleSheet('background: transparent;')
+                w.setAttribute(Qt.WA_TransparentForMouseEvents, False)
+            elif comp_type == 'Button':
+                w = QPushButton('按钮')
+            elif comp_type == '时钟':
+                # 时钟容器
+                clockContainer = QWidget()
+                clockLayout = QVBoxLayout(clockContainer)
+                clockLayout.setContentsMargins(10, 10, 10, 10)
+                clockLayout.setSpacing(5)
+                
+                # 时钟和日期标签
+                clockLabel = QLabel("00:00:00")
+                clockLabel.setAlignment(Qt.AlignCenter)
+                dateLabel = QLabel("")
+                dateLabel.setAlignment(Qt.AlignCenter)
+                
+                # 应用样式
+                clock_color = cfg.clockColor.value
+                color_str = clock_color.name() if hasattr(clock_color, 'name') else str(clock_color)
+                clock_size = cfg.clockSize.value
+                date_size = cfg.dateSize.value
+                
+                clockLabel.setStyleSheet(f"""
+                    color: {color_str}; 
+                    font-size: {clock_size}px; 
+                    font-weight: bold; 
+                    font-family: "Microsoft YaHei", "SimHei", sans-serif;
+                    background-color: transparent;
+                """)
+                
+                dateLabel.setStyleSheet(f"""
+                    color: {color_str}; 
+                    font-size: {date_size}px; 
+                    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+                    background-color: transparent;
+                """)
+                
+                clockLayout.addWidget(clockLabel)
+                clockLayout.addWidget(dateLabel)
+                clockContainer.setStyleSheet("background-color: transparent;")
+                
+                w = clockContainer
+                # 调用更新方法
+                currentTime = QTime.currentTime()
+                currentDate = QDate.currentDate()
+                
+                if cfg.showClockSeconds.value:
+                    timeString = currentTime.toString("HH:mm:ss")
+                else:
+                    timeString = currentTime.toString("HH:mm")
+                clockLabel.setText(timeString)
+                
+                # 公历日期
+                solarString = currentDate.toString("yyyy 年 M 月 d 日 dddd")
+                
+                # 根据配置决定是否显示农历
+                if cfg.showLunarCalendar.value:
+                    # 农历日期
+                    try:
+                        # 将 QDate 转换为 datetime.datetime 对象
+                        py_datetime = datetime.datetime(currentDate.year(), currentDate.month(), currentDate.day(), 0, 0, 0)
+                        lunar = cnlunar.Lunar(py_datetime)
+                        lunarMonthCn = lunar.lunarMonthCn
+                        lunarDayCn = lunar.lunarDayCn
+                        # 去掉月份中的"大"、"小"字
+                        lunarMonthCn = lunarMonthCn.replace("大", "").replace("小", "")
+                        lunarString = f"{lunarMonthCn}{lunarDayCn}"
+                        dateString = f"{solarString} {lunarString}"
+                    except Exception as e:
+                        logging.error(f"农历显示错误：{e}")
+                        dateString = solarString
+                else:
+                    dateString = solarString
+                
+                dateLabel.setText(dateString)
+            elif comp_type == '天气':
+                # 创建天气容器
+                weatherContainer = QWidget()
+                weatherLayout = QHBoxLayout(weatherContainer)
+                weatherLayout.setContentsMargins(10, 10, 10, 10)
+                weatherLayout.setSpacing(10)
+                
+                # 天气温度标签和图标
+                weatherTempLabel = QLabel("")
+                weatherTempLabel.setAlignment(Qt.AlignCenter)
+                weatherIconLabel = QLabel("")
+                weatherIconLabel.setAlignment(Qt.AlignCenter)
+                
+                # 应用样式
+                weather_color = cfg.clockColor.value
+                color_str = weather_color.name() if hasattr(weather_color, 'name') else str(weather_color)
+                weather_size = cfg.weatherSize.value
+                
+                weatherTempLabel.setStyleSheet(f"""
+                    color: {color_str}; 
+                    font-size: {weather_size}px; 
+                    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+                    background-color: transparent;
+                """)
+                
+                weatherIconLabel.setStyleSheet("background-color: transparent;")
+                
+                weatherLayout.addWidget(weatherTempLabel)
+                weatherLayout.addWidget(weatherIconLabel)
+                weatherContainer.setStyleSheet("background-color: transparent;")
+                
+                w = weatherContainer
+                # 调用更新方法
+                try:
+                    city = cfg.city.value
+                    logger.info(f"正在更新天气，使用城市：{city}")
+                    
+                    city_db = RegionDatabase()
+                    city_code = city_db.get_code(city)
+                    
+                    if city_code:
+                        location_key = f"weathercn:{city_code}"
+                    else:
+                        location_key = "weathercn:101010100" 
+                        logger.warning(f"未找到城市 {city} 的代码，使用默认值")
+                    
+                    logger.info(f"城市 {city} 对应的 locationKey: {location_key}")
+                    
+                    api_url = f"https://weatherapi.market.xiaomi.com/wtr-v3/weather/all?locationKey={location_key}&latitude=39.9042&longitude=116.4074&appKey=weather20151024&sign=zUFJoAR2ZVrDy1vF3D07&isGlobal=false&locale=zh_cn"
+                    logger.info(f"天气 API 请求 URL: {api_url}")
+                    response = requests.get(api_url, timeout=10)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        logger.info(f"天气 API 响应数据：{json.dumps(data, ensure_ascii=False)}")
+                        if 'current' in data:
+                            current = data['current']
+                            
+                            # 解析温度数据
+                            temperature = current.get('temperature', {})
+                            current_temp = temperature.get('value', 0)
+                            temp_unit = temperature.get('unit', '°C')
+                            
+                            # 解析天气代码
+                            weather_code = current.get('weather', 0)
+                            try:
+                                weather_code = int(weather_code)
+                            except (ValueError, TypeError):
+                                weather_code = 0
+                                logger.warning(f"天气代码为空或无效: {weather_code}")
+                            
+                            weather_map = {
+                                0: "晴",
+                                1: "多云",
+                                2: "阴",
+                                3: "阵雨",
+                                4: "雷阵雨",
+                                5: "雷阵雨并伴有冰雹",
+                                6: "雨夹雪",
+                                7: "小雨",
+                                8: "中雨",
+                                9: "大雨",
+                                10: "暴雨",
+                                11: "大暴雨",
+                                12: "特大暴雨",
+                                13: "阵雪",
+                                14: "小雪",
+                                15: "中雪",
+                                16: "大雪",
+                                17: "暴雪",
+                                18: "雾",
+                                19: "冻雨",
+                                20: "沙尘暴",
+                                21: "小雨 - 中雨",
+                                22: "中雨 - 大雨",
+                                23: "大雨 - 暴雨",
+                                24: "暴雨 - 大暴雨",
+                                25: "大暴雨 - 特大暴雨",
+                                26: "小雪 - 中雪",
+                                27: "中雪 - 大雪",
+                                28: "大雪 - 暴雪",
+                                29: "浮尘",
+                                30: "扬沙",
+                                31: "强沙尘暴",
+                                32: "飑",
+                                33: "龙卷风",
+                                34: "弱高吹雪",
+                                35: "轻雾",
+                                50: "晴",
+                                51: "多云",
+                                52: "阴",
+                                53: "霾",
+                                54: "小雨",
+                                55: "中雨",
+                                56: "大雨",
+                                57: "暴雨",
+                                58: "雷阵雨",
+                                59: "冰雹",
+                                60: "小雪",
+                                61: "中雪",
+                                62: "大雪",
+                                63: "雾",
+                                64: "霾",
+                                65: "沙尘",
+                                66: "大风",
+                                67: "台风",
+                                68: "暴雨",
+                                69: "暴雪",
+                                70: "雨夹雪",
+                                71: "冻雨",
+                                72: "雾凇",
+                                73: "霜冻",
+                                74: "沙尘暴",
+                                75: "扬沙",
+                                76: "浮尘",
+                                77: "强沙尘暴",
+                                99: "未知"
+                            }
+                            
+                            weather = weather_map.get(weather_code, "未知")
+                            logger.info(f"天气信息：{weather}，当前温度：{current_temp}{temp_unit}")
+                            
+                            weather_text = f"{current_temp}{temp_unit}"
+                            weatherTempLabel.setText(weather_text)
+                            logger.info(f"已更新天气标签：{weather_text}")
+                            
+                            # 代码到图标文件的映射
+                            icon_map = {
+                                0: "0.svg",      # 晴
+                                1: "1.svg",      # 多云
+                                2: "2.svg",      # 阴
+                                3: "7.svg",      # 阵雨
+                                4: "4.svg",      # 雷阵雨
+                                5: "5.svg",      # 雷阵雨并伴有冰雹
+                                6: "19.svg",     # 雨夹雪
+                                7: "7.svg",      # 小雨
+                                8: "8.svg",      # 中雨
+                                9: "9.svg",      # 大雨
+                                10: "10.svg",    # 暴雨
+                                11: "11.svg",    # 大暴雨
+                                12: "11.svg",    # 特大暴雨
+                                13: "14.svg",    # 阵雪
+                                14: "14.svg",    # 小雪
+                                15: "15.svg",    # 中雪
+                                16: "16.svg",    # 大雪
+                                17: "17.svg",    # 暴雪
+                                18: "18.svg",    # 雾
+                                19: "19.svg",    # 冻雨
+                                20: "20.svg",    # 沙尘暴
+                                21: "7.svg",     # 小雨 - 中雨
+                                22: "8.svg",     # 中雨 - 大雨
+                                23: "9.svg",     # 大雨 - 暴雨
+                                24: "10.svg",    # 暴雨 - 大暴雨
+                                25: "11.svg",    # 大暴雨 - 特大暴雨
+                                26: "14.svg",    # 小雪 - 中雪
+                                27: "15.svg",    # 中雪 - 大雪
+                                28: "16.svg",    # 大雪 - 暴雪
+                                29: "18.svg",    # 浮尘
+                                30: "20.svg",    # 扬沙
+                                31: "20.svg",    # 强沙尘暴
+                                32: "3.svg",     # 飑
+                                33: "3.svg",     # 龙卷风
+                                34: "16.svg",    # 弱高吹雪
+                                35: "18.svg",    # 轻雾
+                                50: "0.svg",     # 晴
+                                51: "1.svg",     # 多云
+                                52: "2.svg",     # 阴
+                                53: "18.svg",    # 霾
+                                54: "7.svg",     # 小雨
+                                55: "8.svg",     # 中雨
+                                56: "9.svg",     # 大雨
+                                57: "10.svg",    # 暴雨
+                                58: "4.svg",     # 雷阵雨
+                                59: "5.svg",     # 冰雹
+                                60: "14.svg",    # 小雪
+                                61: "15.svg",    # 中雪
+                                62: "16.svg",    # 大雪
+                                63: "18.svg",    # 雾
+                                64: "18.svg",    # 霾
+                                65: "18.svg",    # 沙尘
+                                66: "3.svg",     # 大风
+                                67: "3.svg",     # 台风
+                                68: "11.svg",    # 暴雨
+                                69: "17.svg",    # 暴雪
+                                70: "19.svg",    # 雨夹雪
+                                71: "19.svg",    # 冻雨
+                                72: "18.svg",    # 雾凇
+                                73: "18.svg",    # 霜冻
+                                74: "20.svg",    # 沙尘暴
+                                75: "20.svg",    # 扬沙
+                                76: "18.svg",    # 浮尘
+                                77: "20.svg"     # 强沙尘暴
+                            }
+                            
+                            icon_file = icon_map.get(weather_code, "0.svg")
+                            icon_path = get_resource_path(os.path.join("resource", "icons", "weather", icon_file))
+                            if os.path.exists(icon_path):
+                                # QIcon 加载 SVG
+                                icon = QIcon(icon_path)
+                                icon_size = cfg.weatherIconSize.value
+                                # 创建一个 pixmap
+                                pixmap = icon.pixmap(icon_size, icon_size)
+                                weatherIconLabel.setPixmap(pixmap)
+                                logger.info(f"已设置天气图标：代码={weather_code}, 图标文件={icon_file}, 图标大小={icon_size}x{icon_size}")
+                            else:
+                                weatherIconLabel.setText("")
+                                logger.warning(f"天气图标文件不存在：{icon_file}")
+                    else:
+                        logger.error(f"天气 API 请求失败，状态码：{response.status_code}，响应内容：{response.text}")
+                except Exception as e:
+                    logger.error(f"天气更新失败：{e}")
+            elif comp_type == '诗词':
+                # 创建诗词容器
+                poetryContainer = QWidget()
+                poetryLayout = QVBoxLayout(poetryContainer)
+                poetryLayout.setContentsMargins(10, 10, 10, 10)
+                
+                # 诗词标签
+                poetryLabel = QLabel("")
+                poetryLabel.setAlignment(Qt.AlignCenter)
+                poetryLabel.setWordWrap(True)
+                
+                # 应用样式
+                poetry_color = cfg.clockColor.value
+                color_str = poetry_color.name() if hasattr(poetry_color, 'name') else str(poetry_color)
+                poetry_size = cfg.poetrySize.value
+                
+                poetryLabel.setStyleSheet(f"""
+                    color: {color_str}; 
+                    font-size: {poetry_size}px; 
+                    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+                    background-color: transparent;
+                """)
+                
+                poetryLayout.addWidget(poetryLabel)
+                poetryContainer.setStyleSheet("background-color: transparent;")
+                
+                w = poetryContainer
+                # 调用更新方法
+                logger.debug("开始更新诗词")
+                if not cfg.showPoetry.value:
+                    logger.debug("诗词显示已禁用")
+                    poetryLabel.setText("")
+                else:
+                    try:
+                        api_url = cfg.poetryApiUrl.value
+                        logger.debug(f"诗词 API URL: {api_url}")
+                        response = requests.get(api_url, timeout=10)
+                        
+                        if response.status_code == 200:
+                            logger.debug(f"诗词 API 请求成功，状态码: {response.status_code}")
+                            # 尝试解析为 JSON
+                            try:
+                                data = response.json()
+                                logger.debug(f"诗词 API 返回数据: {data}")
+                                if data.get('success') and 'data' in data:
+                                    poetry_data = data['data']
+                                    content = poetry_data.get('content', '')
+                                    author = poetry_data.get('author', '')
+                                    origin = poetry_data.get('origin', '')
+
+                                    poetry_text = f"「{content}」"
+                                    if author or origin:
+                                        poetry_text += f"\n——{author if author else ''}《{origin}》" if origin else f"\n——{author if author else ''}"
+                                    
+                                    poetryLabel.setText(poetry_text)
+                                    logger.info(f"已更新诗词: {content}")
+                                else:
+                                    logger.error(f"诗词 API 返回数据格式错误：{data}")
+                                    poetryLabel.setText("")
+                            except Exception as json_error:
+                                logger.debug(f"JSON解析失败，使用文本模式: {json_error}")
+                                poetry_text = response.text.strip()
+                                poetryLabel.setText(poetry_text)
+                                logger.info(f"已更新诗词 (文本模式): {poetry_text[:50]}...")
+                        else:
+                            logger.error(f"诗词 API 请求失败，状态码：{response.status_code}")
+                            poetryLabel.setText("")
+                    except Exception as e:
+                        logger.error(f"诗词更新失败：{e}")
+                        poetryLabel.setText("")
+            else:  # Image
+                w = QLabel()
+                w.setPixmap(QPixmap(get_resource_path(os.path.join('resource','icons','CY.png'))).scaled(120, 80, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+
+            container = MovableWidget(w, self)
+            container.setParent(self.homeContent)
+            
+            # 设置合适的初始大小
+            if comp_type == '时钟':
+                container.resize(300, 150)
+            elif comp_type == '天气':
+                container.resize(200, 100)
+            elif comp_type == '诗词':
+                container.resize(400, 120)
+            elif comp_type == 'Label':
+                container.resize(200, 50)
+            elif comp_type == 'Button':
+                container.resize(100, 40)
+            else:  # Image
+                container.resize(120, 80)
+            
+            container.show()
+            # 放在中心偏下位置，方便拖动
+            parent_rect = self.homeContent.rect()
+            x = max(10, parent_rect.width()//2 - container.width()//2)
+            y = max(10, parent_rect.height()//2 - container.height()//2)
+            container.move(x, y)
+            container.show()
+            self.selectComponent(container)
+        except Exception:
+            logger.exception('添加组件失败')
+
+    def deleteSelectedComponent(self):
+        try:
+            if getattr(self, 'selectedComponent', None):
+                w = self.selectedComponent
+                self.deselectComponent()
+                try:
+                    w.setParent(None)
+                    w.deleteLater()
+                except Exception:
+                    pass
+        except Exception:
+            logger.exception('删除组件失败')
+
+    def applyPropertyChanges(self, text: str):
+        try:
+            if getattr(self, 'selectedComponent', None):
+                try:
+                    self.selectedComponent.setText(text)
+                except Exception:
+                    pass
+        except Exception:
+            logger.exception('应用属性变更失败')
 
     def initMainNavigation(self):
         """ 初始化主界面导航 """
@@ -2381,14 +3190,31 @@ class MainWindow(FluentWindow):
         gridLayout.addWidget(weatherContainer, 0, 0, 1, 1)
         gridLayout.addWidget(poetryContainer, 0, 0, 1, 1)
         
-        gridWidget = QWidget()
-        gridWidget.setLayout(gridLayout)
+        self.homeContent = QWidget()
+        self.homeContent.setLayout(gridLayout)
+        gridWidget = self.homeContent
+        
+        # 编辑按钮
+        editContainer = QWidget()
+        editLayout = QVBoxLayout(editContainer)
+        editLayout.setAlignment(Qt.AlignBottom)
+        editLayout.setContentsMargins(0, 0, 0, 20)
+        
+        self.editButton = PushButton("编辑", parent=home)
+        self.editButton.setObjectName("editButton")
+        self.editButton.setFixedSize(80, 32)
+        self.editButton.clicked.connect(self.__enterEditMode)
+        
+        editLayout.addWidget(self.editButton)
+        editContainer.setStyleSheet("background-color: transparent;")
         
         # 主界面布局
         homeLayout = QVBoxLayout(home)
         homeLayout.setAlignment(Qt.AlignCenter)
         homeLayout.setContentsMargins(0, 0, 0, 0)
         homeLayout.addWidget(gridWidget)
+        
+        gridLayout.addWidget(editContainer, 0, 0, 1, 1)
         
         self.addSubInterface(home, FIF.HOME, "主界面")
         
@@ -2440,7 +3266,12 @@ class MainWindow(FluentWindow):
         self.downloadInterface.addSection("课表软件")
         self.downloadInterface.addSoftware(icon_path, "ClassIsland2", "")
         self.downloadInterface.addSoftware(icon_path, "ClassWidgets", "")
-
+    def initSettingsNavigation(self):
+        # 创建右侧编辑面板
+        try:
+            self.__createEditPanel()
+        except Exception:
+            logger.exception('创建编辑面板失败')
 
     def initSettingsNavigation(self):
         """ 初始化设置导航 """
