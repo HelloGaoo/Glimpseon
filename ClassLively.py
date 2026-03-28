@@ -16,13 +16,13 @@
 
 from PyQt5.QtWidgets import QApplication, QWidget, QSystemTrayIcon, QMenu, QAction, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QSpacerItem, QSizePolicy, QFileDialog, QGraphicsBlurEffect, QStackedLayout, QPlainTextEdit, QMessageBox
 from PyQt5.QtCore import QTimer, Qt, QTime, QDate, QLocale, QTranslator, QUrl, QMetaObject, Q_ARG, pyqtSlot, QPropertyAnimation, QRect
-from PyQt5.QtGui import QFontDatabase, QFont, QIcon, QPixmap, QImage, QPainter, QColor
+from PyQt5.QtGui import QFontDatabase, QFont, QIcon, QPixmap, QImage, QPainter, QColor, QPalette
 from PyQt5.QtWidgets import QListWidget, QListWidgetItem, QLineEdit, QFrame
 from qfluentwidgets import (
     setTheme, Theme, FluentWindow, FluentTranslator,
     FluentIcon as FIF, NavigationItemPosition, RoundMenu, Action, MessageBox, ScrollArea, SmoothScrollArea, ExpandLayout, isDarkTheme,
     PushButton, CardWidget, ProgressBar, InfoBar, ImageLabel, qconfig, SwitchSettingCard, PrimaryPushButton, SettingCardGroup, TextEdit,
-    CheckBox, RadioButton, ProgressRing
+    CheckBox, RadioButton, ProgressRing, ListWidget, StrongBodyLabel, BodyLabel, LineEdit
 )
 from concurrent.futures import ThreadPoolExecutor, wait
 import requests
@@ -38,6 +38,7 @@ import cnlunar
 import winreg
 import logging
 import subprocess
+import webbrowser
 from setting import SettingInterface
 from config import cfg, get_default_config_dict
 from logger import logger, setup_exception_hook
@@ -893,12 +894,10 @@ class AboutInterface(BaseScrollAreaInterface):
     
     def __openGithub(self):
         """ 打开 GitHub 仓库 """
-        import webbrowser
         webbrowser.open("https://github.com/HelloGaoo/ClassLively")
     
     def __openAuthorPage(self):
         """ 打开作者主页 """
-        import webbrowser
         webbrowser.open("https://space.bilibili.com/1498602348")
     
     def __viewLicense(self):
@@ -2039,10 +2038,6 @@ class MovableWidget(QWidget):
     def updateClock(self):
         """更新时钟显示"""
         if hasattr(self, 'clockLabel'):
-            import datetime
-            import cnlunar
-            from config import cfg
-            
             currentTime = QTime.currentTime()
             currentDate = QDate.currentDate()
             
@@ -2069,7 +2064,6 @@ class MovableWidget(QWidget):
                     lunarString = f"{lunarMonthCn}{lunarDayCn}"
                     dateString = f"{solarString} {lunarString}"
                 except Exception as e:
-                    import logging
                     logging.error(f"农历显示错误：{e}")
                     dateString = solarString
                 
@@ -2106,11 +2100,6 @@ class EditPanel(QWidget):
         self._width = width
         self.setFixedWidth(self._width)
         self.setObjectName('EditPanel')
-        
-        from qfluentwidgets import (
-            ListWidget, PrimaryPushButton, PushButton, StrongBodyLabel, 
-            BodyLabel, LineEdit, FluentIcon as FIF, Theme, isDarkTheme
-        )
         
         # 设置不透明背景
         self.setAttribute(Qt.WA_StyledBackground, True)
@@ -2203,9 +2192,6 @@ class EditPanel(QWidget):
     
     def _updateTheme(self):
         """更新主题"""
-        from PyQt5.QtGui import QColor, QPalette
-        from qfluentwidgets import isDarkTheme
-        
         if isDarkTheme():
             self.setStyleSheet("""
                 #EditPanel {
@@ -2223,9 +2209,6 @@ class EditPanel(QWidget):
     
     def _updateListStyle(self):
         """更新列表样式"""
-        from PyQt5.QtGui import QColor, QPalette
-        from qfluentwidgets import isDarkTheme
-        
         palette = self.list.palette()
         if isDarkTheme():
             palette.setColor(QPalette.Base, QColor(40, 40, 40))
