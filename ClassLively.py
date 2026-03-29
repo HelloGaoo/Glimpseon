@@ -309,6 +309,8 @@ class MainWindow(FluentWindow):
         
         self.component_manager = None  # 在 initMainNavigation 后初始化
         
+        self.isEditMode = False
+        
         self.initMainNavigation()
         
         self.settingInterface = SettingInterface(parent=self)
@@ -397,7 +399,21 @@ class MainWindow(FluentWindow):
         cfg.themeChanged.connect(self.wallpaper._onThemeChanged)
         cfg.themeChanged.connect(self.aboutInterface._onThemeChanged)
         
+        self.navigationInterface.installEventFilter(self)
+        
         logger.info("主窗口初始化完成")
+    
+    def eventFilter(self, obj, event):
+        """ 拦截导航切换"""
+        from PyQt5.QtCore import QEvent
+        
+        if hasattr(self, 'isEditMode') and self.isEditMode:
+            if event.type() == QEvent.MouseButtonRelease:
+                nav_interface = getattr(self, 'navigationInterface', None)
+                if nav_interface and obj == nav_interface:
+                    return True
+        
+        return super().eventFilter(obj, event)
     
     def __loadEditPanelStyleSheet(self):
         """编辑面板样式表"""
@@ -664,11 +680,14 @@ class MainWindow(FluentWindow):
             self.deselectComponent()
             for widget in self.homeContent.findChildren(MovableWidget):
                 widget.isDraggable = False
-            InfoBar.info(title='编辑模式', content='已退出编辑模式', parent=self, duration=2000)
+            self.isEditMode = False
+            self.navigationInterface.setEnabled(True)
         else:
             for widget in self.homeContent.findChildren(MovableWidget):
                 widget.isDraggable = True
             self.editPanel.showPanel()
+            self.isEditMode = True
+            self.navigationInterface.setEnabled(False)
     def __createEditPanel(self):
         """创建右侧编辑面板实例并初始化编辑相关状态"""
         if hasattr(self, 'editPanel') and self.editPanel is not None:
