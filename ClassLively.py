@@ -1405,7 +1405,6 @@ def is_auto_start_launch():
 
 
 if __name__ == "__main__":
-    # 检查启动参数
     auto_start_launch = is_auto_start_launch()
     if auto_start_launch:
         print("检测到通过开机自启动启动")
@@ -1424,7 +1423,6 @@ if __name__ == "__main__":
     app.installTranslator(fluentTranslator)
     if not check_single_instance():
         
-        # 创建一个全屏临时窗口作为父窗口
         temp_widget = QWidget()
         temp_widget.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         temp_widget.setAttribute(Qt.WA_TranslucentBackground)
@@ -1472,7 +1470,6 @@ if __name__ == "__main__":
         max_count=cfg.logMaxCount.value,
         max_days=cfg.logMaxDays.value
     )
-    # 输出所有配置读取信息
     logger.info("ClassLively")
 
     theme_mode_str = str(cfg.themeMode.value) if not hasattr(cfg.themeMode.value, 'name') else cfg.themeMode.value.name
@@ -1497,7 +1494,6 @@ if __name__ == "__main__":
     logger.info(f"系统版本：Windows {platform.version()} Python 版本：{platform.python_version()}")
     logger.info(f"软件运行路径：{BASE_DIR}")
 
-    # 加载鸿蒙字体
     font_dir = get_resource_path(os.path.join("font", "HarmonyOS_Sans"))
     font_loaded = False
     
@@ -1533,17 +1529,13 @@ if __name__ == "__main__":
         QApplication.setFont(QFont("Microsoft YaHei", 10))
         logger.info("HarmonyOS Sans SC加载失败，已使用备用字体：Microsoft YaHei")
     
-    # 设置全局异常钩子
     setup_exception_hook()
 
     window = MainWindow()
     
-    # 根据启动方式决定窗口显示状态
     if auto_start_launch:
-        # 如果是开机自启动，最小化到托盘
         logger.info("开机自启动模式：最小化到系统托盘")
         window.hide()
-        # 确保托盘图标显示
         if hasattr(window, 'tray_icon') and window.tray_icon:
             window.tray_icon.show()
             logger.info("系统托盘图标已显示")
