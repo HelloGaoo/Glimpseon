@@ -689,12 +689,13 @@ class MainWindow(FluentWindow):
             self.isEditMode = True
             self.navigationInterface.setEnabled(False)
     def __createEditPanel(self):
-        """创建右侧编辑面板实例并初始化编辑相关状态"""
+        """创建编辑面板实例并初始化编辑相关状态"""
         if hasattr(self, 'editPanel') and self.editPanel is not None:
             return
         self.editPanel = EditPanel(self)
         self.__loadEditPanelStyleSheet()
         pr = self.rect()
+        # 初始位置在右侧
         self.editPanel.setGeometry(pr.width(), 0, self.editPanel._width, pr.height())
         self.editPanel.hide()
         self.selectedComponent = None

@@ -41,6 +41,7 @@ class EditPanel(QWidget):
         self._width = width
         self.setFixedWidth(self._width)
         self.setObjectName('EditPanel')
+        self._isLeftSide = False  # 面板位置标识，False 表示右侧
         
         # 设置不透明背景
         self.setAttribute(Qt.WA_StyledBackground, True)
@@ -52,9 +53,19 @@ class EditPanel(QWidget):
         v.setContentsMargins(16, 16, 16, 16)
         v.setSpacing(12)
         
-        # 组件库标题
+        # 标题栏
+        titleLayout = QHBoxLayout()
         titleLabel = StrongBodyLabel('组件库', self)
-        v.addWidget(titleLabel)
+        titleLayout.addWidget(titleLabel)
+        titleLayout.addStretch()
+        
+        self.positionButton = PushButton(icon=FIF.LEFT, parent=self)
+        self.positionButton.setFixedSize(32, 32)
+        self.positionButton.setToolTip('左')
+        self.positionButton.clicked.connect(self._togglePosition)
+        titleLayout.addWidget(self.positionButton)
+        
+        v.addLayout(titleLayout)
         
         # 组件列表
         self.list = ListWidget(self)
@@ -148,6 +159,22 @@ class EditPanel(QWidget):
                 }
             """)
     
+    def _togglePosition(self):
+        """切换面板位置"""
+        self._isLeftSide = not self._isLeftSide
+        
+        # 更新按钮图标和提示
+        if self._isLeftSide:
+            self.positionButton.setIcon(FIF.RIGHT)
+            self.positionButton.setToolTip('切换到右侧')
+        else:
+            self.positionButton.setIcon(FIF.LEFT)
+            self.positionButton.setToolTip('切换到左侧')
+        
+        # 重新显示面板以应用新位置
+        if self.isVisible():
+            self.showPanel()
+    
     def _updateListStyle(self):
         """更新列表样式"""
         palette = self.list.palette()
@@ -173,8 +200,17 @@ class EditPanel(QWidget):
         self.show()
 
         pr = parent.rect()
-        end_rect = QRect(pr.width() - self._width, 0, self._width, pr.height())
-        start_rect = QRect(pr.width(), 0, self._width, pr.height())
+        
+        # 根据位置标识计算面板位置
+        if self._isLeftSide:
+            # 左侧显示
+            end_rect = QRect(0, 0, self._width, pr.height())
+            start_rect = QRect(-self._width, 0, self._width, pr.height())
+        else:
+            # 右侧显示
+            end_rect = QRect(pr.width() - self._width, 0, self._width, pr.height())
+            start_rect = QRect(pr.width(), 0, self._width, pr.height())
+        
         self.setGeometry(start_rect)
         
         try:
@@ -201,10 +237,17 @@ class EditPanel(QWidget):
             for widget in parent.homeContent.findChildren(MovableWidget):
                 widget.isDraggable = False
         
-        # 动画起始和结束位置
         pr = parent.rect()
-        start_rect = QRect(pr.width() - self._width, 0, self._width, pr.height())
-        end_rect = QRect(pr.width(), 0, self._width, pr.height())
+        
+        # 根据位置标识计算动画起始和结束位置
+        if self._isLeftSide:
+            # 从左侧滑出
+            start_rect = QRect(0, 0, self._width, pr.height())
+            end_rect = QRect(-self._width, 0, self._width, pr.height())
+        else:
+            # 从右侧滑出
+            start_rect = QRect(pr.width() - self._width, 0, self._width, pr.height())
+            end_rect = QRect(pr.width(), 0, self._width, pr.height())
         
         # 滑出动画
         self.anim.stop()
