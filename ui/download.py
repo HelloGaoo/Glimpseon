@@ -15,30 +15,28 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-DownloadInterface 界面模块
+软件下载界面模块
 """
 
-from PyQt5.QtCore import Qt, pyqtSlot, QMetaObject, Q_ARG
-from PyQt5.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QWidget, QGridLayout, QMessageBox
+from PyQt5.QtCore import Qt, pyqtSlot, QMetaObject, Q_ARG, QTimer
+from PyQt5.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QWidget, QGridLayout
 from PyQt5.QtGui import QPixmap, QIcon
 from qfluentwidgets import (
     CardWidget, CheckBox, FluentIcon as FIF, PrimaryPushButton, PushButton,
     InfoBar, isDarkTheme, ScrollArea, SmoothScrollArea, ExpandLayout, Theme,
-    RadioButton, ProgressRing
+    RadioButton, ProgressRing, MessageBox
 )
 
 from .base_scroll_area import BaseScrollAreaInterface
 
-from downloader import Downloader
+from core.downloader import Downloader
 from concurrent.futures import ThreadPoolExecutor
-from config import cfg, url_dir
-from constants import get_resource_path
+from core.config import cfg, url_dir
+from core.constants import get_resource_path
+from core.logger import logger
 
-import logging
 import os
 import threading
-
-logger = logging.getLogger(__name__)
 
 
 class DownloadInterface(BaseScrollAreaInterface):
@@ -88,15 +86,14 @@ class DownloadInterface(BaseScrollAreaInterface):
     
     def __handleDownload(self, software_name):
         """ 处理下载按钮点击事件 """
-        msg_box = QMessageBox(
+        msg_box = MessageBox(
+            "确认下载",
+            f"确定要下载并安装 {software_name} 吗？",
             self
         )
-        msg_box.setWindowTitle("确认下载")
-        msg_box.setText(f"确定要下载并安装 {software_name} 吗？")
-        msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
         
         result = msg_box.exec_()
-        if result != QMessageBox.Yes:
+        if result != 1:
             return
         software_item = None
         for item in self.softwareList:

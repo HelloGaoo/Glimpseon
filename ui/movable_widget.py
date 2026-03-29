@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-可拖拽控件模块
+可移动组件模块
 """
 from PyQt5.QtCore import QDate, QTime, QRect, Qt, QTimer
 from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
@@ -23,7 +23,7 @@ import datetime
 import cnlunar
 import logging
 
-from config import cfg
+from core.config import cfg
 
 logger = logging.getLogger(__name__)
 

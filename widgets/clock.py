@@ -16,8 +16,6 @@
 
 """
 时钟组件模块
-
-显示实时时间和日期（支持农历）
 """
 
 from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout
@@ -26,7 +24,7 @@ from typing import Dict, Any, Optional
 import datetime
 import cnlunar
 
-from .base import ContainerComponent
+from widgets.base import ContainerComponent
 
 
 class ClockComponent(ContainerComponent):

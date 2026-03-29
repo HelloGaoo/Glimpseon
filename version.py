@@ -14,6 +14,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+"""
+版本信息模块
+"""
+
 VERSION = "0.1.0"
 BUILD_DATE = "2026-03-14"
 

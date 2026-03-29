@@ -15,7 +15,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-BaseScrollAreaInterface 界面模块
+基础滚动界面模块
+提供所有设置类界面的基类，包含标题和滚动区域。
 """
 
 from PyQt5.QtCore import Qt

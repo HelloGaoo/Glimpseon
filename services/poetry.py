@@ -15,20 +15,19 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-诗词 API 服务模块
-
-负责调用诗词 API 获取随机诗词
+诗词服务模块
 """
 
 import requests
 import json
 import logging
 from typing import Optional, Dict, Any
+from core.logger import logger
 
 logger = logging.getLogger(__name__)
 
 
-class PoetryAPIService:
+class PoetryService:
     """诗词 API 服务类"""
     
     def __init__(self, api_url: str = "https://www.ffapi.cn/int/v1/shici"):

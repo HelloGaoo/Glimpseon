@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-WallpaperInterface 界面模块
+壁纸界面模块
 """
 
 from PyQt5.QtCore import Qt, QTimer
@@ -31,8 +31,8 @@ import requests
 import os
 import datetime
 import ctypes
-from config import cfg
-from constants import get_resource_path, BASE_DIR
+from core.config import cfg
+from core.constants import get_resource_path, BASE_DIR
 from PyQt5.QtWidgets import QApplication
 
 logger = logging.getLogger(__name__)

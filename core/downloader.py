@@ -14,6 +14,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+"""
+文件下载模块
+"""
+
 
 import ctypes
 import os
@@ -27,6 +31,7 @@ import zipfile
 import pythoncom
 from win32com.client import Dispatch
 from concurrent.futures import ThreadPoolExecutor
+from core.logger import logger
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 

@@ -16,8 +16,6 @@
 
 """
 天气组件模块
-
-显示实时天气数据（温度、天气状况、图标）
 """
 
 from PyQt5.QtWidgets import QWidget, QLabel, QHBoxLayout
@@ -27,8 +25,8 @@ from typing import Dict, Any, Optional
 import sys
 import os
 
-from .base import ContainerComponent
-from services.weather_api import WeatherAPIService
+from widgets.base import ContainerComponent
+from services.weather import WeatherService
 
 
 class WeatherComponent(ContainerComponent):

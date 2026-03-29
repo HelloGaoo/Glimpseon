@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-UpdateInterface 界面模块
+软件更新界面模块
 """
 
 from PyQt5.QtCore import Qt, QMetaObject, Q_ARG, QTimer
@@ -30,9 +30,9 @@ from qfluentwidgets import (
 from .base_scroll_area import BaseScrollAreaInterface
 
 from version import VERSION, BUILD_DATE
-from version_updater import check_version_from_github
-from config import cfg
-from constants import get_resource_path, BASE_DIR
+from core.updater import check_version_from_github
+from core.config import cfg
+from core.constants import get_resource_path, BASE_DIR
 
 import threading
 import logging

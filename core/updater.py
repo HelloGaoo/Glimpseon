@@ -14,6 +14,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+"""
+软件更新模块
+"""
+
 import requests
 import re
 import urllib3
@@ -21,7 +25,7 @@ import os
 import py7zr
 import zipfile
 import shutil
-from logger import logger
+from core.logger import logger
 from version import VERSION_URL, UPDATE_URL, CHANGELOG_URL
 
 # 禁用 SSL 警告

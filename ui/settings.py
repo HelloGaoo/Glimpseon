@@ -14,6 +14,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+"""
+设置界面模块
+"""
+
 import os
 import sys
 import json
@@ -25,8 +29,8 @@ from qfluentwidgets import (
     SwitchSettingCard, RangeSettingCard, InfoBar, LineEdit, SettingCard, qconfig, ComboBoxSettingCard,
     SpinBox, PushButton, MessageBox, NavigationItemPosition
 )
-from config import cfg, get_default_config_dict
-from city_selector import RegionSelectorDialog
+from core.config import cfg, get_default_config_dict
+from ui.city_selector import RegionSelectorDialog
 
 
 class LineEditSettingCard(SettingCard):
@@ -90,19 +94,27 @@ class ButtonSettingCard(SettingCard):
 
 # 路径设置
 if getattr(sys, 'frozen', False):
-    # 打包为exe时
+    # 打包为 exe 时
     BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
     MEIPASS_DIR = sys._MEIPASS
 else:
     # 脚本运行时
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     MEIPASS_DIR = None
 
 def get_resource_path(relative_path):
     """获取绝对路径"""
+    # 先检查 BASE_DIR 中的资源文件
+    base_path = os.path.join(BASE_DIR, relative_path)
+    if os.path.exists(base_path):
+        return base_path
+    # 如果 BASE_DIR 中不存在，检查 MEIPASS_DIR
     if MEIPASS_DIR:
-        return os.path.join(MEIPASS_DIR, relative_path)
-    return os.path.join(BASE_DIR, relative_path)
+        meipass_path = os.path.join(MEIPASS_DIR, relative_path)
+        if os.path.exists(meipass_path):
+            return meipass_path
+    # 如果都不存在，返回 BASE_DIR 中的路径
+    return base_path
 
 
 class SettingInterface(ScrollArea):

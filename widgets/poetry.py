@@ -16,16 +16,14 @@
 
 """
 诗词组件模块
-
-显示随机诗词
 """
 
 from PyQt5.QtWidgets import QWidget, QLabel
 from PyQt5.QtCore import Qt
 from typing import Dict, Any, Optional
 
-from .base import BaseComponent
-from services.poetry_api import PoetryAPIService
+from widgets.base import BaseComponent
+from services.poetry import PoetryService
 
 
 class PoetryComponent(BaseComponent):

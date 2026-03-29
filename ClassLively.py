@@ -14,6 +14,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+"""
+ClassLively 主程序
+"""
+
 from PyQt5.QtCore import (
     Q_ARG, QDate, QLocale, QMetaObject, 
     QPropertyAnimation, QRect, Qt, QTime, QTranslator, QUrl, QTimer, pyqtSlot
@@ -50,34 +54,32 @@ import winreg
 import logging
 import subprocess
 import webbrowser
-from setting import SettingInterface
-from config import cfg, get_default_config_dict
-from logger import logger, setup_exception_hook
-from version import VERSION, BUILD_DATE
-from version_updater import (
+from core.config import cfg, get_default_config_dict
+from core.logger import logger, setup_exception_hook
+from core.constants import APP_NAME
+from core.updater import (
     check_version_from_github,
     download_update,
     extract_update,
     create_update_script,
     get_changelog_from_github
 )
-from constants import APP_NAME
-from city_selector import RegionDatabase
-from downloader import Downloader
+from core.downloader import Downloader
+from version import VERSION, BUILD_DATE
 
-# 新架构模块导入
-from services.config_manager import ConfigManager
-from services.weather_api import WeatherAPIService
-from services.poetry_api import PoetryAPIService
-from components.clock import ClockComponent
-from components.weather import WeatherComponent
-from components.poetry import PoetryComponent
-from components.manager import ComponentManager
+from services.weather import WeatherService
+from services.poetry import PoetryService
 
-# UI 模块导入
+from widgets.clock import ClockComponent
+from widgets.weather import WeatherComponent
+from widgets.poetry import PoetryComponent
+
+from ui.settings import SettingInterface
+from ui.city_selector import RegionDatabase
+from ui.wallpaper import WallpaperInterface
 from ui import (
     AboutInterface, DownloadInterface, EditPanel,
-    UpdateInterface, WallpaperInterface, MovableWidget
+    UpdateInterface, MovableWidget
 )
 
 
@@ -112,6 +114,17 @@ else:
     # 脚本运行时
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     MEIPASS_DIR = None
+
+def get_resource_path(relative_path):
+    """获取绝对路径"""
+    base_path = os.path.join(BASE_DIR, relative_path)
+    if os.path.exists(base_path):
+        return base_path
+    if MEIPASS_DIR:
+        meipass_path = os.path.join(MEIPASS_DIR, relative_path)
+        if os.path.exists(meipass_path):
+            return meipass_path
+    return base_path
 
 # 添加config目录到Python路径
 sys.path.append(os.path.join(BASE_DIR, 'config'))
@@ -305,9 +318,6 @@ class MainWindow(FluentWindow):
         else:
             logger.warning("窗口图标文件不存在")
         
-        # 初始化配置管理器
-        self.config_manager = ConfigManager(BASE_DIR)
-        
         # 初始化组件管理器
         self.component_manager = None  # 在 initMainNavigation 后初始化
         
@@ -368,9 +378,10 @@ class MainWindow(FluentWindow):
         
         # 初始化组件管理器（在 homeContent 创建后）
         if hasattr(self, 'homeContent'):
-            self.component_manager = ComponentManager(self, self.config_manager)
+            pass  # ComponentManager 暂时禁用
+            # self.component_manager = ComponentManager(self, self.config_manager)
             # 加载已保存的组件
-            self.component_manager.load_all_components(self.homeContent)
+            # self.component_manager.load_all_components(self.homeContent)
         
         # 同步自启动
         sync_auto_start_with_config()
@@ -641,7 +652,7 @@ class MainWindow(FluentWindow):
             
             # 保存组件配置
             try:
-                if hasattr(self, 'component_manager'):
+                if hasattr(self, 'component_manager') and self.component_manager is not None:
                     self.component_manager.save_all_components(self.homeContent)
                     logger.info("已保存组件配置")
             except Exception as e:

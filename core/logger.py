@@ -14,6 +14,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+"""
+日志管理模块
+"""
+
 import os
 import logging
 import logging.handlers
@@ -21,7 +25,7 @@ import inspect
 import sys
 import ctypes
 from datetime import datetime, timedelta
-from constants import APP_NAME
+from core.constants import APP_NAME
 
 # 路径设置
 if getattr(sys, 'frozen', False):

@@ -15,23 +15,46 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-AboutInterface 界面模块
+关于界面模块
 """
 
+import sys
+import os
+import webbrowser
+
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QWidget
-from PyQt5.QtGui import QPixmap, QIcon
-from qfluentwidgets import (
-    CardWidget, FluentIcon as FIF, PrimaryPushButton, PushButton,
-    InfoBar, isDarkTheme, ScrollArea, SmoothScrollArea, ExpandLayout, Theme
-)
+from PyQt5.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QWidget, QMessageBox
+from PyQt5.QtGui import QPixmap, QFont
+from PyQt5.QtCore import QUrl
+from PyQt5.QtGui import QDesktopServices
+from qfluentwidgets import CardWidget, FluentIcon as FIF, ScrollArea, SmoothScrollArea, ExpandLayout, PushButton, TextEdit, MessageBox, isDarkTheme, Theme
 
 from .base_scroll_area import BaseScrollAreaInterface
-
 from version import VERSION, BUILD_DATE
-from constants import get_resource_path
 
-import os
+# 路径设置
+if getattr(sys, 'frozen', False):
+    # 打包为 exe 时
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    MEIPASS_DIR = sys._MEIPASS
+else:
+    # 脚本运行时
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    MEIPASS_DIR = None
+
+def get_resource_path(relative_path):
+    """获取绝对路径"""
+    # 先检查 BASE_DIR 中的资源文件
+    base_path = os.path.join(BASE_DIR, relative_path)
+    if os.path.exists(base_path):
+        return base_path
+    # 如果 BASE_DIR 中不存在，检查 MEIPASS_DIR
+    if MEIPASS_DIR:
+        meipass_path = os.path.join(MEIPASS_DIR, relative_path)
+        if os.path.exists(meipass_path):
+            return meipass_path
+    # 如果都不存在，返回 BASE_DIR 中的路径
+    return base_path
 
 
 class AboutInterface(BaseScrollAreaInterface):
@@ -257,7 +280,7 @@ class AboutInterface(BaseScrollAreaInterface):
         # 创建消息框
         msg_box = MessageBox(
             title="软件许可协议",
-            content="此项目 (ClassLively) 基于GNU General Public License Version 3许可证发布：",
+            content="此项目 (ClassLively) 基于 GNU General Public License Version 3 许可证发布：",
             parent=self
         )
         msg_box.cancelButton.hide()
@@ -275,4 +298,3 @@ class AboutInterface(BaseScrollAreaInterface):
         msg_box.setMinimumWidth(600)
         
         msg_box.exec_()
-    

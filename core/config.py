@@ -14,6 +14,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+"""
+配置管理模块
+"""
+
 import os
 import sys
 from enum import Enum
@@ -265,9 +269,12 @@ qconfig.load(os.path.join(BASE_DIR, 'config', 'config.json'), cfg)
 
 # 导入下载链接配置
 try:
-    from .url import url_dir
+    from config.url import url_dir
 except (ImportError, AttributeError):
     try:
-        from url import url_dir
+        from .url import url_dir
     except ImportError:
-        url_dir = []
+        try:
+            from url import url_dir
+        except ImportError:
+            url_dir = []

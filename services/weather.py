@@ -15,19 +15,18 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-天气 API 服务模块
-
-负责调用天气 API 获取实时天气数据
+天气服务模块
 """
 
 import requests
 import logging
 from typing import Optional, Dict, Any
+from core.logger import logger
 
 logger = logging.getLogger(__name__)
 
 
-class WeatherAPIService:
+class WeatherService:
     """天气 API 服务类"""
     
     # 天气代码映射表
