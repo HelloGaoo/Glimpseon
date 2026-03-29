@@ -25,7 +25,7 @@ from PyQt5.QtWidgets import (
 )
 from qfluentwidgets import (
     BodyLabel, FluentIcon as FIF, isDarkTheme, LineEdit, ListWidget, 
-    PrimaryPushButton, PushButton, StrongBodyLabel
+    PrimaryPushButton, PushButton, StrongBodyLabel, ToolButton
 )
 
 from .movable_widget import MovableWidget
@@ -41,7 +41,7 @@ class EditPanel(QWidget):
         self._width = width
         self.setFixedWidth(self._width)
         self.setObjectName('EditPanel')
-        self._isLeftSide = False  # 面板位置标识，False 表示右侧
+        self.isLeftSide = False  # 是否在左侧显示
         
         # 设置不透明背景
         self.setAttribute(Qt.WA_StyledBackground, True)
@@ -53,15 +53,15 @@ class EditPanel(QWidget):
         v.setContentsMargins(16, 16, 16, 16)
         v.setSpacing(12)
         
-        # 标题栏
         titleLayout = QHBoxLayout()
         titleLabel = StrongBodyLabel('组件库', self)
         titleLayout.addWidget(titleLabel)
         titleLayout.addStretch()
         
-        self.positionButton = PushButton(icon=FIF.LEFT, parent=self)
+        self.positionButton = ToolButton(parent=self)
         self.positionButton.setFixedSize(32, 32)
-        self.positionButton.setToolTip('左')
+        self.positionButton.setToolTip('切换到左侧')
+        self.positionButton.setIcon(FIF.CARE_LEFT_SOLID)
         self.positionButton.clicked.connect(self._togglePosition)
         titleLayout.addWidget(self.positionButton)
         
@@ -140,7 +140,9 @@ class EditPanel(QWidget):
         self.heightEdit.textChanged.connect(self._onSizeEdit)
         
         self.anim = QPropertyAnimation(self, b'geometry')
+        
         self.hide()
+        self.setVisible(False)
     
     def _updateTheme(self):
         """更新主题"""
@@ -158,22 +160,6 @@ class EditPanel(QWidget):
                     border-radius: 12px;
                 }
             """)
-    
-    def _togglePosition(self):
-        """切换面板位置"""
-        self._isLeftSide = not self._isLeftSide
-        
-        # 更新按钮图标和提示
-        if self._isLeftSide:
-            self.positionButton.setIcon(FIF.RIGHT)
-            self.positionButton.setToolTip('切换到右侧')
-        else:
-            self.positionButton.setIcon(FIF.LEFT)
-            self.positionButton.setToolTip('切换到左侧')
-        
-        # 重新显示面板以应用新位置
-        if self.isVisible():
-            self.showPanel()
     
     def _updateListStyle(self):
         """更新列表样式"""
@@ -200,14 +186,10 @@ class EditPanel(QWidget):
         self.show()
 
         pr = parent.rect()
-        
-        # 根据位置标识计算面板位置
-        if self._isLeftSide:
-            # 左侧显示
+        if self.isLeftSide:
             end_rect = QRect(0, 0, self._width, pr.height())
             start_rect = QRect(-self._width, 0, self._width, pr.height())
         else:
-            # 右侧显示
             end_rect = QRect(pr.width() - self._width, 0, self._width, pr.height())
             start_rect = QRect(pr.width(), 0, self._width, pr.height())
         
@@ -237,15 +219,12 @@ class EditPanel(QWidget):
             for widget in parent.homeContent.findChildren(MovableWidget):
                 widget.isDraggable = False
         
+        # 动画起始和结束位置
         pr = parent.rect()
-        
-        # 根据位置标识计算动画起始和结束位置
-        if self._isLeftSide:
-            # 从左侧滑出
+        if self.isLeftSide:
             start_rect = QRect(0, 0, self._width, pr.height())
             end_rect = QRect(-self._width, 0, self._width, pr.height())
         else:
-            # 从右侧滑出
             start_rect = QRect(pr.width() - self._width, 0, self._width, pr.height())
             end_rect = QRect(pr.width(), 0, self._width, pr.height())
         
@@ -306,3 +285,16 @@ class EditPanel(QWidget):
         """主题切换时调用"""
         self._updateTheme()
         self._updateListStyle()
+    
+    def _togglePosition(self):
+        """切换编辑面板位置"""
+        self.isLeftSide = not self.isLeftSide
+        if self.isLeftSide:
+            self.positionButton.setIcon(FIF.CARE_RIGHT_SOLID)
+            self.positionButton.setToolTip('切换到右侧')
+        else:
+            self.positionButton.setIcon(FIF.CARE_LEFT_SOLID)
+            self.positionButton.setToolTip('切换到左侧')
+
+        if self.isVisible():
+            self.showPanel()
