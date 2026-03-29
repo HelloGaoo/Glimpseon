@@ -668,6 +668,7 @@ class MainWindow(FluentWindow):
         else:
             for widget in self.homeContent.findChildren(MovableWidget):
                 widget.isDraggable = True
+            self.editPanel.showPanel()
     def __createEditPanel(self):
         """创建右侧编辑面板实例并初始化编辑相关状态"""
         if hasattr(self, 'editPanel') and self.editPanel is not None:
