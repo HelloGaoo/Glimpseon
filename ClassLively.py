@@ -268,10 +268,6 @@ def set_auto_start(enabled, delay_seconds=5):
 
 
 def sync_auto_start_with_config():
-    """
-    同步配置中的自启动设置与实际注册表状态
-    在应用启动时调用，确保配置与实际状态一致
-    """
     try:
         config_auto_start = cfg.autoStart.value
         actual_auto_start, _ = get_auto_start_status()
@@ -297,12 +293,6 @@ def sync_auto_start_with_config():
         logger.error(f"同步自启动状态失败: {e}")
         return False
 
-
-
-
-
-
-
 class MainWindow(FluentWindow):
     """ 主窗口 """
 
@@ -311,19 +301,16 @@ class MainWindow(FluentWindow):
         
         setTheme(cfg.themeMode.value)
         
-        # 设置窗口图标
         icon_path = get_resource_path(os.path.join("resource", "icons", "CY.png"))
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         else:
             logger.warning("窗口图标文件不存在")
         
-        # 初始化组件管理器
         self.component_manager = None  # 在 initMainNavigation 后初始化
         
         self.initMainNavigation()
         
-        # 初始化设置导航
         self.settingInterface = SettingInterface(parent=self)
         self.settingInterface.setObjectName("setting")
         self.addSubInterface(self.settingInterface, FIF.SETTING, "设置", NavigationItemPosition.BOTTOM)
@@ -342,7 +329,7 @@ class MainWindow(FluentWindow):
         self.setMinimumSize(1100, 700)
         self.moveToCenter()
         
-        # 初始化系统托盘
+        # 系统托盘
         self.initSystemTray()
         
         # 时钟更新定时器
@@ -380,13 +367,10 @@ class MainWindow(FluentWindow):
         if hasattr(self, 'homeContent'):
             pass  # ComponentManager 暂时禁用
             # self.component_manager = ComponentManager(self, self.config_manager)
-            # 加载已保存的组件
             # self.component_manager.load_all_components(self.homeContent)
         
-        # 同步自启动
         sync_auto_start_with_config()
         
-        # 自动启动配置
         cfg.autoStart.valueChanged.connect(lambda value: set_auto_start(value))
         
         # 空闲检测定时器
@@ -650,7 +634,6 @@ class MainWindow(FluentWindow):
         else:
             logger.info("关闭行为：退出应用")
             
-            # 保存组件配置
             try:
                 if hasattr(self, 'component_manager') and self.component_manager is not None:
                     self.component_manager.save_all_components(self.homeContent)
@@ -678,14 +661,11 @@ class MainWindow(FluentWindow):
 
         if self.editPanel.isVisible():
             self.editPanel.hidePanel()
-            # 退出编辑模式取消选择组件
             self.deselectComponent()
             for widget in self.homeContent.findChildren(MovableWidget):
                 widget.isDraggable = False
             InfoBar.info(title='编辑模式', content='已退出编辑模式', parent=self, duration=2000)
         else:
-            self.editPanel.showPanel()
-            # 启用组件拖动功能
             for widget in self.homeContent.findChildren(MovableWidget):
                 widget.isDraggable = True
     def __createEditPanel(self):
@@ -693,9 +673,7 @@ class MainWindow(FluentWindow):
         if hasattr(self, 'editPanel') and self.editPanel is not None:
             return
         self.editPanel = EditPanel(self)
-        # 加载编辑面板样式
         self.__loadEditPanelStyleSheet()
-        # 初始位置放在右侧外面
         pr = self.rect()
         self.editPanel.setGeometry(pr.width(), 0, self.editPanel._width, pr.height())
         self.editPanel.hide()
@@ -720,7 +698,6 @@ class MainWindow(FluentWindow):
             if hasattr(self, 'editPanel') and self.editPanel is not None:
                 txt = getattr(comp_widget, 'text', lambda: '')()
                 self.editPanel.propEdit.setText(txt)
-                # 显示当前大小
                 self.editPanel.widthEdit.setText(str(comp_widget.width()))
                 self.editPanel.heightEdit.setText(str(comp_widget.height()))
         except Exception:
@@ -753,19 +730,13 @@ class MainWindow(FluentWindow):
                 logger.error("组件创建失败，widget 为空")
                 return
             
-            # 设置父容器
             widget.setParent(self.homeContent)
-            
-            # 设置初始位置（中心偏下）
             parent_rect = self.homeContent.rect()
             x = max(10, parent_rect.width() // 2 - widget.width() // 2)
             y = max(10, parent_rect.height() // 2 - widget.height() // 2)
             widget.move(x, y)
-            
-            # 显示组件
             widget.show()
             
-            # 记录到管理器
             self.component_manager.components[component] = {
                 'type': comp_type,
                 'x': x,
@@ -774,7 +745,7 @@ class MainWindow(FluentWindow):
                 'height': widget.height()
             }
             
-            # 选中新组件
+
             self.selectComponent(widget)
             
             logger.info(f"已添加组件：{comp_type}")
@@ -794,7 +765,6 @@ class MainWindow(FluentWindow):
                     # 从 UI 中移除
                     selected.setParent(None)
                     selected.deleteLater()
-                    # 取消选择
                     self.deselectComponent()
                     logger.info(f"已删除组件：{component.COMPONENT_TYPE}")
                 else:
@@ -817,7 +787,7 @@ class MainWindow(FluentWindow):
         home = QWidget()
         home.setObjectName("home")
         
-        # 创建主界面的照片显示控件
+        # 照片显示控件
         self.homeBackgroundImage = QLabel()
         self.homeBackgroundImage.setAlignment(Qt.AlignCenter)
         self.originalPixmap = None
@@ -904,7 +874,7 @@ class MainWindow(FluentWindow):
         editLayout.addWidget(self.editButton)
         editContainer.setStyleSheet("background-color: transparent;")
         
-        # 网格布局 - 所有组件都放在中心位置，通过堆叠布局显示
+        # 网格布局
         gridLayout = QGridLayout()
         gridLayout.setContentsMargins(0, 0, 0, 0)
         gridLayout.addWidget(self.homeBackgroundImage, 0, 0, 1, 1)
@@ -1021,16 +991,14 @@ class MainWindow(FluentWindow):
         # 公历日期
         solarString = currentDate.toString("yyyy 年 M 月 d 日 dddd")
         
-        # 根据配置决定是否显示农历
         if cfg.showLunarCalendar.value:
             # 农历日期
             try:
-                # 将 QDate 转换为 datetime.datetime 对象
+                # QDate 转换为 datetime.datetime 对象
                 py_datetime = datetime.datetime(currentDate.year(), currentDate.month(), currentDate.day(), 0, 0, 0)
                 lunar = cnlunar.Lunar(py_datetime)
                 lunarMonthCn = lunar.lunarMonthCn
                 lunarDayCn = lunar.lunarDayCn
-                # 去掉月份中的"大"、"小"字
                 lunarMonthCn = lunarMonthCn.replace("大", "").replace("小", "")
                 lunarString = f"{lunarMonthCn}{lunarDayCn}"
                 dateString = f"{solarString} {lunarString}"
