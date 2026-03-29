@@ -206,7 +206,7 @@ class EditPanel(QWidget):
         self.anim.start()
 
     def hidePanel(self):
-        """隐藏编辑面板"""
+        """隐藏编辑面板并退出编辑模式"""
         parent = self.parent()
         if not parent:
             return
@@ -219,7 +219,13 @@ class EditPanel(QWidget):
             for widget in parent.homeContent.findChildren(MovableWidget):
                 widget.isDraggable = False
         
-        # 动画起始和结束位置
+        if hasattr(parent, 'isEditMode'):
+            parent.isEditMode = False
+        
+        # 启用导航栏
+        if hasattr(parent, 'navigationInterface'):
+            parent.navigationInterface.setEnabled(True)
+        
         pr = parent.rect()
         if self.isLeftSide:
             start_rect = QRect(0, 0, self._width, pr.height())
