@@ -295,6 +295,8 @@ class EditPanel(QWidget):
         else:
             self.positionButton.setIcon(FIF.CARE_LEFT_SOLID)
             self.positionButton.setToolTip('切换到左侧')
-
+        if hasattr(self.mainWindow, '_MainWindow__updateEditButtonPosition'):
+            self.mainWindow._MainWindow__updateEditButtonPosition()
+        
         if self.isVisible():
             self.showPanel()

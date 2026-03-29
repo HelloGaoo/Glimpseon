@@ -688,6 +688,25 @@ class MainWindow(FluentWindow):
             self.editPanel.showPanel()
             self.isEditMode = True
             self.navigationInterface.setEnabled(False)
+            self.__updateEditButtonPosition()
+    
+    def __updateEditButtonPosition(self):
+        """更新编辑按钮位置"""
+        if not hasattr(self, 'editPanel') or not hasattr(self, 'editLayout'):
+            return
+        
+        while self.editLayout.count():
+            item = self.editLayout.takeAt(0)
+            if item.widget():
+                item.widget().setParent(None)
+        
+        if self.editPanel.isLeftSide:
+            self.editLayout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
+            self.editLayout.setContentsMargins(20, 0, 0, 20)
+        else:
+            self.editLayout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
+            self.editLayout.setContentsMargins(0, 0, 20, 20)
+        self.editLayout.addWidget(self.editButton)
     def __createEditPanel(self):
         """创建右侧编辑面板实例并初始化编辑相关状态"""
         if hasattr(self, 'editPanel') and self.editPanel is not None:
@@ -887,16 +906,16 @@ class MainWindow(FluentWindow):
         
         # 编辑按钮
         editContainer = QWidget()
-        editLayout = QVBoxLayout(editContainer)
-        editLayout.setAlignment(Qt.AlignBottom)
-        editLayout.setContentsMargins(0, 0, 0, 20)
+        self.editLayout = QVBoxLayout(editContainer)
+        self.editLayout.setAlignment(Qt.AlignBottom)
+        self.editLayout.setContentsMargins(0, 0, 0, 20)
         
         self.editButton = PushButton("编辑", parent=home)
         self.editButton.setObjectName("editButton")
         self.editButton.setFixedSize(80, 32)
         self.editButton.clicked.connect(self.__enterEditMode)
         
-        editLayout.addWidget(self.editButton)
+        self.editLayout.addWidget(self.editButton)
         editContainer.setStyleSheet("background-color: transparent;")
         
         # 网格布局
@@ -918,6 +937,9 @@ class MainWindow(FluentWindow):
         homeLayout.addWidget(self.homeContent)
         
         self.addSubInterface(home, FIF.HOME, "主界面")
+        
+        # 初始化编辑按钮位置（在 editPanel 创建后调用）
+        self.editPanelCreated = False
         
         self.wallpaper = WallpaperInterface(mainWindow=self)
         self.wallpaper.setObjectName("wallpaper")
