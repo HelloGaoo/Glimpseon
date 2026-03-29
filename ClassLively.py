@@ -722,6 +722,11 @@ class MainWindow(FluentWindow):
         self.editPanel.hide()
         self.editPanel.setVisible(False)
         self.selectedComponent = None
+        
+        # 初始化编辑按钮位置
+        if not self.editPanelCreated:
+            self.__updateEditButtonPosition()
+            self.editPanelCreated = True
 
     def selectComponent(self, comp_widget):
         """在主窗口内选择一个组件（MovableWidget 实例）"""
