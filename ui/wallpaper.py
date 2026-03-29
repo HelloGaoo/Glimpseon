@@ -19,7 +19,7 @@
 """
 
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QWidget
+from PyQt5.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QWidget, QFileDialog
 from PyQt5.QtGui import QPixmap, QIcon
 from qfluentwidgets import (
     CardWidget, FluentIcon as FIF, ImageLabel, PrimaryPushButton, PushButton,

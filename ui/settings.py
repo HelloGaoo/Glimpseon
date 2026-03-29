@@ -30,6 +30,7 @@ from qfluentwidgets import (
     SpinBox, PushButton, MessageBox, NavigationItemPosition
 )
 from core.config import cfg, get_default_config_dict
+from core.logger import log_dir
 from ui.city_selector import RegionSelectorDialog
 
 
@@ -599,7 +600,6 @@ class SettingInterface(ScrollArea):
         if msgBox.exec() == 1:
             try:
                 # 清空日志文件
-                log_dir = os.path.join(BASE_DIR, 'logs')
                 if os.path.exists(log_dir):
                     log_files = []
                     for file in os.listdir(log_dir):

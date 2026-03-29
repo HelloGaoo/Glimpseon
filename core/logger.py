@@ -32,8 +32,8 @@ if getattr(sys, 'frozen', False):
     # 打包为 exe 时
     BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
 else:
-    # 脚本运行时
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    # 脚本运行时，指向项目根目录
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 log_dir = os.path.join(BASE_DIR, "logs")
 if not os.path.exists(log_dir):
