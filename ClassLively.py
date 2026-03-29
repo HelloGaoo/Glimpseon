@@ -1124,31 +1124,10 @@ class MainWindow(FluentWindow):
             response = requests.get(api_url, timeout=10)
             
             if response.status_code == 200:
-                logger.debug(f"诗词 API 请求成功，状态码: {response.status_code}")
-                # 尝试解析为 JSON
-                try:
-                    data = response.json()
-                    logger.debug(f"诗词 API 返回数据: {data}")
-                    if data.get('success') and 'data' in data:
-                        poetry_data = data['data']
-                        content = poetry_data.get('content', '')
-                        author = poetry_data.get('author', '')
-                        origin = poetry_data.get('origin', '')
-
-                        poetry_text = f"「{content}」"
-                        if author or origin:
-                            poetry_text += f"\n——{author if author else ''}《{origin}》" if origin else f"\n——{author if author else ''}"
-                        
-                        self.poetryLabel.setText(poetry_text)
-                        logger.info(f"已更新诗词: {content}")
-                    else:
-                        logger.error(f"诗词 API 返回数据格式错误：{data}")
-                        self.poetryLabel.setText("")
-                except Exception as json_error:
-                    logger.debug(f"JSON解析失败，使用文本模式: {json_error}")
-                    poetry_text = response.text.strip()
-                    self.poetryLabel.setText(poetry_text)
-                    logger.info(f"已更新诗词 (文本模式): {poetry_text[:50]}...")
+                logger.debug(f"诗词 API 请求成功，状态码：{response.status_code}")
+                poetry_text = response.text.strip()
+                self.poetryLabel.setText(poetry_text)
+                logger.info(f"已更新诗词：{poetry_text[:50]}")
             else:
                 logger.error(f"诗词 API 请求失败，状态码：{response.status_code}")
                 self.poetryLabel.setText("")
