@@ -70,7 +70,11 @@ class DownloadInterface(BaseScrollAreaInterface):
         self.sourceComboBox.currentTextChanged.connect(self.__handleSourceChange)
     
     def __handleSourceChange(self, source_name):
-        logger.info(f"切换到下载源：{source_name}")
+        source_index = self.sourceComboBox.currentIndex()
+        source_keys = list(DOWNLOAD_SOURCES.keys())
+        source_key = source_keys[source_index]
+        cfg.downloadSource = source_key
+        logger.info(f"切换到下载源：{source_name} ({source_key})")
     
     def __get_download_url(self, cache_file):
         source_index = self.sourceComboBox.currentIndex()
@@ -378,9 +382,10 @@ class DownloadInterface(BaseScrollAreaInterface):
         source_items = [v["name"] for v in DOWNLOAD_SOURCES.values()]
         self.sourceComboBox.addItems(source_items)
         
-        # 设置默认选项为 hk
-        default_index = list(DOWNLOAD_SOURCES.keys()).index(DEFAULT_SOURCE)
-        self.sourceComboBox.setCurrentIndex(default_index)
+        saved_source = cfg.downloadSource
+        if saved_source in DOWNLOAD_SOURCES:
+            default_index = list(DOWNLOAD_SOURCES.keys()).index(saved_source)
+            self.sourceComboBox.setCurrentIndex(default_index)
         
         sourceGroupLayout.addWidget(self.sourceLabel)
         sourceGroupLayout.addWidget(self.sourceComboBox)

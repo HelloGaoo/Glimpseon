@@ -196,6 +196,9 @@ class Config(QConfig):
     autoUpdate = ConfigItem(
         "Other", "AutoUpdate", False, BoolValidator()
     )
+    downloadSource = ConfigItem(
+        "Download", "Source", "hk"
+    )
 
 
 cfg = Config()
