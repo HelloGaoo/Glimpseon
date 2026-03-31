@@ -22,10 +22,11 @@ from PyQt5.QtCore import Qt, pyqtSlot, QMetaObject, Q_ARG, QTimer
 from PyQt5.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QWidget, QGridLayout
 from PyQt5.QtGui import QPixmap, QIcon
 from qfluentwidgets import (
-    CardWidget, CheckBox, FluentIcon as FIF, PrimaryPushButton, PushButton,
+    CardWidget, CheckBox, ComboBox, FluentIcon as FIF, PrimaryPushButton, PushButton,
     InfoBar, isDarkTheme, ScrollArea, SmoothScrollArea, ExpandLayout, Theme,
     RadioButton, ProgressRing, MessageBox
 )
+from core.downloader import DOWNLOAD_SOURCES, DEFAULT_SOURCE
 
 from .base_scroll_area import BaseScrollAreaInterface
 
@@ -66,6 +67,27 @@ class DownloadInterface(BaseScrollAreaInterface):
         self.singleModeButton.toggled.connect(self.__handleModeChange)
         self.multiModeButton.toggled.connect(self.__handleModeChange)
         self.startButton.clicked.connect(self.__handleStartDownload)
+        self.sourceComboBox.currentTextChanged.connect(self.__handleSourceChange)
+    
+    def __handleSourceChange(self, source_name):
+        logger.info(f"切换到下载源：{source_name}")
+    
+    def __get_download_url(self, cache_file):
+        source_index = self.sourceComboBox.currentIndex()
+        source_keys = list(DOWNLOAD_SOURCES.keys())
+        
+        # 有url直接用
+        if 'url' in cache_file:
+            return cache_file['url']
+        
+        if 'github_path' in cache_file:
+            github_path = cache_file['github_path']
+            source_key = source_keys[source_index]
+            source_config = DOWNLOAD_SOURCES[source_key]
+            prefix = source_config["prefix"]
+            return f'{prefix}{github_path}'
+        
+        return None
     
     def __setQss(self):
         """ 设置样式表 """
@@ -141,6 +163,20 @@ class DownloadInterface(BaseScrollAreaInterface):
                             Q_ARG(str, "未找到对应的下载链接")
                         )
                         return
+
+                    download_url = self.__get_download_url(cache_file)
+                    if not download_url:
+                        QMetaObject.invokeMethod(
+                            self,
+                            '_show_download_error_now',
+                            Qt.QueuedConnection,
+                            Q_ARG(str, software_name),
+                            Q_ARG(str, "无法获取下载链接")
+                        )
+                        return
+                    
+                    # 更新 cache_file 的 url
+                    cache_file['url'] = download_url
                     
                     # 进度回调（接收 downloader 的 (software_name, percent)）
                     def update_progress(software_name_arg, percent, item=software_item):
@@ -301,17 +337,18 @@ class DownloadInterface(BaseScrollAreaInterface):
         """ 初始化控件 """
         # 模式切换控件
         self.modeContainer = QWidget(self.scrollWidget)
+        self.modeContainer.setObjectName("modeContainer")
         self.modeLayout = QHBoxLayout(self.modeContainer)
         self.modeLayout.setContentsMargins(0, 10, 0, 10)
         self.modeLayout.setSpacing(20)
         
         # 模式选择组
         modeGroup = QWidget(self.modeContainer)
+        modeGroup.setObjectName("modeGroup")
         modeGroupLayout = QHBoxLayout(modeGroup)
         modeGroupLayout.setContentsMargins(0, 0, 0, 0)
         modeGroupLayout.setSpacing(16)
         modeGroupLayout.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        modeGroup.setFixedHeight(36)
         
         self.modeLabel = QLabel("选择模式:", modeGroup)
         self.modeLabel.setObjectName("modeLabel")
@@ -325,12 +362,35 @@ class DownloadInterface(BaseScrollAreaInterface):
         modeGroupLayout.addWidget(self.singleModeButton)
         modeGroupLayout.addWidget(self.multiModeButton)
         
+        # 下载源选择
+        sourceGroup = QWidget(self.modeContainer)
+        sourceGroup.setObjectName("sourceGroup")
+        sourceGroupLayout = QHBoxLayout(sourceGroup)
+        sourceGroupLayout.setContentsMargins(0, 0, 0, 0)
+        sourceGroupLayout.setSpacing(8)
+        sourceGroupLayout.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        
+        self.sourceLabel = QLabel("下载源:", sourceGroup)
+        self.sourceLabel.setObjectName("sourceLabel")   
+        self.sourceComboBox = ComboBox(sourceGroup)
+        self.sourceComboBox.setObjectName("sourceComboBox")
+        self.sourceComboBox.setFixedWidth(200)
+        source_items = [v["name"] for v in DOWNLOAD_SOURCES.values()]
+        self.sourceComboBox.addItems(source_items)
+        
+        # 设置默认选项为 hk
+        default_index = list(DOWNLOAD_SOURCES.keys()).index(DEFAULT_SOURCE)
+        self.sourceComboBox.setCurrentIndex(default_index)
+        
+        sourceGroupLayout.addWidget(self.sourceLabel)
+        sourceGroupLayout.addWidget(self.sourceComboBox)
+        
         self.startButton = PrimaryPushButton(FIF.PLAY, "开始下载", self.modeContainer)
-        self.startButton.setFixedHeight(36)
-        self.startButton.setFixedWidth(120)
+        self.startButton.setObjectName("startButton")
         self.startButton.hide()
         
         self.modeLayout.addWidget(modeGroup)
+        self.modeLayout.addWidget(sourceGroup)
         self.modeLayout.addStretch()
         self.modeLayout.addWidget(self.startButton)
         self.modeLayout.setAlignment(Qt.AlignVCenter)
@@ -584,6 +644,21 @@ class DownloadInterface(BaseScrollAreaInterface):
                     Q_ARG(str, '未找到对应的下载链接')
                 )
                 return
+
+            # 根据选择的下载源获取实际 URL
+            download_url = self._DownloadInterface__get_download_url(cache_file)
+            if not download_url:
+                QMetaObject.invokeMethod(
+                    self,
+                    '_show_download_error_now',
+                    Qt.QueuedConnection,
+                    Q_ARG(str, software_name),
+                    Q_ARG(str, '无法获取下载链接')
+                )
+                return
+
+            # 更新 cache_file 的 url
+            cache_file['url'] = download_url
 
             # 定义进度回调和完成回调
             def update_progress(software_name_arg, percent, item_ref=item):

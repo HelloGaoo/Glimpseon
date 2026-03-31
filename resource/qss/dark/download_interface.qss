@@ -69,6 +69,61 @@ QLabel#modeLabel {
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
+/* 下载源选择标签 */
+QLabel#sourceLabel {
+    font-size: 18px;
+    color: white;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 下载源选择下拉框 */
+ComboBox#sourceComboBox {
+    font-size: 14px;
+    color: white;
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+ComboBox#sourceComboBox:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+ComboBox#sourceComboBox::drop-down {
+    border: none;
+    width: 30px;
+}
+
+ComboBox#sourceComboBox::down-arrow {
+    image: none;
+    border: none;
+    width: 12px;
+    height: 12px;
+    margin-right: 8px;
+}
+
+/* 开始下载按钮 */
+PushButton#startButton {
+    font-size: 14px;
+    color: white;
+    background-color: #00c853;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 16px;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+PushButton#startButton:hover {
+    background-color: #00e676;
+}
+
+PushButton#startButton:pressed {
+    background-color: #009624;
+}
+
 /* 模式选择单选按钮 */
 QRadioButton {
     font-size: 14px;
