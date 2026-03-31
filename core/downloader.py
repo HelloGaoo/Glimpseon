@@ -38,20 +38,24 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 SEVEN_ZIP_PASSWORD = 'zQt83iOY3xXLfDVg6SJ7ocnapy90I1d62w6jh79WlT0m1qPC8b55HU5Nk4ARZFBs'
 
 DOWNLOAD_SOURCES = {
+    "original": {
+        "name": "GitHub 原链接",
+        "prefix": "https://github.com"
+    },
     "hk": {
         "name": "香港加速站",
         "prefix": "https://hk.gh-proxy.org/https://github.com"
     },
     "cloudflare": {
-        "name": "CloudFlare加速站",
+        "name": "CloudFlare 加速站",
         "prefix": "https://gh-proxy.org/https://github.com"
     },
     "edgeone": {
-        "name": "EdgeOne加速站",
+        "name": "EdgeOne 加速站",
         "prefix": "https://edgeone.gh-proxy.org/https://github.com"
     },
     "geekertao": {
-        "name": "Geekertao加速站",
+        "name": "Geekertao 加速站",
         "prefix": "https://ghfile.geekertao.top/https://github.com"
     }
 }
