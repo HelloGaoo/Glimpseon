@@ -30,7 +30,7 @@ from qfluentwidgets import (
 from .base_scroll_area import BaseScrollAreaInterface
 
 from version import VERSION, BUILD_DATE
-from core.updater import check_version_from_github
+from core.updater import check_version_from_github, get_changelog_from_github
 from core.config import cfg
 from core.constants import get_resource_path, BASE_DIR
 
@@ -39,11 +39,6 @@ import logging
 import os
 
 logger = logging.getLogger(__name__)
-
-
-def get_changelog_from_github():
-    """获取更新日志（简化版本）"""
-    return "更新日志功能暂未实现"
 
 
 class UpdateInterface(BaseScrollAreaInterface):
