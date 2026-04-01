@@ -82,8 +82,7 @@ from ui import (
     UpdateInterface, MovableWidget
 )
 
-from url import url_dir  # type: ignore
-
+from config.url_dir import url_dir  # type: ignore
 
 def check_single_instance():
     """ 检查是否已经有实例 """
@@ -1549,6 +1548,7 @@ if __name__ == "__main__":
     logger.info(f"{APP_NAME}环境信息：")
     logger.info(f"系统版本：Windows {platform.version()} Python 版本：{platform.python_version()}")
     logger.info(f"软件运行路径：{BASE_DIR}")
+    logger.debug(f"url_dir 内容：{url_dir}")
 
     font_dir = get_resource_path(os.path.join("font", "HarmonyOS_Sans"))
     font_loaded = False

@@ -20,6 +20,7 @@
 
 import os
 import sys
+import logging
 from enum import Enum
 
 from PyQt5.QtCore import QLocale
@@ -28,13 +29,18 @@ from qfluentwidgets import (
     ColorConfigItem, OptionsValidator, RangeConfigItem, RangeValidator,
     ConfigSerializer, Theme
 )
-from config.url import url_dir
 
+logger = logging.getLogger(__name__)
 
 if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
 else:
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+from config.url_dir import url_dir
 
 
 class ThemeSerializer(ConfigSerializer):
