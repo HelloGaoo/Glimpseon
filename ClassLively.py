@@ -19,7 +19,7 @@ ClassLively 主程序
 """
 
 from PyQt5.QtCore import (
-    Q_ARG, QDate, QLocale, QMetaObject, 
+    Q_ARG, QDate, QLocale, QMetaObject, QEvent,
     QPropertyAnimation, QRect, Qt, QTime, QTranslator, QUrl, QTimer, pyqtSlot
 )
 from PyQt5.QtGui import (
@@ -82,6 +82,8 @@ from ui import (
     UpdateInterface, MovableWidget
 )
 
+from url import url_dir  # type: ignore
+
 
 def check_single_instance():
     """ 检查是否已经有实例 """
@@ -125,14 +127,6 @@ def get_resource_path(relative_path):
         if os.path.exists(meipass_path):
             return meipass_path
     return base_path
-
-# 添加config目录到Python路径
-sys.path.append(os.path.join(BASE_DIR, 'config'))
-try:
-    from url import url_dir  # type: ignore
-except ImportError:
-    logger.warning("无法导入url模块，下载功能可能无法正常工作")
-    url_dir = []
 
 def extract_bundled_files():
     """从打包文件中提取必要的文件夹和文件"""
@@ -405,7 +399,6 @@ class MainWindow(FluentWindow):
     
     def eventFilter(self, obj, event):
         """ 拦截导航切换"""
-        from PyQt5.QtCore import QEvent
         
         if hasattr(self, 'isEditMode') and self.isEditMode:
             if event.type() == QEvent.MouseButtonRelease:

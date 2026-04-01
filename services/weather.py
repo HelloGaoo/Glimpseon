@@ -18,6 +18,8 @@
 天气服务模块
 """
 
+import os
+import sys
 import requests
 import logging
 from typing import Optional, Dict, Any
@@ -168,8 +170,3 @@ class WeatherService:
             base_dir = os.path.dirname(base_dir)
         
         return os.path.join(base_dir, 'resource', 'icons', 'weather', icon_name)
-
-
-# 导入 sys 和 os 用于获取路径
-import sys
-import os

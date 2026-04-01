@@ -24,9 +24,9 @@ from PyQt5.QtGui import QPixmap, QIcon
 from qfluentwidgets import (
     CardWidget, CheckBox, ComboBox, FluentIcon as FIF, PrimaryPushButton, PushButton,
     InfoBar, isDarkTheme, ScrollArea, SmoothScrollArea, ExpandLayout, Theme,
-    RadioButton, ProgressRing, MessageBox
+    RadioButton, ProgressRing, MessageBox, qconfig
 )
-from core.downloader import DOWNLOAD_SOURCES, DEFAULT_SOURCE
+from core.downloader import DOWNLOAD_SOURCES, DEFAULT_SOURCE, set_download_source
 
 from .base_scroll_area import BaseScrollAreaInterface
 
@@ -76,10 +76,8 @@ class DownloadInterface(BaseScrollAreaInterface):
                 source_key = key
                 break
         if source_key:
-            from qfluentwidgets import qconfig
             qconfig.set(cfg.downloadSource, source_key)
             logger.info(f"下载源已保存到配置：{source_name} ({source_key})")
-            from core.downloader import set_download_source
             set_download_source(source_key)
     
     def __get_download_url(self, cache_file):
@@ -391,7 +389,6 @@ class DownloadInterface(BaseScrollAreaInterface):
         source_key = cfg.downloadSource.value
         default_index = list(DOWNLOAD_SOURCES.keys()).index(source_key)
         self.sourceComboBox.setCurrentIndex(default_index)
-        from core.downloader import set_download_source
         set_download_source(source_key)
         
         sourceGroupLayout.addWidget(self.sourceLabel)

@@ -28,6 +28,8 @@ from qfluentwidgets import (
     ColorConfigItem, OptionsValidator, RangeConfigItem, RangeValidator,
     ConfigSerializer, Theme
 )
+from config.url import url_dir
+
 
 if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
@@ -272,15 +274,3 @@ def get_default_config_dict():
 if not os.path.exists(os.path.join(BASE_DIR, 'config')):
     os.makedirs(os.path.join(BASE_DIR, 'config'))
 qconfig.load(os.path.join(BASE_DIR, 'config', 'config.json'), cfg)
-
-# 导入下载链接配置
-try:
-    from config.url import url_dir
-except (ImportError, AttributeError):
-    try:
-        from .url import url_dir
-    except ImportError:
-        try:
-            from url import url_dir
-        except ImportError:
-            url_dir = []
