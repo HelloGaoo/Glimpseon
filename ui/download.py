@@ -70,11 +70,17 @@ class DownloadInterface(BaseScrollAreaInterface):
         self.sourceComboBox.currentTextChanged.connect(self.__handleSourceChange)
     
     def __handleSourceChange(self, source_name):
-        source_index = self.sourceComboBox.currentIndex()
-        source_keys = list(DOWNLOAD_SOURCES.keys())
-        source_key = source_keys[source_index]
-        cfg.downloadSource = source_key
-        logger.info(f"切换到下载源：{source_name} ({source_key})")
+        source_key = None
+        for key, value in DOWNLOAD_SOURCES.items():
+            if value["name"] == source_name:
+                source_key = key
+                break
+        if source_key:
+            from qfluentwidgets import qconfig
+            qconfig.set(cfg.downloadSource, source_key)
+            logger.info(f"下载源已保存到配置：{source_name} ({source_key})")
+            from core.downloader import set_download_source
+            set_download_source(source_key)
     
     def __get_download_url(self, cache_file):
         source_index = self.sourceComboBox.currentIndex()
@@ -382,10 +388,11 @@ class DownloadInterface(BaseScrollAreaInterface):
         source_items = [v["name"] for v in DOWNLOAD_SOURCES.values()]
         self.sourceComboBox.addItems(source_items)
         
-        saved_source = cfg.downloadSource
-        if saved_source in DOWNLOAD_SOURCES:
-            default_index = list(DOWNLOAD_SOURCES.keys()).index(saved_source)
-            self.sourceComboBox.setCurrentIndex(default_index)
+        source_key = cfg.downloadSource.value
+        default_index = list(DOWNLOAD_SOURCES.keys()).index(source_key)
+        self.sourceComboBox.setCurrentIndex(default_index)
+        from core.downloader import set_download_source
+        set_download_source(source_key)
         
         sourceGroupLayout.addWidget(self.sourceLabel)
         sourceGroupLayout.addWidget(self.sourceComboBox)

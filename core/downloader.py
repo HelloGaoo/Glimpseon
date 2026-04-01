@@ -64,6 +64,19 @@ DEFAULT_SOURCE = "hk"
 current_source = DEFAULT_SOURCE
 
 
+def set_download_source(source_key):
+    """设置下载源
+    
+    Args:
+        source_key: 下载源键名 (original, hk, cloudflare, edgeone, geekertao)
+    """
+    global current_source
+    if source_key in DOWNLOAD_SOURCES:
+        current_source = source_key
+    else:
+        current_source = DEFAULT_SOURCE
+
+
 
 
 # 路径设置

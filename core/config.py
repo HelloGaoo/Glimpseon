@@ -196,8 +196,8 @@ class Config(QConfig):
     autoUpdate = ConfigItem(
         "Other", "AutoUpdate", False, BoolValidator()
     )
-    downloadSource = ConfigItem(
-        "Download", "Source", "hk"
+    downloadSource = OptionsConfigItem(
+        "Download", "Source", "hk", OptionsValidator(["original", "hk", "cloudflare", "edgeone", "geekertao"])
     )
 
 
@@ -262,6 +262,9 @@ def get_default_config_dict():
         },
         "QFluentWidgets": {
             "FontFamilies": ["HarmonyOS Sans SC"]
+        },
+        "Download": {
+            "Source": "hk"
         }
     }
 
