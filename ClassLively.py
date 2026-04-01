@@ -839,7 +839,10 @@ class MainWindow(FluentWindow):
         # 照片显示控件
         self.homeBackgroundImage = QLabel()
         self.homeBackgroundImage.setAlignment(Qt.AlignCenter)
-        self.originalPixmap = None
+        self.originalPixmap = QPixmap(1, 1)
+        self.originalPixmap.fill(Qt.transparent)
+        self.homeBackgroundImage.setPixmap(self.originalPixmap)
+        self.homeBackgroundImage.setMinimumSize(100, 100)
         
         # 时钟和日期标签
         self.clockLabel = QLabel("00:00:00")
@@ -1005,12 +1008,11 @@ class MainWindow(FluentWindow):
     def resizeEvent(self, event):
         """ 窗口大小变化时调整图片大小 """
         super().resizeEvent(event)
-        if hasattr(self, 'homeBackgroundImage') and self.originalPixmap is not None:
+        if hasattr(self, 'homeBackgroundImage'):
             available_width = self.width() - 50
             available_height = self.height()
             
-            # 从原始图片重新缩放
-            if not self.originalPixmap.isNull():
+            if hasattr(self, 'originalPixmap') and self.originalPixmap is not None and not self.originalPixmap.isNull():
                 scaled_pixmap = self.originalPixmap.scaled(available_width, available_height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
                 
                 # 应用模糊效果
@@ -1020,8 +1022,10 @@ class MainWindow(FluentWindow):
                 self.homeBackgroundImage.setGraphicsEffect(blur_effect)
                 
                 self.homeBackgroundImage.setPixmap(scaled_pixmap)
-                
-                QApplication.processEvents()
+            else:
+                self.homeBackgroundImage.setMinimumSize(available_width, available_height)
+            
+            QApplication.processEvents()
 
     def moveToCenter(self):
         """ 移动窗口到屏幕中央 """
@@ -1162,13 +1166,6 @@ class MainWindow(FluentWindow):
     def __updatePoetry(self):
         """ 更新诗词显示 """
         logger.debug("开始更新诗词")
-        if not cfg.showPoetry.value:
-            logger.debug("诗词显示已禁用")
-            self.poetryLabel.setText("")
-            self.poetryLabel.hide()
-            return
-        
-        self.poetryLabel.show()
         
         try:
             api_url = cfg.poetryApiUrl.value
@@ -1180,15 +1177,22 @@ class MainWindow(FluentWindow):
                 poetry_text = response.text.strip()
                 self.poetryLabel.setText(poetry_text)
                 logger.info(f"已更新诗词：{poetry_text[:50]}")
+                if cfg.showPoetry.value:
+                    self.poetryLabel.show()
+                else:
+                    self.poetryLabel.hide()
             else:
                 logger.error(f"诗词 API 请求失败，状态码：{response.status_code}")
-                self.poetryLabel.setText("")
+                self.poetryLabel.setText("他山之石，可以攻玉。——《诗经·小雅·鹤鸣》")
+                self.poetryLabel.show()
         except Exception as e:
             logger.error(f"诗词更新失败：{e}")
-            self.poetryLabel.setText("")
+            self.poetryLabel.setText("他山之石，可以攻玉。——《诗经·小雅·鹤鸣》")
+            self.poetryLabel.show()
     
     def __updateWeather(self):
         """ 更新天气显示 """
+        success = False
         try:
             city = cfg.city.value
             logger.info(f"正在更新天气，使用城市：{city}")
@@ -1318,10 +1322,16 @@ class MainWindow(FluentWindow):
                     
                     self.__updateWeatherIcon()
                     logger.info(f"已更新天气图标：天气代码={weather_code}, 天气状况={weather}")
+                    success = True
             else:
                 logger.error(f"天气 API 请求失败，状态码：{response.status_code}，响应内容：{response.text}")
         except Exception as e:
             logger.error(f"天气更新失败：{e}")
+        
+        if not success:
+            self.weatherTempLabel.setText("? °C")
+            self.current_weather_code = None
+            self.weatherIconLabel.clear()
     
     def __updateWeatherIcon(self):
         """ 更新天气图标大小 """

@@ -220,14 +220,15 @@ class WallpaperInterface(ScrollArea):
     def __getWallpaper(self):
         """ 获取壁纸 """
         logger.info("开始获取壁纸")
+        success = False
         try:
             wallpaper_api = cfg.wallpaperApi.value
             if wallpaper_api == "api.ltyuanfang.cn":
                 url = "https://tu.ltyuanfang.cn/api/fengjing.php"
             else:
                 url = "https://wp.upx8.com/api.php?content=风景"
-            logger.info(f"请求壁纸URL: {url}")
-            response = requests.get(url, stream=True)
+            logger.info(f"请求壁纸 URL: {url}")
+            response = requests.get(url, stream=True, timeout=10)
             
             if response.status_code == 200:
                 logger.info(f"壁纸请求成功，状态码: {response.status_code}")
@@ -263,10 +264,11 @@ class WallpaperInterface(ScrollArea):
                 
                 InfoBar.success(
                     "成功",
-                    f"壁纸已下载到: {wallpaper_path}",
+                    f"壁纸已下载到：{wallpaper_path}",
                     duration=5000,
                     parent=self
                 )
+                success = True
                 
                 if cfg.autoSyncToDesktop.value:
                     self.__setWallpaper(show_notification=True)
@@ -280,13 +282,50 @@ class WallpaperInterface(ScrollArea):
                     parent=self
                 )
         except Exception as e:
-            logger.error(f"获取壁纸失败: {str(e)}")
+            logger.error(f"获取壁纸失败：{str(e)}")
             InfoBar.error(
                 "错误",
-                f"获取壁纸失败: {str(e)}",
+                f"获取壁纸失败：{str(e)}",
                 duration=5000,
                 parent=self
             )
+        
+        if not success:
+            self.__loadDefaultWallpaper()
+    
+    def __loadDefaultWallpaper(self):
+        default_wallpaper_path = get_resource_path(os.path.join('resource', 'wallpaper', 'default.jpg'))
+        
+        if not os.path.exists(default_wallpaper_path):
+            wallpaper_dir = os.path.join(BASE_DIR, 'wallpaper')
+            if os.path.exists(wallpaper_dir):
+                wallpapers = [f for f in os.listdir(wallpaper_dir) if f.endswith('.jpg') and f.startswith('wallpaper_')]
+                if wallpapers:
+                    wallpapers.sort(key=lambda x: os.path.getmtime(os.path.join(wallpaper_dir, x)), reverse=True)
+                    default_wallpaper_path = os.path.join(wallpaper_dir, wallpapers[0])
+        
+        if os.path.exists(default_wallpaper_path):
+            self.current_pixmap = QPixmap(default_wallpaper_path)
+            self.current_wallpaper_path = default_wallpaper_path
+            if not self.current_pixmap.isNull():
+                self.imageLabel.setPixmap(self.current_pixmap)
+                if self.mainWindow and hasattr(self.mainWindow, 'homeBackgroundImage'):
+                    self.mainWindow.originalPixmap = self.current_pixmap
+                    available_width = self.mainWindow.width() - 50
+                    available_height = self.mainWindow.height()
+                    scaled_pixmap = self.current_pixmap.scaled(available_width, available_height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+                    self.mainWindow.homeBackgroundImage.setPixmap(scaled_pixmap)
+                    QApplication.processEvents()
+        else:
+            if self.mainWindow and hasattr(self.mainWindow, 'homeBackgroundImage'):
+                available_width = self.mainWindow.width() - 50
+                available_height = self.mainWindow.height()
+                blank_pixmap = QPixmap(available_width, available_height)
+                blank_pixmap.fill(Qt.transparent)
+                self.mainWindow.originalPixmap = blank_pixmap
+                self.mainWindow.homeBackgroundImage.setPixmap(blank_pixmap)
+                self.mainWindow.homeBackgroundImage.setMinimumSize(available_width, available_height)
+                QApplication.processEvents()
     
     def __saveWallpaper(self):
         """ 另存壁纸 """
