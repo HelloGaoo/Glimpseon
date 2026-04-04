@@ -57,12 +57,7 @@ class WeatherService:
     }
     
     def __init__(self, city_code: str = "101010100"):
-        """
-        初始化天气 API 服务
-        
-        Args:
-            city_code: 城市代码
-        """
+        """初始化"""
         self.city_code = city_code
         self.base_url = "https://weatherapi.market.xiaomi.com/wtr-v3/weather/all"
         self.api_params = {
@@ -73,12 +68,7 @@ class WeatherService:
         }
     
     def set_city_code(self, city_code: str):
-        """
-        设置城市代码
-        
-        Args:
-            city_code: 城市代码
-        """
+        """设置城市代码·"""
         self.city_code = city_code
     
     def get_weather(self) -> Optional[Dict[str, Any]]:

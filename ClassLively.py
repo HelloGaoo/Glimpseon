@@ -82,10 +82,61 @@ from ui import (
 
 from config.url_dir import url_dir  # type: ignore
 
+def terminate_old_instances():
+    """终止所有旧的 ClassLively 进程"""
+    try:
+        import psutil
+        current_pid = os.getpid()
+        terminated_count = 0
+        logger.info(f"当前进程 PID: {current_pid}")
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                # 跳过当前进程
+                if proc.info['pid'] == current_pid:
+                    continue
+
+                is_classlively = False
+                if proc.info['name'] == 'ClassLively.exe':
+                    is_classlively = True
+                elif proc.info['name'] in ['python.exe', 'pythonw.exe']:
+                    try:
+                        cmdline = proc.cmdline()
+                        if cmdline and any('ClassLively' in arg for arg in cmdline):
+                            is_classlively = True
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
+                
+                if is_classlively:
+                    logger.info(f"发现旧 ClassLively 进程 PID: {proc.info['pid']}, 名称：{proc.info['name']}")
+                    try:
+                        proc.kill()
+                        logger.info(f"已强制终止 PID {proc.info['pid']}")
+                        terminated_count += 1
+                    except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                        logger.warning(f"无法终止进程 {proc.info['pid']}: {e}")
+                        continue
+                        
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        
+        if terminated_count > 0:
+            logger.info(f"共终止了 {terminated_count} 个旧进程，等待退出")
+            import time
+            time.sleep(1)
+        else:
+            logger.info("未发现旧进程")
+        return True
+    except ImportError as e:
+        return False
+    except Exception as e:
+        logger.error(f"终止旧进程失败：{e}", exc_info=True)
+        return False
+
 def check_single_instance():
     """检查是否已经有实例"""
     config_path = os.path.join(BASE_DIR, 'config', 'config.json')
     allow_multiple = False
+    is_developer_mode = False
     
     if os.path.exists(config_path):
         try:
@@ -93,15 +144,61 @@ def check_single_instance():
                 config = json.load(f)
             if 'Other' in config and 'AllowMultipleInstances' in config['Other']:
                 allow_multiple = config['Other']['AllowMultipleInstances']
+            if 'Other' in config and 'DeveloperMode' in config['Other']:
+                if config['Other']['DeveloperMode']:
+                    is_developer_mode = True
+                    logger.info("开发者模式已启用")
         except Exception:
             pass
-    if not allow_multiple:
-        # 创建互斥体
-        mutex_name = f"Global\\{APP_NAME}_Mutex"
-        mutex = ctypes.windll.kernel32.CreateMutexW(None, False, mutex_name)
-        if ctypes.windll.kernel32.GetLastError() == 183:
+    old_instance_found = check_old_instances()
+    
+    if old_instance_found:
+        if is_developer_mode:
+            logger.info("检测到旧进程，正在终止")
+            if terminate_old_instances():
+                logger.info("旧进程已终止")
+                time.sleep(1)
+                return True
+            else:
+                logger.error("终止旧进程失败")
+                return False
+        elif not allow_multiple:
             return False
+    if is_developer_mode or allow_multiple:
+        logger.info("允许重复启动")
+        return True
+    
     return True
+
+def check_old_instances():
+    """检查是否有旧的 ClassLively在运行"""
+    try:
+        import psutil
+        current_pid = os.getpid()
+        
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                if proc.info['pid'] == current_pid:
+                    continue
+                
+                if proc.info['name'] == 'ClassLively.exe':
+                    return True
+                elif proc.info['name'] in ['python.exe', 'pythonw.exe']:
+                    try:
+                        cmdline = proc.cmdline()
+                        if cmdline and any('ClassLively' in arg for arg in cmdline):
+                            return True
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        
+        return False
+    except ImportError:
+        return False
+    except Exception as e:
+        logger.error(f"检查旧实例失败：{e}")
+        return False
 
 # 路径设置
 if getattr(sys, 'frozen', False):
@@ -594,6 +691,19 @@ class MainWindow(FluentWindow):
     
     def closeEvent(self, event):
         """关闭事件处理"""
+        # 开发者模式下直接关闭
+        if cfg.developerMode.value:
+            logger.info("开发者模式：直接退出应用")
+            event.accept()
+            
+            if hasattr(self, 'keyboardHook') and self.keyboardHook:
+                ctypes.windll.user32.UnhookWindowsHookEx(self.keyboardHook)
+            if hasattr(self, 'mouseHook') and self.mouseHook:
+                ctypes.windll.user32.UnhookWindowsHookEx(self.mouseHook)
+            
+            QApplication.quit()
+            return
+        
         if cfg.closeAction.value == "minimize":
             logger.info("关闭行为：最小化到托盘")
             event.ignore()
@@ -1476,11 +1586,19 @@ if __name__ == "__main__":
     else:
         log_level_str = str(cfg.logLevel.value)
     
+    if cfg.developerMode.value:
+        log_max_count = 3
+        log_max_days = 1
+        logger.info("开发者模式：日志最多保留 3 个，最多保留 3 天")
+    else:
+        log_max_count = cfg.logMaxCount.value
+        log_max_days = cfg.logMaxDays.value
+    
     logger.update_config(
         disable_log=cfg.disableLog.value,
         log_level=log_level_str,
-        max_count=cfg.logMaxCount.value,
-        max_days=cfg.logMaxDays.value
+        max_count=log_max_count,
+        max_days=log_max_days
     )
     logger.info("ClassLively")
 
