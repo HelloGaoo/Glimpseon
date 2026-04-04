@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-诗词服务模块
+一言服务模块
 """
 
 import requests
@@ -28,11 +28,11 @@ logger = logging.getLogger(__name__)
 
 
 class PoetryService:
-    """诗词 API 服务类"""
+    """一言 API 服务类"""
     
     def __init__(self, api_url: str = "https://www.ffapi.cn/int/v1/shici"):
         """
-        初始化诗词 API 服务
+        初始化一言 API 服务
         
         Args:
             api_url: API 地址
@@ -50,44 +50,44 @@ class PoetryService:
     
     def get_poetry(self) -> Optional[Dict[str, str]]:
         """
-        获取诗词数据
+        获取一言数据
         
         Returns:
-            诗词数据字典，包含 content, author, origin
+            一言数据字典，包含 content, author, origin
             如果获取失败返回 None
         """
         try:
-            logger.info(f"正在请求诗词数据，API: {self.api_url}")
+            logger.info(f"正在请求一言数据，API: {self.api_url}")
             response = requests.get(self.api_url, timeout=10)
             
             if response.status_code != 200:
-                logger.error(f"诗词 API 请求失败，状态码：{response.status_code}")
+                logger.error(f"一言 API 请求失败，状态码：{response.status_code}")
                 return None
             
             # 检查响应内容是否为空
             if not response.text or not response.text.strip():
-                logger.error("诗词 API 返回空响应")
+                logger.error("一言 API 返回空响应")
                 return None
             
             # 尝试解析 JSON
             data = None
             try:
                 data = response.json()
-                logger.debug(f"诗词 API 响应数据 (JSON): {data}")
+                logger.debug(f"一言 API 响应数据 (JSON): {data}")
             except json.JSONDecodeError:
                 # 不是 JSON，可能是纯文本格式
-                logger.debug(f"诗词 API 返回纯文本：{response.text[:200]}")
+                logger.debug(f"一言 API 返回纯文本：{response.text[:200]}")
                 # 尝试解析纯文本格式："诗句——作者《标题》"
                 text = response.text.strip()
                 return self._parse_plain_poetry(text)
             
-            # 解析诗词数据（兼容多种 API 格式）
+            # 解析一言数据（兼容多种 API 格式）
             poetry_data = None
             
             # 格式 1: {"data": {...}}
             if 'data' in data and isinstance(data['data'], dict):
                 poetry_data = data['data']
-            # 格式 2: 直接返回诗词对象
+            # 格式 2: 直接返回一言对象
             elif isinstance(data, dict) and 'content' in data:
                 poetry_data = data
             # 格式 3: 返回数组
@@ -95,7 +95,7 @@ class PoetryService:
                 poetry_data = data[0]
             
             if not poetry_data:
-                logger.error("无法解析诗词数据格式")
+                logger.error("无法解析一言数据格式")
                 return None
             
             content = poetry_data.get('content', '')
@@ -103,7 +103,7 @@ class PoetryService:
             origin = poetry_data.get('origin', '')
             
             if not content:
-                logger.error("诗词内容为空")
+                logger.error("一言内容为空")
                 return None
             
             result = {
@@ -112,33 +112,33 @@ class PoetryService:
                 'origin': origin
             }
             
-            logger.info(f"诗词数据获取成功：{content[:50]}...")
+            logger.info(f"一言数据获取成功：{content[:50]}...")
             return result
             
         except requests.exceptions.Timeout:
-            logger.error("诗词 API 请求超时")
+            logger.error("一言 API 请求超时")
             return None
         except requests.exceptions.RequestException as e:
-            logger.error(f"诗词 API 请求异常：{e}")
+            logger.error(f"一言 API 请求异常：{e}")
             return None
         except Exception as e:
-            logger.error(f"解析诗词数据失败：{e}")
+            logger.error(f"解析一言数据失败：{e}")
             return None
     
     def _parse_plain_poetry(self, text: str) -> Optional[Dict[str, str]]:
         """
-        解析纯文本格式的诗词
+        解析纯文本格式的一言
         
         格式："酒逢知己千杯少，话不投机半句多。——《明贤集·七言集》"
         
         Args:
-            text: 纯文本诗词
+            text: 纯文本一言
             
         Returns:
-            诗词数据字典
+            一言数据字典
         """
         try:
-            logger.debug(f"解析纯文本诗词：{text}")
+            logger.debug(f"解析纯文本一言：{text}")
             
             # 尝试解析格式："内容——作者《标题》" 或 "内容——《标题》"
             if '——' in text:
@@ -169,7 +169,7 @@ class PoetryService:
                 origin = ''
             
             if not content:
-                logger.error("诗词内容为空")
+                logger.error("一言内容为空")
                 return None
             
             result = {
@@ -178,22 +178,22 @@ class PoetryService:
                 'origin': origin
             }
             
-            logger.info(f"纯文本诗词解析成功：{content[:30]}...")
+            logger.info(f"纯文本一言解析成功：{content[:30]}...")
             return result
             
         except Exception as e:
-            logger.error(f"解析纯文本诗词失败：{e}")
+            logger.error(f"解析纯文本一言失败：{e}")
             return None
     
     def format_poetry(self, poetry_data: Dict[str, str]) -> str:
         """
-        格式化诗词文本
+        格式化一言文本
         
         Args:
-            poetry_data: 诗词数据
+            poetry_data: 一言数据
             
         Returns:
-            格式化后的诗词文本
+            格式化后的一言文本
         """
         content = poetry_data.get('content', '')
         author = poetry_data.get('author', '')

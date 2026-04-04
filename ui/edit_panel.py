@@ -116,7 +116,7 @@ class EditPanel(QWidget):
         cfg.dateSize.valueChanged.connect(self._updateDateSizeSpin)
         cfg.clockPosition.valueChanged.connect(self._updateClockPositionCombo)
         
-        # 诗词设置
+        # 一言设置
         cfg.showPoetry.valueChanged.connect(self._updateShowPoetrySwitch)
         cfg.poetryApiUrl.valueChanged.connect(self._updatePoetryApiEdit)
         cfg.poetrySize.valueChanged.connect(self._updatePoetrySizeSpin)
@@ -156,19 +156,19 @@ class EditPanel(QWidget):
         self.dateSizeSpin.setValue(value)
     
     def _updateShowPoetrySwitch(self, value):
-        """更新启用诗词开关"""
+        """更新启用一言开关"""
         self.showPoetrySwitch.setChecked(value)
     
     def _updatePoetryApiEdit(self, value):
-        """更新诗词 API 地址编辑框"""
+        """更新一言 API 地址编辑框"""
         self.poetryApiEdit.setText(value)
     
     def _updatePoetrySizeSpin(self, value):
-        """更新诗词大小旋转框"""
+        """更新一言大小旋转框"""
         self.poetrySizeSpin.setValue(value)
     
     def _updatePoetryUpdateIntervalCombo(self, value):
-        """更新诗词更新间隔下拉框"""
+        """更新一言更新间隔下拉框"""
         self.poetryUpdateIntervalCombo.setCurrentText(value)
     
     def _updateShowWeatherSwitch(self, value):
@@ -196,7 +196,7 @@ class EditPanel(QWidget):
         self.clockPositionCombo.setCurrentText(value)
     
     def _updatePoetryPositionCombo(self, value):
-        """更新诗词位置下拉框"""
+        """更新一言位置下拉框"""
         self.poetryPositionCombo.setCurrentText(value)
     
     def _updateWeatherPositionCombo(self, value):
@@ -278,10 +278,10 @@ class EditPanel(QWidget):
         layout.addLayout(positionLayout)
 
     def _createPoetrySettings(self, layout):
-        titleLabel = StrongBodyLabel('诗词设置', self)
+        titleLabel = StrongBodyLabel('一言设置', self)
         layout.addWidget(titleLabel)
         enableLayout = QHBoxLayout()
-        enableLabel = BodyLabel('启用诗词', self)
+        enableLabel = BodyLabel('启用一言', self)
         enableLabel.setFixedWidth(100)
         enableLayout.addWidget(enableLabel)
         self.showPoetrySwitch = SwitchButton(self)
@@ -290,7 +290,7 @@ class EditPanel(QWidget):
         enableLayout.addWidget(self.showPoetrySwitch)
         layout.addLayout(enableLayout)
         apiLayout = QHBoxLayout()
-        apiLabel = BodyLabel('诗词 API 地址', self)
+        apiLabel = BodyLabel('一言 API 地址', self)
         apiLabel.setFixedWidth(100)
         apiLayout.addWidget(apiLabel)
         self.poetryApiEdit = LineEdit(self)
@@ -300,7 +300,7 @@ class EditPanel(QWidget):
         apiLayout.addWidget(self.poetryApiEdit)
         layout.addLayout(apiLayout)
         poetrySizeLayout = QHBoxLayout()
-        poetrySizeLabel = BodyLabel('诗词大小', self)
+        poetrySizeLabel = BodyLabel('一言大小', self)
         poetrySizeLabel.setFixedWidth(100)
         poetrySizeLayout.addWidget(poetrySizeLabel)
         self.poetrySizeSpin = SpinBox(self)
@@ -311,7 +311,7 @@ class EditPanel(QWidget):
         poetrySizeLayout.addWidget(self.poetrySizeSpin)
         layout.addLayout(poetrySizeLayout)
         poetryIntervalLayout = QHBoxLayout()
-        poetryIntervalLabel = BodyLabel('诗词更新间隔', self)
+        poetryIntervalLabel = BodyLabel('一言更新间隔', self)
         poetryIntervalLabel.setFixedWidth(100)
         poetryIntervalLayout.addWidget(poetryIntervalLabel)
         self.poetryUpdateIntervalCombo = ComboBox(self)
@@ -321,7 +321,7 @@ class EditPanel(QWidget):
         poetryIntervalLayout.addWidget(self.poetryUpdateIntervalCombo)
         layout.addLayout(poetryIntervalLayout)
         poetryPositionLayout = QHBoxLayout()
-        poetryPositionLabel = BodyLabel('诗词位置', self)
+        poetryPositionLabel = BodyLabel('一言位置', self)
         poetryPositionLabel.setFixedWidth(100)
         poetryPositionLayout.addWidget(poetryPositionLabel)
         self.poetryPositionCombo = ComboBox(self)
@@ -563,33 +563,33 @@ class EditPanel(QWidget):
         logger.info(f"时间设置：日期大小={value}px")
     
     def _onShowPoetryChanged(self, checked: bool):
-        """启用诗词开关变化"""
+        """启用一言开关变化"""
         cfg.showPoetry.value = checked
         if hasattr(self.mainWindow, 'homeContent'):
-            # 更新所有诗词组件的可见性
+            # 更新所有一言组件的可见性
             for widget in self.mainWindow.homeContent.findChildren(QWidget):
                 if widget.objectName() == 'poetryWidget':
                     widget.setVisible(checked)
-        logger.info(f"诗词设置：启用诗词={'开启' if checked else '关闭'}")
+        logger.info(f"一言设置：启用一言={'开启' if checked else '关闭'}")
     
     def _onPoetryApiChanged(self, text: str):
-        """诗词 API 地址变化"""
+        """一言 API 地址变化"""
         cfg.poetryApiUrl.value = text
-        logger.info(f"诗词设置：API 地址={text}")
+        logger.info(f"一言设置：API 地址={text}")
     
     def _onPoetryUpdateIntervalChanged(self, text: str):
-        """诗词更新间隔变化"""
+        """一言更新间隔变化"""
         cfg.poetryUpdateInterval.value = text
         if hasattr(self.mainWindow, '_MainWindow__updatePoetryInterval'):
             self.mainWindow._MainWindow__updatePoetryInterval()
-        logger.info(f"诗词设置：更新间隔={text}")
+        logger.info(f"一言设置：更新间隔={text}")
     
     def _onPoetrySizeChanged(self, value: int):
-        """诗词大小变化"""
+        """一言大小变化"""
         cfg.poetrySize.value = value
         if hasattr(self.mainWindow, 'updateClockStyle'):
             self.mainWindow.updateClockStyle()
-        logger.info(f"诗词设置：诗词大小={value}px")
+        logger.info(f"一言设置：一言大小={value}px")
 
     def _onShowWeatherChanged(self, checked: bool):
         """启用天气开关变化"""
@@ -627,11 +627,11 @@ class EditPanel(QWidget):
         logger.info(f"时间设置：位置={text}")
     
     def _onPoetryPositionChanged(self, text: str):
-        """诗词位置变化"""
+        """一言位置变化"""
         cfg.poetryPosition.value = text
         if hasattr(self.mainWindow, '_MainWindow__updatePoetryPosition'):
             self.mainWindow._MainWindow__updatePoetryPosition()
-        logger.info(f"诗词设置：位置={text}")
+        logger.info(f"一言设置：位置={text}")
     
     def _onWeatherPositionChanged(self, text: str):
         """天气位置变化"""

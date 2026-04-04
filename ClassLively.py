@@ -340,7 +340,7 @@ class MainWindow(FluentWindow):
         cfg.weatherIconSize.valueChanged.connect(self.__updateWeatherIcon)
         self.__updateClock()
         
-        # 诗词更新定时
+        # 一言更新定时
         self.poetryTimer = QTimer(self)
         self.poetryTimer.timeout.connect(self.__updatePoetry)
         cfg.showPoetry.valueChanged.connect(self.__updatePoetry)
@@ -708,7 +708,7 @@ class MainWindow(FluentWindow):
         self.weatherIconLabel.setAlignment(Qt.AlignTop | Qt.AlignRight)
         self.weatherIconLabel.setStyleSheet("background-color: transparent;")
         
-        # 诗词标签
+        # 一言标签
         self.poetryLabel = QLabel("")
         self.poetryLabel.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
         self.poetryLabel.setStyleSheet("""
@@ -742,7 +742,7 @@ class MainWindow(FluentWindow):
         weatherLayout.addWidget(self.weatherIconLabel)
         self.weatherContainer.setStyleSheet("background-color: transparent;")
     
-        # 诗词容器
+        # 一言容器
         self.poetryContainer = QWidget()
         poetryLayout = QVBoxLayout(self.poetryContainer)
         poetryLayout.setAlignment(Qt.AlignBottom)
@@ -1037,7 +1037,7 @@ class MainWindow(FluentWindow):
         logger.info(f"天气组件位置已更新为：{position}")
     
     def __updatePoetryPosition(self):
-        """ 更新诗词组件位置 """
+        """ 更新一言组件位置 """
         position = cfg.poetryPosition.value
         small_margin = 20
         layout = self.poetryContainer.layout()
@@ -1047,10 +1047,10 @@ class MainWindow(FluentWindow):
         elif position == "底部预留":
             layout.setAlignment(Qt.AlignBottom)
             layout.setContentsMargins(0, 0, 0, small_margin)
-        logger.info(f"诗词组件位置已更新为：{position}")
+        logger.info(f"一言组件位置已更新为：{position}")
     
     def __updatePoetryInterval(self):
-        """ 更新诗词更新间隔定时器 """
+        """ 更新一言更新间隔定时器 """
         self.poetryTimer.stop()
         
         interval_str = cfg.poetryUpdateInterval.value
@@ -1108,30 +1108,30 @@ class MainWindow(FluentWindow):
 
     
     def __updatePoetry(self):
-        """ 更新诗词显示 """
+        """ 更新一言显示 """
         if not cfg.showPoetry.value:
             self.poetryLabel.hide()
             return
         
         self.poetryLabel.show()
         
-        logger.debug("开始更新诗词")
+        logger.debug("开始更新一言")
         
         try:
             api_url = cfg.poetryApiUrl.value
-            logger.debug(f"诗词 API URL: {api_url}")
+            logger.debug(f"一言 API URL: {api_url}")
             response = requests.get(api_url, timeout=10)
             
             if response.status_code == 200:
-                logger.debug(f"诗词 API 请求成功，状态码：{response.status_code}")
+                logger.debug(f"一言 API 请求成功，状态码：{response.status_code}")
                 poetry_text = response.text.strip()
                 self.poetryLabel.setText(poetry_text)
-                logger.info(f"已更新诗词：{poetry_text[:50]}")
+                logger.info(f"已更新一言：{poetry_text[:50]}")
             else:
-                logger.error(f"诗词 API 请求失败，状态码：{response.status_code}")
+                logger.error(f"一言 API 请求失败，状态码：{response.status_code}")
                 self.poetryLabel.setText("他山之石，可以攻玉。——《诗经·小雅·鹤鸣》")
         except Exception as e:
-            logger.error(f"诗词更新失败：{e}")
+            logger.error(f"一言更新失败：{e}")
             self.poetryLabel.setText("他山之石，可以攻玉。——《诗经·小雅·鹤鸣》")
     
     def __updateWeather(self):
@@ -1500,7 +1500,7 @@ if __name__ == "__main__":
     logger.info(f"壁纸配置：保存限制={cfg.wallpaperSaveLimit.value}, 获取间隔={cfg.autoGetInterval.value}, 自动同步桌面={cfg.autoSyncToDesktop.value}, API={cfg.wallpaperApi.value}")
     logger.info(f"外观配置：背景模糊半径={cfg.backgroundBlurRadius.value}")
     logger.info(f"时间配置：显示秒={cfg.showClockSeconds.value}, 显示农历={cfg.showLunarCalendar.value}, 时钟颜色={cfg.clockColor.value.name() if hasattr(cfg.clockColor.value, 'name') else str(cfg.clockColor.value)}, 时钟大小={cfg.clockSize.value}, 日期大小={cfg.dateSize.value}")
-    logger.info(f"诗词配置：显示诗词={cfg.showPoetry.value}, API 地址={cfg.poetryApiUrl.value}, 更新间隔={cfg.poetryUpdateInterval.value}, 字体大小={cfg.poetrySize.value}")
+    logger.info(f"一言配置：显示一言={cfg.showPoetry.value}, API 地址={cfg.poetryApiUrl.value}, 更新间隔={cfg.poetryUpdateInterval.value}, 字体大小={cfg.poetrySize.value}")
     logger.info(f"天气配置：字体大小={cfg.weatherSize.value}, 图标大小={cfg.weatherIconSize.value}, 更新间隔={cfg.weatherUpdateInterval.value}, 城市={cfg.city.value}")
     logger.info(f"自动配置：空闲自动打开={cfg.autoOpenOnIdle.value}, 空闲分钟={cfg.idleMinutes.value}, 自动打开最大化={cfg.autoOpenMaximize.value}, 自动检查更新={cfg.autoCheckUpdate.value}, 自动更新={cfg.autoUpdate.value}")
     logger.info(f"{APP_NAME}版本信息：")

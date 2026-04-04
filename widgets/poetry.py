@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-诗词组件模块
+一言组件模块
 """
 
 from PyQt5.QtWidgets import QWidget, QLabel
@@ -27,16 +27,16 @@ from services.poetry import PoetryService
 
 
 class PoetryComponent(BaseComponent):
-    """诗词组件类"""
+    """一言组件类"""
     
-    COMPONENT_TYPE = "诗词"
+    COMPONENT_TYPE = "一言"
     
     def __init__(self, parent: Optional[QWidget] = None,
                  api_url: str = "https://www.ffapi.cn/int/v1/shici",
                  font_size: int = 16,
                  color: str = "#FFFFFF"):
         """
-        初始化诗词组件
+        初始化一言组件
         
         Args:
             parent: 父组件
@@ -53,7 +53,7 @@ class PoetryComponent(BaseComponent):
         self.label: Optional[QLabel] = None
     
     def create_widget(self) -> QWidget:
-        """创建诗词 UI"""
+        """创建一言 UI"""
         self.label = QLabel("")
         self.label.setAlignment(Qt.AlignCenter)
         self.label.setStyleSheet(f"""
@@ -68,7 +68,7 @@ class PoetryComponent(BaseComponent):
         return self.label
     
     def update_content(self):
-        """更新诗词内容"""
+        """更新一言内容"""
         if not self.label:
             return
         
