@@ -160,8 +160,13 @@ class EditPanel(QWidget):
         self.showPoetrySwitch.setChecked(value)
     
     def _updatePoetryApiEdit(self, value):
-        """更新一言 API 地址编辑框"""
-        self.poetryApiEdit.setText(value)
+        """更新一言 API 地址下拉框"""
+        if value == 'https://api.imlcd.cn/yy/api.php':
+            self.poetryApiCombo.setCurrentText('一言 API')
+        elif value == 'https://www.ffapi.cn/int/v1/shici':
+            self.poetryApiCombo.setCurrentText('诗词 API')
+        else:
+            self.poetryApiCombo.setCurrentText('一言 API')
     
     def _updatePoetrySizeSpin(self, value):
         """更新一言大小旋转框"""
@@ -189,7 +194,7 @@ class EditPanel(QWidget):
     
     def _updateCityButton(self, value):
         """更新城市按钮"""
-        pass
+        self.cityButton.setText(value)
     
     def _updateClockPositionCombo(self, value):
         """更新时间位置下拉框"""
@@ -240,6 +245,7 @@ class EditPanel(QWidget):
         self.clockColorCombo = ComboBox(self)
         self.clockColorCombo.addItems(['主要颜色', '白色', '黑色'])
         self.clockColorCombo.setCurrentText(self._getColorText(cfg.clockColor.value))
+        self.clockColorCombo.setFixedWidth(120)
         self.clockColorCombo.currentTextChanged.connect(self._onClockColorChanged)
         colorLayout.addWidget(self.clockColorCombo)
         layout.addLayout(colorLayout)
@@ -293,11 +299,18 @@ class EditPanel(QWidget):
         apiLabel = BodyLabel('一言 API 地址', self)
         apiLabel.setFixedWidth(100)
         apiLayout.addWidget(apiLabel)
-        self.poetryApiEdit = LineEdit(self)
-        self.poetryApiEdit.setText(cfg.poetryApiUrl.value)
-        self.poetryApiEdit.setFixedWidth(150)
-        self.poetryApiEdit.textChanged.connect(self._onPoetryApiChanged)
-        apiLayout.addWidget(self.poetryApiEdit)
+        self.poetryApiCombo = ComboBox(self)
+        self.poetryApiCombo.addItems([
+            '一言 API',
+            '诗词 API'
+        ])
+        if cfg.poetryApiUrl.value == 'https://www.ffapi.cn/int/v1/shici':
+            self.poetryApiCombo.setCurrentText('诗词 API')
+        else:
+            self.poetryApiCombo.setCurrentText('一言 API')
+        self.poetryApiCombo.setFixedWidth(120)
+        self.poetryApiCombo.currentTextChanged.connect(self._onPoetryApiChanged)
+        apiLayout.addWidget(self.poetryApiCombo)
         layout.addLayout(apiLayout)
         poetrySizeLayout = QHBoxLayout()
         poetrySizeLabel = BodyLabel('一言大小', self)
@@ -317,6 +330,7 @@ class EditPanel(QWidget):
         self.poetryUpdateIntervalCombo = ComboBox(self)
         self.poetryUpdateIntervalCombo.addItems(['从不', '5 分钟', '10 分钟', '30 分钟', '1 小时', '3 小时', '6 小时', '12 小时', '1 天'])
         self.poetryUpdateIntervalCombo.setCurrentText(cfg.poetryUpdateInterval.value)
+        self.poetryUpdateIntervalCombo.setFixedWidth(120)
         self.poetryUpdateIntervalCombo.currentTextChanged.connect(self._onPoetryUpdateIntervalChanged)
         poetryIntervalLayout.addWidget(self.poetryUpdateIntervalCombo)
         layout.addLayout(poetryIntervalLayout)
@@ -349,8 +363,8 @@ class EditPanel(QWidget):
         cityLabel = BodyLabel('城市', self)
         cityLabel.setFixedWidth(100)
         cityLayout.addWidget(cityLabel)
-        self.cityButton = PushButton('选择城市', self)
-        self.cityButton.setFixedWidth(100)
+        self.cityButton = PushButton(cfg.city.value, self)
+        self.cityButton.setFixedWidth(120)
         self.cityButton.clicked.connect(self._onCityButtonClicked)
         cityLayout.addWidget(self.cityButton)
         layout.addLayout(cityLayout)
@@ -383,6 +397,7 @@ class EditPanel(QWidget):
         self.weatherUpdateIntervalCombo = ComboBox(self)
         self.weatherUpdateIntervalCombo.addItems(['从不', '5 分钟', '15 分钟', '30 分钟', '1 小时', '3 小时', '6 小时', '12 小时', '24 小时'])
         self.weatherUpdateIntervalCombo.setCurrentText(cfg.weatherUpdateInterval.value)
+        self.weatherUpdateIntervalCombo.setFixedWidth(120)
         self.weatherUpdateIntervalCombo.currentTextChanged.connect(self._onWeatherUpdateIntervalChanged)
         weatherIntervalLayout.addWidget(self.weatherUpdateIntervalCombo)
         layout.addLayout(weatherIntervalLayout)
@@ -574,8 +589,15 @@ class EditPanel(QWidget):
     
     def _onPoetryApiChanged(self, text: str):
         """一言 API 地址变化"""
-        cfg.poetryApiUrl.value = text
-        logger.info(f"一言设置：API 地址={text}")
+        if text == '一言 API':
+            cfg.poetryApiUrl.value = 'https://api.imlcd.cn/yy/api.php'
+        elif text == '诗词 API':
+            cfg.poetryApiUrl.value = 'https://www.ffapi.cn/int/v1/shici'
+        else:
+            cfg.poetryApiUrl.value = 'https://api.imlcd.cn/yy/api.php'
+        if hasattr(self.mainWindow, '_MainWindow__updatePoetry'):
+            self.mainWindow._MainWindow__updatePoetry()
+        logger.info(f"一言设置：API 地址={cfg.poetryApiUrl.value}")
     
     def _onPoetryUpdateIntervalChanged(self, text: str):
         """一言更新间隔变化"""

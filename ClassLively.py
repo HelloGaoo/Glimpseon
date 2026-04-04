@@ -68,11 +68,9 @@ from core.downloader import Downloader
 from version import VERSION, BUILD_DATE
 
 from services.weather import WeatherService
-from services.poetry import PoetryService
 
 from widgets.clock import ClockComponent
 from widgets.weather import WeatherComponent
-from widgets.poetry import PoetryComponent
 
 from ui.settings import SettingInterface
 from ui.city_selector import RegionDatabase
