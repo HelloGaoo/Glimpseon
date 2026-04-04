@@ -200,14 +200,14 @@ class SettingInterface(ScrollArea):
             FIF.ALBUM,
             "自动获取间隔",
             "设置自动获取新壁纸的时间间隔，选择'从不'则禁用自动获取",
-            texts=["从不", "10分钟", "30分钟", "1小时", "3小时", "6小时", "12小时", "1天", "3天", "5天", "7天"],
+            texts=["从不", "10 分钟", "30 分钟", "1 小时", "3 小时", "6 小时", "12 小时", "1 天", "3 天", "5 天", "7 天"],
             parent=self.wallpaperGroup
         )
         self.wallpaperApiCard = ComboBoxSettingCard(
             cfg.wallpaperApi,
             FIF.LINK,
-            "壁纸API",
-            "选择获取壁纸的API源",
+            "壁纸 API",
+            "选择获取壁纸的 API 源",
             texts=["wp.upx8.com", "api.ltyuanfang.cn"],
             parent=self.wallpaperGroup
         )
@@ -217,46 +217,6 @@ class SettingInterface(ScrollArea):
             "当获取新壁纸时，自动将其设置为桌面背景",
             configItem=cfg.autoSyncToDesktop,
             parent=self.wallpaperGroup
-        )
-        self.timeGroup = SettingCardGroup("时间", self.scrollWidget)
-        self.showClockSecondsCard = SwitchSettingCard(
-            FIF.INFO,
-            "显示秒针",
-            "在主界面时钟中显示秒数",
-            configItem=cfg.showClockSeconds,
-            parent=self.timeGroup
-        )
-        self.showLunarCalendarCard = SwitchSettingCard(
-            FIF.INFO,
-            "显示农历",
-            "在主界面日期中显示农历信息",
-            configItem=cfg.showLunarCalendar,
-            parent=self.timeGroup
-        )
-        self.clockColorCard = CustomColorSettingCard(
-            cfg.clockColor,
-            FIF.PALETTE,
-            "时钟颜色",
-            "设置主界面时钟和日期的文字颜色",
-            parent=self.timeGroup
-        )
-        self.clockSizeCard = SpinBoxSettingCard(
-            cfg.clockSize,
-            FIF.INFO,
-            "时钟大小",
-            "设置主界面时钟的文字大小",
-            parent=self.timeGroup,
-            min_value=80,
-            max_value=200
-        )
-        self.dateSizeCard = SpinBoxSettingCard(
-            cfg.dateSize,
-            FIF.INFO,
-            "日期大小",
-            "设置主界面日期的文字大小",
-            parent=self.timeGroup,
-            min_value=12,
-            max_value=30
         )
         
         self.logGroup = SettingCardGroup("日志", self.scrollWidget)
@@ -334,90 +294,6 @@ class SettingInterface(ScrollArea):
         self.wallpaperGroup.addSettingCard(self.wallpaperApiCard)
         self.wallpaperGroup.addSettingCard(self.autoSyncToDesktopCard)
         
-        self.timeGroup.addSettingCard(self.showClockSecondsCard)
-        self.timeGroup.addSettingCard(self.showLunarCalendarCard)
-        self.timeGroup.addSettingCard(self.clockColorCard)
-        self.timeGroup.addSettingCard(self.clockSizeCard)
-        self.timeGroup.addSettingCard(self.dateSizeCard)
-        self.poetryGroup = SettingCardGroup("诗词", self.scrollWidget)
-        self.showPoetryCard = SwitchSettingCard(
-            FIF.INFO,
-            "显示诗词",
-            "在主界面显示每日一言诗词",
-            configItem=cfg.showPoetry,
-            parent=self.poetryGroup
-        )
-        self.poetryApiUrlCard = LineEditSettingCard(
-            cfg.poetryApiUrl,
-            FIF.LINK,
-            "诗词 API 地址",
-            "设置诗词一言的 API 请求地址",
-            parent=self.poetryGroup
-        )
-        self.poetryUpdateIntervalCard = ComboBoxSettingCard(
-            cfg.poetryUpdateInterval,
-            FIF.HISTORY,
-            "诗词更新间隔",
-            "设置诗词内容的更新频率，选择'从不'则禁用自动更新",
-            texts=["从不", "10 分钟", "30 分钟", "1 小时", "3 小时", "6 小时", "12 小时", "1 天"],
-            parent=self.poetryGroup
-        )
-        self.poetrySizeCard = SpinBoxSettingCard(
-            cfg.poetrySize,
-            FIF.INFO,
-            "诗词大小",
-            "设置主界面诗词的文字大小",
-            parent=self.poetryGroup,
-            min_value=12,
-            max_value=24
-        )
-        self.weatherGroup = SettingCardGroup("天气", self.scrollWidget)
-        self.weatherSizeCard = SpinBoxSettingCard(
-            cfg.weatherSize,
-            FIF.INFO,
-            "天气文字大小",
-            "设置主界面天气的文字大小",
-            parent=self.weatherGroup,
-            min_value=5,
-            max_value=50
-        )
-        self.weatherIconSizeCard = SpinBoxSettingCard(
-            cfg.weatherIconSize,
-            FIF.INFO,
-            "天气图标大小",
-            "设置主界面天气图标的大小",
-            parent=self.weatherGroup,
-            min_value=32,
-            max_value=200
-        )
-        self.weatherUpdateIntervalCard = ComboBoxSettingCard(
-            cfg.weatherUpdateInterval,
-            FIF.INFO,
-            "天气更新频率",
-            "设置天气数据的更新频率",
-            texts=["从不", "15 分钟", "30 分钟", "1 小时", "3 小时", "6 小时", "12 小时", "24 小时"],
-            parent=self.weatherGroup
-        )
-        self.cityCard = ButtonSettingCard(
-            FIF.GLOBE,
-            "城市",
-            "选择天气查询的城市",
-            parent=self.weatherGroup
-        )
-        self.cityCard.button.setText("选择一个城市")
-        self.cityCard.button.clicked.connect(self.__onCityButtonClicked)
-        
-        # 添加天气设置卡片
-        self.weatherGroup.addSettingCard(self.weatherSizeCard)
-        self.weatherGroup.addSettingCard(self.weatherIconSizeCard)
-        self.weatherGroup.addSettingCard(self.weatherUpdateIntervalCard)
-        self.weatherGroup.addSettingCard(self.cityCard)
-        
-        self.poetryGroup.addSettingCard(self.showPoetryCard)
-        self.poetryGroup.addSettingCard(self.poetryApiUrlCard)
-        self.poetryGroup.addSettingCard(self.poetryUpdateIntervalCard)
-        self.poetryGroup.addSettingCard(self.poetrySizeCard)
-        
         self.logGroup.addSettingCard(self.disableLogCard)
         self.logGroup.addSettingCard(self.logLevelCard)
         self.logGroup.addSettingCard(self.logMaxCountCard)
@@ -463,9 +339,6 @@ class SettingInterface(ScrollArea):
         self.expandLayout.addWidget(self.basicGroup)
         self.expandLayout.addWidget(self.appearanceGroup)
         self.expandLayout.addWidget(self.wallpaperGroup)
-        self.expandLayout.addWidget(self.timeGroup)
-        self.expandLayout.addWidget(self.poetryGroup)
-        self.expandLayout.addWidget(self.weatherGroup)
         self.expandLayout.addWidget(self.logGroup)
         self.expandLayout.addWidget(self.otherGroup)
 
@@ -567,24 +440,6 @@ class SettingInterface(ScrollArea):
                     duration=5000,
                     parent=self
                 )
-    
-    def __onCityButtonClicked(self):
-        """ 打开地区选择对话框 """
-        
-        dialog = RegionSelectorDialog(self.window())
-        if dialog.exec():
-            selected_region = dialog.get_selected_region()
-            if selected_region:
-                # 更新配置
-                qconfig.set(cfg.city, selected_region)
-                InfoBar.success(
-                    "成功",
-                    f"已选择地区：{selected_region}",
-                    duration=3000,
-                    parent=self.window()
-                )
-                if hasattr(self.window(), 'weatherTimer') and hasattr(self.window(), '_MainWindow__updateWeather'):
-                    self.window()._MainWindow__updateWeather()
     
     def __clearLog(self):
         """ 清空日志 """

@@ -78,6 +78,21 @@ class UpdateInterface(BaseScrollAreaInterface):
         """ 主题变更槽函数 """
         self.__setQss()
     
+    def __setUpdateStatus(self, status: str):
+        """ 设置更新状态样式 """
+        colors = {
+            'checking': ('#0078D4', '#0078D4'),
+            'error': ('#FF0000', '#FF0000'),
+            'update_available': ('#FF8C00', '#FF8C00'),
+            'latest': ('#107C10', '#107C10'),
+            'downloading': ('#0078D4', '#0078D4'),
+        }
+        
+        text_color, icon_color = colors.get(status, ('#999999', '#999999'))
+        
+        self.updateStatusLabel.setStyleSheet(f"color: {text_color};")
+        self.updateStatusIcon.setStyleSheet(f"background-color: {icon_color}; border-radius: 8px;")
+    
     def __initWidgets(self):
         """ 初始化控件 """
         # 版本信息卡片
@@ -111,9 +126,9 @@ class UpdateInterface(BaseScrollAreaInterface):
         self.updateStatusLayout.setSpacing(8)
         self.updateStatusIcon = QLabel(self.versionCard)
         self.updateStatusIcon.setFixedSize(16, 16)
-        self.updateStatusIcon.setStyleSheet("background-color: #999999; border-radius: 8px;")
+        self.updateStatusIcon.setObjectName('updateStatusIcon')
         self.updateStatusLabel = QLabel("已就绪", self.versionCard)
-        self.updateStatusLabel.setStyleSheet("color: #999999; font-size: 14px;")
+        self.updateStatusLabel.setObjectName('updateStatusLabel')
         self.updateStatusLayout.addWidget(self.updateStatusIcon)
         self.updateStatusLayout.addWidget(self.updateStatusLabel)
         
@@ -226,8 +241,7 @@ class UpdateInterface(BaseScrollAreaInterface):
         if not auto_check:
             self.checkUpdateButton.setEnabled(False)
             self.updateStatusLabel.setText("正在检查更新")
-            self.updateStatusLabel.setStyleSheet("color: #0078D4;")
-            self.updateStatusIcon.setStyleSheet("background-color: #0078D4; border-radius: 8px;")
+            self.__setUpdateStatus('checking')
         
         def do_check():
             try:
@@ -238,8 +252,7 @@ class UpdateInterface(BaseScrollAreaInterface):
                     if not auto_check:
                         self.checkUpdateButton.setEnabled(True)
                         self.updateStatusLabel.setText(f"检查失败：{result.get('error', '未知错误')}")
-                        self.updateStatusLabel.setStyleSheet("color: #FF0000;")
-                        self.updateStatusIcon.setStyleSheet("background-color: #FF0000; border-radius: 8px;")
+                        self.__setUpdateStatus('error')
                     return
                 
                 github_version = result['version']
@@ -259,8 +272,7 @@ class UpdateInterface(BaseScrollAreaInterface):
                     self.update_url = result['update_url']
                     
                     self.updateStatusLabel.setText(f"发现新版本：{github_version}")
-                    self.updateStatusLabel.setStyleSheet("color: #FF8C00;")
-                    self.updateStatusIcon.setStyleSheet("background-color: #FF8C00; border-radius: 8px;")
+                    self.__setUpdateStatus('update_available')
                     
                     if not auto_check:
                         self.checkUpdateButton.setText("下载更新")
@@ -278,8 +290,7 @@ class UpdateInterface(BaseScrollAreaInterface):
                     logger.info(f"{check_type}：已是最新版本")
                     
                     self.updateStatusLabel.setText("已是最新版本")
-                    self.updateStatusLabel.setStyleSheet("color: #107C10;")
-                    self.updateStatusIcon.setStyleSheet("background-color: #107C10; border-radius: 8px;")
+                    self.__setUpdateStatus('latest')
                     
                     if not auto_check:
                         self.checkUpdateButton.setEnabled(True)
@@ -299,7 +310,7 @@ class UpdateInterface(BaseScrollAreaInterface):
         """下载并安装更新"""
         self.checkUpdateButton.setEnabled(False)
         self.updateStatusLabel.setText("正在下载更新")
-        self.updateStatusLabel.setStyleSheet("color: #0078D4;")
+        self.__setUpdateStatus('downloading')
         
         update_folder = os.path.join(BASE_DIR, 'update_temp')
         download_path = os.path.join(update_folder, 'update.7z')

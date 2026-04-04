@@ -3,8 +3,20 @@
 /* 编辑面板 */
 #EditPanel {
     background-color: rgb(255, 255, 255);
+    border: none;
     border-radius: 12px;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 编辑面板基础组件 */
+#EditPanel QWidget {
+    background-color: transparent;
+    color: #000000;
+}
+
+#EditPanel SmoothScrollArea {
+    background-color: transparent;
+    border: none;
 }
 
 /* 组件库标题 */
@@ -91,4 +103,21 @@ EditPanel LineEdit::placeholder {
     color: #666666;
     font-weight: normal;
     background-color: transparent;
+}
+
+/* 主界面容器 */
+#homeContent QWidget {
+    background-color: transparent;
+}
+
+/* 编辑按钮 */
+#editButton {
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+/* 分隔线 */
+#EditPanel #separator {
+    background-color: #cccccc;
 }

@@ -99,11 +99,9 @@ class AboutInterface(BaseScrollAreaInterface):
             else:
                 self.appIconLabel.setText("📱")
                 self.appIconLabel.setAlignment(Qt.AlignCenter)
-                self.appIconLabel.setStyleSheet("font-size: 48px;")
         except Exception:
             self.appIconLabel.setText("📱")
             self.appIconLabel.setAlignment(Qt.AlignCenter)
-            self.appIconLabel.setStyleSheet("font-size: 48px;")
         
         self.appNameLabel = QLabel("ClassLively", self.aboutCard)
         self.appNameLabel.setObjectName("appNameLabel")

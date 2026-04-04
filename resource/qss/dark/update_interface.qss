@@ -88,3 +88,21 @@ SwitchSettingCard {
 SwitchSettingCard:hover {
     background-color: rgba(255, 255, 255, 0.08);
 }
+
+/* 更新状态指示器 */
+QLabel#updateStatusIcon {
+    border-radius: 8px;
+    background-color: #999999;
+}
+
+QLabel#updateStatusLabel {
+    color: #999999;
+    font-size: 14px;
+}
+
+/* 检查更新按钮 */
+UpdateInterface PrimaryPushButton {
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 14px;
+}

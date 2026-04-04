@@ -19,7 +19,6 @@ UI 模块
 """
 
 from .edit_panel import EditPanel
-from .widget import MovableWidget
 from .update import UpdateInterface
 from .about import AboutInterface
 from .download import DownloadInterface
@@ -32,6 +31,5 @@ __all__ = [
     'AboutInterface',
     'DownloadInterface',
     'WallpaperInterface',
-    'EditPanel',
-    'MovableWidget'
+    'EditPanel'
 ]

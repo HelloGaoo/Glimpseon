@@ -79,13 +79,13 @@ from ui.city_selector import RegionDatabase
 from ui.wallpaper import WallpaperInterface
 from ui import (
     AboutInterface, DownloadInterface, EditPanel,
-    UpdateInterface, MovableWidget
+    UpdateInterface
 )
 
 from config.url_dir import url_dir  # type: ignore
 
 def check_single_instance():
-    """ 检查是否已经有实例 """
+    """检查是否已经有实例"""
     config_path = os.path.join(BASE_DIR, 'config', 'config.json')
     allow_multiple = False
     
@@ -97,7 +97,6 @@ def check_single_instance():
                 allow_multiple = config['Other']['AllowMultipleInstances']
         except Exception:
             pass
-    
     if not allow_multiple:
         # 创建互斥体
         mutex_name = f"Global\\{APP_NAME}_Mutex"
@@ -108,11 +107,9 @@ def check_single_instance():
 
 # 路径设置
 if getattr(sys, 'frozen', False):
-    # 打包为exe时
     BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
     MEIPASS_DIR = sys._MEIPASS
 else:
-    # 脚本运行时
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     MEIPASS_DIR = None
 
@@ -132,7 +129,6 @@ def extract_bundled_files():
     if not getattr(sys, 'frozen', False) or not MEIPASS_DIR:
         return
     
-    # 需要提取的文件夹列表
     bundled_folders = ['resource', 'font', 'data']
     
     for folder in bundled_folders:
@@ -375,7 +371,6 @@ class MainWindow(FluentWindow):
         self.__updateIdleTimer()
         self.__installGlobalHooks()
         
-        self.__loadEditPanelStyleSheet()
         cfg.themeMode.valueChanged.connect(self.__onThemeChanged)
         
         # 连接主题信号
@@ -399,31 +394,10 @@ class MainWindow(FluentWindow):
         
         return super().eventFilter(obj, event)
     
-    def __loadEditPanelStyleSheet(self):
-        """编辑面板样式表"""
-        theme = cfg.themeMode.value
-        if theme == "dark":
-            theme = "dark"
-        else:
-            theme = "light"
-        
-        qss_path = get_resource_path(os.path.join('resource', 'qss', theme, 'main_interface.qss'))
-        if os.path.exists(qss_path):
-            try:
-                with open(qss_path, 'r', encoding='utf-8') as f:
-                    qss_content = f.read()
-                    if hasattr(self, 'editPanel') and self.editPanel:
-                        self.editPanel.setStyleSheet(qss_content)
-            except Exception as e:
-                logger.error(f"加载编辑面板样式失败：{e}")
-        else:
-            logger.warning(f"编辑面板样式文件不存在：{qss_path}")
-    
     def __onThemeChanged(self):
         """主题变化时重新加载编辑面板样式"""
-        self.__loadEditPanelStyleSheet()
-        # 更新列表项颜色
         if hasattr(self, 'editPanel') and self.editPanel:
+            self.editPanel._updateTheme()
             self.editPanel.updateListItemColors()
     
     def initSystemTray(self):
@@ -604,7 +578,7 @@ class MainWindow(FluentWindow):
                 QTimer.singleShot(1000, lambda: self.updateInterface._UpdateInterface__checkUpdate(auto_check=True))
     
     def hide(self):
-        """ 隐藏窗口 """
+        """隐藏窗口"""
         logger.info("隐藏主窗口")
         self.hasTriggeredAutoOpen = False
         
@@ -615,7 +589,7 @@ class MainWindow(FluentWindow):
         super().hide()
     
     def closeEvent(self, event):
-        """ 关闭事件处理 """
+        """关闭事件处理"""
         if cfg.closeAction.value == "minimize":
             logger.info("关闭行为：最小化到托盘")
             event.ignore()
@@ -625,20 +599,10 @@ class MainWindow(FluentWindow):
                 logger.debug("应用最小化，已启动空闲检测")
             
             self.hide()
-            self.tray_icon.showMessage(
-                APP_NAME,
-                "应用已最小化到系统托盘",
-                QSystemTrayIcon.Information,
-                2000
-            )
+            self.tray_icon.showMessage(APP_NAME, "应用已最小化到系统托盘", QSystemTrayIcon.Information, 2000)
         else:
             logger.info("关闭行为：退出应用")
             
-            try:
-                # 保存组件配置
-                logger.info("已保存组件配置")
-            except Exception as e:
-                logger.error(f"保存组件配置失败：{e}")
             
             if hasattr(self, 'keyboardHook') and self.keyboardHook:
                 ctypes.windll.user32.UnhookWindowsHookEx(self.keyboardHook)
@@ -648,7 +612,7 @@ class MainWindow(FluentWindow):
             QApplication.quit()
     
     def __enterEditMode(self):
-        """ 切换编辑模式（显示/隐藏右侧编辑面板） """
+        """切换编辑模式（显示/隐藏右侧编辑面板）"""
         if not hasattr(self, 'editPanel'):
             try:
                 self.__createEditPanel()
@@ -659,14 +623,9 @@ class MainWindow(FluentWindow):
 
         if self.editPanel.isVisible():
             self.editPanel.hidePanel()
-            self.deselectComponent()
-            for widget in self.homeContent.findChildren(MovableWidget):
-                widget.isDraggable = False
             self.isEditMode = False
             self.navigationInterface.setEnabled(True)
         else:
-            for widget in self.homeContent.findChildren(MovableWidget):
-                widget.isDraggable = True
             self.editPanel.showPanel()
             self.isEditMode = True
             self.navigationInterface.setEnabled(False)
@@ -694,9 +653,8 @@ class MainWindow(FluentWindow):
         if hasattr(self, 'editPanel') and self.editPanel is not None:
             return
         self.editPanel = EditPanel(self)
-        self.__loadEditPanelStyleSheet()
         pr = self.rect()
-
+        
         if self.editPanel.isLeftSide:
             self.editPanel.setGeometry(-self.editPanel._width, 0, self.editPanel._width, pr.height())
         else:
@@ -704,46 +662,10 @@ class MainWindow(FluentWindow):
         self.editPanel.hide()
         self.editPanel.setVisible(False)
         self.selectedComponent = None
-
+        
         if not self.editPanelCreated:
             self.__updateEditButtonPosition()
             self.editPanelCreated = True
-
-    def selectComponent(self, comp_widget):
-        try:
-            if getattr(self, 'selectedComponent', None) is comp_widget:
-                return
-            if getattr(self, 'selectedComponent', None):
-                try:
-                    self.selectedComponent.setSelected(False)
-                except Exception:
-                    pass
-            self.selectedComponent = comp_widget
-            try:
-                self.selectedComponent.setSelected(True)
-            except Exception:
-                pass
-        except Exception:
-            logger.exception('选择组件失败')
-
-    def deselectComponent(self):
-        if getattr(self, 'selectedComponent', None):
-            try:
-                self.selectedComponent.setSelected(False)
-            except Exception:
-                pass
-        self.selectedComponent = None
-
-
-    def applyPropertyChanges(self, text: str):
-        try:
-            if getattr(self, 'selectedComponent', None):
-                try:
-                    self.selectedComponent.setText(text)
-                except Exception:
-                    pass
-        except Exception:
-            logger.exception('应用属性变更失败')
 
     def initMainNavigation(self):
         """ 初始化主界面导航 """

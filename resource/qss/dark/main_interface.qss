@@ -3,8 +3,20 @@
 /* 编辑面板 */
 #EditPanel {
     background-color: rgb(32, 32, 32);
+    border: none;
     border-radius: 12px;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 编辑面板基础组件 */
+#EditPanel QWidget {
+    background-color: transparent;
+    color: #FFFFFF;
+}
+
+#EditPanel SmoothScrollArea {
+    background-color: transparent;
+    border: none;
 }
 
 /* 组件库标题 */
@@ -115,4 +127,21 @@ EditPanel QScrollBar::sub-line:vertical,
 EditPanel QScrollBar::add-page:vertical,
 EditPanel QScrollBar::sub-page:vertical {
     height: 0px;
+}
+
+/* 主界面容器 */
+#homeContent QWidget {
+    background-color: transparent;
+}
+
+/* 编辑按钮 */
+#editButton {
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+/* 分隔线 */
+#EditPanel #separator {
+    background-color: #666666;
 }
