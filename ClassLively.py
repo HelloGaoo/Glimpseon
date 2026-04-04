@@ -325,7 +325,7 @@ class MainWindow(FluentWindow):
         # 系统托盘
         self.initSystemTray()
         
-        # 时钟更新定时器
+        # 时钟更新定时
         self.clockTimer = QTimer(self)
         self.clockTimer.timeout.connect(self.__updateClock)
         self.clockTimer.start(1000)
@@ -340,7 +340,7 @@ class MainWindow(FluentWindow):
         cfg.weatherIconSize.valueChanged.connect(self.__updateWeatherIcon)
         self.__updateClock()
         
-        # 诗词更新定时器
+        # 诗词更新定时
         self.poetryTimer = QTimer(self)
         self.poetryTimer.timeout.connect(self.__updatePoetry)
         cfg.showPoetry.valueChanged.connect(self.__updatePoetry)
@@ -349,7 +349,10 @@ class MainWindow(FluentWindow):
         cfg.showPoetry.valueChanged.connect(self.__updatePoetry)
         self.__updatePoetryInterval()
         
-        # 天气更新定时器
+        # 更新组件位置
+        self.__updateComponentPositions()
+        
+        # 天气更新定时
         self.weatherTimer = QTimer(self)
         self.weatherTimer.timeout.connect(self.__updateWeather)
         cfg.weatherUpdateInterval.valueChanged.connect(self.__updateWeatherInterval)
@@ -361,8 +364,11 @@ class MainWindow(FluentWindow):
         sync_auto_start_with_config()
         
         cfg.autoStart.valueChanged.connect(lambda value: set_auto_start(value))
+        cfg.clockPosition.valueChanged.connect(self.__updateClockPosition)
+        cfg.weatherPosition.valueChanged.connect(self.__updateWeatherPosition)
+        cfg.poetryPosition.valueChanged.connect(self.__updatePoetryPosition)
         
-        # 空闲检测定时器
+        # 空闲检测定时
         self.idleTimer = QTimer(self)
         self.idleTimer.timeout.connect(self.__checkIdle)
         self.lastMouseActivity = QTime.currentTime()
@@ -379,7 +385,6 @@ class MainWindow(FluentWindow):
         
         cfg.themeMode.valueChanged.connect(self.__onThemeChanged)
         
-        # 连接主题信号
         cfg.themeChanged.connect(self.updateInterface._onThemeChanged)
         cfg.themeChanged.connect(self.downloadInterface._onThemeChanged)
         cfg.themeChanged.connect(self.wallpaper._onThemeChanged)
@@ -716,18 +721,18 @@ class MainWindow(FluentWindow):
         self.updateClockStyle()
         
         # 时钟容器
-        clockContainer = QWidget()
-        clockLayout = QVBoxLayout(clockContainer)
+        self.clockContainer = QWidget()
+        clockLayout = QVBoxLayout(self.clockContainer)
         clockLayout.setAlignment(Qt.AlignTop)
         clockLayout.setContentsMargins(0, 100, 0, 0)
         clockLayout.setSpacing(0)
         clockLayout.addWidget(self.clockLabel)
         clockLayout.addWidget(self.dateLabel)
-        clockContainer.setStyleSheet("background-color: transparent;")
+        self.clockContainer.setStyleSheet("background-color: transparent;")
         
         # 天气容器
-        weatherContainer = QWidget()
-        weatherLayout = QHBoxLayout(weatherContainer)
+        self.weatherContainer = QWidget()
+        weatherLayout = QHBoxLayout(self.weatherContainer)
         weatherLayout.setAlignment(Qt.AlignTop | Qt.AlignRight)
         weatherLayout.setContentsMargins(0, 20, 20, 0)
         weatherLayout.setSpacing(10)
@@ -735,15 +740,15 @@ class MainWindow(FluentWindow):
         self.weatherIconLabel.setAlignment(Qt.AlignCenter)
         weatherLayout.addWidget(self.weatherTempLabel)
         weatherLayout.addWidget(self.weatherIconLabel)
-        weatherContainer.setStyleSheet("background-color: transparent;")
+        self.weatherContainer.setStyleSheet("background-color: transparent;")
     
         # 诗词容器
-        poetryContainer = QWidget()
-        poetryLayout = QVBoxLayout(poetryContainer)
+        self.poetryContainer = QWidget()
+        poetryLayout = QVBoxLayout(self.poetryContainer)
         poetryLayout.setAlignment(Qt.AlignBottom)
-        poetryLayout.setContentsMargins(0, 0, 0, 20)  # 最后一个为底部向上预留
+        poetryLayout.setContentsMargins(0, 0, 0, 20)
         poetryLayout.addWidget(self.poetryLabel)
-        poetryContainer.setStyleSheet("background-color: transparent;")
+        self.poetryContainer.setStyleSheet("background-color: transparent;")
         
         # 编辑按钮
         editContainer = QWidget()
@@ -763,9 +768,9 @@ class MainWindow(FluentWindow):
         gridLayout = QGridLayout()
         gridLayout.setContentsMargins(0, 0, 0, 0)
         gridLayout.addWidget(self.homeBackgroundImage, 0, 0, 1, 1)
-        gridLayout.addWidget(clockContainer, 0, 0, 1, 1)
-        gridLayout.addWidget(weatherContainer, 0, 0, 1, 1)
-        gridLayout.addWidget(poetryContainer, 0, 0, 1, 1)
+        gridLayout.addWidget(self.clockContainer, 0, 0, 1, 1)
+        gridLayout.addWidget(self.weatherContainer, 0, 0, 1, 1)
+        gridLayout.addWidget(self.poetryContainer, 0, 0, 1, 1)
         gridLayout.addWidget(editContainer, 0, 0, 1, 1)
         
         self.homeContent = QWidget()
@@ -945,6 +950,104 @@ class MainWindow(FluentWindow):
             font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
+    
+    def __updateComponentPositions(self):
+        """ 更新所有组件的位置 """
+        self.__updateClockPosition()
+        self.__updateWeatherPosition()
+        self.__updatePoetryPosition()
+    
+    def __updateClockPosition(self):
+        """ 更新时间组件位置 """
+        position = cfg.clockPosition.value
+        margin = 100
+        small_margin = 20
+        
+        layout = self.clockContainer.layout()
+        
+        if position == "左上预留":
+            layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+            layout.setContentsMargins(small_margin, small_margin, 0, 0)
+        elif position == "左上":
+            layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+            layout.setContentsMargins(0, 0, 0, 0)
+        elif position == "右上预留":
+            layout.setAlignment(Qt.AlignTop | Qt.AlignRight)
+            layout.setContentsMargins(0, small_margin, small_margin, 0)
+        elif position == "右上":
+            layout.setAlignment(Qt.AlignTop | Qt.AlignRight)
+            layout.setContentsMargins(0, 0, 0, 0)
+        elif position == "左下预留":
+            layout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
+            layout.setContentsMargins(small_margin, 0, 0, small_margin)
+        elif position == "左下":
+            layout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
+            layout.setContentsMargins(0, 0, 0, 0)
+        elif position == "右下预留":
+            layout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
+            layout.setContentsMargins(0, 0, small_margin, small_margin)
+        elif position == "右下":
+            layout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
+            layout.setContentsMargins(0, 0, 0, 0)
+        elif position == "中部":
+            layout.setAlignment(Qt.AlignCenter)
+            layout.setContentsMargins(0, 0, 0, 0)
+        elif position == "顶部":
+            layout.setAlignment(Qt.AlignTop)
+            layout.setContentsMargins(0, 0, 0, 0)
+        elif position == "顶部偏下":
+            layout.setAlignment(Qt.AlignTop)
+            layout.setContentsMargins(0, margin, 0, 0)
+        elif position == "底部偏上":
+            layout.setAlignment(Qt.AlignBottom)
+            layout.setContentsMargins(0, 0, 0, margin)
+        elif position == "底部":
+            layout.setAlignment(Qt.AlignBottom)
+            layout.setContentsMargins(0, 0, 0, 0)
+        
+        logger.info(f"时间组件位置已更新为：{position}")
+    
+    def __updateWeatherPosition(self):
+        """ 更新天气组件位置 """
+        position = cfg.weatherPosition.value
+        small_margin = 20
+        layout = self.weatherContainer.layout()
+        left_side = position in ["左上预留", "左下预留"]
+        layout.removeWidget(self.weatherTempLabel)
+        layout.removeWidget(self.weatherIconLabel)
+        if left_side:
+            layout.addWidget(self.weatherIconLabel)
+            layout.addWidget(self.weatherTempLabel)
+        else:
+            layout.addWidget(self.weatherTempLabel)
+            layout.addWidget(self.weatherIconLabel)
+        
+        if position == "左上预留":
+            layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+            layout.setContentsMargins(small_margin, small_margin, 0, 0)
+        elif position == "右上预留":
+            layout.setAlignment(Qt.AlignTop | Qt.AlignRight)
+            layout.setContentsMargins(0, small_margin, small_margin, 0)
+        elif position == "左下预留":
+            layout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
+            layout.setContentsMargins(small_margin, 0, 0, small_margin)
+        elif position == "右下预留":
+            layout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
+            layout.setContentsMargins(0, 0, small_margin, small_margin)
+        logger.info(f"天气组件位置已更新为：{position}")
+    
+    def __updatePoetryPosition(self):
+        """ 更新诗词组件位置 """
+        position = cfg.poetryPosition.value
+        small_margin = 20
+        layout = self.poetryContainer.layout()
+        if position == "顶部预留":
+            layout.setAlignment(Qt.AlignTop)
+            layout.setContentsMargins(0, small_margin, 0, 0)
+        elif position == "底部预留":
+            layout.setAlignment(Qt.AlignBottom)
+            layout.setContentsMargins(0, 0, 0, small_margin)
+        logger.info(f"诗词组件位置已更新为：{position}")
     
     def __updatePoetryInterval(self):
         """ 更新诗词更新间隔定时器 """

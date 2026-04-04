@@ -114,12 +114,14 @@ class EditPanel(QWidget):
         cfg.clockColor.valueChanged.connect(self._updateClockColorCombo)
         cfg.clockSize.valueChanged.connect(self._updateClockSizeSpin)
         cfg.dateSize.valueChanged.connect(self._updateDateSizeSpin)
+        cfg.clockPosition.valueChanged.connect(self._updateClockPositionCombo)
         
         # 诗词设置
         cfg.showPoetry.valueChanged.connect(self._updateShowPoetrySwitch)
         cfg.poetryApiUrl.valueChanged.connect(self._updatePoetryApiEdit)
         cfg.poetrySize.valueChanged.connect(self._updatePoetrySizeSpin)
         cfg.poetryUpdateInterval.valueChanged.connect(self._updatePoetryUpdateIntervalCombo)
+        cfg.poetryPosition.valueChanged.connect(self._updatePoetryPositionCombo)
         
         # 天气设置
         cfg.showWeather.valueChanged.connect(self._updateShowWeatherSwitch)
@@ -127,6 +129,7 @@ class EditPanel(QWidget):
         cfg.weatherIconSize.valueChanged.connect(self._updateWeatherIconSizeSpin)
         cfg.weatherUpdateInterval.valueChanged.connect(self._updateWeatherUpdateIntervalCombo)
         cfg.city.valueChanged.connect(self._updateCityButton)
+        cfg.weatherPosition.valueChanged.connect(self._updateWeatherPositionCombo)
     
     def _updateShowClockSwitch(self, value):
         """更新启用时钟开关"""
@@ -187,6 +190,18 @@ class EditPanel(QWidget):
     def _updateCityButton(self, value):
         """更新城市按钮"""
         pass
+    
+    def _updateClockPositionCombo(self, value):
+        """更新时间位置下拉框"""
+        self.clockPositionCombo.setCurrentText(value)
+    
+    def _updatePoetryPositionCombo(self, value):
+        """更新诗词位置下拉框"""
+        self.poetryPositionCombo.setCurrentText(value)
+    
+    def _updateWeatherPositionCombo(self, value):
+        """更新天气位置下拉框"""
+        self.weatherPositionCombo.setCurrentText(value)
     
     def _createTimeSettings(self, layout):
         titleLabel = StrongBodyLabel('时间设置', self)
@@ -250,6 +265,17 @@ class EditPanel(QWidget):
         self.dateSizeSpin.valueChanged.connect(self._onDateSizeChanged)
         dateSizeLayout.addWidget(self.dateSizeSpin)
         layout.addLayout(dateSizeLayout)
+        positionLayout = QHBoxLayout()
+        positionLabel = BodyLabel('时间位置', self)
+        positionLabel.setFixedWidth(100)
+        positionLayout.addWidget(positionLabel)
+        self.clockPositionCombo = ComboBox(self)
+        self.clockPositionCombo.addItems(['左上预留', '左上', '右上预留', '右上', '左下预留', '左下', '右下预留', '右下', '中部', '顶部', '顶部偏下', '底部偏上', '底部'])
+        self.clockPositionCombo.setCurrentText(cfg.clockPosition.value)
+        self.clockPositionCombo.setFixedWidth(120)
+        self.clockPositionCombo.currentTextChanged.connect(self._onClockPositionChanged)
+        positionLayout.addWidget(self.clockPositionCombo)
+        layout.addLayout(positionLayout)
 
     def _createPoetrySettings(self, layout):
         titleLabel = StrongBodyLabel('诗词设置', self)
@@ -294,6 +320,17 @@ class EditPanel(QWidget):
         self.poetryUpdateIntervalCombo.currentTextChanged.connect(self._onPoetryUpdateIntervalChanged)
         poetryIntervalLayout.addWidget(self.poetryUpdateIntervalCombo)
         layout.addLayout(poetryIntervalLayout)
+        poetryPositionLayout = QHBoxLayout()
+        poetryPositionLabel = BodyLabel('诗词位置', self)
+        poetryPositionLabel.setFixedWidth(100)
+        poetryPositionLayout.addWidget(poetryPositionLabel)
+        self.poetryPositionCombo = ComboBox(self)
+        self.poetryPositionCombo.addItems(['顶部预留', '底部预留'])
+        self.poetryPositionCombo.setCurrentText(cfg.poetryPosition.value)
+        self.poetryPositionCombo.setFixedWidth(120)
+        self.poetryPositionCombo.currentTextChanged.connect(self._onPoetryPositionChanged)
+        poetryPositionLayout.addWidget(self.poetryPositionCombo)
+        layout.addLayout(poetryPositionLayout)
     
     def _createWeatherSettings(self, layout):
         """创建天气设置部分"""
@@ -349,6 +386,17 @@ class EditPanel(QWidget):
         self.weatherUpdateIntervalCombo.currentTextChanged.connect(self._onWeatherUpdateIntervalChanged)
         weatherIntervalLayout.addWidget(self.weatherUpdateIntervalCombo)
         layout.addLayout(weatherIntervalLayout)
+        weatherPositionLayout = QHBoxLayout()
+        weatherPositionLabel = BodyLabel('天气位置', self)
+        weatherPositionLabel.setFixedWidth(100)
+        weatherPositionLayout.addWidget(weatherPositionLabel)
+        self.weatherPositionCombo = ComboBox(self)
+        self.weatherPositionCombo.addItems(['左上预留', '右上预留', '左下预留', '右下预留'])
+        self.weatherPositionCombo.setCurrentText(cfg.weatherPosition.value)
+        self.weatherPositionCombo.setFixedWidth(120)
+        self.weatherPositionCombo.currentTextChanged.connect(self._onWeatherPositionChanged)
+        weatherPositionLayout.addWidget(self.weatherPositionCombo)
+        layout.addLayout(weatherPositionLayout)
     
     def _updateTheme(self):
         """更新主题"""
@@ -570,6 +618,27 @@ class EditPanel(QWidget):
         if hasattr(self.mainWindow, '_MainWindow__updateWeatherInterval'):
             self.mainWindow._MainWindow__updateWeatherInterval()
         logger.info(f"天气设置：更新间隔={text}")
+    
+    def _onClockPositionChanged(self, text: str):
+        """时间位置变化"""
+        cfg.clockPosition.value = text
+        if hasattr(self.mainWindow, '_MainWindow__updateClockPosition'):
+            self.mainWindow._MainWindow__updateClockPosition()
+        logger.info(f"时间设置：位置={text}")
+    
+    def _onPoetryPositionChanged(self, text: str):
+        """诗词位置变化"""
+        cfg.poetryPosition.value = text
+        if hasattr(self.mainWindow, '_MainWindow__updatePoetryPosition'):
+            self.mainWindow._MainWindow__updatePoetryPosition()
+        logger.info(f"诗词设置：位置={text}")
+    
+    def _onWeatherPositionChanged(self, text: str):
+        """天气位置变化"""
+        cfg.weatherPosition.value = text
+        if hasattr(self.mainWindow, '_MainWindow__updateWeatherPosition'):
+            self.mainWindow._MainWindow__updateWeatherPosition()
+        logger.info(f"天气设置：位置={text}")
     
     def _onCityButtonClicked(self):
         """城市选择按钮点击"""

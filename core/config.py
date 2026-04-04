@@ -156,6 +156,9 @@ class Config(QConfig):
     dateSize = RangeConfigItem(
         "Time", "DateSize", 20, RangeValidator(12, 50)
     )
+    clockPosition = OptionsConfigItem(
+        "Time", "ClockPosition", "顶部偏下", OptionsValidator(["左上预留", "左上", "右上预留", "右上", "左下预留", "左下", "右下预留", "右下", "中部", "顶部", "顶部偏下", "底部偏上", "底部"])
+    )
     showPoetry = ConfigItem(
         "Poetry", "ShowPoetry", True, BoolValidator()
     )
@@ -171,6 +174,9 @@ class Config(QConfig):
     poetrySize = RangeConfigItem(
         "Poetry", "PoetrySize", 16, RangeValidator(12, 50)
     )
+    poetryPosition = OptionsConfigItem(
+        "Poetry", "PoetryPosition", "底部预留", OptionsValidator(["顶部预留", "底部预留"])
+    )
     weatherSize = RangeConfigItem(
         "Weather", "WeatherSize", 24, RangeValidator(5, 50)
     )
@@ -179,6 +185,9 @@ class Config(QConfig):
     )
     weatherUpdateInterval = OptionsConfigItem(
         "Weather", "UpdateInterval", "5 分钟", OptionsValidator(["从不", "5 分钟", "15 分钟", "30 分钟", "1 小时", "3 小时", "6 小时", "12 小时", "24 小时"])
+    )
+    weatherPosition = OptionsConfigItem(
+        "Weather", "WeatherPosition", "右上预留", OptionsValidator(["左上预留", "右上预留", "左下预留", "右下预留"])
     )
     city = ConfigItem(
         "Weather", "City", "北京"
@@ -287,13 +296,15 @@ def get_default_config_dict():
             "ShowLunarCalendar": True,
             "ClockColor": "#FFFFFF",
             "ClockSize": 120,
-            "DateSize": 20
+            "DateSize": 20,
+            "ClockPosition": "顶部偏下"
         },
         "Poetry": {
             "ShowPoetry": True,
             "PoetryApiUrl": "https://www.ffapi.cn/int/v1/shici",
             "PoetryUpdateInterval": "10 分钟",
-            "PoetrySize": 16
+            "PoetrySize": 16,
+            "PoetryPosition": "底部预留"
         },
         "Weather": {
             "ShowWeather": True,
@@ -302,7 +313,8 @@ def get_default_config_dict():
             "UpdateInterval": "5 分钟",
             "City": "北京",
             "Latitude": 39.9042,
-            "Longitude": 116.4074
+            "Longitude": 116.4074,
+            "WeatherPosition": "右上预留"
         },
         "QFluentWidgets": {
             "FontFamilies": ["HarmonyOS Sans SC"]
