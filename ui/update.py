@@ -160,8 +160,7 @@ class UpdateInterface(BaseScrollAreaInterface):
         self.changelogLayout.addWidget(self.changelogTitle)
         self.changelogLayout.addWidget(self.changelogContent)
         
-        # 初始化时加载更新日志
-        self.__loadChangelog()
+        self.changelogContent.setPlaceholderText("更新日志将在自动检查更新时加载")
         self.autoCheckUpdateCard = SwitchSettingCard(
             FIF.UPDATE,
             "自动检查更新",
@@ -185,30 +184,23 @@ class UpdateInterface(BaseScrollAreaInterface):
         self.mainLayout.addWidget(self.autoUpdateCard)
         self.mainLayout.addStretch()
     
-    def __loadChangelog(self):
-        """ 加载更新日志 """
+    def __loadChangelog(self, auto_load=False):
+        """ 加载更新日志"""
+        if auto_load and not cfg.autoCheckUpdate.value:
+            return
+        
         def load():
             try:
                 # 先尝试从 GitHub 获取
                 changelog = get_changelog_from_github()
                 if changelog:
+                    logger.info(f"{'自动' if auto_load else '手动'}加载：成功从 GitHub 获取更新日志")
                     return changelog
                 else:
                     # GitHub 获取失败，尝试读取本地文件
-                    logger.info("GitHub 获取失败，尝试读取本地更新日志")
-                    changelog_path = os.path.join(BASE_DIR, 'changelog.md')
-                    if os.path.exists(changelog_path):
-                        try:
-                            with open(changelog_path, 'r', encoding='utf-8') as f:
-                                local_changelog = f.read()
-                            if local_changelog.strip():
-                                logger.info("成功从本地读取更新日志")
-                                return local_changelog
-                        except Exception as e:
-                            logger.error(f"读取本地更新日志失败：{str(e)}")
-                    
+                    logger.info("GitHub 获取失败")                    
                     # 本地也没有，返回提示
-                    return "暂无更新记录\n\n提示：更新日志文件尚未上传到 GitHub"
+                    return "暂无更新记录"
             except Exception as e:
                 logger.error(f"加载更新日志失败：{str(e)}")
                 return "加载失败"

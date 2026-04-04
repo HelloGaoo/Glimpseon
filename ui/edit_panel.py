@@ -79,6 +79,7 @@ class EditPanel(QWidget):
         self._createPoetrySettings(v)
         self._addSeparator(v)
         self._createWeatherSettings(v)
+        self._connectConfigSignals()
     
         v.addStretch()
         
@@ -103,6 +104,89 @@ class EditPanel(QWidget):
         separator.setFixedHeight(1)
         separator.setObjectName('separator')
         layout.addWidget(separator)
+    
+    def _connectConfigSignals(self):
+        """连接配置变化信号到 UI 更新"""
+        # 时间设置
+        cfg.showClock.valueChanged.connect(self._updateShowClockSwitch)
+        cfg.showClockSeconds.valueChanged.connect(self._updateShowSecondsSwitch)
+        cfg.showLunarCalendar.valueChanged.connect(self._updateShowLunarSwitch)
+        cfg.clockColor.valueChanged.connect(self._updateClockColorCombo)
+        cfg.clockSize.valueChanged.connect(self._updateClockSizeSpin)
+        cfg.dateSize.valueChanged.connect(self._updateDateSizeSpin)
+        
+        # 诗词设置
+        cfg.showPoetry.valueChanged.connect(self._updateShowPoetrySwitch)
+        cfg.poetryApiUrl.valueChanged.connect(self._updatePoetryApiEdit)
+        cfg.poetrySize.valueChanged.connect(self._updatePoetrySizeSpin)
+        cfg.poetryUpdateInterval.valueChanged.connect(self._updatePoetryUpdateIntervalCombo)
+        
+        # 天气设置
+        cfg.showWeather.valueChanged.connect(self._updateShowWeatherSwitch)
+        cfg.weatherSize.valueChanged.connect(self._updateWeatherSizeSpin)
+        cfg.weatherIconSize.valueChanged.connect(self._updateWeatherIconSizeSpin)
+        cfg.weatherUpdateInterval.valueChanged.connect(self._updateWeatherUpdateIntervalCombo)
+        cfg.city.valueChanged.connect(self._updateCityButton)
+    
+    def _updateShowClockSwitch(self, value):
+        """更新启用时钟开关"""
+        self.showClockSwitch.setChecked(value)
+    
+    def _updateShowSecondsSwitch(self, value):
+        """更新显示秒针开关"""
+        self.showSecondsSwitch.setChecked(value)
+    
+    def _updateShowLunarSwitch(self, value):
+        """更新显示农历开关"""
+        self.showLunarSwitch.setChecked(value)
+    
+    def _updateClockColorCombo(self, value):
+        """更新时钟颜色下拉框"""
+        self.clockColorCombo.setCurrentText(self._getColorText(value))
+    
+    def _updateClockSizeSpin(self, value):
+        """更新时钟大小旋转框"""
+        self.clockSizeSpin.setValue(value)
+    
+    def _updateDateSizeSpin(self, value):
+        """更新日期大小旋转框"""
+        self.dateSizeSpin.setValue(value)
+    
+    def _updateShowPoetrySwitch(self, value):
+        """更新启用诗词开关"""
+        self.showPoetrySwitch.setChecked(value)
+    
+    def _updatePoetryApiEdit(self, value):
+        """更新诗词 API 地址编辑框"""
+        self.poetryApiEdit.setText(value)
+    
+    def _updatePoetrySizeSpin(self, value):
+        """更新诗词大小旋转框"""
+        self.poetrySizeSpin.setValue(value)
+    
+    def _updatePoetryUpdateIntervalCombo(self, value):
+        """更新诗词更新间隔下拉框"""
+        self.poetryUpdateIntervalCombo.setCurrentText(value)
+    
+    def _updateShowWeatherSwitch(self, value):
+        """更新启用天气开关"""
+        self.showWeatherSwitch.setChecked(value)
+    
+    def _updateWeatherSizeSpin(self, value):
+        """更新天气文字大小旋转框"""
+        self.weatherSizeSpin.setValue(value)
+    
+    def _updateWeatherIconSizeSpin(self, value):
+        """更新天气图标大小旋转框"""
+        self.weatherIconSizeSpin.setValue(value)
+    
+    def _updateWeatherUpdateIntervalCombo(self, value):
+        """更新天气更新间隔下拉框"""
+        self.weatherUpdateIntervalCombo.setCurrentText(value)
+    
+    def _updateCityButton(self, value):
+        """更新城市按钮"""
+        pass
     
     def _createTimeSettings(self, layout):
         titleLabel = StrongBodyLabel('时间设置', self)
@@ -139,7 +223,7 @@ class EditPanel(QWidget):
         colorLabel.setFixedWidth(100)
         colorLayout.addWidget(colorLabel)
         self.clockColorCombo = ComboBox(self)
-        self.clockColorCombo.addItems(['默认颜色', '白色', '黑色'])
+        self.clockColorCombo.addItems(['主要颜色', '白色', '黑色'])
         self.clockColorCombo.setCurrentText(self._getColorText(cfg.clockColor.value))
         self.clockColorCombo.currentTextChanged.connect(self._onClockColorChanged)
         colorLayout.addWidget(self.clockColorCombo)
@@ -166,16 +250,6 @@ class EditPanel(QWidget):
         self.dateSizeSpin.valueChanged.connect(self._onDateSizeChanged)
         dateSizeLayout.addWidget(self.dateSizeSpin)
         layout.addLayout(dateSizeLayout)
-        poetryIntervalLayout = QHBoxLayout()
-        poetryIntervalLabel = BodyLabel('诗词更新间隔', self)
-        poetryIntervalLabel.setFixedWidth(100)
-        poetryIntervalLayout.addWidget(poetryIntervalLabel)
-        self.poetryUpdateIntervalCombo = ComboBox(self)
-        self.poetryUpdateIntervalCombo.addItems(['从不', '10 分钟', '30 分钟', '1 小时', '3 小时', '6 小时', '12 小时', '1 天'])
-        self.poetryUpdateIntervalCombo.setCurrentText(cfg.poetryUpdateInterval.value)
-        self.poetryUpdateIntervalCombo.currentTextChanged.connect(self._onPoetryUpdateIntervalChanged)
-        poetryIntervalLayout.addWidget(self.poetryUpdateIntervalCombo)
-        layout.addLayout(poetryIntervalLayout)
 
     def _createPoetrySettings(self, layout):
         titleLabel = StrongBodyLabel('诗词设置', self)
@@ -189,17 +263,6 @@ class EditPanel(QWidget):
         self.showPoetrySwitch.checkedChanged.connect(self._onShowPoetryChanged)
         enableLayout.addWidget(self.showPoetrySwitch)
         layout.addLayout(enableLayout)
-
-        poetryIntervalLayout = QHBoxLayout()
-        poetryIntervalLabel = BodyLabel('诗词更新间隔', self)
-        poetryIntervalLabel.setFixedWidth(100)
-        poetryIntervalLayout.addWidget(poetryIntervalLabel)
-        self.poetryUpdateIntervalCombo = ComboBox(self)
-        self.poetryUpdateIntervalCombo.addItems(['从不', '10 分钟', '30 分钟', '1 小时', '3 小时', '6 小时', '12 小时', '1 天'])
-        self.poetryUpdateIntervalCombo.setCurrentText(cfg.poetryUpdateInterval.value)
-        self.poetryUpdateIntervalCombo.currentTextChanged.connect(self._onPoetryUpdateIntervalChanged)
-        poetryIntervalLayout.addWidget(self.poetryUpdateIntervalCombo)
-        layout.addLayout(poetryIntervalLayout)
         apiLayout = QHBoxLayout()
         apiLabel = BodyLabel('诗词 API 地址', self)
         apiLabel.setFixedWidth(100)
@@ -221,6 +284,16 @@ class EditPanel(QWidget):
         self.poetrySizeSpin.valueChanged.connect(self._onPoetrySizeChanged)
         poetrySizeLayout.addWidget(self.poetrySizeSpin)
         layout.addLayout(poetrySizeLayout)
+        poetryIntervalLayout = QHBoxLayout()
+        poetryIntervalLabel = BodyLabel('诗词更新间隔', self)
+        poetryIntervalLabel.setFixedWidth(100)
+        poetryIntervalLayout.addWidget(poetryIntervalLabel)
+        self.poetryUpdateIntervalCombo = ComboBox(self)
+        self.poetryUpdateIntervalCombo.addItems(['从不', '5 分钟', '10 分钟', '30 分钟', '1 小时', '3 小时', '6 小时', '12 小时', '1 天'])
+        self.poetryUpdateIntervalCombo.setCurrentText(cfg.poetryUpdateInterval.value)
+        self.poetryUpdateIntervalCombo.currentTextChanged.connect(self._onPoetryUpdateIntervalChanged)
+        poetryIntervalLayout.addWidget(self.poetryUpdateIntervalCombo)
+        layout.addLayout(poetryIntervalLayout)
     
     def _createWeatherSettings(self, layout):
         """创建天气设置部分"""
@@ -271,7 +344,7 @@ class EditPanel(QWidget):
         weatherIntervalLabel.setFixedWidth(100)
         weatherIntervalLayout.addWidget(weatherIntervalLabel)
         self.weatherUpdateIntervalCombo = ComboBox(self)
-        self.weatherUpdateIntervalCombo.addItems(['从不', '15 分钟', '30 分钟', '1 小时', '3 小时', '6 小时', '12 小时', '24 小时'])
+        self.weatherUpdateIntervalCombo.addItems(['从不', '5 分钟', '15 分钟', '30 分钟', '1 小时', '3 小时', '6 小时', '12 小时', '24 小时'])
         self.weatherUpdateIntervalCombo.setCurrentText(cfg.weatherUpdateInterval.value)
         self.weatherUpdateIntervalCombo.currentTextChanged.connect(self._onWeatherUpdateIntervalChanged)
         weatherIntervalLayout.addWidget(self.weatherUpdateIntervalCombo)
@@ -410,7 +483,7 @@ class EditPanel(QWidget):
                 return '白色'
             elif color_hex == '#000000':
                 return '黑色'
-        return '默认颜色'
+        return '主要颜色'
     
     def _onClockColorChanged(self, text: str):
         """时钟颜色变化"""
@@ -420,8 +493,8 @@ class EditPanel(QWidget):
             cfg.clockColor.value = QColor(255, 255, 255)
         elif text == '黑色':
             cfg.clockColor.value = QColor(0, 0, 0)
-        else:
-            cfg.clockColor.value = QColor(255, 255, 255)
+        else:  # 主要颜色
+            cfg.clockColor.value = cfg.themeColor.value
         
         if hasattr(self.mainWindow, 'updateClockStyle'):
             self.mainWindow.updateClockStyle()

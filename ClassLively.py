@@ -337,7 +337,6 @@ class MainWindow(FluentWindow):
         self.__updateClock()
         
         # 诗词更新定时器
-        logger.info("开始初始化诗词更新定时器")
         self.poetryTimer = QTimer(self)
         self.poetryTimer.timeout.connect(self.__updatePoetry)
         cfg.showPoetry.valueChanged.connect(self.__updatePoetry)
@@ -578,6 +577,7 @@ class MainWindow(FluentWindow):
         if cfg.autoCheckUpdate.value:
             logger.info("自动检查更新已启用，检查更新中")
             if hasattr(self, 'updateInterface'):
+                # 统一执行一次版本检查（会自动获取更新日志）
                 QTimer.singleShot(1000, lambda: self.updateInterface._UpdateInterface__checkUpdate(auto_check=True))
     
     def hide(self):

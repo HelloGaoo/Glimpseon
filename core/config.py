@@ -166,7 +166,7 @@ class Config(QConfig):
         "Poetry", "PoetryApiUrl", "https://www.ffapi.cn/int/v1/shici"
     )
     poetryUpdateInterval = OptionsConfigItem(
-        "Poetry", "PoetryUpdateInterval", "1 小时", OptionsValidator(["从不", "10 分钟", "30 分钟", "1 小时", "3 小时", "6 小时", "12 小时", "1 天"])
+        "Poetry", "PoetryUpdateInterval", "10 分钟", OptionsValidator(["从不", "5 分钟", "10 分钟", "30 分钟", "1 小时", "3 小时", "6 小时", "12 小时", "1 天"])
     )
     poetrySize = RangeConfigItem(
         "Poetry", "PoetrySize", 16, RangeValidator(12, 50)
@@ -178,7 +178,7 @@ class Config(QConfig):
         "Weather", "WeatherIconSize", 64, RangeValidator(32, 200)
     )
     weatherUpdateInterval = OptionsConfigItem(
-        "Weather", "UpdateInterval", "15 分钟", OptionsValidator(["从不", "15 分钟", "30 分钟", "1 小时", "3 小时", "6 小时", "12 小时", "24 小时"])
+        "Weather", "UpdateInterval", "5 分钟", OptionsValidator(["从不", "5 分钟", "15 分钟", "30 分钟", "1 小时", "3 小时", "6 小时", "12 小时", "24 小时"])
     )
     city = ConfigItem(
         "Weather", "City", "北京"
@@ -216,6 +216,34 @@ class Config(QConfig):
 
 
 cfg = Config()
+CONFIG_PATH = os.path.join(BASE_DIR, 'config', 'config.json')
+if os.path.exists(CONFIG_PATH):
+    try:
+        qconfig.load(CONFIG_PATH, cfg)
+        logger.info(f"已从 {CONFIG_PATH} 加载配置")
+    except Exception as e:
+        logger.error(f"加载配置失败：{e}")
+
+def save_config():
+    try:
+        # 用 qconfig 的 save 
+        qconfig.save()
+    except Exception as e:
+        logger.error(f"保存配置失败：{e}")
+
+def _on_config_changed(*args):
+    """配置改变时自动保存"""
+    save_config()
+
+saved_count = 0
+for attr_name in dir(cfg):
+    if not attr_name.startswith('_'):
+        attr = getattr(cfg, attr_name)
+        if isinstance(attr, ConfigItem) and hasattr(attr, 'valueChanged'):
+            attr.valueChanged.connect(_on_config_changed)
+            saved_count += 1
+
+logger.info(f"已连接 {saved_count} 个配置项的自动保存")
 
 
 def get_default_config_dict():
@@ -264,14 +292,14 @@ def get_default_config_dict():
         "Poetry": {
             "ShowPoetry": True,
             "PoetryApiUrl": "https://www.ffapi.cn/int/v1/shici",
-            "PoetryUpdateInterval": "1 小时",
+            "PoetryUpdateInterval": "10 分钟",
             "PoetrySize": 16
         },
         "Weather": {
             "ShowWeather": True,
             "WeatherSize": 24,
             "WeatherIconSize": 64,
-            "UpdateInterval": "15 分钟",
+            "UpdateInterval": "5 分钟",
             "City": "北京",
             "Latitude": 39.9042,
             "Longitude": 116.4074
