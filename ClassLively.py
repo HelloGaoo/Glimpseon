@@ -300,8 +300,6 @@ class MainWindow(FluentWindow):
         else:
             logger.warning("窗口图标文件不存在")
         
-        self.component_manager = None  # 在 initMainNavigation 后初始化
-        
         self.isEditMode = False
         
         self.initMainNavigation()
@@ -357,12 +355,6 @@ class MainWindow(FluentWindow):
         
         # 初始更新天气
         self.__updateWeatherInterval()
-        
-        # 初始化组件管理器（在 homeContent 创建后）
-        if hasattr(self, 'homeContent'):
-            pass  # ComponentManager 暂时禁用
-            # self.component_manager = ComponentManager(self, self.config_manager)
-            # self.component_manager.load_all_components(self.homeContent)
         
         sync_auto_start_with_config()
         
@@ -643,9 +635,8 @@ class MainWindow(FluentWindow):
             logger.info("关闭行为：退出应用")
             
             try:
-                if hasattr(self, 'component_manager') and self.component_manager is not None:
-                    self.component_manager.save_all_components(self.homeContent)
-                    logger.info("已保存组件配置")
+                # 保存组件配置
+                logger.info("已保存组件配置")
             except Exception as e:
                 logger.error(f"保存组件配置失败：{e}")
             
@@ -658,7 +649,6 @@ class MainWindow(FluentWindow):
     
     def __enterEditMode(self):
         """ 切换编辑模式（显示/隐藏右侧编辑面板） """
-        logger.info("切换编辑模式")
         if not hasattr(self, 'editPanel'):
             try:
                 self.__createEditPanel()
@@ -699,14 +689,14 @@ class MainWindow(FluentWindow):
             self.editLayout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
             self.editLayout.setContentsMargins(0, 0, 20, 20)
         self.editLayout.addWidget(self.editButton)
+
     def __createEditPanel(self):
-        """创建右侧编辑面板实例并初始化编辑相关状态"""
         if hasattr(self, 'editPanel') and self.editPanel is not None:
             return
         self.editPanel = EditPanel(self)
         self.__loadEditPanelStyleSheet()
         pr = self.rect()
-        
+
         if self.editPanel.isLeftSide:
             self.editPanel.setGeometry(-self.editPanel._width, 0, self.editPanel._width, pr.height())
         else:
@@ -714,14 +704,12 @@ class MainWindow(FluentWindow):
         self.editPanel.hide()
         self.editPanel.setVisible(False)
         self.selectedComponent = None
-        
-        # 初始化编辑按钮位置
+
         if not self.editPanelCreated:
             self.__updateEditButtonPosition()
             self.editPanelCreated = True
 
     def selectComponent(self, comp_widget):
-        """在主窗口内选择一个组件（MovableWidget 实例）"""
         try:
             if getattr(self, 'selectedComponent', None) is comp_widget:
                 return
@@ -735,12 +723,6 @@ class MainWindow(FluentWindow):
                 self.selectedComponent.setSelected(True)
             except Exception:
                 pass
-            # 把属性显示到面板
-            if hasattr(self, 'editPanel') and self.editPanel is not None:
-                txt = getattr(comp_widget, 'text', lambda: '')()
-                self.editPanel.propEdit.setText(txt)
-                self.editPanel.widthEdit.setText(str(comp_widget.width()))
-                self.editPanel.heightEdit.setText(str(comp_widget.height()))
         except Exception:
             logger.exception('选择组件失败')
 
@@ -751,67 +733,7 @@ class MainWindow(FluentWindow):
             except Exception:
                 pass
         self.selectedComponent = None
-        if hasattr(self, 'editPanel') and self.editPanel is not None:
-            self.editPanel.propEdit.setText('')
-            # 清除大小输入框内容
-            self.editPanel.widthEdit.setText('')
-            self.editPanel.heightEdit.setText('')
 
-    def addComponent(self, comp_type: str):
-        """向主界面添加一个新组件并选中它（使用新的 ComponentManager）"""
-        try:
-            # 使用 ComponentManager 创建组件
-            component = self.component_manager.create_component(comp_type)
-            if not component:
-                logger.error(f"无法创建组件类型：{comp_type}")
-                return
-            
-            widget = component.widget
-            if not widget:
-                logger.error("组件创建失败，widget 为空")
-                return
-            
-            widget.setParent(self.homeContent)
-            parent_rect = self.homeContent.rect()
-            x = max(10, parent_rect.width() // 2 - widget.width() // 2)
-            y = max(10, parent_rect.height() // 2 - widget.height() // 2)
-            widget.move(x, y)
-            widget.show()
-            
-            self.component_manager.components[component] = {
-                'type': comp_type,
-                'x': x,
-                'y': y,
-                'width': widget.width(),
-                'height': widget.height()
-            }
-            
-
-            self.selectComponent(widget)
-            
-            logger.info(f"已添加组件：{comp_type}")
-        except Exception:
-            logger.exception('添加组件失败')
-
-    def deleteSelectedComponent(self):
-        """删除选中的组件（使用新的 ComponentManager）"""
-        try:
-            if getattr(self, 'selectedComponent', None):
-                selected = self.selectedComponent
-                # 通过 ComponentManager 删除组件
-                component = self.component_manager.get_component_by_widget(selected)
-                if component:
-                    # 从管理器中删除
-                    self.component_manager.delete_component(component)
-                    # 从 UI 中移除
-                    selected.setParent(None)
-                    selected.deleteLater()
-                    self.deselectComponent()
-                    logger.info(f"已删除组件：{component.COMPONENT_TYPE}")
-                else:
-                    logger.warning("未找到对应的组件实例")
-        except Exception:
-            logger.exception('删除组件失败')
 
     def applyPropertyChanges(self, text: str):
         try:
@@ -868,7 +790,6 @@ class MainWindow(FluentWindow):
             background-color: transparent;
         """)
         self.poetryLabel.setWordWrap(False)
-        
         self.updateClockStyle()
         
         # 时钟容器
@@ -876,8 +797,7 @@ class MainWindow(FluentWindow):
         clockLayout = QVBoxLayout(clockContainer)
         clockLayout.setAlignment(Qt.AlignTop)
         clockLayout.setContentsMargins(0, 100, 0, 0)
-        clockLayout.setSpacing(0)  # 时钟和日期之间的间距
-        
+        clockLayout.setSpacing(0)
         clockLayout.addWidget(self.clockLabel)
         clockLayout.addWidget(self.dateLabel)
         clockContainer.setStyleSheet("background-color: transparent;")
@@ -890,8 +810,6 @@ class MainWindow(FluentWindow):
         weatherLayout.setSpacing(10)
         self.weatherTempLabel.setAlignment(Qt.AlignCenter)
         self.weatherIconLabel.setAlignment(Qt.AlignCenter)
-
-        
         weatherLayout.addWidget(self.weatherTempLabel)
         weatherLayout.addWidget(self.weatherIconLabel)
         weatherContainer.setStyleSheet("background-color: transparent;")
@@ -938,7 +856,6 @@ class MainWindow(FluentWindow):
         
         self.addSubInterface(home, FIF.HOME, "主界面")
         
-        # 初始化编辑按钮位置（在 editPanel 创建后调用）
         self.editPanelCreated = False
         
         self.wallpaper = WallpaperInterface(mainWindow=self)
@@ -1000,24 +917,27 @@ class MainWindow(FluentWindow):
     def resizeEvent(self, event):
         """ 窗口大小变化时调整图片大小 """
         super().resizeEvent(event)
-        if hasattr(self, 'homeBackgroundImage'):
-            available_width = self.width() - 50
-            available_height = self.height()
-            
-            if hasattr(self, 'originalPixmap') and self.originalPixmap is not None and not self.originalPixmap.isNull():
-                scaled_pixmap = self.originalPixmap.scaled(available_width, available_height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+        if hasattr(self, 'homeBackgroundImage') and self.homeBackgroundImage:
+            try:
+                available_width = self.width() - 50
+                available_height = self.height()
                 
-                # 应用模糊效果
-                blur_effect = QGraphicsBlurEffect()
-                blur_radius = cfg.backgroundBlurRadius.value
-                blur_effect.setBlurRadius(blur_radius)
-                self.homeBackgroundImage.setGraphicsEffect(blur_effect)
+                if hasattr(self, 'originalPixmap') and self.originalPixmap is not None and not self.originalPixmap.isNull():
+                    scaled_pixmap = self.originalPixmap.scaled(available_width, available_height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+                    
+                    # 应用模糊效果
+                    blur_effect = QGraphicsBlurEffect()
+                    blur_radius = cfg.backgroundBlurRadius.value
+                    blur_effect.setBlurRadius(blur_radius)
+                    self.homeBackgroundImage.setGraphicsEffect(blur_effect)
+                    
+                    self.homeBackgroundImage.setPixmap(scaled_pixmap)
+                else:
+                    self.homeBackgroundImage.setMinimumSize(available_width, available_height)
                 
-                self.homeBackgroundImage.setPixmap(scaled_pixmap)
-            else:
-                self.homeBackgroundImage.setMinimumSize(available_width, available_height)
-            
-            QApplication.processEvents()
+                QApplication.processEvents()
+            except Exception as e:
+                logger.error(f"resizeEvent 错误：{e}")
 
     def moveToCenter(self):
         """ 移动窗口到屏幕中央 """
@@ -1040,9 +960,7 @@ class MainWindow(FluentWindow):
         solarString = currentDate.toString("yyyy 年 M 月 d 日 dddd")
         
         if cfg.showLunarCalendar.value:
-            # 农历日期
             try:
-                # QDate 转换为 datetime.datetime 对象
                 py_datetime = datetime.datetime(currentDate.year(), currentDate.month(), currentDate.day(), 0, 0, 0)
                 lunar = cnlunar.Lunar(py_datetime)
                 lunarMonthCn = lunar.lunarMonthCn
@@ -1326,9 +1244,9 @@ class MainWindow(FluentWindow):
             self.weatherIconLabel.clear()
     
     def __updateWeatherIcon(self):
-        """ 更新天气图标大小 """
+        """ 更新天气图标 """
         try:
-            if not hasattr(self, 'current_weather_code'):
+            if not hasattr(self, 'current_weather_code') or self.current_weather_code is None:
                 return
             
             # 代码到图标文件的映射
