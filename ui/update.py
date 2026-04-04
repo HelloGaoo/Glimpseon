@@ -296,7 +296,10 @@ class UpdateInterface(BaseScrollAreaInterface):
                     self.checkUpdateButton.setEnabled(True)
                     self.updateStatusLabel.setText(f"更新 UI 失败：{str(e)}")
         
-        QTimer.singleShot(100, do_check)
+        if auto_check:
+            do_check()
+        else:
+            QTimer.singleShot(100, do_check)
     
     def __downloadUpdate(self, auto_update=False):
         """下载并安装更新"""

@@ -307,6 +307,10 @@ class MainWindow(FluentWindow):
         self.updateInterface = UpdateInterface(parent=self)
         self.addSubInterface(self.updateInterface, FIF.SYNC, "更新", NavigationItemPosition.BOTTOM)
         
+        if cfg.autoCheckUpdate.value:
+            logger.info("自动检查更新已启用")
+            self.updateInterface._UpdateInterface__checkUpdate(auto_check=True)
+        
         self.aboutInterface = AboutInterface(parent=self)
         self.addSubInterface(self.aboutInterface, FIF.INFO, "关于", NavigationItemPosition.BOTTOM)
         
@@ -573,12 +577,6 @@ class MainWindow(FluentWindow):
         if cfg.autoOpenOnIdle.value:
             self.idleTimer.stop()
             logger.debug("窗口显示，已停止空闲检测")
-        
-        if cfg.autoCheckUpdate.value:
-            logger.info("自动检查更新已启用，检查更新中")
-            if hasattr(self, 'updateInterface'):
-                # 统一执行一次版本检查（会自动获取更新日志）
-                QTimer.singleShot(1000, lambda: self.updateInterface._UpdateInterface__checkUpdate(auto_check=True))
     
     def hide(self):
         """隐藏窗口"""
