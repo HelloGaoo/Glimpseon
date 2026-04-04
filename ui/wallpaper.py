@@ -225,6 +225,12 @@ class WallpaperInterface(ScrollArea):
             wallpaper_api = cfg.wallpaperApi.value
             if wallpaper_api == "api.ltyuanfang.cn":
                 url = "https://tu.ltyuanfang.cn/api/fengjing.php"
+            elif wallpaper_api == "imlcd.cn_bg_high":
+                url = "https://api.imlcd.cn/bg/high.php"
+            elif wallpaper_api == "imlcd.cn_bg_mc":
+                url = "https://api.imlcd.cn/bg/mc.php"
+            elif wallpaper_api == "imlcd.cn_bg_gq":
+                url = "https://api.imlcd.cn/bg/gq.php"
             else:
                 url = "https://wp.upx8.com/api.php?content=风景"
             logger.info(f"请求壁纸 URL: {url}")

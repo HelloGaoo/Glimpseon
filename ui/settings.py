@@ -208,7 +208,7 @@ class SettingInterface(ScrollArea):
             FIF.LINK,
             "壁纸 API",
             "选择获取壁纸的 API 源",
-            texts=["wp.upx8.com", "api.ltyuanfang.cn"],
+            texts=["wp.upx8.com", "api.ltyuanfang.cn", "Bing 每日背景", "横屏 MC 酱", "横屏高清风景"],
             parent=self.wallpaperGroup
         )
         self.autoSyncToDesktopCard = SwitchSettingCard(

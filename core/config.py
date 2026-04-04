@@ -135,7 +135,7 @@ class Config(QConfig):
         "Wallpaper", "AutoSyncToDesktop", True, BoolValidator()
     )
     wallpaperApi = OptionsConfigItem(
-        "Wallpaper", "WallpaperApi", "wp.upx8.com", OptionsValidator(["wp.upx8.com", "api.ltyuanfang.cn"])
+        "Wallpaper", "WallpaperApi", "wp.upx8.com", OptionsValidator(["wp.upx8.com", "api.ltyuanfang.cn", "imlcd.cn_bg_high", "imlcd.cn_bg_mc", "imlcd.cn_bg_gq"])
     )
     backgroundBlurRadius = RangeConfigItem(
         "Appearance", "BackgroundBlurRadius", 0, RangeValidator(0, 30)
