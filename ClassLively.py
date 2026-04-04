@@ -325,6 +325,7 @@ class MainWindow(FluentWindow):
         self.clockTimer = QTimer(self)
         self.clockTimer.timeout.connect(self.__updateClock)
         self.clockTimer.start(1000)
+        cfg.showClock.valueChanged.connect(self.__updateClock)
         cfg.showClockSeconds.valueChanged.connect(self.__updateClock)
         cfg.showLunarCalendar.valueChanged.connect(self.__updateClock)
         cfg.clockColor.valueChanged.connect(self.updateClockStyle)
@@ -342,12 +343,14 @@ class MainWindow(FluentWindow):
         cfg.showPoetry.valueChanged.connect(self.__updatePoetry)
         cfg.poetryApiUrl.valueChanged.connect(self.__updatePoetry)
         cfg.poetryUpdateInterval.valueChanged.connect(self.__updatePoetryInterval)
+        cfg.showPoetry.valueChanged.connect(self.__updatePoetry)
         self.__updatePoetryInterval()
         
         # 天气更新定时器
         self.weatherTimer = QTimer(self)
         self.weatherTimer.timeout.connect(self.__updateWeather)
         cfg.weatherUpdateInterval.valueChanged.connect(self.__updateWeatherInterval)
+        cfg.showWeather.valueChanged.connect(self.__updateWeather)
         
         # 初始更新天气
         self.__updateWeatherInterval()
@@ -869,6 +872,14 @@ class MainWindow(FluentWindow):
     
     def __updateClock(self):
         """ 更新时钟显示 """
+        if not cfg.showClock.value:
+            self.clockLabel.hide()
+            self.dateLabel.hide()
+            return
+        
+        self.clockLabel.show()
+        self.dateLabel.show()
+        
         currentTime = QTime.currentTime()
         currentDate = QDate.currentDate()
         
@@ -997,6 +1008,12 @@ class MainWindow(FluentWindow):
     
     def __updatePoetry(self):
         """ 更新诗词显示 """
+        if not cfg.showPoetry.value:
+            self.poetryLabel.hide()
+            return
+        
+        self.poetryLabel.show()
+        
         logger.debug("开始更新诗词")
         
         try:
@@ -1009,21 +1026,23 @@ class MainWindow(FluentWindow):
                 poetry_text = response.text.strip()
                 self.poetryLabel.setText(poetry_text)
                 logger.info(f"已更新诗词：{poetry_text[:50]}")
-                if cfg.showPoetry.value:
-                    self.poetryLabel.show()
-                else:
-                    self.poetryLabel.hide()
             else:
                 logger.error(f"诗词 API 请求失败，状态码：{response.status_code}")
                 self.poetryLabel.setText("他山之石，可以攻玉。——《诗经·小雅·鹤鸣》")
-                self.poetryLabel.show()
         except Exception as e:
             logger.error(f"诗词更新失败：{e}")
             self.poetryLabel.setText("他山之石，可以攻玉。——《诗经·小雅·鹤鸣》")
-            self.poetryLabel.show()
     
     def __updateWeather(self):
         """ 更新天气显示 """
+        if not cfg.showWeather.value:
+            self.weatherTempLabel.hide()
+            self.weatherIconLabel.hide()
+            return
+        
+        self.weatherTempLabel.show()
+        self.weatherIconLabel.show()
+        
         success = False
         try:
             city = cfg.city.value

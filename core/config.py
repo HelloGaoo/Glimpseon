@@ -140,6 +140,9 @@ class Config(QConfig):
     backgroundBlurRadius = RangeConfigItem(
         "Appearance", "BackgroundBlurRadius", 0, RangeValidator(0, 30)
     )
+    showClock = ConfigItem(
+        "Time", "ShowClock", True, BoolValidator()
+    )
     showClockSeconds = ConfigItem(
         "Time", "ShowClockSeconds", True, BoolValidator()
     )
@@ -155,6 +158,9 @@ class Config(QConfig):
     )
     showPoetry = ConfigItem(
         "Poetry", "ShowPoetry", True, BoolValidator()
+    )
+    showWeather = ConfigItem(
+        "Weather", "ShowWeather", True, BoolValidator()
     )
     poetryApiUrl = ConfigItem(
         "Poetry", "PoetryApiUrl", "https://www.ffapi.cn/int/v1/shici"
@@ -248,6 +254,7 @@ def get_default_config_dict():
             "BackgroundBlurRadius": 0
         },
         "Time": {
+            "ShowClock": True,
             "ShowClockSeconds": True,
             "ShowLunarCalendar": True,
             "ClockColor": "#FFFFFF",
@@ -261,6 +268,7 @@ def get_default_config_dict():
             "PoetrySize": 16
         },
         "Weather": {
+            "ShowWeather": True,
             "WeatherSize": 24,
             "WeatherIconSize": 64,
             "UpdateInterval": "15 分钟",

@@ -107,6 +107,15 @@ class EditPanel(QWidget):
     def _createTimeSettings(self, layout):
         titleLabel = StrongBodyLabel('时间设置', self)
         layout.addWidget(titleLabel)
+        enableLayout = QHBoxLayout()
+        enableLabel = BodyLabel('启用时钟', self)
+        enableLabel.setFixedWidth(100)
+        enableLayout.addWidget(enableLabel)
+        self.showClockSwitch = SwitchButton(self)
+        self.showClockSwitch.setChecked(cfg.showClock.value)
+        self.showClockSwitch.checkedChanged.connect(self._onShowClockChanged)
+        enableLayout.addWidget(self.showClockSwitch)
+        layout.addLayout(enableLayout)
         secondsLayout = QHBoxLayout()
         secondsLabel = BodyLabel('显示秒针', self)
         secondsLabel.setFixedWidth(100)
@@ -171,15 +180,15 @@ class EditPanel(QWidget):
     def _createPoetrySettings(self, layout):
         titleLabel = StrongBodyLabel('诗词设置', self)
         layout.addWidget(titleLabel)
-        showLayout = QHBoxLayout()
-        showLabel = BodyLabel('显示诗词', self)
-        showLabel.setFixedWidth(100)
-        showLayout.addWidget(showLabel)
+        enableLayout = QHBoxLayout()
+        enableLabel = BodyLabel('启用诗词', self)
+        enableLabel.setFixedWidth(100)
+        enableLayout.addWidget(enableLabel)
         self.showPoetrySwitch = SwitchButton(self)
         self.showPoetrySwitch.setChecked(cfg.showPoetry.value)
         self.showPoetrySwitch.checkedChanged.connect(self._onShowPoetryChanged)
-        showLayout.addWidget(self.showPoetrySwitch)
-        layout.addLayout(showLayout)
+        enableLayout.addWidget(self.showPoetrySwitch)
+        layout.addLayout(enableLayout)
 
         poetryIntervalLayout = QHBoxLayout()
         poetryIntervalLabel = BodyLabel('诗词更新间隔', self)
@@ -217,6 +226,15 @@ class EditPanel(QWidget):
         """创建天气设置部分"""
         titleLabel = StrongBodyLabel('天气设置', self)
         layout.addWidget(titleLabel)
+        enableLayout = QHBoxLayout()
+        enableLabel = BodyLabel('启用天气', self)
+        enableLabel.setFixedWidth(100)
+        enableLayout.addWidget(enableLabel)
+        self.showWeatherSwitch = SwitchButton(self)
+        self.showWeatherSwitch.setChecked(cfg.showWeather.value)
+        self.showWeatherSwitch.checkedChanged.connect(self._onShowWeatherChanged)
+        enableLayout.addWidget(self.showWeatherSwitch)
+        layout.addLayout(enableLayout)
         cityLayout = QHBoxLayout()
         cityLabel = BodyLabel('城市', self)
         cityLabel.setFixedWidth(100)
@@ -363,6 +381,13 @@ class EditPanel(QWidget):
         if hasattr(self.mainWindow, 'deleteSelectedComponent'):
             self.mainWindow.deleteSelectedComponent()
     
+    def _onShowClockChanged(self, checked: bool):
+        """启用时钟开关变化"""
+        cfg.showClock.value = checked
+        if hasattr(self.mainWindow, '_MainWindow__updateClock'):
+            self.mainWindow._MainWindow__updateClock()
+        logger.info(f"时间设置：启用时钟={'开启' if checked else '关闭'}")
+    
     def _onShowSecondsChanged(self, checked: bool):
         """显示秒针开关变化"""
         cfg.showClockSeconds.value = checked
@@ -417,14 +442,14 @@ class EditPanel(QWidget):
         logger.info(f"时间设置：日期大小={value}px")
     
     def _onShowPoetryChanged(self, checked: bool):
-        """显示诗词开关变化"""
+        """启用诗词开关变化"""
         cfg.showPoetry.value = checked
         if hasattr(self.mainWindow, 'homeContent'):
             # 更新所有诗词组件的可见性
             for widget in self.mainWindow.homeContent.findChildren(QWidget):
                 if widget.objectName() == 'poetryWidget':
                     widget.setVisible(checked)
-        logger.info(f"诗词设置：显示诗词={'开启' if checked else '关闭'}")
+        logger.info(f"诗词设置：启用诗词={'开启' if checked else '关闭'}")
     
     def _onPoetryApiChanged(self, text: str):
         """诗词 API 地址变化"""
@@ -445,6 +470,13 @@ class EditPanel(QWidget):
             self.mainWindow.updateClockStyle()
         logger.info(f"诗词设置：诗词大小={value}px")
 
+    def _onShowWeatherChanged(self, checked: bool):
+        """启用天气开关变化"""
+        cfg.showWeather.value = checked
+        if hasattr(self.mainWindow, '_MainWindow__updateWeather'):
+            self.mainWindow._MainWindow__updateWeather()
+        logger.info(f"天气设置：启用天气={'开启' if checked else '关闭'}")
+    
     def _onWeatherSizeChanged(self, value: int):
         """天气文字大小变化"""
         cfg.weatherSize.value = value
