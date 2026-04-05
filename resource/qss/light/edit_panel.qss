@@ -1,12 +1,12 @@
-/* 编辑面板样式 - 深色主题 */
+/* 编辑面板样式 - 浅色主题 */
 #EditPanel {
-    background-color: rgb(32, 32, 32);
+    background-color: rgb(249, 249, 249);
     border: none;
 }
 
 QWidget {
     background-color: transparent;
-    color: #FFFFFF;
+    color: #000000;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 

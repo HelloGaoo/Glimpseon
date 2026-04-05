@@ -44,7 +44,8 @@ from qfluentwidgets import (
     qconfig,
 )
 
-from core.config import cfg, url_dir
+from core.config import cfg
+from data.url_dir import url_dir
 from core.constants import get_resource_path
 from core.downloader import DOWNLOAD_SOURCES, DEFAULT_SOURCE, Downloader, set_download_source
 from core.logger import logger

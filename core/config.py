@@ -38,7 +38,7 @@ from qfluentwidgets import (
     Theme,
 )
 
-from config.url_dir import url_dir
+from data.url_dir import url_dir
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ else:
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from config.url_dir import url_dir
+from data.url_dir import url_dir
 
 
 class ThemeSerializer(ConfigSerializer):

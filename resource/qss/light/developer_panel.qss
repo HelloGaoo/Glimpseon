@@ -2,6 +2,7 @@
 
 #developerPanel {
     background-color: #f3f3f3;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 卡片 */
@@ -9,6 +10,7 @@ CardWidget {
     background-color: #ffffff;
     border-radius: 8px;
     border: 1px solid #d0d0d0;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 CardWidget:hover {

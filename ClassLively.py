@@ -109,6 +109,7 @@ from qfluentwidgets import (
     ScrollArea,
     SettingCardGroup,
     setTheme,
+    setFontFamilies,
     SmoothScrollArea,
     StrongBodyLabel,
     SwitchSettingCard,
@@ -116,7 +117,7 @@ from qfluentwidgets import (
     Theme,
 )
 
-from config.url_dir import url_dir  # type: ignore
+from data.url_dir import url_dir  # type: ignore
 from core.config import cfg, get_default_config_dict
 from core.constants import APP_NAME, BASE_DIR, MEIPASS_DIR, get_resource_path
 from core.downloader import Downloader
@@ -988,7 +989,7 @@ class MainWindow(FluentWindow):
             color: {color_str}; 
             font-size: {clock_size}px; 
             font-weight: bold; 
-            font-family: "Microsoft YaHei", "SimHei", sans-serif;
+            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
         
@@ -1535,6 +1536,41 @@ if __name__ == "__main__":
         with open(config_path, 'w', encoding='utf-8') as f:
             json.dump(default_config, f, ensure_ascii=False, indent=4)
 
+    font_dir = get_resource_path(os.path.join("font", "HarmonyOS_Sans"))
+    font_loaded = False
+    if os.path.exists(font_dir):
+        font_files = [
+            "HarmonyOS_Sans_Thin.ttf",
+            "HarmonyOS_Sans_Light.ttf",
+            "HarmonyOS_Sans_Regular.ttf",
+            "HarmonyOS_Sans_Medium.ttf",
+            "HarmonyOS_Sans_Bold.ttf",
+            "HarmonyOS_Sans_Black.ttf"
+        ]
+        for font_file in font_files:
+            try:
+                font_path = os.path.join(font_dir, font_file)
+                if os.path.exists(font_path):
+                    font_id = QFontDatabase.addApplicationFont(font_path)
+                    if font_id != -1:
+                        font_loaded = True
+                        logger.debug(f"成功加载字体：{font_file}")
+                    else:
+                        logger.warning(f"字体加载失败：{font_file}")
+            except Exception as e:
+                logger.warning(f"加载字体 {font_file} 时发生错误：{e}")
+    else:
+        logger.warning(f"字体目录不存在：{font_dir}")
+    
+    if font_loaded:
+        setFontFamilies(["HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei"], save=False)
+        app.setFont(QFont("HarmonyOS Sans SC", 10))
+        logger.info("字体已设置为：HarmonyOS Sans SC")
+    else:
+        setFontFamilies(["Microsoft YaHei", "SimHei"], save=False)
+        app.setFont(QFont("Microsoft YaHei", 10))
+        logger.info("已使用备用字体：Microsoft YaHei")
+
     if hasattr(cfg.logLevel.value, 'value'):
         log_level_str = cfg.logLevel.value.value
     else:
@@ -1580,41 +1616,6 @@ if __name__ == "__main__":
     logger.info(f"软件运行路径：{BASE_DIR}")
     logger.debug(f"url_dir 内容：{url_dir}")
 
-    font_dir = get_resource_path(os.path.join("font", "HarmonyOS_Sans"))
-    font_loaded = False
-    
-    if os.path.exists(font_dir):
-        font_files = [
-            "HarmonyOS_Sans_Thin.ttf",
-            "HarmonyOS_Sans_Light.ttf",
-            "HarmonyOS_Sans_Regular.ttf",
-            "HarmonyOS_Sans_Medium.ttf",
-            "HarmonyOS_Sans_Bold.ttf",
-            "HarmonyOS_Sans_Black.ttf"
-        ]
-        
-        for font_file in font_files:
-            try:
-                font_path = os.path.join(font_dir, font_file)
-                if os.path.exists(font_path):
-                    font_id = QFontDatabase.addApplicationFont(font_path)
-                    if font_id != -1:
-                        font_loaded = True
-                        logger.debug(f"成功加载字体：{font_file}")
-                    else:
-                        logger.warning(f"字体加载失败：{font_file}")
-            except Exception as e:
-                logger.warning(f"加载字体 {font_file} 时发生错误：{e}")
-    else:
-        logger.warning(f"字体目录不存在：{font_dir}")
-    
-    if font_loaded:
-        QApplication.setFont(QFont("HarmonyOS Sans SC", 10))
-        logger.info("字体已设置为：HarmonyOS Sans SC")
-    else:
-        QApplication.setFont(QFont("Microsoft YaHei", 10))
-        logger.info("HarmonyOS Sans SC加载失败，已使用备用字体：Microsoft YaHei")
-    
     setup_exception_hook()
 
     window = MainWindow()
