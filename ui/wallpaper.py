@@ -252,11 +252,7 @@ class WallpaperInterface(ScrollArea):
                 logger.info(f"壁纸已保存到: {wallpaper_path}")
                 
                 # 管理壁纸保存量
-                if cfg.developerMode.value:
-                    save_limit = 3
-                    logger.info("开发者模式：壁纸最多保留 3 个")
-                else:
-                    save_limit = cfg.wallpaperSaveLimit.value
+                save_limit = cfg.wallpaperSaveLimit.value
                 self.__manageWallpaperLimit(wallpaper_dir, save_limit)
                 
                 self.current_pixmap = QPixmap(wallpaper_path)

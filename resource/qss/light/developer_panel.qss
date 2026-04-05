@@ -1,0 +1,238 @@
+/* 开发者面板*/
+
+#developerPanel {
+    background-color: #f3f3f3;
+}
+
+/* 卡片样式 */
+CardWidget {
+    background-color: #ffffff;
+    border-radius: 8px;
+    border: 1px solid #d0d0d0;
+}
+
+CardWidget:hover {
+    border: 1px solid #0078d4;
+}
+
+/* 标题样式 */
+SubtitleLabel {
+    color: #000000;
+    font-size: 18px;
+    font-weight: bold;
+    padding: 10px 0;
+}
+
+BodyLabel {
+    color: #333333;
+    font-size: 14px;
+}
+
+StrongBodyLabel {
+    color: #000000;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+/* 按钮样式 */
+PrimaryPushButton {
+    background-color: #0078d4;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-weight: bold;
+}
+
+PrimaryPushButton:hover {
+    background-color: #1084d8;
+}
+
+PrimaryPushButton:pressed {
+    background-color: #006cbe;
+}
+
+PushButton {
+    background-color: #e0e0e0;
+    color: #000000;
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    padding: 6px 12px;
+}
+
+PushButton:hover {
+    background-color: #f0f0f0;
+}
+
+PushButton:pressed {
+    background-color: #d0d0d0;
+}
+
+ToggleButton {
+    background-color: #e0e0e0;
+    color: #000000;
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    padding: 6px 12px;
+}
+
+ToggleButton:checked {
+    background-color: #0078d4;
+    border-color: #0078d4;
+    color: #ffffff;
+}
+
+ToggleButton:hover {
+    background-color: #f0f0f0;
+}
+
+/* 文本编辑框样式 */
+QTextEdit {
+    background-color: #f9f9f9;
+    color: #333333;
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
+    padding: 8px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 13px;
+}
+
+QTextEdit:focus {
+    border: 1px solid #0078d4;
+}
+
+QTextEdit:disabled {
+    background-color: #f0f0f0;
+    color: #888888;
+}
+
+/* 滚动区域样式 */
+QScrollArea {
+    background-color: transparent;
+    border: none;
+}
+
+QScrollBar:vertical {
+    background-color: #f3f3f3;
+    width: 12px;
+    border-radius: 6px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #cccccc;
+    border-radius: 6px;
+    min-height: 20px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #bbbbbb;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+/* 布局间距 */
+QVBoxLayout, QHBoxLayout, QGridLayout {
+    spacing: 10px;
+    margin: 0px;
+}
+
+/* 分组框样式 */
+QGroupBox {
+    background-color: #ffffff;
+    border: 1px solid #d0d0d0;
+    border-radius: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    font-weight: bold;
+    color: #000000;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 10px;
+    padding: 0 5px;
+    color: #0078d4;
+}
+
+/* 进度条样式 */
+QProgressBar {
+    background-color: #e0e0e0;
+    border: none;
+    border-radius: 4px;
+    text-align: center;
+    color: #000000;
+    height: 20px;
+}
+
+QProgressBar::chunk {
+    background-color: #0078d4;
+    border-radius: 4px;
+}
+
+/* 下拉框样式 */
+ComboBox {
+    background-color: #ffffff;
+    color: #000000;
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    padding: 6px 12px;
+}
+
+ComboBox:hover {
+    border-color: #0078d4;
+}
+
+ComboBox::drop-down {
+    border: none;
+    width: 20px;
+}
+
+ComboBox::down-arrow {
+    image: none;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid #000000;
+    margin-right: 10px;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #ffffff;
+    color: #000000;
+    border: 1px solid #d0d0d0;
+    selection-background-color: #0078d4;
+}
+
+/* 复选框样式 */
+QCheckBox {
+    color: #000000;
+    spacing: 8px;
+}
+
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 1px solid #cccccc;
+    background-color: #ffffff;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #0078d4;
+    border-color: #0078d4;
+}
+
+/* 标签样式 */
+QLabel {
+    color: #333333;
+    background-color: transparent;
+}
+
+/* 分隔线 */
+Line {
+    background-color: #d0d0d0;
+    max-height: 1px;
+}

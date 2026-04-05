@@ -68,7 +68,7 @@ class WeatherService:
         }
     
     def set_city_code(self, city_code: str):
-        """设置城市代码·"""
+        """设置城市代码"""
         self.city_code = city_code
     
     def get_weather(self) -> Optional[Dict[str, Any]]:

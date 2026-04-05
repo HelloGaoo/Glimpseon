@@ -48,6 +48,8 @@ import ctypes
 import json
 import threading
 import shutil
+import time
+from ui.developer_panel import DeveloperPanel
 import datetime
 import cnlunar
 import winreg
@@ -484,10 +486,45 @@ class MainWindow(FluentWindow):
         cfg.themeChanged.connect(self.downloadInterface._onThemeChanged)
         cfg.themeChanged.connect(self.wallpaper._onThemeChanged)
         cfg.themeChanged.connect(self.aboutInterface._onThemeChanged)
+        cfg.themeChanged.connect(self._onDeveloperPanelThemeChanged)
         
         self.navigationInterface.installEventFilter(self)
         
+        self.developerPanel = None
+        if cfg.developerMode.value:
+            self.initDeveloperPanel()
+        
         logger.info("主窗口初始化完成")
+    
+    def initDeveloperPanel(self):
+        """初始化开发者面板"""
+        self.developerPanel = DeveloperPanel(self)
+        self.developerPanel.hide()
+    
+    def toggleDeveloperPanel(self):
+        """切换显示状态"""
+        if not cfg.developerMode.value:
+            InfoBar.warning(
+                title="开发者模式未启用",
+                content="请在设置中启用开发者模式后再使用此功能",
+                parent=self,
+                duration=3000
+            )
+            return
+        if self.developerPanel is None:
+            self.initDeveloperPanel()
+        if self.developerPanel.isVisible():
+            self.developerPanel.hide()
+        else:
+            self.developerPanel.show()
+            self.developerPanel.activateWindow()
+    
+    def keyPressEvent(self, event):
+        """F12事件"""
+        if event.key() == Qt.Key_F12:
+            self.toggleDeveloperPanel()
+            return
+        super().keyPressEvent(event)
     
     def eventFilter(self, obj, event):
         """ 拦截导航切换"""
@@ -506,6 +543,11 @@ class MainWindow(FluentWindow):
             self.editPanel._updateTheme()
             self.editPanel.updateListItemColors()
     
+    def _onDeveloperPanelThemeChanged(self):
+        """主题变化时重新加载开发者面板样式"""
+        if hasattr(self, 'developerPanel') and self.developerPanel:
+            self.developerPanel._updateTheme()
+    
     def initSystemTray(self):
         """ 初始化系统托盘 """
         icon_path = get_resource_path(os.path.join("resource", "icons", "CY.png"))
@@ -519,6 +561,10 @@ class MainWindow(FluentWindow):
         show_action = Action(FIF.HOME, "显示主窗口", self)
         show_action.triggered.connect(self.show)
         self.tray_menu.addAction(show_action)
+        if cfg.developerMode.value:
+            dev_action = Action(FIF.SETTING, "开发者工具", self)
+            dev_action.triggered.connect(self.toggleDeveloperPanel)
+            self.tray_menu.addAction(dev_action)
         
         exit_action = Action(FIF.CLOSE, "退出", self)
         exit_action.triggered.connect(QApplication.quit)
