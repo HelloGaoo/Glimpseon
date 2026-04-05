@@ -26,13 +26,18 @@ APP_NAME = "ClassLively"
 # 获取项目根目录
 if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
+    MEIPASS_DIR = sys._MEIPASS
 else:
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    MEIPASS_DIR = None
 
 
 def get_resource_path(relative_path):
-    """获取资源的绝对路径"""
-    if hasattr(sys, '_MEIPASS'):
-        # PyInstaller 打包后的临时目录
-        return os.path.join(sys._MEIPASS, relative_path)
-    return os.path.join(os.path.abspath("."), relative_path)
+    base_path = os.path.join(BASE_DIR, relative_path)
+    if os.path.exists(base_path):
+        return base_path
+    if MEIPASS_DIR:
+        meipass_path = os.path.join(MEIPASS_DIR, relative_path)
+        if os.path.exists(meipass_path):
+            return meipass_path
+    return base_path

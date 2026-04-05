@@ -71,9 +71,6 @@ from version import VERSION, BUILD_DATE
 
 from services.weather import WeatherService
 
-from widgets.clock import ClockComponent
-from widgets.weather import WeatherComponent
-
 from ui.settings import SettingInterface
 from ui.city_selector import RegionDatabase
 from ui.wallpaper import WallpaperInterface
@@ -301,21 +298,7 @@ def extract_bundled_files():
                             shutil.copy2(src_file, dst_file)
                             logger.info(f"已提取文件: {os.path.join(folder, rel_path, file)}")
                         except Exception as e:
-                            logger.error(f"提取文件 {os.path.join(folder, rel_path, file)} 失败: {e}")
-
-def get_resource_path(relative_path):
-    """获取绝对路径"""
-    # 先检查BASE_DIR中的资源文件
-    base_path = os.path.join(BASE_DIR, relative_path)
-    if os.path.exists(base_path):
-        return base_path
-    # 如果BASE_DIR中不存在，检查MEIPASS_DIR
-    if MEIPASS_DIR:
-        meipass_path = os.path.join(MEIPASS_DIR, relative_path)
-        if os.path.exists(meipass_path):
-            return meipass_path
-    # 如果都不存在，返回BASE_DIR中的路径
-    return base_path
+                            logger.error(f"提取文件 {os.path.join(folder, rel_path, file)} 失败：{e}")
 
 def get_auto_start_status():
     """获取开机自启动状态"""

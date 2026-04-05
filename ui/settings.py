@@ -31,6 +31,7 @@ from qfluentwidgets import (
 )
 from core.config import cfg, get_default_config_dict
 from core.logger import log_dir
+from core.constants import get_resource_path
 from ui.city_selector import RegionSelectorDialog
 
 
@@ -92,30 +93,6 @@ class ButtonSettingCard(SettingCard):
 
         self.hBoxLayout.addWidget(self.button, 0, Qt.AlignRight)
         self.hBoxLayout.addSpacing(16)
-
-# 路径设置
-if getattr(sys, 'frozen', False):
-    # 打包为 exe 时
-    BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
-    MEIPASS_DIR = sys._MEIPASS
-else:
-    # 脚本运行时
-    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    MEIPASS_DIR = None
-
-def get_resource_path(relative_path):
-    """获取绝对路径"""
-    # 先检查 BASE_DIR 中的资源文件
-    base_path = os.path.join(BASE_DIR, relative_path)
-    if os.path.exists(base_path):
-        return base_path
-    # 如果 BASE_DIR 中不存在，检查 MEIPASS_DIR
-    if MEIPASS_DIR:
-        meipass_path = os.path.join(MEIPASS_DIR, relative_path)
-        if os.path.exists(meipass_path):
-            return meipass_path
-    # 如果都不存在，返回 BASE_DIR 中的路径
-    return base_path
 
 
 class SettingInterface(ScrollArea):

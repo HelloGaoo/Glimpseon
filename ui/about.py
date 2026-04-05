@@ -31,30 +31,7 @@ from qfluentwidgets import CardWidget, FluentIcon as FIF, ScrollArea, SmoothScro
 
 from .base_scroll_area import BaseScrollAreaInterface
 from version import VERSION, BUILD_DATE
-
-# 路径设置
-if getattr(sys, 'frozen', False):
-    # 打包为 exe 时
-    BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    MEIPASS_DIR = sys._MEIPASS
-else:
-    # 脚本运行时
-    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    MEIPASS_DIR = None
-
-def get_resource_path(relative_path):
-    """获取绝对路径"""
-    # 先检查 BASE_DIR 中的资源文件
-    base_path = os.path.join(BASE_DIR, relative_path)
-    if os.path.exists(base_path):
-        return base_path
-    # 如果 BASE_DIR 中不存在，检查 MEIPASS_DIR
-    if MEIPASS_DIR:
-        meipass_path = os.path.join(MEIPASS_DIR, relative_path)
-        if os.path.exists(meipass_path):
-            return meipass_path
-    # 如果都不存在，返回 BASE_DIR 中的路径
-    return base_path
+from core.constants import get_resource_path
 
 
 class AboutInterface(BaseScrollAreaInterface):
