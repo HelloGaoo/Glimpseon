@@ -72,11 +72,9 @@ class LineEditSettingCard(SettingCard):
 
     def __onTextChanged(self, text):
         try:
-            # 将文本转换为浮点数
             value = float(text)
             qconfig.set(self.configItem, value)
-        except ValueError:
-            pass
+        except ValueError:pass
 
     def setValue(self, value):
         self.lineEdit.setText(str(value))
@@ -89,10 +87,8 @@ class SpinBoxSettingCard(SettingCard):
         self.spinBox = SpinBox(self)
         self.spinBox.setRange(min_value, max_value)
         self.spinBox.setValue(qconfig.get(configItem))
-
         self.hBoxLayout.addWidget(self.spinBox, 0, Qt.AlignRight)
         self.hBoxLayout.addSpacing(16)
-
         self.spinBox.valueChanged.connect(self.__onValueChanged)
         configItem.valueChanged.connect(self.setValue)
 
@@ -104,26 +100,22 @@ class SpinBoxSettingCard(SettingCard):
 
 
 class ButtonSettingCard(SettingCard):
-    """ 带按钮的设置卡片 """
+    """ 按钮设置卡片 """
 
     def __init__(self, icon, title, content=None, parent=None):
         super().__init__(icon, title, content, parent)
         self.button = PushButton(FIF.EDIT, "执行", self)
-
         self.hBoxLayout.addWidget(self.button, 0, Qt.AlignRight)
         self.hBoxLayout.addSpacing(16)
 
 
 class SettingInterface(ScrollArea):
     """ 设置界面 """
-
     def __init__(self, parent=None):
         super().__init__(parent=parent)
         self.scrollWidget = QWidget()
         self.expandLayout = ExpandLayout(self.scrollWidget)
-
         self.settingLabel = QLabel("设置", self)
-
         self.basicGroup = SettingCardGroup("基本", self.scrollWidget)
         self.autoStartCard = SwitchSettingCard(
             FIF.PLAY, 
@@ -155,7 +147,6 @@ class SettingInterface(ScrollArea):
             configItem=cfg.autoOpenMaximize,
             parent=self.basicGroup
         )
-
         self.appearanceGroup = SettingCardGroup("外观", self.scrollWidget)
         self.themeCard = ComboBoxSettingCard(
             cfg.themeMode,
@@ -214,7 +205,6 @@ class SettingInterface(ScrollArea):
             configItem=cfg.autoSyncToDesktop,
             parent=self.wallpaperGroup
         )
-        
         self.logGroup = SettingCardGroup("日志", self.scrollWidget)
         self.disableLogCard = SwitchSettingCard(
             FIF.CLOSE, 
@@ -257,7 +247,6 @@ class SettingInterface(ScrollArea):
         )
         self.logGroup.addSettingCard(self.clearLogCard)
         self.clearLogCard.button.setText("清空日志")
-
         self.__initWidget()
 
     def __initWidget(self):
@@ -267,7 +256,6 @@ class SettingInterface(ScrollArea):
         self.setViewportMargins(0, 120, 0, 20)
         self.setWidget(self.scrollWidget)
         self.setWidgetResizable(True)
-
         self.__setQss()
         self.__initLayout()
         self.__connectSignalToSlot()
@@ -275,26 +263,21 @@ class SettingInterface(ScrollArea):
     def __initLayout(self):
         """ 初始化布局 """
         self.settingLabel.move(60, 63)
-
         self.basicGroup.addSettingCard(self.autoStartCard)
         self.basicGroup.addSettingCard(self.autoOpenOnIdleCard)
         self.basicGroup.addSettingCard(self.idleMinutesCard)
         self.basicGroup.addSettingCard(self.autoOpenMaximizeCard)
-        
         self.appearanceGroup.addSettingCard(self.themeCard)
         self.appearanceGroup.addSettingCard(self.themeColorCard)
         self.appearanceGroup.addSettingCard(self.backgroundBlurCard)
-        
         self.wallpaperGroup.addSettingCard(self.wallpaperSaveLimitCard)
         self.wallpaperGroup.addSettingCard(self.autoGetIntervalCard)
         self.wallpaperGroup.addSettingCard(self.wallpaperApiCard)
         self.wallpaperGroup.addSettingCard(self.autoSyncToDesktopCard)
-        
         self.logGroup.addSettingCard(self.disableLogCard)
         self.logGroup.addSettingCard(self.logLevelCard)
         self.logGroup.addSettingCard(self.logMaxCountCard)
         self.logGroup.addSettingCard(self.logMaxDaysCard)
-
         self.otherGroup = SettingCardGroup("其他", self.scrollWidget)
         self.closeActionCard = ComboBoxSettingCard(
             cfg.closeAction,
@@ -329,7 +312,6 @@ class SettingInterface(ScrollArea):
             parent=self.otherGroup
         )
         self.otherGroup.addSettingCard(self.developerModeCard)
-
         self.expandLayout.setSpacing(28)
         self.expandLayout.setContentsMargins(60, 10, 60, 0)
         self.expandLayout.addWidget(self.basicGroup)
@@ -342,22 +324,18 @@ class SettingInterface(ScrollArea):
         """ 设置样式表 """
         self.scrollWidget.setObjectName('scrollWidget')
         self.settingLabel.setObjectName('settingLabel')
-
         theme = 'dark' if isDarkTheme() else 'light'
         try:
             qss_path = get_resource_path(os.path.join('resource', 'qss', theme, 'setting_interface.qss'))
-            with open(qss_path, encoding='utf-8') as f:
-                self.setStyleSheet(f.read())
-        except Exception:
-            pass
+            with open(qss_path, encoding='utf-8') as f:self.setStyleSheet(f.read())
+        except Exception:pass
 
     def __onThemeChanged(self, theme: Theme):
-        """ 主题变更槽函数 """
+        """ 主题变更 """
         setTheme(theme)
         self.__setQss()
 
     def __showRestartTooltip(self):
-        """ 显示重启提示 """
         InfoBar.warning(
             '',
             "配置需要重启应用程序才能生效",
@@ -366,33 +344,22 @@ class SettingInterface(ScrollArea):
         )
 
     def __onDisableLogChanged(self, disabled):
-        """ 日志禁用状态变更槽函数 """
-        # 当禁用日志时，禁用其他日志相关设置
+        """ 日志禁用状态变更 """
         self.logLevelCard.setEnabled(not disabled)
         self.logMaxCountCard.setEnabled(not disabled)
         self.logMaxDaysCard.setEnabled(not disabled)
     
     def __connectSignalToSlot(self):
-        """ 连接信号与槽 """
         cfg.themeChanged.connect(self.__onThemeChanged)
         self.themeColorCard.colorChanged.connect(setThemeColor)
         cfg.appRestartSig.connect(self.__showRestartTooltip)
-        
-        # 连接日志禁用信号
         self.disableLogCard.checkedChanged.connect(self.__onDisableLogChanged)
-        
-        # 连接恢复默认设置按钮
         self.resetDefaultCard.button.clicked.connect(self.__resetDefaultSettings)
-        
-        # 连接清空日志按钮
         self.clearLogCard.button.clicked.connect(self.__clearLog)
-    
-        # 初始状态设置
         self.__onDisableLogChanged(cfg.disableLog.value)
     
     def __resetDefaultSettings(self):
         """ 恢复默认设置 """
-        
         msgBox = MessageBox(
             "恢复默认设置",
             "确定要将所有设置恢复到默认值吗？",
@@ -400,25 +367,23 @@ class SettingInterface(ScrollArea):
         )
         msgBox.yesButton.setText("确定")
         msgBox.cancelButton.setText("取消")
-        
         if msgBox.exec() == 1: 
             try:
                 config_path = os.path.join(BASE_DIR, 'config', 'config.json')
                 if os.path.exists(config_path):
                     os.remove(config_path)
-                
                 config_dir = os.path.join(BASE_DIR, 'config')
-                if not os.path.exists(config_dir):
-                    os.makedirs(config_dir)
+                if not os.path.exists(config_dir):os.makedirs(config_dir)
                 default_config = get_default_config_dict()
-                
-                with open(config_path, 'w', encoding='utf-8') as f:
-                    json.dump(default_config, f, ensure_ascii=False, indent=4)
-                
-                # 重新加载配置
+                with open(config_path, 'w', encoding='utf-8') as f:json.dump(default_config, f, ensure_ascii=False, indent=4)
                 qconfig.load(config_path, cfg)
-                
-                # 触发主题刷新
+                from core.font_manager import apply_fonts
+                from PyQt5.QtWidgets import QApplication
+                app = QApplication.instance()
+                if app:
+                    from core.font_manager import load_fonts_to_application
+                    font_loaded = load_fonts_to_application()
+                    apply_fonts(app, use_harmonyos=font_loaded)
                 current_theme = cfg.theme.value
                 setTheme(current_theme)
                 cfg.themeChanged.emit(Theme(current_theme))
@@ -439,7 +404,6 @@ class SettingInterface(ScrollArea):
     
     def __clearLog(self):
         """ 清空日志 """
-        
         msgBox = MessageBox(
             "清空日志",
             "确定要清空所有日志文件吗？",
@@ -450,7 +414,6 @@ class SettingInterface(ScrollArea):
         
         if msgBox.exec() == 1:
             try:
-                # 清空日志文件
                 if os.path.exists(log_dir):
                     log_files = []
                     for file in os.listdir(log_dir):
@@ -458,22 +421,18 @@ class SettingInterface(ScrollArea):
                             file_path = os.path.join(log_dir, file)
                             mtime = os.path.getmtime(file_path)
                             log_files.append((mtime, file))
-                    
                     log_files.sort()
                     
                     # 排除当前日志
                     current_log_file = None
-                    if log_files:
-                        current_log_file = log_files[-1][1]
-                    
+                    if log_files:current_log_file = log_files[-1][1]
                     deleted_count = 0
                     for file in os.listdir(log_dir):
                         if file.endswith('.log') and file != current_log_file:
                             try:
                                 os.remove(os.path.join(log_dir, file))
                                 deleted_count += 1
-                            except:
-                                pass
+                            except:pass
                     if deleted_count > 0:
                         InfoBar.success(
                             "成功",
