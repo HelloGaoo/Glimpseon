@@ -216,6 +216,24 @@ class WallpaperInterface(ScrollArea):
         scroll_width = available_width
         scroll_height = min(int(scroll_width * 0.5), available_height)
         self.scrollArea.setFixedSize(scroll_width, scroll_height)
+        self.mainLayout.update()
+        self.scrollWidget.updateGeometry()
+    
+    def showEvent(self, event):
+        """ 界面显示时更新布局 """
+        super().showEvent(event)
+        QTimer.singleShot(30, self._updateLayout)
+    
+    def _updateLayout(self):
+        """ 更新布局 """
+        margin = 60
+        available_width = self.width() - margin * 2
+        available_height = self.height() - 240
+        scroll_width = available_width
+        scroll_height = min(int(scroll_width * 0.5), available_height)
+        self.scrollArea.setFixedSize(scroll_width, scroll_height)
+        self.mainLayout.update()
+        self.scrollWidget.updateGeometry()
 
     def __getWallpaper(self):
         """ 获取壁纸 """
