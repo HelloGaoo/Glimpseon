@@ -16,83 +16,47 @@
 
 """
 进程管理模块
-提供 ClassLively 进程检测和管理功能
 """
 
 import os
 import time
-
 import psutil
-
 from core.logger import logger
 
-
-def _is_classlively_process(proc_info, current_pid=None):
-    """
-    检查进程是否是 ClassLively 进程
-    
-    Args:
-        proc_info: 进程信息字典，包含 'pid', 'name', 'cmdline'
-        current_pid: 当前进程的 PID，如果提供则跳过该进程
-        
-    Returns:
-        bool: 如果是 ClassLively 进程返回 True，否则返回 False
-    """
-    if current_pid is not None and proc_info['pid'] == current_pid:
-        return False
-    
-    if proc_info['name'] == 'ClassLively.exe':
-        return True
-    
-    if proc_info['name'] in ['python.exe', 'pythonw.exe']:
-        try:
-            cmdline = proc_info['cmdline']
-            if not cmdline:
-                return False
-            cmdline_str = ' '.join(cmdline)
-            if 'debugpy' in cmdline_str.lower():
-                return False
-            if any('ClassLively' in arg for arg in cmdline):
-                return True
-        except (psutil.NoSuchProcess, psutil.AccessDenied, IndexError):
-            pass
-    
+def _is_classlively_process(proc, current_pid=None):
+    """是否 ClassLively"""
+    try:
+        pid = proc.pid
+        if current_pid is not None and pid == current_pid:return False
+        name = proc.name()
+        if name == 'ClassLively.exe':return True
+        if name in ['python.exe', 'pythonw.exe']:
+            try:
+                cmdline = proc.cmdline()
+                if not cmdline:return False
+                cmdline_str = ' '.join(cmdline)
+                if 'debugpy' in cmdline_str.lower():return False
+                if any('ClassLively' in arg for arg in cmdline):return True
+            except (psutil.NoSuchProcess, psutil.AccessDenied, IndexError):pass
+    except (psutil.NoSuchProcess, psutil.AccessDenied):pass
     return False
 
 
 def _find_classlively_processes(current_pid=None):
-    """
-    查找所有 ClassLively 进程
-    
-    Args:
-        current_pid: 当前进程的 PID，如果提供则跳过该进程
-        
-    Returns:
-        list: 包含进程 PID 的列表
+    """查找所有软件进程
     """
     pids = []
-    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+    for proc in psutil.process_iter(['pid', 'name']):
         try:
-            if _is_classlively_process(proc.info, current_pid):
-                pids.append(proc.info['pid'])
-                logger.info(f"发现 ClassLively 进程 PID: {proc.info['pid']}, 名称: {proc.info['name']}")
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            continue
+            if _is_classlively_process(proc, current_pid):
+                pids.append(proc.pid)
+                logger.info(f"发现 ClassLively 进程 PID: {proc.pid}, 名称: {proc.name()}")
+        except (psutil.NoSuchProcess, psutil.AccessDenied):continue
     return pids
 
 
 def _wait_for_processes_exit(pids, max_wait=3, check_interval=0.5):
-    """
-    等待进程退出
-    
-    Args:
-        pids: 要等待的进程 PID 列表
-        max_wait: 最大等待时间（秒）
-        check_interval: 检查间隔（秒）
-        
-    Returns:
-        int: 仍在运行的进程数量
-    """
+    """等待进程退出"""
     start_time = time.time()
     
     while time.time() - start_time < max_wait:
@@ -102,51 +66,37 @@ def _wait_for_processes_exit(pids, max_wait=3, check_interval=0.5):
                 proc = psutil.Process(pid)
                 if proc.is_running():
                     remaining += 1
-            except psutil.NoSuchProcess:
-                continue
-        if remaining == 0:
-            break
+            except psutil.NoSuchProcess:continue
+        if remaining == 0:break
         time.sleep(check_interval)
-    
     return remaining
 
 
 def check_old_instances():
-    """检查是否有旧的 ClassLively 在运行"""
+    """是否有旧的在运行"""
     try:
         current_pid = os.getpid()
         logger.debug(f"当前进程 PID: {current_pid}")
-        
         processes = _find_classlively_processes(current_pid)
-        
         if processes:
             logger.info(f"发现 {len(processes)} 个旧进程")
             return True
-        
-        logger.debug("未发现旧进程")
         return False
-    except ImportError:
-        return False
+    except ImportError:return False
     except Exception as e:
         logger.error(f"检查旧实例失败: {e}")
         return False
 
 
 def terminate_old_instances():
-    """终止所有旧的 ClassLively 进程"""
+    """终止所有旧的进程"""
     try:
         current_pid = os.getpid()
         logger.info(f"当前进程 PID: {current_pid}")
-        
         processes_to_kill = _find_classlively_processes(current_pid)
-        
         if not processes_to_kill:
-            logger.info("未发现需要终止的进程")
             return True
-        
-        logger.info(f"准备终止 {len(processes_to_kill)} 个进程: {processes_to_kill}")
         terminated_count = 0
-        
         for pid in processes_to_kill:
             try:
                 logger.info(f"正在终止进程 {pid}")
@@ -166,13 +116,11 @@ def terminate_old_instances():
             except Exception as e:
                 logger.error(f"终止进程 {pid} 时发生错误: {e}", exc_info=True)
                 continue
-        
         logger.info(f"终止循环完成，共终止 {terminated_count} 个进程")
         
         if terminated_count > 0:
-            logger.info(f"等待进程退出...")
+            logger.info(f"等待进程退出")
             remaining = _wait_for_processes_exit(processes_to_kill, max_wait=3)
-            
             if remaining > 0:
                 logger.warning(f"仍有 {remaining} 个旧进程未退出，但将继续启动")
             else:
@@ -180,7 +128,6 @@ def terminate_old_instances():
         
         return True
     except ImportError as e:
-        logger.error(f"缺少 psutil 模块: {e}")
         return False
     except Exception as e:
         logger.error(f"终止旧进程失败: {e}", exc_info=True)
