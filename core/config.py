@@ -18,17 +18,27 @@
 配置管理模块
 """
 
+import logging
 import os
 import sys
-import logging
 from enum import Enum
 
 from PyQt5.QtCore import QLocale
 from qfluentwidgets import (
-    qconfig, QConfig, ConfigItem, OptionsConfigItem, BoolValidator,
-    ColorConfigItem, OptionsValidator, RangeConfigItem, RangeValidator,
-    ConfigSerializer, Theme
+    BoolValidator,
+    ColorConfigItem,
+    ConfigItem,
+    ConfigSerializer,
+    OptionsConfigItem,
+    OptionsValidator,
+    QConfig,
+    qconfig,
+    RangeConfigItem,
+    RangeValidator,
+    Theme,
 )
+
+from config.url_dir import url_dir
 
 logger = logging.getLogger(__name__)
 

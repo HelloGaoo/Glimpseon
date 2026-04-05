@@ -18,22 +18,38 @@
 壁纸界面模块
 """
 
+import ctypes
+import datetime
+import logging
+import os
+
+import requests
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QWidget, QFileDialog
-from PyQt5.QtGui import QPixmap, QIcon
+from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QVBoxLayout,
+    QWidget,
+)
 from qfluentwidgets import (
-    CardWidget, FluentIcon as FIF, ImageLabel, PrimaryPushButton, PushButton,
-    InfoBar, isDarkTheme, ScrollArea, SmoothScrollArea, ExpandLayout, Theme
+    CardWidget,
+    ExpandLayout,
+    FluentIcon as FIF,
+    ImageLabel,
+    InfoBar,
+    PrimaryPushButton,
+    PushButton,
+    ScrollArea,
+    SmoothScrollArea,
+    Theme,
+    isDarkTheme,
 )
 
-import logging
-import requests
-import os
-import datetime
-import ctypes
 from core.config import cfg
-from core.constants import get_resource_path, BASE_DIR
-from PyQt5.QtWidgets import QApplication
+from core.constants import BASE_DIR, get_resource_path
 
 logger = logging.getLogger(__name__)
 

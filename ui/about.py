@@ -18,20 +18,30 @@
 关于界面模块
 """
 
-import sys
 import os
+import sys
 import webbrowser
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QWidget, QMessageBox
-from PyQt5.QtGui import QPixmap, QFont
-from PyQt5.QtCore import QUrl
-from PyQt5.QtGui import QDesktopServices
-from qfluentwidgets import CardWidget, FluentIcon as FIF, ScrollArea, SmoothScrollArea, ExpandLayout, PushButton, TextEdit, MessageBox, isDarkTheme, Theme
+from PyQt5.QtCore import QUrl, Qt
+from PyQt5.QtGui import QDesktopServices, QFont, QPixmap
+from PyQt5.QtWidgets import QHBoxLayout, QLabel, QMessageBox, QVBoxLayout, QWidget
+from qfluentwidgets import (
+    CardWidget,
+    ExpandLayout,
+    FluentIcon as FIF,
+    MessageBox,
+    PushButton,
+    ScrollArea,
+    SmoothScrollArea,
+    TextEdit,
+    Theme,
+    isDarkTheme,
+)
+
+from core.constants import get_resource_path
+from version import BUILD_DATE, VERSION
 
 from .base_scroll_area import BaseScrollAreaInterface
-from version import VERSION, BUILD_DATE
-from core.constants import get_resource_path
 
 
 class AboutInterface(BaseScrollAreaInterface):

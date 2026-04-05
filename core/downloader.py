@@ -18,19 +18,21 @@
 文件下载模块
 """
 
-
 import ctypes
+import logging
 import os
+import shutil
 import subprocess
 import time
-import shutil
-import requests
+
 import py7zr
+import pythoncom
+import requests
 import urllib3
 import zipfile
-import pythoncom
-from win32com.client import Dispatch
 from concurrent.futures import ThreadPoolExecutor
+from win32com.client import Dispatch
+
 from core.logger import logger
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)

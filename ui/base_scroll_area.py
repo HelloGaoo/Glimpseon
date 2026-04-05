@@ -20,11 +20,18 @@
 """
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QWidget
-from PyQt5.QtGui import QPixmap, QIcon
+from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from qfluentwidgets import (
-    CardWidget, FluentIcon as FIF, PrimaryPushButton, PushButton,
-    InfoBar, isDarkTheme, ScrollArea, SmoothScrollArea, ExpandLayout
+    CardWidget,
+    ExpandLayout,
+    FluentIcon as FIF,
+    InfoBar,
+    PrimaryPushButton,
+    PushButton,
+    ScrollArea,
+    SmoothScrollArea,
+    isDarkTheme,
 )
 
 

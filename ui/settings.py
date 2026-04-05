@@ -18,20 +18,39 @@
 设置界面模块
 """
 
+import json
 import os
 import sys
-import json
+
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QWidget, QLabel
+from PyQt5.QtWidgets import QLabel, QWidget
 from qfluentwidgets import (
-    SettingCardGroup, OptionsSettingCard, ScrollArea, ExpandLayout, 
-    Theme, setTheme, isDarkTheme, FluentIcon as FIF, CustomColorSettingCard, setThemeColor,
-    SwitchSettingCard, RangeSettingCard, InfoBar, LineEdit, SettingCard, qconfig, ComboBoxSettingCard,
-    SpinBox, PushButton, MessageBox, NavigationItemPosition
+    ComboBoxSettingCard,
+    CustomColorSettingCard,
+    ExpandLayout,
+    FluentIcon as FIF,
+    InfoBar,
+    LineEdit,
+    MessageBox,
+    NavigationItemPosition,
+    OptionsSettingCard,
+    PushButton,
+    RangeSettingCard,
+    ScrollArea,
+    SettingCard,
+    SettingCardGroup,
+    SpinBox,
+    SwitchSettingCard,
+    Theme,
+    isDarkTheme,
+    qconfig,
+    setTheme,
+    setThemeColor,
 )
+
 from core.config import cfg, get_default_config_dict
-from core.logger import log_dir
 from core.constants import get_resource_path
+from core.logger import log_dir
 from ui.city_selector import RegionSelectorDialog
 
 

@@ -18,11 +18,13 @@
 天气服务模块
 """
 
+import logging
 import os
 import sys
+from typing import Any, Dict, Optional
+
 import requests
-import logging
-from typing import Optional, Dict, Any
+
 from core.logger import logger
 
 logger = logging.getLogger(__name__)

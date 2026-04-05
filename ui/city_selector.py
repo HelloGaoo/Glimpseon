@@ -18,14 +18,14 @@
 城市选择器模块
 """
 
-from PyQt5.QtCore import Qt, QCoreApplication
-from PyQt5.QtWidgets import QWidget
-from qfluentwidgets import (
-    MessageBoxBase, SearchLineEdit, ListWidget, SubtitleLabel, BodyLabel
-)
-import sqlite3
 import os
+import sqlite3
 import sys
+
+from PyQt5.QtCore import QCoreApplication, Qt
+from PyQt5.QtWidgets import QWidget
+from qfluentwidgets import BodyLabel, MessageBoxBase, SearchLineEdit, SubtitleLabel, ListWidget
+
 from core.config import cfg
 from core.constants import BASE_DIR, MEIPASS_DIR, get_resource_path
 

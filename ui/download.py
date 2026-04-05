@@ -18,26 +18,38 @@
 软件下载界面模块
 """
 
-from PyQt5.QtCore import Qt, pyqtSlot, QMetaObject, Q_ARG, QTimer
-from PyQt5.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QWidget, QGridLayout
-from PyQt5.QtGui import QPixmap, QIcon
-from qfluentwidgets import (
-    CardWidget, CheckBox, ComboBox, FluentIcon as FIF, PrimaryPushButton, PushButton,
-    InfoBar, isDarkTheme, ScrollArea, SmoothScrollArea, ExpandLayout, Theme,
-    RadioButton, ProgressRing, MessageBox, qconfig
-)
-from core.downloader import DOWNLOAD_SOURCES, DEFAULT_SOURCE, set_download_source
-
-from .base_scroll_area import BaseScrollAreaInterface
-
-from core.downloader import Downloader
-from concurrent.futures import ThreadPoolExecutor
-from core.config import cfg, url_dir
-from core.constants import get_resource_path
-from core.logger import logger
-
 import os
 import threading
+from concurrent.futures import ThreadPoolExecutor
+
+from PyQt5.QtCore import QMetaObject, Q_ARG, Qt, QTimer, pyqtSlot
+from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from qfluentwidgets import (
+    CardWidget,
+    CheckBox,
+    ComboBox,
+    ExpandLayout,
+    FluentIcon as FIF,
+    InfoBar,
+    MessageBox,
+    PrimaryPushButton,
+    ProgressRing,
+    PushButton,
+    RadioButton,
+    ScrollArea,
+    SmoothScrollArea,
+    Theme,
+    isDarkTheme,
+    qconfig,
+)
+
+from core.config import cfg, url_dir
+from core.constants import get_resource_path
+from core.downloader import DOWNLOAD_SOURCES, DEFAULT_SOURCE, Downloader, set_download_source
+from core.logger import logger
+
+from .base_scroll_area import BaseScrollAreaInterface
 
 
 class DownloadInterface(BaseScrollAreaInterface):

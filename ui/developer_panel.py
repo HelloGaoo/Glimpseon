@@ -19,21 +19,42 @@
 """
 
 import os
-import psutil
 import time
-from PyQt5.QtCore import QTimer, Qt, QPropertyAnimation, QRect, QEvent, QObject, QTime
-from PyQt5.QtGui import QColor, QPainter, QFont
+
+import psutil
+from PyQt5.QtCore import QEvent, QPropertyAnimation, QRect, QTime, QTimer, Qt
+from PyQt5.QtGui import QColor, QFont, QPainter
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-    QScrollArea, QGridLayout, QApplication, QTextEdit, QFrame
+    QApplication,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QScrollArea,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
 from qfluentwidgets import (
-    CardWidget, TitleLabel, SubtitleLabel, BodyLabel,
-    StrongBodyLabel, InfoBar, InfoBarPosition, ComboBox,
-    PrimaryPushButton, PushButton, ToggleButton, SpinBox,
-    ProgressBar, ToolTipFilter, ToolTipPosition, FluentIcon as FIF,
-    setCustomStyleSheet
+    BodyLabel,
+    CardWidget,
+    ComboBox,
+    FluentIcon as FIF,
+    InfoBar,
+    InfoBarPosition,
+    PrimaryPushButton,
+    ProgressBar,
+    PushButton,
+    SpinBox,
+    StrongBodyLabel,
+    SubtitleLabel,
+    TitleLabel,
+    ToggleButton,
+    ToolTipFilter,
+    ToolTipPosition,
+    setCustomStyleSheet,
 )
+
 from core.config import cfg
 from core.logger import logger
 

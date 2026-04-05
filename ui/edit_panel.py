@@ -17,17 +17,34 @@
 """
 编辑面板模块
 """
+
 import logging
+
 from PyQt5.QtCore import QPropertyAnimation, QRect, Qt
 from PyQt5.QtGui import QColor, QPalette
 from PyQt5.QtWidgets import (
-    QHBoxLayout, QLabel, QLineEdit, QListWidget, 
-    QPushButton, QVBoxLayout, QWidget
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
 )
 from qfluentwidgets import (
-    BodyLabel, FluentIcon as FIF, isDarkTheme, LineEdit, ListWidget, 
-    PrimaryPushButton, PushButton, StrongBodyLabel, ToolButton,
-    SwitchButton, ComboBox, SpinBox, SmoothScrollArea
+    BodyLabel,
+    ComboBox,
+    FluentIcon as FIF,
+    isDarkTheme,
+    LineEdit,
+    ListWidget,
+    PrimaryPushButton,
+    PushButton,
+    SmoothScrollArea,
+    SpinBox,
+    StrongBodyLabel,
+    SwitchButton,
+    ToolButton,
 )
 
 from core.config import cfg

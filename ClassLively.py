@@ -18,68 +18,123 @@
 ClassLively 主程序
 """
 
-from PyQt5.QtCore import (
-    Q_ARG, QDate, QLocale, QMetaObject, QEvent,
-    QPropertyAnimation, QRect, Qt, QTime, QTranslator, QUrl, QTimer, pyqtSlot
-)
-from PyQt5.QtGui import (
-    QFont, QFontDatabase, QColor, QIcon, QImage, QPainter, QPalette, QPixmap
-)
-from PyQt5.QtWidgets import (
-    QApplication, QFileDialog, QFrame, QGridLayout, QHBoxLayout, 
-    QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QMenu, 
-    QPlainTextEdit, QPushButton, QSizePolicy, QSpacerItem, QStackedLayout, 
-    QSystemTrayIcon, QVBoxLayout, QWidget, QGraphicsBlurEffect
-)
-from qfluentwidgets import (
-    Action, BodyLabel, CardWidget, CheckBox, ExpandLayout, FluentIcon as FIF, 
-    FluentTranslator, FluentWindow, ImageLabel, InfoBar, isDarkTheme, LineEdit, 
-    ListWidget, NavigationItemPosition, PrimaryPushButton, ProgressBar, ProgressRing, 
-    PushButton, qconfig, RadioButton, RoundMenu, ScrollArea, SettingCardGroup, 
-    setTheme, SmoothScrollArea, StrongBodyLabel, SwitchSettingCard, TextEdit, 
-    Theme, MessageBox
-)
-from concurrent.futures import ThreadPoolExecutor, wait
-import requests
-import sys
+import ctypes
+import datetime
+import json
+import logging
 import os
 import platform
-import ctypes
-import json
-import threading
 import shutil
-import time
-from ui.developer_panel import DeveloperPanel
-import datetime
-import cnlunar
-import winreg
-import logging
 import subprocess
+import sys
+import threading
+import time
 import webbrowser
-from core.config import cfg, get_default_config_dict
-from core.logger import logger, setup_exception_hook
-from core.constants import APP_NAME
-from core.updater import (
-    check_version_from_github,
-    download_update,
-    extract_update,
-    create_update_script,
-    get_changelog_from_github
+import winreg
+from concurrent.futures import ThreadPoolExecutor, wait
+
+import cnlunar
+import psutil
+import requests
+from PyQt5.QtCore import (
+    Q_ARG,
+    QDate,
+    QEvent,
+    QLocale,
+    QMetaObject,
+    QPropertyAnimation,
+    QRect,
+    Qt,
+    QTime,
+    QTimer,
+    QTranslator,
+    QUrl,
+    pyqtSlot,
 )
-from core.downloader import Downloader
-from version import VERSION, BUILD_DATE
-
-from services.weather import WeatherService
-
-from ui.settings import SettingInterface
-from ui.city_selector import RegionDatabase
-from ui.wallpaper import WallpaperInterface
-from ui import (
-    AboutInterface, DownloadInterface, EditPanel,
-    UpdateInterface
+from PyQt5.QtGui import (
+    QColor,
+    QFont,
+    QFontDatabase,
+    QIcon,
+    QImage,
+    QPainter,
+    QPalette,
+    QPixmap,
+)
+from PyQt5.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QFrame,
+    QGridLayout,
+    QGraphicsBlurEffect,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QMenu,
+    QPlainTextEdit,
+    QPushButton,
+    QSizePolicy,
+    QSpacerItem,
+    QStackedLayout,
+    QSystemTrayIcon,
+    QVBoxLayout,
+    QWidget,
+)
+from qfluentwidgets import (
+    Action,
+    BodyLabel,
+    CardWidget,
+    CheckBox,
+    ExpandLayout,
+    FluentIcon as FIF,
+    FluentTranslator,
+    FluentWindow,
+    ImageLabel,
+    InfoBar,
+    isDarkTheme,
+    LineEdit,
+    ListWidget,
+    MessageBox,
+    NavigationItemPosition,
+    PrimaryPushButton,
+    ProgressBar,
+    ProgressRing,
+    PushButton,
+    qconfig,
+    RadioButton,
+    RoundMenu,
+    ScrollArea,
+    SettingCardGroup,
+    setTheme,
+    SmoothScrollArea,
+    StrongBodyLabel,
+    SwitchSettingCard,
+    TextEdit,
+    Theme,
 )
 
 from config.url_dir import url_dir  # type: ignore
+from core.config import cfg, get_default_config_dict
+from core.constants import APP_NAME
+from core.downloader import Downloader
+from core.logger import logger, setup_exception_hook
+from core.updater import (
+    create_update_script,
+    download_update,
+    extract_update,
+    get_changelog_from_github,
+    check_version_from_github,
+)
+from services.weather import WeatherService
+from ui import AboutInterface, DownloadInterface, EditPanel, UpdateInterface
+from ui.city_selector import RegionDatabase
+from ui.developer_panel import DeveloperPanel
+from ui.settings import SettingInterface
+from ui.wallpaper import WallpaperInterface
+from version import BUILD_DATE, VERSION
 
 def terminate_old_instances():
     """终止所有旧的 ClassLively 进程"""

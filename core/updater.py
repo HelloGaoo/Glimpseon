@@ -18,15 +18,18 @@
 软件更新模块
 """
 
-import requests
-import re
-import urllib3
+import logging
 import os
-import py7zr
-import zipfile
+import re
 import shutil
+import zipfile
+
+import py7zr
+import requests
+import urllib3
+
 from core.logger import logger
-from version import VERSION_URL, UPDATE_URL, CHANGELOG_URL
+from version import CHANGELOG_URL, UPDATE_URL, VERSION_URL
 
 # 禁用 SSL 警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)

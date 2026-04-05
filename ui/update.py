@@ -18,25 +18,34 @@
 软件更新界面模块
 """
 
-from PyQt5.QtCore import Qt, QMetaObject, Q_ARG, QTimer
-from PyQt5.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QWidget
-from PyQt5.QtGui import QPixmap, QIcon
-from qfluentwidgets import (
-    CardWidget, FluentIcon as FIF, PrimaryPushButton, PushButton,
-    InfoBar, isDarkTheme, ScrollArea, SmoothScrollArea, ExpandLayout, Theme,
-    TextEdit, SwitchSettingCard
-)
-
-from .base_scroll_area import BaseScrollAreaInterface
-
-from version import VERSION, BUILD_DATE
-from core.updater import check_version_from_github, get_changelog_from_github
-from core.config import cfg
-from core.constants import get_resource_path, BASE_DIR
-
-import threading
 import logging
 import os
+import threading
+
+from PyQt5.QtCore import QMetaObject, Q_ARG, Qt, QTimer
+from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from qfluentwidgets import (
+    CardWidget,
+    ExpandLayout,
+    FluentIcon as FIF,
+    InfoBar,
+    PrimaryPushButton,
+    PushButton,
+    ScrollArea,
+    SmoothScrollArea,
+    SwitchSettingCard,
+    TextEdit,
+    Theme,
+    isDarkTheme,
+)
+
+from core.config import cfg
+from core.constants import BASE_DIR, get_resource_path
+from core.updater import check_version_from_github, get_changelog_from_github
+from version import BUILD_DATE, VERSION
+
+from .base_scroll_area import BaseScrollAreaInterface
 
 logger = logging.getLogger(__name__)
 
