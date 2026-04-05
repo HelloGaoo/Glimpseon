@@ -20,9 +20,10 @@
 
 import logging
 
-from PyQt5.QtCore import QPropertyAnimation, QRect, Qt
+from PyQt5.QtCore import QEasingCurve, QPropertyAnimation, QRect, Qt
 from PyQt5.QtGui import QColor, QPalette
 from PyQt5.QtWidgets import (
+    QApplication,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -72,6 +73,7 @@ class EditPanel(QWidget):
         scroll = SmoothScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setFrameShape(SmoothScrollArea.NoFrame)
         content = QWidget()
         scroll.setWidget(content)
         v = QVBoxLayout(content)
@@ -92,10 +94,13 @@ class EditPanel(QWidget):
         
         self._addSeparator(v)
         self._createTimeSettings(v)
+        self._updateTimeSettingsEnabled(cfg.showClock.value)
         self._addSeparator(v)
         self._createPoetrySettings(v)
+        self._updatePoetrySettingsEnabled(cfg.showPoetry.value)
         self._addSeparator(v)
         self._createWeatherSettings(v)
+        self._updateWeatherSettingsEnabled(cfg.showWeather.value)
         self._connectConfigSignals()
     
         v.addStretch()
@@ -111,6 +116,8 @@ class EditPanel(QWidget):
         
         # 动画
         self.anim = QPropertyAnimation(self, b'geometry')
+        self.anim.setEasingCurve(QEasingCurve.OutCubic)
+        self._updateTheme()
         
         self.hide()
         self.setVisible(False)
@@ -121,6 +128,27 @@ class EditPanel(QWidget):
         separator.setFixedHeight(1)
         separator.setObjectName('separator')
         layout.addWidget(separator)
+    
+    def _updateTimeSettingsEnabled(self, enabled):
+        self.showSecondsSwitch.setEnabled(enabled)
+        self.showLunarSwitch.setEnabled(enabled)
+        self.clockColorCombo.setEnabled(enabled)
+        self.clockSizeSpin.setEnabled(enabled)
+        self.dateSizeSpin.setEnabled(enabled)
+        self.clockPositionCombo.setEnabled(enabled)
+    
+    def _updatePoetrySettingsEnabled(self, enabled):
+        self.poetryApiCombo.setEnabled(enabled)
+        self.poetrySizeSpin.setEnabled(enabled)
+        self.poetryUpdateIntervalCombo.setEnabled(enabled)
+        self.poetryPositionCombo.setEnabled(enabled)
+    
+    def _updateWeatherSettingsEnabled(self, enabled):
+        self.cityButton.setEnabled(enabled)
+        self.weatherSizeSpin.setEnabled(enabled)
+        self.weatherIconSizeSpin.setEnabled(enabled)
+        self.weatherUpdateIntervalCombo.setEnabled(enabled)
+        self.weatherPositionCombo.setEnabled(enabled)
     
     def _connectConfigSignals(self):
         """连接配置变化信号到 UI 更新"""
@@ -454,10 +482,6 @@ class EditPanel(QWidget):
         if not parent:
             return
         
-        self._updateTheme()
-        
-        self.show()
-
         pr = parent.rect()
         if self.isLeftSide:
             end_rect = QRect(0, 0, self._width, pr.height())
@@ -467,13 +491,14 @@ class EditPanel(QWidget):
             start_rect = QRect(pr.width(), 0, self._width, pr.height())
         
         self.setGeometry(start_rect)
+        self.show()
         
         try:
             self.anim.finished.disconnect(self._onShowFinished)
         except Exception:
             pass
         self.anim.stop()
-        self.anim.setDuration(220)
+        self.anim.setDuration(300)
         self.anim.setStartValue(start_rect)
         self.anim.setEndValue(end_rect)
         self.anim.start()
@@ -508,7 +533,7 @@ class EditPanel(QWidget):
         
         # 滑出动画
         self.anim.stop()
-        self.anim.setDuration(180)
+        self.anim.setDuration(250)
         self.anim.setStartValue(start_rect)
         self.anim.setEndValue(end_rect)
         
@@ -537,6 +562,7 @@ class EditPanel(QWidget):
     def _onShowClockChanged(self, checked: bool):
         """启用时钟开关变化"""
         cfg.showClock.value = checked
+        self._updateTimeSettingsEnabled(checked)
         if hasattr(self.mainWindow, '_MainWindow__updateClock'):
             self.mainWindow._MainWindow__updateClock()
         logger.info(f"时间设置：启用时钟={'开启' if checked else '关闭'}")
@@ -597,6 +623,7 @@ class EditPanel(QWidget):
     def _onShowPoetryChanged(self, checked: bool):
         """启用一言开关变化"""
         cfg.showPoetry.value = checked
+        self._updatePoetrySettingsEnabled(checked)
         if hasattr(self.mainWindow, 'homeContent'):
             # 更新所有一言组件的可见性
             for widget in self.mainWindow.homeContent.findChildren(QWidget):
@@ -633,6 +660,7 @@ class EditPanel(QWidget):
     def _onShowWeatherChanged(self, checked: bool):
         """启用天气开关变化"""
         cfg.showWeather.value = checked
+        self._updateWeatherSettingsEnabled(checked)
         if hasattr(self.mainWindow, '_MainWindow__updateWeather'):
             self.mainWindow._MainWindow__updateWeather()
         logger.info(f"天气设置：启用天气={'开启' if checked else '关闭'}")

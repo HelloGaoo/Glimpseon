@@ -11,7 +11,11 @@ QWidget {
 }
 
 SmoothScrollArea {
-    background-color: transparent;
+    background-color: rgb(32, 32, 32);
     border: none;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+SmoothScrollArea QWidget {
+    background-color: rgb(32, 32, 32);
 }
