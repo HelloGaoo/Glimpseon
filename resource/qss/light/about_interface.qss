@@ -1,19 +1,21 @@
+/* 关于界面 */
 AboutInterface {
     background-color: rgb(249, 249, 249);
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
+/* 滚动区域 */
 AboutInterface #scrollWidget {
     background-color: rgb(249, 249, 249);
 }
 
+/* 滚动区域 */
 QScrollArea {
     background-color: rgb(249, 249, 249);
     border: none;
 }
 
-
-/* 标签 */
+/* 标题 */
 QLabel#settingLabel {
     font-size: 33px;
     background-color: transparent;
@@ -32,13 +34,13 @@ CardWidget:hover {
     background-color: rgba(255, 255, 255, 1);
 }
 
-/* SmoothScrollArea */
+/* 滚动区域 */
 SmoothScrollArea {
     background-color: transparent;
     border: none;
 }
 
-/* SettingCard 样式 */
+/* 设置卡片 */
 SettingCard {
     background-color: rgba(255, 255, 255, 0.8);
     border: 1px solid rgba(0, 0, 0, 0.06);
@@ -49,6 +51,7 @@ SettingCard:hover {
     background-color: rgba(255, 255, 255, 1);
 }
 
+/* 开关卡片 */
 SwitchSettingCard {
     background-color: rgba(255, 255, 255, 0.8);
     border: 1px solid rgba(0, 0, 0, 0.06);
@@ -72,7 +75,7 @@ QLabel#appNameLabel {
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 描述标签 */
+/* 描述 */
 QLabel#descriptionLabel {
     font-size: 14px;
     color: #666666;
@@ -80,7 +83,7 @@ QLabel#descriptionLabel {
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 版本信息 */
+/* 版本 */
 QLabel#versionInfo {
     font-size: 13px;
     color: #333333;
@@ -88,7 +91,7 @@ QLabel#versionInfo {
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 开发者和版权标签 */
+/* 开发者和版权 */
 QLabel#developerLabel,
 QLabel#copyrightLabel {
     font-size: 13px;
@@ -97,7 +100,7 @@ QLabel#copyrightLabel {
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 链接标签 */
+/* 链接 */
 QLabel#linkLabel {
     font-size: 14px;
     color: #333333;
@@ -105,7 +108,7 @@ QLabel#linkLabel {
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 分组标签 */
+/* 分组 */
 QLabel#groupLabel {
     font-size: 16px;
     color: #333333;
@@ -120,7 +123,7 @@ PushButton#linkButton {
     min-width: 80px;
 }
 
-/* 图标标签 */
+/* 图标 */
 QLabel#githubIcon,
 QLabel#authorIcon,
 QLabel#updateIcon,
@@ -128,7 +131,7 @@ QLabel#licenseIcon {
     background-color: transparent;
 }
 
-/* 应用图标 Emoji 回退样式 */
+/* 应用图标回退 */
 QLabel#appIconLabel {
     font-size: 48px;
     background-color: transparent;

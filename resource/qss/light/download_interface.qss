@@ -1,19 +1,21 @@
+/* 下载界面 */
 DownloadInterface {
     background-color: rgb(249, 249, 249);
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
+/* 滚动区域 */
 DownloadInterface #scrollWidget {
     background-color: rgb(249, 249, 249);
 }
 
+/* 滚动区域 */
 QScrollArea {
     background-color: rgb(249, 249, 249);
     border: none;
 }
 
-
-/* 标签 */
+/* 标题 */
 QLabel#settingLabel {
     font-size: 33px;
     background-color: transparent;

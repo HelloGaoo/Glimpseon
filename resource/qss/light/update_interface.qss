@@ -1,19 +1,21 @@
+/* 更新界面 */
 UpdateInterface {
     background-color: rgb(249, 249, 249);
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
+/* 滚动区域 */
 UpdateInterface #scrollWidget {
     background-color: rgb(249, 249, 249);
 }
 
+/* 滚动区域 */
 QScrollArea {
     background-color: rgb(249, 249, 249);
     border: none;
 }
 
-
-/* 标签 */
+/* 标题 */
 QLabel#settingLabel {
     font-size: 33px;
     background-color: transparent;
@@ -32,7 +34,7 @@ CardWidget:hover {
     background-color: rgba(255, 255, 255, 1);
 }
 
-/* SmoothScrollArea */
+/* 滚动区域 */
 SmoothScrollArea {
     background-color: transparent;
     border: none;
@@ -67,7 +69,7 @@ QLabel#buildDate {
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* SettingCard 样式 */
+/* SettingCard */
 SettingCard {
     background-color: rgba(255, 255, 255, 0.8);
     border: 1px solid rgba(0, 0, 0, 0.06);
@@ -78,6 +80,7 @@ SettingCard:hover {
     background-color: rgba(255, 255, 255, 1);
 }
 
+/* SettingCard */
 SwitchSettingCard {
     background-color: rgba(255, 255, 255, 0.8);
     border: 1px solid rgba(0, 0, 0, 0.06);

@@ -1,10 +1,10 @@
-/* 开发者面板*/
+/* 开发者面板 */
 
 #developerPanel {
     background-color: #f3f3f3;
 }
 
-/* 卡片样式 */
+/* 卡片 */
 CardWidget {
     background-color: #ffffff;
     border-radius: 8px;
@@ -15,7 +15,7 @@ CardWidget:hover {
     border: 1px solid #0078d4;
 }
 
-/* 标题样式 */
+/* 标题 */
 SubtitleLabel {
     color: #000000;
     font-size: 18px;
@@ -34,7 +34,7 @@ StrongBodyLabel {
     font-weight: bold;
 }
 
-/* 按钮样式 */
+/* 按钮 */
 PrimaryPushButton {
     background-color: #0078d4;
     color: #ffffff;
@@ -86,7 +86,7 @@ ToggleButton:hover {
     background-color: #f0f0f0;
 }
 
-/* 文本编辑框样式 */
+/* 文本编辑框 */
 QTextEdit {
     background-color: #f9f9f9;
     color: #333333;
@@ -106,7 +106,7 @@ QTextEdit:disabled {
     color: #888888;
 }
 
-/* 滚动区域样式 */
+/* 滚动区域 */
 QScrollArea {
     background-color: transparent;
     border: none;
@@ -133,13 +133,13 @@ QScrollBar::sub-line:vertical {
     height: 0px;
 }
 
-/* 布局间距 */
+/* 布局 */
 QVBoxLayout, QHBoxLayout, QGridLayout {
     spacing: 10px;
     margin: 0px;
 }
 
-/* 分组框样式 */
+/* 分组框 */
 QGroupBox {
     background-color: #ffffff;
     border: 1px solid #d0d0d0;
@@ -158,7 +158,7 @@ QGroupBox::title {
     color: #0078d4;
 }
 
-/* 进度条样式 */
+/* 进度条 */
 QProgressBar {
     background-color: #e0e0e0;
     border: none;
@@ -173,7 +173,7 @@ QProgressBar::chunk {
     border-radius: 4px;
 }
 
-/* 下拉框样式 */
+/* 下拉框 */
 ComboBox {
     background-color: #ffffff;
     color: #000000;
@@ -206,7 +206,7 @@ QComboBox QAbstractItemView {
     selection-background-color: #0078d4;
 }
 
-/* 复选框样式 */
+/* 复选框 */
 QCheckBox {
     color: #000000;
     spacing: 8px;
@@ -225,7 +225,7 @@ QCheckBox::indicator:checked {
     border-color: #0078d4;
 }
 
-/* 标签样式 */
+/* 标签 */
 QLabel {
     color: #333333;
     background-color: transparent;

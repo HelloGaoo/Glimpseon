@@ -1,15 +1,16 @@
+/* 界面 */
 SettingInterface, #scrollWidget {
     background-color: rgb(249, 249, 249);
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
+/* 滚动区域 */
 QScrollArea {
     background-color: rgb(249, 249, 249);
     border: none;
 }
 
-
-/* 标签 */
+/* 标题 */
 QLabel#settingLabel {
     font-size: 33px;
     background-color: transparent;
@@ -28,7 +29,7 @@ CardWidget:hover {
     background-color: rgba(255, 255, 255, 1);
 }
 
-/* SettingCard 样式 */
+/* SettingCard */
 SettingCard,
 LineEditSettingCard,
 SpinBoxSettingCard,
@@ -45,7 +46,7 @@ ButtonSettingCard:hover {
     border-radius: 8px;
 }
 
-/* PushButton 悬停效果 */
+/* PushButton */
 PushButton,
 PushButton:hover {
     background-color: transparent;
@@ -58,12 +59,12 @@ PushButton:hover {
     border-color: rgba(0, 0, 0, 0.2);
 }
 
-/* SwitchButton 悬停效果 */
+/* SwitchButton */
 SwitchButton:hover {
     background-color: rgba(0, 0, 0, 0.03);
 }
 
-/* ComboBox 悬停效果 */
+/* ComboBox */
 ComboBox,
 ComboBox:hover {
     background-color: rgba(255, 255, 255, 0.8);
@@ -76,7 +77,7 @@ ComboBox:hover {
     background-color: rgba(255, 255, 255, 1);
 }
 
-/* LineEdit 悬停效果 */
+/* LineEdit */
 LineEdit,
 LineEdit:hover {
     background-color: rgba(255, 255, 255, 0.8);
@@ -90,7 +91,7 @@ LineEdit:hover {
     background-color: rgba(255, 255, 255, 1);
 }
 
-/* SpinBox 悬停效果 */
+/* SpinBox */
 SpinBox,
 SpinBox:hover {
     background-color: rgba(255, 255, 255, 0.8);

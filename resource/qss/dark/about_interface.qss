@@ -1,8 +1,10 @@
+/* 关于界面 */
 AboutInterface {
     background-color: rgb(39, 39, 39);
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
+/* 滚动区域 */
 AboutInterface #scrollWidget {
     background-color: rgb(39, 39, 39);
 }
@@ -13,9 +15,9 @@ QScrollArea {
 }
 
 
-/* 标签 */
+/* 标题 */
 QLabel#settingLabel {
-    font: 33px;
+    font-size: 33px;
     background-color: transparent;
     color: white;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
@@ -67,24 +69,25 @@ QLabel#appIconLabel {
 
 /* 应用名称 */
 QLabel#appNameLabel {
-    font: bold 32px;
-    color: #FFFFFF;
+    font-size: 24px;
+    color: white;
+    font-weight: bold;
     background-color: transparent;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 描述标签 */
 QLabel#descriptionLabel {
-    font: 14px;
-    color: #999999;
+    font-size: 14px;
+    color: #CCCCCC;
     background-color: transparent;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 版本信息 */
 QLabel#versionInfo {
-    font: 13px;
-    color: #CCCCCC;
+    font-size: 14px;
+    color: #999999;
     background-color: transparent;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
@@ -92,15 +95,15 @@ QLabel#versionInfo {
 /* 开发者和版权标签 */
 QLabel#developerLabel,
 QLabel#copyrightLabel {
-    font: 13px;
-    color: #CCCCCC;
+    font-size: 13px;
+    color: #999999;
     background-color: transparent;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 链接标签 */
 QLabel#linkLabel {
-    font: 14px;
+    font-size: 14px;
     color: #CCCCCC;
     background-color: transparent;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
@@ -108,7 +111,7 @@ QLabel#linkLabel {
 
 /* 分组标签 */
 QLabel#groupLabel {
-    font: 16px;
+    font-size: 16px;
     color: #FFFFFF;
     background-color: transparent;
     margin-top: 20px;
