@@ -409,7 +409,6 @@ class DeveloperPanel(QWidget):
                 self.setStyleSheet(qss_content)
                 for widget in self.findChildren(QWidget):
                     widget.setStyleSheet(qss_content)
-                logger.info(f"开发者面板样式已加载：{qss_path}")
             else:
                 logger.warning(f"样式文件不存在：{qss_path}")
         except Exception as e:

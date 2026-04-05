@@ -49,7 +49,7 @@ from qfluentwidgets import (
 )
 
 from core.config import cfg, get_default_config_dict
-from core.constants import get_resource_path
+from core.constants import BASE_DIR, get_resource_path
 from core.logger import log_dir
 from ui.city_selector import RegionSelectorDialog
 

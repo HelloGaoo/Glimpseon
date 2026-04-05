@@ -108,4 +108,13 @@ UpdateInterface PrimaryPushButton {
     border-radius: 8px;
     font-weight: bold;
     font-size: 14px;
+    color: white;
+}
+
+UpdateInterface PrimaryPushButton:hover {
+    color: white;
+}
+
+UpdateInterface PrimaryPushButton:pressed {
+    color: rgba(255, 255, 255, 0.7);
 }

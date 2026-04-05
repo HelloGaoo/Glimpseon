@@ -118,9 +118,10 @@ from qfluentwidgets import (
 
 from config.url_dir import url_dir  # type: ignore
 from core.config import cfg, get_default_config_dict
-from core.constants import APP_NAME
+from core.constants import APP_NAME, BASE_DIR, MEIPASS_DIR, get_resource_path
 from core.downloader import Downloader
 from core.logger import logger, setup_exception_hook
+from core.process_manager import check_old_instances, terminate_old_instances
 from core.updater import (
     create_update_script,
     download_update,
@@ -135,98 +136,6 @@ from ui.developer_panel import DeveloperPanel
 from ui.settings import SettingInterface
 from ui.wallpaper import WallpaperInterface
 from version import BUILD_DATE, VERSION
-
-def terminate_old_instances():
-    """终止所有旧的 ClassLively 进程"""
-    try:
-        import psutil
-        current_pid = os.getpid()
-        terminated_count = 0
-        logger.info(f"当前进程 PID: {current_pid}")
-        processes_kill = []
-        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-            try:
-                if proc.info['pid'] == current_pid:
-                    continue
-                is_classlively = False
-                if proc.info['name'] == 'ClassLively.exe':
-                    is_classlively = True
-                elif proc.info['name'] in ['python.exe', 'pythonw.exe']:
-                    try:
-                        cmdline = proc.cmdline()
-                        if cmdline and any('ClassLively' in arg for arg in cmdline):
-                            is_classlively = True
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        continue
-                
-                if is_classlively:
-                    processes_kill.append(proc.info['pid'])
-                    logger.info(f"发现旧 ClassLively 进程 PID: {proc.info['pid']}, 名称：{proc.info['name']}")
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                continue
-        for pid in processes_kill:
-            try:
-                proc = psutil.Process(pid)
-                proc.kill()
-                logger.info(f"已强制终止 PID {pid}")
-                terminated_count += 1
-            except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
-                logger.warning(f"无法终止进程 {pid}: {e}")
-                continue
-        if terminated_count > 0:
-            logger.info(f"共终止了 {terminated_count} 个旧进程，等待退出")
-            import time
-            time.sleep(2)
-            remaining_count = 0
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                try:
-                    if proc.info['pid'] == current_pid:
-                        continue
-                    if proc.info['name'] == 'ClassLively.exe':
-                        remaining_count += 1
-                    elif proc.info['name'] in ['python.exe', 'pythonw.exe']:
-                        try:
-                            cmdline = proc.cmdline()
-                            if cmdline and any('ClassLively' in arg for arg in cmdline):
-                                remaining_count += 1
-                        except (psutil.NoSuchProcess, psutil.AccessDenied):
-                            continue
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
-            
-            if remaining_count > 0:
-                logger.warning(f"仍有 {remaining_count} 个旧进程未退出，再次等待")
-                time.sleep(1)
-                final_count = 0
-                for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                    try:
-                        if proc.info['pid'] == current_pid:
-                            continue
-                        if proc.info['name'] == 'ClassLively.exe':
-                            final_count += 1
-                        elif proc.info['name'] in ['python.exe', 'pythonw.exe']:
-                            try:
-                                cmdline = proc.cmdline()
-                                if cmdline and any('ClassLively' in arg for arg in cmdline):
-                                    final_count += 1
-                            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                continue
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        continue
-                if final_count > 0:
-                    logger.error(f"最终仍有 {final_count} 个旧进程未退出，但将继续启动")
-                else:
-                    logger.info("所有旧进程已退出")
-            else:
-                logger.info("所有旧进程已退出")
-        else:
-            logger.info("未发现旧进程")
-        return True
-    except ImportError as e:
-        return False
-    except Exception as e:
-        logger.error(f"终止旧进程失败：{e}", exc_info=True)
-        return False
 
 def check_single_instance():
     """检查是否已经有实例"""
@@ -253,13 +162,15 @@ def check_single_instance():
     if old_instance_found:
         if is_developer_mode:
             logger.info("检测到旧进程，正在终止")
-            if terminate_old_instances():
+            terminate_result = terminate_old_instances()
+            if terminate_result:
                 logger.info("旧进程已终止，准备继续启动")
                 time.sleep(1)
                 return True
             else:
-                logger.error("终止旧进程失败")
-                return False
+                logger.warning("终止旧进程失败，但将继续启动（开发者模式）")
+                time.sleep(1)
+                return True  # 开发者模式下即使终止失败也继续
         elif not allow_multiple:
             return False
     if is_developer_mode or allow_multiple:
@@ -267,55 +178,6 @@ def check_single_instance():
         return True
     
     return True
-
-def check_old_instances():
-    """检查是否有旧的 ClassLively在运行"""
-    try:
-        import psutil
-        current_pid = os.getpid()
-        
-        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-            try:
-                if proc.info['pid'] == current_pid:
-                    continue
-                
-                if proc.info['name'] == 'ClassLively.exe':
-                    return True
-                elif proc.info['name'] in ['python.exe', 'pythonw.exe']:
-                    try:
-                        cmdline = proc.cmdline()
-                        if cmdline and any('ClassLively' in arg for arg in cmdline):
-                            return True
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        continue
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                continue
-        
-        return False
-    except ImportError:
-        return False
-    except Exception as e:
-        logger.error(f"检查旧实例失败：{e}")
-        return False
-
-# 路径设置
-if getattr(sys, 'frozen', False):
-    BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
-    MEIPASS_DIR = sys._MEIPASS
-else:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    MEIPASS_DIR = None
-
-def get_resource_path(relative_path):
-    """获取绝对路径"""
-    base_path = os.path.join(BASE_DIR, relative_path)
-    if os.path.exists(base_path):
-        return base_path
-    if MEIPASS_DIR:
-        meipass_path = os.path.join(MEIPASS_DIR, relative_path)
-        if os.path.exists(meipass_path):
-            return meipass_path
-    return base_path
 
 def extract_bundled_files():
     """从打包文件中提取必要的文件夹和文件"""
@@ -623,7 +485,6 @@ class MainWindow(FluentWindow):
         """主题变化时重新加载编辑面板样式"""
         if hasattr(self, 'editPanel') and self.editPanel:
             self.editPanel._updateTheme()
-            self.editPanel.updateListItemColors()
     
     def _onDeveloperPanelThemeChanged(self):
         """主题变化时重新加载开发者面板样式"""
