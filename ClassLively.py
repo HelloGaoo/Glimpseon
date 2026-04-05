@@ -91,12 +91,11 @@ def terminate_old_instances():
         current_pid = os.getpid()
         terminated_count = 0
         logger.info(f"当前进程 PID: {current_pid}")
+        processes_kill = []
         for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
             try:
-                # 跳过当前进程
                 if proc.info['pid'] == current_pid:
                     continue
-
                 is_classlively = False
                 if proc.info['name'] == 'ClassLively.exe':
                     is_classlively = True
@@ -109,22 +108,65 @@ def terminate_old_instances():
                         continue
                 
                 if is_classlively:
+                    processes_kill.append(proc.info['pid'])
                     logger.info(f"发现旧 ClassLively 进程 PID: {proc.info['pid']}, 名称：{proc.info['name']}")
-                    try:
-                        proc.kill()
-                        logger.info(f"已强制终止 PID {proc.info['pid']}")
-                        terminated_count += 1
-                    except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
-                        logger.warning(f"无法终止进程 {proc.info['pid']}: {e}")
-                        continue
-                        
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
-        
+        for pid in processes_kill:
+            try:
+                proc = psutil.Process(pid)
+                proc.kill()
+                logger.info(f"已强制终止 PID {pid}")
+                terminated_count += 1
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                logger.warning(f"无法终止进程 {pid}: {e}")
+                continue
         if terminated_count > 0:
             logger.info(f"共终止了 {terminated_count} 个旧进程，等待退出")
             import time
-            time.sleep(1)
+            time.sleep(2)
+            remaining_count = 0
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    if proc.info['pid'] == current_pid:
+                        continue
+                    if proc.info['name'] == 'ClassLively.exe':
+                        remaining_count += 1
+                    elif proc.info['name'] in ['python.exe', 'pythonw.exe']:
+                        try:
+                            cmdline = proc.cmdline()
+                            if cmdline and any('ClassLively' in arg for arg in cmdline):
+                                remaining_count += 1
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            continue
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+            
+            if remaining_count > 0:
+                logger.warning(f"仍有 {remaining_count} 个旧进程未退出，再次等待")
+                time.sleep(1)
+                final_count = 0
+                for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                    try:
+                        if proc.info['pid'] == current_pid:
+                            continue
+                        if proc.info['name'] == 'ClassLively.exe':
+                            final_count += 1
+                        elif proc.info['name'] in ['python.exe', 'pythonw.exe']:
+                            try:
+                                cmdline = proc.cmdline()
+                                if cmdline and any('ClassLively' in arg for arg in cmdline):
+                                    final_count += 1
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                continue
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
+                if final_count > 0:
+                    logger.error(f"最终仍有 {final_count} 个旧进程未退出，但将继续启动")
+                else:
+                    logger.info("所有旧进程已退出")
+            else:
+                logger.info("所有旧进程已退出")
         else:
             logger.info("未发现旧进程")
         return True
@@ -154,11 +196,13 @@ def check_single_instance():
             pass
     old_instance_found = check_old_instances()
     
+    logger.info(f"旧实例检测结果：{old_instance_found}, 开发者模式：{is_developer_mode}")
+    
     if old_instance_found:
         if is_developer_mode:
             logger.info("检测到旧进程，正在终止")
             if terminate_old_instances():
-                logger.info("旧进程已终止")
+                logger.info("旧进程已终止，准备继续启动")
                 time.sleep(1)
                 return True
             else:

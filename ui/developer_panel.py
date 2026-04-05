@@ -110,7 +110,9 @@ class DeveloperPanel(QWidget):
         self._loadStyleSheet()
         QTimer.singleShot(500, self._refreshComponentTree)
         
-        self.mainWindow.installEventFilter(self)
+        QTimer.singleShot(1000, self._installEventFilter)
+    def _installEventFilter(self):
+        if self.mainWindow:self.mainWindow.installEventFilter(self)
         
     def _createDebugCard(self):
         """创建调试信息显示卡片"""
@@ -408,7 +410,7 @@ class DeveloperPanel(QWidget):
                 self.fpsLabel.setText(f"{self.currentFps:.1f}")
                 self.frameCount = 0
                 self.lastFpsTime = currentTime
-        return QObject.eventFilter(self, obj, event)
+        return False
     
     def _updateFPS(self):
         """更新FPS"""
