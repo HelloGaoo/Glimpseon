@@ -765,18 +765,19 @@ class DeveloperPanel(QWidget):
             )
     
     def eventFilter(self, obj, event):
-        """事件过滤器 - 用于元素检查"""
+        """元素检查过滤"""
         if not self.elementCheckEnabled:
             return super().eventFilter(obj, event)
         
         from PyQt5.QtCore import QEvent
+        from PyQt5.QtWidgets import QWidget
         
         if event.type() == QEvent.Enter:
             element_info = []
             element_info.append(f"对象名称：{obj.objectName()}")
             element_info.append(f"类    型：{obj.__class__.__name__}")
             element_info.append(f"可    见：{obj.isVisible()}")
-            element_info.append(f"启    用：{obj.isEnabled()}")
+            if isinstance(obj, QWidget):element_info.append(f"启    用：{obj.isEnabled()}")
             
             if hasattr(obj, 'geometry'):
                 geom = obj.geometry()
