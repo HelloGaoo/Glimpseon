@@ -129,6 +129,7 @@ from core.updater import (
     get_changelog_from_github,
     check_version_from_github,
 )
+from data.software_list import SOFTWARE_CATEGORIES, get_software_icon_path
 from services.weather import WeatherService
 from ui import AboutInterface, DownloadInterface, EditPanel, UpdateInterface
 from ui.city_selector import RegionDatabase
@@ -890,47 +891,11 @@ class MainWindow(FluentWindow):
         self.downloadInterface = DownloadInterface(parent=self)
         self.addSubInterface(self.downloadInterface, FIF.DOWNLOAD, "软件下载")
         
-        icon_path = get_resource_path(os.path.join('resource', 'icons', 'CY.png'))
-        
-        self.downloadInterface.addSection("常用软件")
-        self.downloadInterface.addSoftware(icon_path, "微信", "")
-        self.downloadInterface.addSoftware(icon_path, "QQ", "")
-        self.downloadInterface.addSoftware(icon_path, "UU 远程", "")
-        self.downloadInterface.addSoftware(icon_path, "网易云音乐", "")
-        self.downloadInterface.addSoftware(icon_path, "office2021", "")
-
-        self.downloadInterface.addSection("希沃系列")
-        self.downloadInterface.addSoftware(icon_path, "希沃白板 5", "")
-        self.downloadInterface.addSoftware(icon_path, "剪辑师", "")
-        self.downloadInterface.addSoftware(icon_path, "知识胶囊", "")
-        self.downloadInterface.addSoftware(icon_path, "掌上看班", "")
-        self.downloadInterface.addSoftware(icon_path, "希沃轻白板", "")
-        self.downloadInterface.addSoftware(icon_path, "希沃智能笔", "")
-        self.downloadInterface.addSoftware(icon_path, "希沃输入法", "")
-        self.downloadInterface.addSoftware(icon_path, "希沃快传", "")
-        self.downloadInterface.addSoftware(icon_path, "希沃管家", "")
-        self.downloadInterface.addSoftware(icon_path, "希沃壁纸", "")
-        self.downloadInterface.addSoftware(icon_path, "希沃集控", "")
-        self.downloadInterface.addSoftware(icon_path, "希沃导播助手", "")
-        self.downloadInterface.addSoftware(icon_path, "希沃视频展台", "")
-        self.downloadInterface.addSoftware(icon_path, "希沃课堂助手", "")
-        self.downloadInterface.addSoftware(icon_path, "希沃电脑助手", "")
-        self.downloadInterface.addSoftware(icon_path, "希沃易课堂", "")
-        self.downloadInterface.addSoftware(icon_path, "PPT 小工具", "")
-        self.downloadInterface.addSoftware(icon_path, "希沃轻录播", "")
-        self.downloadInterface.addSoftware(icon_path, "希沃物联校园", "")
-        self.downloadInterface.addSoftware(icon_path, "远程互动课堂", "")
-        self.downloadInterface.addSoftware(icon_path, "省平台登录插件", "")
-        self.downloadInterface.addSoftware(icon_path, "希象传屏 [发送端]", "")
-        self.downloadInterface.addSoftware(icon_path, "希沃品课 [小组端]", "")
-        self.downloadInterface.addSoftware(icon_path, "希沃品课 [教师端]", "")
-        
-        self.downloadInterface.addSection("系统工具")
-        self.downloadInterface.addSoftware(icon_path, "激活工具", "")
-        
-        self.downloadInterface.addSection("课表软件")
-        self.downloadInterface.addSoftware(icon_path, "ClassIsland2", "")
-        self.downloadInterface.addSoftware(icon_path, "ClassWidgets", "")
+        for category in SOFTWARE_CATEGORIES:
+            self.downloadInterface.addSection(category["name"])
+            for software in category["software"]:
+                icon_path = get_software_icon_path(software["icon"])
+                self.downloadInterface.addSoftware(icon_path, software["name"], software["description"])
     
     def initSettingsNavigation(self):
         # 创建编辑面板
