@@ -46,30 +46,23 @@ class WallpaperInterface(ScrollArea):
         self.mainWindow = mainWindow
         self.scrollWidget = QWidget()
         self.mainLayout = QVBoxLayout(self.scrollWidget)
-
         self.wallpaperLabel = QLabel("壁纸", self)
         self.scrollArea = SmoothScrollArea()
         self.imageLabel = ImageLabel()
         self.imageLabel.setAlignment(Qt.AlignCenter)
         self.scrollArea.setWidget(self.imageLabel)
-        # 滚动区域的属性
-        self.scrollArea.setWidgetResizable(False)
+        self.scrollArea.setWidgetResizable(True)
         self.scrollArea.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.scrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        
         self.getButton = PushButton(FIF.DOWNLOAD, "获取壁纸")
         self.getButton.setFixedHeight(50)
         self.getButton.setFixedWidth(200)
-        
-        # 按钮
         self.saveButton = PushButton(FIF.SAVE, "另存壁纸")
         self.saveButton.setFixedHeight(50)
         self.saveButton.setFixedWidth(200)
-        
         self.selectButton = PushButton(FIF.FOLDER, "手动选择")
         self.selectButton.setFixedHeight(50)
         self.selectButton.setFixedWidth(200)
-        
         self.setWallpaperButton = PushButton(FIF.HOME, "设为桌面")
         self.setWallpaperButton.setFixedHeight(50)
         self.setWallpaperButton.setFixedWidth(200)
@@ -100,15 +93,12 @@ class WallpaperInterface(ScrollArea):
         self.__setQss()
         self.__initLayout()
         
-        # 程序运行时获取壁纸
         self.__getWallpaper()
 
     def __initLayout(self):
         """ 初始化布局 """
-        # 标题
         self.wallpaperLabel.move(60, 63)
 
-        # 按钮水平布局
         buttonLayout = QHBoxLayout()
         buttonLayout.addWidget(self.getButton)
         buttonLayout.addSpacing(10)
@@ -117,8 +107,7 @@ class WallpaperInterface(ScrollArea):
         buttonLayout.addWidget(self.selectButton)
         buttonLayout.addSpacing(10)
         buttonLayout.addWidget(self.setWallpaperButton)
-        
-        # 主布局
+
         self.mainLayout.setSpacing(20)
         self.mainLayout.setContentsMargins(60, 160, 60, 0) 
         self.mainLayout.addWidget(self.scrollArea)
@@ -138,25 +127,19 @@ class WallpaperInterface(ScrollArea):
             pass
 
     def __connectSignalToSlot(self):
-        """ 连接信号与槽 """
         self.getButton.clicked.connect(self.__getWallpaper)
         self.saveButton.clicked.connect(self.__saveWallpaper)
         self.selectButton.clicked.connect(self.__selectWallpaper)
         self.setWallpaperButton.clicked.connect(self.__setWallpaper)
-        
         cfg.autoGetInterval.valueChanged.connect(self.__updateAutoGetTimer)
         cfg.autoSyncToDesktop.valueChanged.connect(self.__updateAutoSyncCheckTimer)
         cfg.backgroundBlurRadius.valueChanged.connect(self.__updateBackgroundBlur)
-        
         self.__updateAutoGetTimer()
         self.__updateAutoSyncCheckTimer()
 
     def __updateAutoGetTimer(self):
         """ 更新自动获取壁纸的定时器 """
-        # 停止当前定时器
         self.autoGetTimer.stop()
-        
-        # 获取时间间隔
         interval_str = cfg.autoGetInterval.value
         
         if interval_str != "从不":
@@ -183,7 +166,6 @@ class WallpaperInterface(ScrollArea):
             else:
                 interval = 30 * 60 * 1000
             
-            # 启动定时器
             self.autoGetTimer.start(interval)
     
     def __checkAutoSync(self):
@@ -195,45 +177,14 @@ class WallpaperInterface(ScrollArea):
     
     def __updateAutoSyncCheckTimer(self):
         """ 更新自动同步检测定时器 """
-        # 停止当前定时器
         self.autoSyncCheckTimer.stop()
-        
-        if cfg.autoSyncToDesktop.value:
-            self.autoSyncCheckTimer.start(5000)
+        if cfg.autoSyncToDesktop.value:self.autoSyncCheckTimer.start(5000)
     
     def __updateBackgroundBlur(self):
         """ 更新背景模糊强度 """
         if hasattr(self, 'mainWindow') and self.mainWindow and hasattr(self.mainWindow, 'homeBackgroundImage'):
             if self.mainWindow.originalPixmap is not None and not self.mainWindow.originalPixmap.isNull():
                 self.mainWindow.resizeEvent(None)
-
-    def resizeEvent(self, event):
-        """ 窗口大小变化时调整滚动区域大小 """
-        super().resizeEvent(event)
-        margin = 60
-        available_width = self.width() - margin * 2
-        available_height = self.height() - 240
-        scroll_width = available_width
-        scroll_height = min(int(scroll_width * 0.5), available_height)
-        self.scrollArea.setFixedSize(scroll_width, scroll_height)
-        self.mainLayout.update()
-        self.scrollWidget.updateGeometry()
-    
-    def showEvent(self, event):
-        """ 界面显示时更新布局 """
-        super().showEvent(event)
-        QTimer.singleShot(30, self._updateLayout)
-    
-    def _updateLayout(self):
-        """ 更新布局 """
-        margin = 60
-        available_width = self.width() - margin * 2
-        available_height = self.height() - 240
-        scroll_width = available_width
-        scroll_height = min(int(scroll_width * 0.5), available_height)
-        self.scrollArea.setFixedSize(scroll_width, scroll_height)
-        self.mainLayout.update()
-        self.scrollWidget.updateGeometry()
 
     def __getWallpaper(self):
         """ 获取壁纸 """
@@ -256,7 +207,6 @@ class WallpaperInterface(ScrollArea):
             
             if response.status_code == 200:
                 logger.info(f"壁纸请求成功，状态码: {response.status_code}")
-                # 保存文件
                 wallpaper_dir = os.path.join(BASE_DIR, 'wallpaper')
                 if not os.path.exists(wallpaper_dir):
                     os.makedirs(wallpaper_dir)
@@ -264,15 +214,12 @@ class WallpaperInterface(ScrollArea):
                 
                 current_date = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
                 wallpaper_path = os.path.join(wallpaper_dir, f'wallpaper_{current_date}.jpg')
-                
                 with open(wallpaper_path, 'wb') as f:
                     f.write(response.content)
                 logger.info(f"壁纸已保存到: {wallpaper_path}")
-                
-                # 管理壁纸保存量
+
                 save_limit = cfg.wallpaperSaveLimit.value
                 self.__manageWallpaperLimit(wallpaper_dir, save_limit)
-                
                 self.current_pixmap = QPixmap(wallpaper_path)
                 self.current_wallpaper_path = wallpaper_path
                 if not self.current_pixmap.isNull():
