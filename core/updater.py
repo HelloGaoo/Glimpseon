@@ -44,7 +44,7 @@ def get_github_changelog(max_retries=3):
             
             logger.info(f"正在从 GitHub 获取更新日志：{CHANGELOG_URL}")
             response = requests.get(CHANGELOG_URL, timeout=10, verify=False)
-            response.raise_status()
+            response.raise_for_status()
             
             content = response.text
             return content
@@ -78,7 +78,7 @@ def check_github_verison(max_retries=3):
     try:
         logger.info(f"正在从 GitHub 获取版本信息：{VERSION_URL}")
         response = requests.get(VERSION_URL, timeout=10, verify=False)
-        response.raise_status()
+        response.raise_for_status()
         
         content = response.text
         
@@ -123,7 +123,7 @@ def download_update(download_path, progress_callback=None, max_retries=3):
             
             logger.info(f"正在下载更新：{url}")
             response = requests.get(url, stream=True, timeout=30, verify=False)
-            response.raise_status()
+            response.raise_for_status()
             
             total_size = int(response.headers.get('content-length', 0))
             downloaded_size = 0

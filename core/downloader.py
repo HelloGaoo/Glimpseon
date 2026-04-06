@@ -1065,7 +1065,7 @@ class Downloader:
                             self.installer_logger.info(f"{software_name}: 跟随重定向到: {redirect_url}")
                         response = session.get(redirect_url, stream=True, timeout=60, verify=False)
 
-                response.raise_status()
+                response.raise_for_status()
                 total_size = int(response.headers.get('content-length', 0))
                 if self.installer_logger:
                     self.installer_logger.info(f"{software_name}: 文件大小: {total_size} bytes")
@@ -1175,6 +1175,36 @@ class Downloader:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}")
             raise
     
+    def _update_status(self, software_name, status):
+        """更新状态
+        """
+        mapping = {
+            "安装完成": 100,
+            "已安装": 100,
+            "安装失败": 0,
+            "下载中": 20,
+            "解压中": 50,
+            "配置中": 80,
+        }
+        try:
+            if status in mapping:self.set_progress(software_name, mapping[status])
+            if self.installer_logger:self.installer_logger.info(f"{software_name}: {status}")
+        except Exception:
+            if self.installer_logger:self.installer_logger.info(f"{software_name}: {status}")
+    
+    def _decompress_7Z(self, software_name, archive_path, output_dir):
+        """解压7z文件"""
+        if self.installer_logger:
+            self.installer_logger.info(f"{software_name}: 开始解压到: {output_dir}")
+        
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+            with py7zr.SevenZipFile(archive_path, 'r', password=SEVEN_ZIP_PASSWORD) as archive:archive.extractall(output_dir)
+            if self.installer_logger:self.installer_logger.info(f"{software_name}: 解压完成")
+        except Exception as err:
+            if self.installer_logger:self.installer_logger.error(f"{software_name}: 解压失败 - {str(err)}")
+            raise
+    
     def _clean_tempdir(self, temp_dir, filename, software_name, max_retries=3, retry_delay=1.0):
         """清理临时文件
         这里的与cleanup_temp_directory函数不同 这里的是清理单个文件 那个是清理整个目录 这是在安装后调用的 那个是启动软件自动清理的"""
@@ -1224,37 +1254,6 @@ def cleanup_temp_directory(temp_dir=None, logger=None):
         if logger:logger.info(f"临时目录清理完成，共清理 {count} 个文件/文件夹")
     except Exception as err:
         if logger:logger.error(f"清理临时目录失败：{err}")
-    
-    def _update_status(self, software_name, status):
-        """更新状态
-        
-        Args:
-            software_name: 软件名称
-            status: 状态信息
-        """
-        mapping = {
-            "安装完成": 100,
-            "已安装": 100,
-            "安装失败": 0,
-            "下载中": 20,
-            "解压中": 50,
-            "配置中": 80,
-        }
-        try:
-            if status in mapping:self.set_progress(software_name, mapping[status])
-            if self.installer_logger:self.installer_logger.info(f"{software_name}: {status}")
-        except Exception:
-            if self.installer_logger:self.installer_logger.info(f"{software_name}: {status}")
-    
-    def _decompress_7Z(self, software_name, archive_path, output_dir):
-        """解压7z文件"""
-        if self.installer_logger:
-            self.installer_logger.info(f"{software_name}: 开始解压到: {output_dir}")
-        
-        try:
-            os.makedirs(output_dir, exist_ok=True)
-            with py7zr.SevenZipFile(archive_path, 'r', password=SEVEN_ZIP_PASSWORD) as archive:archive.extractall(output_dir)
-            if self.installer_logger:self.installer_logger.info(f"{software_name}: 解压完成")
-        except Exception as err:
-            if self.installer_logger:self.installer_logger.error(f"{software_name}: 解压失败 - {str(err)}")
-            raise
+
+def clean_tempdir(logger=None):
+    cleanup_temp_directory(logger=logger)

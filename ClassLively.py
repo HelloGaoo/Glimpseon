@@ -538,7 +538,6 @@ class MainWindow(FluentWindow):
         
         if cfg.autoOpenOnIdle.value:
             self.idleTimer.start(self.idleCheckInterval)
-            logger.info(f"空闲检测已启用，检测间隔：{self.idleCheckInterval}ms")
         else:
             logger.info("空闲检测已禁用")
     
