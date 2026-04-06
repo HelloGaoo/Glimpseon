@@ -27,7 +27,7 @@ from PyQt5.QtWidgets import QWidget
 from qfluentwidgets import BodyLabel, MessageBoxBase, SearchLineEdit, SubtitleLabel, ListWidget
 
 from core.config import cfg
-from core.constants import BASE_DIR, MEIPASS_DIR, get_resource_path
+from core.constants import BASE_DIR, MEIPASS_DIR, get_resPath
 
 
 class RegionDatabase:
@@ -38,7 +38,7 @@ class RegionDatabase:
     
     def __init__(self):
         """初始化数据库路径"""
-        self._db_path = get_resource_path(os.path.join('data', 'xiaomi_weather.db'))
+        self._db_path = get_resPath(os.path.join('data', 'xiaomi_weather.db'))
         if not os.path.exists(self._db_path):
             self._db_path = os.path.join(BASE_DIR, 'data', 'xiaomi_weather.db')
     

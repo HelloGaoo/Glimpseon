@@ -38,7 +38,7 @@ from qfluentwidgets import (
     isDarkTheme,
 )
 
-from core.constants import get_resource_path
+from core.constants import get_resPath
 from version import BUILD_DATE, VERSION
 
 from .base_scroll_area import BaseScrollAreaInterface
@@ -79,7 +79,7 @@ class AboutInterface(BaseScrollAreaInterface):
         
         # 尝试加载应用图标
         try:
-            icon_path = get_resource_path(os.path.join('resource', 'icons', 'CY.png'))
+            icon_path = get_resPath(os.path.join('resource', 'icons', 'CY.png'))
             if os.path.exists(icon_path):
                 pixmap = QPixmap(icon_path)
                 self.appIconLabel.setPixmap(pixmap.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation))
@@ -229,7 +229,7 @@ class AboutInterface(BaseScrollAreaInterface):
         
         theme = 'dark' if isDarkTheme() else 'light'
         try:
-            qss_path = get_resource_path(os.path.join('resource', 'qss', theme, 'about_interface.qss'))
+            qss_path = get_resPath(os.path.join('resource', 'qss', theme, 'about_interface.qss'))
             with open(qss_path, encoding='utf-8') as f:
                 self.setStyleSheet(f.read())
         except Exception:
@@ -253,7 +253,7 @@ class AboutInterface(BaseScrollAreaInterface):
         """ 查看许可证文件 """
         theme = 'dark' if isDarkTheme() else 'light'
         
-        license_path = get_resource_path("LICENSE")
+        license_path = get_resPath("LICENSE")
         license_text = ""
         
         if os.path.exists(license_path):

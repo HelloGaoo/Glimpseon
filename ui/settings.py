@@ -49,7 +49,7 @@ from qfluentwidgets import (
 )
 
 from core.config import cfg, get_default_config_dict
-from core.constants import BASE_DIR, get_resource_path
+from core.constants import BASE_DIR, get_resPath
 from core.logger import log_dir
 from ui.city_selector import RegionSelectorDialog
 
@@ -326,7 +326,7 @@ class SettingInterface(ScrollArea):
         self.settingLabel.setObjectName('settingLabel')
         theme = 'dark' if isDarkTheme() else 'light'
         try:
-            qss_path = get_resource_path(os.path.join('resource', 'qss', theme, 'setting_interface.qss'))
+            qss_path = get_resPath(os.path.join('resource', 'qss', theme, 'setting_interface.qss'))
             with open(qss_path, encoding='utf-8') as f:self.setStyleSheet(f.read())
         except Exception:pass
 

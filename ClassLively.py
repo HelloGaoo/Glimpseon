@@ -114,7 +114,7 @@ from qfluentwidgets import (
 
 from data.url_dir import url_dir  # type: ignore
 from core.config import cfg, get_default_config_dict
-from core.constants import APP_NAME, BASE_DIR, MEIPASS_DIR, get_resource_path
+from core.constants import APP_NAME, BASE_DIR, MEIPASS_DIR, get_resPath
 from core.downloader import Downloader, cleanup_temp_directory
 from core.font_manager import initialize_fonts
 from core.logger import logger, setup_exception_hook
@@ -176,7 +176,7 @@ def check_single_instance():
     
     return True
 
-def extract_bundled_files():
+def extract_files():
     if not getattr(sys, 'frozen', False) or not MEIPASS_DIR:
         return
     
@@ -213,7 +213,7 @@ def extract_bundled_files():
                         except Exception as e:
                             logger.error(f"提取文件 {os.path.join(folder, rel_path, file)} 失败：{e}")
 
-def get_auto_start_status():
+def checkAutostart():
     try:
         key_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_READ)
@@ -229,7 +229,7 @@ def get_auto_start_status():
         return False, None
 
 
-def set_auto_start(enabled, delay_seconds=5):
+def setAutostart(enabled, delay_seconds=5):
     """设置开机自启动"""
     try:
         key_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
@@ -258,7 +258,7 @@ def set_auto_start(enabled, delay_seconds=5):
                 logger.info(f"准备设置py开机自启动: {python_exe} {script_path}, 延迟: {delay_seconds}秒")
             
             winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, command)
-            success, stored_value = get_auto_start_status()
+            success, stored_value = checkAutostart()
             if success and stored_value == command:
                 logger.info(f"已成功设置开机自启动，延迟: {delay_seconds}秒")
                 return True
@@ -272,7 +272,7 @@ def set_auto_start(enabled, delay_seconds=5):
             except FileNotFoundError:
                 logger.info("开机自启动项不存在")
             winreg.CloseKey(key)
-            success, _ = get_auto_start_status()
+            success, _ = checkAutostart()
             if not success:
                 logger.info("已确认开机自启动项已删除")
                 return True
@@ -288,16 +288,16 @@ def set_auto_start(enabled, delay_seconds=5):
         return False
 
 
-def sync_auto_start_with_config():
+def sync_autostartCfg():
     try:
         config_auto_start = cfg.autoStart.value
-        actual_auto_start, _ = get_auto_start_status()
+        actual_auto_start, _ = checkAutostart()
         
         logger.info(f"同步自启动状态 - 配置: {config_auto_start}, 实际: {actual_auto_start}")
         
         if config_auto_start != actual_auto_start:
             logger.info(f"自启动状态不一致，正在同步...")
-            result = set_auto_start(config_auto_start)
+            result = setAutostart(config_auto_start)
             if result:
                 logger.info("自启动状态同步成功")
             else:
@@ -322,7 +322,7 @@ class MainWindow(FluentWindow):
         
         setTheme(cfg.themeMode.value)
         
-        icon_path = get_resource_path(os.path.join("resource", "icons", "CY.png"))
+        icon_path = get_resPath(os.path.join("resource", "icons", "CY.png"))
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         else:
@@ -393,9 +393,9 @@ class MainWindow(FluentWindow):
         # 初始更新天气
         self.__updateWeatherInterval()
         
-        sync_auto_start_with_config()
+        sync_autostartCfg()
         
-        cfg.autoStart.valueChanged.connect(lambda value: set_auto_start(value))
+        cfg.autoStart.valueChanged.connect(lambda value: setAutostart(value))
         cfg.clockPosition.valueChanged.connect(self.__updateClockPosition)
         cfg.weatherPosition.valueChanged.connect(self.__updateWeatherPosition)
         cfg.poetryPosition.valueChanged.connect(self.__updatePoetryPosition)
@@ -489,7 +489,7 @@ class MainWindow(FluentWindow):
     
     def initSystemTray(self):
         """ 初始化系统托盘 """
-        icon_path = get_resource_path(os.path.join("resource", "icons", "CY.png"))
+        icon_path = get_resPath(os.path.join("resource", "icons", "CY.png"))
         if os.path.exists(icon_path):
             self.tray_icon = QSystemTrayIcon(QIcon(icon_path), self)
         else:
@@ -1417,7 +1417,7 @@ class MainWindow(FluentWindow):
             }
             
             icon_file = icon_map.get(self.current_weather_code, "0.svg")
-            icon_path = get_resource_path(os.path.join("resource", "icons", "weather", icon_file))
+            icon_path = get_resPath(os.path.join("resource", "icons", "weather", icon_file))
             if os.path.exists(icon_path):
                 # QIcon 加载 SVG
                 icon = QIcon(icon_path)
@@ -1446,7 +1446,7 @@ if __name__ == "__main__":
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
     
-    extract_bundled_files()
+    extract_files()
     
     cleanup_temp_directory(logger=logger)
     

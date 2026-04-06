@@ -24,7 +24,7 @@ import shutil
 from typing import List
 from PyQt5.QtGui import QFont, QFontDatabase
 from PyQt5.QtWidgets import QApplication
-from core.constants import get_resource_path
+from core.constants import get_resPath
 from core.logger import logger
 
 HARMONYOS_FONT_FILES = [
@@ -50,7 +50,7 @@ FALLBACK_FONT_FAMILIES = [
 
 
 def get_harmonyos_font_dir() -> str:
-    return get_resource_path(os.path.join("font", "HarmonyOS_Sans"))
+    return get_resPath(os.path.join("font", "HarmonyOS_Sans"))
 
 def is_fonts_installed_in_system() -> bool:
     """检查系统有吗"""

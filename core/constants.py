@@ -32,7 +32,7 @@ else:
     MEIPASS_DIR = None
 
 
-def get_resource_path(relative_path):
+def get_resPath(relative_path):
     base_path = os.path.join(BASE_DIR, relative_path)
     if os.path.exists(base_path):
         return base_path

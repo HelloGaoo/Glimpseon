@@ -49,7 +49,7 @@ from qfluentwidgets import (
 )
 
 from core.config import cfg
-from core.constants import BASE_DIR, get_resource_path
+from core.constants import BASE_DIR, get_resPath
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +136,7 @@ class WallpaperInterface(ScrollArea):
 
         theme = 'dark' if isDarkTheme() else 'light'
         try:
-            qss_path = get_resource_path(os.path.join('resource', 'qss', theme, 'setting_interface.qss'))
+            qss_path = get_resPath(os.path.join('resource', 'qss', theme, 'setting_interface.qss'))
             with open(qss_path, encoding='utf-8') as f:
                 self.setStyleSheet(f.read())
         except Exception:
@@ -281,7 +281,7 @@ class WallpaperInterface(ScrollArea):
             self.__loadDefaultWallpaper()
     
     def __loadDefaultWallpaper(self):
-        default_wallpaper_path = get_resource_path(os.path.join('resource', 'wallpaper', 'default.jpg'))
+        default_wallpaper_path = get_resPath(os.path.join('resource', 'wallpaper', 'default.jpg'))
         
         if not os.path.exists(default_wallpaper_path):
             wallpaper_dir = os.path.join(BASE_DIR, 'wallpaper')

@@ -47,7 +47,7 @@ from qfluentwidgets import (
 
 from core.config import cfg
 from data.url_dir import url_dir
-from core.constants import get_resource_path
+from core.constants import get_resPath
 from core.downloader import DOWNLOAD_SOURCES, DEFAULT_SOURCE, Downloader, set_download_source
 from core.logger import logger
 
@@ -120,7 +120,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         
         theme = 'dark' if isDarkTheme() else 'light'
         try:
-            qss_path = get_resource_path(os.path.join('resource', 'qss', theme, 'download_interface.qss'))
+            qss_path = get_resPath(os.path.join('resource', 'qss', theme, 'download_interface.qss'))
             with open(qss_path, encoding='utf-8') as f:
                 self.setStyleSheet(f.read())
         except Exception:
