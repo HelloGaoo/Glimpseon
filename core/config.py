@@ -48,6 +48,8 @@ if BASE_DIR not in sys.path:
 
 from data.url_dir import url_dir
 
+logger = logging.getLogger(__name__)
+
 
 class ThemeSerializer(ConfigSerializer):
     """ 主题序列化 """
