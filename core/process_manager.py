@@ -23,7 +23,7 @@ import time
 import psutil
 from core.logger import logger
 
-def _is_classlively_process(proc, current_pid=None):
+def _check_classlively_process(proc, current_pid=None):
     """是否 ClassLively"""
     try:
         pid = proc.pid
@@ -42,20 +42,19 @@ def _is_classlively_process(proc, current_pid=None):
     return False
 
 
-def _find_classlively_processes(current_pid=None):
-    """查找所有软件进程
-    """
+def _find_classlively(current_pid=None):
+    """查找所有软件进程"""
     pids = []
     for proc in psutil.process_iter(['pid', 'name']):
         try:
-            if _is_classlively_process(proc, current_pid):
+            if _check_classlively_process(proc, current_pid):
                 pids.append(proc.pid)
                 logger.info(f"发现 ClassLively 进程 PID: {proc.pid}, 名称: {proc.name()}")
         except (psutil.NoSuchProcess, psutil.AccessDenied):continue
     return pids
 
 
-def _wait_for_processes_exit(pids, max_wait=3, check_interval=0.5):
+def _wait_classlively_exit(pids, max_wait=3, check_interval=0.5):
     """等待进程退出"""
     start_time = time.time()
     
@@ -77,7 +76,7 @@ def check_old_instances():
     try:
         current_pid = os.getpid()
         logger.debug(f"当前进程 PID: {current_pid}")
-        processes = _find_classlively_processes(current_pid)
+        processes = _find_classlively(current_pid)
         if processes:
             logger.info(f"发现 {len(processes)} 个旧进程")
             return True
@@ -88,12 +87,12 @@ def check_old_instances():
         return False
 
 
-def terminate_old_instances():
+def kill_old():
     """终止所有旧的进程"""
     try:
         current_pid = os.getpid()
         logger.info(f"当前进程 PID: {current_pid}")
-        processes_to_kill = _find_classlively_processes(current_pid)
+        processes_to_kill = _find_classlively(current_pid)
         if not processes_to_kill:
             return True
         terminated_count = 0
@@ -120,7 +119,7 @@ def terminate_old_instances():
         
         if terminated_count > 0:
             logger.info(f"等待进程退出")
-            remaining = _wait_for_processes_exit(processes_to_kill, max_wait=3)
+            remaining = _wait_classlively_exit(processes_to_kill, max_wait=3)
             if remaining > 0:
                 logger.warning(f"仍有 {remaining} 个旧进程未退出，但将继续启动")
             else:

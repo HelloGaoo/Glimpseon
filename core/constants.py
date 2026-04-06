@@ -22,8 +22,6 @@ import os
 import sys
 
 APP_NAME = "ClassLively"
-
-# 获取项目根目录
 if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
     MEIPASS_DIR = sys._MEIPASS

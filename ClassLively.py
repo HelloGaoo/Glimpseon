@@ -113,18 +113,18 @@ from qfluentwidgets import (
 )
 
 from data.url_dir import url_dir  # type: ignore
-from core.config import cfg, get_default_config_dict
+from core.config import cfg, default_cfg
 from core.constants import APP_NAME, BASE_DIR, MEIPASS_DIR, get_resPath
-from core.downloader import Downloader, cleanup_temp_directory
+from core.downloader import Downloader, clean_tempdir
 from core.font_manager import initialize_fonts
-from core.logger import logger, setup_exception_hook
-from core.process_manager import check_old_instances, terminate_old_instances
+from core.logger import logger, init_exhook
+from core.process_manager import check_old_instances, kill_old
 from core.updater import (
     create_update_script,
     download_update,
     extract_update,
-    get_changelog_from_github,
-    check_version_from_github,
+    get_github_changelog,
+    check_github_verison,
 )
 from data.software_list import SOFTWARE_CATEGORIES, get_software_icon_path
 from services.weather import WeatherService
@@ -135,7 +135,7 @@ from ui.settings import SettingInterface
 from ui.wallpaper import WallpaperInterface
 from version import BUILD_DATE, VERSION
 
-def check_single_instance():
+def verify_singleInst():
     """检查是否已经有实例"""
     config_path = os.path.join(BASE_DIR, 'config', 'config.json')
     allow_multiple = False
@@ -160,7 +160,7 @@ def check_single_instance():
     if old_instance_found:
         if is_developer_mode:
             logger.info("检测到旧进程，正在终止")
-            terminate_result = terminate_old_instances()
+            terminate_result = kill_old()
             if terminate_result:
                 time.sleep(1)
                 return True
@@ -1432,13 +1432,13 @@ class MainWindow(FluentWindow):
         except Exception as e:
             logger.error(f"天气图标更新失败：{e}")
 
-def is_auto_start_launch():
+def autoStart_launch():
     """检查是否是通过开机自启动启动的"""
     return '--autostart' in sys.argv or '/autostart' in sys.argv
 
 
 if __name__ == "__main__":
-    auto_start_launch = is_auto_start_launch()
+    auto_start_launch = autoStart_launch()
     if auto_start_launch:
         print("检测到通过开机自启动启动")
     
@@ -1448,7 +1448,7 @@ if __name__ == "__main__":
     
     extract_files()
     
-    cleanup_temp_directory(logger=logger)
+    clean_tempdir(logger=logger)
     
     app = QApplication(sys.argv)
     
@@ -1456,7 +1456,7 @@ if __name__ == "__main__":
     locale = QLocale(QLocale.Chinese, QLocale.China)
     fluentTranslator = FluentTranslator(locale)
     app.installTranslator(fluentTranslator)
-    if not check_single_instance():
+    if not verify_singleInst():
         
         temp_widget = QWidget()
         temp_widget.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
@@ -1490,7 +1490,7 @@ if __name__ == "__main__":
         log_max_count = cfg.logMaxCount.value
         log_max_days = cfg.logMaxDays.value
     
-    logger.update_config(
+    logger.update_cfg(
         disable_log=cfg.disableLog.value,
         log_level=log_level_str,
         max_count=log_max_count,
@@ -1522,7 +1522,7 @@ if __name__ == "__main__":
     logger.info(f"软件运行路径：{BASE_DIR}")
     logger.debug(f"url_dir 内容：{url_dir}")
 
-    setup_exception_hook()
+    init_exhook()
 
     window = MainWindow()
     

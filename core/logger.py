@@ -94,7 +94,7 @@ class Logger:
         self.console_handler = None
         self.__setup_handlers()
     
-    def __clean_old_logs(self):
+    def __clean_oldlog(self):
         """ 清理旧日志文件 """
         if not os.path.exists(log_dir):
             return
@@ -171,9 +171,9 @@ class Logger:
         self.logger.addHandler(self.console_handler)
         
         # 清理旧日志
-        self.__clean_old_logs()
+        self.__clean_oldlog()
     
-    def update_config(self, disable_log=False, log_level="INFO", max_count=50, max_days=7):
+    def update_cfg(self, disable_log=False, log_level="INFO", max_count=50, max_days=7):
         """ 更新配置 """
         self.disable_log = disable_log
         self.log_level = log_level
@@ -204,10 +204,8 @@ class Logger:
 logger = Logger()
 
 
-def setup_exception_hook():
-    """设置全局异常钩子"""
+def init_exhook():
     def custom_exception_hook(exctype, value, tb):
-        """自定义异常钩子，用于记录未处理的异常"""
         if issubclass(exctype, KeyboardInterrupt):
             sys.__excepthook__(exctype, value, tb)
             return

@@ -48,10 +48,10 @@ from qfluentwidgets import (
 from core.config import cfg
 from data.url_dir import url_dir
 from core.constants import get_resPath
-from core.downloader import DOWNLOAD_SOURCES, DEFAULT_SOURCE, Downloader, set_download_source
+from core.downloader import DOWNLOAD_SOURCES, DEFAULT_SOURCE, Downloader, set_download_src
 from core.logger import logger
 
-from .base_scroll_area import BaseScrollAreaInterface
+from .base_scroll import BaseScrollAreaInterface
 
 
 class DownloadInterface(BaseScrollAreaInterface):
@@ -94,9 +94,9 @@ class DownloadInterface(BaseScrollAreaInterface):
         if source_key:
             qconfig.set(cfg.downloadSource, source_key)
             logger.info(f"下载源已保存到配置：{source_name} ({source_key})")
-            set_download_source(source_key)
+            set_download_src(source_key)
     
-    def __get_download_url(self, cache_file):
+    def __get_url(self, cache_file):
         source_index = self.sourceComboBox.currentIndex()
         source_keys = list(DOWNLOAD_SOURCES.keys())
         
@@ -181,18 +181,18 @@ class DownloadInterface(BaseScrollAreaInterface):
                     if not cache_file:
                         QMetaObject.invokeMethod(
                             self,
-                            '_show_download_error_now',
+                            '_show_download_error',
                             Qt.QueuedConnection,
                             Q_ARG(str, software_name),
                             Q_ARG(str, "未找到对应的下载链接")
                         )
                         return
 
-                    download_url = self.__get_download_url(cache_file)
+                    download_url = self.__get_url(cache_file)
                     if not download_url:
                         QMetaObject.invokeMethod(
                             self,
-                            '_show_download_error_now',
+                            '_show_download_error',
                             Qt.QueuedConnection,
                             Q_ARG(str, software_name),
                             Q_ARG(str, "无法获取下载链接")
@@ -202,7 +202,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                     # 更新 cache_file 的 url
                     cache_file['url'] = download_url
                     
-                    # 进度回调（接收 downloader 的 (software_name, percent)）
+                    # 接收 downloader 的 (software_name, percent)）
                     def update_progress(software_name_arg, percent, item=software_item):
                         try:
                             val = int(round(float(percent)))
@@ -217,7 +217,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                             )
 
                     # 下载完成回调
-                    def on_download_complete(software_name_arg=None, item=software_item):
+                    def _on_download_done(software_name_arg=None, item=software_item):
                         name = software_name_arg if software_name_arg else software_name
                         if item:
                             logger.info(f"{name}: 下载完成")
@@ -230,7 +230,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                                 software_name, 
                                 cache_file, 
                                 progress_callback=update_progress, 
-                                download_complete_callback=on_download_complete
+                                download_complete_callback=_on_download_done
                             )
                             QMetaObject.invokeMethod(
                                 software_item['progressBar'],
@@ -240,7 +240,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                             )
                             QMetaObject.invokeMethod(
                                 self,
-                                '_show_download_complete_now',
+                                '_show_download_complete',
                                 Qt.QueuedConnection,
                                 Q_ARG(str, software_name),
                                 Q_ARG(int, 500)
@@ -249,7 +249,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                             logger.error(f"{software_name}: 安装函数异常 - {e}", exc_info=True)
                             QMetaObject.invokeMethod(
                                 self,
-                                '_show_download_error_now',
+                                '_show_download_error',
                                 Qt.QueuedConnection,
                                 Q_ARG(str, software_name),
                                 Q_ARG(str, str(e))
@@ -262,7 +262,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                     # 显示未找到安装方法的提示
                     QMetaObject.invokeMethod(
                         self,
-                        '_show_download_error_now',
+                        '_show_download_error',
                         Qt.QueuedConnection,
                         Q_ARG(str, software_name),
                         Q_ARG(str, "未找到对应的安装方法")
@@ -270,7 +270,7 @@ class DownloadInterface(BaseScrollAreaInterface):
             except Exception as e:
                 QMetaObject.invokeMethod(
                     self,
-                    '_show_download_error_now',
+                    '_show_download_error',
                     Qt.QueuedConnection,
                     Q_ARG(str, software_name),
                     Q_ARG(str, str(e))
@@ -279,7 +279,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         thread = threading.Thread(target=download_thread, daemon=True)
         thread.start()
     
-    def __showDownloadComplete(self, software_item, software_name):
+    def __show_download_complete(self, software_item, software_name):
         """ 显示下载完成 """
         if software_item:
             # 先设置为100%
@@ -305,7 +305,7 @@ class DownloadInterface(BaseScrollAreaInterface):
             duration=3000
         )
     
-    def __showDownloadError(self, software_item, software_name, error_msg):
+    def __show_download_error(self, software_item, software_name, error_msg):
         """ 显示下载错误 """
         if software_item:
             software_item['progressBar'].hide()
@@ -327,17 +327,17 @@ class DownloadInterface(BaseScrollAreaInterface):
         )
 
     @pyqtSlot(str, str)
-    def _show_download_error_now(self, software_name, error_msg):
+    def _show_download_error(self, software_name, error_msg):
         """显示下载错误"""
         item = None
         for it in self.softwareList:
             if it.get('name') == software_name:
                 item = it
                 break
-        self.__showDownloadError(item, software_name, error_msg)
+        self.__show_download_error(item, software_name, error_msg)
 
     @pyqtSlot(str, int)
-    def _show_download_complete_now(self, software_name, delay_ms=500):
+    def _show_download_complete(self, software_name, delay_ms=500):
         """延迟显示完成"""
         item = None
         for it in self.softwareList:
@@ -345,12 +345,12 @@ class DownloadInterface(BaseScrollAreaInterface):
                 item = it
                 break
         if delay_ms and delay_ms > 0:
-            QTimer.singleShot(delay_ms, lambda: self.__showDownloadComplete(item, software_name))
+            QTimer.singleShot(delay_ms, lambda: self.__show_download_complete(item, software_name))
         else:
-            self.__showDownloadComplete(item, software_name)
+            self.__show_download_complete(item, software_name)
 
     @pyqtSlot()
-    def _clear_selected_software_now(self):
+    def _clear_selected_software(self):
         """清空已选择的软件列表"""
         try:
             self.selectedSoftware.clear()
@@ -411,7 +411,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         source_key = cfg.downloadSource.value
         default_index = list(DOWNLOAD_SOURCES.keys()).index(source_key)
         self.sourceComboBox.setCurrentIndex(default_index)
-        set_download_source(source_key)
+        set_download_src(source_key)
         
         sourceGroupLayout.addWidget(self.sourceLabel)
         sourceGroupLayout.addWidget(self.sourceComboBox)
@@ -541,10 +541,13 @@ class DownloadInterface(BaseScrollAreaInterface):
     def __handleCheckboxChange(self, software_name, state):
         """ 复选框状态变更 """
         if state == Qt.Checked:
-            if software_name not in self.selectedSoftware:self.selectedSoftware.append(software_name)
+            if software_name not in self.selectedSoftware:
+                self.selectedSoftware.append(software_name)
         else:
-            if software_name in self.selectedSoftware:self.selectedSoftware.remove(software_name)
-        if self.multiModeButton.isChecked():self.__updateSelectAllButton()
+            if software_name in self.selectedSoftware:
+                self.selectedSoftware.remove(software_name)
+        if self.multiModeButton.isChecked():
+            self.__updateSelectAllButton()
     
     def __handleSelectAll(self):
         """ 全选按钮点击 """
@@ -559,10 +562,13 @@ class DownloadInterface(BaseScrollAreaInterface):
                 in_progress = software.get('progressBar') is not None and software['progressBar'].isVisible()
             except Exception:
                 in_progress = False
-            if in_progress:continue
+            if in_progress:
+                continue
             software['checkbox'].setChecked(should_check_all)
-        if should_check_all:self.selectAllButton.setText("取消全选")
-        else:self.selectAllButton.setText("全选")
+        if should_check_all:
+            self.selectAllButton.setText("取消全选")
+        else:
+            self.selectAllButton.setText("全选")
     
     def __updateSelectAllButton(self):
         if not self.softwareList:
@@ -714,19 +720,18 @@ class DownloadInterface(BaseScrollAreaInterface):
             if not cache_file:
                 QMetaObject.invokeMethod(
                     self,
-                    '_show_download_error_now',
+                    '_show_download_error',
                     Qt.QueuedConnection,
                     Q_ARG(str, software_name),
                     Q_ARG(str, '未找到对应的下载链接')
                 )
                 return
 
-            # 根据选择的下载源获取实际 URL
-            download_url = self.__get_download_url(cache_file)
+            download_url = self.__get_url(cache_file)
             if not download_url:
                 QMetaObject.invokeMethod(
                     self,
-                    '_show_download_error_now',
+                    '_show_download_error',
                     Qt.QueuedConnection,
                     Q_ARG(str, software_name),
                     Q_ARG(str, '无法获取下载链接')
@@ -750,7 +755,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                         Q_ARG(int, val)
                     )
 
-            def on_download_complete(software_name_arg=None, item_ref=item):
+            def _on_download_done(software_name_arg=None, item_ref=item):
                 name = software_name_arg if software_name_arg else software_name
                 logger.info(f"{name}: 下载完成")
 
@@ -763,7 +768,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                         software_name,
                         cache_file,
                         progress_callback=update_progress,
-                        download_complete_callback=on_download_complete
+                        download_complete_callback=_on_download_done
                     )
 
                     # 保证设置为100并显示完成
@@ -776,7 +781,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                         )
                     QMetaObject.invokeMethod(
                         self,
-                        '_show_download_complete_now',
+                        '_show_download_complete',
                         Qt.QueuedConnection,
                         Q_ARG(str, software_name),
                         Q_ARG(int, 500)
@@ -784,7 +789,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                 else:
                     QMetaObject.invokeMethod(
                         self,
-                        '_show_download_error_now',
+                        '_show_download_error',
                         Qt.QueuedConnection,
                         Q_ARG(str, software_name),
                         Q_ARG(str, '未找到对应的安装方法')
@@ -793,7 +798,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                 logger.error(f"{software_name}: 安装函数异常 - {e}", exc_info=True)
                 QMetaObject.invokeMethod(
                     self,
-                    '_show_download_error_now',
+                    '_show_download_error',
                     Qt.QueuedConnection,
                     Q_ARG(str, software_name),
                     Q_ARG(str, str(e))
@@ -803,7 +808,7 @@ class DownloadInterface(BaseScrollAreaInterface):
             future = self.download_executor.submit(_run_install_task, software_name)
             self.futures.append(future)
 
-        def wait_for_tasks():
+        def _wait_tasks():
             import time
             while True:
                 all_done = all(future.done() for future in self.futures)
@@ -818,10 +823,10 @@ class DownloadInterface(BaseScrollAreaInterface):
                 logger.error(f"关闭线程池时出错: {str(e)}")
             QMetaObject.invokeMethod(
                 self,
-                '_clear_selected_software_now',
+                '_clear_selected_software',
                 Qt.QueuedConnection
             )
 
-        threading.Thread(target=wait_for_tasks, daemon=True).start()
+        threading.Thread(target=_wait_tasks, daemon=True).start()
 
 

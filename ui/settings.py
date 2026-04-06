@@ -48,7 +48,7 @@ from qfluentwidgets import (
     setThemeColor,
 )
 
-from core.config import cfg, get_default_config_dict
+from core.config import cfg, default_cfg
 from core.constants import BASE_DIR, get_resPath
 from core.logger import log_dir
 from ui.city_selector import RegionSelectorDialog
@@ -374,15 +374,15 @@ class SettingInterface(ScrollArea):
                     os.remove(config_path)
                 config_dir = os.path.join(BASE_DIR, 'config')
                 if not os.path.exists(config_dir):os.makedirs(config_dir)
-                default_config = get_default_config_dict()
+                default_config = default_cfg()
                 with open(config_path, 'w', encoding='utf-8') as f:json.dump(default_config, f, ensure_ascii=False, indent=4)
                 qconfig.load(config_path, cfg)
                 from core.font_manager import apply_fonts
                 from PyQt5.QtWidgets import QApplication
                 app = QApplication.instance()
                 if app:
-                    from core.font_manager import load_fonts_to_application
-                    font_loaded = load_fonts_to_application()
+                    from core.font_manager import _load_app_fonts
+                    font_loaded = _load_app_fonts()
                     apply_fonts(app, use_harmonyos=font_loaded)
                 current_theme = cfg.theme.value
                 setTheme(current_theme)

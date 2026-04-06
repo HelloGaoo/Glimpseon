@@ -20,6 +20,7 @@
 
 import logging
 import os
+import subprocess
 import threading
 
 from PyQt5.QtCore import QMetaObject, Q_ARG, Qt, QTimer
@@ -42,10 +43,10 @@ from qfluentwidgets import (
 
 from core.config import cfg
 from core.constants import BASE_DIR, get_resPath
-from core.updater import check_version_from_github, get_changelog_from_github
+from core.updater import check_github_verison, get_github_changelog
 from version import BUILD_DATE, VERSION
 
-from .base_scroll_area import BaseScrollAreaInterface
+from .base_scroll import BaseScrollAreaInterface
 
 logger = logging.getLogger(__name__)
 
@@ -201,7 +202,7 @@ class UpdateInterface(BaseScrollAreaInterface):
         def load():
             try:
                 # 先尝试从 GitHub 获取
-                changelog = get_changelog_from_github()
+                changelog = get_github_changelog()
                 if changelog:
                     logger.info(f"{'自动' if auto_load else '手动'}加载：成功从 GitHub 获取更新日志")
                     return changelog
@@ -246,7 +247,7 @@ class UpdateInterface(BaseScrollAreaInterface):
         
         def do_check():
             try:
-                result = check_version_from_github()
+                result = check_github_verison()
                 
                 if not result['success']:
                     logger.warning(f"{check_type}：检查版本失败 - {result.get('error', '未知错误')}")

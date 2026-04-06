@@ -50,7 +50,7 @@ PRIORITY_CLASSES = {
 }
 
 
-def set_priority_for_pid(pid, level='below_normal'):
+def set_priority_pid(pid, level='below_normal'):
     """设置指定 pid 的进程优先级
         pid: 进程ID
         level: 优先级级别，可选值：'idle'|'below_normal'|'normal'|'above_normal'|'high'|'realtime'
@@ -72,12 +72,12 @@ def set_priority_for_pid(pid, level='below_normal'):
         return False
 
 
-def set_current_process_priority(level='high'):
+def set_proc_prio(level='high'):
     """将当前进程优先级设置为指定级别
         level: 优先级级别，可选值：'idle'|'below_normal'|'normal'|'above_normal'|'high'|'realtime'
     """
     try:
-        set_priority_for_pid(os.getpid(), level)
+        set_priority_pid(os.getpid(), level)
         if logger:
             logger.info(f"已设置当前进程优先级为: {level}")
     except Exception:
@@ -88,17 +88,17 @@ def set_current_process_priority(level='high'):
 _original_popen = subprocess.Popen
 
 
-def _popen_with_priority(*popen_args, **popen_kwargs):
+def _popen_with_prio(*popen_args, **popen_kwargs):
     """为子进程设置优先级的包装函数"""
     process = _original_popen(*popen_args, **popen_kwargs)
     try:
-        set_priority_for_pid(process.pid, 'below_normal')
+        set_priority_pid(process.pid, 'below_normal')
     except Exception:
         pass
     return process
 
 # 替换 subprocess.Popen
-subprocess.Popen = _popen_with_priority
+subprocess.Popen = _popen_with_prio
 
 DOWNLOAD_SOURCES = {
     "original": {
@@ -127,7 +127,7 @@ DEFAULT_SOURCE = "hk"
 current_source = DEFAULT_SOURCE
 
 
-def set_download_source(source_key):
+def set_download_src(source_key):
     """设置下载源
     
     Args:
@@ -167,7 +167,7 @@ class Downloader:
         self.progress_callback = progress_callback
         self._last_progress = {}
 
-    def _set_progress_percent(self, software_name, percent):
+    def set_progress(self, software_name, percent):
         try:
             # 失败时回退到0
             last = self._last_progress.get(software_name, -1)
@@ -185,7 +185,7 @@ class Downloader:
             if self.installer_logger:
                 self.installer_logger.warning(f"{software_name}: 更新进度回调异常 - {e}")
 
-    def _compute_phase_offsets(self, allocation: dict):
+    def _calc_phase_offsets(self, allocation: dict):
         """返回阶段顺序与每阶段开始偏移量字典。"""
         order = ['download', 'decompress', 'install']
         offsets = {}
@@ -195,18 +195,18 @@ class Downloader:
             cur += allocation.get(p, 0)
         return offsets
 
-    def _update_phase_progress(self, software_name, phase, phase_percent, allocation=None):
+    def _update_progress(self, software_name, phase, phase_percent, allocation=None):
         """根据单阶段百分比(0-100)更新整体进度。"""
         if allocation is None:
             allocation = DEFAULT_PHASE_ALLOCATION
-        offsets = self._compute_phase_offsets(allocation)
+        offsets = self._calc_phase_offsets(allocation)
         phase_alloc = allocation.get(phase, 0)
         start = offsets.get(phase, 0)
         total = start + (phase_percent / 100.0) * phase_alloc
         total = round(total, 1)
-        self._set_progress_percent(software_name, total)
+        self.set_progress(software_name, total)
     
-    def _wait_for_process(self, software_name, process_name, timeout=30, check_interval=1):
+    def _wait_process(self, software_name, process_name, timeout=30, check_interval=1):
         if self.installer_logger:
             self.installer_logger.info(f"{software_name}: 等待进程 {process_name} 出现，超时 {timeout} 秒")
         start_time = time.time()
@@ -231,7 +231,7 @@ class Downloader:
             self.installer_logger.warning(f"{software_name}: 等待进程 {process_name} 超时（{timeout} 秒）")
         return False
     
-    def _wait_for_process_exit(self, software_name, process, timeout=None, check_interval=2):
+    def _wait_process_exit(self, software_name, process, timeout=None, check_interval=2):
         if self.installer_logger:
             if timeout:
                 self.installer_logger.info(f"{software_name}: 等待进程退出，超时 {timeout} 秒")
@@ -256,7 +256,7 @@ class Downloader:
                 self.installer_logger.info(f"{software_name}: 进程已退出")
             return True
     
-    def _wait_for_condition(self, software_name, condition_func, timeout=30, check_interval=1):
+    def _wait_condition(self, software_name, condition_func, timeout=30, check_interval=1):
         if self.installer_logger:
             self.installer_logger.info(f"{software_name}: 等待条件满足，超时 {timeout} 秒")
         start_time = time.time()
@@ -302,13 +302,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._update_phase_progress(software_name, 'install', 100)
+            self._update_progress(software_name, 'install', 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
     
     def _install_知识胶囊(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
@@ -316,13 +316,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._update_phase_progress(software_name, 'install', 100)
+            self._update_progress(software_name, 'install', 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_掌上看班(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -331,13 +331,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._update_phase_progress(software_name, 'install', 100)
+            self._update_progress(software_name, 'install', 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_激活工具(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -362,13 +362,13 @@ class Downloader:
                 if self.installer_logger:
                     self.installer_logger.warning(f"{software_name}: 未找到快捷方式: {source_shortcut}")
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._update_phase_progress(software_name, 'install', 100)
+            self._update_progress(software_name, 'install', 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_希沃壁纸(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -381,7 +381,7 @@ class Downloader:
             output_dir = r"C:\Windows\Web"
             self._decompress_7Z(software_name, installer_path, output_dir)
             try:
-                self._update_phase_progress(software_name, 'decompress', 100, allocation)
+                self._update_progress(software_name, 'decompress', 100, allocation)
             except Exception:
                 pass
             
@@ -403,22 +403,22 @@ class Downloader:
                 if self.installer_logger:
                     self.installer_logger.info(f"{software_name}: 桌面背景已更改")
                 try:
-                    self._update_phase_progress(software_name, 'install', 100, allocation)
+                    self._update_progress(software_name, 'install', 100, allocation)
                 except Exception:
                     pass
             else:
                 if self.installer_logger:
                     self.installer_logger.warning(f"{software_name}: 未找到壁纸文件: {wallpaper_path}")
             
-            self._update_phase_progress(software_name, 'install', 100)
+            self._update_progress(software_name, 'install', 100)
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 安装完成")
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_希沃管家(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -427,13 +427,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._update_phase_progress(software_name, 'install', 100)
+            self._update_progress(software_name, 'install', 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_希沃快传(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -442,13 +442,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._update_phase_progress(software_name, 'install', 100)
+            self._update_progress(software_name, 'install', 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_希沃集控(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -457,13 +457,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._update_phase_progress(software_name, 'install', 100)
+            self._update_progress(software_name, 'install', 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_希沃智能笔(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -472,13 +472,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._update_phase_progress(software_name, 'install', 100)
+            self._update_progress(software_name, 'install', 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_希沃易课堂(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -487,13 +487,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._update_phase_progress(software_name, 'install', 100)
+            self._update_progress(software_name, 'install', 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_希沃输入法(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -502,13 +502,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._update_phase_progress(software_name, 'install', 100)
+            self._update_progress(software_name, 'install', 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_PPT小工具(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -517,13 +517,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._update_phase_progress(software_name, 'install', 100)
+            self._update_progress(software_name, 'install', 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_希沃轻白板(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -532,13 +532,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._update_phase_progress(software_name, 'install', 100)
+            self._update_progress(software_name, 'install', 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_希沃白板5(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -547,13 +547,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._update_phase_progress(software_name, 'install', 100)
+            self._update_progress(software_name, 'install', 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
 
     def _install_希沃课堂助手(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -562,13 +562,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._update_phase_progress(software_name, 'install', 100)
+            self._update_progress(software_name, 'install', 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_希沃电脑助手(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -577,13 +577,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._update_phase_progress(software_name, 'install', 100)
+            self._update_progress(software_name, 'install', 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_希沃导播助手(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -592,13 +592,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._set_progress_percent(software_name, 100)
+            self.set_progress(software_name, 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_希沃视频展台(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -607,13 +607,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._set_progress_percent(software_name, 100)
+            self.set_progress(software_name, 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_希沃物联校园(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -622,13 +622,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._set_progress_percent(software_name, 100)
+            self.set_progress(software_name, 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_远程互动课堂(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -637,13 +637,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._set_progress_percent(software_name, 100)
+            self.set_progress(software_name, 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_省平台登录插件(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -657,19 +657,19 @@ class Downloader:
 
             process = subprocess.Popen([installer_path])
             
-            self._wait_for_process(software_name, "省平台登录插件.exe", timeout=15, check_interval=2)
+            self._wait_process(software_name, "省平台登录插件.exe", timeout=15, check_interval=2)
             
             self._kill_process(software_name, "省平台登录插件.exe")
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._set_progress_percent(software_name, 100)
+            self.set_progress(software_name, 100)
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 安装完成")
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_希象传屏发送端(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -678,13 +678,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._set_progress_percent(software_name, 100)
+            self.set_progress(software_name, 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_希沃品课小组端(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -703,22 +703,22 @@ class Downloader:
             process = subprocess.Popen([installer_path, "/S"])
             
             # 等待seewoPincoGroup.exe进程出现
-            self._wait_for_process(software_name, "seewoPincoGroup.exe", timeout=20, check_interval=3)
+            self._wait_process(software_name, "seewoPincoGroup.exe", timeout=20, check_interval=3)
             
             # 等待安装进程退出
-            self._wait_for_process_exit(software_name, process, timeout=45, check_interval=5)
+            self._wait_process_exit(software_name, process, timeout=45, check_interval=5)
             
             self._kill_process(software_name, "seewoPincoGroup.exe")
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._set_progress_percent(software_name, 100)
+            self.set_progress(software_name, 100)
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 安装完成")
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_希沃品课教师端(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -733,23 +733,23 @@ class Downloader:
             process = subprocess.Popen([installer_path, "/S"])
             
             # 等待seewoPincoTeacher.exe进程出现
-            self._wait_for_process(software_name, "seewoPincoTeacher.exe", timeout=20, check_interval=3)
+            self._wait_process(software_name, "seewoPincoTeacher.exe", timeout=20, check_interval=3)
             
             # 等待安装进程退出
-            self._wait_for_process_exit(software_name, process, timeout=45, check_interval=5)
+            self._wait_process_exit(software_name, process, timeout=45, check_interval=5)
             
             # 终止进程
             self._kill_process(software_name, "seewoPincoTeacher.exe")
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._set_progress_percent(software_name, 100)
+            self.set_progress(software_name, 100)
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 安装完成")
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_微信(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -758,13 +758,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._set_progress_percent(software_name, 100)
+            self.set_progress(software_name, 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_QQ(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -773,13 +773,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._set_progress_percent(software_name, 100)
+            self.set_progress(software_name, 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_UU远程(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -788,13 +788,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._set_progress_percent(software_name, 100)
+            self.set_progress(software_name, 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_网易云音乐(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -803,13 +803,13 @@ class Downloader:
             
             self.silent_installation(software_name, installer_path)
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._set_progress_percent(software_name, 100)
+            self.set_progress(software_name, 100)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
 
     def _install_office2021(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -849,7 +849,7 @@ class Downloader:
                 except Exception:
                     return True
             
-            self._wait_for_condition(software_name, check_process_exited, timeout=10, check_interval=1)
+            self._wait_condition(software_name, check_process_exited, timeout=10, check_interval=1)
             
             try:
                 subprocess.run(["taskkill", "/f", "/im", "OfficeC2RClient.exe"], check=False, shell=False)
@@ -857,15 +857,15 @@ class Downloader:
                 if self.installer_logger:
                     self.installer_logger.error(f"{software_name}: 再次结束OfficeC2RClient.exe进程时出错: {str(e)}")
             
-            self._set_progress_percent(software_name, 100)
+            self.set_progress(software_name, 100)
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 安装完成")
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_ClassIsland2(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -913,15 +913,15 @@ class Downloader:
                 except Exception:
                     pass
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._set_progress_percent(software_name, 100)
+            self.set_progress(software_name, 100)
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 安装完成")
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _install_ClassWidgets(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
@@ -970,15 +970,15 @@ class Downloader:
                 except Exception:
                     pass
             
-            self._cleanup_temp_files(TEMP_DIR, cache_file["filename"], software_name)
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
             
-            self._set_progress_percent(software_name, 100)
+            self.set_progress(software_name, 100)
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 安装完成")
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
-            self._set_progress_percent(software_name, 0)
+            self.set_progress(software_name, 0)
             raise
     
     def _get_download_url(self, cache_file):
@@ -1020,9 +1020,9 @@ class Downloader:
         def _internal_progress(p):
             try:
                 float_p = float(p)
-                self._update_phase_progress(software_name, 'download', float_p, allocation)
+                self._update_progress(software_name, 'download', float_p, allocation)
                 # 总进度
-                offsets = self._compute_phase_offsets(allocation)
+                offsets = self._calc_phase_offsets(allocation)
                 start = offsets.get('download', 0)
                 total = start + (float_p / 100.0) * allocation.get('download', 0)
                 total = round(total, 1)
@@ -1065,7 +1065,7 @@ class Downloader:
                             self.installer_logger.info(f"{software_name}: 跟随重定向到: {redirect_url}")
                         response = session.get(redirect_url, stream=True, timeout=60, verify=False)
 
-                response.raise_for_status()
+                response.raise_status()
                 total_size = int(response.headers.get('content-length', 0))
                 if self.installer_logger:
                     self.installer_logger.info(f"{software_name}: 文件大小: {total_size} bytes")
@@ -1157,7 +1157,7 @@ class Downloader:
                     shell=False
                 )
     
-                self._wait_for_process_exit(software_name, process, timeout=None)
+                self._wait_process_exit(software_name, process, timeout=None)
                 
                 if process.returncode == 0:
                     if self.installer_logger:
@@ -1175,7 +1175,7 @@ class Downloader:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}")
             raise
     
-    def _cleanup_temp_files(self, temp_dir, filename, software_name, max_retries=3, retry_delay=1.0):
+    def _clean_tempdir(self, temp_dir, filename, software_name, max_retries=3, retry_delay=1.0):
         """清理临时文件
         这里的与cleanup_temp_directory函数不同 这里的是清理单个文件 那个是清理整个目录 这是在安装后调用的 那个是启动软件自动清理的"""
         file_path = os.path.join(temp_dir, filename)
@@ -1241,7 +1241,7 @@ def cleanup_temp_directory(temp_dir=None, logger=None):
             "配置中": 80,
         }
         try:
-            if status in mapping:self._set_progress_percent(software_name, mapping[status])
+            if status in mapping:self.set_progress(software_name, mapping[status])
             if self.installer_logger:self.installer_logger.info(f"{software_name}: {status}")
         except Exception:
             if self.installer_logger:self.installer_logger.info(f"{software_name}: {status}")

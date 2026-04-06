@@ -23,7 +23,7 @@ from .update import UpdateInterface
 from .about import AboutInterface
 from .download import DownloadInterface
 from .wallpaper import WallpaperInterface
-from .base_scroll_area import BaseScrollAreaInterface
+from .base_scroll import BaseScrollAreaInterface
 
 __all__ = [
     'BaseScrollAreaInterface',

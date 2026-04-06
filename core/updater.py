@@ -35,7 +35,7 @@ from version import CHANGELOG_URL, UPDATE_URL, VERSION_URL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
-def get_changelog_from_github(max_retries=3):
+def get_github_changelog(max_retries=3):
     """从 GitHub 获取更新日志"""
     for attempt in range(max_retries):
         try:
@@ -44,7 +44,7 @@ def get_changelog_from_github(max_retries=3):
             
             logger.info(f"正在从 GitHub 获取更新日志：{CHANGELOG_URL}")
             response = requests.get(CHANGELOG_URL, timeout=10, verify=False)
-            response.raise_for_status()
+            response.raise_status()
             
             content = response.text
             return content
@@ -64,7 +64,7 @@ def get_changelog_from_github(max_retries=3):
     return None
 
 
-def check_version_from_github(max_retries=3):
+def check_github_verison(max_retries=3):
     """从 GitHub 获取版本信息 """
     result = {
         'success': False,
@@ -78,7 +78,7 @@ def check_version_from_github(max_retries=3):
     try:
         logger.info(f"正在从 GitHub 获取版本信息：{VERSION_URL}")
         response = requests.get(VERSION_URL, timeout=10, verify=False)
-        response.raise_for_status()
+        response.raise_status()
         
         content = response.text
         
@@ -90,7 +90,7 @@ def check_version_from_github(max_retries=3):
             result['build_date'] = build_date_match.group(1)
             result['success'] = True
             
-            changelog = get_changelog_from_github()
+            changelog = get_github_changelog()
             if changelog:
                 result['changelog'] = changelog
             else:
@@ -123,7 +123,7 @@ def download_update(download_path, progress_callback=None, max_retries=3):
             
             logger.info(f"正在下载更新：{url}")
             response = requests.get(url, stream=True, timeout=30, verify=False)
-            response.raise_for_status()
+            response.raise_status()
             
             total_size = int(response.headers.get('content-length', 0))
             downloaded_size = 0
@@ -314,11 +314,4 @@ def apply_update(update_folder, app_dir):
         return False
 
 
-if __name__ == "__main__":
-    # 测试
-    version, build_date = get_version_from_github()
-    if version and build_date:
-        print(f"最新版本：{version}")
-        print(f"构建日期：{build_date}")
-    else:
-        print("获取版本信息失败")
+

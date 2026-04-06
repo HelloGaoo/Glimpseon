@@ -38,10 +38,6 @@ from qfluentwidgets import (
     Theme,
 )
 
-from data.url_dir import url_dir
-
-logger = logging.getLogger(__name__)
-
 if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
 else:
@@ -243,7 +239,7 @@ if os.path.exists(CONFIG_PATH):
     except Exception as e:
         logger.error(f"加载配置失败：{e}")
 
-def save_config():
+def save_cfg():
     try:
         # 用 qconfig 的 save 
         qconfig.save()
@@ -252,7 +248,7 @@ def save_config():
 
 def _on_config_changed(*args):
     """配置改变时自动保存"""
-    save_config()
+    save_cfg()
 
 saved_count = 0
 for attr_name in dir(cfg):
@@ -265,7 +261,7 @@ for attr_name in dir(cfg):
 logger.info(f"已连接 {saved_count} 个配置项的自动保存")
 
 
-def get_default_config_dict():
+def default_cfg():
     """ 获取默认配置字典 """
     return {
         "MainWindow": {

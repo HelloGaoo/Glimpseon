@@ -41,7 +41,7 @@ from qfluentwidgets import (
 from core.constants import get_resPath
 from version import BUILD_DATE, VERSION
 
-from .base_scroll_area import BaseScrollAreaInterface
+from .base_scroll import BaseScrollAreaInterface
 
 
 class AboutInterface(BaseScrollAreaInterface):
@@ -50,34 +50,21 @@ class AboutInterface(BaseScrollAreaInterface):
     def __init__(self, parent=None):
         super().__init__("关于", parent)
         self.setObjectName("about")
-        
         self.scrollWidget = QWidget()
         self.mainLayout = QVBoxLayout(self.scrollWidget)
-        
-        # 关于卡片
         self.aboutCard = CardWidget(self.scrollWidget)
         self.aboutLayout = QVBoxLayout(self.aboutCard)
         self.aboutLayout.setContentsMargins(16, 16, 16, 16)
         self.aboutLayout.setSpacing(12)
-        
-        # 主内容水平布局
         mainContentLayout = QHBoxLayout()
         mainContentLayout.setSpacing(24)
-        
-        # 左侧：应用图标和名称
         leftLayout = QVBoxLayout()
         leftLayout.setSpacing(12)
-        
-        # 应用图标和名称水平布局
         appInfoLayout = QHBoxLayout()
         appInfoLayout.setSpacing(16)
-        
-        # 软件图标
         self.appIconLabel = QLabel(self.aboutCard)
         self.appIconLabel.setFixedSize(64, 64)
         self.appIconLabel.setObjectName("appIconLabel")
-        
-        # 尝试加载应用图标
         try:
             icon_path = get_resPath(os.path.join('resource', 'icons', 'CY.png'))
             if os.path.exists(icon_path):
@@ -92,100 +79,68 @@ class AboutInterface(BaseScrollAreaInterface):
         
         self.appNameLabel = QLabel("ClassLively", self.aboutCard)
         self.appNameLabel.setObjectName("appNameLabel")
-        
         appInfoLayout.addWidget(self.appIconLabel)
         appInfoLayout.addWidget(self.appNameLabel, 1)
-        
         self.descriptionLabel = QLabel("114514", self.aboutCard)
         self.descriptionLabel.setObjectName("descriptionLabel")
         self.descriptionLabel.setWordWrap(True)
-        
         leftLayout.addLayout(appInfoLayout)
         leftLayout.addWidget(self.descriptionLabel)
-        
-        # 右侧：版本和开发者信息
         rightLayout = QVBoxLayout()
         rightLayout.setSpacing(8)
         rightLayout.setContentsMargins(0, 0, 0, 0)
-        
-        # 版本信息
         self.versionInfo = QLabel(f"当前版本：{VERSION}\n构建日期：{BUILD_DATE}", self.aboutCard)
         self.versionInfo.setObjectName("versionInfo")
         self.versionInfo.setWordWrap(True)
         rightLayout.addWidget(self.versionInfo)
-        
-        # 开发者信息
         self.developerLabel = QLabel("开发作者：HelloGaoo & WHYOS", self.aboutCard)
         self.developerLabel.setObjectName("developerLabel")
         rightLayout.addWidget(self.developerLabel)
-        
         self.copyrightLabel = QLabel("© 2026 ClassLively. All rights reserved.", self.aboutCard)
         self.copyrightLabel.setObjectName("copyrightLabel")
         rightLayout.addWidget(self.copyrightLabel)
-        
-        # 添加到主水平布局
         mainContentLayout.addLayout(leftLayout, 1)
         mainContentLayout.addLayout(rightLayout)
-        
         self.aboutLayout.addLayout(mainContentLayout)
-        
-        # 相关链接卡片
         self.githubCard = CardWidget(self.scrollWidget)
         self.githubLayout = QHBoxLayout(self.githubCard)
         self.githubLayout.setContentsMargins(16, 16, 16, 16)
-        
         self.githubIcon = QLabel(self.githubCard)
         self.githubIcon.setFixedSize(24, 24)
         self.githubIcon.setObjectName("githubIcon")
-        
         self.githubLabel = QLabel("GitHub 仓库", self.githubCard)
         self.githubLabel.setObjectName("linkLabel")
-        
         self.githubButton = PushButton(FIF.GITHUB, "查看", self.githubCard)
         self.githubButton.setObjectName("linkButton")
-        
         self.githubLayout.addWidget(self.githubIcon)
         self.githubLayout.addWidget(self.githubLabel, 1)
         self.githubLayout.addWidget(self.githubButton)
-        
-        # 作者主页卡片
         self.authorCard = CardWidget(self.scrollWidget)
         self.authorLayout = QHBoxLayout(self.authorCard)
         self.authorLayout.setContentsMargins(16, 16, 16, 16)
-        
         self.authorIcon = QLabel(self.authorCard)
         self.authorIcon.setFixedSize(24, 24)
         self.authorIcon.setObjectName("authorIcon")
-        
         self.authorLabel = QLabel("作者主页", self.authorCard)
         self.authorLabel.setObjectName("linkLabel")
-        
         self.authorButton = PushButton(FIF.PEOPLE, "查看", self.authorCard)
         self.authorButton.setObjectName("linkButton")
-        
         self.authorLayout.addWidget(self.authorIcon)
         self.authorLayout.addWidget(self.authorLabel, 1)
         self.authorLayout.addWidget(self.authorButton)
-        
-        # 开源许可证卡片
         self.licenseCard = CardWidget(self.scrollWidget)
         self.licenseLayout = QHBoxLayout(self.licenseCard)
-        self.licenseLayout.setContentsMargins(16, 16, 16, 16)
-        
+        self.licenseLayout.setContentsMargins(16, 16, 16, 16)  
         self.licenseIcon = QLabel(self.licenseCard)
         self.licenseIcon.setFixedSize(24, 24)
-        self.licenseIcon.setObjectName("licenseIcon")
-        
+        self.licenseIcon.setObjectName("licenseIcon") 
         self.licenseLabel = QLabel("GNU General Public License Version 3 开源许可证", self.licenseCard)
-        self.licenseLabel.setObjectName("linkLabel")
-        
+        self.licenseLabel.setObjectName("linkLabel") 
         self.viewLicenseButton = PushButton(FIF.DOCUMENT, "查看", self.licenseCard)
-        self.viewLicenseButton.setObjectName("linkButton")
-        
+        self.viewLicenseButton.setObjectName("linkButton") 
         self.licenseLayout.addWidget(self.licenseIcon)
         self.licenseLayout.addWidget(self.licenseLabel, 1)
         self.licenseLayout.addWidget(self.viewLicenseButton)
-        
         self.__initWidget()
         self.__connectSignalToSlot()
     
@@ -206,21 +161,15 @@ class AboutInterface(BaseScrollAreaInterface):
         """ 初始化布局 """
         self.mainLayout.setSpacing(12)
         self.mainLayout.setContentsMargins(60, 0, 60, 40)
-        
-        # 添加关于卡片
         self.mainLayout.addWidget(self.aboutCard)
-        
-        # 添加链接卡片组标题
         linkGroupLabel = QLabel("相关链接", self.scrollWidget)
         linkGroupLabel.setObjectName("groupLabel")
         self.mainLayout.addWidget(linkGroupLabel)
-        
-        # 添加链接卡片
         self.mainLayout.addWidget(self.githubCard)
         self.mainLayout.addWidget(self.authorCard)
         self.mainLayout.addWidget(self.licenseCard)
         
-        # 添加底部间距
+        # 底部间距
         self.mainLayout.addSpacing(20)
     
     def __setQss(self):
@@ -236,7 +185,6 @@ class AboutInterface(BaseScrollAreaInterface):
             pass
     
     def __connectSignalToSlot(self):
-        """ 连接信号与槽 """
         self.githubButton.clicked.connect(self.__openGithub)
         self.authorButton.clicked.connect(self.__openAuthorPage)
         self.viewLicenseButton.clicked.connect(self.__viewLicense)

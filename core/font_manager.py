@@ -49,10 +49,10 @@ FALLBACK_FONT_FAMILIES = [
 ]
 
 
-def get_harmonyos_font_dir() -> str:
+def get_fontdir() -> str:
     return get_resPath(os.path.join("font", "HarmonyOS_Sans"))
 
-def is_fonts_installed_in_system() -> bool:
+def _check_fonts_installed() -> bool:
     """检查系统有吗"""
     system_font_dir = os.path.join(os.environ['WINDIR'], 'Fonts')
     for font_file in HARMONYOS_FONT_FILES:
@@ -62,11 +62,11 @@ def is_fonts_installed_in_system() -> bool:
     return True
 
 
-def install_fonts_to_system() -> bool:
+def _install_system_fonts() -> bool:
     """安装到系统"""
-    if is_fonts_installed_in_system():return True
+    if _check_fonts_installed():return True
     system_font_dir = os.path.join(os.environ['WINDIR'], 'Fonts')
-    local_font_dir = get_harmonyos_font_dir()
+    local_font_dir = get_fontdir()
     if not os.path.exists(local_font_dir):
         logger.warning(f"鸿蒙字体目录不存在：{local_font_dir}")
         return False
@@ -90,9 +90,9 @@ def install_fonts_to_system() -> bool:
         return False
 
 
-def load_fonts_to_application() -> bool:
+def _load_app_fonts() -> bool:
     """加载到应用程序"""
-    font_dir = get_harmonyos_font_dir()
+    font_dir = get_fontdir()
     if not os.path.exists(font_dir):
         logger.warning(f"鸿蒙字体目录不存在：{font_dir}")
         return False
@@ -130,7 +130,7 @@ def apply_fonts(app: QApplication, use_harmonyos: bool = True):
 def initialize_fonts(app: QApplication, install_to_system: bool = True):
     """初始化"""
     logger.info("开始初始化字体...")
-    if install_to_system:install_fonts_to_system()
-    font_loaded = load_fonts_to_application()
+    if install_to_system:_install_system_fonts()
+    font_loaded = _load_app_fonts()
     apply_fonts(app, use_harmonyos=font_loaded)
     logger.info("字体初始化完成")

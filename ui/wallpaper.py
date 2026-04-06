@@ -194,7 +194,8 @@ class WallpaperInterface(ScrollArea):
     def __updateAutoSyncCheckTimer(self):
         """ 更新自动同步检测定时器 """
         self.autoSyncCheckTimer.stop()
-        if cfg.autoSyncToDesktop.value:self.autoSyncCheckTimer.start(5000)
+        if cfg.autoSyncToDesktop.value:
+            self.autoSyncCheckTimer.start(5000)
     
     def __updateBackgroundBlur(self):
         """ 更新背景模糊强度 """
