@@ -740,6 +740,12 @@ class EditPanel(QWidget):
         
         if self.isVisible():
             self.showPanel()
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        if self.isVisible():self.showPanel()
+    
+    def updatePositionOnResize(self):
+        if not self.isVisible():return
+        parent = self.parent()
+        pr = parent.rect()
+        if self.isLeftSide:new_rect = QRect(0, 0, self._width, pr.height())
+        else:new_rect = QRect(pr.width() - self._width, 0, self._width, pr.height())
+        self.anim.stop()
+        self.setGeometry(new_rect)

@@ -914,6 +914,9 @@ class MainWindow(FluentWindow):
                 QApplication.processEvents()
             except Exception as e:
                 logger.error(f"resizeEvent 错误：{e}")
+        if hasattr(self, 'editPanel') and self.editPanel:
+            try:self.editPanel.updatePositionOnResize()
+            except Exception:pass
 
     def moveToCenter(self):
         """ 移动窗口到屏幕中央 """
