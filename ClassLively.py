@@ -246,7 +246,6 @@ def setAutostart(enabled, delay_seconds=5):
                     command = f'cmd /c "timeout /t {delay_seconds} /nobreak >nul && start \"\" \"{exe_path}\" --autostart"'
                 else:
                     command = f'"{exe_path}" --autostart'
-                logger.info(f"准备设置exe开机自启动: {exe_path}, 延迟: {delay_seconds}秒")
             else:
                 # 直接运行py文件时
                 python_exe = sys.executable
@@ -255,29 +254,24 @@ def setAutostart(enabled, delay_seconds=5):
                     command = f'cmd /c "timeout /t {delay_seconds} /nobreak >nul && start \"\" \"{python_exe}\" \"{script_path}\" --autostart"'
                 else:
                     command = f'"{python_exe}" "{script_path}" --autostart'
-                logger.info(f"准备设置py开机自启动: {python_exe} {script_path}, 延迟: {delay_seconds}秒")
-            
             winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, command)
             success, stored_value = checkAutostart()
             if success and stored_value == command:
-                logger.info(f"已成功设置开机自启动，延迟: {delay_seconds}秒")
                 return True
             else:
-                logger.error("设置开机自启动后验证失败")
+                logger.error("设置开机自启动失败")
                 return False    
         else:
             try:
                 winreg.DeleteValue(key, APP_NAME)
-                logger.info("已取消开机自启动")
             except FileNotFoundError:
                 logger.info("开机自启动项不存在")
             winreg.CloseKey(key)
             success, _ = checkAutostart()
             if not success:
-                logger.info("已确认开机自启动项已删除")
                 return True
             else:
-                logger.error("删除开机自启动项后验证失败")
+                logger.error("删除开机自启动项失败")
                 return False
                 
     except PermissionError as e:
@@ -296,16 +290,14 @@ def sync_autostartCfg():
         logger.info(f"同步自启动状态 - 配置: {config_auto_start}, 实际: {actual_auto_start}")
         
         if config_auto_start != actual_auto_start:
-            logger.info(f"自启动状态不一致，正在同步...")
             result = setAutostart(config_auto_start)
             if result:
-                logger.info("自启动状态同步成功")
+                pass
             else:
                 logger.error("自启动状态同步失败")
                 # 如果设置失败，更新配置匹配实际
                 if actual_auto_start != config_auto_start:
                     cfg.autoStart.value = actual_auto_start
-                    logger.info(f"已将配置更新为与实际状态一致: {actual_auto_start}")
             return result
         else:
             return True
