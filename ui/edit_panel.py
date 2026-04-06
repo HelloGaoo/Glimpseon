@@ -740,3 +740,6 @@ class EditPanel(QWidget):
         
         if self.isVisible():
             self.showPanel()
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self.isVisible():self.showPanel()
