@@ -14,10 +14,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""
-ClassLively 主程序
-"""
-
 import ctypes
 import datetime
 import json
@@ -166,7 +162,6 @@ def check_single_instance():
             logger.info("检测到旧进程，正在终止")
             terminate_result = terminate_old_instances()
             if terminate_result:
-                logger.info("旧进程已终止，准备继续启动")
                 time.sleep(1)
                 return True
             else:
@@ -182,7 +177,6 @@ def check_single_instance():
     return True
 
 def extract_bundled_files():
-    """从打包文件中提取必要的文件夹和文件"""
     if not getattr(sys, 'frozen', False) or not MEIPASS_DIR:
         return
     
@@ -220,7 +214,6 @@ def extract_bundled_files():
                             logger.error(f"提取文件 {os.path.join(folder, rel_path, file)} 失败：{e}")
 
 def get_auto_start_status():
-    """获取开机自启动状态"""
     try:
         key_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_READ)
@@ -240,12 +233,9 @@ def set_auto_start(enabled, delay_seconds=5):
     """设置开机自启动"""
     try:
         key_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
-        
-        # 确保注册表键存在
         try:
             key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE)
         except FileNotFoundError:
-            # 如果键不存在，创建它
             key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path)
         
         if enabled:
@@ -274,8 +264,7 @@ def set_auto_start(enabled, delay_seconds=5):
                 return True
             else:
                 logger.error("设置开机自启动后验证失败")
-                return False
-                
+                return False    
         else:
             try:
                 winreg.DeleteValue(key, APP_NAME)
