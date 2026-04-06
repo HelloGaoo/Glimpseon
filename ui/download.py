@@ -20,7 +20,8 @@
 
 import os
 import threading
-from concurrent.futures import ThreadPoolExecutor
+from concurrent import futures as concurrent_futures
+from concurrent.futures import ThreadPoolExecutor, wait
 
 from PyQt5.QtCore import QMetaObject, Q_ARG, Qt, QTimer, pyqtSlot
 from PyQt5.QtGui import QIcon, QPixmap
@@ -67,7 +68,8 @@ class DownloadInterface(BaseScrollAreaInterface):
         self.softwareList = []
         self.downloader = Downloader(logger)
         # 线程池
-        self.download_executor = ThreadPoolExecutor(max_workers=4)
+        self.download_executor = None
+        self.futures = []
         
         self.__initWidgets()
         self.__initLayout()
@@ -81,6 +83,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         self.multiModeButton.toggled.connect(self.__handleModeChange)
         self.startButton.clicked.connect(self.__handleStartDownload)
         self.sourceComboBox.currentTextChanged.connect(self.__handleSourceChange)
+        self.selectAllButton.clicked.connect(self.__handleSelectAll)
     
     def __handleSourceChange(self, source_name):
         source_key = None
@@ -382,6 +385,12 @@ class DownloadInterface(BaseScrollAreaInterface):
         modeGroupLayout.addWidget(self.modeLabel)
         modeGroupLayout.addWidget(self.singleModeButton)
         modeGroupLayout.addWidget(self.multiModeButton)
+
+        self.selectAllButton = PushButton("全选", modeGroup)
+        self.selectAllButton.setObjectName("selectAllButton")
+        self.selectAllButton.setFixedWidth(80)
+        self.selectAllButton.hide()
+        modeGroupLayout.addWidget(self.selectAllButton)
         
         # 下载源选择
         sourceGroup = QWidget(self.modeContainer)
@@ -530,13 +539,47 @@ class DownloadInterface(BaseScrollAreaInterface):
             self.currentRow += 1
     
     def __handleCheckboxChange(self, software_name, state):
-        """ 处理复选框状态变更 """
+        """ 复选框状态变更 """
         if state == Qt.Checked:
-            if software_name not in self.selectedSoftware:
-                self.selectedSoftware.append(software_name)
+            if software_name not in self.selectedSoftware:self.selectedSoftware.append(software_name)
         else:
-            if software_name in self.selectedSoftware:
-                self.selectedSoftware.remove(software_name)
+            if software_name in self.selectedSoftware:self.selectedSoftware.remove(software_name)
+        if self.multiModeButton.isChecked():self.__updateSelectAllButton()
+    
+    def __handleSelectAll(self):
+        """ 全选按钮点击 """
+        all_checked = all(
+            software['checkbox'].isChecked() 
+            for software in self.softwareList
+            if not (software.get('progressBar') is not None and software['progressBar'].isVisible())
+        )
+        should_check_all = not all_checked
+        for software in self.softwareList:
+            try:
+                in_progress = software.get('progressBar') is not None and software['progressBar'].isVisible()
+            except Exception:
+                in_progress = False
+            if in_progress:continue
+            software['checkbox'].setChecked(should_check_all)
+        if should_check_all:self.selectAllButton.setText("取消全选")
+        else:self.selectAllButton.setText("全选")
+    
+    def __updateSelectAllButton(self):
+        if not self.softwareList:
+            self.selectAllButton.setText("全选")
+            return
+        available_software = [
+            software for software in self.softwareList
+            if not (software.get('progressBar') is not None and software['progressBar'].isVisible())
+        ]
+        if not available_software:
+            self.selectAllButton.setText("全选")
+            return
+        all_checked = all(software['checkbox'].isChecked() for software in available_software)
+        if all_checked:
+            self.selectAllButton.setText("取消全选")
+        else:
+            self.selectAllButton.setText("全选")
     
     def __handleModeChange(self):
         """ 处理模式切换 """
@@ -560,11 +603,13 @@ class DownloadInterface(BaseScrollAreaInterface):
                 software['button'].hide()
                 software['checkbox'].show()
         
-        # 显示或隐藏开始按钮
         if is_single_mode:
             self.startButton.hide()
+            self.selectAllButton.hide()
         else:
             self.startButton.show()
+            self.selectAllButton.show()
+            self.__updateSelectAllButton()
     
     def __handleStartDownload(self):
         """ 处理开始下载按钮点击 """
@@ -610,8 +655,17 @@ class DownloadInterface(BaseScrollAreaInterface):
                         pass
                     break
         
-        # 在后台线程中执行下载和安装
-        futures = []
+        if hasattr(self, 'download_executor') and self.download_executor is not None:
+            try:
+                logger.info("关闭可能存在的旧线程池")
+                self.download_executor.shutdown(wait=True)
+                logger.info("旧线程池已关闭")
+            except Exception as e:
+                logger.error(f"关闭旧线程池时出错: {str(e)}")
+        max_workers = os.cpu_count() if os.cpu_count() else 4
+        self.download_executor = ThreadPoolExecutor(max_workers=max_workers)
+        logger.info(f"创建线程池，最大并发数: {max_workers}")
+        self.futures = []
 
         def _run_install_task(software_name):
             item = None
@@ -668,7 +722,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                 return
 
             # 根据选择的下载源获取实际 URL
-            download_url = self._DownloadInterface__get_download_url(cache_file)
+            download_url = self.__get_download_url(cache_file)
             if not download_url:
                 QMetaObject.invokeMethod(
                     self,
@@ -746,20 +800,28 @@ class DownloadInterface(BaseScrollAreaInterface):
                 )
 
         for software_name in list(self.selectedSoftware):
-            futures.append(self.download_executor.submit(_run_install_task, software_name))
+            future = self.download_executor.submit(_run_install_task, software_name)
+            self.futures.append(future)
 
-        # 在后台等待所有任务完成，然后在主线程清空选择
-        def _wait_and_clear():
+        def wait_for_tasks():
+            import time
+            while True:
+                all_done = all(future.done() for future in self.futures)
+                if all_done:
+                    break
+                time.sleep(1)
             try:
-                wait(futures)
-            except Exception:
-                pass
+                logger.info("所有任务完成，关闭线程池")
+                self.download_executor.shutdown(wait=True)
+                logger.info("线程池已关闭")
+            except Exception as e:
+                logger.error(f"关闭线程池时出错: {str(e)}")
             QMetaObject.invokeMethod(
                 self,
                 '_clear_selected_software_now',
                 Qt.QueuedConnection
             )
 
-        threading.Thread(target=_wait_and_clear, daemon=True).start()
+        threading.Thread(target=wait_for_tasks, daemon=True).start()
 
 

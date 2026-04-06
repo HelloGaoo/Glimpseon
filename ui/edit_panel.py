@@ -102,6 +102,7 @@ class EditPanel(QWidget):
         self._createWeatherSettings(v)
         self._updateWeatherSettingsEnabled(cfg.showWeather.value)
         self._connectConfigSignals()
+        self.__connectSignalToSlot()
     
         v.addStretch()
         
@@ -175,6 +176,12 @@ class EditPanel(QWidget):
         cfg.weatherUpdateInterval.valueChanged.connect(self._updateWeatherUpdateIntervalCombo)
         cfg.city.valueChanged.connect(self._updateCityButton)
         cfg.weatherPosition.valueChanged.connect(self._updateWeatherPositionCombo)
+    
+    def __connectSignalToSlot(self):
+        cfg.themeChanged.connect(self._onThemeChanged)
+    
+    def _onThemeChanged(self, theme):
+        self._updateTheme()
     
     def _updateShowClockSwitch(self, value):
         """更新启用时钟开关"""

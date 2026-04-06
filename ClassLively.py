@@ -119,7 +119,7 @@ from qfluentwidgets import (
 from data.url_dir import url_dir  # type: ignore
 from core.config import cfg, get_default_config_dict
 from core.constants import APP_NAME, BASE_DIR, MEIPASS_DIR, get_resource_path
-from core.downloader import Downloader
+from core.downloader import Downloader, cleanup_temp_directory
 from core.font_manager import initialize_fonts
 from core.logger import logger, setup_exception_hook
 from core.process_manager import check_old_instances, terminate_old_instances
@@ -433,6 +433,7 @@ class MainWindow(FluentWindow):
         cfg.themeChanged.connect(self.wallpaper._onThemeChanged)
         cfg.themeChanged.connect(self.aboutInterface._onThemeChanged)
         cfg.themeChanged.connect(self._onDeveloperPanelThemeChanged)
+        cfg.themeChanged.connect(self._onEditPanelThemeChanged)
         
         self.navigationInterface.installEventFilter(self)
         
@@ -492,6 +493,10 @@ class MainWindow(FluentWindow):
         """主题变化时重新加载开发者面板样式"""
         if hasattr(self, 'developerPanel') and self.developerPanel:
             self.developerPanel._updateTheme()
+    
+    def _onEditPanelThemeChanged(self):
+        if hasattr(self, 'editPanel') and self.editPanel:
+            self.editPanel._updateTheme()
     
     def initSystemTray(self):
         """ 初始化系统托盘 """
@@ -1453,6 +1458,8 @@ if __name__ == "__main__":
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
     
     extract_bundled_files()
+    
+    cleanup_temp_directory(logger=logger)
     
     app = QApplication(sys.argv)
     

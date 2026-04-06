@@ -39,6 +39,67 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 SEVEN_ZIP_PASSWORD = 'zQt83iOY3xXLfDVg6SJ7ocnapy90I1d62w6jh79WlT0m1qPC8b55HU5Nk4ARZFBs'
 
+# 进程/子进程 优先级控制
+PRIORITY_CLASSES = {
+    'idle': 0x40,
+    'below_normal': 0x00004000,
+    'normal': 0x20,
+    'above_normal': 0x00008000,
+    'high': 0x00000080,
+    'realtime': 0x00000100,
+}
+
+
+def set_priority_for_pid(pid, level='below_normal'):
+    """设置指定 pid 的进程优先级
+        pid: 进程ID
+        level: 优先级级别，可选值：'idle'|'below_normal'|'normal'|'above_normal'|'high'|'realtime'
+        bool: 设置是否成功
+    """
+    try:
+        level_const = PRIORITY_CLASSES.get(level, PRIORITY_CLASSES['normal'])
+        PROCESS_SET_INFORMATION = 0x0200
+        PROCESS_QUERY_INFORMATION = 0x0400
+        handle = ctypes.windll.kernel32.OpenProcess(PROCESS_SET_INFORMATION | PROCESS_QUERY_INFORMATION, False, int(pid))
+        if not handle:
+            return False
+        try:
+            res = ctypes.windll.kernel32.SetPriorityClass(handle, int(level_const))
+            return bool(res)
+        finally:
+            ctypes.windll.kernel32.CloseHandle(handle)
+    except Exception:
+        return False
+
+
+def set_current_process_priority(level='high'):
+    """将当前进程优先级设置为指定级别
+        level: 优先级级别，可选值：'idle'|'below_normal'|'normal'|'above_normal'|'high'|'realtime'
+    """
+    try:
+        set_priority_for_pid(os.getpid(), level)
+        if logger:
+            logger.info(f"已设置当前进程优先级为: {level}")
+    except Exception:
+        if logger:
+            logger.warning("设置当前进程优先级失败")
+
+
+_original_popen = subprocess.Popen
+
+
+def _popen_with_priority(*popen_args, **popen_kwargs):
+    """为子进程设置优先级的包装函数"""
+    process = _original_popen(*popen_args, **popen_kwargs)
+    try:
+        set_priority_for_pid(process.pid, 'below_normal')
+    except Exception:
+        pass
+    return process
+
+# 替换 subprocess.Popen
+subprocess.Popen = _popen_with_priority
+
 DOWNLOAD_SOURCES = {
     "original": {
         "name": "GitHub 原链接",
@@ -79,9 +140,6 @@ def set_download_source(source_key):
         current_source = DEFAULT_SOURCE
 
 
-
-
-# 路径设置
 if getattr(os.sys, 'frozen', False):
     BASE_DIR = os.path.dirname(os.path.abspath(os.sys.executable))
     MEIPASS_DIR = os.sys._MEIPASS
@@ -220,12 +278,6 @@ class Downloader:
         return False
     
     def _kill_process(self, software_name, process_name):
-        """终止进程
-        
-        Args:
-            software_name: 软件名称
-            process_name: 进程名称
-        """
         if self.installer_logger:
             self.installer_logger.info(f"{software_name}: 尝试终止进程: {process_name}")
         
@@ -244,7 +296,6 @@ class Downloader:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 终止进程时出错 - {str(err)}")
 
-    # 剪辑师安装函数
     def _install_剪辑师(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -259,9 +310,6 @@ class Downloader:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
             self._set_progress_percent(software_name, 0)
     
-
-    
-    # 知识胶囊安装函数
     def _install_知识胶囊(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -277,7 +325,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    # 掌上看班安装函数
     def _install_掌上看班(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -293,7 +340,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    # 激活工具安装函数
     def _install_激活工具(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             if self.installer_logger:
@@ -325,7 +371,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    # 希沃壁纸安装函数
     def _install_希沃壁纸(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             if self.installer_logger:
@@ -376,14 +421,7 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    # 希沃管家安装函数
     def _install_希沃管家(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
-        """安装希沃管家 07
-        
-        Args:
-            software_name: 软件名称
-            cache_file: 缓存文件信息
-        """
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
             
@@ -398,9 +436,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-
-    
-    # 希沃快传安装函数
     def _install_希沃快传(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -416,7 +451,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    # 希沃集控安装函数
     def _install_希沃集控(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -432,9 +466,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-
-    
-    # 希沃智能笔安装函数
     def _install_希沃智能笔(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -450,9 +481,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-
-    
-    # 希沃易课堂安装函数
     def _install_希沃易课堂(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -468,7 +496,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    # 希沃输入法安装函数
     def _install_希沃输入法(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -484,7 +511,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    # PPT小工具安装函数
     def _install_PPT小工具(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -500,7 +526,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    # 希沃轻白板安装函数
     def _install_希沃轻白板(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -516,7 +541,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    # 希沃白板5安装函数
     def _install_希沃白板5(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -531,10 +555,7 @@ class Downloader:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
             self._set_progress_percent(software_name, 0)
             raise
-    
 
-    
-    # 希沃课堂助手安装函数
     def _install_希沃课堂助手(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -550,7 +571,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    # 希沃电脑助手安装函数
     def _install_希沃电脑助手(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -566,7 +586,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    # 希沃导播助手安装函数
     def _install_希沃导播助手(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -582,7 +601,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    # 希沃视频展台安装函数
     def _install_希沃视频展台(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -598,7 +616,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    # 希沃物联校园安装函数
     def _install_希沃物联校园(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -614,8 +631,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-
-    # 远程互动课堂安装函数
     def _install_远程互动课堂(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -631,9 +646,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-
-    
-    # 省平台登录插件安装函数
     def _install_省平台登录插件(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             if self.installer_logger:
@@ -660,7 +672,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    # 希象传屏[发送端]安装函数
     def _install_希象传屏发送端(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -676,8 +687,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    
-    # 希沃品课[小组端]安装函数
     def _install_希沃品课小组端(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             install_dir = r"C:\Program Files (x86)\Seewo\SeewoPinK"
@@ -712,7 +721,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    # 希沃品课[教师端]安装函数
     def _install_希沃品课教师端(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             if self.installer_logger:
@@ -744,9 +752,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-
-    
-    # 微信安装函数
     def _install_微信(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -762,7 +767,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    # QQ安装函数
     def _install_QQ(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -778,7 +782,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    # UU远程安装函数
     def _install_UU远程(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -794,7 +797,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    # 网易云音乐安装函数
     def _install_网易云音乐(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
@@ -809,8 +811,7 @@ class Downloader:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
             self._set_progress_percent(software_name, 0)
             raise
-    
-    # office2021安装函数
+
     def _install_office2021(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:            
             if self.installer_logger:
@@ -867,7 +868,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    # ClassIsland2安装函数
     def _install_ClassIsland2(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             if self.installer_logger:
@@ -924,7 +924,6 @@ class Downloader:
             self._set_progress_percent(software_name, 0)
             raise
     
-    # ClassWidgets安装函数
     def _install_ClassWidgets(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
             if self.installer_logger:
@@ -983,14 +982,7 @@ class Downloader:
             raise
     
     def _get_download_url(self, cache_file):
-        """获取下载URL
-        
-        Args:
-            cache_file: 缓存文件信息
-            
-        Returns:
-            str: 下载URL
-        """
+        """获取URL"""
         if "url" in cache_file:
             return cache_file["url"]
         elif "github_path" in cache_file:
@@ -998,17 +990,15 @@ class Downloader:
             return f"{prefix}{cache_file['github_path']}"
         return None
     
-    def _download_file(self, software_name, cache_file, download_location="Temporary", progress_callback=None, download_complete_callback=None):
+    def _download_file(self, software_name, cache_file, download_location="Temporary", progress_callback=None, download_complete_callback=None, download_rate_limit=0, progress_update_interval=0.5):
         """下载文件
-        
-        Args:
             software_name: 软件名称
             cache_file: 缓存文件信息
             download_location: 下载位置 ("Temporary" 或 "Cache")
             progress_callback: 进度回调函数
             download_complete_callback: 下载完成回调函数
-            
-        Returns:
+            download_rate_limit: 限速（bytes/s），0表示不限速
+            progress_update_interval: UI更新间隔（秒）
             str: 下载文件的路径
         """
         url = self._get_download_url(cache_file)
@@ -1047,50 +1037,114 @@ class Downloader:
                 except Exception:
                     if self.installer_logger:
                         self.installer_logger.warning(f"{software_name}: 外部下载进度回调异常")
-        
-        try:
-            response = requests.get(url, stream=True, verify=False, timeout=30)
-            response.raise_for_status()
-            
-            total_size = int(response.headers.get('content-length', 0))
-            downloaded_size = 0
-            last_reported_progress = -1
-            
-            with open(save_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-                        downloaded_size += len(chunk)
-                        
-                        # 计算下载进度
-                        if total_size > 0:
-                            progress = (downloaded_size / total_size) * 100
-                            if int(progress) > last_reported_progress:
-                                last_reported_progress = int(progress)                                # 不记录每次下载进度，减少日志量
-                                _internal_progress(progress)
-            
-            if self.installer_logger:
-                self.installer_logger.info(f"{software_name}: 下载完成：{save_path}")
-            
-            if download_complete_callback:
-                try:
-                    download_complete_callback(software_name)
-                except TypeError:
-                    download_complete_callback()
-            
-            return save_path
-        except Exception as err:
-            if self.installer_logger:
-                self.installer_logger.error(f"{software_name}: 下载失败 - {str(err)}")
-            raise
+        max_retries = 3
+        retry_count = 0
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Referer": "https://www.seewo.com/",
+            "Cache-Control": "max-age=0"
+        }
+
+        while retry_count < max_retries:
+            try:
+                if self.installer_logger:
+                    self.installer_logger.info(f"{software_name}: 发送下载请求 (重试 {retry_count + 1}/{max_retries})")
+                session = requests.Session()
+                session.headers.update(headers)
+
+                response = session.get(url, stream=True, timeout=60, allow_redirects=False, verify=False)
+                if response.status_code in (301, 302):
+                    redirect_url = response.headers.get("Location")
+                    if redirect_url:
+                        if self.installer_logger:
+                            self.installer_logger.info(f"{software_name}: 跟随重定向到: {redirect_url}")
+                        response = session.get(redirect_url, stream=True, timeout=60, verify=False)
+
+                response.raise_for_status()
+                total_size = int(response.headers.get('content-length', 0))
+                if self.installer_logger:
+                    self.installer_logger.info(f"{software_name}: 文件大小: {total_size} bytes")
+
+                downloaded_size = 0
+                start_time = time.time()
+                window_start = start_time
+                window_downloaded = 0
+                last_update_time = 0
+
+                with open(save_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                            chunk_len = len(chunk)
+                            downloaded_size += chunk_len
+
+                            # 限速
+                            if download_rate_limit and download_rate_limit > 0:
+                                window_downloaded += chunk_len
+                                now_t = time.time()
+                                elapsed_window = now_t - window_start
+                                if elapsed_window >= 1.0:
+                                    window_start = now_t
+                                    window_downloaded = 0
+                                else:
+                                    expected_time = window_downloaded / float(download_rate_limit)
+                                    if expected_time > elapsed_window:
+                                        time_to_sleep = expected_time - elapsed_window
+                                        time.sleep(time_to_sleep)
+
+                            now = time.time()
+                            if last_update_time == 0 or (now - last_update_time) >= progress_update_interval:
+                                elapsed_time = now - start_time if (now - start_time) > 0 else 1e-6
+                                speed = downloaded_size / elapsed_time
+                                if self.installer_logger:
+                                    if speed < 1024:
+                                        speed_str = f"{speed:.2f} B/s"
+                                    elif speed < 1024 * 1024:
+                                        speed_str = f"{speed / 1024:.2f} KB/s"
+                                    else:
+                                        speed_str = f"{speed / (1024 * 1024):.2f} MB/s"
+                                    self.installer_logger.debug(f"{software_name}: 下载速度 {speed_str}")
+                                if total_size > 0:
+                                    progress = int((downloaded_size / total_size) * 100)
+                                    _internal_progress(progress)
+                                last_update_time = now
+
+                _internal_progress(100)
+                if self.installer_logger:
+                    self.installer_logger.info(f"{software_name}: 下载完成：{save_path}")
+
+                if download_complete_callback:
+                    try:
+                        download_complete_callback(software_name)
+                    except TypeError:
+                        download_complete_callback()
+
+                return save_path
+            except requests.exceptions.RequestException as e:
+                retry_count += 1
+                if self.installer_logger:
+                    self.installer_logger.warning(f"{software_name}: 下载失败，将重试 ({retry_count}/{max_retries}) - {str(e)}")
+                time.sleep(5)
+                if retry_count >= max_retries:
+                    if self.installer_logger:
+                        self.installer_logger.error(f"{software_name}: 下载失败 - {str(e)}", exc_info=True)
+                    raise RuntimeError(str(e)) from e
+            except OSError as e:
+                if self.installer_logger:
+                    self.installer_logger.error(f"{software_name}: 文件操作失败 - {str(e)}", exc_info=True)
+                raise RuntimeError(str(e)) from e
+            except Exception as e:
+                if self.installer_logger:
+                    self.installer_logger.error(f"{software_name}: 下载异常 - {str(e)}", exc_info=True)
+                raise RuntimeError(str(e)) from e
     
     def silent_installation(self, software_name, installer_path):
-        """静默安装软件
-        
-        Args:
-            software_name: 软件名称
-            installer_path: 安装程序路径
-        """
+        """静默安装"""
         if self.installer_logger:
             self.installer_logger.info(f"{software_name}: 开始静默安装")
         
@@ -1121,23 +1175,55 @@ class Downloader:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}")
             raise
     
-    def _cleanup_temp_files(self, temp_dir, filename, software_name):
+    def _cleanup_temp_files(self, temp_dir, filename, software_name, max_retries=3, retry_delay=1.0):
         """清理临时文件
+        这里的与cleanup_temp_directory函数不同 这里的是清理单个文件 那个是清理整个目录 这是在安装后调用的 那个是启动软件自动清理的"""
+        file_path = os.path.join(temp_dir, filename)
+        if not os.path.exists(file_path):
+            return
         
-        Args:
-            temp_dir: 临时目录
-            filename: 文件名
-            software_name: 软件名称
-        """
-        try:
-            file_path = os.path.join(temp_dir, filename)
-            if os.path.exists(file_path):
+        for attempt in range(max_retries):
+            try:
                 os.remove(file_path)
                 if self.installer_logger:
-                    self.installer_logger.info(f"{software_name}: 已清理临时文件: {file_path}")
-        except Exception as err:
-            if self.installer_logger:
-                self.installer_logger.warning(f"{software_name}: 清理临时文件时出错 - {err}")
+                    self.installer_logger.info(f"{software_name}: 已清理临时文件：{file_path}")
+                return
+            except PermissionError as err:
+                if attempt < max_retries - 1:
+                    if self.installer_logger:
+                        self.installer_logger.warning(f"{software_name}: 文件被占用，将在 {retry_delay}秒后重试 ({attempt + 1}/{max_retries})")
+                    time.sleep(retry_delay)
+                else:
+                    if self.installer_logger:
+                        self.installer_logger.error(f"{software_name}: 清理临时文件失败（文件被占用）: {file_path} - {err}")
+            except Exception as err:
+                if self.installer_logger:
+                    self.installer_logger.warning(f"{software_name}: 清理临时文件时出错 - {err}")
+                break
+
+
+def cleanup_temp_directory(temp_dir=None, logger=None):
+    """清理临时目录中的所有文件"""
+    if temp_dir is None:temp_dir = TEMP_DIR
+    if not os.path.exists(temp_dir):return
+    try:
+        if logger:logger.info(f"开始清理临时目录：{temp_dir}")
+        count = 0
+        for filename in os.listdir(temp_dir):
+            file_path = os.path.join(temp_dir, filename)
+            try:
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                    count += 1
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+                    count += 1
+            except Exception as err:
+                if logger:logger.warning(f"清理临时文件失败：{file_path} - {err}")
+        
+        if logger:logger.info(f"临时目录清理完成，共清理 {count} 个文件/文件夹")
+    except Exception as err:
+        if logger:logger.error(f"清理临时目录失败：{err}")
     
     def _update_status(self, software_name, status):
         """更新状态
@@ -1155,36 +1241,20 @@ class Downloader:
             "配置中": 80,
         }
         try:
-            if status in mapping:
-                self._set_progress_percent(software_name, mapping[status])
-            if self.installer_logger:
-                self.installer_logger.info(f"{software_name}: {status}")
+            if status in mapping:self._set_progress_percent(software_name, mapping[status])
+            if self.installer_logger:self.installer_logger.info(f"{software_name}: {status}")
         except Exception:
-            # 如果更新进度失败，仍然记录原始状态
-            if self.installer_logger:
-                self.installer_logger.info(f"{software_name}: {status}")
+            if self.installer_logger:self.installer_logger.info(f"{software_name}: {status}")
     
     def _decompress_7Z(self, software_name, archive_path, output_dir):
-        """解压7z文件
-        
-        Args:
-            software_name: 软件名称
-            archive_path: 归档文件路径
-            output_dir: 输出目录
-        """
+        """解压7z文件"""
         if self.installer_logger:
             self.installer_logger.info(f"{software_name}: 开始解压到: {output_dir}")
         
         try:
             os.makedirs(output_dir, exist_ok=True)
-            
-            # 使用py7zr解压
-            with py7zr.SevenZipFile(archive_path, 'r') as archive:
-                archive.extractall(output_dir)
-            
-            if self.installer_logger:
-                self.installer_logger.info(f"{software_name}: 解压完成")
+            with py7zr.SevenZipFile(archive_path, 'r', password=SEVEN_ZIP_PASSWORD) as archive:archive.extractall(output_dir)
+            if self.installer_logger:self.installer_logger.info(f"{software_name}: 解压完成")
         except Exception as err:
-            if self.installer_logger:
-                self.installer_logger.error(f"{software_name}: 解压失败 - {str(err)}")
+            if self.installer_logger:self.installer_logger.error(f"{software_name}: 解压失败 - {str(err)}")
             raise
