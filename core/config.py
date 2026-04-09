@@ -231,6 +231,33 @@ class Config(QConfig):
         "Download", "Source", "hk", OptionsValidator(["original", "hk", "cloudflare", "edgeone", "geekertao"])
     )
 
+    showCountdown = ConfigItem(
+        "Countdown", "ShowCountdown", True, BoolValidator()
+    )
+    countdownDisplayMode = OptionsConfigItem(
+        "Countdown", "DisplayMode", "simultaneous", OptionsValidator(["simultaneous", "carousel"])
+    )
+    countdownColor = ColorConfigItem("Countdown", "CountdownColor", "#FFFFFF")
+    countdownSize = RangeConfigItem(
+        "Countdown", "CountdownSize", 48, RangeValidator(20, 120)
+    )
+    countdownPosition = OptionsConfigItem(
+        "Countdown", "CountdownPosition", "中部", OptionsValidator(["左上预留", "左上", "右上预留", "右上", "左下预留", "左下", "右下预留", "右下", "中部", "顶部", "顶部偏下", "底部偏上", "底部"])
+    )
+    countdownTitleColor = ColorConfigItem("Countdown", "TitleColor", "#FFFFFF")
+    countdownTitleBold = ConfigItem(
+        "Countdown", "TitleBold", True, BoolValidator()
+    )
+    countdownTitleSize = RangeConfigItem(
+        "Countdown", "TitleSize", 20, RangeValidator(12, 60)
+    )
+    countdownCarouselInterval = RangeConfigItem(
+        "Countdown", "CarouselInterval", 5, RangeValidator(1, 60)
+    )
+    countdownList = ConfigItem(
+        "Countdown", "CountdownList", [], None
+    )
+
 
 cfg = Config()
 CONFIG_PATH = os.path.join(BASE_DIR, 'config', 'config.json')
@@ -329,6 +356,18 @@ def default_cfg():
         },
         "Download": {
             "Source": "hk"
+        },
+        "Countdown": {
+            "ShowCountdown": True,
+            "DisplayMode": "simultaneous",
+            "CountdownColor": "#FFFFFF",
+            "CountdownSize": 48,
+            "CountdownPosition": "中部",
+            "TitleColor": "#FFFFFF",
+            "TitleBold": True,
+            "TitleSize": 20,
+            "CarouselInterval": 5,
+            "CountdownList": []
         }
     }
 

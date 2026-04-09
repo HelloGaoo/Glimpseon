@@ -18,6 +18,7 @@
 编辑面板模块
 """
 
+import datetime
 import logging
 
 from PyQt5.QtCore import QEasingCurve, QPropertyAnimation, QRect, Qt
@@ -101,6 +102,9 @@ class EditPanel(QWidget):
         self._addSeparator(v)
         self._createWeatherSettings(v)
         self._updateWeatherSettingsEnabled(cfg.showWeather.value)
+        self._addSeparator(v)
+        self._createCountdownSettings(v)
+        self._updateCountdownSettingsEnabled(cfg.showCountdown.value)
         self._connectConfigSignals()
         self.__connectSignalToSlot()
     
@@ -151,6 +155,20 @@ class EditPanel(QWidget):
         self.weatherUpdateIntervalCombo.setEnabled(enabled)
         self.weatherPositionCombo.setEnabled(enabled)
     
+    def _updateCountdownSettingsEnabled(self, enabled):
+        self.countdownDisplayModeCombo.setEnabled(enabled)
+        self.countdownColorCombo.setEnabled(enabled)
+        self.countdownSizeSpin.setEnabled(enabled)
+        self.countdownPositionCombo.setEnabled(enabled)
+        self.countdownTitleColorCombo.setEnabled(enabled)
+        self.countdownTitleBoldSwitch.setEnabled(enabled)
+        self.countdownTitleSizeSpin.setEnabled(enabled)
+        self.countdownCarouselIntervalSpin.setEnabled(enabled)
+        self.countdownAddButton.setEnabled(enabled)
+        self.countdownListWidget.setEnabled(enabled)
+        self.countdownEditButton.setEnabled(enabled)
+        self.countdownDeleteButton.setEnabled(enabled)
+    
     def _connectConfigSignals(self):
         """连接配置变化信号到 UI 更新"""
         # 时间设置
@@ -176,6 +194,18 @@ class EditPanel(QWidget):
         cfg.weatherUpdateInterval.valueChanged.connect(self._updateWeatherUpdateIntervalCombo)
         cfg.city.valueChanged.connect(self._updateCityButton)
         cfg.weatherPosition.valueChanged.connect(self._updateWeatherPositionCombo)
+        
+        # 倒计时设置
+        cfg.showCountdown.valueChanged.connect(self._updateShowCountdownSwitch)
+        cfg.countdownDisplayMode.valueChanged.connect(self._updateCountdownDisplayModeCombo)
+        cfg.countdownColor.valueChanged.connect(self._updateCountdownColorCombo)
+        cfg.countdownSize.valueChanged.connect(self._updateCountdownSizeSpin)
+        cfg.countdownPosition.valueChanged.connect(self._updateCountdownPositionCombo)
+        cfg.countdownTitleColor.valueChanged.connect(self._updateCountdownTitleColorCombo)
+        cfg.countdownTitleBold.valueChanged.connect(self._updateCountdownTitleBoldSwitch)
+        cfg.countdownTitleSize.valueChanged.connect(self._updateCountdownTitleSizeSpin)
+        cfg.countdownCarouselInterval.valueChanged.connect(self._updateCountdownCarouselIntervalSpin)
+        cfg.countdownList.valueChanged.connect(self._updateCountdownList)
     
     def __connectSignalToSlot(self):
         cfg.themeChanged.connect(self._onThemeChanged)
@@ -749,3 +779,454 @@ class EditPanel(QWidget):
         else:new_rect = QRect(pr.width() - self._width, 0, self._width, pr.height())
         self.anim.stop()
         self.setGeometry(new_rect)
+    
+    def _createCountdownSettings(self, layout):
+        """创建倒计时设置"""
+        titleLabel = StrongBodyLabel('倒计时设置', self)
+        layout.addWidget(titleLabel)
+        
+        enableLayout = QHBoxLayout()
+        enableLabel = BodyLabel('启用倒计时', self)
+        enableLabel.setFixedWidth(100)
+        enableLayout.addWidget(enableLabel)
+        self.showCountdownSwitch = SwitchButton(self)
+        self.showCountdownSwitch.setChecked(cfg.showCountdown.value)
+        self.showCountdownSwitch.checkedChanged.connect(self._onShowCountdownChanged)
+        enableLayout.addWidget(self.showCountdownSwitch)
+        layout.addLayout(enableLayout)
+        
+        displayModeLayout = QHBoxLayout()
+        displayModeLabel = BodyLabel('显示模式', self)
+        displayModeLabel.setFixedWidth(100)
+        displayModeLayout.addWidget(displayModeLabel)
+        self.countdownDisplayModeCombo = ComboBox(self)
+        self.countdownDisplayModeCombo.addItems(['同时显示', '轮播显示'])
+        self.countdownDisplayModeCombo.setCurrentText('同时显示' if cfg.countdownDisplayMode.value == 'simultaneous' else '轮播显示')
+        self.countdownDisplayModeCombo.setFixedWidth(120)
+        self.countdownDisplayModeCombo.currentTextChanged.connect(self._onCountdownDisplayModeChanged)
+        displayModeLayout.addWidget(self.countdownDisplayModeCombo)
+        layout.addLayout(displayModeLayout)
+        
+        colorLayout = QHBoxLayout()
+        colorLabel = BodyLabel('倒计时颜色', self)
+        colorLabel.setFixedWidth(100)
+        colorLayout.addWidget(colorLabel)
+        self.countdownColorCombo = ComboBox(self)
+        self.countdownColorCombo.addItems(['主要颜色', '白色', '黑色'])
+        self.countdownColorCombo.setCurrentText(self._getColorText(cfg.countdownColor.value))
+        self.countdownColorCombo.setFixedWidth(120)
+        self.countdownColorCombo.currentTextChanged.connect(self._onCountdownColorChanged)
+        colorLayout.addWidget(self.countdownColorCombo)
+        layout.addLayout(colorLayout)
+        
+        sizeLayout = QHBoxLayout()
+        sizeLabel = BodyLabel('倒计时大小', self)
+        sizeLabel.setFixedWidth(100)
+        sizeLayout.addWidget(sizeLabel)
+        self.countdownSizeSpin = SpinBox(self)
+        self.countdownSizeSpin.setRange(20, 120)
+        self.countdownSizeSpin.setValue(cfg.countdownSize.value)
+        self.countdownSizeSpin.setFixedWidth(120)
+        self.countdownSizeSpin.valueChanged.connect(self._onCountdownSizeChanged)
+        sizeLayout.addWidget(self.countdownSizeSpin)
+        layout.addLayout(sizeLayout)
+        
+        titleColorLayout = QHBoxLayout()
+        titleColorLabel = BodyLabel('标题颜色', self)
+        titleColorLabel.setFixedWidth(100)
+        titleColorLayout.addWidget(titleColorLabel)
+        self.countdownTitleColorCombo = ComboBox(self)
+        self.countdownTitleColorCombo.addItems(['主要颜色', '白色', '黑色'])
+        self.countdownTitleColorCombo.setCurrentText(self._getColorText(cfg.countdownTitleColor.value))
+        self.countdownTitleColorCombo.setFixedWidth(120)
+        self.countdownTitleColorCombo.currentTextChanged.connect(self._onCountdownTitleColorChanged)
+        titleColorLayout.addWidget(self.countdownTitleColorCombo)
+        layout.addLayout(titleColorLayout)
+        
+        titleBoldLayout = QHBoxLayout()
+        titleBoldLabel = BodyLabel('标题加粗', self)
+        titleBoldLabel.setFixedWidth(100)
+        titleBoldLayout.addWidget(titleBoldLabel)
+        self.countdownTitleBoldSwitch = SwitchButton(self)
+        self.countdownTitleBoldSwitch.setChecked(cfg.countdownTitleBold.value)
+        self.countdownTitleBoldSwitch.checkedChanged.connect(self._onCountdownTitleBoldChanged)
+        titleBoldLayout.addWidget(self.countdownTitleBoldSwitch)
+        layout.addLayout(titleBoldLayout)
+        
+        titleSizeLayout = QHBoxLayout()
+        titleSizeLabel = BodyLabel('标题大小', self)
+        titleSizeLabel.setFixedWidth(100)
+        titleSizeLayout.addWidget(titleSizeLabel)
+        self.countdownTitleSizeSpin = SpinBox(self)
+        self.countdownTitleSizeSpin.setRange(12, 60)
+        self.countdownTitleSizeSpin.setValue(cfg.countdownTitleSize.value)
+        self.countdownTitleSizeSpin.setFixedWidth(120)
+        self.countdownTitleSizeSpin.valueChanged.connect(self._onCountdownTitleSizeChanged)
+        titleSizeLayout.addWidget(self.countdownTitleSizeSpin)
+        layout.addLayout(titleSizeLayout)
+        
+        carouselIntervalLayout = QHBoxLayout()
+        carouselIntervalLabel = BodyLabel('轮播间隔', self)
+        carouselIntervalLabel.setFixedWidth(100)
+        carouselIntervalLayout.addWidget(carouselIntervalLabel)
+        self.countdownCarouselIntervalSpin = SpinBox(self)
+        self.countdownCarouselIntervalSpin.setRange(1, 60)
+        self.countdownCarouselIntervalSpin.setValue(cfg.countdownCarouselInterval.value)
+        self.countdownCarouselIntervalSpin.setFixedWidth(120)
+        self.countdownCarouselIntervalSpin.valueChanged.connect(self._onCountdownCarouselIntervalChanged)
+        carouselIntervalLayout.addWidget(self.countdownCarouselIntervalSpin)
+        layout.addLayout(carouselIntervalLayout)
+        
+        positionLayout = QHBoxLayout()
+        positionLabel = BodyLabel('倒计时位置', self)
+        positionLabel.setFixedWidth(100)
+        positionLayout.addWidget(positionLabel)
+        self.countdownPositionCombo = ComboBox(self)
+        self.countdownPositionCombo.addItems(['左上预留', '左上', '右上预留', '右上', '左下预留', '左下', '右下预留', '右下', '中部', '顶部', '顶部偏下', '底部偏上', '底部'])
+        self.countdownPositionCombo.setCurrentText(cfg.countdownPosition.value)
+        self.countdownPositionCombo.setFixedWidth(120)
+        self.countdownPositionCombo.currentTextChanged.connect(self._onCountdownPositionChanged)
+        positionLayout.addWidget(self.countdownPositionCombo)
+        layout.addLayout(positionLayout)
+        
+        listLabel = BodyLabel('倒计时列表', self)
+        layout.addWidget(listLabel)
+        
+        self.countdownListWidget = ListWidget(self)
+        self.countdownListWidget.setFixedHeight(120)
+        self._updateCountdownList()
+        layout.addWidget(self.countdownListWidget)
+        
+        buttonLayout = QHBoxLayout()
+        self.countdownAddButton = PushButton('添加', self)
+        self.countdownAddButton.clicked.connect(self._onCountdownAddClicked)
+        buttonLayout.addWidget(self.countdownAddButton)
+        self.countdownEditButton = PushButton('编辑', self)
+        self.countdownEditButton.clicked.connect(self._onCountdownEditClicked)
+        buttonLayout.addWidget(self.countdownEditButton)
+        self.countdownDeleteButton = PushButton('删除', self)
+        self.countdownDeleteButton.clicked.connect(self._onCountdownDeleteClicked)
+        buttonLayout.addWidget(self.countdownDeleteButton)
+        layout.addLayout(buttonLayout)
+    
+    def _updateShowCountdownSwitch(self, value):
+        self.showCountdownSwitch.setChecked(value)
+        self._updateCountdownSettingsEnabled(value)
+    
+    def _updateCountdownDisplayModeCombo(self, value):
+        self.countdownDisplayModeCombo.setCurrentText('同时显示' if value == 'simultaneous' else '轮播显示')
+    
+    def _updateCountdownColorCombo(self, value):
+        self.countdownColorCombo.setCurrentText(self._getColorText(value))
+    
+    def _updateCountdownSizeSpin(self, value):
+        self.countdownSizeSpin.setValue(value)
+    
+    def _updateCountdownPositionCombo(self, value):
+        self.countdownPositionCombo.setCurrentText(value)
+    
+    def _updateCountdownTitleColorCombo(self, value):
+        self.countdownTitleColorCombo.setCurrentText(self._getColorText(value))
+    
+    def _updateCountdownTitleBoldSwitch(self, value):
+        self.countdownTitleBoldSwitch.setChecked(value)
+    
+    def _updateCountdownTitleSizeSpin(self, value):
+        self.countdownTitleSizeSpin.setValue(value)
+    
+    def _updateCountdownCarouselIntervalSpin(self, value):
+        self.countdownCarouselIntervalSpin.setValue(value)
+    
+    def _updateCountdownList(self):
+        self.countdownListWidget.clear()
+        countdown_list = cfg.countdownList.value or []
+        for cd in countdown_list:
+            title = cd.get('title', '')
+            target_time = cd.get('target_time', '')
+            if title and target_time:
+                self.countdownListWidget.addItem(f"{title} - {target_time}")
+    
+    def _onShowCountdownChanged(self, checked: bool):
+        cfg.showCountdown.value = checked
+        self._updateCountdownSettingsEnabled(checked)
+        if hasattr(self.mainWindow, '_MainWindow__updateCountdown'):
+            self.mainWindow._MainWindow__updateCountdown()
+        logger.info(f"倒计时设置：启用倒计时={'开启' if checked else '关闭'}")
+    
+    def _onCountdownDisplayModeChanged(self, text: str):
+        cfg.countdownDisplayMode.value = 'simultaneous' if text == '同时显示' else 'carousel'
+        if hasattr(self.mainWindow, '_MainWindow__updateCountdown'):
+            self.mainWindow._MainWindow__updateCountdown()
+        logger.info(f"倒计时设置：显示模式={text}")
+    
+    def _onCountdownColorChanged(self, text: str):
+        from PyQt5.QtGui import QColor
+        if text == '白色':
+            cfg.countdownColor.value = QColor(255, 255, 255)
+        elif text == '黑色':
+            cfg.countdownColor.value = QColor(0, 0, 0)
+        else:
+            cfg.countdownColor.value = cfg.themeColor.value
+        if hasattr(self.mainWindow, 'updateCountdownStyle'):
+            self.mainWindow.updateCountdownStyle()
+        logger.info(f"倒计时设置：倒计时颜色={text}")
+    
+    def _onCountdownSizeChanged(self, value: int):
+        cfg.countdownSize.value = value
+        if hasattr(self.mainWindow, 'updateCountdownStyle'):
+            self.mainWindow.updateCountdownStyle()
+        logger.info(f"倒计时设置：倒计时大小={value}px")
+    
+    def _onCountdownTitleColorChanged(self, text: str):
+        from PyQt5.QtGui import QColor
+        if text == '白色':
+            cfg.countdownTitleColor.value = QColor(255, 255, 255)
+        elif text == '黑色':
+            cfg.countdownTitleColor.value = QColor(0, 0, 0)
+        else:
+            cfg.countdownTitleColor.value = cfg.themeColor.value
+        if hasattr(self.mainWindow, 'updateCountdownStyle'):
+            self.mainWindow.updateCountdownStyle()
+        logger.info(f"倒计时设置：标题颜色={text}")
+    
+    def _onCountdownTitleBoldChanged(self, checked: bool):
+        cfg.countdownTitleBold.value = checked
+        if hasattr(self.mainWindow, 'updateCountdownStyle'):
+            self.mainWindow.updateCountdownStyle()
+        logger.info(f"倒计时设置：标题加粗={'开启' if checked else '关闭'}")
+    
+    def _onCountdownTitleSizeChanged(self, value: int):
+        cfg.countdownTitleSize.value = value
+        if hasattr(self.mainWindow, 'updateCountdownStyle'):
+            self.mainWindow.updateCountdownStyle()
+        logger.info(f"倒计时设置：标题大小={value}px")
+    
+    def _onCountdownCarouselIntervalChanged(self, value: int):
+        cfg.countdownCarouselInterval.value = value
+        if hasattr(self.mainWindow, '_MainWindow__updateCountdownCarouselInterval'):
+            self.mainWindow._MainWindow__updateCountdownCarouselInterval()
+        logger.info(f"倒计时设置：轮播间隔={value}秒")
+    
+    def _onCountdownPositionChanged(self, text: str):
+        cfg.countdownPosition.value = text
+        if hasattr(self.mainWindow, '_MainWindow__updateCountdownPosition'):
+            self.mainWindow._MainWindow__updateCountdownPosition()
+        logger.info(f"倒计时设置：位置={text}")
+    
+    def _onCountdownAddClicked(self):
+        dialog = CountdownEditDialog(self.mainWindow)
+        if dialog.exec():
+            countdown_list = cfg.countdownList.value or []
+            countdown_list.append(dialog.get_countdown())
+            cfg.countdownList.value = countdown_list
+            logger.info(f"倒计时设置：添加倒计时={dialog.get_countdown()}")
+    
+    def _onCountdownEditClicked(self):
+        current_row = self.countdownListWidget.currentRow()
+        if current_row < 0:
+            InfoBar.warning('编辑倒计时', '请先选择一个倒计时', parent=self, duration=3000)
+            return
+        countdown_list = cfg.countdownList.value or []
+        if current_row >= len(countdown_list):
+            return
+        dialog = CountdownEditDialog(self.mainWindow, countdown_list[current_row])
+        if dialog.exec():
+            countdown_list[current_row] = dialog.get_countdown()
+            cfg.countdownList.value = countdown_list
+            logger.info(f"倒计时设置：编辑倒计时={dialog.get_countdown()}")
+    
+    def _onCountdownDeleteClicked(self):
+        current_row = self.countdownListWidget.currentRow()
+        if current_row < 0:
+            InfoBar.warning('删除倒计时', '请先选择一个倒计时', parent=self, duration=3000)
+            return
+        countdown_list = cfg.countdownList.value or []
+        if current_row >= len(countdown_list):
+            return
+        countdown_list.pop(current_row)
+        cfg.countdownList.value = countdown_list
+        logger.info(f"倒计时设置：删除倒计时索引={current_row}")
+    
+    def _onCountdownAddClicked(self):
+        from PyQt5.QtWidgets import QDialog
+        dialog = QDialog(self.mainWindow)
+        dialog.setWindowTitle('添加倒计时')
+        dialog.setFixedSize(320, 300)
+        
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(12)
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        titleLabel = BodyLabel('目标名称', dialog)
+        layout.addWidget(titleLabel)
+        titleEdit = LineEdit(dialog)
+        titleEdit.setPlaceholderText('例如：中考')
+        layout.addWidget(titleEdit)
+        
+        dateLabel = BodyLabel('目标日期', dialog)
+        layout.addWidget(dateLabel)
+        dateLayout = QHBoxLayout()
+        yearEdit = LineEdit(dialog)
+        yearEdit.setPlaceholderText('年')
+        yearEdit.setFixedWidth(60)
+        monthEdit = LineEdit(dialog)
+        monthEdit.setPlaceholderText('月')
+        monthEdit.setFixedWidth(40)
+        dayEdit = LineEdit(dialog)
+        dayEdit.setPlaceholderText('日')
+        dayEdit.setFixedWidth(40)
+        dateLayout.addWidget(yearEdit)
+        dateLayout.addWidget(QLabel('-'))
+        dateLayout.addWidget(monthEdit)
+        dateLayout.addWidget(QLabel('-'))
+        dateLayout.addWidget(dayEdit)
+        layout.addLayout(dateLayout)
+        
+        timeLabel = BodyLabel('目标时间', dialog)
+        layout.addWidget(timeLabel)
+        timeLayout = QHBoxLayout()
+        hourEdit = LineEdit(dialog)
+        hourEdit.setPlaceholderText('时')
+        hourEdit.setFixedWidth(40)
+        minuteEdit = LineEdit(dialog)
+        minuteEdit.setPlaceholderText('分')
+        minuteEdit.setFixedWidth(40)
+        timeLayout.addWidget(hourEdit)
+        timeLayout.addWidget(QLabel(':'))
+        timeLayout.addWidget(minuteEdit)
+        layout.addLayout(timeLayout)
+        
+        layout.addStretch()
+        
+        buttonLayout = QHBoxLayout()
+        cancelBtn = PushButton('取消', dialog)
+        cancelBtn.clicked.connect(dialog.reject)
+        buttonLayout.addWidget(cancelBtn)
+        okBtn = PrimaryPushButton('确定', dialog)
+        buttonLayout.addWidget(okBtn)
+        layout.addLayout(buttonLayout)
+        
+        result = [None]
+        
+        def on_ok():
+            try:
+                year = int(yearEdit.text())
+                month = int(monthEdit.text())
+                day = int(dayEdit.text())
+                hour = int(hourEdit.text())
+                minute = int(minuteEdit.text())
+                dt = datetime.datetime(year, month, day, hour, minute)
+                result[0] = {
+                    'title': titleEdit.text(),
+                    'target_time': dt.strftime('%Y-%m-%d %H:%M')
+                }
+                dialog.accept()
+            except:
+                InfoBar.error('错误', '请输入有效的日期和时间', parent=dialog, duration=3000)
+        
+        okBtn.clicked.connect(on_ok)
+        
+        if dialog.exec() == QDialog.Accepted and result[0]:
+            countdown_list = cfg.countdownList.value or []
+            countdown_list.append(result[0])
+            cfg.countdownList.value = countdown_list
+            logger.info(f"倒计时设置：添加倒计时={result[0]}")
+    
+    def _onCountdownEditClicked(self):
+        current_row = self.countdownListWidget.currentRow()
+        if current_row < 0:
+            InfoBar.warning('编辑倒计时', '请先选择一个倒计时', parent=self, duration=3000)
+            return
+        countdown_list = cfg.countdownList.value or []
+        if current_row >= len(countdown_list):
+            return
+        
+        from PyQt5.QtWidgets import QDialog
+        dialog = QDialog(self.mainWindow)
+        dialog.setWindowTitle('编辑倒计时')
+        dialog.setFixedSize(320, 300)
+        
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(12)
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        titleLabel = BodyLabel('目标名称', dialog)
+        layout.addWidget(titleLabel)
+        titleEdit = LineEdit(dialog)
+        titleEdit.setText(countdown_list[current_row].get('title', ''))
+        layout.addWidget(titleEdit)
+        
+        dateLabel = BodyLabel('目标日期', dialog)
+        layout.addWidget(dateLabel)
+        dateLayout = QHBoxLayout()
+        yearEdit = LineEdit(dialog)
+        yearEdit.setFixedWidth(60)
+        monthEdit = LineEdit(dialog)
+        monthEdit.setFixedWidth(40)
+        dayEdit = LineEdit(dialog)
+        dayEdit.setFixedWidth(40)
+        dateLayout.addWidget(yearEdit)
+        dateLayout.addWidget(QLabel('-'))
+        dateLayout.addWidget(monthEdit)
+        dateLayout.addWidget(QLabel('-'))
+        dateLayout.addWidget(dayEdit)
+        layout.addLayout(dateLayout)
+        
+        timeLabel = BodyLabel('目标时间', dialog)
+        layout.addWidget(timeLabel)
+        timeLayout = QHBoxLayout()
+        hourEdit = LineEdit(dialog)
+        hourEdit.setFixedWidth(40)
+        minuteEdit = LineEdit(dialog)
+        minuteEdit.setFixedWidth(40)
+        timeLayout.addWidget(hourEdit)
+        timeLayout.addWidget(QLabel(':'))
+        timeLayout.addWidget(minuteEdit)
+        layout.addLayout(timeLayout)
+        
+        target_time = countdown_list[current_row].get('target_time', '')
+        if target_time:
+            try:
+                dt = datetime.datetime.strptime(target_time, '%Y-%m-%d %H:%M')
+                yearEdit.setText(str(dt.year))
+                monthEdit.setText(str(dt.month))
+                dayEdit.setText(str(dt.day))
+                hourEdit.setText(str(dt.hour))
+                minuteEdit.setText(str(dt.minute))
+            except:
+                pass
+        
+        layout.addStretch()
+        
+        buttonLayout = QHBoxLayout()
+        cancelBtn = PushButton('取消', dialog)
+        cancelBtn.clicked.connect(dialog.reject)
+        buttonLayout.addWidget(cancelBtn)
+        okBtn = PrimaryPushButton('确定', dialog)
+        buttonLayout.addWidget(okBtn)
+        layout.addLayout(buttonLayout)
+        
+        result = [None]
+        
+        def on_ok():
+            try:
+                year = int(yearEdit.text())
+                month = int(monthEdit.text())
+                day = int(dayEdit.text())
+                hour = int(hourEdit.text())
+                minute = int(minuteEdit.text())
+                dt = datetime.datetime(year, month, day, hour, minute)
+                result[0] = {
+                    'title': titleEdit.text(),
+                    'target_time': dt.strftime('%Y-%m-%d %H:%M')
+                }
+                dialog.accept()
+            except:
+                InfoBar.error('错误', '请输入有效的日期和时间', parent=dialog, duration=3000)
+        
+        okBtn.clicked.connect(on_ok)
+        
+        if dialog.exec() == QDialog.Accepted and result[0]:
+            countdown_list[current_row] = result[0]
+            cfg.countdownList.value = countdown_list
+            logger.info(f"倒计时设置：编辑倒计时={result[0]}")

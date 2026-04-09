@@ -373,6 +373,23 @@ class MainWindow(FluentWindow):
         cfg.showPoetry.valueChanged.connect(self.__updatePoetry)
         self.__updatePoetryInterval()
         
+        # 倒计时更新定时
+        self.countdownTimer = QTimer(self)
+        self.countdownTimer.timeout.connect(self.__updateCountdown)
+        self.countdownCarouselIndex = 0
+        cfg.showCountdown.valueChanged.connect(self.__updateCountdown)
+        cfg.countdownColor.valueChanged.connect(self.updateCountdownStyle)
+        cfg.countdownSize.valueChanged.connect(self.updateCountdownStyle)
+        cfg.countdownTitleColor.valueChanged.connect(self.updateCountdownStyle)
+        cfg.countdownTitleBold.valueChanged.connect(self.updateCountdownStyle)
+        cfg.countdownTitleSize.valueChanged.connect(self.updateCountdownStyle)
+        cfg.countdownPosition.valueChanged.connect(self.__updateCountdownPosition)
+        cfg.countdownDisplayMode.valueChanged.connect(self.__updateCountdown)
+        cfg.countdownCarouselInterval.valueChanged.connect(self.__updateCountdownCarouselInterval)
+        cfg.countdownList.valueChanged.connect(self.__updateCountdown)
+        self.__updateCountdownCarouselInterval()
+        self.__updateCountdown()
+        
         # 更新组件位置
         self.__updateComponentPositions()
         
@@ -834,6 +851,22 @@ class MainWindow(FluentWindow):
         poetryLayout.addWidget(self.poetryLabel)
         self.poetryContainer.setStyleSheet("background-color: transparent;")
         
+        # 倒计时标签
+        self.countdownTitleLabel = QLabel("")
+        self.countdownTitleLabel.setAlignment(Qt.AlignCenter)
+        self.countdownLabel = QLabel("")
+        self.countdownLabel.setAlignment(Qt.AlignCenter)
+        
+        # 倒计时容器
+        self.countdownContainer = QWidget()
+        countdownLayout = QVBoxLayout(self.countdownContainer)
+        countdownLayout.setAlignment(Qt.AlignCenter)
+        countdownLayout.setContentsMargins(0, 0, 0, 0)
+        countdownLayout.setSpacing(8)
+        countdownLayout.addWidget(self.countdownTitleLabel)
+        countdownLayout.addWidget(self.countdownLabel)
+        self.countdownContainer.setStyleSheet("background-color: transparent;")
+        
         # 编辑按钮
         editContainer = QWidget()
         self.editLayout = QVBoxLayout(editContainer)
@@ -855,6 +888,7 @@ class MainWindow(FluentWindow):
         gridLayout.addWidget(self.clockContainer, 0, 0, 1, 1)
         gridLayout.addWidget(self.weatherContainer, 0, 0, 1, 1)
         gridLayout.addWidget(self.poetryContainer, 0, 0, 1, 1)
+        gridLayout.addWidget(self.countdownContainer, 0, 0, 1, 1)
         gridLayout.addWidget(editContainer, 0, 0, 1, 1)
         
         self.homeContent = QWidget()
@@ -1007,6 +1041,7 @@ class MainWindow(FluentWindow):
         self.__updateClockPosition()
         self.__updateWeatherPosition()
         self.__updatePoetryPosition()
+        self.__updateCountdownPosition()
     
     def __updateClockPosition(self):
         """ 更新时间组件位置 """
@@ -1425,6 +1460,163 @@ class MainWindow(FluentWindow):
                 logger.warning(f"天气图标文件不存在：{icon_file}")
         except Exception as e:
             logger.error(f"天气图标更新失败：{e}")
+    
+    def __updateCountdownCarouselInterval(self):
+        """轮播间隔 """
+        self.countdownTimer.stop()
+        interval = cfg.countdownCarouselInterval.value * 1000
+        self.countdownTimer.start(interval)
+        self.__updateCountdown()
+    
+    def __updateCountdown(self):
+        """倒计时显示"""
+        if not cfg.showCountdown.value:
+            self.countdownContainer.hide()
+            return
+        self.countdownContainer.show()
+        self.updateCountdownStyle()
+        countdown_list = cfg.countdownList.value or []
+        if not countdown_list:
+            self.countdownTitleLabel.setText("")
+            self.countdownLabel.setText("")
+            return
+        display_mode = cfg.countdownDisplayMode.value
+        if display_mode == "simultaneous":
+            texts = []
+            for cd in countdown_list:
+                text = self._formatCountdown(cd)
+                if text:
+                    texts.append(text)
+            self.countdownTitleLabel.setText("\n".join([t[0] for t in texts if t]))
+            self.countdownLabel.setText("\n".join([t[1] for t in texts if t]))
+        else:
+            if not hasattr(self, 'countdownCarouselIndex'):
+                self.countdownCarouselIndex = 0
+            if self.countdownCarouselIndex >= len(countdown_list):
+                self.countdownCarouselIndex = 0
+            cd = countdown_list[self.countdownCarouselIndex]
+            text = self._formatCountdown(cd)
+            if text:
+                self.countdownTitleLabel.setText(text[0])
+                self.countdownLabel.setText(text[1])
+            self.countdownCarouselIndex += 1
+    
+    def _formatCountdown(self, countdown):
+        """单个倒计时 """
+        title = countdown.get('title', '')
+        target_time_str = countdown.get('target_time', '')
+        if not title or not target_time_str:
+            return None
+        try:
+            target_time = datetime.datetime.strptime(target_time_str, '%Y-%m-%d %H:%M')
+        except ValueError:
+            return None
+        now = datetime.datetime.now()
+        delta = target_time - now
+        if delta.total_seconds() > 0:
+            total_seconds = delta.total_seconds()
+            days = int(total_seconds // 86400)
+            hours = int((total_seconds % 86400) // 3600)
+            minutes = int((total_seconds % 3600) // 60)
+            seconds = int(total_seconds % 60)
+            if total_seconds < 10800:
+                time_text = f"{days}天 {hours:02d}:{minutes:02d}:{seconds:02d}"
+            elif total_seconds < 259200:
+                time_text = f"{days}天 {hours:02d}:{minutes:02d}"
+            else:
+                time_text = f"{days}天"
+            
+            title_text = f"{title}仅剩"
+        else:
+            past_seconds = abs(delta.total_seconds())
+            if past_seconds < 86400:
+                title_text = f"{title}就在今天"
+                time_text = ""
+            else:
+                past_days = int(past_seconds // 86400)
+                title_text = f"{title}已过去"
+                time_text = f"{past_days}天"
+        
+        return (title_text, time_text)
+    
+    def updateCountdownStyle(self):
+        """ 更新倒计时样式 """
+        countdown_color = cfg.countdownColor.value
+        countdown_color_str = countdown_color.name() if hasattr(countdown_color, 'name') else str(countdown_color)
+        countdown_size = cfg.countdownSize.value
+
+        title_color = cfg.countdownTitleColor.value
+        title_color_str = title_color.name() if hasattr(title_color, 'name') else str(title_color)
+        title_size = cfg.countdownTitleSize.value
+        title_bold = cfg.countdownTitleBold.value
+        
+        font_weight = "bold" if title_bold else "normal"
+        
+        self.countdownTitleLabel.setStyleSheet(f"""
+            color: {title_color_str}; 
+            font-size: {title_size}px; 
+            font-weight: {font_weight}; 
+            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            background-color: transparent;
+        """)
+        
+        self.countdownLabel.setStyleSheet(f"""
+            color: {countdown_color_str}; 
+            font-size: {countdown_size}px; 
+            font-weight: bold; 
+            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            background-color: transparent;
+        """)
+    
+    def __updateCountdownPosition(self):
+        """ 更新倒计时组件位置 """
+        position = cfg.countdownPosition.value
+        margin = 100
+        small_margin = 20
+        
+        layout = self.countdownContainer.layout()
+        
+        if position == "左上预留":
+            layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+            layout.setContentsMargins(small_margin, small_margin, 0, 0)
+        elif position == "左上":
+            layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+            layout.setContentsMargins(0, 0, 0, 0)
+        elif position == "右上预留":
+            layout.setAlignment(Qt.AlignTop | Qt.AlignRight)
+            layout.setContentsMargins(0, small_margin, small_margin, 0)
+        elif position == "右上":
+            layout.setAlignment(Qt.AlignTop | Qt.AlignRight)
+            layout.setContentsMargins(0, 0, 0, 0)
+        elif position == "左下预留":
+            layout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
+            layout.setContentsMargins(small_margin, 0, 0, small_margin)
+        elif position == "左下":
+            layout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
+            layout.setContentsMargins(0, 0, 0, 0)
+        elif position == "右下预留":
+            layout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
+            layout.setContentsMargins(0, 0, small_margin, small_margin)
+        elif position == "右下":
+            layout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
+            layout.setContentsMargins(0, 0, 0, 0)
+        elif position == "中部":
+            layout.setAlignment(Qt.AlignCenter)
+            layout.setContentsMargins(0, 0, 0, 0)
+        elif position == "顶部":
+            layout.setAlignment(Qt.AlignTop)
+            layout.setContentsMargins(0, 0, 0, 0)
+        elif position == "顶部偏下":
+            layout.setAlignment(Qt.AlignTop)
+            layout.setContentsMargins(0, margin, 0, 0)
+        elif position == "底部偏上":
+            layout.setAlignment(Qt.AlignBottom)
+            layout.setContentsMargins(0, 0, 0, margin)
+        elif position == "底部":
+            layout.setAlignment(Qt.AlignBottom)
+            layout.setContentsMargins(0, 0, 0, 0)
+        
+        logger.info(f"倒计时组件位置已更新为：{position}")
 
 def autoStart_launch():
     """检查是否是通过开机自启动启动的"""
