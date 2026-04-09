@@ -1521,8 +1521,9 @@ if __name__ == "__main__":
     window = MainWindow()
     
     if auto_start_launch:
-        logger.info("开机自启动模式：最小化到系统托盘")
-        window.hide()
+        logger.info("开机自启动模式：最大化窗口")
+        window.show()
+        window.showMaximized()
         if hasattr(window, 'tray_icon') and window.tray_icon:
             window.tray_icon.show()
             logger.info("系统托盘图标已显示")
