@@ -37,6 +37,7 @@ from qfluentwidgets import (
     BodyLabel,
     ComboBox,
     FluentIcon as FIF,
+    InfoBar,
     isDarkTheme,
     LineEdit,
     ListWidget,
