@@ -35,6 +35,7 @@ from PyQt5.QtWidgets import (
 )
 from qfluentwidgets import (
     BodyLabel,
+    CalendarPicker,
     ComboBox,
     FluentIcon as FIF,
     InfoBar,
@@ -49,6 +50,7 @@ from qfluentwidgets import (
     StrongBodyLabel,
     SubtitleLabel,
     SwitchButton,
+    TimePicker,
     ToolButton,
 )
 
@@ -1088,6 +1090,8 @@ class CountdownEditDialog(MessageBoxBase):
         self._init_ui()
     
     def _init_ui(self):
+        from PyQt5.QtCore import QDate, QTime
+        
         title = SubtitleLabel('编辑倒计时' if self._countdown_data else '添加倒计时')
         self.viewLayout.addWidget(title)
         
@@ -1109,22 +1113,16 @@ class CountdownEditDialog(MessageBoxBase):
         
         dateLabel = BodyLabel('目标日期')
         self.viewLayout.addWidget(dateLabel)
-        dateLayout = QHBoxLayout()
-        self.yearEdit = LineEdit()
-        self.yearEdit.setPlaceholderText('年')
-        self.yearEdit.setFixedWidth(70)
-        self.monthEdit = LineEdit()
-        self.monthEdit.setPlaceholderText('月')
-        self.monthEdit.setFixedWidth(50)
-        self.dayEdit = LineEdit()
-        self.dayEdit.setPlaceholderText('日')
-        self.dayEdit.setFixedWidth(50)
-        dateLayout.addWidget(self.yearEdit)
-        dateLayout.addWidget(QLabel('-'))
-        dateLayout.addWidget(self.monthEdit)
-        dateLayout.addWidget(QLabel('-'))
-        dateLayout.addWidget(self.dayEdit)
-        self.viewLayout.addLayout(dateLayout)
+        self.datePicker = CalendarPicker()
+        if self._countdown_data:
+            target_time = self._countdown_data.get('target_time', '')
+            if target_time:
+                try:
+                    dt = datetime.datetime.strptime(target_time, '%Y-%m-%d %H:%M')
+                    self.datePicker.setDate(QDate(dt.year, dt.month, dt.day))
+                except:
+                    pass
+        self.viewLayout.addWidget(self.datePicker)
         
         spacer = QWidget()
         spacer.setFixedHeight(8)
@@ -1132,30 +1130,16 @@ class CountdownEditDialog(MessageBoxBase):
         
         timeLabel = BodyLabel('目标时间')
         self.viewLayout.addWidget(timeLabel)
-        timeLayout = QHBoxLayout()
-        self.hourEdit = LineEdit()
-        self.hourEdit.setPlaceholderText('时')
-        self.hourEdit.setFixedWidth(50)
-        self.minuteEdit = LineEdit()
-        self.minuteEdit.setPlaceholderText('分')
-        self.minuteEdit.setFixedWidth(50)
-        timeLayout.addWidget(self.hourEdit)
-        timeLayout.addWidget(QLabel(':'))
-        timeLayout.addWidget(self.minuteEdit)
-        self.viewLayout.addLayout(timeLayout)
-        
+        self.timePicker = TimePicker()
         if self._countdown_data:
             target_time = self._countdown_data.get('target_time', '')
             if target_time:
                 try:
                     dt = datetime.datetime.strptime(target_time, '%Y-%m-%d %H:%M')
-                    self.yearEdit.setText(str(dt.year))
-                    self.monthEdit.setText(str(dt.month))
-                    self.dayEdit.setText(str(dt.day))
-                    self.hourEdit.setText(str(dt.hour))
-                    self.minuteEdit.setText(str(dt.minute))
+                    self.timePicker.setTime(QTime(dt.hour, dt.minute))
                 except:
                     pass
+        self.viewLayout.addWidget(self.timePicker)
         
         self.yesButton.setText('确定')
         self.cancelButton.setText('取消')
@@ -1167,18 +1151,15 @@ class CountdownEditDialog(MessageBoxBase):
     
     def _on_ok(self):
         try:
-            year = int(self.yearEdit.text())
-            month = int(self.monthEdit.text())
-            day = int(self.dayEdit.text())
-            hour = int(self.hourEdit.text())
-            minute = int(self.minuteEdit.text())
-            dt = datetime.datetime(year, month, day, hour, minute)
+            qdate = self.datePicker.date()
+            qtime = self.timePicker.time()
+            dt = datetime.datetime(qdate.year(), qdate.month(), qdate.day(), qtime.hour(), qtime.minute())
             self._result = {
                 'title': self.titleEdit.text(),
                 'target_time': dt.strftime('%Y-%m-%d %H:%M')
             }
             self.accept()
-        except:
+        except Exception as e:
             InfoBar.error('错误', '请输入有效的日期和时间', parent=self, duration=3000)
     
     def get_countdown(self):
