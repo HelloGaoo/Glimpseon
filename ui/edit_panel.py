@@ -41,11 +41,13 @@ from qfluentwidgets import (
     isDarkTheme,
     LineEdit,
     ListWidget,
+    MessageBoxBase,
     PrimaryPushButton,
     PushButton,
     SmoothScrollArea,
     SpinBox,
     StrongBodyLabel,
+    SubtitleLabel,
     SwitchButton,
     ToolButton,
 )
@@ -1049,89 +1051,14 @@ class EditPanel(QWidget):
         logger.info(f"倒计时设置：删除倒计时索引={current_row}")
     
     def _onCountdownAddClicked(self):
-        from PyQt5.QtWidgets import QDialog
-        dialog = QDialog(self.mainWindow)
-        dialog.setWindowTitle('添加倒计时')
-        dialog.setFixedSize(320, 300)
-        
-        layout = QVBoxLayout(dialog)
-        layout.setSpacing(12)
-        layout.setContentsMargins(20, 20, 20, 20)
-        
-        titleLabel = BodyLabel('目标名称', dialog)
-        layout.addWidget(titleLabel)
-        titleEdit = LineEdit(dialog)
-        titleEdit.setPlaceholderText('例如：中考')
-        layout.addWidget(titleEdit)
-        
-        dateLabel = BodyLabel('目标日期', dialog)
-        layout.addWidget(dateLabel)
-        dateLayout = QHBoxLayout()
-        yearEdit = LineEdit(dialog)
-        yearEdit.setPlaceholderText('年')
-        yearEdit.setFixedWidth(60)
-        monthEdit = LineEdit(dialog)
-        monthEdit.setPlaceholderText('月')
-        monthEdit.setFixedWidth(40)
-        dayEdit = LineEdit(dialog)
-        dayEdit.setPlaceholderText('日')
-        dayEdit.setFixedWidth(40)
-        dateLayout.addWidget(yearEdit)
-        dateLayout.addWidget(QLabel('-'))
-        dateLayout.addWidget(monthEdit)
-        dateLayout.addWidget(QLabel('-'))
-        dateLayout.addWidget(dayEdit)
-        layout.addLayout(dateLayout)
-        
-        timeLabel = BodyLabel('目标时间', dialog)
-        layout.addWidget(timeLabel)
-        timeLayout = QHBoxLayout()
-        hourEdit = LineEdit(dialog)
-        hourEdit.setPlaceholderText('时')
-        hourEdit.setFixedWidth(40)
-        minuteEdit = LineEdit(dialog)
-        minuteEdit.setPlaceholderText('分')
-        minuteEdit.setFixedWidth(40)
-        timeLayout.addWidget(hourEdit)
-        timeLayout.addWidget(QLabel(':'))
-        timeLayout.addWidget(minuteEdit)
-        layout.addLayout(timeLayout)
-        
-        layout.addStretch()
-        
-        buttonLayout = QHBoxLayout()
-        cancelBtn = PushButton('取消', dialog)
-        cancelBtn.clicked.connect(dialog.reject)
-        buttonLayout.addWidget(cancelBtn)
-        okBtn = PrimaryPushButton('确定', dialog)
-        buttonLayout.addWidget(okBtn)
-        layout.addLayout(buttonLayout)
-        
-        result = [None]
-        
-        def on_ok():
-            try:
-                year = int(yearEdit.text())
-                month = int(monthEdit.text())
-                day = int(dayEdit.text())
-                hour = int(hourEdit.text())
-                minute = int(minuteEdit.text())
-                dt = datetime.datetime(year, month, day, hour, minute)
-                result[0] = {
-                    'title': titleEdit.text(),
-                    'target_time': dt.strftime('%Y-%m-%d %H:%M')
-                }
-                dialog.accept()
-            except:
-                InfoBar.error('错误', '请输入有效的日期和时间', parent=dialog, duration=3000)
-        
-        okBtn.clicked.connect(on_ok)
-        
-        if dialog.exec() == QDialog.Accepted and result[0]:
-            countdown_list = cfg.countdownList.value or []
-            countdown_list.append(result[0])
-            cfg.countdownList.value = countdown_list
-            logger.info(f"倒计时设置：添加倒计时={result[0]}")
+        dialog = CountdownEditDialog(self.mainWindow)
+        if dialog.exec():
+            countdown_data = dialog.get_countdown()
+            if countdown_data:
+                countdown_list = cfg.countdownList.value or []
+                countdown_list.append(countdown_data)
+                cfg.countdownList.value = countdown_list
+                logger.info(f"倒计时设置：添加倒计时={countdown_data}")
     
     def _onCountdownEditClicked(self):
         current_row = self.countdownListWidget.currentRow()
@@ -1142,92 +1069,117 @@ class EditPanel(QWidget):
         if current_row >= len(countdown_list):
             return
         
-        from PyQt5.QtWidgets import QDialog
-        dialog = QDialog(self.mainWindow)
-        dialog.setWindowTitle('编辑倒计时')
-        dialog.setFixedSize(320, 300)
+        dialog = CountdownEditDialog(self.mainWindow, countdown_list[current_row])
+        if dialog.exec():
+            countdown_data = dialog.get_countdown()
+            if countdown_data:
+                countdown_list[current_row] = countdown_data
+                cfg.countdownList.value = countdown_list
+                logger.info(f"倒计时设置：编辑倒计时={countdown_data}")
+
+
+class CountdownEditDialog(MessageBoxBase):
+    """倒计时编辑对话框"""
+    
+    def __init__(self, parent=None, countdown_data=None):
+        super().__init__(parent)
+        self._countdown_data = countdown_data
+        self._result = None
+        self._init_ui()
+    
+    def _init_ui(self):
+        title = SubtitleLabel('编辑倒计时' if self._countdown_data else '添加倒计时')
+        self.viewLayout.addWidget(title)
         
-        layout = QVBoxLayout(dialog)
-        layout.setSpacing(12)
-        layout.setContentsMargins(20, 20, 20, 20)
+        spacer = QWidget()
+        spacer.setFixedHeight(10)
+        self.viewLayout.addWidget(spacer)
         
-        titleLabel = BodyLabel('目标名称', dialog)
-        layout.addWidget(titleLabel)
-        titleEdit = LineEdit(dialog)
-        titleEdit.setText(countdown_list[current_row].get('title', ''))
-        layout.addWidget(titleEdit)
+        titleLabel = BodyLabel('目标名称')
+        self.viewLayout.addWidget(titleLabel)
+        self.titleEdit = LineEdit()
+        self.titleEdit.setPlaceholderText('例如：中考')
+        if self._countdown_data:
+            self.titleEdit.setText(self._countdown_data.get('title', ''))
+        self.viewLayout.addWidget(self.titleEdit)
         
-        dateLabel = BodyLabel('目标日期', dialog)
-        layout.addWidget(dateLabel)
+        spacer = QWidget()
+        spacer.setFixedHeight(8)
+        self.viewLayout.addWidget(spacer)
+        
+        dateLabel = BodyLabel('目标日期')
+        self.viewLayout.addWidget(dateLabel)
         dateLayout = QHBoxLayout()
-        yearEdit = LineEdit(dialog)
-        yearEdit.setFixedWidth(60)
-        monthEdit = LineEdit(dialog)
-        monthEdit.setFixedWidth(40)
-        dayEdit = LineEdit(dialog)
-        dayEdit.setFixedWidth(40)
-        dateLayout.addWidget(yearEdit)
+        self.yearEdit = LineEdit()
+        self.yearEdit.setPlaceholderText('年')
+        self.yearEdit.setFixedWidth(70)
+        self.monthEdit = LineEdit()
+        self.monthEdit.setPlaceholderText('月')
+        self.monthEdit.setFixedWidth(50)
+        self.dayEdit = LineEdit()
+        self.dayEdit.setPlaceholderText('日')
+        self.dayEdit.setFixedWidth(50)
+        dateLayout.addWidget(self.yearEdit)
         dateLayout.addWidget(QLabel('-'))
-        dateLayout.addWidget(monthEdit)
+        dateLayout.addWidget(self.monthEdit)
         dateLayout.addWidget(QLabel('-'))
-        dateLayout.addWidget(dayEdit)
-        layout.addLayout(dateLayout)
+        dateLayout.addWidget(self.dayEdit)
+        self.viewLayout.addLayout(dateLayout)
         
-        timeLabel = BodyLabel('目标时间', dialog)
-        layout.addWidget(timeLabel)
+        spacer = QWidget()
+        spacer.setFixedHeight(8)
+        self.viewLayout.addWidget(spacer)
+        
+        timeLabel = BodyLabel('目标时间')
+        self.viewLayout.addWidget(timeLabel)
         timeLayout = QHBoxLayout()
-        hourEdit = LineEdit(dialog)
-        hourEdit.setFixedWidth(40)
-        minuteEdit = LineEdit(dialog)
-        minuteEdit.setFixedWidth(40)
-        timeLayout.addWidget(hourEdit)
+        self.hourEdit = LineEdit()
+        self.hourEdit.setPlaceholderText('时')
+        self.hourEdit.setFixedWidth(50)
+        self.minuteEdit = LineEdit()
+        self.minuteEdit.setPlaceholderText('分')
+        self.minuteEdit.setFixedWidth(50)
+        timeLayout.addWidget(self.hourEdit)
         timeLayout.addWidget(QLabel(':'))
-        timeLayout.addWidget(minuteEdit)
-        layout.addLayout(timeLayout)
+        timeLayout.addWidget(self.minuteEdit)
+        self.viewLayout.addLayout(timeLayout)
         
-        target_time = countdown_list[current_row].get('target_time', '')
-        if target_time:
-            try:
-                dt = datetime.datetime.strptime(target_time, '%Y-%m-%d %H:%M')
-                yearEdit.setText(str(dt.year))
-                monthEdit.setText(str(dt.month))
-                dayEdit.setText(str(dt.day))
-                hourEdit.setText(str(dt.hour))
-                minuteEdit.setText(str(dt.minute))
-            except:
-                pass
+        if self._countdown_data:
+            target_time = self._countdown_data.get('target_time', '')
+            if target_time:
+                try:
+                    dt = datetime.datetime.strptime(target_time, '%Y-%m-%d %H:%M')
+                    self.yearEdit.setText(str(dt.year))
+                    self.monthEdit.setText(str(dt.month))
+                    self.dayEdit.setText(str(dt.day))
+                    self.hourEdit.setText(str(dt.hour))
+                    self.minuteEdit.setText(str(dt.minute))
+                except:
+                    pass
         
-        layout.addStretch()
+        self.yesButton.setText('确定')
+        self.cancelButton.setText('取消')
         
-        buttonLayout = QHBoxLayout()
-        cancelBtn = PushButton('取消', dialog)
-        cancelBtn.clicked.connect(dialog.reject)
-        buttonLayout.addWidget(cancelBtn)
-        okBtn = PrimaryPushButton('确定', dialog)
-        buttonLayout.addWidget(okBtn)
-        layout.addLayout(buttonLayout)
+        self.widget.setMinimumWidth(360)
         
-        result = [None]
-        
-        def on_ok():
-            try:
-                year = int(yearEdit.text())
-                month = int(monthEdit.text())
-                day = int(dayEdit.text())
-                hour = int(hourEdit.text())
-                minute = int(minuteEdit.text())
-                dt = datetime.datetime(year, month, day, hour, minute)
-                result[0] = {
-                    'title': titleEdit.text(),
-                    'target_time': dt.strftime('%Y-%m-%d %H:%M')
-                }
-                dialog.accept()
-            except:
-                InfoBar.error('错误', '请输入有效的日期和时间', parent=dialog, duration=3000)
-        
-        okBtn.clicked.connect(on_ok)
-        
-        if dialog.exec() == QDialog.Accepted and result[0]:
-            countdown_list[current_row] = result[0]
-            cfg.countdownList.value = countdown_list
-            logger.info(f"倒计时设置：编辑倒计时={result[0]}")
+        self.yesButton.clicked.disconnect()
+        self.yesButton.clicked.connect(self._on_ok)
+    
+    def _on_ok(self):
+        try:
+            year = int(self.yearEdit.text())
+            month = int(self.monthEdit.text())
+            day = int(self.dayEdit.text())
+            hour = int(self.hourEdit.text())
+            minute = int(self.minuteEdit.text())
+            dt = datetime.datetime(year, month, day, hour, minute)
+            self._result = {
+                'title': self.titleEdit.text(),
+                'target_time': dt.strftime('%Y-%m-%d %H:%M')
+            }
+            self.accept()
+        except:
+            InfoBar.error('错误', '请输入有效的日期和时间', parent=self, duration=3000)
+    
+    def get_countdown(self):
+        return self._result
