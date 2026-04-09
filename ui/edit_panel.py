@@ -1122,6 +1122,9 @@ class CountdownEditDialog(MessageBoxBase):
                     self.datePicker.setDate(QDate(dt.year, dt.month, dt.day))
                 except:
                     pass
+        else:
+            now = datetime.datetime.now()
+            self.datePicker.setDate(QDate(now.year, now.month, now.day))
         self.viewLayout.addWidget(self.datePicker)
         
         spacer = QWidget()
@@ -1139,6 +1142,8 @@ class CountdownEditDialog(MessageBoxBase):
                     self.timePicker.setTime(QTime(dt.hour, dt.minute))
                 except:
                     pass
+        else:
+            self.timePicker.setTime(QTime(0, 0))
         self.viewLayout.addWidget(self.timePicker)
         
         self.yesButton.setText('确定')
@@ -1151,8 +1156,11 @@ class CountdownEditDialog(MessageBoxBase):
     
     def _on_ok(self):
         try:
-            qdate = self.datePicker.date()
-            qtime = self.timePicker.time()
+            qdate = self.datePicker.date
+            qtime = self.timePicker.time
+            if not qdate.isValid() or not qtime.isValid():
+                InfoBar.error('错误', '请输入有效的日期和时间', parent=self, duration=3000)
+                return
             dt = datetime.datetime(qdate.year(), qdate.month(), qdate.day(), qtime.hour(), qtime.minute())
             self._result = {
                 'title': self.titleEdit.text(),
@@ -1160,7 +1168,8 @@ class CountdownEditDialog(MessageBoxBase):
             }
             self.accept()
         except Exception as e:
-            InfoBar.error('错误', '请输入有效的日期和时间', parent=self, duration=3000)
+            logger.error(f'保存倒计时失败：{e}')
+            InfoBar.error('错误', f'请输入有效的日期和时间：{e}', parent=self, duration=5000)
     
     def get_countdown(self):
         return self._result
