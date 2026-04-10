@@ -1482,7 +1482,7 @@ class MainWindow(FluentWindow):
                 text = self._formatCountdown(cd)
                 if text:
                     texts.append(text)
-            self.countdownLabel.setText("\n".join(texts))
+            self.countdownLabel.setText("<br>".join(texts))
         else:
             if not hasattr(self, 'countdownCarouselIndex'):
                 self.countdownCarouselIndex = 0
@@ -1495,7 +1495,7 @@ class MainWindow(FluentWindow):
             self.countdownCarouselIndex += 1
     
     def _formatCountdown(self, countdown):
-        """单个倒计时 """
+        """单个倒计时"""
         title = countdown.get('title', '')
         target_time_str = countdown.get('target_time', '')
         if not title or not target_time_str:
@@ -1521,20 +1521,34 @@ class MainWindow(FluentWindow):
             else:
                 time_text = f"{days}天"
             
-            return f"{title}仅剩{time_text}"
+            if hasattr(self, 'countdownTitleColor'):
+                return f'<span style="color: {self.countdownTitleColor}; font-size: {self.countdownTitleSize}px; font-weight: {self.countdownTitleBold};">{title}</span>仅剩{time_text}'
+            else:
+                return f"{title}仅剩{time_text}"
         else:
             past_seconds = abs(delta.total_seconds())
             if past_seconds < 86400:
-                return f"{title}就在今天"
+                if hasattr(self, 'countdownTitleColor'):
+                    return f'<span style="color: {self.countdownTitleColor}; font-size: {self.countdownTitleSize}px; font-weight: {self.countdownTitleBold};">{title}</span>就在今天'
+                else:
+                    return f"{title}就在今天"
             else:
                 past_days = int(past_seconds // 86400)
-                return f"{title}已过去{past_days}天"
+                if hasattr(self, 'countdownTitleColor'):
+                    return f'<span style="color: {self.countdownTitleColor}; font-size: {self.countdownTitleSize}px; font-weight: {self.countdownTitleBold};">{title}</span>已过去{past_days}天'
+                else:
+                    return f"{title}已过去{past_days}天"
     
     def updateCountdownStyle(self):
         """ 更新倒计时样式 """
         countdown_color = cfg.countdownColor.value
         countdown_color_str = countdown_color.name() if hasattr(countdown_color, 'name') else str(countdown_color)
         countdown_size = cfg.countdownSize.value
+        
+        title_color = cfg.countdownTitleColor.value
+        title_color_str = title_color.name() if hasattr(title_color, 'name') else str(title_color)
+        title_bold = "bold" if cfg.countdownTitleBold.value else "normal"
+        title_size = cfg.countdownTitleSize.value
         
         self.countdownLabel.setStyleSheet(f"""
             color: {countdown_color_str}; 
@@ -1543,6 +1557,11 @@ class MainWindow(FluentWindow):
             font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
+        
+        self.countdownTitleColor = title_color_str
+        self.countdownTitleBold = title_bold
+        self.countdownTitleSize = title_size
+        self.__updateCountdown()
     
     def __updateCountdownPosition(self):
         """ 更新倒计时组件位置 """
