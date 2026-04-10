@@ -237,10 +237,6 @@ class Config(QConfig):
     countdownDisplayMode = OptionsConfigItem(
         "Countdown", "DisplayMode", "simultaneous", OptionsValidator(["simultaneous", "carousel"])
     )
-    countdownColor = ColorConfigItem("Countdown", "CountdownColor", "#FFFFFF")
-    countdownSize = RangeConfigItem(
-        "Countdown", "CountdownSize", 48, RangeValidator(20, 120)
-    )
     countdownPosition = OptionsConfigItem(
         "Countdown", "CountdownPosition", "中部", OptionsValidator(["左上预留", "左上", "右上预留", "右上", "左下预留", "左下", "右下预留", "右下", "中部", "顶部", "顶部偏下", "底部偏上", "底部"])
     )

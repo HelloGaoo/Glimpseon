@@ -1546,10 +1546,6 @@ class MainWindow(FluentWindow):
     
     def updateCountdownStyle(self):
         """ 更新倒计时样式 """
-        countdown_color = cfg.countdownColor.value
-        countdown_color_str = countdown_color.name() if hasattr(countdown_color, 'name') else str(countdown_color)
-        countdown_size = cfg.countdownSize.value
-        
         title_color = cfg.countdownTitleColor.value
         title_color_str = title_color.name() if hasattr(title_color, 'name') else str(title_color)
         title_bold = "bold" if cfg.countdownTitleBold.value else "normal"
@@ -1562,14 +1558,6 @@ class MainWindow(FluentWindow):
         days_color = cfg.countdownDaysColor.value
         days_color_str = days_color.name() if hasattr(days_color, 'name') else str(days_color)
         days_size = cfg.countdownDaysSize.value
-        
-        self.countdownLabel.setStyleSheet(f"""
-            color: {countdown_color_str}; 
-            font-size: {countdown_size}px; 
-            font-weight: bold; 
-            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
-            background-color: transparent;
-        """)
         
         self.countdownTitleColor = title_color_str
         self.countdownTitleBold = title_bold

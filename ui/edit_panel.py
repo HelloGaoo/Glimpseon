@@ -203,8 +203,6 @@ class EditPanel(QWidget):
         # 倒计时设置
         cfg.showCountdown.valueChanged.connect(self._updateShowCountdownSwitch)
         cfg.countdownDisplayMode.valueChanged.connect(self._updateCountdownDisplayModeCombo)
-        cfg.countdownColor.valueChanged.connect(self._updateCountdownColorCombo)
-        cfg.countdownSize.valueChanged.connect(self._updateCountdownSizeSpin)
         cfg.countdownPosition.valueChanged.connect(self._updateCountdownPositionCombo)
         cfg.countdownTitleColor.valueChanged.connect(self._updateCountdownTitleColorCombo)
         cfg.countdownTitleBold.valueChanged.connect(self._updateCountdownTitleBoldSwitch)
@@ -816,30 +814,6 @@ class EditPanel(QWidget):
         displayModeLayout.addWidget(self.countdownDisplayModeCombo)
         layout.addLayout(displayModeLayout)
         
-        colorLayout = QHBoxLayout()
-        colorLabel = BodyLabel('倒计时颜色', self)
-        colorLabel.setFixedWidth(100)
-        colorLayout.addWidget(colorLabel)
-        self.countdownColorCombo = ComboBox(self)
-        self.countdownColorCombo.addItems(['主要颜色', '白色', '黑色'])
-        self.countdownColorCombo.setCurrentText(self._getColorText(cfg.countdownColor.value))
-        self.countdownColorCombo.setFixedWidth(120)
-        self.countdownColorCombo.currentTextChanged.connect(self._onCountdownColorChanged)
-        colorLayout.addWidget(self.countdownColorCombo)
-        layout.addLayout(colorLayout)
-        
-        sizeLayout = QHBoxLayout()
-        sizeLabel = BodyLabel('倒计时大小', self)
-        sizeLabel.setFixedWidth(100)
-        sizeLayout.addWidget(sizeLabel)
-        self.countdownSizeSpin = SpinBox(self)
-        self.countdownSizeSpin.setRange(20, 120)
-        self.countdownSizeSpin.setValue(cfg.countdownSize.value)
-        self.countdownSizeSpin.setFixedWidth(120)
-        self.countdownSizeSpin.valueChanged.connect(self._onCountdownSizeChanged)
-        sizeLayout.addWidget(self.countdownSizeSpin)
-        layout.addLayout(sizeLayout)
-        
         titleColorLayout = QHBoxLayout()
         titleColorLabel = BodyLabel('标题颜色', self)
         titleColorLabel.setFixedWidth(100)
@@ -973,12 +947,6 @@ class EditPanel(QWidget):
     def _updateCountdownDisplayModeCombo(self, value):
         self.countdownDisplayModeCombo.setCurrentText('同时显示' if value == 'simultaneous' else '轮播显示')
     
-    def _updateCountdownColorCombo(self, value):
-        self.countdownColorCombo.setCurrentText(self._getColorText(value))
-    
-    def _updateCountdownSizeSpin(self, value):
-        self.countdownSizeSpin.setValue(value)
-    
     def _updateCountdownPositionCombo(self, value):
         self.countdownPositionCombo.setCurrentText(value)
     
@@ -1057,24 +1025,6 @@ class EditPanel(QWidget):
         if hasattr(self.mainWindow, '_MainWindow__updateCountdown'):
             self.mainWindow._MainWindow__updateCountdown()
         logger.info(f"倒计时设置：显示模式={text}")
-    
-    def _onCountdownColorChanged(self, text: str):
-        from PyQt5.QtGui import QColor
-        if text == '白色':
-            cfg.countdownColor.value = QColor(255, 255, 255)
-        elif text == '黑色':
-            cfg.countdownColor.value = QColor(0, 0, 0)
-        else:
-            cfg.countdownColor.value = cfg.themeColor.value
-        if hasattr(self.mainWindow, 'updateCountdownStyle'):
-            self.mainWindow.updateCountdownStyle()
-        logger.info(f"倒计时设置：倒计时颜色={text}")
-    
-    def _onCountdownSizeChanged(self, value: int):
-        cfg.countdownSize.value = value
-        if hasattr(self.mainWindow, 'updateCountdownStyle'):
-            self.mainWindow.updateCountdownStyle()
-        logger.info(f"倒计时设置：倒计时大小={value}px")
     
     def _onCountdownTitleColorChanged(self, text: str):
         from PyQt5.QtGui import QColor
