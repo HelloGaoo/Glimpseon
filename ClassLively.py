@@ -1522,20 +1522,25 @@ class MainWindow(FluentWindow):
                 time_text = f"{days}天"
             
             if hasattr(self, 'countdownTitleColor'):
-                return f'<span style="color: {self.countdownTitleColor}; font-size: {self.countdownTitleSize}px; font-weight: {self.countdownTitleBold};">{title}</span>仅剩{time_text}'
+                return (f'<span style="color: {self.countdownTitleColor}; font-size: {self.countdownTitleSize}px; font-weight: {self.countdownTitleBold};">{title}</span>'
+                        f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px;">仅剩</span>'
+                        f'<span style="color: {self.countdownDaysColor}; font-size: {self.countdownDaysSize}px; font-weight: bold;">{time_text}</span>')
             else:
                 return f"{title}仅剩{time_text}"
         else:
             past_seconds = abs(delta.total_seconds())
             if past_seconds < 86400:
                 if hasattr(self, 'countdownTitleColor'):
-                    return f'<span style="color: {self.countdownTitleColor}; font-size: {self.countdownTitleSize}px; font-weight: {self.countdownTitleBold};">{title}</span>就在今天'
+                    return (f'<span style="color: {self.countdownTitleColor}; font-size: {self.countdownTitleSize}px; font-weight: {self.countdownTitleBold};">{title}</span>'
+                            f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px;">就在今天</span>')
                 else:
                     return f"{title}就在今天"
             else:
                 past_days = int(past_seconds // 86400)
                 if hasattr(self, 'countdownTitleColor'):
-                    return f'<span style="color: {self.countdownTitleColor}; font-size: {self.countdownTitleSize}px; font-weight: {self.countdownTitleBold};">{title}</span>已过去{past_days}天'
+                    return (f'<span style="color: {self.countdownTitleColor}; font-size: {self.countdownTitleSize}px; font-weight: {self.countdownTitleBold};">{title}</span>'
+                            f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px;">已过去</span>'
+                            f'<span style="color: {self.countdownDaysColor}; font-size: {self.countdownDaysSize}px; font-weight: bold;">{past_days}天</span>')
                 else:
                     return f"{title}已过去{past_days}天"
     
@@ -1550,6 +1555,14 @@ class MainWindow(FluentWindow):
         title_bold = "bold" if cfg.countdownTitleBold.value else "normal"
         title_size = cfg.countdownTitleSize.value
         
+        connector_color = cfg.countdownConnectorColor.value
+        connector_color_str = connector_color.name() if hasattr(connector_color, 'name') else str(connector_color)
+        connector_size = cfg.countdownConnectorSize.value
+        
+        days_color = cfg.countdownDaysColor.value
+        days_color_str = days_color.name() if hasattr(days_color, 'name') else str(days_color)
+        days_size = cfg.countdownDaysSize.value
+        
         self.countdownLabel.setStyleSheet(f"""
             color: {countdown_color_str}; 
             font-size: {countdown_size}px; 
@@ -1561,6 +1574,10 @@ class MainWindow(FluentWindow):
         self.countdownTitleColor = title_color_str
         self.countdownTitleBold = title_bold
         self.countdownTitleSize = title_size
+        self.countdownConnectorColor = connector_color_str
+        self.countdownConnectorSize = connector_size
+        self.countdownDaysColor = days_color_str
+        self.countdownDaysSize = days_size
     
     def __updateCountdownPosition(self):
         """ 更新倒计时组件位置 """

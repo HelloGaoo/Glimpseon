@@ -251,6 +251,14 @@ class Config(QConfig):
     countdownTitleSize = RangeConfigItem(
         "Countdown", "TitleSize", 20, RangeValidator(12, 60)
     )
+    countdownConnectorColor = ColorConfigItem("Countdown", "ConnectorColor", "#FFFFFF")
+    countdownConnectorSize = RangeConfigItem(
+        "Countdown", "ConnectorSize", 20, RangeValidator(12, 60)
+    )
+    countdownDaysColor = ColorConfigItem("Countdown", "DaysColor", "#FFFFFF")
+    countdownDaysSize = RangeConfigItem(
+        "Countdown", "DaysSize", 48, RangeValidator(20, 120)
+    )
     countdownCarouselInterval = RangeConfigItem(
         "Countdown", "CarouselInterval", 5, RangeValidator(1, 60)
     )
