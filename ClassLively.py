@@ -852,8 +852,6 @@ class MainWindow(FluentWindow):
         self.poetryContainer.setStyleSheet("background-color: transparent;")
         
         # 倒计时标签
-        self.countdownTitleLabel = QLabel("")
-        self.countdownTitleLabel.setAlignment(Qt.AlignCenter)
         self.countdownLabel = QLabel("")
         self.countdownLabel.setAlignment(Qt.AlignCenter)
         
@@ -862,8 +860,6 @@ class MainWindow(FluentWindow):
         countdownLayout = QVBoxLayout(self.countdownContainer)
         countdownLayout.setAlignment(Qt.AlignCenter)
         countdownLayout.setContentsMargins(0, 0, 0, 0)
-        countdownLayout.setSpacing(8)
-        countdownLayout.addWidget(self.countdownTitleLabel)
         countdownLayout.addWidget(self.countdownLabel)
         self.countdownContainer.setStyleSheet("background-color: transparent;")
         
@@ -1477,7 +1473,6 @@ class MainWindow(FluentWindow):
         self.updateCountdownStyle()
         countdown_list = cfg.countdownList.value or []
         if not countdown_list:
-            self.countdownTitleLabel.setText("")
             self.countdownLabel.setText("")
             return
         display_mode = cfg.countdownDisplayMode.value
@@ -1487,8 +1482,7 @@ class MainWindow(FluentWindow):
                 text = self._formatCountdown(cd)
                 if text:
                     texts.append(text)
-            self.countdownTitleLabel.setText("\n".join([t[0] for t in texts if t]))
-            self.countdownLabel.setText("\n".join([t[1] for t in texts if t]))
+            self.countdownLabel.setText("\n".join(texts))
         else:
             if not hasattr(self, 'countdownCarouselIndex'):
                 self.countdownCarouselIndex = 0
@@ -1497,8 +1491,7 @@ class MainWindow(FluentWindow):
             cd = countdown_list[self.countdownCarouselIndex]
             text = self._formatCountdown(cd)
             if text:
-                self.countdownTitleLabel.setText(text[0])
-                self.countdownLabel.setText(text[1])
+                self.countdownLabel.setText(text)
             self.countdownCarouselIndex += 1
     
     def _formatCountdown(self, countdown):
@@ -1506,11 +1499,11 @@ class MainWindow(FluentWindow):
         title = countdown.get('title', '')
         target_time_str = countdown.get('target_time', '')
         if not title or not target_time_str:
-            return None
+            return ""
         try:
             target_time = datetime.datetime.strptime(target_time_str, '%Y-%m-%d %H:%M')
         except ValueError:
-            return None
+            return ""
         now = datetime.datetime.now()
         delta = target_time - now
         if delta.total_seconds() > 0:
@@ -1519,46 +1512,29 @@ class MainWindow(FluentWindow):
             hours = int((total_seconds % 86400) // 3600)
             minutes = int((total_seconds % 3600) // 60)
             seconds = int(total_seconds % 60)
-            if total_seconds < 10800:
-                time_text = f"{days}天 {hours:02d}:{minutes:02d}:{seconds:02d}"
+            if total_seconds < 600:
+                time_text = f"{days}天{hours}小时{minutes}分钟{seconds}秒"
+            elif total_seconds < 10800:
+                time_text = f"{days}天{hours}小时{minutes}分钟"
             elif total_seconds < 259200:
-                time_text = f"{days}天 {hours:02d}:{minutes:02d}"
+                time_text = f"{days}天{hours}小时"
             else:
                 time_text = f"{days}天"
             
-            title_text = f"{title}仅剩"
+            return f"{title}仅剩{time_text}"
         else:
             past_seconds = abs(delta.total_seconds())
             if past_seconds < 86400:
-                title_text = f"{title}就在今天"
-                time_text = ""
+                return f"{title}就在今天"
             else:
                 past_days = int(past_seconds // 86400)
-                title_text = f"{title}已过去"
-                time_text = f"{past_days}天"
-        
-        return (title_text, time_text)
+                return f"{title}已过去{past_days}天"
     
     def updateCountdownStyle(self):
         """ 更新倒计时样式 """
         countdown_color = cfg.countdownColor.value
         countdown_color_str = countdown_color.name() if hasattr(countdown_color, 'name') else str(countdown_color)
         countdown_size = cfg.countdownSize.value
-
-        title_color = cfg.countdownTitleColor.value
-        title_color_str = title_color.name() if hasattr(title_color, 'name') else str(title_color)
-        title_size = cfg.countdownTitleSize.value
-        title_bold = cfg.countdownTitleBold.value
-        
-        font_weight = "bold" if title_bold else "normal"
-        
-        self.countdownTitleLabel.setStyleSheet(f"""
-            color: {title_color_str}; 
-            font-size: {title_size}px; 
-            font-weight: {font_weight}; 
-            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
-            background-color: transparent;
-        """)
         
         self.countdownLabel.setStyleSheet(f"""
             color: {countdown_color_str}; 
