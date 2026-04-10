@@ -942,6 +942,34 @@ class EditPanel(QWidget):
     def _updateCountdownCarouselIntervalSpin(self, value):
         self.countdownCarouselIntervalSpin.setValue(value)
     
+    def _formatRemainingTime(self, target_time_str):
+        try:
+            target = datetime.datetime.strptime(target_time_str, '%Y-%m-%d %H:%M')
+            now = datetime.datetime.now()
+            delta = target - now
+            total_seconds = int(delta.total_seconds())
+            
+            if total_seconds < 0:
+                return "已结束"
+            
+            days = total_seconds // 86400
+            hours = (total_seconds % 86400) // 3600
+            minutes = (total_seconds % 3600) // 60
+            seconds = total_seconds % 60
+            
+            total_hours = total_seconds // 3600
+            
+            if total_hours > 72:
+                return f"{days}天"
+            elif total_hours > 3:
+                return f"{days}天{hours}小时"
+            elif total_seconds > 600:
+                return f"{days}天{hours}小时{minutes}分钟"
+            else:
+                return f"{days}天{hours}小时{minutes}分钟{seconds}秒"
+        except:
+            return ""
+    
     def _updateCountdownList(self):
         self.countdownListWidget.clear()
         countdown_list = cfg.countdownList.value or []
@@ -949,7 +977,9 @@ class EditPanel(QWidget):
             title = cd.get('title', '')
             target_time = cd.get('target_time', '')
             if title and target_time:
-                self.countdownListWidget.addItem(f"{title} - {target_time}")
+                remaining = self._formatRemainingTime(target_time)
+                if remaining:
+                    self.countdownListWidget.addItem(f"{title} {remaining}")
     
     def _onShowCountdownChanged(self, checked: bool):
         cfg.showCountdown.value = checked
