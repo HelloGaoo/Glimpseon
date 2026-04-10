@@ -162,12 +162,14 @@ class EditPanel(QWidget):
     
     def _updateCountdownSettingsEnabled(self, enabled):
         self.countdownDisplayModeCombo.setEnabled(enabled)
-        self.countdownColorCombo.setEnabled(enabled)
-        self.countdownSizeSpin.setEnabled(enabled)
         self.countdownPositionCombo.setEnabled(enabled)
         self.countdownTitleColorCombo.setEnabled(enabled)
         self.countdownTitleBoldSwitch.setEnabled(enabled)
         self.countdownTitleSizeSpin.setEnabled(enabled)
+        self.countdownConnectorColorCombo.setEnabled(enabled)
+        self.countdownConnectorSizeSpin.setEnabled(enabled)
+        self.countdownDaysColorCombo.setEnabled(enabled)
+        self.countdownDaysSizeSpin.setEnabled(enabled)
         self.countdownCarouselIntervalSpin.setEnabled(enabled)
         self.countdownAddButton.setEnabled(enabled)
         self.countdownListWidget.setEnabled(enabled)
