@@ -37,6 +37,8 @@ from qfluentwidgets import (
     BodyLabel,
     CalendarPicker,
     ComboBox,
+    ComboBoxSettingCard,
+    ExpandGroupSettingCard,
     FluentIcon as FIF,
     InfoBar,
     isDarkTheme,
@@ -50,6 +52,7 @@ from qfluentwidgets import (
     StrongBodyLabel,
     SubtitleLabel,
     SwitchButton,
+    SwitchSettingCard,
     TimePicker,
     ToolButton,
 )
@@ -836,16 +839,17 @@ class EditPanel(QWidget):
         titleBoldCard.switchButton.checkedChanged.connect(self._onCountdownTitleBoldChanged)
         self.countdownExpandCard.addSettingCard(titleBoldCard)
         
-        titleSizeCard = SpinBoxSettingCard(
-            'TitleSize',
-            '标题大小',
-            '设置标题文字大小',
-            self.countdownExpandCard
-        )
-        titleSizeCard.spinBox.setRange(12, 60)
-        titleSizeCard.spinBox.setValue(cfg.countdownTitleSize.value)
-        titleSizeCard.spinBox.valueChanged.connect(self._onCountdownTitleSizeChanged)
-        self.countdownExpandCard.addSettingCard(titleSizeCard)
+        titleSizeLayout = QHBoxLayout()
+        titleSizeLabel = BodyLabel('标题大小', self)
+        titleSizeLabel.setFixedWidth(100)
+        titleSizeLayout.addWidget(titleSizeLabel)
+        self.countdownTitleSizeSpin = SpinBox(self)
+        self.countdownTitleSizeSpin.setRange(12, 60)
+        self.countdownTitleSizeSpin.setValue(cfg.countdownTitleSize.value)
+        self.countdownTitleSizeSpin.setFixedWidth(120)
+        self.countdownTitleSizeSpin.valueChanged.connect(self._onCountdownTitleSizeChanged)
+        titleSizeLayout.addWidget(self.countdownTitleSizeSpin)
+        self.countdownExpandCard.addLayout(titleSizeLayout)
         
         connectorColorCard = ComboBoxSettingCard(
             'ConnectorColor',
@@ -858,16 +862,17 @@ class EditPanel(QWidget):
         connectorColorCard.comboBox.currentTextChanged.connect(self._onCountdownConnectorColorChanged)
         self.countdownExpandCard.addSettingCard(connectorColorCard)
         
-        connectorSizeCard = SpinBoxSettingCard(
-            'ConnectorSize',
-            '连接词大小',
-            '设置连接词文字大小',
-            self.countdownExpandCard
-        )
-        connectorSizeCard.spinBox.setRange(12, 60)
-        connectorSizeCard.spinBox.setValue(cfg.countdownConnectorSize.value)
-        connectorSizeCard.spinBox.valueChanged.connect(self._onCountdownConnectorSizeChanged)
-        self.countdownExpandCard.addSettingCard(connectorSizeCard)
+        connectorSizeLayout = QHBoxLayout()
+        connectorSizeLabel = BodyLabel('连接词大小', self)
+        connectorSizeLabel.setFixedWidth(100)
+        connectorSizeLayout.addWidget(connectorSizeLabel)
+        self.countdownConnectorSizeSpin = SpinBox(self)
+        self.countdownConnectorSizeSpin.setRange(12, 60)
+        self.countdownConnectorSizeSpin.setValue(cfg.countdownConnectorSize.value)
+        self.countdownConnectorSizeSpin.setFixedWidth(120)
+        self.countdownConnectorSizeSpin.valueChanged.connect(self._onCountdownConnectorSizeChanged)
+        connectorSizeLayout.addWidget(self.countdownConnectorSizeSpin)
+        self.countdownExpandCard.addLayout(connectorSizeLayout)
         
         daysColorCard = ComboBoxSettingCard(
             'DaysColor',
@@ -880,27 +885,29 @@ class EditPanel(QWidget):
         daysColorCard.comboBox.currentTextChanged.connect(self._onCountdownDaysColorChanged)
         self.countdownExpandCard.addSettingCard(daysColorCard)
         
-        daysSizeCard = SpinBoxSettingCard(
-            'DaysSize',
-            '天数大小',
-            '设置天数文字大小',
-            self.countdownExpandCard
-        )
-        daysSizeCard.spinBox.setRange(20, 120)
-        daysSizeCard.spinBox.setValue(cfg.countdownDaysSize.value)
-        daysSizeCard.spinBox.valueChanged.connect(self._onCountdownDaysSizeChanged)
-        self.countdownExpandCard.addSettingCard(daysSizeCard)
+        daysSizeLayout = QHBoxLayout()
+        daysSizeLabel = BodyLabel('天数大小', self)
+        daysSizeLabel.setFixedWidth(100)
+        daysSizeLayout.addWidget(daysSizeLabel)
+        self.countdownDaysSizeSpin = SpinBox(self)
+        self.countdownDaysSizeSpin.setRange(20, 120)
+        self.countdownDaysSizeSpin.setValue(cfg.countdownDaysSize.value)
+        self.countdownDaysSizeSpin.setFixedWidth(120)
+        self.countdownDaysSizeSpin.valueChanged.connect(self._onCountdownDaysSizeChanged)
+        daysSizeLayout.addWidget(self.countdownDaysSizeSpin)
+        self.countdownExpandCard.addLayout(daysSizeLayout)
         
-        carouselIntervalCard = SpinBoxSettingCard(
-            'CarouselInterval',
-            '轮播间隔',
-            '设置轮播显示的时间间隔',
-            self.countdownExpandCard
-        )
-        carouselIntervalCard.spinBox.setRange(1, 60)
-        carouselIntervalCard.spinBox.setValue(cfg.countdownCarouselInterval.value)
-        carouselIntervalCard.spinBox.valueChanged.connect(self._onCountdownCarouselIntervalChanged)
-        self.countdownExpandCard.addSettingCard(carouselIntervalCard)
+        carouselIntervalLayout = QHBoxLayout()
+        carouselIntervalLabel = BodyLabel('轮播间隔', self)
+        carouselIntervalLabel.setFixedWidth(100)
+        carouselIntervalLayout.addWidget(carouselIntervalLabel)
+        self.countdownCarouselIntervalSpin = SpinBox(self)
+        self.countdownCarouselIntervalSpin.setRange(1, 60)
+        self.countdownCarouselIntervalSpin.setValue(cfg.countdownCarouselInterval.value)
+        self.countdownCarouselIntervalSpin.setFixedWidth(120)
+        self.countdownCarouselIntervalSpin.valueChanged.connect(self._onCountdownCarouselIntervalChanged)
+        carouselIntervalLayout.addWidget(self.countdownCarouselIntervalSpin)
+        self.countdownExpandCard.addLayout(carouselIntervalLayout)
         
         layout.addWidget(self.countdownExpandCard)
         
