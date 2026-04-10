@@ -1021,45 +1021,12 @@ class EditPanel(QWidget):
     def _onCountdownAddClicked(self):
         dialog = CountdownEditDialog(self.mainWindow)
         if dialog.exec():
-            countdown_list = cfg.countdownList.value or []
-            countdown_list.append(dialog.get_countdown())
-            cfg.countdownList.value = countdown_list
-            logger.info(f"倒计时设置：添加倒计时={dialog.get_countdown()}")
-    
-    def _onCountdownEditClicked(self):
-        current_row = self.countdownListWidget.currentRow()
-        if current_row < 0:
-            InfoBar.warning('编辑倒计时', '请先选择一个倒计时', parent=self, duration=3000)
-            return
-        countdown_list = cfg.countdownList.value or []
-        if current_row >= len(countdown_list):
-            return
-        dialog = CountdownEditDialog(self.mainWindow, countdown_list[current_row])
-        if dialog.exec():
-            countdown_list[current_row] = dialog.get_countdown()
-            cfg.countdownList.value = countdown_list
-            logger.info(f"倒计时设置：编辑倒计时={dialog.get_countdown()}")
-    
-    def _onCountdownDeleteClicked(self):
-        current_row = self.countdownListWidget.currentRow()
-        if current_row < 0:
-            InfoBar.warning('删除倒计时', '请先选择一个倒计时', parent=self, duration=3000)
-            return
-        countdown_list = cfg.countdownList.value or []
-        if current_row >= len(countdown_list):
-            return
-        countdown_list.pop(current_row)
-        cfg.countdownList.value = countdown_list
-        logger.info(f"倒计时设置：删除倒计时索引={current_row}")
-    
-    def _onCountdownAddClicked(self):
-        dialog = CountdownEditDialog(self.mainWindow)
-        if dialog.exec():
             countdown_data = dialog.get_countdown()
             if countdown_data:
                 countdown_list = cfg.countdownList.value or []
                 countdown_list.append(countdown_data)
                 cfg.countdownList.value = countdown_list
+                self._updateCountdownList()
                 logger.info(f"倒计时设置：添加倒计时={countdown_data}")
     
     def _onCountdownEditClicked(self):
@@ -1077,7 +1044,21 @@ class EditPanel(QWidget):
             if countdown_data:
                 countdown_list[current_row] = countdown_data
                 cfg.countdownList.value = countdown_list
+                self._updateCountdownList()
                 logger.info(f"倒计时设置：编辑倒计时={countdown_data}")
+    
+    def _onCountdownDeleteClicked(self):
+        current_row = self.countdownListWidget.currentRow()
+        if current_row < 0:
+            InfoBar.warning('删除倒计时', '请先选择一个倒计时', parent=self, duration=3000)
+            return
+        countdown_list = cfg.countdownList.value or []
+        if current_row >= len(countdown_list):
+            return
+        countdown_list.pop(current_row)
+        cfg.countdownList.value = countdown_list
+        self._updateCountdownList()
+        logger.info(f"倒计时设置：删除倒计时索引={current_row}")
 
 
 class CountdownEditDialog(MessageBoxBase):
