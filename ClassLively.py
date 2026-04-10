@@ -1561,7 +1561,6 @@ class MainWindow(FluentWindow):
         self.countdownTitleColor = title_color_str
         self.countdownTitleBold = title_bold
         self.countdownTitleSize = title_size
-        self.__updateCountdown()
     
     def __updateCountdownPosition(self):
         """ 更新倒计时组件位置 """
