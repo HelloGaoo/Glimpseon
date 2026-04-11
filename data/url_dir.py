@@ -43,7 +43,7 @@ url_dir = [
     {"filename": "ClassWidgets.exe", "url": "https://ghfile.geekertao.top/https://github.com/Class-Widgets/Class-Widgets/releases/download/1.2.0.5/ClassWidgets-Windows-x64.zip"},
     {"filename": "微信.exe", "url": "https://dldir1v6.qq.com/weixin/Universal/Windows/WeChatWin.exe"},
     {"filename": "QQ.exe", "url": "https://dldir1v6.qq.com/qqfile/qq/QQNT/Windows/QQ_9.9.21_250822_x64_01.exe"},
-    {"filename": "UU远程.exe", "github_path": "/HelloGaoo/SeevvoDownloader/releases/download/v1.0.0/uuyc_4.16.5_gwgame.exe"},
-    {"filename": "网易云音乐.exe", "github_path": "/HelloGaoo/SeevvoDownloader/releases/download/v1.0.0/neteaseCloudMusic.exe"},
+    {"filename": "UU远程.exe", "url": "https://d8.music.126.net/dmusic2/NeteaseCloudMusic_Music_official_3.1.30.205130_64.exe"},
+    {"filename": "网易云音乐.exe", "url": "https://d8.music.126.net/dmusic2/NeteaseCloudMusic_Music_official_3.1.30.205130_64.exe"},
     {"filename": "office2021.7z", "github_path": "/HelloGaoo/SeevvoDownloader/releases/download/v1.0.0/office2021.7z"},
 ]
