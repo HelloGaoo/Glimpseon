@@ -201,7 +201,9 @@ SOFTWARE_CATEGORIES = [
 
 
 def get_software_icon_path(icon_filename):
-    if not icon_filename:return get_resPath(os.path.join("resource", "icons", "CY.png"))
-    icon_path = get_resPath(os.path.join("resource", "icons", "software", icon_filename))
-    if os.path.exists(icon_path):return icon_path
+    if not icon_filename:
+        return get_resPath(os.path.join("resource", "icons", "CY.png"))
+    icon_path = get_resPath(os.path.join("data", "software_icon", icon_filename))
+    if os.path.exists(icon_path):
+        return icon_path
     return get_resPath(os.path.join("resource", "icons", "CY.png"))
