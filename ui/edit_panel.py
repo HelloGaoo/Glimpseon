@@ -163,8 +163,8 @@ class EditPanel(QWidget):
         self.weatherPositionCombo.setEnabled(enabled)
     
     def _updateCountdownSettingsEnabled(self, enabled):
-        self.countdownTextColorCard.setEnabled(enabled)
-        self.countdownConnectorColorCard.setEnabled(enabled)
+        self.countdownTextColorCombo.setEnabled(enabled)
+        self.countdownConnectorColorCombo.setEnabled(enabled)
         self.countdownAddButton.setEnabled(enabled)
         self.countdownListWidget.setEnabled(enabled)
         self.countdownEditButton.setEnabled(enabled)
@@ -209,12 +209,19 @@ class EditPanel(QWidget):
         cfg.countdownConnectorSize.valueChanged.connect(self._updateCountdownConnectorSizeSpin)
         cfg.countdownCarouselInterval.valueChanged.connect(self._updateCountdownCarouselIntervalSpin)
         cfg.countdownList.valueChanged.connect(self._updateCountdownList)
+        cfg.countdownTextColor.valueChanged.connect(self._updateCountdownTextColorCombo)
+        cfg.countdownConnectorColor.valueChanged.connect(self._updateCountdownConnectorColorCombo)
     
     def __connectSignalToSlot(self):
         cfg.themeChanged.connect(self._onThemeChanged)
+        cfg.themeColor.valueChanged.connect(self._onThemeColorChanged)
     
     def _onThemeChanged(self, theme):
         self._updateTheme()
+    
+    def _onThemeColorChanged(self, value):
+        self._updateCountdownTextColorCombo(cfg.countdownTextColor.value)
+        self._updateCountdownConnectorColorCombo(cfg.countdownConnectorColor.value)
     
     def _updateShowClockSwitch(self, value):
         """更新启用时钟开关"""
@@ -621,26 +628,31 @@ class EditPanel(QWidget):
             self.mainWindow._MainWindow__updateClock()
         logger.info(f"时间设置：显示农历={'开启' if checked else '关闭'}")
     
-    def _getColorText(self, color):
+    def _getColorText(self, color, default='main'):
         """获取颜色文本表示"""
-        if hasattr(color, 'name'):
-            color_hex = color.name().upper()
-            if color_hex == '#FFFFFF':
-                return '白色'
-            elif color_hex == '#000000':
-                return '黑色'
+        if not hasattr(color, 'name'):
+            if default == 'red':return '红色'
+            elif default == 'white':return '白色'
+            return '主要颜色'
+        color_hex = color.name().upper()
+        try:
+            theme_color = cfg.themeColor.value
+            if hasattr(theme_color, 'name'):
+                theme_hex = theme_color.name().upper()
+                if theme_hex == color_hex:return '主要颜色'
+        except Exception:pass
+        if color_hex == '#FF0000':return '红色'
+        elif color_hex == '#FFFFFF':return '白色'
+        elif color_hex == '#000000':return '黑色'
         return '主要颜色'
     
     def _onClockColorChanged(self, text: str):
         """时钟颜色变化"""
         from PyQt5.QtGui import QColor
         
-        if text == '白色':
-            cfg.clockColor.value = QColor(255, 255, 255)
-        elif text == '黑色':
-            cfg.clockColor.value = QColor(0, 0, 0)
-        else:  # 主要颜色
-            cfg.clockColor.value = cfg.themeColor.value
+        if text == '白色':cfg.clockColor.value = QColor(255, 255, 255)
+        elif text == '黑色':cfg.clockColor.value = QColor(0, 0, 0)
+        else:cfg.clockColor.value = cfg.themeColor.value
         
         if hasattr(self.mainWindow, 'updateClockStyle'):
             self.mainWindow.updateClockStyle()
@@ -649,15 +661,13 @@ class EditPanel(QWidget):
     def _onClockSizeChanged(self, value: int):
         """时钟大小变化"""
         cfg.clockSize.value = value
-        if hasattr(self.mainWindow, 'updateClockStyle'):
-            self.mainWindow.updateClockStyle()
+        if hasattr(self.mainWindow, 'updateClockStyle'):self.mainWindow.updateClockStyle()
         logger.info(f"时间设置：时钟大小={value}px")
     
     def _onDateSizeChanged(self, value: int):
         """日期大小变化"""
         cfg.dateSize.value = value
-        if hasattr(self.mainWindow, 'updateClockStyle'):
-            self.mainWindow.updateClockStyle()
+        if hasattr(self.mainWindow, 'updateClockStyle'):self.mainWindow.updateClockStyle()
         logger.info(f"时间设置：日期大小={value}px")
     
     def _onShowPoetryChanged(self, checked: bool):
@@ -800,30 +810,31 @@ class EditPanel(QWidget):
         enableLayout.addWidget(self.showCountdownSwitch)
         layout.addLayout(enableLayout)
         
-        # 颜色设置
-        # 文字颜色、连接词颜色、大小设置、显示设置这在展开或收缩的时候有存在高度问题 暂未解决
-        colorWidget = QWidget()
-        colorVBoxLayout = QVBoxLayout(colorWidget)
-        colorVBoxLayout.setContentsMargins(0, 0, 0, 0)
-        colorVBoxLayout.setSpacing(8)
-        self.countdownTextColorCard = CustomColorSettingCard(
-            cfg.countdownTextColor,
-            FIF.PALETTE,
-            '文字颜色',
-            '更改文字颜色',
-            parent=colorWidget
-        )
-        colorVBoxLayout.addWidget(self.countdownTextColorCard)
+        # 文字颜色
+        textColorLayout = QHBoxLayout()
+        textColorLabel = BodyLabel('文字颜色', self)
+        textColorLabel.setFixedWidth(100)
+        textColorLayout.addWidget(textColorLabel)
+        self.countdownTextColorCombo = ComboBox(self)
+        self.countdownTextColorCombo.addItems(['红色', '白色', '黑色', '主要颜色'])
+        self.countdownTextColorCombo.setCurrentText(self._getColorText(cfg.countdownTextColor.value, 'red'))
+        self.countdownTextColorCombo.setFixedWidth(120)
+        self.countdownTextColorCombo.currentTextChanged.connect(self._onCountdownTextColorChanged)
+        textColorLayout.addWidget(self.countdownTextColorCombo)
+        layout.addLayout(textColorLayout)
         
-        self.countdownConnectorColorCard = CustomColorSettingCard(
-            cfg.countdownConnectorColor,
-            FIF.PALETTE,
-            '连接词颜色',
-            '更改连接词颜色',
-            parent=colorWidget
-        )
-        colorVBoxLayout.addWidget(self.countdownConnectorColorCard)
-        layout.addWidget(colorWidget)
+        # 连接词颜色
+        connectorColorLayout = QHBoxLayout()
+        connectorColorLabel = BodyLabel('连接词颜色', self)
+        connectorColorLabel.setFixedWidth(100)
+        connectorColorLayout.addWidget(connectorColorLabel)
+        self.countdownConnectorColorCombo = ComboBox(self)
+        self.countdownConnectorColorCombo.addItems(['红色', '白色', '黑色', '主要颜色'])
+        self.countdownConnectorColorCombo.setCurrentText(self._getColorText(cfg.countdownConnectorColor.value, 'white'))
+        self.countdownConnectorColorCombo.setFixedWidth(120)
+        self.countdownConnectorColorCombo.currentTextChanged.connect(self._onCountdownConnectorColorChanged)
+        connectorColorLayout.addWidget(self.countdownConnectorColorCombo)
+        layout.addLayout(connectorColorLayout)
         
         # 文字大小
         textSizeLayout = QHBoxLayout()
@@ -928,6 +939,12 @@ class EditPanel(QWidget):
     
     def _updateCountdownCarouselIntervalSpin(self, value):
         self.countdownCarouselIntervalSpin.setValue(value)
+    
+    def _updateCountdownTextColorCombo(self, value):
+        self.countdownTextColorCombo.setCurrentText(self._getColorText(value, 'red'))
+    
+    def _updateCountdownConnectorColorCombo(self, value):
+        self.countdownConnectorColorCombo.setCurrentText(self._getColorText(value, 'white'))
     
     def _formatRemainingTime(self, target_time_str):
         try:
@@ -1060,6 +1077,40 @@ class EditPanel(QWidget):
         if hasattr(self.mainWindow, '_MainWindow__updateCountdown'):
             self.mainWindow._MainWindow__updateCountdown()
         logger.info(f"倒计时设置：删除倒计时索引={current_row}")
+    
+    def _onCountdownTextColorChanged(self, text: str):
+        """倒计时文字颜色变化"""
+        from PyQt5.QtGui import QColor
+        
+        if text == '红色':
+            cfg.countdownTextColor.value = QColor(255, 0, 0)
+        elif text == '白色':
+            cfg.countdownTextColor.value = QColor(255, 255, 255)
+        elif text == '黑色':
+            cfg.countdownTextColor.value = QColor(0, 0, 0)
+        else:  # 主要颜色
+            cfg.countdownTextColor.value = cfg.themeColor.value
+        
+        if hasattr(self.mainWindow, 'updateCountdownStyle'):
+            self.mainWindow.updateCountdownStyle()
+        logger.info(f"倒计时设置：文字颜色={text}")
+    
+    def _onCountdownConnectorColorChanged(self, text: str):
+        """倒计时连接词颜色变化"""
+        from PyQt5.QtGui import QColor
+        
+        if text == '红色':
+            cfg.countdownConnectorColor.value = QColor(255, 0, 0)
+        elif text == '白色':
+            cfg.countdownConnectorColor.value = QColor(255, 255, 255)
+        elif text == '黑色':
+            cfg.countdownConnectorColor.value = QColor(0, 0, 0)
+        else:  # 主要颜色
+            cfg.countdownConnectorColor.value = cfg.themeColor.value
+        
+        if hasattr(self.mainWindow, 'updateCountdownStyle'):
+            self.mainWindow.updateCountdownStyle()
+        logger.info(f"倒计时设置：连接词颜色={text}")
 
 
 class CountdownEditDialog(MessageBoxBase):
