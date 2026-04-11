@@ -1524,25 +1524,25 @@ class MainWindow(FluentWindow):
                 time_text = f"{days}天"
             
             if hasattr(self, 'countdownTitleColor'):
-                return (f'<span style="color: {self.countdownTitleColor}; font-size: {self.countdownTitleSize}px; font-weight: {self.countdownTitleBold};">{title}</span>'
-                        f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px;">仅剩</span>'
-                        f'<span style="color: {self.countdownDaysColor}; font-size: {self.countdownDaysSize}px; font-weight: bold;">{time_text}</span>')
+                return (f'<span style="color: {self.countdownTitleColor}; font-size: {self.countdownTitleSize}px; font-weight: {self.countdownTitleBold}; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{title}</span>'
+                        f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">仅剩</span>'
+                        f'<span style="color: {self.countdownDaysColor}; font-size: {self.countdownDaysSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{time_text}</span>')
             else:
                 return f"{title}仅剩{time_text}"
         else:
             past_seconds = abs(delta.total_seconds())
-            if past_seconds < 86400:
+            if total_seconds < 86400:
                 if hasattr(self, 'countdownTitleColor'):
-                    return (f'<span style="color: {self.countdownTitleColor}; font-size: {self.countdownTitleSize}px; font-weight: {self.countdownTitleBold};">{title}</span>'
-                            f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px;">就在今天</span>')
+                    return (f'<span style="color: {self.countdownTitleColor}; font-size: {self.countdownTitleSize}px; font-weight: {self.countdownTitleBold}; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{title}</span>'
+                            f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">就在今天</span>')
                 else:
                     return f"{title}就在今天"
             else:
                 past_days = int(past_seconds // 86400)
                 if hasattr(self, 'countdownTitleColor'):
-                    return (f'<span style="color: {self.countdownTitleColor}; font-size: {self.countdownTitleSize}px; font-weight: {self.countdownTitleBold};">{title}</span>'
-                            f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px;">已过去</span>'
-                            f'<span style="color: {self.countdownDaysColor}; font-size: {self.countdownDaysSize}px; font-weight: bold;">{past_days}天</span>')
+                    return (f'<span style="color: {self.countdownTitleColor}; font-size: {self.countdownTitleSize}px; font-weight: {self.countdownTitleBold}; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{title}</span>'
+                            f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">已过去</span>'
+                            f'<span style="color: {self.countdownDaysColor}; font-size: {self.countdownDaysSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{past_days}天</span>')
                 else:
                     return f"{title}已过去{past_days}天"
     
