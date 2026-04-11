@@ -98,7 +98,6 @@ class WeatherService:
                 return None
             
             data = response.json()
-            logger.debug(f"天气 API 响应数据：{data}")
             
             if 'current' not in data:
                 logger.error("天气数据中缺少 current 字段")

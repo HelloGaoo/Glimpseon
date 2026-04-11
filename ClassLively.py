@@ -1266,7 +1266,6 @@ class MainWindow(FluentWindow):
             
             if response.status_code == 200:
                 data = response.json()
-                logger.info(f"天气 API 响应数据：{json.dumps(data, ensure_ascii=False)}")
                 if 'current' in data:
                     current = data['current']
                     

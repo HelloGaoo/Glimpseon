@@ -242,7 +242,7 @@ class DeveloperPanel(QWidget):
         layout.addWidget(line)
         
         self.rawDataEdit = QTextEdit(self)
-        self.rawDataEdit.setPlaceholderText("API 原始响应数据将显示在这里...")
+        self.rawDataEdit.setPlaceholderText("API 原始响应数据...")
         self.rawDataEdit.setMaximumHeight(150)
         layout.addWidget(self.rawDataEdit)
         
