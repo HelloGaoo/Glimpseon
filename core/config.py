@@ -240,20 +240,16 @@ class Config(QConfig):
     countdownPosition = OptionsConfigItem(
         "Countdown", "CountdownPosition", "中部", OptionsValidator(["左上预留", "左上", "右上预留", "右上", "左下预留", "左下", "右下预留", "右下", "中部", "顶部", "顶部偏下", "底部偏上", "底部"])
     )
-    countdownTitleColor = ColorConfigItem("Countdown", "TitleColor", "#FFFFFF")
+    countdownTextColor = ColorConfigItem("Countdown", "TextColor", "#FFFFFF")
     countdownTitleBold = ConfigItem(
         "Countdown", "TitleBold", True, BoolValidator()
     )
-    countdownTitleSize = RangeConfigItem(
-        "Countdown", "TitleSize", 20, RangeValidator(12, 60)
+    countdownTextSize = RangeConfigItem(
+        "Countdown", "TextSize", 20, RangeValidator(12, 120)
     )
     countdownConnectorColor = ColorConfigItem("Countdown", "ConnectorColor", "#FFFFFF")
     countdownConnectorSize = RangeConfigItem(
         "Countdown", "ConnectorSize", 20, RangeValidator(12, 60)
-    )
-    countdownDaysColor = ColorConfigItem("Countdown", "DaysColor", "#FFFFFF")
-    countdownDaysSize = RangeConfigItem(
-        "Countdown", "DaysSize", 48, RangeValidator(20, 120)
     )
     countdownCarouselInterval = RangeConfigItem(
         "Countdown", "CarouselInterval", 5, RangeValidator(1, 60)

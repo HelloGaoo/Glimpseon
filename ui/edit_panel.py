@@ -163,13 +163,11 @@ class EditPanel(QWidget):
     def _updateCountdownSettingsEnabled(self, enabled):
         self.countdownDisplayModeCombo.setEnabled(enabled)
         self.countdownPositionCombo.setEnabled(enabled)
-        self.countdownTitleColorCombo.setEnabled(enabled)
+        self.countdownTextColorCombo.setEnabled(enabled)
         self.countdownTitleBoldSwitch.setEnabled(enabled)
-        self.countdownTitleSizeSpin.setEnabled(enabled)
+        self.countdownTextSizeSpin.setEnabled(enabled)
         self.countdownConnectorColorCombo.setEnabled(enabled)
         self.countdownConnectorSizeSpin.setEnabled(enabled)
-        self.countdownDaysColorCombo.setEnabled(enabled)
-        self.countdownDaysSizeSpin.setEnabled(enabled)
         self.countdownCarouselIntervalSpin.setEnabled(enabled)
         self.countdownAddButton.setEnabled(enabled)
         self.countdownListWidget.setEnabled(enabled)
@@ -206,13 +204,11 @@ class EditPanel(QWidget):
         cfg.showCountdown.valueChanged.connect(self._updateShowCountdownSwitch)
         cfg.countdownDisplayMode.valueChanged.connect(self._updateCountdownDisplayModeCombo)
         cfg.countdownPosition.valueChanged.connect(self._updateCountdownPositionCombo)
-        cfg.countdownTitleColor.valueChanged.connect(self._updateCountdownTitleColorCombo)
+        cfg.countdownTextColor.valueChanged.connect(self._updateCountdownTextColorCombo)
         cfg.countdownTitleBold.valueChanged.connect(self._updateCountdownTitleBoldSwitch)
-        cfg.countdownTitleSize.valueChanged.connect(self._updateCountdownTitleSizeSpin)
+        cfg.countdownTextSize.valueChanged.connect(self._updateCountdownTextSizeSpin)
         cfg.countdownConnectorColor.valueChanged.connect(self._updateCountdownConnectorColorCombo)
         cfg.countdownConnectorSize.valueChanged.connect(self._updateCountdownConnectorSizeSpin)
-        cfg.countdownDaysColor.valueChanged.connect(self._updateCountdownDaysColorCombo)
-        cfg.countdownDaysSize.valueChanged.connect(self._updateCountdownDaysSizeSpin)
         cfg.countdownCarouselInterval.valueChanged.connect(self._updateCountdownCarouselIntervalSpin)
         cfg.countdownList.valueChanged.connect(self._updateCountdownList)
     
@@ -816,17 +812,17 @@ class EditPanel(QWidget):
         displayModeLayout.addWidget(self.countdownDisplayModeCombo)
         layout.addLayout(displayModeLayout)
         
-        titleColorLayout = QHBoxLayout()
-        titleColorLabel = BodyLabel('标题颜色', self)
-        titleColorLabel.setFixedWidth(100)
-        titleColorLayout.addWidget(titleColorLabel)
-        self.countdownTitleColorCombo = ComboBox(self)
-        self.countdownTitleColorCombo.addItems(['主要颜色', '白色', '黑色'])
-        self.countdownTitleColorCombo.setCurrentText(self._getColorText(cfg.countdownTitleColor.value))
-        self.countdownTitleColorCombo.setFixedWidth(120)
-        self.countdownTitleColorCombo.currentTextChanged.connect(self._onCountdownTitleColorChanged)
-        titleColorLayout.addWidget(self.countdownTitleColorCombo)
-        layout.addLayout(titleColorLayout)
+        textColorLayout = QHBoxLayout()
+        textColorLabel = BodyLabel('文字颜色', self)
+        textColorLabel.setFixedWidth(100)
+        textColorLayout.addWidget(textColorLabel)
+        self.countdownTextColorCombo = ComboBox(self)
+        self.countdownTextColorCombo.addItems(['主要颜色', '白色', '黑色'])
+        self.countdownTextColorCombo.setCurrentText(self._getColorText(cfg.countdownTextColor.value))
+        self.countdownTextColorCombo.setFixedWidth(120)
+        self.countdownTextColorCombo.currentTextChanged.connect(self._onCountdownTextColorChanged)
+        textColorLayout.addWidget(self.countdownTextColorCombo)
+        layout.addLayout(textColorLayout)
         
         titleBoldLayout = QHBoxLayout()
         titleBoldLabel = BodyLabel('标题加粗', self)
@@ -838,17 +834,17 @@ class EditPanel(QWidget):
         titleBoldLayout.addWidget(self.countdownTitleBoldSwitch)
         layout.addLayout(titleBoldLayout)
         
-        titleSizeLayout = QHBoxLayout()
-        titleSizeLabel = BodyLabel('标题大小', self)
-        titleSizeLabel.setFixedWidth(100)
-        titleSizeLayout.addWidget(titleSizeLabel)
-        self.countdownTitleSizeSpin = SpinBox(self)
-        self.countdownTitleSizeSpin.setRange(12, 60)
-        self.countdownTitleSizeSpin.setValue(cfg.countdownTitleSize.value)
-        self.countdownTitleSizeSpin.setFixedWidth(120)
-        self.countdownTitleSizeSpin.valueChanged.connect(self._onCountdownTitleSizeChanged)
-        titleSizeLayout.addWidget(self.countdownTitleSizeSpin)
-        layout.addLayout(titleSizeLayout)
+        textSizeLayout = QHBoxLayout()
+        textSizeLabel = BodyLabel('文字大小', self)
+        textSizeLabel.setFixedWidth(100)
+        textSizeLayout.addWidget(textSizeLabel)
+        self.countdownTextSizeSpin = SpinBox(self)
+        self.countdownTextSizeSpin.setRange(12, 120)
+        self.countdownTextSizeSpin.setValue(cfg.countdownTextSize.value)
+        self.countdownTextSizeSpin.setFixedWidth(120)
+        self.countdownTextSizeSpin.valueChanged.connect(self._onCountdownTextSizeChanged)
+        textSizeLayout.addWidget(self.countdownTextSizeSpin)
+        layout.addLayout(textSizeLayout)
         
         connectorColorLayout = QHBoxLayout()
         connectorColorLabel = BodyLabel('连接词颜色', self)
@@ -873,30 +869,6 @@ class EditPanel(QWidget):
         self.countdownConnectorSizeSpin.valueChanged.connect(self._onCountdownConnectorSizeChanged)
         connectorSizeLayout.addWidget(self.countdownConnectorSizeSpin)
         layout.addLayout(connectorSizeLayout)
-        
-        daysColorLayout = QHBoxLayout()
-        daysColorLabel = BodyLabel('天数颜色', self)
-        daysColorLabel.setFixedWidth(100)
-        daysColorLayout.addWidget(daysColorLabel)
-        self.countdownDaysColorCombo = ComboBox(self)
-        self.countdownDaysColorCombo.addItems(['主要颜色', '白色', '黑色'])
-        self.countdownDaysColorCombo.setCurrentText(self._getColorText(cfg.countdownDaysColor.value))
-        self.countdownDaysColorCombo.setFixedWidth(120)
-        self.countdownDaysColorCombo.currentTextChanged.connect(self._onCountdownDaysColorChanged)
-        daysColorLayout.addWidget(self.countdownDaysColorCombo)
-        layout.addLayout(daysColorLayout)
-        
-        daysSizeLayout = QHBoxLayout()
-        daysSizeLabel = BodyLabel('天数大小', self)
-        daysSizeLabel.setFixedWidth(100)
-        daysSizeLayout.addWidget(daysSizeLabel)
-        self.countdownDaysSizeSpin = SpinBox(self)
-        self.countdownDaysSizeSpin.setRange(20, 120)
-        self.countdownDaysSizeSpin.setValue(cfg.countdownDaysSize.value)
-        self.countdownDaysSizeSpin.setFixedWidth(120)
-        self.countdownDaysSizeSpin.valueChanged.connect(self._onCountdownDaysSizeChanged)
-        daysSizeLayout.addWidget(self.countdownDaysSizeSpin)
-        layout.addLayout(daysSizeLayout)
         
         carouselIntervalLayout = QHBoxLayout()
         carouselIntervalLabel = BodyLabel('轮播间隔', self)
@@ -952,26 +924,20 @@ class EditPanel(QWidget):
     def _updateCountdownPositionCombo(self, value):
         self.countdownPositionCombo.setCurrentText(value)
     
-    def _updateCountdownTitleColorCombo(self, value):
-        self.countdownTitleColorCombo.setCurrentText(self._getColorText(value))
+    def _updateCountdownTextColorCombo(self, value):
+        self.countdownTextColorCombo.setCurrentText(self._getColorText(value))
     
     def _updateCountdownTitleBoldSwitch(self, value):
         self.countdownTitleBoldSwitch.setChecked(value)
     
-    def _updateCountdownTitleSizeSpin(self, value):
-        self.countdownTitleSizeSpin.setValue(value)
+    def _updateCountdownTextSizeSpin(self, value):
+        self.countdownTextSizeSpin.setValue(value)
     
     def _updateCountdownConnectorColorCombo(self, value):
         self.countdownConnectorColorCombo.setCurrentText(self._getColorText(value))
     
     def _updateCountdownConnectorSizeSpin(self, value):
         self.countdownConnectorSizeSpin.setValue(value)
-    
-    def _updateCountdownDaysColorCombo(self, value):
-        self.countdownDaysColorCombo.setCurrentText(self._getColorText(value))
-    
-    def _updateCountdownDaysSizeSpin(self, value):
-        self.countdownDaysSizeSpin.setValue(value)
     
     def _updateCountdownCarouselIntervalSpin(self, value):
         self.countdownCarouselIntervalSpin.setValue(value)
@@ -1028,17 +994,17 @@ class EditPanel(QWidget):
             self.mainWindow._MainWindow__updateCountdown()
         logger.info(f"倒计时设置：显示模式={text}")
     
-    def _onCountdownTitleColorChanged(self, text: str):
+    def _onCountdownTextColorChanged(self, text: str):
         from PyQt5.QtGui import QColor
         if text == '白色':
-            cfg.countdownTitleColor.value = QColor(255, 255, 255)
+            cfg.countdownTextColor.value = QColor(255, 255, 255)
         elif text == '黑色':
-            cfg.countdownTitleColor.value = QColor(0, 0, 0)
+            cfg.countdownTextColor.value = QColor(0, 0, 0)
         else:
-            cfg.countdownTitleColor.value = cfg.themeColor.value
+            cfg.countdownTextColor.value = cfg.themeColor.value
         if hasattr(self.mainWindow, 'updateCountdownStyle'):
             self.mainWindow.updateCountdownStyle()
-        logger.info(f"倒计时设置：标题颜色={text}")
+        logger.info(f"倒计时设置：文字颜色={text}")
     
     def _onCountdownTitleBoldChanged(self, checked: bool):
         cfg.countdownTitleBold.value = checked
@@ -1046,11 +1012,11 @@ class EditPanel(QWidget):
             self.mainWindow.updateCountdownStyle()
         logger.info(f"倒计时设置：标题加粗={'开启' if checked else '关闭'}")
     
-    def _onCountdownTitleSizeChanged(self, value: int):
-        cfg.countdownTitleSize.value = value
+    def _onCountdownTextSizeChanged(self, value: int):
+        cfg.countdownTextSize.value = value
         if hasattr(self.mainWindow, 'updateCountdownStyle'):
             self.mainWindow.updateCountdownStyle()
-        logger.info(f"倒计时设置：标题大小={value}px")
+        logger.info(f"倒计时设置：文字大小={value}px")
     
     def _onCountdownConnectorColorChanged(self, text: str):
         from PyQt5.QtGui import QColor
@@ -1069,24 +1035,6 @@ class EditPanel(QWidget):
         if hasattr(self.mainWindow, 'updateCountdownStyle'):
             self.mainWindow.updateCountdownStyle()
         logger.info(f"倒计时设置：连接词大小={value}px")
-    
-    def _onCountdownDaysColorChanged(self, text: str):
-        from PyQt5.QtGui import QColor
-        if text == '白色':
-            cfg.countdownDaysColor.value = QColor(255, 255, 255)
-        elif text == '黑色':
-            cfg.countdownDaysColor.value = QColor(0, 0, 0)
-        else:
-            cfg.countdownDaysColor.value = cfg.themeColor.value
-        if hasattr(self.mainWindow, 'updateCountdownStyle'):
-            self.mainWindow.updateCountdownStyle()
-        logger.info(f"倒计时设置：天数颜色={text}")
-    
-    def _onCountdownDaysSizeChanged(self, value: int):
-        cfg.countdownDaysSize.value = value
-        if hasattr(self.mainWindow, 'updateCountdownStyle'):
-            self.mainWindow.updateCountdownStyle()
-        logger.info(f"倒计时设置：天数大小={value}px")
     
     def _onCountdownCarouselIntervalChanged(self, value: int):
         cfg.countdownCarouselInterval.value = value
