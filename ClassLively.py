@@ -1527,8 +1527,9 @@ class MainWindow(FluentWindow):
             else:
                 return f"{title}仅剩{time_text}"
         else:
-            past_seconds = abs(delta.total_seconds())
-            if total_seconds < 86400:
+            total_seconds = delta.total_seconds()
+            past_seconds = abs(total_seconds)
+            if past_seconds < 86400:
                 if hasattr(self, 'countdownTextColor'):
                     return (f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownTitleSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{title}</span>'
                             f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">就在今天</span>')
