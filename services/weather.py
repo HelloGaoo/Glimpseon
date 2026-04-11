@@ -16,6 +16,7 @@
 
 """
 天气服务模块
+这个有参考classisland和classwidgets
 """
 
 import logging

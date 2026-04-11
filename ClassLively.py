@@ -137,6 +137,8 @@ from version import BUILD_DATE, VERSION
 
 def verify_singleInst():
     """检查是否已经有实例"""
+    #这个地方还有问题 如果有进程 终止后新进程也终止了 怀疑是自己杀自己。。
+    #不会修。。。
     config_path = os.path.join(BASE_DIR, 'config', 'config.json')
     allow_multiple = False
     is_developer_mode = False
@@ -165,9 +167,9 @@ def verify_singleInst():
                 time.sleep(1)
                 return True
             else:
-                logger.warning("终止旧进程失败，但将继续启动（开发者模式）")
+                logger.warning("终止旧进程失败")
                 time.sleep(1)
-                return True  # 开发者模式下即使终止失败也继续
+                return True
         elif not allow_multiple:
             return False
     if is_developer_mode or allow_multiple:
@@ -528,6 +530,7 @@ class MainWindow(FluentWindow):
     
     def __onTrayIconActivated(self, reason):
         """ 托盘图标激活槽函数 """
+        #脑子抽了闲的没事在这区分双击和单击 细节吧嗯对。。
         if reason == QSystemTrayIcon.DoubleClick:
             if self.isVisible():
                 logger.info("双击托盘图标，隐藏主窗口")
@@ -625,7 +628,7 @@ class MainWindow(FluentWindow):
             
         except Exception as e:
             logger.error(f"全局钩子安装失败：{e}")
-    
+            #其实我不明白为啥要叫钩子
     def keyboardProc(self, nCode, wParam, lParam):
         """ 键盘钩子回调函数 """
         if nCode >= 0:
@@ -664,6 +667,7 @@ class MainWindow(FluentWindow):
             logger.debug("视频播放，暂停空闲检测")
         else:
             logger.debug("视频结束，恢复空闲检测")
+        #这个没实践过 不确保能行
     
     def show(self):
         """ 显示窗口 """
@@ -686,7 +690,6 @@ class MainWindow(FluentWindow):
     
     def closeEvent(self, event):
         """关闭事件处理"""
-        # 开发者模式下直接关闭
         if cfg.developerMode.value:
             logger.info("开发者模式：直接退出应用")
             event.accept()
@@ -1052,7 +1055,7 @@ class MainWindow(FluentWindow):
         small_margin = 20
         
         layout = self.clockContainer.layout()
-        
+        #看完享福去了 感谢ai
         if position == "左上预留":
             layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
             layout.setContentsMargins(small_margin, small_margin, 0, 0)
@@ -1214,6 +1217,7 @@ class MainWindow(FluentWindow):
     
     def __updatePoetry(self):
         """ 更新一言显示 """
+        #其实我挺不明白为啥要把这个放在主程序 应该是扔services呀。。
         if not cfg.showPoetry.value:
             self.poetryLabel.hide()
             return
@@ -1238,9 +1242,11 @@ class MainWindow(FluentWindow):
         except Exception as e:
             logger.error(f"一言更新失败：{e}")
             self.poetryLabel.setText("他山之石，可以攻玉。——《诗经·小雅·鹤鸣》")
-    
+    #笑死我了我就应该整个愿得一人心白首不分离
     def __updateWeather(self):
         """ 更新天气显示 """
+        #其实我挺不明白为啥要把这个放在主程序 应该是扔services呀。。
+
         if not cfg.showWeather.value:
             self.weatherTempLabel.hide()
             self.weatherIconLabel.hide()
@@ -1298,7 +1304,7 @@ class MainWindow(FluentWindow):
                                 max_temp = first_day.get('from', 0)
                                 min_temp = first_day.get('to', 0)
                     
-                    # 代码映射
+                    # 代码映射 这个也不知道能不能正常用 这一段和映射图标用的是ai写的
                     weather_map = {
                         0: "晴",
                         1: "多云",
@@ -1651,8 +1657,6 @@ def autoStart_launch():
 
 if __name__ == "__main__":
     auto_start_launch = autoStart_launch()
-    if auto_start_launch:
-        print("检测到通过开机自启动启动")
     
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
@@ -1665,6 +1669,7 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     
     # 加载翻译
+    # 不过这一步 设置里的颜色卡片之类的就是英文 开关是off on啥的
     locale = QLocale(QLocale.Chinese, QLocale.China)
     fluentTranslator = FluentTranslator(locale)
     app.installTranslator(fluentTranslator)

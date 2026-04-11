@@ -16,6 +16,7 @@
 
 """
 日志管理模块
+旧项目SeevvoDownloader复制来的 稍作修改
 """
 
 import ctypes

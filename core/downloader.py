@@ -39,7 +39,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 SEVEN_ZIP_PASSWORD = 'zQt83iOY3xXLfDVg6SJ7ocnapy90I1d62w6jh79WlT0m1qPC8b55HU5Nk4ARZFBs'
 
-# 进程/子进程 优先级控制
+# 进程/子进程 优先级控制 这一段是从旧项目SeevvoDownloader搬过来的
 PRIORITY_CLASSES = {
     'idle': 0x40,
     'below_normal': 0x00004000,
@@ -197,6 +197,7 @@ class Downloader:
 
     def _update_progress(self, software_name, phase, phase_percent, allocation=None):
         """根据单阶段百分比(0-100)更新整体进度。"""
+        # 以前会有卡在70%或0% 或100%又退到70%的问题
         if allocation is None:
             allocation = DEFAULT_PHASE_ALLOCATION
         offsets = self._calc_phase_offsets(allocation)
@@ -207,6 +208,7 @@ class Downloader:
         self.set_progress(software_name, total)
     
     def _wait_process(self, software_name, process_name, timeout=30, check_interval=1):
+        #下面这一百行是ai写的 嵌套太多了看不懂 头疼。。。
         if self.installer_logger:
             self.installer_logger.info(f"{software_name}: 等待进程 {process_name} 出现，超时 {timeout} 秒")
         start_time = time.time()
@@ -295,6 +297,11 @@ class Downloader:
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 终止进程时出错 - {str(err)}")
+
+
+
+    # 下面为单独的安装函数了 不合并是因为有例外
+    # 这一整个文件基本上都是从旧项目SeevvoDownloader复制来的 但因为场景不一样 可能会有没修改来的问题
 
     def _install_剪辑师(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:
