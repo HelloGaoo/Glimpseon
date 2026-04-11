@@ -800,7 +800,7 @@ class EditPanel(QWidget):
             cfg.countdownTextColor,
             FIF.PALETTE,
             '文字颜色',
-            '更改倒计时文字的主要颜色',
+            '更改文字颜色',
             parent=self
         )
         layout.addWidget(self.countdownTextColorCard)
@@ -809,7 +809,7 @@ class EditPanel(QWidget):
             cfg.countdownConnectorColor,
             FIF.PALETTE,
             '连接词颜色',
-            '更改倒计时连接词的主要颜色',
+            '更改连接词颜色',
             parent=self
         )
         layout.addWidget(self.countdownConnectorColorCard)
@@ -856,7 +856,6 @@ class EditPanel(QWidget):
         
         layout.addWidget(self.sizeGroup)
         
-        # 显示设置折叠组
         self.displayGroup = ExpandGroupSettingCard(
             FIF.LAYOUT,
             '显示设置',
