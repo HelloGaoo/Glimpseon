@@ -1561,6 +1561,7 @@ class MainWindow(FluentWindow):
         self.countdownConnectorColor = connector_color_str
         self.countdownConnectorSize = connector_size
         self.countdownDaysSize = text_size
+        self.__updateCountdown()
     
     def __updateCountdownPosition(self):
         """ 更新倒计时组件位置 """
@@ -1611,6 +1612,7 @@ class MainWindow(FluentWindow):
             layout.setContentsMargins(0, 0, 0, 0)
         
         logger.info(f"倒计时组件位置已更新为：{position}")
+        self.__updateCountdown()
 
 def autoStart_launch():
     """检查是否是通过开机自启动启动的"""
