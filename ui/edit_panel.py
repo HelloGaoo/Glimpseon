@@ -163,7 +163,9 @@ class EditPanel(QWidget):
         self.weatherPositionCombo.setEnabled(enabled)
     
     def _updateCountdownSettingsEnabled(self, enabled):
-        self.appearanceGroup.setEnabled(enabled)
+        self.countdownTextColorCard.setEnabled(enabled)
+        self.countdownConnectorColorCard.setEnabled(enabled)
+        self.sizeGroup.setEnabled(enabled)
         self.displayGroup.setEnabled(enabled)
         self.countdownAddButton.setEnabled(enabled)
         self.countdownListWidget.setEnabled(enabled)
@@ -793,23 +795,44 @@ class EditPanel(QWidget):
         enableLayout.addWidget(self.showCountdownSwitch)
         layout.addLayout(enableLayout)
         
-        # 外观设置折叠组
-        self.appearanceGroup = ExpandGroupSettingCard(
-            FIF.PALETTE,
-            '外观设置',
-            '自定义倒计时文字和连接词的样式',
-            parent=self
-        )
-        
-        # 文字颜色
+        # 颜色设置（不折叠）
+        colorLayout = QHBoxLayout()
+        colorLabel = BodyLabel('文字颜色', self)
+        colorLabel.setFixedWidth(80)
+        colorLayout.addWidget(colorLabel)
         self.countdownTextColorCard = CustomColorSettingCard(
             cfg.countdownTextColor,
             FIF.PALETTE,
-            '文字颜色',
-            '更改文字颜色',
-            parent=self.appearanceGroup
+            '',
+            '更改倒计时文字的主要颜色',
+            parent=self
         )
-        self.appearanceGroup.addGroupWidget(self.countdownTextColorCard)
+        self.countdownTextColorCard.setFixedHeight(60)
+        colorLayout.addWidget(self.countdownTextColorCard)
+        layout.addLayout(colorLayout)
+        
+        connectorColorLayout = QHBoxLayout()
+        connectorColorLabel = BodyLabel('连接词颜色', self)
+        connectorColorLabel.setFixedWidth(80)
+        connectorColorLayout.addWidget(connectorColorLabel)
+        self.countdownConnectorColorCard = CustomColorSettingCard(
+            cfg.countdownConnectorColor,
+            FIF.PALETTE,
+            '',
+            '更改倒计时连接词的主要颜色',
+            parent=self
+        )
+        self.countdownConnectorColorCard.setFixedHeight(60)
+        connectorColorLayout.addWidget(self.countdownConnectorColorCard)
+        layout.addLayout(connectorColorLayout)
+        
+        # 大小设置折叠组
+        self.sizeGroup = ExpandGroupSettingCard(
+            FIF.ZOOM,
+            '大小设置',
+            '自定义倒计时文字和连接词的大小',
+            parent=self
+        )
         
         # 文字大小
         textSizeWidget = QWidget()
@@ -825,17 +848,7 @@ class EditPanel(QWidget):
         self.countdownTextSizeSpin.valueChanged.connect(self._onCountdownTextSizeChanged)
         textSizeLayout.addWidget(self.countdownTextSizeSpin)
         textSizeLayout.addStretch()
-        self.appearanceGroup.addGroupWidget(textSizeWidget)
-        
-        # 连接词颜色
-        self.countdownConnectorColorCard = CustomColorSettingCard(
-            cfg.countdownConnectorColor,
-            FIF.PALETTE,
-            '连接词颜色',
-            '更改连接词颜色',
-            parent=self.appearanceGroup
-        )
-        self.appearanceGroup.addGroupWidget(self.countdownConnectorColorCard)
+        self.sizeGroup.addGroupWidget(textSizeWidget)
         
         # 连接词大小
         connectorSizeWidget = QWidget()
@@ -851,9 +864,9 @@ class EditPanel(QWidget):
         self.countdownConnectorSizeSpin.valueChanged.connect(self._onCountdownConnectorSizeChanged)
         connectorSizeLayout.addWidget(self.countdownConnectorSizeSpin)
         connectorSizeLayout.addStretch()
-        self.appearanceGroup.addGroupWidget(connectorSizeWidget)
+        self.sizeGroup.addGroupWidget(connectorSizeWidget)
         
-        layout.addWidget(self.appearanceGroup)
+        layout.addWidget(self.sizeGroup)
         
         # 显示设置折叠组
         self.displayGroup = ExpandGroupSettingCard(
