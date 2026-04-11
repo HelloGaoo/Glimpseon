@@ -237,7 +237,9 @@ class EditPanel(QWidget):
     
     def _updateClockColorCombo(self, value):
         """更新时钟颜色下拉框"""
+        self.clockColorCombo.currentTextChanged.disconnect(self._onClockColorChanged)
         self.clockColorCombo.setCurrentText(self._getColorText(value))
+        self.clockColorCombo.currentTextChanged.connect(self._onClockColorChanged)
     
     def _updateClockSizeSpin(self, value):
         """更新时钟大小旋转框"""
@@ -253,12 +255,14 @@ class EditPanel(QWidget):
     
     def _updatePoetryApiEdit(self, value):
         """更新一言 API 地址下拉框"""
+        self.poetryApiCombo.currentTextChanged.disconnect(self._onPoetryApiChanged)
         if value == 'https://api.imlcd.cn/yy/api.php':
             self.poetryApiCombo.setCurrentText('一言 API')
         elif value == 'https://www.ffapi.cn/int/v1/shici':
             self.poetryApiCombo.setCurrentText('诗词 API')
         else:
             self.poetryApiCombo.setCurrentText('一言 API')
+        self.poetryApiCombo.currentTextChanged.connect(self._onPoetryApiChanged)
     
     def _updatePoetrySizeSpin(self, value):
         """更新一言大小旋转框"""
@@ -266,7 +270,9 @@ class EditPanel(QWidget):
     
     def _updatePoetryUpdateIntervalCombo(self, value):
         """更新一言更新间隔下拉框"""
+        self.poetryUpdateIntervalCombo.currentTextChanged.disconnect(self._onPoetryUpdateIntervalChanged)
         self.poetryUpdateIntervalCombo.setCurrentText(value)
+        self.poetryUpdateIntervalCombo.currentTextChanged.connect(self._onPoetryUpdateIntervalChanged)
     
     def _updateShowWeatherSwitch(self, value):
         """更新启用天气开关"""
@@ -282,7 +288,9 @@ class EditPanel(QWidget):
     
     def _updateWeatherUpdateIntervalCombo(self, value):
         """更新天气更新间隔下拉框"""
+        self.weatherUpdateIntervalCombo.currentTextChanged.disconnect(self._onWeatherUpdateIntervalChanged)
         self.weatherUpdateIntervalCombo.setCurrentText(value)
+        self.weatherUpdateIntervalCombo.currentTextChanged.connect(self._onWeatherUpdateIntervalChanged)
     
     def _updateCityButton(self, value):
         """更新城市按钮"""
@@ -290,15 +298,21 @@ class EditPanel(QWidget):
     
     def _updateClockPositionCombo(self, value):
         """更新时间位置下拉框"""
+        self.clockPositionCombo.currentTextChanged.disconnect(self._onClockPositionChanged)
         self.clockPositionCombo.setCurrentText(value)
+        self.clockPositionCombo.currentTextChanged.connect(self._onClockPositionChanged)
     
     def _updatePoetryPositionCombo(self, value):
         """更新一言位置下拉框"""
+        self.poetryPositionCombo.currentTextChanged.disconnect(self._onPoetryPositionChanged)
         self.poetryPositionCombo.setCurrentText(value)
+        self.poetryPositionCombo.currentTextChanged.connect(self._onPoetryPositionChanged)
     
     def _updateWeatherPositionCombo(self, value):
         """更新天气位置下拉框"""
+        self.weatherPositionCombo.currentTextChanged.disconnect(self._onWeatherPositionChanged)
         self.weatherPositionCombo.setCurrentText(value)
+        self.weatherPositionCombo.currentTextChanged.connect(self._onWeatherPositionChanged)
     
     def _createTimeSettings(self, layout):
         titleLabel = StrongBodyLabel('时间设置', self)
@@ -926,10 +940,14 @@ class EditPanel(QWidget):
         self._updateCountdownSettingsEnabled(value)
     
     def _updateCountdownDisplayModeCombo(self, value):
+        self.countdownDisplayModeCombo.currentTextChanged.disconnect(self._onCountdownDisplayModeChanged)
         self.countdownDisplayModeCombo.setCurrentText('同时显示' if value == 'simultaneous' else '轮播显示')
+        self.countdownDisplayModeCombo.currentTextChanged.connect(self._onCountdownDisplayModeChanged)
     
     def _updateCountdownPositionCombo(self, value):
+        self.countdownPositionCombo.currentTextChanged.disconnect(self._onCountdownPositionChanged)
         self.countdownPositionCombo.setCurrentText(value)
+        self.countdownPositionCombo.currentTextChanged.connect(self._onCountdownPositionChanged)
     
     def _updateCountdownTextSizeSpin(self, value):
         self.countdownTextSizeSpin.setValue(value)
@@ -941,10 +959,14 @@ class EditPanel(QWidget):
         self.countdownCarouselIntervalSpin.setValue(value)
     
     def _updateCountdownTextColorCombo(self, value):
+        self.countdownTextColorCombo.currentTextChanged.disconnect(self._onCountdownTextColorChanged)
         self.countdownTextColorCombo.setCurrentText(self._getColorText(value, 'red'))
+        self.countdownTextColorCombo.currentTextChanged.connect(self._onCountdownTextColorChanged)
     
     def _updateCountdownConnectorColorCombo(self, value):
+        self.countdownConnectorColorCombo.currentTextChanged.disconnect(self._onCountdownConnectorColorChanged)
         self.countdownConnectorColorCombo.setCurrentText(self._getColorText(value, 'white'))
+        self.countdownConnectorColorCombo.currentTextChanged.connect(self._onCountdownConnectorColorChanged)
     
     def _formatRemainingTime(self, target_time_str):
         try:
