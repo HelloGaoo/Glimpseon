@@ -370,7 +370,6 @@ class MainWindow(FluentWindow):
         cfg.showPoetry.valueChanged.connect(self.__updatePoetry)
         cfg.poetryApiUrl.valueChanged.connect(self.__updatePoetry)
         cfg.poetryUpdateInterval.valueChanged.connect(self.__updatePoetryInterval)
-        cfg.showPoetry.valueChanged.connect(self.__updatePoetry)
         self.__updatePoetryInterval()
         
         # 倒计时更新定时
