@@ -266,6 +266,9 @@ class Config(QConfig):
     countdownList = ConfigItem(
         "Countdown", "CountdownList", [], validator=None, serializer=CountdownListSerializer()
     )
+    minimizeNotificationCount = ConfigItem(
+        "Other", "MinimizeNotificationCount", 0, validator=None
+    )
 
 
 cfg = Config()
@@ -323,7 +326,8 @@ def default_cfg():
             "IdleMinutes": 5,
             "AutoOpenMaximize": False,
             "AutoCheckUpdate": True,
-            "AutoUpdate": False
+            "AutoUpdate": False,
+            "MinimizeNotificationCount": 0
         },
         "Wallpaper": {
             "SaveLimit": 50,

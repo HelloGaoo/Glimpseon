@@ -420,6 +420,7 @@ class MainWindow(FluentWindow):
         self.idleCheckInterval = 10000  # 10 秒
         self.hasTriggeredAutoOpen = False
         self.isVideoPlaying = False
+        self.maxMinimizeNotifications = 5
         cfg.autoOpenOnIdle.valueChanged.connect(self.__updateIdleTimer)
         cfg.idleMinutes.valueChanged.connect(self.__updateIdleTimer)
         self.__updateIdleTimer()
@@ -707,7 +708,10 @@ class MainWindow(FluentWindow):
                 logger.debug("应用最小化，已启动空闲检测")
             
             self.hide()
-            self.tray_icon.showMessage(APP_NAME, "应用已最小化到系统托盘", QSystemTrayIcon.Information, 2000)
+            if cfg.minimizeNotificationCount.value < self.maxMinimizeNotifications:
+                self.tray_icon.showMessage(APP_NAME, "应用已最小化到系统托盘", QSystemTrayIcon.Information, 2000)
+                cfg.minimizeNotificationCount.value = cfg.minimizeNotificationCount.value + 1
+                save_cfg()
         else:
             logger.info("关闭行为：退出应用")
             
