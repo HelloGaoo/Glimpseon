@@ -912,7 +912,8 @@ class MainWindow(FluentWindow):
             self.downloadInterface.addSection(category["name"])
             for software in category["software"]:
                 icon_path = get_software_icon_path(software["icon"])
-                self.downloadInterface.addSoftware(icon_path, software["name"], software["description"])
+                link = software.get("link")
+                self.downloadInterface.addSoftware(icon_path, software["name"], software["description"], link)
     
     def initSettingsNavigation(self):
         # 创建编辑面板

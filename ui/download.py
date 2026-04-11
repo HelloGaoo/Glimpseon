@@ -23,9 +23,9 @@ import threading
 from concurrent import futures as concurrent_futures
 from concurrent.futures import ThreadPoolExecutor, wait
 
-from PyQt5.QtCore import QMetaObject, Q_ARG, Qt, QTimer, pyqtSlot
-from PyQt5.QtGui import QIcon, QPixmap
-from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PyQt5.QtCore import QMetaObject, Q_ARG, QUrl, Qt, QTimer, pyqtSlot
+from PyQt5.QtGui import QIcon, QPixmap, QDesktopServices
+from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QToolButton, QVBoxLayout, QWidget
 from qfluentwidgets import (
     CardWidget,
     CheckBox,
@@ -458,7 +458,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         
         self.softwareLayout.addWidget(gridWidget)
     
-    def addSoftware(self, icon_path, name, description):
+    def addSoftware(self, icon_path, name, description, link=None):
         """ 添加一个软件到列表 """
         if self.currentGridLayout is None:
             self.addSection("常用软件")
@@ -483,19 +483,37 @@ class DownloadInterface(BaseScrollAreaInterface):
             iconLabel.setStyleSheet("font-size: 32px;")
         
         infoLayout = QVBoxLayout()
-        infoLayout.setSpacing(2)
-        infoLayout.setContentsMargins(0, 4, 0, 4)
+        infoLayout.setSpacing(6)
+        infoLayout.setContentsMargins(0, 0, 0, 0)
+        
+        nameLayout = QHBoxLayout()
+        nameLayout.setSpacing(6)
+        nameLayout.setContentsMargins(0, 0, 0, 0)
         
         nameLabel = QLabel(name, softwareCard)
         nameLabel.setObjectName("softwareNameLabel")
-        nameLabel.setWordWrap(True)
+        nameLabel.setWordWrap(False)
+        
+        nameLayout.addWidget(nameLabel)
+        
+        if link:
+            linkButton = QToolButton(softwareCard)
+            linkButton.setIcon(FIF.LINK.icon())
+            linkButton.setFixedSize(20, 20)
+            linkButton.setToolTip("打开官网")
+            linkButton.setStyleSheet("QToolButton { border: none; background: transparent; } QToolButton:hover { background: rgba(255, 255, 255, 0.1); }")
+            linkButton.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(link)))
+            nameLayout.addWidget(linkButton)
+        
+        nameLayout.addStretch(1)
+        
+        infoLayout.addLayout(nameLayout)
         
         descLabel = QLabel(description, softwareCard)
         descLabel.setObjectName("softwareDescLabel")
         descLabel.setWordWrap(True)
         descLabel.setFixedHeight(40)
         
-        infoLayout.addWidget(nameLabel)
         infoLayout.addWidget(descLabel)
         
         # 创建进度环
