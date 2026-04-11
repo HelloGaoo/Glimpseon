@@ -113,7 +113,7 @@ from qfluentwidgets import (
 )
 
 from data.url_dir import url_dir  # type: ignore
-from core.config import cfg, default_cfg
+from core.config import cfg, default_cfg, save_cfg
 from core.constants import APP_NAME, BASE_DIR, MEIPASS_DIR, get_resPath
 from core.downloader import Downloader, clean_tempdir
 from core.font_manager import initialize_fonts
