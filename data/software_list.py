@@ -137,12 +137,12 @@ SOFTWARE_CATEGORIES = [
             },
             {
                 "name": "PPT小工具",
-                "description": "",
+                "description": "希沃针对PPT的优化工具",
                 "icon": "PPT小工具.ico"
             },
             {
                 "name": "希沃物联校园",
-                "description": "",
+                "description": "设备互联互通与高效管理",
                 "icon": "希沃物联校园.ico"
             },
             {
