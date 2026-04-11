@@ -483,8 +483,8 @@ class DownloadInterface(BaseScrollAreaInterface):
             iconLabel.setStyleSheet("font-size: 32px;")
         
         infoLayout = QVBoxLayout()
-        infoLayout.setSpacing(4)
-        infoLayout.setContentsMargins(0, 8, 0, 8)
+        infoLayout.setSpacing(2)
+        infoLayout.setContentsMargins(0, 4, 0, 4)
         
         nameLabel = QLabel(name, softwareCard)
         nameLabel.setObjectName("softwareNameLabel")

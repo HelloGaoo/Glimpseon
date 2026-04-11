@@ -814,48 +814,31 @@ class Downloader:
 
     def _install_office2021(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
         try:            
-            if self.installer_logger:
-                self.installer_logger.info(f"{software_name}: 开始下载")
+            if self.installer_logger:self.installer_logger.info(f"{software_name}: 开始下载")
             installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            if self.installer_logger:self.installer_logger.info(f"{software_name}: 开始解压")
+            
+            allocation = cache_file.get('phase_allocation', DEFAULT_PHASE_ALLOCATION)
+            output_dir = TEMP_DIR
+            self._decompress_7Z(software_name, installer_path, output_dir)
+            try:
+                self._update_progress(software_name, 'decompress', 100, allocation)
+            except Exception:
+                pass
+            if self.installer_logger:self.installer_logger.info(f"{software_name}: 开始安装")
+            
+            setup_exe = os.path.join(output_dir, "setup.exe")
+            config_xml = os.path.join(output_dir, "config.xml")
             
             if self.installer_logger:
-                self.installer_logger.info(f"{software_name}: 开始安装")
-
-            if self.installer_logger:
-                self.installer_logger.info(f"{software_name}: 运行office2021.exe安装程序")
-            office_process = subprocess.Popen([installer_path])
+                self.installer_logger.info(f"{software_name}: 运行 setup.exe /configure config.xml")
+            office_process = subprocess.Popen([setup_exe, "/configure", config_xml])
             
             if self.installer_logger:
-                self.installer_logger.info(f"{software_name}: 等待office2021.exe进程结束")
+                self.installer_logger.info(f"{software_name}: 等待安装进程结束")
             office_process.wait()
             if self.installer_logger:
-                self.installer_logger.info(f"{software_name}: office2021.exe进程已结束")
-            
-            if self.installer_logger:
-                self.installer_logger.info(f"{software_name}: 检查并结束OfficeC2RClient.exe进程")
-            try:
-                subprocess.run(["taskkill", "/f", "/im", "OfficeC2RClient.exe"], check=False, shell=False)
-            except Exception as e:
-                if self.installer_logger:
-                    self.installer_logger.error(f"{software_name}: 结束OfficeC2RClient.exe进程时出错: {str(e)}")
-            
-            def check_process_exited():
-                try:
-                    result = subprocess.run(
-                        ["wmic", "process", "where", "name='OfficeC2RClient.exe'", "get", "name"],
-                        capture_output=True, text=True, shell=False
-                    )
-                    return "OfficeC2RClient.exe" not in result.stdout
-                except Exception:
-                    return True
-            
-            self._wait_condition(software_name, check_process_exited, timeout=10, check_interval=1)
-            
-            try:
-                subprocess.run(["taskkill", "/f", "/im", "OfficeC2RClient.exe"], check=False, shell=False)
-            except Exception as e:
-                if self.installer_logger:
-                    self.installer_logger.error(f"{software_name}: 再次结束OfficeC2RClient.exe进程时出错: {str(e)}")
+                self.installer_logger.info(f"{software_name}: 安装进程已结束")
             
             self.set_progress(software_name, 100)
             if self.installer_logger:
