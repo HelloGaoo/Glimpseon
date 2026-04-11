@@ -37,8 +37,6 @@ from qfluentwidgets import (
     BodyLabel,
     CalendarPicker,
     ComboBox,
-    ComboBoxSettingCard,
-    ExpandGroupSettingCard,
     FluentIcon as FIF,
     InfoBar,
     isDarkTheme,
@@ -52,7 +50,6 @@ from qfluentwidgets import (
     StrongBodyLabel,
     SubtitleLabel,
     SwitchButton,
-    SwitchSettingCard,
     TimePicker,
     ToolButton,
 )
@@ -164,7 +161,16 @@ class EditPanel(QWidget):
         self.weatherPositionCombo.setEnabled(enabled)
     
     def _updateCountdownSettingsEnabled(self, enabled):
-        self.countdownExpandCard.setEnabled(enabled)
+        self.countdownDisplayModeCombo.setEnabled(enabled)
+        self.countdownPositionCombo.setEnabled(enabled)
+        self.countdownTitleColorCombo.setEnabled(enabled)
+        self.countdownTitleBoldSwitch.setEnabled(enabled)
+        self.countdownTitleSizeSpin.setEnabled(enabled)
+        self.countdownConnectorColorCombo.setEnabled(enabled)
+        self.countdownConnectorSizeSpin.setEnabled(enabled)
+        self.countdownDaysColorCombo.setEnabled(enabled)
+        self.countdownDaysSizeSpin.setEnabled(enabled)
+        self.countdownCarouselIntervalSpin.setEnabled(enabled)
         self.countdownAddButton.setEnabled(enabled)
         self.countdownListWidget.setEnabled(enabled)
         self.countdownEditButton.setEnabled(enabled)
@@ -198,6 +204,16 @@ class EditPanel(QWidget):
         
         # 倒计时设置
         cfg.showCountdown.valueChanged.connect(self._updateShowCountdownSwitch)
+        cfg.countdownDisplayMode.valueChanged.connect(self._updateCountdownDisplayModeCombo)
+        cfg.countdownPosition.valueChanged.connect(self._updateCountdownPositionCombo)
+        cfg.countdownTitleColor.valueChanged.connect(self._updateCountdownTitleColorCombo)
+        cfg.countdownTitleBold.valueChanged.connect(self._updateCountdownTitleBoldSwitch)
+        cfg.countdownTitleSize.valueChanged.connect(self._updateCountdownTitleSizeSpin)
+        cfg.countdownConnectorColor.valueChanged.connect(self._updateCountdownConnectorColorCombo)
+        cfg.countdownConnectorSize.valueChanged.connect(self._updateCountdownConnectorSizeSpin)
+        cfg.countdownDaysColor.valueChanged.connect(self._updateCountdownDaysColorCombo)
+        cfg.countdownDaysSize.valueChanged.connect(self._updateCountdownDaysSizeSpin)
+        cfg.countdownCarouselInterval.valueChanged.connect(self._updateCountdownCarouselIntervalSpin)
         cfg.countdownList.valueChanged.connect(self._updateCountdownList)
     
     def __connectSignalToSlot(self):
@@ -788,56 +804,39 @@ class EditPanel(QWidget):
         enableLayout.addWidget(self.showCountdownSwitch)
         layout.addLayout(enableLayout)
         
-        self.countdownExpandCard = ExpandGroupSettingCard(
-            'Expand',
-            '倒计时样式设置',
-            '点击展开更多样式选项',
-            parent=self
-        )
-        self.countdownExpandCard.setFixedWidth(280)
+        displayModeLayout = QHBoxLayout()
+        displayModeLabel = BodyLabel('显示模式', self)
+        displayModeLabel.setFixedWidth(100)
+        displayModeLayout.addWidget(displayModeLabel)
+        self.countdownDisplayModeCombo = ComboBox(self)
+        self.countdownDisplayModeCombo.addItems(['同时显示', '轮播显示'])
+        self.countdownDisplayModeCombo.setCurrentText('同时显示' if cfg.countdownDisplayMode.value == 'simultaneous' else '轮播显示')
+        self.countdownDisplayModeCombo.setFixedWidth(120)
+        self.countdownDisplayModeCombo.currentTextChanged.connect(self._onCountdownDisplayModeChanged)
+        displayModeLayout.addWidget(self.countdownDisplayModeCombo)
+        layout.addLayout(displayModeLayout)
         
-        displayModeCard = ComboBoxSettingCard(
-            'DisplayMode',
-            '显示模式',
-            '同时显示或轮播显示',
-            ['同时显示', '轮播显示'],
-            self.countdownExpandCard
-        )
-        displayModeCard.comboBox.setCurrentText('同时显示' if cfg.countdownDisplayMode.value == 'simultaneous' else '轮播显示')
-        displayModeCard.comboBox.currentTextChanged.connect(self._onCountdownDisplayModeChanged)
-        self.countdownExpandCard.addSettingCard(displayModeCard)
+        titleColorLayout = QHBoxLayout()
+        titleColorLabel = BodyLabel('标题颜色', self)
+        titleColorLabel.setFixedWidth(100)
+        titleColorLayout.addWidget(titleColorLabel)
+        self.countdownTitleColorCombo = ComboBox(self)
+        self.countdownTitleColorCombo.addItems(['主要颜色', '白色', '黑色'])
+        self.countdownTitleColorCombo.setCurrentText(self._getColorText(cfg.countdownTitleColor.value))
+        self.countdownTitleColorCombo.setFixedWidth(120)
+        self.countdownTitleColorCombo.currentTextChanged.connect(self._onCountdownTitleColorChanged)
+        titleColorLayout.addWidget(self.countdownTitleColorCombo)
+        layout.addLayout(titleColorLayout)
         
-        positionCard = ComboBoxSettingCard(
-            'Position',
-            '倒计时位置',
-            '选择倒计时显示位置',
-            ['左上预留', '左上', '右上预留', '右上', '左下预留', '左下', '右下预留', '右下', '中部', '顶部', '顶部偏下', '底部偏上', '底部'],
-            self.countdownExpandCard
-        )
-        positionCard.comboBox.setCurrentText(cfg.countdownPosition.value)
-        positionCard.comboBox.currentTextChanged.connect(self._onCountdownPositionChanged)
-        self.countdownExpandCard.addSettingCard(positionCard)
-        
-        titleColorCard = ComboBoxSettingCard(
-            'TitleColor',
-            '标题颜色',
-            '设置标题文字颜色',
-            ['主要颜色', '白色', '黑色'],
-            self.countdownExpandCard
-        )
-        titleColorCard.comboBox.setCurrentText(self._getColorText(cfg.countdownTitleColor.value))
-        titleColorCard.comboBox.currentTextChanged.connect(self._onCountdownTitleColorChanged)
-        self.countdownExpandCard.addSettingCard(titleColorCard)
-        
-        titleBoldCard = SwitchSettingCard(
-            'TitleBold',
-            '标题加粗',
-            '是否加粗标题文字',
-            self.countdownExpandCard
-        )
-        titleBoldCard.switchButton.setChecked(cfg.countdownTitleBold.value)
-        titleBoldCard.switchButton.checkedChanged.connect(self._onCountdownTitleBoldChanged)
-        self.countdownExpandCard.addSettingCard(titleBoldCard)
+        titleBoldLayout = QHBoxLayout()
+        titleBoldLabel = BodyLabel('标题加粗', self)
+        titleBoldLabel.setFixedWidth(100)
+        titleBoldLayout.addWidget(titleBoldLabel)
+        self.countdownTitleBoldSwitch = SwitchButton(self)
+        self.countdownTitleBoldSwitch.setChecked(cfg.countdownTitleBold.value)
+        self.countdownTitleBoldSwitch.checkedChanged.connect(self._onCountdownTitleBoldChanged)
+        titleBoldLayout.addWidget(self.countdownTitleBoldSwitch)
+        layout.addLayout(titleBoldLayout)
         
         titleSizeLayout = QHBoxLayout()
         titleSizeLabel = BodyLabel('标题大小', self)
@@ -849,18 +848,19 @@ class EditPanel(QWidget):
         self.countdownTitleSizeSpin.setFixedWidth(120)
         self.countdownTitleSizeSpin.valueChanged.connect(self._onCountdownTitleSizeChanged)
         titleSizeLayout.addWidget(self.countdownTitleSizeSpin)
-        self.countdownExpandCard.addLayout(titleSizeLayout)
+        layout.addLayout(titleSizeLayout)
         
-        connectorColorCard = ComboBoxSettingCard(
-            'ConnectorColor',
-            '连接词颜色',
-            '设置"仅剩"等连接词颜色',
-            ['主要颜色', '白色', '黑色'],
-            self.countdownExpandCard
-        )
-        connectorColorCard.comboBox.setCurrentText(self._getColorText(cfg.countdownConnectorColor.value))
-        connectorColorCard.comboBox.currentTextChanged.connect(self._onCountdownConnectorColorChanged)
-        self.countdownExpandCard.addSettingCard(connectorColorCard)
+        connectorColorLayout = QHBoxLayout()
+        connectorColorLabel = BodyLabel('连接词颜色', self)
+        connectorColorLabel.setFixedWidth(100)
+        connectorColorLayout.addWidget(connectorColorLabel)
+        self.countdownConnectorColorCombo = ComboBox(self)
+        self.countdownConnectorColorCombo.addItems(['主要颜色', '白色', '黑色'])
+        self.countdownConnectorColorCombo.setCurrentText(self._getColorText(cfg.countdownConnectorColor.value))
+        self.countdownConnectorColorCombo.setFixedWidth(120)
+        self.countdownConnectorColorCombo.currentTextChanged.connect(self._onCountdownConnectorColorChanged)
+        connectorColorLayout.addWidget(self.countdownConnectorColorCombo)
+        layout.addLayout(connectorColorLayout)
         
         connectorSizeLayout = QHBoxLayout()
         connectorSizeLabel = BodyLabel('连接词大小', self)
@@ -872,18 +872,19 @@ class EditPanel(QWidget):
         self.countdownConnectorSizeSpin.setFixedWidth(120)
         self.countdownConnectorSizeSpin.valueChanged.connect(self._onCountdownConnectorSizeChanged)
         connectorSizeLayout.addWidget(self.countdownConnectorSizeSpin)
-        self.countdownExpandCard.addLayout(connectorSizeLayout)
+        layout.addLayout(connectorSizeLayout)
         
-        daysColorCard = ComboBoxSettingCard(
-            'DaysColor',
-            '天数颜色',
-            '设置天数文字颜色',
-            ['主要颜色', '白色', '黑色'],
-            self.countdownExpandCard
-        )
-        daysColorCard.comboBox.setCurrentText(self._getColorText(cfg.countdownDaysColor.value))
-        daysColorCard.comboBox.currentTextChanged.connect(self._onCountdownDaysColorChanged)
-        self.countdownExpandCard.addSettingCard(daysColorCard)
+        daysColorLayout = QHBoxLayout()
+        daysColorLabel = BodyLabel('天数颜色', self)
+        daysColorLabel.setFixedWidth(100)
+        daysColorLayout.addWidget(daysColorLabel)
+        self.countdownDaysColorCombo = ComboBox(self)
+        self.countdownDaysColorCombo.addItems(['主要颜色', '白色', '黑色'])
+        self.countdownDaysColorCombo.setCurrentText(self._getColorText(cfg.countdownDaysColor.value))
+        self.countdownDaysColorCombo.setFixedWidth(120)
+        self.countdownDaysColorCombo.currentTextChanged.connect(self._onCountdownDaysColorChanged)
+        daysColorLayout.addWidget(self.countdownDaysColorCombo)
+        layout.addLayout(daysColorLayout)
         
         daysSizeLayout = QHBoxLayout()
         daysSizeLabel = BodyLabel('天数大小', self)
@@ -895,7 +896,7 @@ class EditPanel(QWidget):
         self.countdownDaysSizeSpin.setFixedWidth(120)
         self.countdownDaysSizeSpin.valueChanged.connect(self._onCountdownDaysSizeChanged)
         daysSizeLayout.addWidget(self.countdownDaysSizeSpin)
-        self.countdownExpandCard.addLayout(daysSizeLayout)
+        layout.addLayout(daysSizeLayout)
         
         carouselIntervalLayout = QHBoxLayout()
         carouselIntervalLabel = BodyLabel('轮播间隔', self)
@@ -907,9 +908,19 @@ class EditPanel(QWidget):
         self.countdownCarouselIntervalSpin.setFixedWidth(120)
         self.countdownCarouselIntervalSpin.valueChanged.connect(self._onCountdownCarouselIntervalChanged)
         carouselIntervalLayout.addWidget(self.countdownCarouselIntervalSpin)
-        self.countdownExpandCard.addLayout(carouselIntervalLayout)
+        layout.addLayout(carouselIntervalLayout)
         
-        layout.addWidget(self.countdownExpandCard)
+        positionLayout = QHBoxLayout()
+        positionLabel = BodyLabel('倒计时位置', self)
+        positionLabel.setFixedWidth(100)
+        positionLayout.addWidget(positionLabel)
+        self.countdownPositionCombo = ComboBox(self)
+        self.countdownPositionCombo.addItems(['左上预留', '左上', '右上预留', '右上', '左下预留', '左下', '右下预留', '右下', '中部', '顶部', '顶部偏下', '底部偏上', '底部'])
+        self.countdownPositionCombo.setCurrentText(cfg.countdownPosition.value)
+        self.countdownPositionCombo.setFixedWidth(120)
+        self.countdownPositionCombo.currentTextChanged.connect(self._onCountdownPositionChanged)
+        positionLayout.addWidget(self.countdownPositionCombo)
+        layout.addLayout(positionLayout)
         
         listLabel = BodyLabel('倒计时列表', self)
         layout.addWidget(listLabel)
@@ -934,6 +945,36 @@ class EditPanel(QWidget):
     def _updateShowCountdownSwitch(self, value):
         self.showCountdownSwitch.setChecked(value)
         self._updateCountdownSettingsEnabled(value)
+    
+    def _updateCountdownDisplayModeCombo(self, value):
+        self.countdownDisplayModeCombo.setCurrentText('同时显示' if value == 'simultaneous' else '轮播显示')
+    
+    def _updateCountdownPositionCombo(self, value):
+        self.countdownPositionCombo.setCurrentText(value)
+    
+    def _updateCountdownTitleColorCombo(self, value):
+        self.countdownTitleColorCombo.setCurrentText(self._getColorText(value))
+    
+    def _updateCountdownTitleBoldSwitch(self, value):
+        self.countdownTitleBoldSwitch.setChecked(value)
+    
+    def _updateCountdownTitleSizeSpin(self, value):
+        self.countdownTitleSizeSpin.setValue(value)
+    
+    def _updateCountdownConnectorColorCombo(self, value):
+        self.countdownConnectorColorCombo.setCurrentText(self._getColorText(value))
+    
+    def _updateCountdownConnectorSizeSpin(self, value):
+        self.countdownConnectorSizeSpin.setValue(value)
+    
+    def _updateCountdownDaysColorCombo(self, value):
+        self.countdownDaysColorCombo.setCurrentText(self._getColorText(value))
+    
+    def _updateCountdownDaysSizeSpin(self, value):
+        self.countdownDaysSizeSpin.setValue(value)
+    
+    def _updateCountdownCarouselIntervalSpin(self, value):
+        self.countdownCarouselIntervalSpin.setValue(value)
     
     def _formatRemainingTime(self, target_time_str):
         try:
