@@ -357,6 +357,10 @@ def default_cfg():
         "Countdown": {
             "ShowCountdown": True,
             "DisplayMode": "simultaneous",
+            "TextColor": "#FF0000",
+            "TextSize": 35,
+            "ConnectorColor": "#FFFFFF",
+            "ConnectorSize": 35,
             "CountdownColor": "#FFFFFF",
             "CountdownSize": 48,
             "CountdownPosition": "中部",
