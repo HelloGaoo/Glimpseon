@@ -782,6 +782,8 @@ class EditPanel(QWidget):
     
     def _createCountdownSettings(self, layout):
         """创建倒计时设置"""
+        layout.setSpacing(8)
+        
         titleLabel = StrongBodyLabel('倒计时设置', self)
         layout.addWidget(titleLabel)
         
@@ -796,23 +798,28 @@ class EditPanel(QWidget):
         layout.addLayout(enableLayout)
         
         # 颜色设置（不折叠）
+        colorWidget = QWidget()
+        colorVBoxLayout = QVBoxLayout(colorWidget)
+        colorVBoxLayout.setContentsMargins(0, 0, 0, 0)
+        colorVBoxLayout.setSpacing(8)
         self.countdownTextColorCard = CustomColorSettingCard(
             cfg.countdownTextColor,
             FIF.PALETTE,
             '文字颜色',
             '更改文字颜色',
-            parent=self
+            parent=colorWidget
         )
-        layout.addWidget(self.countdownTextColorCard)
+        colorVBoxLayout.addWidget(self.countdownTextColorCard)
         
         self.countdownConnectorColorCard = CustomColorSettingCard(
             cfg.countdownConnectorColor,
             FIF.PALETTE,
             '连接词颜色',
             '更改连接词颜色',
-            parent=self
+            parent=colorWidget
         )
-        layout.addWidget(self.countdownConnectorColorCard)
+        colorVBoxLayout.addWidget(self.countdownConnectorColorCard)
+        layout.addWidget(colorWidget)
         
         # 大小设置折叠组
         self.sizeGroup = ExpandGroupSettingCard(
@@ -825,7 +832,7 @@ class EditPanel(QWidget):
         # 文字大小
         textSizeWidget = QWidget()
         textSizeLayout = QHBoxLayout(textSizeWidget)
-        textSizeLayout.setContentsMargins(16, 0, 16, 0)
+        textSizeLayout.setContentsMargins(16, 8, 16, 8)
         textSizeLabel = BodyLabel('文字大小', self)
         textSizeLabel.setFixedWidth(80)
         textSizeLayout.addWidget(textSizeLabel)
@@ -841,7 +848,7 @@ class EditPanel(QWidget):
         # 连接词大小
         connectorSizeWidget = QWidget()
         connectorSizeLayout = QHBoxLayout(connectorSizeWidget)
-        connectorSizeLayout.setContentsMargins(16, 0, 16, 0)
+        connectorSizeLayout.setContentsMargins(16, 8, 16, 8)
         connectorSizeLabel = BodyLabel('连接词大小', self)
         connectorSizeLabel.setFixedWidth(80)
         connectorSizeLayout.addWidget(connectorSizeLabel)
@@ -866,7 +873,7 @@ class EditPanel(QWidget):
         # 显示模式
         displayModeWidget = QWidget()
         displayModeLayout = QHBoxLayout(displayModeWidget)
-        displayModeLayout.setContentsMargins(16, 0, 16, 0)
+        displayModeLayout.setContentsMargins(16, 8, 16, 8)
         displayModeLabel = BodyLabel('显示模式', self)
         displayModeLabel.setFixedWidth(80)
         displayModeLayout.addWidget(displayModeLabel)
@@ -882,7 +889,7 @@ class EditPanel(QWidget):
         # 轮播间隔
         carouselIntervalWidget = QWidget()
         carouselIntervalLayout = QHBoxLayout(carouselIntervalWidget)
-        carouselIntervalLayout.setContentsMargins(16, 0, 16, 0)
+        carouselIntervalLayout.setContentsMargins(16, 8, 16, 8)
         carouselIntervalLabel = BodyLabel('轮播间隔', self)
         carouselIntervalLabel.setFixedWidth(80)
         carouselIntervalLayout.addWidget(carouselIntervalLabel)
@@ -898,7 +905,7 @@ class EditPanel(QWidget):
         # 倒计时位置
         positionWidget = QWidget()
         positionLayout = QHBoxLayout(positionWidget)
-        positionLayout.setContentsMargins(16, 0, 16, 0)
+        positionLayout.setContentsMargins(16, 8, 16, 8)
         positionLabel = BodyLabel('倒计时位置', self)
         positionLabel.setFixedWidth(80)
         positionLayout.addWidget(positionLabel)
