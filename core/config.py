@@ -101,6 +101,18 @@ class LogLevelSerializer(ConfigSerializer):
         return LogLevel.INFO
 
 
+class CountdownListSerializer(ConfigSerializer):
+    """ 倒计时列表 """
+    def serialize(self, countdown_list):
+        if not countdown_list:
+            return []
+        return countdown_list
+    def deserialize(self, value):
+        if not value or not isinstance(value, list):
+            return []
+        return value
+
+
 class Config(QConfig):
     """ 应用配置 """
 
@@ -252,7 +264,7 @@ class Config(QConfig):
         "Countdown", "CarouselInterval", 5, RangeValidator(1, 60)
     )
     countdownList = ConfigItem(
-        "Countdown", "CountdownList", [], None
+        "Countdown", "CountdownList", [], validator=None, serializer=CountdownListSerializer()
     )
 
 
