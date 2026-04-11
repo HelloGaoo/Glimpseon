@@ -68,7 +68,7 @@ def _install_system_fonts() -> bool:
     system_font_dir = os.path.join(os.environ['WINDIR'], 'Fonts')
     local_font_dir = get_fontdir()
     if not os.path.exists(local_font_dir):
-        logger.warning(f"鸿蒙字体目录不存在：{local_font_dir}")
+        logger.warning(f"字体目录不存在：{local_font_dir}")
         return False
     try:
         for font_file in HARMONYOS_FONT_FILES:
@@ -86,7 +86,7 @@ def _install_system_fonts() -> bool:
         )
         return True
     except Exception as e:
-        logger.warning(f"安装鸿蒙字体到系统失败：{e}")
+        logger.warning(f"安装字体到系统失败：{e}")
         return False
 
 
@@ -94,7 +94,7 @@ def _load_app_fonts() -> bool:
     """加载到应用程序"""
     font_dir = get_fontdir()
     if not os.path.exists(font_dir):
-        logger.warning(f"鸿蒙字体目录不存在：{font_dir}")
+        logger.warning(f"字体目录不存在：{font_dir}")
         return False
     font_loaded = False
     for font_file in HARMONYOS_FONT_FILES:
@@ -110,8 +110,8 @@ def _load_app_fonts() -> bool:
         except Exception as e:
             logger.warning(f"加载字体 {font_file} 时发生错误：{e}")
     
-    if font_loaded:logger.info("鸿蒙字体已加载到应用程序")
-    else:logger.warning("未成功加载任何鸿蒙字体")
+    if font_loaded:logger.info("字体已加载到应用程序")
+    else:logger.warning("未成功加载任何字体")
     return font_loaded
 
 
