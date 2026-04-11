@@ -1089,6 +1089,11 @@ class MainWindow(FluentWindow):
             layout.setAlignment(Qt.AlignBottom)
             layout.setContentsMargins(0, 0, 0, 0)
         
+        layout.update()
+        self.clockContainer.update()
+        self.homeContent.update()
+        QApplication.processEvents()
+        
         logger.info(f"时间组件位置已更新为：{position}")
     
     def __updateWeatherPosition(self):
@@ -1118,6 +1123,12 @@ class MainWindow(FluentWindow):
         elif position == "右下预留":
             layout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
             layout.setContentsMargins(0, 0, small_margin, small_margin)
+        
+        layout.update()
+        self.weatherContainer.update()
+        self.homeContent.update()
+        QApplication.processEvents()
+        
         logger.info(f"天气组件位置已更新为：{position}")
     
     def __updatePoetryPosition(self):
@@ -1131,6 +1142,12 @@ class MainWindow(FluentWindow):
         elif position == "底部预留":
             layout.setAlignment(Qt.AlignBottom)
             layout.setContentsMargins(0, 0, 0, small_margin)
+        
+        layout.update()
+        self.poetryContainer.update()
+        self.homeContent.update()
+        QApplication.processEvents()
+        
         logger.info(f"一言组件位置已更新为：{position}")
     
     def __updatePoetryInterval(self):
@@ -1616,6 +1633,11 @@ class MainWindow(FluentWindow):
         elif position == "底部":
             layout.setAlignment(Qt.AlignBottom)
             layout.setContentsMargins(0, 0, 0, 0)
+        
+        layout.update()
+        self.countdownContainer.update()
+        self.homeContent.update()
+        QApplication.processEvents()
         
         logger.info(f"倒计时组件位置已更新为：{position}")
 
