@@ -210,11 +210,13 @@ class AboutInterface(BaseScrollAreaInterface):
         else:
             license_text = "GNU GENERAL PUBLIC LICENSE\nVersion 3, 29 June 2007\n\nCopyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>\n\n此项目基于 GPL-3.0 许可证授权发布。"
         
+        main_window = self.window()
+        
         # 创建消息框
         msg_box = MessageBox(
             title="软件许可协议",
             content="此项目 (ClassLively) 基于 GNU General Public License Version 3 许可证发布：",
-            parent=self
+            parent=main_window
         )
         msg_box.cancelButton.hide()
         
