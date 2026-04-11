@@ -241,9 +241,6 @@ class Config(QConfig):
         "Countdown", "CountdownPosition", "中部", OptionsValidator(["左上预留", "左上", "右上预留", "右上", "左下预留", "左下", "右下预留", "右下", "中部", "顶部", "顶部偏下", "底部偏上", "底部"])
     )
     countdownTextColor = ColorConfigItem("Countdown", "TextColor", "#FFFFFF")
-    countdownTitleBold = ConfigItem(
-        "Countdown", "TitleBold", True, BoolValidator()
-    )
     countdownTextSize = RangeConfigItem(
         "Countdown", "TextSize", 20, RangeValidator(12, 120)
     )
