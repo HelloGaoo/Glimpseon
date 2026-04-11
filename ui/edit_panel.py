@@ -38,6 +38,7 @@ from qfluentwidgets import (
     CalendarPicker,
     ComboBox,
     CustomColorSettingCard,
+    ExpandGroupSettingCard,
     FluentIcon as FIF,
     InfoBar,
     isDarkTheme,
@@ -162,13 +163,8 @@ class EditPanel(QWidget):
         self.weatherPositionCombo.setEnabled(enabled)
     
     def _updateCountdownSettingsEnabled(self, enabled):
-        self.countdownDisplayModeCombo.setEnabled(enabled)
-        self.countdownPositionCombo.setEnabled(enabled)
-        self.countdownTextColorCard.setEnabled(enabled)
-        self.countdownTextSizeSpin.setEnabled(enabled)
-        self.countdownConnectorColorCard.setEnabled(enabled)
-        self.countdownConnectorSizeSpin.setEnabled(enabled)
-        self.countdownCarouselIntervalSpin.setEnabled(enabled)
+        self.appearanceGroup.setEnabled(enabled)
+        self.displayGroup.setEnabled(enabled)
         self.countdownAddButton.setEnabled(enabled)
         self.countdownListWidget.setEnabled(enabled)
         self.countdownEditButton.setEnabled(enabled)
@@ -797,30 +793,30 @@ class EditPanel(QWidget):
         enableLayout.addWidget(self.showCountdownSwitch)
         layout.addLayout(enableLayout)
         
-        displayModeLayout = QHBoxLayout()
-        displayModeLabel = BodyLabel('显示模式', self)
-        displayModeLabel.setFixedWidth(100)
-        displayModeLayout.addWidget(displayModeLabel)
-        self.countdownDisplayModeCombo = ComboBox(self)
-        self.countdownDisplayModeCombo.addItems(['同时显示', '轮播显示'])
-        self.countdownDisplayModeCombo.setCurrentText('同时显示' if cfg.countdownDisplayMode.value == 'simultaneous' else '轮播显示')
-        self.countdownDisplayModeCombo.setFixedWidth(120)
-        self.countdownDisplayModeCombo.currentTextChanged.connect(self._onCountdownDisplayModeChanged)
-        displayModeLayout.addWidget(self.countdownDisplayModeCombo)
-        layout.addLayout(displayModeLayout)
+        # 外观设置折叠组
+        self.appearanceGroup = ExpandGroupSettingCard(
+            FIF.PALETTE,
+            '外观设置',
+            '自定义倒计时文字和连接词的样式',
+            parent=self
+        )
         
+        # 文字颜色
         self.countdownTextColorCard = CustomColorSettingCard(
             cfg.countdownTextColor,
             FIF.PALETTE,
             '文字颜色',
             '更改倒计时文字的主要颜色',
-            parent=self
+            parent=self.appearanceGroup
         )
-        layout.addWidget(self.countdownTextColorCard)
+        self.appearanceGroup.addGroupWidget(self.countdownTextColorCard)
         
-        textSizeLayout = QHBoxLayout()
+        # 文字大小
+        textSizeWidget = QWidget()
+        textSizeLayout = QHBoxLayout(textSizeWidget)
+        textSizeLayout.setContentsMargins(16, 0, 16, 0)
         textSizeLabel = BodyLabel('文字大小', self)
-        textSizeLabel.setFixedWidth(100)
+        textSizeLabel.setFixedWidth(80)
         textSizeLayout.addWidget(textSizeLabel)
         self.countdownTextSizeSpin = SpinBox(self)
         self.countdownTextSizeSpin.setRange(12, 120)
@@ -828,11 +824,25 @@ class EditPanel(QWidget):
         self.countdownTextSizeSpin.setFixedWidth(120)
         self.countdownTextSizeSpin.valueChanged.connect(self._onCountdownTextSizeChanged)
         textSizeLayout.addWidget(self.countdownTextSizeSpin)
-        layout.addLayout(textSizeLayout)
+        textSizeLayout.addStretch()
+        self.appearanceGroup.addGroupWidget(textSizeWidget)
         
-        connectorSizeLayout = QHBoxLayout()
+        # 连接词颜色
+        self.countdownConnectorColorCard = CustomColorSettingCard(
+            cfg.countdownConnectorColor,
+            FIF.PALETTE,
+            '连接词颜色',
+            '更改倒计时连接词的主要颜色',
+            parent=self.appearanceGroup
+        )
+        self.appearanceGroup.addGroupWidget(self.countdownConnectorColorCard)
+        
+        # 连接词大小
+        connectorSizeWidget = QWidget()
+        connectorSizeLayout = QHBoxLayout(connectorSizeWidget)
+        connectorSizeLayout.setContentsMargins(16, 0, 16, 0)
         connectorSizeLabel = BodyLabel('连接词大小', self)
-        connectorSizeLabel.setFixedWidth(100)
+        connectorSizeLabel.setFixedWidth(80)
         connectorSizeLayout.addWidget(connectorSizeLabel)
         self.countdownConnectorSizeSpin = SpinBox(self)
         self.countdownConnectorSizeSpin.setRange(12, 60)
@@ -840,20 +850,41 @@ class EditPanel(QWidget):
         self.countdownConnectorSizeSpin.setFixedWidth(120)
         self.countdownConnectorSizeSpin.valueChanged.connect(self._onCountdownConnectorSizeChanged)
         connectorSizeLayout.addWidget(self.countdownConnectorSizeSpin)
-        layout.addLayout(connectorSizeLayout)
+        connectorSizeLayout.addStretch()
+        self.appearanceGroup.addGroupWidget(connectorSizeWidget)
         
-        self.countdownConnectorColorCard = CustomColorSettingCard(
-            cfg.countdownConnectorColor,
-            FIF.PALETTE,
-            '连接词颜色',
-            '更改倒计时连接词的主要颜色',
+        layout.addWidget(self.appearanceGroup)
+        
+        # 显示设置折叠组
+        self.displayGroup = ExpandGroupSettingCard(
+            FIF.LAYOUT,
+            '显示设置',
+            '配置倒计时的显示方式和位置',
             parent=self
         )
-        layout.addWidget(self.countdownConnectorColorCard)
         
-        carouselIntervalLayout = QHBoxLayout()
+        # 显示模式
+        displayModeWidget = QWidget()
+        displayModeLayout = QHBoxLayout(displayModeWidget)
+        displayModeLayout.setContentsMargins(16, 0, 16, 0)
+        displayModeLabel = BodyLabel('显示模式', self)
+        displayModeLabel.setFixedWidth(80)
+        displayModeLayout.addWidget(displayModeLabel)
+        self.countdownDisplayModeCombo = ComboBox(self)
+        self.countdownDisplayModeCombo.addItems(['同时显示', '轮播显示'])
+        self.countdownDisplayModeCombo.setCurrentText('同时显示' if cfg.countdownDisplayMode.value == 'simultaneous' else '轮播显示')
+        self.countdownDisplayModeCombo.setFixedWidth(120)
+        self.countdownDisplayModeCombo.currentTextChanged.connect(self._onCountdownDisplayModeChanged)
+        displayModeLayout.addWidget(self.countdownDisplayModeCombo)
+        displayModeLayout.addStretch()
+        self.displayGroup.addGroupWidget(displayModeWidget)
+        
+        # 轮播间隔
+        carouselIntervalWidget = QWidget()
+        carouselIntervalLayout = QHBoxLayout(carouselIntervalWidget)
+        carouselIntervalLayout.setContentsMargins(16, 0, 16, 0)
         carouselIntervalLabel = BodyLabel('轮播间隔', self)
-        carouselIntervalLabel.setFixedWidth(100)
+        carouselIntervalLabel.setFixedWidth(80)
         carouselIntervalLayout.addWidget(carouselIntervalLabel)
         self.countdownCarouselIntervalSpin = SpinBox(self)
         self.countdownCarouselIntervalSpin.setRange(1, 60)
@@ -861,11 +892,15 @@ class EditPanel(QWidget):
         self.countdownCarouselIntervalSpin.setFixedWidth(120)
         self.countdownCarouselIntervalSpin.valueChanged.connect(self._onCountdownCarouselIntervalChanged)
         carouselIntervalLayout.addWidget(self.countdownCarouselIntervalSpin)
-        layout.addLayout(carouselIntervalLayout)
+        carouselIntervalLayout.addStretch()
+        self.displayGroup.addGroupWidget(carouselIntervalWidget)
         
-        positionLayout = QHBoxLayout()
+        # 倒计时位置
+        positionWidget = QWidget()
+        positionLayout = QHBoxLayout(positionWidget)
+        positionLayout.setContentsMargins(16, 0, 16, 0)
         positionLabel = BodyLabel('倒计时位置', self)
-        positionLabel.setFixedWidth(100)
+        positionLabel.setFixedWidth(80)
         positionLayout.addWidget(positionLabel)
         self.countdownPositionCombo = ComboBox(self)
         self.countdownPositionCombo.addItems(['左上预留', '左上', '右上预留', '右上', '左下预留', '左下', '右下预留', '右下', '中部', '顶部', '顶部偏下', '底部偏上', '底部'])
@@ -873,7 +908,10 @@ class EditPanel(QWidget):
         self.countdownPositionCombo.setFixedWidth(120)
         self.countdownPositionCombo.currentTextChanged.connect(self._onCountdownPositionChanged)
         positionLayout.addWidget(self.countdownPositionCombo)
-        layout.addLayout(positionLayout)
+        positionLayout.addStretch()
+        self.displayGroup.addGroupWidget(positionWidget)
+        
+        layout.addWidget(self.displayGroup)
         
         listLabel = BodyLabel('倒计时列表', self)
         layout.addWidget(listLabel)
