@@ -45,5 +45,5 @@ url_dir = [
     {"filename": "QQ.exe", "url": "https://dldir1v6.qq.com/qqfile/qq/QQNT/Windows/QQ_9.9.21_250822_x64_01.exe"},
     {"filename": "UU远程.exe", "github_path": "/HelloGaoo/SeevvoDownloader/releases/download/v1.0.0/uuyc_4.16.5_gwgame.exe"},
     {"filename": "网易云音乐.exe", "github_path": "/HelloGaoo/SeevvoDownloader/releases/download/v1.0.0/neteaseCloudMusic.exe"},
-    {"filename": "office2021.exe", "url": "https://c2rsetup.officeapps.live.com/c2r/download.aspx?productReleaseID=ProPlus2021Retail&platform=X64&language=zh-cn"},
+    {"filename": "office2021.exe", "github_path": "/HelloGaoo/SeevvoDownloader/releases/download/v1.0.0/office2021.7z"},
 ]
