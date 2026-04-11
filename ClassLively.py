@@ -378,18 +378,21 @@ class MainWindow(FluentWindow):
         self.countdownTimer.timeout.connect(self.__updateCountdown)
         self.countdownCarouselIndex = 0
         cfg.showCountdown.valueChanged.connect(self.__updateCountdown)
-        cfg.countdownTextColor.valueChanged.connect(self.updateCountdownStyle)
-        cfg.countdownTextSize.valueChanged.connect(self.updateCountdownStyle)
-        cfg.countdownConnectorColor.valueChanged.connect(self.updateCountdownStyle)
-        cfg.countdownConnectorSize.valueChanged.connect(self.updateCountdownStyle)
+        cfg.countdownTextColor.valueChanged.connect(self._onCountdownStyleChanged)
+        cfg.countdownTextSize.valueChanged.connect(self._onCountdownStyleChanged)
+        cfg.countdownConnectorColor.valueChanged.connect(self._onCountdownStyleChanged)
+        cfg.countdownConnectorSize.valueChanged.connect(self._onCountdownStyleChanged)
         cfg.countdownPosition.valueChanged.connect(self.__updateCountdownPosition)
         cfg.countdownDisplayMode.valueChanged.connect(self.__updateCountdown)
         cfg.countdownCarouselInterval.valueChanged.connect(self.__updateCountdownCarouselInterval)
         cfg.countdownList.valueChanged.connect(self.__updateCountdown)
+        self.updateCountdownStyle()
+        
         self.__updateCountdownCarouselInterval()
         self.__updateCountdown()
-        
-        # 更新组件位置
+        self.countdownRefreshTimer = QTimer(self)
+        self.countdownRefreshTimer.timeout.connect(self.__updateCountdown)
+        self.countdownRefreshTimer.start(1000)
         self.__updateComponentPositions()
         
         # 天气更新定时
@@ -1469,7 +1472,6 @@ class MainWindow(FluentWindow):
             self.countdownContainer.hide()
             return
         self.countdownContainer.show()
-        self.updateCountdownStyle()
         countdown_list = cfg.countdownList.value or []
         if not countdown_list:
             self.countdownLabel.setText("")
@@ -1561,6 +1563,10 @@ class MainWindow(FluentWindow):
         self.countdownConnectorColor = connector_color_str
         self.countdownConnectorSize = connector_size
         self.countdownDaysSize = text_size
+    
+    def _onCountdownStyleChanged(self):
+        """ 倒计时样式变化 """
+        self.updateCountdownStyle()
         self.__updateCountdown()
     
     def __updateCountdownPosition(self):
@@ -1612,7 +1618,6 @@ class MainWindow(FluentWindow):
             layout.setContentsMargins(0, 0, 0, 0)
         
         logger.info(f"倒计时组件位置已更新为：{position}")
-        self.__updateCountdown()
 
 def autoStart_launch():
     """检查是否是通过开机自启动启动的"""
