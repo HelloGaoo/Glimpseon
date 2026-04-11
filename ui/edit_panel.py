@@ -1049,7 +1049,10 @@ class EditPanel(QWidget):
                 countdown_list = cfg.countdownList.value or []
                 countdown_list.append(countdown_data)
                 cfg.countdownList.value = countdown_list
+                current_row = self.countdownListWidget.currentRow()
                 self._updateCountdownList()
+                if self.countdownListWidget.count() > 0:
+                    self.countdownListWidget.setCurrentRow(self.countdownListWidget.count() - 1)
                 if hasattr(self.mainWindow, '_MainWindow__updateCountdown'):
                     self.mainWindow._MainWindow__updateCountdown()
                 logger.info(f"倒计时设置：添加倒计时={countdown_data}")
@@ -1070,6 +1073,8 @@ class EditPanel(QWidget):
                 countdown_list[current_row] = countdown_data
                 cfg.countdownList.value = countdown_list
                 self._updateCountdownList()
+                if 0 <= current_row < self.countdownListWidget.count():
+                    self.countdownListWidget.setCurrentRow(current_row)
                 if hasattr(self.mainWindow, '_MainWindow__updateCountdown'):
                     self.mainWindow._MainWindow__updateCountdown()
                 logger.info(f"倒计时设置：编辑倒计时={countdown_data}")
@@ -1085,6 +1090,9 @@ class EditPanel(QWidget):
         countdown_list.pop(current_row)
         cfg.countdownList.value = countdown_list
         self._updateCountdownList()
+        if self.countdownListWidget.count() > 0:
+            new_row = min(current_row, self.countdownListWidget.count() - 1)
+            self.countdownListWidget.setCurrentRow(new_row)
         if hasattr(self.mainWindow, '_MainWindow__updateCountdown'):
             self.mainWindow._MainWindow__updateCountdown()
         logger.info(f"倒计时设置：删除倒计时索引={current_row}")
