@@ -1524,7 +1524,7 @@ class MainWindow(FluentWindow):
             
             if hasattr(self, 'countdownTextColor'):
                 return (f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownTitleSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{title}</span>'
-                        f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">仅剩</span>'
+                        f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">仅剩</span>'
                         f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownDaysSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{time_text}</span>')
             else:
                 return f"{title}仅剩{time_text}"
@@ -1536,14 +1536,14 @@ class MainWindow(FluentWindow):
             if target_date == now_date:
                 if hasattr(self, 'countdownTextColor'):
                     return (f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownTitleSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{title}</span>'
-                            f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">就在今天</span>')
+                            f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">就在今天</span>')
                 else:
                     return f"{title}就在今天"
             else:
                 past_days = int(past_seconds // 86400)
                 if hasattr(self, 'countdownTextColor'):
                     return (f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownTitleSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{title}</span>'
-                            f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">已过去</span>'
+                            f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">已过去</span>'
                             f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownDaysSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{past_days}天</span>')
                 else:
                     return f"{title}已过去{past_days}天"
