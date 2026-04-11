@@ -171,9 +171,14 @@ class EditPanel(QWidget):
         self.countdownListWidget.setEnabled(enabled)
         self.countdownEditButton.setEnabled(enabled)
         self.countdownDeleteButton.setEnabled(enabled)
+        self.countdownTextSizeSpin.setEnabled(enabled)
+        self.countdownConnectorSizeSpin.setEnabled(enabled)
+        self.countdownDisplayModeCombo.setEnabled(enabled)
+        self.countdownCarouselIntervalSpin.setEnabled(enabled)
+        self.countdownPositionCombo.setEnabled(enabled)
     
     def _connectConfigSignals(self):
-        """连接配置变化信号到 UI 更新"""
+        """连接配置变化信到 UI 更新"""
         # 时间设置
         cfg.showClock.valueChanged.connect(self._updateShowClockSwitch)
         cfg.showClockSeconds.valueChanged.connect(self._updateShowSecondsSwitch)
@@ -797,7 +802,8 @@ class EditPanel(QWidget):
         enableLayout.addWidget(self.showCountdownSwitch)
         layout.addLayout(enableLayout)
         
-        # 颜色设置（不折叠）
+        # 颜色设置
+        # 文字颜色、连接词颜色、大小设置、显示设置这在展开或收缩的时候有存在高度问题 暂未解决
         colorWidget = QWidget()
         colorVBoxLayout = QVBoxLayout(colorWidget)
         colorVBoxLayout.setContentsMargins(0, 0, 0, 0)
