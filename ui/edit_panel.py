@@ -1211,6 +1211,11 @@ class CountdownEditDialog(MessageBoxBase):
     
     def _on_ok(self):
         try:
+            title_text = self.titleEdit.text().strip()
+            if not title_text:
+                InfoBar.error('错误', '请输入目标名称', parent=self, duration=3000)
+                return
+            
             qdate = self.datePicker.date
             qtime = self.timePicker.time
             if not qdate.isValid() or not qtime.isValid():
@@ -1218,7 +1223,7 @@ class CountdownEditDialog(MessageBoxBase):
                 return
             dt = datetime.datetime(qdate.year(), qdate.month(), qdate.day(), qtime.hour(), qtime.minute())
             self._result = {
-                'title': self.titleEdit.text(),
+                'title': title_text,
                 'target_time': dt.strftime('%Y-%m-%d %H:%M')
             }
             self.accept()
