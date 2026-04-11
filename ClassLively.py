@@ -133,6 +133,7 @@ from ui.city_selector import RegionDatabase
 from ui.developer_panel import DeveloperPanel
 from ui.settings import SettingInterface
 from ui.wallpaper import WallpaperInterface
+from ui.splash_screen import SplashScreen
 from version import BUILD_DATE, VERSION
 
 def verify_singleInst():
@@ -1668,12 +1669,19 @@ if __name__ == "__main__":
     
     app = QApplication(sys.argv)
     
-    # 加载翻译
-    # 不过这一步 设置里的颜色卡片之类的就是英文 开关是off on啥的
+    icon_path = get_resPath(os.path.join("resource", "icons", "CY.png"))
+    
+    splash = SplashScreen(APP_NAME, VERSION, icon_path)
+    splash.show()
+    splash.setProgress(10)
+    app.processEvents()
+    
     locale = QLocale(QLocale.Chinese, QLocale.China)
     fluentTranslator = FluentTranslator(locale)
     app.installTranslator(fluentTranslator)
+    
     if not verify_singleInst():
+        splash.close()
         
         temp_widget = QWidget()
         temp_widget.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
@@ -1692,7 +1700,14 @@ if __name__ == "__main__":
         w.exec()
         sys.exit(0)
     
+    splash.updateStatus("正在初始化字体...")
+    splash.setProgress(30)
+    app.processEvents()
     initialize_fonts(app, install_to_system=True)
+
+    splash.updateStatus("正在初始化日志系统...")
+    splash.setProgress(50)
+    app.processEvents()
 
     if hasattr(cfg.logLevel.value, 'value'):
         log_level_str = cfg.logLevel.value.value
@@ -1739,9 +1754,23 @@ if __name__ == "__main__":
     logger.info(f"软件运行路径：{BASE_DIR}")
     logger.debug(f"url_dir 内容：{url_dir}")
 
+    splash.updateStatus("正在初始化异常处理...")
+    splash.setProgress(70)
+    app.processEvents()
     init_exhook()
 
+    splash.updateStatus("正在创建主窗口...")
+    splash.setProgress(90)
+    app.processEvents()
     window = MainWindow()
+    
+    splash.setProgress(100)
+    app.processEvents()
+    
+    import time
+    time.sleep(0.3)
+    
+    splash.close()
     
     if auto_start_launch:
         logger.info("开机自启动模式：最大化窗口")

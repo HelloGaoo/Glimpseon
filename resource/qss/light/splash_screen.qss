@@ -1,0 +1,35 @@
+/* 启动窗口样式 */
+
+#contentWidget {
+    background-color: #FFFFFF;
+    border-radius: 10px;
+}
+
+StrongBodyLabel {
+    color: #000000;
+    font-size: 18px;
+    font-weight: bold;
+    font-family: "Microsoft YaHei UI";
+}
+
+BodyLabel {
+    color: #888888;
+    font-size: 12px;
+}
+
+#statusLabel {
+    color: #333333;
+    font-size: 13px;
+}
+
+ProgressBar {
+    background-color: #E0E0E0;
+    border-radius: 2px;
+    min-height: 4px;
+    max-height: 4px;
+}
+
+ProgressBar::chunk {
+    background-color: #0078D4;
+    border-radius: 2px;
+}
