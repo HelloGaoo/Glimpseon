@@ -71,7 +71,7 @@ class WizardWindow(QDialog):
         self.page2Layout = QVBoxLayout(self.page2)
         self.page2Layout.setAlignment(Qt.AlignTop | Qt.AlignCenter)
         self.page2Layout.setSpacing(20)
-        self.page2Layout.addSpacing(80)
+        self.page2Layout.addSpacing(60)
 
         self.agreementTitle = QLabel("软件使用协议", self.page2)
         self.agreementTitle.setStyleSheet(f"font-size: 24px; font-weight: bold; color: {text_color}; font-family: 'HarmonyOS Sans SC', 'HarmonyOS Sans', 'Microsoft YaHei', 'SimHei', sans-serif;")
@@ -81,19 +81,14 @@ class WizardWindow(QDialog):
         self.agreementText.setStyleSheet(f"font-size: 14px; color: {text_color};")
         self.agreementText.setAlignment(Qt.AlignCenter)
 
-        self.checkBoxLayout = QHBoxLayout()
-        self.checkBoxLayout.setAlignment(Qt.AlignCenter)
-        self.agreementCheckBox = CheckBox(self.page2)
-        self.agreementText2 = QLabel("已阅读并同意", self.page2)
-        self.agreementText2.setStyleSheet(f"font-size: 14px; color: {text_color};")
+        self.openSourceCheckBox = CheckBox("项目开源协议 (GPL-3.0)", self.page2)
+        self.openSourceCheckBox.setStyleSheet(f"font-size: 14px; color: {text_color};")
         
-        self.userAgreementBtn = HyperlinkButton("", "用户协议", self.page2)
-        self.privacyPolicyBtn = HyperlinkButton("", "隐私政策", self.page2)
+        self.userAgreementCheckBox = CheckBox("用户协议", self.page2)
+        self.userAgreementCheckBox.setStyleSheet(f"font-size: 14px; color: {text_color};")
         
-        self.checkBoxLayout.addWidget(self.agreementText2)
-        self.checkBoxLayout.addWidget(self.userAgreementBtn)
-        self.checkBoxLayout.addWidget(self.privacyPolicyBtn)
-        self.checkBoxLayout.addWidget(self.agreementCheckBox)
+        self.privacyCheckBox = CheckBox("隐私政策", self.page2)
+        self.privacyCheckBox.setStyleSheet(f"font-size: 14px; color: {text_color};")
 
         self.agreeButton = PrimaryPushButton(FIF.RIGHT_ARROW, "继续", self.page2)
         self.agreeButton.setFixedHeight(36)
@@ -101,8 +96,10 @@ class WizardWindow(QDialog):
 
         self.page2Layout.addWidget(self.agreementTitle, 0, Qt.AlignCenter)
         self.page2Layout.addWidget(self.agreementText, 0, Qt.AlignCenter)
-        self.page2Layout.addSpacing(20)
-        self.page2Layout.addLayout(self.checkBoxLayout)
+        self.page2Layout.addSpacing(30)
+        self.page2Layout.addWidget(self.openSourceCheckBox, 0, Qt.AlignCenter)
+        self.page2Layout.addWidget(self.userAgreementCheckBox, 0, Qt.AlignCenter)
+        self.page2Layout.addWidget(self.privacyCheckBox, 0, Qt.AlignCenter)
         self.page2Layout.addSpacing(30)
         self.page2Layout.addWidget(self.agreeButton, 0, Qt.AlignCenter)
 
@@ -111,7 +108,9 @@ class WizardWindow(QDialog):
 
         self.nextButton.clicked.connect(self._onNextClicked)
         self.agreeButton.clicked.connect(self._onAgreeClicked)
-        self.agreementCheckBox.stateChanged.connect(self._onCheckBoxChanged)
+        self.openSourceCheckBox.stateChanged.connect(self._onCheckBoxChanged)
+        self.userAgreementCheckBox.stateChanged.connect(self._onCheckBoxChanged)
+        self.privacyCheckBox.stateChanged.connect(self._onCheckBoxChanged)
 
     def closeEvent(self, event):
         msg_box = MessageBox(
@@ -128,7 +127,10 @@ class WizardWindow(QDialog):
         self.stackedWidget.setCurrentIndex(1)
     
     def _onCheckBoxChanged(self, state):
-        self.agreeButton.setEnabled(state == Qt.Checked)
+        all_checked = (self.openSourceCheckBox.isChecked() and 
+                      self.userAgreementCheckBox.isChecked() and 
+                      self.privacyCheckBox.isChecked())
+        self.agreeButton.setEnabled(all_checked)
     
     def _onAgreeClicked(self):
         complete_wizard()
