@@ -4,9 +4,11 @@ import os
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon, QPixmap, QColor
-from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget, QLabel
+from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget, QLabel, QHBoxLayout
 from qfluentwidgets import (
+    CheckBox,
     FluentIcon as FIF,
+    HyperlinkButton,
     MessageBox,
     PrimaryPushButton,
     setTheme,
@@ -32,13 +34,21 @@ class WizardWindow(QDialog):
             self.setWindowIcon(QIcon(icon_path))
 
         self.mainLayout = QVBoxLayout(self)
-        self.mainLayout.setContentsMargins(40, 120, 40, 40)
+        self.mainLayout.setContentsMargins(40, 40, 40, 40)
         self.mainLayout.setSpacing(20)
-        self.mainLayout.setAlignment(Qt.AlignTop | Qt.AlignCenter)
+
+        self.stackedWidget = QStackedWidget(self)
+        self.mainLayout.addWidget(self.stackedWidget)
         
         self.__setQss()
 
-        self.iconLabel = QLabel(self)
+        self.page1 = QWidget()
+        self.page1Layout = QVBoxLayout(self.page1)
+        self.page1Layout.setAlignment(Qt.AlignTop | Qt.AlignCenter)
+        self.page1Layout.setSpacing(20)
+        self.page1Layout.addSpacing(100)
+
+        self.iconLabel = QLabel(self.page1)
         self.iconLabel.setFixedSize(128, 128)
         self.iconLabel.setAlignment(Qt.AlignCenter)
         if os.path.exists(icon_path):
@@ -46,18 +56,62 @@ class WizardWindow(QDialog):
             self.iconLabel.setPixmap(pixmap.scaled(128, 128, Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
         text_color = "white" if isDarkTheme() else "black"
-        self.welcomeLabel = QLabel("ClassLively", self)
+        self.welcomeLabel = QLabel("ClassLively", self.page1)
         self.welcomeLabel.setStyleSheet(f"font-size: 48px; font-weight: bold; color: {text_color}; font-family: 'HarmonyOS Sans SC', 'HarmonyOS Sans', 'Microsoft YaHei', 'SimHei', sans-serif;")
         self.welcomeLabel.setAlignment(Qt.AlignCenter)
 
-        self.nextButton = PrimaryPushButton(FIF.RIGHT_ARROW, "继续", self)
+        self.nextButton = PrimaryPushButton(FIF.RIGHT_ARROW, "继续", self.page1)
         self.nextButton.setFixedHeight(36)
 
-        self.mainLayout.addWidget(self.iconLabel, 0, Qt.AlignCenter)
-        self.mainLayout.addWidget(self.welcomeLabel, 0, Qt.AlignCenter)
-        self.mainLayout.addWidget(self.nextButton, 0, Qt.AlignCenter)
+        self.page1Layout.addWidget(self.iconLabel, 0, Qt.AlignCenter)
+        self.page1Layout.addWidget(self.welcomeLabel, 0, Qt.AlignCenter)
+        self.page1Layout.addWidget(self.nextButton, 0, Qt.AlignCenter)
+
+        self.page2 = QWidget()
+        self.page2Layout = QVBoxLayout(self.page2)
+        self.page2Layout.setAlignment(Qt.AlignTop | Qt.AlignCenter)
+        self.page2Layout.setSpacing(20)
+        self.page2Layout.addSpacing(80)
+
+        self.agreementTitle = QLabel("软件使用协议", self.page2)
+        self.agreementTitle.setStyleSheet(f"font-size: 24px; font-weight: bold; color: {text_color}; font-family: 'HarmonyOS Sans SC', 'HarmonyOS Sans', 'Microsoft YaHei', 'SimHei', sans-serif;")
+        self.agreementTitle.setAlignment(Qt.AlignCenter)
+
+        self.agreementText = QLabel("在使用本软件前，请阅读并同意以下协议：", self.page2)
+        self.agreementText.setStyleSheet(f"font-size: 14px; color: {text_color};")
+        self.agreementText.setAlignment(Qt.AlignCenter)
+
+        self.checkBoxLayout = QHBoxLayout()
+        self.checkBoxLayout.setAlignment(Qt.AlignCenter)
+        self.agreementCheckBox = CheckBox(self.page2)
+        self.agreementText2 = QLabel("已阅读并同意", self.page2)
+        self.agreementText2.setStyleSheet(f"font-size: 14px; color: {text_color};")
+        
+        self.userAgreementBtn = HyperlinkButton("", "用户协议", self.page2)
+        self.privacyPolicyBtn = HyperlinkButton("", "隐私政策", self.page2)
+        
+        self.checkBoxLayout.addWidget(self.agreementText2)
+        self.checkBoxLayout.addWidget(self.userAgreementBtn)
+        self.checkBoxLayout.addWidget(self.privacyPolicyBtn)
+        self.checkBoxLayout.addWidget(self.agreementCheckBox)
+
+        self.agreeButton = PrimaryPushButton(FIF.RIGHT_ARROW, "继续", self.page2)
+        self.agreeButton.setFixedHeight(36)
+        self.agreeButton.setEnabled(False)
+
+        self.page2Layout.addWidget(self.agreementTitle, 0, Qt.AlignCenter)
+        self.page2Layout.addWidget(self.agreementText, 0, Qt.AlignCenter)
+        self.page2Layout.addSpacing(20)
+        self.page2Layout.addLayout(self.checkBoxLayout)
+        self.page2Layout.addSpacing(30)
+        self.page2Layout.addWidget(self.agreeButton, 0, Qt.AlignCenter)
+
+        self.stackedWidget.addWidget(self.page1)
+        self.stackedWidget.addWidget(self.page2)
 
         self.nextButton.clicked.connect(self._onNextClicked)
+        self.agreeButton.clicked.connect(self._onAgreeClicked)
+        self.agreementCheckBox.stateChanged.connect(self._onCheckBoxChanged)
 
     def closeEvent(self, event):
         msg_box = MessageBox(
@@ -71,7 +125,14 @@ class WizardWindow(QDialog):
             event.ignore()
 
     def _onNextClicked(self):
-        pass
+        self.stackedWidget.setCurrentIndex(1)
+    
+    def _onCheckBoxChanged(self, state):
+        self.agreeButton.setEnabled(state == Qt.Checked)
+    
+    def _onAgreeClicked(self):
+        complete_wizard()
+        self.accept()
     
     def __setQss(self):
         theme = 'dark' if isDarkTheme() else 'light'
