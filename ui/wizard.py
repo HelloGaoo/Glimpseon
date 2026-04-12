@@ -2,9 +2,9 @@
 import json
 import os
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QFont
-from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget, QHBoxLayout, QLabel
+from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget, QHBoxLayout, QLabel, QGraphicsOpacityEffect
 from qfluentwidgets import (
     BodyLabel,
     CheckBox,
@@ -127,7 +127,34 @@ class WizardWindow(QDialog):
             event.ignore()
 
     def _onNextClicked(self):
-        self.stackedWidget.setCurrentIndex(1)
+        self._setCurrentIndexAnimated(1)
+
+    def _setCurrentIndexAnimated(self, index, duration=300):
+        effect = self.stackedWidget.graphicsEffect()
+        if effect is None:
+            effect = QGraphicsOpacityEffect(self.stackedWidget)
+            effect.setOpacity(1.0)
+            self.stackedWidget.setGraphicsEffect(effect)
+
+        anim = QPropertyAnimation(effect, b"opacity", self)
+        anim.setDuration(max(50, duration // 2))
+        anim.setStartValue(1.0)
+        anim.setEndValue(0.0)
+        anim.setEasingCurve(QEasingCurve.InOutQuad)
+
+        def _after_fade_out():
+            self.stackedWidget.setCurrentIndex(index)
+            anim2 = QPropertyAnimation(effect, b"opacity", self)
+            anim2.setDuration(max(50, duration // 2))
+            anim2.setStartValue(0.0)
+            anim2.setEndValue(1.0)
+            anim2.setEasingCurve(QEasingCurve.InOutQuad)
+            self._current_animation = anim2
+            anim2.start()
+
+        anim.finished.connect(_after_fade_out)
+        self._current_animation = anim
+        anim.start()
     
     def _onCheckBoxChanged(self, state):
         all_checked = (self.openSourceCheckBox.isChecked() and 
