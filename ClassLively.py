@@ -128,7 +128,7 @@ from core.updater import (
 )
 from data.software_list import SOFTWARE_CATEGORIES, get_software_icon_path
 from services.weather import WeatherService
-from ui import AboutInterface, DownloadInterface, EditPanel, UpdateInterface
+from ui import AboutInterface, DownloadInterface, EditPanel, UpdateInterface, WizardWindow, check_wizard_needed, create_wizard_file
 from ui.city_selector import RegionDatabase
 from ui.developer_panel import DeveloperPanel
 from ui.settings import SettingInterface
@@ -1666,6 +1666,11 @@ if __name__ == "__main__":
     extract_files()
     
     app = QApplication(sys.argv)
+    
+    if check_wizard_needed():
+        create_wizard_file()
+        wizard = WizardWindow()
+        wizard.exec_()
     
     icon_path = get_resPath(os.path.join("resource", "icons", "CY.png"))
     
