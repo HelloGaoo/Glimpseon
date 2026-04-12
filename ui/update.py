@@ -23,7 +23,7 @@ import os
 import subprocess
 import threading
 
-from PyQt5.QtCore import QMetaObject, Q_ARG, Qt, QTimer
+from PyQt5.QtCore import QMetaObject, Q_ARG, Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from qfluentwidgets import (
@@ -53,6 +53,9 @@ logger = logging.getLogger(__name__)
 
 class UpdateInterface(BaseScrollAreaInterface):
     """ 更新界面 """
+    # 线程安全信号
+    _check_result_signal = pyqtSignal(object)
+    _changelog_loaded_signal = pyqtSignal(str)
     
     def __init__(self, parent=None):
         super().__init__("更新", parent)
@@ -66,6 +69,9 @@ class UpdateInterface(BaseScrollAreaInterface):
         self.__initLayout()
         self.__setQss()
         self.__connectSignalToSlot()
+        # 连接线程信号到主线程槽
+        self._check_result_signal.connect(self._on_check_result)
+        self._changelog_loaded_signal.connect(self._on_changelog_loaded)
     
     def __connectSignalToSlot(self):
         """ 连接信号与槽 """
@@ -217,15 +223,18 @@ class UpdateInterface(BaseScrollAreaInterface):
         
         def thread_func():
             changelog_text = load()
-            QMetaObject.invokeMethod(
-                self.changelogContent,
-                "setPlainText",
-                Qt.QueuedConnection,
-                Q_ARG(str, changelog_text)
-            )
+            # 发射信号在主线程更新 UI
+            self._changelog_loaded_signal.emit(changelog_text)
         
         thread = threading.Thread(target=thread_func, daemon=True)
         thread.start()
+
+    @pyqtSlot(str)
+    def _on_changelog_loaded(self, changelog_text: str):
+        try:
+            self.changelogContent.setPlainText(changelog_text)
+        except Exception:
+            pass
     
     def __checkUpdate(self, auto_check=False):
         """
@@ -303,7 +312,8 @@ class UpdateInterface(BaseScrollAreaInterface):
                 except Exception as e:
                     logger.error(f"更新 UI 失败：{e}")
 
-            QTimer.singleShot(0, update_ui)
+            # 发射信号在主线程执行 UI 更新
+            self._check_result_signal.emit(result)
         
         # 启动一个线程执行网络请求，避免阻塞主线程；UI 更新通过 QTimer.singleShot 在主线程执行
         thread = threading.Thread(target=do_check, daemon=True)
@@ -313,6 +323,54 @@ class UpdateInterface(BaseScrollAreaInterface):
             self.updateStatusLabel.setText("正在检查更新")
             self.__setUpdateStatus('checking')
         thread.start()
+
+    @pyqtSlot(object)
+    def _on_check_result(self, result: object):
+        try:
+            if not result.get('success', False):
+                logger.warning(f"检查版本失败 - {result.get('error', '未知错误')}")
+                self.checkUpdateButton.setEnabled(True)
+                self.updateStatusLabel.setText(f"检查失败：{result.get('error', '未知错误')}")
+                self.__setUpdateStatus('error')
+                return
+
+            github_version = result.get('version')
+            github_build_date = result.get('build_date')
+            changelog = result.get('changelog')
+
+            logger.info(f"检查结果：GitHub 最新版本：{github_version} (构建日期：{github_build_date})")
+
+            has_update = (github_version != VERSION)
+
+            if has_update:
+                self.has_new_version = True
+                self.new_version = github_version
+                self.build_date = github_build_date
+                self.update_url = result.get('update_url')
+
+                self.updateStatusLabel.setText(f"发现新版本：{github_version}")
+                self.__setUpdateStatus('update_available')
+
+                self.checkUpdateButton.setText("下载更新")
+                self.checkUpdateButton.setIcon(FIF.DOWNLOAD)
+                self.checkUpdateButton.setEnabled(True)
+
+                if changelog:
+                    self.changelogContent.setPlainText(changelog)
+
+                if result.get('auto_check', False) and cfg.autoUpdate.value:
+                    logger.info("自动检查：启用自动更新，开始下载")
+                    QTimer.singleShot(2000, lambda: self.__downloadUpdate(auto_update=True))
+
+            else:
+                logger.info("已是最新版本")
+                self.updateStatusLabel.setText("已是最新版本")
+                self.__setUpdateStatus('latest')
+                self.checkUpdateButton.setEnabled(True)
+                if changelog:
+                    self.changelogContent.setPlainText(changelog)
+        except Exception as e:
+            logger.error(f"更新 UI 失败：{e}")
     
     def __downloadUpdate(self, auto_update=False):
         """下载并安装更新"""
@@ -334,12 +392,7 @@ class UpdateInterface(BaseScrollAreaInterface):
                 # 下载进度回调
                 def progress_callback(current, total):
                     percent = (current / total) * 100
-                    QMetaObject.invokeMethod(
-                        self.updateStatusLabel,
-                        "setText",
-                        Qt.QueuedConnection,
-                        Q_ARG(str, f"正在下载更新：{percent:.1f}%")
-                    )
+                    QTimer.singleShot(0, lambda p=percent: self.updateStatusLabel.setText(f"正在下载更新：{p:.1f}%"))
                 
                 logger.info(f"正在从 {self.update_url} 下载更新")
                 download_success = False
@@ -349,12 +402,7 @@ class UpdateInterface(BaseScrollAreaInterface):
                     try:
                         if retry > 0:
                             logger.info(f"下载更新重试 {retry}/{max_download_retries}")
-                            QMetaObject.invokeMethod(
-                                self.updateStatusLabel,
-                                "setText",
-                                Qt.QueuedConnection,
-                                Q_ARG(str, f"下载失败，重试 {retry}/{max_download_retries}...")
-                            )
+                            QTimer.singleShot(0, lambda r=retry: self.updateStatusLabel.setText(f"下载失败，重试 {r}/{max_download_retries}..."))
                         
                         if download_update(download_path, progress_callback):
                             download_success = True
@@ -370,12 +418,7 @@ class UpdateInterface(BaseScrollAreaInterface):
                 if not download_success:
                     raise Exception("下载更新失败，已达到最大重试次数")
 
-                QMetaObject.invokeMethod(
-                    self.updateStatusLabel,
-                    "setText",
-                    Qt.QueuedConnection,
-                    Q_ARG(str, "正在解压更新")
-                )
+                QTimer.singleShot(0, lambda: self.updateStatusLabel.setText("正在解压更新"))
                 
                 extract_folder = os.path.join(update_folder, 'extracted')
                 if not extract_update(download_path, extract_folder):
@@ -387,12 +430,7 @@ class UpdateInterface(BaseScrollAreaInterface):
                 
                 # 创建备份
                 if auto_update:
-                    QMetaObject.invokeMethod(
-                        self.updateStatusLabel,
-                        "setText",
-                        Qt.QueuedConnection,
-                        Q_ARG(str, "正在备份当前版本")
-                    )
+                    QTimer.singleShot(0, lambda: self.updateStatusLabel.setText("正在备份当前版本"))
                     
                     try:
                         if os.path.exists(backup_folder):
@@ -406,12 +444,7 @@ class UpdateInterface(BaseScrollAreaInterface):
                 script_path = create_update_script(BASE_DIR, extract_folder)
                 if not script_path:
                     raise Exception("创建更新脚本失败")
-                QMetaObject.invokeMethod(
-                    self.updateStatusLabel,
-                    "setText",
-                    Qt.QueuedConnection,
-                    Q_ARG(str, "正在准备更新，程序即将重启")
-                )
+                QTimer.singleShot(0, lambda: self.updateStatusLabel.setText("正在准备更新，程序即将重启"))
                 
                 subprocess.Popen(
                     f'cmd /c start "ClassLively Update" /MIN "{script_path}"',
@@ -421,12 +454,7 @@ class UpdateInterface(BaseScrollAreaInterface):
                 
                 logger.info("更新脚本已启动，准备退出应用")
                 
-                QMetaObject.invokeMethod(
-                    self.updateStatusLabel,
-                    "setText",
-                    Qt.QueuedConnection,
-                    Q_ARG(str, "更新完成，正在重启应用")
-                )
+                QTimer.singleShot(0, lambda: self.updateStatusLabel.setText("更新完成，正在重启应用"))
                 
                 QApplication.instance().quit()
                 
@@ -437,42 +465,12 @@ class UpdateInterface(BaseScrollAreaInterface):
                         shutil.rmtree(update_folder)
                     except Exception:
                         pass
-                QMetaObject.invokeMethod(
-                    self.checkUpdateButton,
-                    "setText",
-                    Qt.QueuedConnection,
-                    Q_ARG(str, "重试更新")
-                )
-                QMetaObject.invokeMethod(
-                    self.checkUpdateButton,
-                    "setIcon",
-                    Qt.QueuedConnection,
-                    Q_ARG(QIcon, QIcon(FIF.SYNC.value))
-                )
-                QMetaObject.invokeMethod(
-                    self.checkUpdateButton,
-                    "setEnabled",
-                    Qt.QueuedConnection,
-                    Q_ARG(bool, True)
-                )
-                QMetaObject.invokeMethod(
-                    self.updateStatusLabel,
-                    "setText",
-                    Qt.QueuedConnection,
-                    Q_ARG(str, f"更新失败：{str(e)}")
-                )
-                QMetaObject.invokeMethod(
-                    self.updateStatusLabel,
-                    "setStyleSheet",
-                    Qt.QueuedConnection,
-                    Q_ARG(str, "color: #FF0000;")
-                )
-                QMetaObject.invokeMethod(
-                    self.updateStatusIcon,
-                    "setStyleSheet",
-                    Qt.QueuedConnection,
-                    Q_ARG(str, "background-color: #FF0000; border-radius: 8px;")
-                )
+                QTimer.singleShot(0, lambda: self.checkUpdateButton.setText("重试更新"))
+                QTimer.singleShot(0, lambda: self.checkUpdateButton.setIcon(QIcon(FIF.SYNC.value)))
+                QTimer.singleShot(0, lambda: self.checkUpdateButton.setEnabled(True))
+                QTimer.singleShot(0, lambda msg=str(e): self.updateStatusLabel.setText(f"更新失败：{msg}"))
+                QTimer.singleShot(0, lambda: self.updateStatusLabel.setStyleSheet("color: #FF0000;"))
+                QTimer.singleShot(0, lambda: self.updateStatusIcon.setStyleSheet("background-color: #FF0000; border-radius: 8px;"))
                 
                 self.has_new_version = False
         
