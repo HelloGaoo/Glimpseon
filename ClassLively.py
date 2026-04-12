@@ -1665,17 +1665,25 @@ if __name__ == "__main__":
     
     extract_files()
     
-    clean_tempdir(logger=logger)
-    
     app = QApplication(sys.argv)
     
     icon_path = get_resPath(os.path.join("resource", "icons", "CY.png"))
     
     splash = SplashScreen(APP_NAME, VERSION, icon_path)
     splash.show()
-    splash.setProgress(10)
+    splash.setProgress(0)
     app.processEvents()
     
+    splash.updateStatus("正在清理临时文件")
+    logger.info("启动：正在清理临时文件")
+    splash.setProgress(10)
+    app.processEvents()
+    clean_tempdir(logger=logger)
+    
+    splash.updateStatus("正在加载翻译")
+    logger.info("启动：正在加载翻译")
+    splash.setProgress(20)
+    app.processEvents()
     locale = QLocale(QLocale.Chinese, QLocale.China)
     fluentTranslator = FluentTranslator(locale)
     app.installTranslator(fluentTranslator)
@@ -1700,13 +1708,15 @@ if __name__ == "__main__":
         w.exec()
         sys.exit(0)
     
-    splash.updateStatus("正在初始化字体...")
+    splash.updateStatus("正在初始化字体")
+    logger.info("启动：正在初始化字体")
     splash.setProgress(30)
     app.processEvents()
     initialize_fonts(app, install_to_system=True)
 
-    splash.updateStatus("正在初始化日志系统...")
-    splash.setProgress(50)
+    splash.updateStatus("正在配置日志")
+    logger.info("启动：正在配置日志")
+    splash.setProgress(40)
     app.processEvents()
 
     if hasattr(cfg.logLevel.value, 'value'):
@@ -1730,6 +1740,10 @@ if __name__ == "__main__":
     )
     logger.info("ClassLively")
 
+    splash.updateStatus("正在加载配置")
+    logger.info("启动：正在加载配置")
+    splash.setProgress(50)
+    app.processEvents()
     theme_mode_str = str(cfg.themeMode.value) if not hasattr(cfg.themeMode.value, 'name') else cfg.themeMode.value.name
     theme_color = cfg.themeColor.value
     theme_color_str = theme_color.name() if hasattr(theme_color, 'name') else str(theme_color)
@@ -1754,21 +1768,35 @@ if __name__ == "__main__":
     logger.info(f"软件运行路径：{BASE_DIR}")
     logger.debug(f"url_dir 内容：{url_dir}")
 
-    splash.updateStatus("正在初始化异常处理...")
-    splash.setProgress(70)
+    splash.updateStatus("正在初始化异常处理")
+    logger.info("启动：正在初始化异常处理")
+    splash.setProgress(60)
     app.processEvents()
     init_exhook()
 
+    splash.updateStatus("正在加载资源")
+    logger.info("启动：正在加载资源")
+    splash.setProgress(70)
+    app.processEvents()
+
     splash.updateStatus("正在创建主窗口...")
-    splash.setProgress(90)
+    logger.info("启动：正在创建主窗口...")
+    splash.setProgress(80)
     app.processEvents()
     window = MainWindow()
+    
+    splash.updateStatus("正在完成启动")
+    logger.info("启动：正在完成启动")
+    splash.setProgress(90)
+    app.processEvents()
+    
+    import time
+    time.sleep(0.15)
     
     splash.setProgress(100)
     app.processEvents()
     
-    import time
-    time.sleep(0.3)
+    time.sleep(0.1)
     
     splash.close()
     
