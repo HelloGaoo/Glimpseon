@@ -3,7 +3,7 @@ import json
 import os
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QIcon, QPixmap, QColor
+from PyQt5.QtGui import QIcon, QPixmap, QColor, QFont
 from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget, QHBoxLayout, QLabel
 from qfluentwidgets import (
     BodyLabel,
@@ -36,8 +36,8 @@ class WizardWindow(QDialog):
             self.setWindowIcon(QIcon(icon_path))
 
         self.mainLayout = QVBoxLayout(self)
-        self.mainLayout.setContentsMargins(40, 40, 40, 40)
-        self.mainLayout.setSpacing(20)
+        self.mainLayout.setContentsMargins(30, 30, 30, 30)
+        self.mainLayout.setSpacing(16)
 
         self.stackedWidget = QStackedWidget(self)
         self.mainLayout.addWidget(self.stackedWidget)
@@ -46,32 +46,40 @@ class WizardWindow(QDialog):
 
         self.page1 = QWidget()
         self.page1Layout = QVBoxLayout(self.page1)
-        self.page1Layout.setAlignment(Qt.AlignTop | Qt.AlignCenter)
-        self.page1Layout.setSpacing(20)
-        self.page1Layout.addSpacing(100)
+        self.page1Layout.setAlignment(Qt.AlignCenter)
+        self.page1Layout.setSpacing(16)
 
         self.iconLabel = QLabel(self.page1)
-        self.iconLabel.setFixedSize(128, 128)
+        self.iconLabel.setFixedSize(112, 112)
         self.iconLabel.setAlignment(Qt.AlignCenter)
         if os.path.exists(icon_path):
             pixmap = QPixmap(icon_path)
-            self.iconLabel.setPixmap(pixmap.scaled(128, 128, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            self.iconLabel.setPixmap(pixmap.scaled(112, 112, Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
         self.welcomeLabel = StrongBodyLabel("ClassLively", self.page1)
-        self.welcomeLabel.setAlignment(Qt.AlignCenter)
+        self.welcomeLabel.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+        # Use rich text to force a heavier-looking font and larger size
+        self.welcomeLabel.setTextFormat(Qt.RichText)
+        self.welcomeLabel.setText('<span style="font-family:\'Microsoft YaHei UI\',\'Microsoft YaHei\',\'SimHei\',sans-serif; font-weight:900; font-size:34px;">ClassLively</span>')
+        self.welcomeLabel.setStyleSheet("margin:0; padding-left:8px;")
 
         self.nextButton = PrimaryPushButton(FIF.RIGHT_ARROW, "继续", self.page1)
         self.nextButton.setFixedHeight(36)
 
-        self.page1Layout.addWidget(self.iconLabel, 0, Qt.AlignCenter)
-        self.page1Layout.addWidget(self.welcomeLabel, 0, Qt.AlignCenter)
+        self.headerLayout = QHBoxLayout()
+        self.headerLayout.setSpacing(12)
+        self.headerLayout.setAlignment(Qt.AlignCenter)
+        self.headerLayout.addWidget(self.iconLabel)
+        self.headerLayout.addWidget(self.welcomeLabel)
+
+        self.page1Layout.addLayout(self.headerLayout)
         self.page1Layout.addWidget(self.nextButton, 0, Qt.AlignCenter)
 
         self.page2 = QWidget()
         self.page2Layout = QVBoxLayout(self.page2)
         self.page2Layout.setAlignment(Qt.AlignTop | Qt.AlignCenter)
-        self.page2Layout.setSpacing(20)
-        self.page2Layout.addSpacing(60)
+        self.page2Layout.setSpacing(16)
+        self.page2Layout.addSpacing(40)
 
         self.agreementTitle = StrongBodyLabel("软件使用协议", self.page2)
         self.agreementTitle.setAlignment(Qt.AlignCenter)

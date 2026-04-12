@@ -10,14 +10,24 @@ WizardWindow QWidget {
 WizardWindow StrongBodyLabel {
     color: white;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-size: 28px;
+    margin-top: 8px;
+    margin-bottom: 8px;
+    font-weight: 900;
 }
 
 WizardWindow BodyLabel {
     color: rgba(255, 255, 255, 0.8);
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-size: 14px;
+    margin-top: 6px;
+    margin-bottom: 6px;
 }
 
 WizardWindow CheckBox {
     color: white;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-size: 13px;
+    margin-top: 4px;
+    margin-bottom: 4px;
 }
