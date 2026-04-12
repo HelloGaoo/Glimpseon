@@ -3,12 +3,11 @@ import json
 import os
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QVBoxLayout, QWidget, QStackedWidget
 from qfluentwidgets import (
     BodyLabel,
     MessageBox,
     PrimaryPushButton,
-    StackedWidget,
 )
 
 from core.constants import BASE_DIR
@@ -25,7 +24,7 @@ class WizardWindow(QWidget):
         self.mainLayout.setContentsMargins(40, 40, 40, 40)
         self.mainLayout.setSpacing(20)
 
-        self.stackedWidget = StackedWidget(self)
+        self.stackedWidget = QStackedWidget(self)
         self.mainLayout.addWidget(self.stackedWidget)
 
         self.page1 = QWidget()
