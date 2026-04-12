@@ -37,24 +37,29 @@ class SplashScreen(QWidget):
         """初始化 UI"""
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setFixedSize(400, 220)
+        self.setFixedSize(360, 160)
         self.content_widget = QWidget(self)
         self.content_widget.setObjectName("contentWidget")
-        self.content_widget.setGeometry(0, 0, 400, 220)
+        self.content_widget.setGeometry(0, 0, 360, 160)
         content_layout = QVBoxLayout(self.content_widget)
-        content_layout.setContentsMargins(20, 20, 20, 15)
-        content_layout.setSpacing(12)
+        content_layout.setContentsMargins(20, 15, 20, 10)
+        content_layout.setSpacing(10)
         header_layout = QHBoxLayout()
-        header_layout.setSpacing(12)
+        header_layout.setSpacing(15)
         self.icon_label = QLabel()
-        self.icon_label.setFixedSize(48, 48)
+        self.icon_label.setFixedSize(64, 64)
         header_layout.addWidget(self.icon_label)
-        title_layout = QVBoxLayout()
-        title_layout.setSpacing(3)
+        
+        title_layout = QHBoxLayout()
+        title_layout.setSpacing(8)
         self.app_name_label = StrongBodyLabel(self.app_name)
         title_layout.addWidget(self.app_name_label)
-        self.version_label = BodyLabel(f"版本 {self.version}")
+        
+        self.version_label = BodyLabel(f"{self.version}")
+        self.version_label.setObjectName("versionLabel")
         title_layout.addWidget(self.version_label)
+        title_layout.addStretch()
+        
         header_layout.addLayout(title_layout)
         header_layout.addStretch()
         content_layout.addLayout(header_layout)
@@ -87,12 +92,12 @@ class SplashScreen(QWidget):
         """加载图标"""
         if self.icon_path and os.path.exists(self.icon_path):
             pixmap = QPixmap(self.icon_path).scaled(
-                48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation
             )
             self.icon_label.setPixmap(pixmap)
         else:
             self.icon_label.setText("❓")
-            self.icon_label.setFont(QFont("Segoe UI Emoji", 24))
+            self.icon_label.setFont(QFont("Segoe UI Emoji", 32))
             self.icon_label.setAlignment(Qt.AlignCenter)
         
     def centerOnScreen(self):

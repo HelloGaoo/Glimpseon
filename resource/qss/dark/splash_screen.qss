@@ -7,13 +7,18 @@
 
 StrongBodyLabel {
     color: #FFFFFF;
-    font-size: 18px;
+    font-size: 24px;
     font-weight: bold;
     font-family: "Microsoft YaHei UI";
 }
 
 BodyLabel {
     color: #999999;
+    font-size: 14px;
+}
+
+#versionLabel {
+    color: #777777;
     font-size: 12px;
 }
 
