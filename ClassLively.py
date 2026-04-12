@@ -1672,18 +1672,37 @@ if __name__ == "__main__":
     splash = SplashScreen(APP_NAME, VERSION, icon_path)
     splash.show()
     splash.setProgress(0)
+    def allow_ui_update(duration=0.06):
+        end = time.time() + duration
+        while time.time() < end:
+            app.processEvents()
+            time.sleep(0.005)
+
     app.processEvents()
-    
-    splash.updateStatus("正在清理临时文件")
-    logger.info("启动：正在清理临时文件")
-    splash.setProgress(10)
-    app.processEvents()
-    clean_tempdir(logger=logger)
+    executor = ThreadPoolExecutor(max_workers=1)
+
+    def _background_init():
+        try:
+            # 使用信号从后台线程通知主线程更新 UI
+            splash.status_signal.emit("正在清理临时文件")
+            splash.progress_signal.emit(10)
+            clean_tempdir(logger=logger)
+
+            splash.status_signal.emit("正在初始化异常处理")
+            splash.progress_signal.emit(60)
+            init_exhook()
+
+            splash.status_signal.emit("正在加载资源")
+            splash.progress_signal.emit(70)
+        except Exception as e:
+            logger.exception(f"后台初始化失败: {e}")
+
+    future = executor.submit(_background_init)
     
     splash.updateStatus("正在加载翻译")
     logger.info("启动：正在加载翻译")
-    splash.setProgress(20)
-    app.processEvents()
+    splash.setProgress(15)
+    allow_ui_update(0.06)
     locale = QLocale(QLocale.Chinese, QLocale.China)
     fluentTranslator = FluentTranslator(locale)
     app.installTranslator(fluentTranslator)
@@ -1711,13 +1730,13 @@ if __name__ == "__main__":
     splash.updateStatus("正在初始化字体")
     logger.info("启动：正在初始化字体")
     splash.setProgress(30)
-    app.processEvents()
+    allow_ui_update(0.06)
     initialize_fonts(app, install_to_system=True)
 
     splash.updateStatus("正在配置日志")
     logger.info("启动：正在配置日志")
     splash.setProgress(40)
-    app.processEvents()
+    allow_ui_update(0.06)
 
     if hasattr(cfg.logLevel.value, 'value'):
         log_level_str = cfg.logLevel.value.value
@@ -1742,8 +1761,8 @@ if __name__ == "__main__":
 
     splash.updateStatus("正在加载配置")
     logger.info("启动：正在加载配置")
-    splash.setProgress(50)
-    app.processEvents()
+    splash.setProgress(55)
+    allow_ui_update(0.06)
     theme_mode_str = str(cfg.themeMode.value) if not hasattr(cfg.themeMode.value, 'name') else cfg.themeMode.value.name
     theme_color = cfg.themeColor.value
     theme_color_str = theme_color.name() if hasattr(theme_color, 'name') else str(theme_color)
@@ -1768,36 +1787,36 @@ if __name__ == "__main__":
     logger.info(f"软件运行路径：{BASE_DIR}")
     logger.debug(f"url_dir 内容：{url_dir}")
 
-    splash.updateStatus("正在初始化异常处理")
-    logger.info("启动：正在初始化异常处理")
-    splash.setProgress(60)
-    app.processEvents()
-    init_exhook()
+    logger.info("后台初始化任务已提交")
 
-    splash.updateStatus("正在加载资源")
-    logger.info("启动：正在加载资源")
-    splash.setProgress(70)
-    app.processEvents()
+    # 等待后台初始化完
+    wait_start = time.time()
+    while not future.done():
+        allow_ui_update(0.02)
+        if time.time() - wait_start > 5.0:
+            logger.warning("后台初始化超时，继续启动主窗口")
+            break
 
     splash.updateStatus("正在创建主窗口...")
     logger.info("启动：正在创建主窗口...")
-    splash.setProgress(80)
-    app.processEvents()
+    splash.setProgress(70)
+    splash.waitForProgress(70, timeout=1.0)
+    allow_ui_update(0.12)
     window = MainWindow()
     
     splash.updateStatus("正在完成启动")
     logger.info("启动：正在完成启动")
     splash.setProgress(90)
-    app.processEvents()
-    
-    import time
-    time.sleep(0.15)
-    
+    allow_ui_update(0.06)
+
+    import time as _tl_time
+    _tl_time.sleep(0.06)
+
     splash.setProgress(100)
-    app.processEvents()
-    
-    time.sleep(0.1)
-    
+    # 等待进度条动画平滑到 100% 后再关闭 splash 并显示主窗口
+    splash.waitForProgress(100, timeout=1.0)
+    allow_ui_update(0.06)
+    _tl_time.sleep(0.04)
     splash.close()
     
     if auto_start_launch:

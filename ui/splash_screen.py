@@ -14,21 +14,27 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from PyQt5.QtCore import Qt, QRect
+from PyQt5.QtCore import Qt, QRect, QTimer, pyqtSlot, pyqtSignal
+import time
+from PyQt5.QtWidgets import QApplication
 from PyQt5.QtGui import QIcon, QPixmap, QPainter, QColor, QFont
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout
 from qfluentwidgets import ProgressBar, BodyLabel, StrongBodyLabel, isDarkTheme
 import os
 
-
+# 感谢chatgpt5mini
 class SplashScreen(QWidget):
     """启动窗口"""
+    status_signal = pyqtSignal(str)
+    progress_signal = pyqtSignal(int)
     
     def __init__(self, app_name: str, version: str, icon_path: str = None):
         super().__init__()
         self.app_name = app_name
         self.version = version
         self.icon_path = icon_path
+        self.status_signal.connect(self.updateStatus)
+        self.progress_signal.connect(self.setProgress)
         self._initUI()
         self._loadIcon()
         self._loadQss()
@@ -74,6 +80,11 @@ class SplashScreen(QWidget):
         self.progress_bar = ProgressBar()
         self.progress_bar.setFixedHeight(4)
         self.progress_bar.setValue(0)
+        self._current_progress = 0
+        self._target_progress = 0
+        self._anim_timer = QTimer(self)
+        self._anim_timer.setInterval(8)
+        self._anim_timer.timeout.connect(self._advance_progress)
         content_layout.addWidget(self.progress_bar)
         self.centerOnScreen()
         
@@ -129,13 +140,41 @@ class SplashScreen(QWidget):
         
         self.move(x, y)
         
+    @pyqtSlot(str)
     def updateStatus(self, status: str):
         """更新状态文本"""
         self.status_label.setText(status)
         
+    @pyqtSlot(int)
     def setProgress(self, value: int):
         """设置0-100"""
-        self.progress_bar.setValue(value)
+        try:
+            v = int(max(0, min(100, value)))
+        except Exception:
+            return
+        self._target_progress = v
+        if not self._anim_timer.isActive():
+            self._anim_timer.start()
+
+    def _advance_progress(self):
+        if self._current_progress < self._target_progress:
+            step = max(1, (self._target_progress - self._current_progress) // 6)
+            self._current_progress += step
+            if self._current_progress > self._target_progress:
+                self._current_progress = self._target_progress
+            self.progress_bar.setValue(self._current_progress)
+        else:
+            self._anim_timer.stop()
+
+    def waitForProgress(self, target: int = 100, timeout: float = 3.0):
+        try:
+            target = int(max(0, min(100, target)))
+        except Exception:
+            target = 100
+        end = time.time() + float(timeout)
+        while time.time() < end and self._current_progress < target:
+            QApplication.processEvents()
+            time.sleep(0.003)
     
     def paintEvent(self, event):
         pass

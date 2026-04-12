@@ -248,68 +248,71 @@ class UpdateInterface(BaseScrollAreaInterface):
         def do_check():
             try:
                 result = check_github_verison()
-                
-                if not result['success']:
-                    logger.warning(f"{check_type}：检查版本失败 - {result.get('error', '未知错误')}")
-                    if not auto_check:
-                        self.checkUpdateButton.setEnabled(True)
-                        self.updateStatusLabel.setText(f"检查失败：{result.get('error', '未知错误')}")
-                        self.__setUpdateStatus('error')
-                    return
-                
-                github_version = result['version']
-                github_build_date = result['build_date']
-                changelog = result['changelog']
-                
-                logger.info(f"{check_type}：GitHub 最新版本：{github_version} (构建日期：{github_build_date})，更新日志长度：{len(changelog) if changelog else 0}，当前版本：{VERSION}")
-                
-                has_update = (github_version != VERSION)
-                
-                if has_update:
-                    logger.info(f"{check_type}：发现新版本 {github_version}")
-                    
-                    self.has_new_version = True
-                    self.new_version = github_version
-                    self.build_date = github_build_date
-                    self.update_url = result['update_url']
-                    
-                    self.updateStatusLabel.setText(f"发现新版本：{github_version}")
-                    self.__setUpdateStatus('update_available')
-                    
-                    if not auto_check:
-                        self.checkUpdateButton.setText("下载更新")
-                        self.checkUpdateButton.setIcon(FIF.DOWNLOAD)
-                        self.checkUpdateButton.setEnabled(True)
-                    
-                    if changelog:
-                        self.changelogContent.setPlainText(changelog)
-                    
-                    if auto_check and cfg.autoUpdate.value:
-                        logger.info("自动检查：启用自动更新，开始下载")
-                        QTimer.singleShot(2000, lambda: self.__downloadUpdate(auto_update=True))
-                        
-                else:
-                    logger.info(f"{check_type}：已是最新版本")
-                    
-                    self.updateStatusLabel.setText("已是最新版本")
-                    self.__setUpdateStatus('latest')
-                    
-                    if not auto_check:
-                        self.checkUpdateButton.setEnabled(True)
-                    
-                    if changelog:
-                        self.changelogContent.setPlainText(changelog)
-                
             except Exception as e:
                 logger.error(f"{check_type}：检查更新时出错 - {str(e)}")
-                if not auto_check:
-                    self.checkUpdateButton.setEnabled(True)
-                    self.updateStatusLabel.setText(f"更新 UI 失败：{str(e)}")
+                result = {'success': False, 'error': str(e)}
+
+            def update_ui():
+                try:
+                    if not result.get('success', False):
+                        logger.warning(f"{check_type}：检查版本失败 - {result.get('error', '未知错误')}")
+                        if not auto_check:
+                            self.checkUpdateButton.setEnabled(True)
+                            self.updateStatusLabel.setText(f"检查失败：{result.get('error', '未知错误')}")
+                            self.__setUpdateStatus('error')
+                        return
+
+                    github_version = result.get('version')
+                    github_build_date = result.get('build_date')
+                    changelog = result.get('changelog')
+
+                    logger.info(f"{check_type}：GitHub 最新版本：{github_version} (构建日期：{github_build_date})，更新日志长度：{len(changelog) if changelog else 0}，当前版本：{VERSION}")
+
+                    has_update = (github_version != VERSION)
+
+                    if has_update:
+                        logger.info(f"{check_type}：发现新版本 {github_version}")
+                        self.has_new_version = True
+                        self.new_version = github_version
+                        self.build_date = github_build_date
+                        self.update_url = result.get('update_url')
+
+                        self.updateStatusLabel.setText(f"发现新版本：{github_version}")
+                        self.__setUpdateStatus('update_available')
+
+                        if not auto_check:
+                            self.checkUpdateButton.setText("下载更新")
+                            self.checkUpdateButton.setIcon(FIF.DOWNLOAD)
+                            self.checkUpdateButton.setEnabled(True)
+
+                        if changelog:
+                            self.changelogContent.setPlainText(changelog)
+
+                        if auto_check and cfg.autoUpdate.value:
+                            logger.info("自动检查：启用自动更新，开始下载")
+                            QTimer.singleShot(2000, lambda: self.__downloadUpdate(auto_update=True))
+
+                    else:
+                        logger.info(f"{check_type}：已是最新版本")
+                        self.updateStatusLabel.setText("已是最新版本")
+                        self.__setUpdateStatus('latest')
+                        if not auto_check:
+                            self.checkUpdateButton.setEnabled(True)
+                        if changelog:
+                            self.changelogContent.setPlainText(changelog)
+                except Exception as e:
+                    logger.error(f"更新 UI 失败：{e}")
+
+            QTimer.singleShot(0, update_ui)
         
-        if auto_check:
-            do_check()
-        else:
-            QTimer.singleShot(100, do_check)
+        # 启动一个线程执行网络请求，避免阻塞主线程；UI 更新通过 QTimer.singleShot 在主线程执行
+        thread = threading.Thread(target=do_check, daemon=True)
+        # 在手动触发的情况下先禁用按钮并设置状态，然后启动线程
+        if not auto_check:
+            self.checkUpdateButton.setEnabled(False)
+            self.updateStatusLabel.setText("正在检查更新")
+            self.__setUpdateStatus('checking')
+        thread.start()
     
     def __downloadUpdate(self, auto_update=False):
         """下载并安装更新"""
