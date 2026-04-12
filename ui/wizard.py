@@ -58,7 +58,6 @@ class WizardWindow(QDialog):
             self.iconLabel.setPixmap(pixmap.scaled(128, 128, Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
         self.welcomeLabel = StrongBodyLabel("ClassLively", self.page1)
-        self.welcomeLabel.setStyleSheet("font-size: 48px; font-weight: bold;")
         self.welcomeLabel.setAlignment(Qt.AlignCenter)
 
         self.nextButton = PrimaryPushButton(FIF.RIGHT_ARROW, "继续", self.page1)
@@ -75,7 +74,6 @@ class WizardWindow(QDialog):
         self.page2Layout.addSpacing(60)
 
         self.agreementTitle = StrongBodyLabel("软件使用协议", self.page2)
-        self.agreementTitle.setStyleSheet("font-size: 24px; font-weight: bold;")
         self.agreementTitle.setAlignment(Qt.AlignCenter)
 
         self.agreementText = BodyLabel("在使用本软件前，请阅读并同意以下协议：", self.page2)

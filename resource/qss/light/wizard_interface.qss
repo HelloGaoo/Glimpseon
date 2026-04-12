@@ -6,3 +6,18 @@ WizardWindow {
 WizardWindow QWidget {
     background-color: rgb(247, 247, 247);
 }
+
+WizardWindow StrongBodyLabel {
+    color: black;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+WizardWindow BodyLabel {
+    color: rgba(0, 0, 0, 0.8);
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+WizardWindow CheckBox {
+    color: black;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
