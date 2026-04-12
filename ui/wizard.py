@@ -3,7 +3,7 @@ import json
 import os
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget
+from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget
 from qfluentwidgets import (
     BodyLabel,
     MessageBox,
