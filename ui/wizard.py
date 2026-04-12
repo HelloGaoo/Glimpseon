@@ -4,15 +4,17 @@ import os
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon, QPixmap, QColor
-from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget, QLabel, QHBoxLayout
+from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget, QHBoxLayout
 from qfluentwidgets import (
+    BodyLabel,
     CheckBox,
     FluentIcon as FIF,
-    HyperlinkButton,
+    HyperlinkLabel,
     MessageBox,
     PrimaryPushButton,
     setTheme,
     isDarkTheme,
+    StrongBodyLabel,
     Theme,
 )
 
@@ -55,9 +57,8 @@ class WizardWindow(QDialog):
             pixmap = QPixmap(icon_path)
             self.iconLabel.setPixmap(pixmap.scaled(128, 128, Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
-        text_color = "white" if isDarkTheme() else "black"
-        self.welcomeLabel = QLabel("ClassLively", self.page1)
-        self.welcomeLabel.setStyleSheet(f"font-size: 48px; font-weight: bold; color: {text_color}; font-family: 'HarmonyOS Sans SC', 'HarmonyOS Sans', 'Microsoft YaHei', 'SimHei', sans-serif;")
+        self.welcomeLabel = StrongBodyLabel("ClassLively", self.page1)
+        self.welcomeLabel.setStyleSheet("font-size: 48px; font-weight: bold;")
         self.welcomeLabel.setAlignment(Qt.AlignCenter)
 
         self.nextButton = PrimaryPushButton(FIF.RIGHT_ARROW, "继续", self.page1)
@@ -73,22 +74,18 @@ class WizardWindow(QDialog):
         self.page2Layout.setSpacing(20)
         self.page2Layout.addSpacing(60)
 
-        self.agreementTitle = QLabel("软件使用协议", self.page2)
-        self.agreementTitle.setStyleSheet(f"font-size: 24px; font-weight: bold; color: {text_color}; font-family: 'HarmonyOS Sans SC', 'HarmonyOS Sans', 'Microsoft YaHei', 'SimHei', sans-serif;")
+        self.agreementTitle = StrongBodyLabel("软件使用协议", self.page2)
+        self.agreementTitle.setStyleSheet("font-size: 24px; font-weight: bold;")
         self.agreementTitle.setAlignment(Qt.AlignCenter)
 
-        self.agreementText = QLabel("在使用本软件前，请阅读并同意以下协议：", self.page2)
-        self.agreementText.setStyleSheet(f"font-size: 14px; color: {text_color};")
+        self.agreementText = BodyLabel("在使用本软件前，请阅读并同意以下协议：", self.page2)
         self.agreementText.setAlignment(Qt.AlignCenter)
 
         self.openSourceCheckBox = CheckBox("项目开源协议 (GPL-3.0)", self.page2)
-        self.openSourceCheckBox.setStyleSheet(f"font-size: 14px; color: {text_color};")
         
         self.userAgreementCheckBox = CheckBox("用户协议", self.page2)
-        self.userAgreementCheckBox.setStyleSheet(f"font-size: 14px; color: {text_color};")
         
         self.privacyCheckBox = CheckBox("隐私政策", self.page2)
-        self.privacyCheckBox.setStyleSheet(f"font-size: 14px; color: {text_color};")
 
         self.agreeButton = PrimaryPushButton(FIF.RIGHT_ARROW, "继续", self.page2)
         self.agreeButton.setFixedHeight(36)
