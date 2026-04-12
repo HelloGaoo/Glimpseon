@@ -78,7 +78,7 @@ class WizardWindow(QDialog):
         self.page2Layout = QVBoxLayout(self.page2)
         self.page2Layout.setAlignment(Qt.AlignTop | Qt.AlignCenter)
         self.page2Layout.setSpacing(16)
-        self.page2Layout.addSpacing(40)
+        self.page2Layout.addSpacing(100)
 
         self.agreementTitle = StrongBodyLabel("软件使用协议", self.page2)
         self.agreementTitle.setAlignment(Qt.AlignCenter)
