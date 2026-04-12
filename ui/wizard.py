@@ -16,7 +16,7 @@ from qfluentwidgets import (
     isDarkTheme,
     StrongBodyLabel,
     Theme,
-)
+)   
 
 from core.config import cfg
 from core.constants import BASE_DIR, get_resPath
@@ -26,7 +26,7 @@ class WizardWindow(QDialog):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("ClassLively 向导")
-        self.setFixedSize(750, 550)
+        self.setFixedSize(840, 650)
         self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint)
 
         setTheme(cfg.themeMode.value)
@@ -58,7 +58,6 @@ class WizardWindow(QDialog):
 
         self.welcomeLabel = StrongBodyLabel("ClassLively", self.page1)
         self.welcomeLabel.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
-        # Use rich text to force a heavier-looking font and larger size
         self.welcomeLabel.setTextFormat(Qt.RichText)
         self.welcomeLabel.setText('<span style="font-family:\'Microsoft YaHei UI\',\'Microsoft YaHei\',\'SimHei\',sans-serif; font-weight:900; font-size:34px;">ClassLively</span>')
         self.welcomeLabel.setStyleSheet("margin:0; padding-left:8px;")
@@ -83,15 +82,69 @@ class WizardWindow(QDialog):
 
         self.agreementTitle = StrongBodyLabel("软件使用协议", self.page2)
         self.agreementTitle.setAlignment(Qt.AlignCenter)
+        title_font = self.agreementTitle.font()
+        title_font.setPointSize(30)
+        title_font.setBold(True)
+        self.agreementTitle.setFont(title_font)
 
         self.agreementText = BodyLabel("在使用本软件前，请阅读并同意以下协议：", self.page2)
         self.agreementText.setAlignment(Qt.AlignCenter)
+        txt_font = self.agreementText.font()
+        txt_font.setPointSize(24)
+        self.agreementText.setFont(txt_font)
+        def _make_check_with_link(box_text, link_text, target_path):
+            h = QHBoxLayout()
+            h.setSpacing(10)
+            h.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            chk = CheckBox("", self.page2)
+            chk_font = chk.font()
+            chk_font.setPointSize(18)
+            chk.setFont(chk_font)
 
-        self.openSourceCheckBox = CheckBox("项目开源协议 (GPL-3.0)", self.page2)
-        
-        self.userAgreementCheckBox = CheckBox("用户协议", self.page2)
-        
-        self.privacyCheckBox = CheckBox("隐私政策", self.page2)
+            lbl = BodyLabel("", self.page2)
+            lbl.setTextFormat(Qt.RichText)
+            if target_path and os.path.exists(target_path):
+                uri = Path(target_path).as_uri()
+            else:
+                uri = ""
+            link_style = 'color:#4fc08d; text-decoration:underline;'
+            lbl.setText(f'<span style="font-size:18px;">我已阅读并同意&nbsp;<a href="{uri}" style="{link_style}">{link_text}</a></span>')
+            lbl.setOpenExternalLinks(False)
+
+            def _on_link_activated(url):
+                if target_path and os.path.exists(target_path):
+                    try:
+                        from .common import show_text_file
+                        show_text_file(link_text, f"{link_text}", target_path, parent=self.window())
+                        return
+                    except Exception:
+                        # fallback to system opener
+                        try:
+                            os.startfile(target_path)
+                            return
+                        except Exception:
+                            pass
+
+                msg = MessageBox(title="提示", content=f"无法打开协议文件：{link_text}", parent=self)
+                msg.exec_()
+
+            lbl.linkActivated.connect(_on_link_activated)
+            h.addWidget(chk, 0, Qt.AlignLeft)
+            h.addWidget(lbl, 0, Qt.AlignLeft)
+            w = QWidget(self.page2)
+            w.setLayout(h)
+            return chk, w
+
+        from pathlib import Path
+        license_path = os.path.join(BASE_DIR, "LICENSE")
+        readme_path = os.path.join(BASE_DIR, "README.md")
+
+        self.openSourceCheckBox, open_source_widget = _make_check_with_link(
+            "", "项目开源协议 (GPL-3.0)", license_path)
+        self.userAgreementCheckBox, user_agree_widget = _make_check_with_link(
+            "", "用户协议", readme_path)
+        self.privacyCheckBox, privacy_widget = _make_check_with_link(
+            "", "隐私政策", "")
 
         self.agreeButton = PrimaryPushButton(FIF.RIGHT_ARROW, "继续", self.page2)
         self.agreeButton.setFixedHeight(36)
@@ -99,11 +152,18 @@ class WizardWindow(QDialog):
 
         self.page2Layout.addWidget(self.agreementTitle, 0, Qt.AlignCenter)
         self.page2Layout.addWidget(self.agreementText, 0, Qt.AlignCenter)
-        self.page2Layout.addSpacing(30)
-        self.page2Layout.addWidget(self.openSourceCheckBox, 0, Qt.AlignCenter)
-        self.page2Layout.addWidget(self.userAgreementCheckBox, 0, Qt.AlignCenter)
-        self.page2Layout.addWidget(self.privacyCheckBox, 0, Qt.AlignCenter)
-        self.page2Layout.addSpacing(30)
+        self.page2Layout.addSpacing(18)
+        checks_container = QWidget(self.page2)
+        checks_container.setMaximumWidth(560)
+        checks_layout = QVBoxLayout(checks_container)
+        checks_layout.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        checks_layout.setContentsMargins(6, 6, 6, 6)
+        checks_layout.setSpacing(14)
+        checks_layout.addWidget(open_source_widget)
+        checks_layout.addWidget(user_agree_widget)
+        checks_layout.addWidget(privacy_widget)
+        self.page2Layout.addWidget(checks_container, 0, Qt.AlignCenter)
+        self.page2Layout.addSpacing(20)
         self.page2Layout.addWidget(self.agreeButton, 0, Qt.AlignCenter)
 
         self.stackedWidget.addWidget(self.page1)

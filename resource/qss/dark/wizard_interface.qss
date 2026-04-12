@@ -19,7 +19,7 @@ WizardWindow StrongBodyLabel {
 WizardWindow BodyLabel {
     color: rgba(255, 255, 255, 0.8);
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
-    font-size: 14px;
+    font-size: 20px;
     margin-top: 6px;
     margin-bottom: 6px;
 }
@@ -27,7 +27,11 @@ WizardWindow BodyLabel {
 WizardWindow CheckBox {
     color: white;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
-    font-size: 13px;
+    font-size: 18px;
     margin-top: 4px;
     margin-bottom: 4px;
+}
+
+WizardWindow a {
+    color: #4fc08d;
 }

@@ -40,6 +40,7 @@ from qfluentwidgets import (
 
 from core.constants import get_resPath
 from version import BUILD_DATE, VERSION
+from .common import show_text_file
 
 from .base_scroll import BaseScrollAreaInterface
 
@@ -198,38 +199,6 @@ class AboutInterface(BaseScrollAreaInterface):
         webbrowser.open("https://space.bilibili.com/1498602348")
     
     def __viewLicense(self):
-        """ 查看许可证文件 """
-        theme = 'dark' if isDarkTheme() else 'light'
-        
         license_path = get_resPath("LICENSE")
-        license_text = ""
-        
-        if os.path.exists(license_path):
-            with open(license_path, 'r', encoding='utf-8') as f:
-                license_text = f.read()
-        else:
-            license_text = "GNU GENERAL PUBLIC LICENSE\nVersion 3, 29 June 2007\n\nCopyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>\n\n此项目基于 GPL-3.0 许可证授权发布。"
-        
-        main_window = self.window()
-        
-        # 创建消息框
-        msg_box = MessageBox(
-            title="软件许可协议",
-            content="此项目 (ClassLively) 基于 GNU General Public License Version 3 许可证发布：",
-            parent=main_window
-        )
-        msg_box.cancelButton.hide()
-        
-        text_edit = TextEdit()
-        text_edit.setPlainText(license_text)
-        text_edit.setReadOnly(True)
-        text_edit.setMinimumHeight(400)
-        text_edit.setMinimumWidth(500)
-        text_edit.setFont(QFont('Consolas', 12))
-        
-        msg_box.textLayout.addWidget(text_edit)
-        msg_box.textLayout.insertSpacing(0, 10)
-        
-        msg_box.setMinimumWidth(600)
-        
-        msg_box.exec_()
+        intro = "此项目 (ClassLively) 基于 GNU General Public License Version 3 许可证发布："
+        show_text_file("开源许可协议", intro, license_path, parent=self.window())
