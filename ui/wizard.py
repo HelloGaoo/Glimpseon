@@ -6,6 +6,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon, QPixmap, QColor
 from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget, QLabel
 from qfluentwidgets import (
+    FluentIcon as FIF,
     MessageBox,
     PrimaryPushButton,
     setTheme,
@@ -49,8 +50,8 @@ class WizardWindow(QDialog):
         self.welcomeLabel.setStyleSheet(f"font-size: 48px; font-weight: bold; color: {text_color}; font-family: 'HarmonyOS Sans SC', 'HarmonyOS Sans', 'Microsoft YaHei', 'SimHei', sans-serif;")
         self.welcomeLabel.setAlignment(Qt.AlignCenter)
 
-        self.nextButton = PrimaryPushButton("下一步", self)
-        self.nextButton.setFixedSize(160, 40)
+        self.nextButton = PrimaryPushButton(FIF.RIGHT_ARROW, "继续", self)
+        self.nextButton.setFixedHeight(36)
 
         self.mainLayout.addWidget(self.iconLabel, 0, Qt.AlignCenter)
         self.mainLayout.addWidget(self.welcomeLabel, 0, Qt.AlignCenter)
