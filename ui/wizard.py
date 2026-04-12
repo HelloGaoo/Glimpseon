@@ -3,7 +3,7 @@ import json
 import os
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QVBoxLayout, QWidget, QStackedWidget
+from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget
 from qfluentwidgets import (
     BodyLabel,
     MessageBox,
@@ -13,7 +13,7 @@ from qfluentwidgets import (
 from core.constants import BASE_DIR
 
 
-class WizardWindow(QWidget):
+class WizardWindow(QDialog):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("ClassLively 向导")
