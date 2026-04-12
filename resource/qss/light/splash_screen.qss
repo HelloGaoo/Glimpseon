@@ -1,7 +1,7 @@
 /* 启动窗口样式 */
 
 #contentWidget {
-    background-color: #FFFFFF;
+    background-color: rgba(255, 255, 255, 230);
     border-radius: 10px;
 }
 

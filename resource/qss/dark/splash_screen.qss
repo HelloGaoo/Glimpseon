@@ -1,7 +1,7 @@
 /* 启动窗口样式 - 暗色主题 */
 
 #contentWidget {
-    background-color: #202020;
+    background-color: rgba(32, 32, 32, 230);
     border-radius: 10px;
 }
 

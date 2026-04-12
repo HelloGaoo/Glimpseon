@@ -38,9 +38,13 @@ class SplashScreen(QWidget):
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setFixedSize(360, 160)
+        
         self.content_widget = QWidget(self)
         self.content_widget.setObjectName("contentWidget")
         self.content_widget.setGeometry(0, 0, 360, 160)
+        
+        self._updateBackgroundStyle()
+        
         content_layout = QVBoxLayout(self.content_widget)
         content_layout.setContentsMargins(20, 15, 20, 10)
         content_layout.setSpacing(10)
@@ -80,6 +84,21 @@ class SplashScreen(QWidget):
             with open(qss_path, 'r', encoding='utf-8') as f:
                 qss = f.read()
             self.setStyleSheet(qss)
+    
+    def _updateBackgroundStyle(self):
+        """更新背景"""
+        is_dark = isDarkTheme()
+        if is_dark:
+            bg_color = "rgba(32, 32, 32, 200)"
+        else:
+            bg_color = "rgba(255, 255, 255, 200)"
+        
+        self.content_widget.setStyleSheet(f"""
+            #contentWidget {{
+                background-color: {bg_color};
+                border-radius: 10px;
+            }}
+        """)
         
     def _getQssPath(self):
         """获取 QSS 文件路径"""
