@@ -3,14 +3,17 @@ import json
 import os
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtGui import QIcon, QPixmap, QColor
 from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget, QLabel
 from qfluentwidgets import (
-    BodyLabel,
     MessageBox,
     PrimaryPushButton,
+    setTheme,
+    isDarkTheme,
+    Theme,
 )
 
+from core.config import cfg
 from core.constants import BASE_DIR, get_resPath
 
 
@@ -21,41 +24,37 @@ class WizardWindow(QDialog):
         self.setFixedSize(750, 550)
         self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint)
 
+        setTheme(cfg.themeMode.value)
+
         icon_path = get_resPath(os.path.join("resource", "icons", "CY.png"))
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
 
         self.mainLayout = QVBoxLayout(self)
-        self.mainLayout.setContentsMargins(40, 40, 40, 40)
+        self.mainLayout.setContentsMargins(40, 120, 40, 40)
         self.mainLayout.setSpacing(20)
+        self.mainLayout.setAlignment(Qt.AlignTop | Qt.AlignCenter)
+        
+        self.__setQss()
 
-        self.stackedWidget = QStackedWidget(self)
-        self.mainLayout.addWidget(self.stackedWidget)
-
-        self.page1 = QWidget()
-        self.page1Layout = QVBoxLayout(self.page1)
-        self.page1Layout.setAlignment(Qt.AlignCenter)
-        self.page1Layout.setSpacing(20)
-
-        self.iconLabel = QLabel(self.page1)
+        self.iconLabel = QLabel(self)
         self.iconLabel.setFixedSize(128, 128)
         self.iconLabel.setAlignment(Qt.AlignCenter)
         if os.path.exists(icon_path):
             pixmap = QPixmap(icon_path)
             self.iconLabel.setPixmap(pixmap.scaled(128, 128, Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
-        self.welcomeLabel = BodyLabel("ClassLively", self.page1)
-        self.welcomeLabel.setStyleSheet("font-size: 48px; font-weight: bold;")
+        text_color = "white" if isDarkTheme() else "black"
+        self.welcomeLabel = QLabel("ClassLively", self)
+        self.welcomeLabel.setStyleSheet(f"font-size: 48px; font-weight: bold; color: {text_color}; font-family: 'HarmonyOS Sans SC', 'HarmonyOS Sans', 'Microsoft YaHei', 'SimHei', sans-serif;")
         self.welcomeLabel.setAlignment(Qt.AlignCenter)
 
-        self.nextButton = PrimaryPushButton("下一步", self.page1)
+        self.nextButton = PrimaryPushButton("下一步", self)
         self.nextButton.setFixedSize(160, 40)
 
-        self.page1Layout.addWidget(self.iconLabel, 0, Qt.AlignCenter)
-        self.page1Layout.addWidget(self.welcomeLabel, 0, Qt.AlignCenter)
-        self.page1Layout.addWidget(self.nextButton, 0, Qt.AlignCenter)
-
-        self.stackedWidget.addWidget(self.page1)
+        self.mainLayout.addWidget(self.iconLabel, 0, Qt.AlignCenter)
+        self.mainLayout.addWidget(self.welcomeLabel, 0, Qt.AlignCenter)
+        self.mainLayout.addWidget(self.nextButton, 0, Qt.AlignCenter)
 
         self.nextButton.clicked.connect(self._onNextClicked)
 
@@ -72,6 +71,15 @@ class WizardWindow(QDialog):
 
     def _onNextClicked(self):
         pass
+    
+    def __setQss(self):
+        theme = 'dark' if isDarkTheme() else 'light'
+        try:
+            qss_path = get_resPath(os.path.join('resource', 'qss', theme, 'wizard_interface.qss'))
+            with open(qss_path, encoding='utf-8') as f:
+                self.setStyleSheet(f.read())
+        except Exception:
+            pass
 
 
 def check_wizard_needed():

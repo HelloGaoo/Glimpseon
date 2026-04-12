@@ -1,0 +1,8 @@
+WizardWindow {
+    background-color: rgb(247, 247, 247);
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+WizardWindow QWidget {
+    background-color: rgb(247, 247, 247);
+}
