@@ -329,6 +329,8 @@ class WizardWindow(QDialog):
         self.privacyCheckBox.stateChanged.connect(self._onCheckBoxChanged)
         self.finishButton.clicked.connect(self._onFinishClicked)
         self.finishButton2.clicked.connect(self._onFinishClicked2)
+        self.themeCard.comboBox.currentIndexChanged.connect(self._onThemeChanged)
+        self.themeColorCard.colorChanged.connect(self._onColorChanged)
 
     def closeEvent(self, event):
         msg_box = MessageBox(
@@ -414,10 +416,8 @@ class WizardWindow(QDialog):
             if getattr(sys, 'frozen', False):
                 exe_path = sys.executable
             else:
-
                 exe_path = sys.executable
                 script_path = os.path.abspath(__file__)
-                # 快捷方式指向py
                 pass
             
             shell = win32com.client.Dispatch('WScript.Shell')
@@ -442,6 +442,27 @@ class WizardWindow(QDialog):
                 parent=self,
                 duration=5000
             )
+    
+    def _onThemeChanged(self, index):
+        """主题变更"""
+        theme_mode = cfg.themeMode.value
+        setTheme(theme_mode.value)
+        self.__setQss()
+        def update_widget_style(widget):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+            widget.update()
+            for child in widget.children():
+                if hasattr(child, 'style'):
+                    update_widget_style(child)
+        
+        update_widget_style(self)
+    
+    def _onColorChanged(self, color):
+        """颜色变更"""
+        theme_color = cfg.themeColor.value
+        from qfluentwidgets import setThemeColor
+        setThemeColor(theme_color)
     
     def __setQss(self):
         theme = 'dark' if isDarkTheme() else 'light'
