@@ -82,7 +82,7 @@ class WizardWindow(QDialog):
         self.welcomeLabel = StrongBodyLabel("ClassLively", self.page1)
         self.welcomeLabel.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
         self.welcomeLabel.setTextFormat(Qt.RichText)
-        self.welcomeLabel.setText('<span style="font-family:\'Microsoft YaHei UI\',\'Microsoft YaHei\',\'SimHei\',sans-serif; font-weight:900; font-size:34px;">ClassLively</span>')
+        self.welcomeLabel.setText('<span style="font-family:\'HarmonyOS Sans SC\',\'HarmonyOS Sans\',\'Microsoft YaHei UI\',\'Microsoft YaHei\',\'SimHei\',sans-serif; font-weight:900; font-size:34px;">ClassLively</span>')
         self.welcomeLabel.setStyleSheet("margin:0; padding-left:8px;")
 
         self.nextButton = PrimaryPushButton(FIF.RIGHT_ARROW, "继续", self.page1)
@@ -107,6 +107,7 @@ class WizardWindow(QDialog):
         self.agreementTitle = StrongBodyLabel("软件使用协议", self.page2)
         self.agreementTitle.setAlignment(Qt.AlignCenter)
         title_font = self.agreementTitle.font()
+        title_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
         title_font.setPointSize(30)
         title_font.setBold(True)
         self.agreementTitle.setFont(title_font)
@@ -114,6 +115,7 @@ class WizardWindow(QDialog):
         self.agreementText = BodyLabel("在使用本软件前，请阅读并同意以下协议：", self.page2)
         self.agreementText.setAlignment(Qt.AlignCenter)
         txt_font = self.agreementText.font()
+        txt_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
         txt_font.setPointSize(14)
         self.agreementText.setFont(txt_font)
 
@@ -145,7 +147,7 @@ class WizardWindow(QDialog):
                 uri = ""
             theme_color = cfg.themeColor.value.name()
             link_style = f'color:{theme_color}; text-decoration:underline;'
-            lbl.setText(f'<span style="font-size:16px;">我已阅读并同意&nbsp;<a href="{uri}" style="{link_style}">{link_text}</a></span>')
+            lbl.setText(f'<span style="font-family:\'HarmonyOS Sans SC\',\'HarmonyOS Sans\',\'Microsoft YaHei UI\',\'Microsoft YaHei\',\'SimHei\',sans-serif; font-size:16px;">我已阅读并同意&nbsp;<a href="{uri}" style="{link_style}">{link_text}</a></span>')
             lbl.setOpenExternalLinks(False)
             
             def _on_link_activated(url):
@@ -217,6 +219,7 @@ class WizardWindow(QDialog):
         self.settingsTitle = StrongBodyLabel("基本设置", self.page3)
         self.settingsTitle.setAlignment(Qt.AlignCenter)
         settings_title_font = self.settingsTitle.font()
+        settings_title_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
         settings_title_font.setPointSize(30)
         settings_title_font.setBold(True)
         self.settingsTitle.setFont(settings_title_font)
@@ -224,6 +227,7 @@ class WizardWindow(QDialog):
         self.settingsText = BodyLabel("请选择您需要的功能选项：", self.page3)
         self.settingsText.setAlignment(Qt.AlignCenter)
         settings_txt_font = self.settingsText.font()
+        settings_txt_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
         settings_txt_font.setPointSize(14)
         self.settingsText.setFont(settings_txt_font)
 
@@ -288,6 +292,7 @@ class WizardWindow(QDialog):
         self.appearanceTitle = StrongBodyLabel("外观设置", self.page4)
         self.appearanceTitle.setAlignment(Qt.AlignCenter)
         appearance_title_font = self.appearanceTitle.font()
+        appearance_title_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
         appearance_title_font.setPointSize(30)
         appearance_title_font.setBold(True)
         self.appearanceTitle.setFont(appearance_title_font)
@@ -295,6 +300,7 @@ class WizardWindow(QDialog):
         self.appearanceText = BodyLabel("选择适合您的主题和颜色：", self.page4)
         self.appearanceText.setAlignment(Qt.AlignCenter)
         appearance_txt_font = self.appearanceText.font()
+        appearance_txt_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
         appearance_txt_font.setPointSize(14)
         self.appearanceText.setFont(appearance_txt_font)
 
