@@ -4,7 +4,7 @@ import os
 
 from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve, QLocale
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QFont
-from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget, QHBoxLayout, QLabel, QGraphicsOpacityEffect, QApplication
+from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget, QHBoxLayout, QLabel, QGraphicsOpacityEffect, QApplication, QPushButton
 from qfluentwidgets import (
     BodyLabel,
     CheckBox,
@@ -12,6 +12,7 @@ from qfluentwidgets import (
     CustomColorSettingCard,
     FluentIcon as FIF,
     FluentTranslator,
+    FluentWindow,
     HyperlinkLabel,
     InfoBar,
     MessageBox,
@@ -22,6 +23,7 @@ from qfluentwidgets import (
     Theme,
     SwitchSettingCard,
     SwitchButton,
+    setCustomStyleSheet,
 )   
 
 from core.config import cfg
@@ -33,8 +35,8 @@ class WizardWindow(QDialog):
         super().__init__()
         self.setWindowTitle("ClassLively 向导")
         self.setFixedSize(840, 650)
-        self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint)
-
+        self.setWindowFlags(Qt.FramelessWindowHint)
+        
         locale = QLocale(QLocale.Chinese, QLocale.China)
         self.translator = FluentTranslator(locale)
         QApplication.instance().installTranslator(self.translator)
@@ -45,14 +47,126 @@ class WizardWindow(QDialog):
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
 
+        # 创建主布局
         self.mainLayout = QVBoxLayout(self)
-        self.mainLayout.setContentsMargins(30, 30, 30, 30)
-        self.mainLayout.setSpacing(16)
-
-        self.stackedWidget = QStackedWidget(self)
-        self.mainLayout.addWidget(self.stackedWidget)
+        self.mainLayout.setContentsMargins(0, 0, 0, 0)
+        self.mainLayout.setSpacing(0)
+        
+        # 创建标题栏
+        self.titleBar = self._createTitleBar()
+        self.mainLayout.addWidget(self.titleBar)
+        
+        # 创建内容区域
+        self.contentWidget = QWidget()
+        self.contentLayout = QVBoxLayout(self.contentWidget)
+        self.contentLayout.setContentsMargins(30, 30, 30, 30)
+        self.contentLayout.setSpacing(16)
+        self.mainLayout.addWidget(self.contentWidget, 1)
+        
+        self.stackedWidget = QStackedWidget(self.contentWidget)
+        self.contentLayout.addWidget(self.stackedWidget)
         
         self.__setQss()
+
+    def _createTitleBar(self):
+        """创建 Fluent 风格标题栏"""
+        titleBar = QWidget()
+        titleBar.setFixedHeight(40)
+        titleBar.setStyleSheet(f"""
+            QWidget {{
+                background-color: {'#202020' if isDarkTheme() else '#F3F3F3'};
+                border-bottom: 1px solid {'#333333' if isDarkTheme() else '#E0E0E0'};
+            }}
+        """)
+        
+        titleLayout = QHBoxLayout(titleBar)
+        titleLayout.setContentsMargins(16, 0, 4, 0)
+        titleLayout.setSpacing(8)
+        
+        # 标题图标
+        iconLabel = QLabel()
+        if os.path.exists(icon_path):
+            pixmap = QPixmap(icon_path).scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            iconLabel.setPixmap(pixmap)
+        else:
+            iconLabel.setFixedSize(20, 20)
+        
+        # 标题文字
+        titleLabel = QLabel("ClassLively 向导")
+        titleLabel.setStyleSheet(f"""
+            color: {'#FFFFFF' if isDarkTheme() else '#000000'};
+            font-size: 13px;
+            font-weight: bold;
+        """)
+        
+        # 标题栏空白占位
+        spacer = QWidget()
+        spacer.setSizePolicy(QWidget.Expanding, QWidget.Expanding)
+        
+        # 最小化按钮
+        minButton = QPushButton()
+        minButton.setFixedSize(40, 30)
+        minButton.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                border: none;
+                color: {'#FFFFFF' if isDarkTheme() else '#000000'};
+                font-size: 16px;
+            }}
+            QPushButton:hover {{
+                background-color: {'#333333' if isDarkTheme() else '#E0E0E0'};
+            }}
+        """)
+        minButton.setText("─")
+        minButton.clicked.connect(self.showMinimized)
+        
+        # 关闭按钮
+        closeButton = QPushButton()
+        closeButton.setFixedSize(40, 30)
+        closeButton.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                border: none;
+                color: {'#FFFFFF' if isDarkTheme() else '#000000'};
+                font-size: 16px;
+            }}
+            QPushButton:hover {{
+                background-color: #E81123;
+                color: #FFFFFF;
+            }}
+        """)
+        closeButton.setText("×")
+        closeButton.clicked.connect(self.close)
+        
+        titleLayout.addWidget(iconLabel)
+        titleLayout.addWidget(titleLabel)
+        titleLayout.addWidget(spacer)
+        titleLayout.addWidget(minButton)
+        titleLayout.addWidget(closeButton)
+        
+        return titleBar
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.dragStartPos = event.globalPos()
+            self.framePos = self.pos()
+            event.accept()
+        else:
+            super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() == Qt.LeftButton and hasattr(self, 'dragStartPos'):
+            delta = event.globalPos() - self.dragStartPos
+            self.move(self.framePos + delta)
+            event.accept()
+        else:
+            super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if hasattr(self, 'dragStartPos'):
+            del self.dragStartPos
+            del self.framePos
+        super().mouseReleaseEvent(event)
 
         self.page1 = QWidget()
         self.page1Layout = QVBoxLayout(self.page1)
