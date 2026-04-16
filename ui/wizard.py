@@ -4,7 +4,7 @@ import os
 
 from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve, QLocale
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QFont
-from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget, QHBoxLayout, QLabel, QGraphicsOpacityEffect, QApplication
+from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget, QHBoxLayout, QLabel, QGraphicsOpacityEffect, QApplication, QPushButton
 from qfluentwidgets import (
     BodyLabel,
     CheckBox,
@@ -26,6 +26,7 @@ from qfluentwidgets import (
 
 from core.config import cfg
 from core.constants import BASE_DIR, get_resPath
+from pathlib import Path
 
 
 class WizardWindow(QDialog):
@@ -52,8 +53,29 @@ class WizardWindow(QDialog):
         self.stackedWidget = QStackedWidget(self)
         self.mainLayout.addWidget(self.stackedWidget)
         
+        # 创建关闭按钮（绝对定位，不影响布局）
+        self.closeButton = QPushButton(self)
+        self.closeButton.setFixedSize(30, 30)
+        self.closeButton.move(self.width() - 35, 5)
+        self.closeButton.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                border: none;
+                color: {'#FFFFFF' if isDarkTheme() else '#000000'};
+                font-size: 20px;
+                border-radius: 15px;
+            }}
+            QPushButton:hover {{
+                background-color: #E81123;
+                color: #FFFFFF;
+            }}
+        """)
+        self.closeButton.setText("×")
+        self.closeButton.clicked.connect(self.close)
+        
         self.__setQss()
 
+        # 第 1 页：欢迎页面
         self.page1 = QWidget()
         self.page1Layout = QVBoxLayout(self.page1)
         self.page1Layout.setAlignment(Qt.AlignCenter)
@@ -84,6 +106,7 @@ class WizardWindow(QDialog):
         self.page1Layout.addLayout(self.headerLayout)
         self.page1Layout.addWidget(self.nextButton, 0, Qt.AlignCenter)
 
+        # 第 2 页：软件使用协议
         self.page2 = QWidget()
         self.page2Layout = QVBoxLayout(self.page2)
         self.page2Layout.setAlignment(Qt.AlignTop | Qt.AlignCenter)
@@ -163,7 +186,6 @@ class WizardWindow(QDialog):
             
             return chk, container
 
-        from pathlib import Path
         license_path = os.path.join(BASE_DIR, "LICENSE")
         readme_path = os.path.join(BASE_DIR, "README.md")
 
@@ -194,6 +216,7 @@ class WizardWindow(QDialog):
         self.stackedWidget.addWidget(self.page1)
         self.stackedWidget.addWidget(self.page2)
 
+        # 第 3 页：基本设置
         self.page3 = QWidget()
         self.page3Layout = QVBoxLayout(self.page3)
         self.page3Layout.setAlignment(Qt.AlignTop | Qt.AlignCenter)
@@ -264,6 +287,7 @@ class WizardWindow(QDialog):
 
         self.stackedWidget.addWidget(self.page3)
 
+        # 第 4 页：外观设置
         self.page4 = QWidget()
         self.page4Layout = QVBoxLayout(self.page4)
         self.page4Layout.setAlignment(Qt.AlignTop | Qt.AlignCenter)
@@ -333,6 +357,11 @@ class WizardWindow(QDialog):
         self.finishButton2.clicked.connect(self._onFinishClicked2)
         self.themeCard.comboBox.currentIndexChanged.connect(self._onThemeChanged)
         self.themeColorCard.colorChanged.connect(self._onColorChanged)
+
+    def resizeEvent(self, event):
+        # 更新关闭按钮位置（保持在右上角）
+        self.closeButton.move(self.width() - 35, 5)
+        super().resizeEvent(event)
 
     def closeEvent(self, event):
         msg_box = MessageBox(
@@ -419,7 +448,6 @@ class WizardWindow(QDialog):
                 exe_path = sys.executable
             else:
                 exe_path = sys.executable
-                script_path = os.path.abspath(__file__)
                 pass
             
             shell = win32com.client.Dispatch('WScript.Shell')
@@ -498,4 +526,3 @@ def complete_wizard():
     wizard_path = os.path.join(BASE_DIR, "config", "Setup_Wizard.json")
     with open(wizard_path, "w", encoding="utf-8") as f:
         json.dump({"completed": 1}, f)
-
