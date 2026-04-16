@@ -334,8 +334,8 @@ class WizardWindow(QDialog):
 
     def closeEvent(self, event):
         msg_box = MessageBox(
-            title=FluentTranslator.tr("MessageBox", "提示"),
-            content=FluentTranslator.tr("MessageBox", "向导未完成，确定要退出吗？"),
+            title="提示",
+            content="向导未完成，确定要退出吗？",
             parent=self
         )
         if msg_box.exec_():
