@@ -22,7 +22,6 @@ from qfluentwidgets import (
     Theme,
     SwitchSettingCard,
     SwitchButton,
-    TitleBar,
 )   
 
 from core.config import cfg
@@ -35,7 +34,7 @@ class WizardWindow(QDialog):
         self.setWindowTitle("ClassLively 向导")
         self.setFixedSize(840, 650)
         self.setWindowFlags(Qt.FramelessWindowHint)
-        
+
         locale = QLocale(QLocale.Chinese, QLocale.China)
         self.translator = FluentTranslator(locale)
         QApplication.instance().installTranslator(self.translator)
@@ -47,44 +46,13 @@ class WizardWindow(QDialog):
             self.setWindowIcon(QIcon(icon_path))
 
         self.mainLayout = QVBoxLayout(self)
-        self.mainLayout.setContentsMargins(0, 0, 0, 0)
-        self.mainLayout.setSpacing(0)
+        self.mainLayout.setContentsMargins(30, 30, 30, 30)
+        self.mainLayout.setSpacing(16)
 
-        self.titleBar = TitleBar(self)
-        self.titleBar.setObjectName("titleBar")
-        self.titleBar.titleLabel.setText("ClassLively 向导")
-        self.mainLayout.addWidget(self.titleBar)
-        self.contentWidget = QWidget()
-        self.contentLayout = QVBoxLayout(self.contentWidget)
-        self.contentLayout.setContentsMargins(30, 30, 30, 30)
-        self.contentLayout.setSpacing(16)
-        self.mainLayout.addWidget(self.contentWidget, 1)
-        self.stackedWidget = QStackedWidget(self.contentWidget)
-        self.contentLayout.addWidget(self.stackedWidget)
+        self.stackedWidget = QStackedWidget(self)
+        self.mainLayout.addWidget(self.stackedWidget)
         
         self.__setQss()
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton and event.y() <= self.titleBar.height():
-            self.dragStartPos = event.globalPos()
-            self.framePos = self.pos()
-            event.accept()
-        else:
-            super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event):
-        if event.buttons() == Qt.LeftButton and hasattr(self, 'dragStartPos'):
-            delta = event.globalPos() - self.dragStartPos
-            self.move(self.framePos + delta)
-            event.accept()
-        else:
-            super().mouseMoveEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        if hasattr(self, 'dragStartPos'):
-            del self.dragStartPos
-            del self.framePos
-        super().mouseReleaseEvent(event)
 
         self.page1 = QWidget()
         self.page1Layout = QVBoxLayout(self.page1)
