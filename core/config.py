@@ -269,6 +269,12 @@ class Config(QConfig):
     minimizeNotificationCount = ConfigItem(
         "Other", "MinimizeNotificationCount", 0, validator=None
     )
+    school = ConfigItem(
+        "School", "School", ""
+    )
+    schoolClass = ConfigItem(
+        "School", "Class", ""
+    )
 
 
 cfg = Config()

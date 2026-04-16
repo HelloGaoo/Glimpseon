@@ -4,7 +4,7 @@ import os
 
 from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve, QLocale
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QFont
-from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget, QHBoxLayout, QLabel, QGraphicsOpacityEffect, QApplication, QPushButton
+from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget, QHBoxLayout, QLabel, QGraphicsOpacityEffect, QApplication, QPushButton, QLineEdit
 from qfluentwidgets import (
     BodyLabel,
     CheckBox,
@@ -16,17 +16,21 @@ from qfluentwidgets import (
     InfoBar,
     MessageBox,
     PrimaryPushButton,
+    PushButton,
     setTheme,
     isDarkTheme,
     StrongBodyLabel,
     Theme,
     SwitchSettingCard,
     SwitchButton,
-)   
+    LineEdit,
+    ToolButton,
+)
 
 from core.config import cfg
 from core.constants import BASE_DIR, get_resPath
 from pathlib import Path
+from ui.city_selector import RegionSelectorDialog
 
 
 class WizardWindow(QDialog):
@@ -345,6 +349,139 @@ class WizardWindow(QDialog):
 
         self.stackedWidget.addWidget(self.page4)
 
+        # 第 5 页：学校信息设置
+        self.page5 = QWidget()
+        self.page5Layout = QVBoxLayout(self.page5)
+        self.page5Layout.setAlignment(Qt.AlignTop | Qt.AlignCenter)
+        self.page5Layout.setSpacing(16)
+        self.page5Layout.addSpacing(50)
+
+        self.schoolInfoTitle = StrongBodyLabel("学校信息设置", self.page5)
+        self.schoolInfoTitle.setAlignment(Qt.AlignCenter)
+        school_info_title_font = self.schoolInfoTitle.font()
+        school_info_title_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
+        school_info_title_font.setPointSize(30)
+        school_info_title_font.setBold(True)
+        self.schoolInfoTitle.setFont(school_info_title_font)
+
+        self.schoolInfoText = BodyLabel("请输入您的学校和班级信息，以及选择天气城市：", self.page5)
+        self.schoolInfoText.setAlignment(Qt.AlignCenter)
+        school_info_txt_font = self.schoolInfoText.font()
+        school_info_txt_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
+        school_info_txt_font.setPointSize(14)
+        self.schoolInfoText.setFont(school_info_txt_font)
+
+        self.page5Layout.addWidget(self.schoolInfoTitle, 0, Qt.AlignCenter)
+        self.page5Layout.addWidget(self.schoolInfoText, 0, Qt.AlignCenter)
+        self.page5Layout.addSpacing(16)
+
+        school_info_container = QWidget(self.page5)
+        school_info_container.setMaximumWidth(700)
+        school_info_layout = QVBoxLayout(school_info_container)
+        school_info_layout.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+        school_info_layout.setContentsMargins(0, 0, 0, 0)
+        school_info_layout.setSpacing(12)
+
+        # 天气城市选择
+        city_row = QWidget(self.page5)
+        city_row.setFixedHeight(56)
+        city_row_layout = QHBoxLayout(city_row)
+        city_row_layout.setContentsMargins(16, 8, 16, 8)
+        city_row_layout.setSpacing(12)
+        
+        city_label = BodyLabel("天气城市", self.page5)
+        city_label_font = city_label.font()
+        city_label_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
+        city_label.setFont(city_label_font)
+        city_label.setFixedWidth(120)
+        city_row_layout.addWidget(city_label)
+        
+        self.cityDisplayButton = PushButton(cfg.city.value, self.page5)
+        self.cityDisplayButton.setFixedWidth(400)
+        self.cityDisplayButton.clicked.connect(self._onCityButtonClicked)
+        city_row_layout.addWidget(self.cityDisplayButton)
+        city_row_layout.addStretch()
+        
+        school_info_layout.addWidget(city_row)
+
+        # 学校输入
+        school_row = QWidget(self.page5)
+        school_row.setFixedHeight(56)
+        school_row_layout = QHBoxLayout(school_row)
+        school_row_layout.setContentsMargins(16, 8, 16, 8)
+        school_row_layout.setSpacing(12)
+        
+        school_label = BodyLabel("学校名称", self.page5)
+        school_label_font = school_label.font()
+        school_label_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
+        school_label.setFont(school_label_font)
+        school_label.setFixedWidth(120)
+        school_row_layout.addWidget(school_label)
+        
+        self.schoolLineEdit = LineEdit(self.page5)
+        self.schoolLineEdit.setFixedWidth(400)
+        self.schoolLineEdit.setPlaceholderText("请输入学校名称")
+        self.schoolLineEdit.setText(cfg.school.value)
+        school_row_layout.addWidget(self.schoolLineEdit)
+        school_row_layout.addStretch()
+        
+        school_info_layout.addWidget(school_row)
+
+        # 班级输入
+        class_row = QWidget(self.page5)
+        class_row.setFixedHeight(56)
+        class_row_layout = QHBoxLayout(class_row)
+        class_row_layout.setContentsMargins(16, 8, 16, 8)
+        class_row_layout.setSpacing(12)
+        
+        class_label = BodyLabel("班级", self.page5)
+        class_label_font = class_label.font()
+        class_label_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
+        class_label.setFont(class_label_font)
+        class_label.setFixedWidth(120)
+        class_row_layout.addWidget(class_label)
+        
+        self.classLineEdit = LineEdit(self.page5)
+        self.classLineEdit.setFixedWidth(400)
+        self.classLineEdit.setPlaceholderText("请输入班级（如：1班、高二3班）")
+        self.classLineEdit.setText(cfg.schoolClass.value)
+        class_row_layout.addWidget(self.classLineEdit)
+        class_row_layout.addStretch()
+        
+        school_info_layout.addWidget(class_row)
+
+        # 倒计时配置
+        countdown_row = QWidget(self.page5)
+        countdown_row.setFixedHeight(56)
+        countdown_row_layout = QHBoxLayout(countdown_row)
+        countdown_row_layout.setContentsMargins(16, 8, 16, 8)
+        countdown_row_layout.setSpacing(12)
+        
+        countdown_label = BodyLabel("倒计时配置", self.page5)
+        countdown_label_font = countdown_label.font()
+        countdown_label_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
+        countdown_label.setFont(countdown_label_font)
+        countdown_label.setFixedWidth(120)
+        countdown_row_layout.addWidget(countdown_label)
+        
+        self.countdownConfigButton = ToolButton(FIF.ADD, self.page5)
+        self.countdownConfigButton.setFixedSize(36, 36)
+        self.countdownConfigButton.setToolTip("添加倒计时")
+        self.countdownConfigButton.clicked.connect(self._onCountdownConfigClicked)
+        countdown_row_layout.addWidget(self.countdownConfigButton)
+        countdown_row_layout.addStretch()
+        
+        school_info_layout.addWidget(countdown_row)
+
+        self.page5Layout.addWidget(school_info_container, 0, Qt.AlignCenter)
+        self.page5Layout.addSpacing(20)
+
+        self.finishButton3 = PrimaryPushButton(FIF.ACCEPT, "完成", self.page5)
+        self.finishButton3.setFixedHeight(36)
+        self.page5Layout.addWidget(self.finishButton3, 0, Qt.AlignCenter)
+
+        self.stackedWidget.addWidget(self.page5)
+
         self.nextButton.clicked.connect(self._onNextClicked)
         self.agreeButton.clicked.connect(self._onAgreeClicked)
         self.openSourceCheckBox.stateChanged.connect(self._onCheckBoxChanged)
@@ -352,6 +489,7 @@ class WizardWindow(QDialog):
         self.privacyCheckBox.stateChanged.connect(self._onCheckBoxChanged)
         self.finishButton.clicked.connect(self._onFinishClicked)
         self.finishButton2.clicked.connect(self._onFinishClicked2)
+        self.finishButton3.clicked.connect(self._onFinishClicked3)
         self.themeCard.comboBox.currentIndexChanged.connect(self._onThemeChanged)
         self.themeColorCard.colorChanged.connect(self._onColorChanged)
 
@@ -421,8 +559,48 @@ class WizardWindow(QDialog):
         self._setCurrentIndexAnimated(3)
 
     def _onFinishClicked2(self):
+        self._setCurrentIndexAnimated(4)
+
+    def _onFinishClicked3(self):
+        """保存学校信息设置并完成向导"""
+        cfg.city.value = self.cityDisplayButton.text()
+        cfg.school.value = self.schoolLineEdit.text().strip()
+        cfg.schoolClass.value = self.classLineEdit.text().strip()
         complete_wizard()
         self.accept()
+
+    def _onCityButtonClicked(self):
+        """打开城市选择对话框"""
+        dialog = RegionSelectorDialog(self)
+        if dialog.exec_():
+            selected_city = dialog.get_selected_region()
+            if selected_city:
+                self.cityDisplayButton.setText(selected_city)
+
+    def _onCountdownConfigClicked(self):
+        """打开倒计时添加对话框"""
+        try:
+            from ui.edit_panel import CountdownEditDialog
+            dialog = CountdownEditDialog(self)
+            if dialog.exec_():
+                countdown_data = dialog.get_countdown()
+                if countdown_data:
+                    countdown_list = cfg.countdownList.value or []
+                    countdown_list.append(countdown_data)
+                    cfg.countdownList.value = countdown_list
+                    InfoBar.success(
+                        title="成功",
+                        content=f"已添加倒计时：{countdown_data.get('title', '')}",
+                        parent=self,
+                        duration=3000
+                    )
+        except Exception as e:
+            InfoBar.warning(
+                title="提示",
+                content=f"添加倒计时失败：{str(e)}",
+                parent=self,
+                duration=5000
+            )
 
     def _createSwitchCard(self, icon, title, content, default_value):
         """开关设置卡片"""

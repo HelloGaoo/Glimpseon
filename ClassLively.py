@@ -556,6 +556,30 @@ class MainWindow(FluentWindow):
         else:
             logger.info("空闲检测已禁用")
     
+    def __isMediaPlaying(self):
+        """检测媒体"""
+        try:
+            from pycaw.pycaw import AudioUtilities
+            sessions = AudioUtilities.GetAllSessions()
+            for session in sessions:
+                if session.State == 1:
+                    proc = session.Process
+                    if proc:
+                        proc_name = proc.name().lower()
+                        if any(browser in proc_name for browser in [
+                            'chrome', 'msedge', 'firefox', 'brave', 'opera', 
+                            'vivaldi', 'iexplore', 'edge'
+                        ]) or any(player in proc_name for player in [
+                            'music', 'vlc', 'potplayer', 'spotify', 'netflix'
+                        ]):
+                            logger.debug(f"检测到活跃媒体进程: {proc_name}")
+                            return True
+            
+            return False
+        except Exception as e:
+            logger.debug(f"媒体播放检测失败: {e}")
+            return False
+    
     def __checkIdle(self):
         """ 检查电脑是否空闲 """
         if not cfg.autoOpenOnIdle.value:
@@ -575,6 +599,7 @@ class MainWindow(FluentWindow):
         try:
             if self.isVideoPlaying:
                 return
+            
             last_input = LASTINPUTINFO()
             last_input.cbSize = ctypes.sizeof(LASTINPUTINFO)
             ctypes.windll.user32.GetLastInputInfo(ctypes.byref(last_input))
@@ -589,6 +614,11 @@ class MainWindow(FluentWindow):
             idle_threshold = idle_minutes * 60 * 1000
             
             if idle_time_ms > idle_threshold and not self.hasTriggeredAutoOpen and not is_recent_page_operation:
+                if self.__isMediaPlaying():
+                    logger.debug("检测到媒体正在播放，跳过空闲触发")
+                    self.lastMouseActivity = QTime.currentTime()
+                    return
+                
                 logger.info(f"检测到电脑空闲超过{idle_minutes}分钟，自动打开界面")
                 self.__autoOpenFromMinimized()
                 self.lastMouseActivity = QTime.currentTime()
