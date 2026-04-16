@@ -10,12 +10,15 @@ from qfluentwidgets import (
     CheckBox,
     FluentIcon as FIF,
     HyperlinkLabel,
+    InfoBar,
     MessageBox,
     PrimaryPushButton,
     setTheme,
     isDarkTheme,
     StrongBodyLabel,
     Theme,
+    SwitchSettingCard,
+    SwitchButton,
 )   
 
 from core.config import cfg
@@ -182,11 +185,82 @@ class WizardWindow(QDialog):
         self.stackedWidget.addWidget(self.page1)
         self.stackedWidget.addWidget(self.page2)
 
+        self.page3 = QWidget()
+        self.page3Layout = QVBoxLayout(self.page3)
+        self.page3Layout.setAlignment(Qt.AlignTop | Qt.AlignCenter)
+        self.page3Layout.setSpacing(16)
+        self.page3Layout.addSpacing(50)
+
+        self.settingsTitle = StrongBodyLabel("基本设置", self.page3)
+        self.settingsTitle.setAlignment(Qt.AlignCenter)
+        settings_title_font = self.settingsTitle.font()
+        settings_title_font.setPointSize(30)
+        settings_title_font.setBold(True)
+        self.settingsTitle.setFont(settings_title_font)
+
+        self.settingsText = BodyLabel("可在设置页面配置，请选择常用选项：", self.page3)
+        self.settingsText.setAlignment(Qt.AlignCenter)
+        settings_txt_font = self.settingsText.font()
+        settings_txt_font.setPointSize(18)
+        self.settingsText.setFont(settings_txt_font)
+
+        self.page3Layout.addWidget(self.settingsTitle, 0, Qt.AlignCenter)
+        self.page3Layout.addWidget(self.settingsText, 0, Qt.AlignCenter)
+        self.page3Layout.addSpacing(24)
+
+        settings_container = QWidget(self.page3)
+        settings_container.setMaximumWidth(700)
+        settings_layout = QVBoxLayout(settings_container)
+        settings_layout.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+        settings_layout.setContentsMargins(0, 0, 0, 0)
+        settings_layout.setSpacing(12)
+
+        self.autoStartSwitch = self._createSwitchCard(
+            FIF.PLAY,
+            "开机自启动",
+            "设置应用在系统启动时自动运行",
+            cfg.autoStart.value
+        )
+        settings_layout.addWidget(self.autoStartSwitch)
+
+        self.autoOpenOnIdleSwitch = self._createSwitchCard(
+            FIF.VIEW,
+            "空闲时自动打开",
+            "电脑空闲时自动从最小化打开界面",
+            cfg.autoOpenOnIdle.value
+        )
+        settings_layout.addWidget(self.autoOpenOnIdleSwitch)
+
+        self.autoOpenMaximizeSwitch = self._createSwitchCard(
+            FIF.FULL_SCREEN,
+            "自动打开时最大化",
+            "空闲自动打开界面时是否最大化窗口",
+            cfg.autoOpenMaximize.value
+        )
+        settings_layout.addWidget(self.autoOpenMaximizeSwitch)
+        self.desktopShortcutSwitch = self._createSwitchCard(
+            FIF.LINK,
+            "创建桌面快捷方式",
+            "在桌面创建应用程序快捷方式",
+            False
+        )
+        settings_layout.addWidget(self.desktopShortcutSwitch)
+
+        self.page3Layout.addWidget(settings_container, 0, Qt.AlignCenter)
+        self.page3Layout.addSpacing(20)
+
+        self.finishButton = PrimaryPushButton(FIF.ACCEPT, "完成", self.page3)
+        self.finishButton.setFixedHeight(36)
+        self.page3Layout.addWidget(self.finishButton, 0, Qt.AlignCenter)
+
+        self.stackedWidget.addWidget(self.page3)
+
         self.nextButton.clicked.connect(self._onNextClicked)
         self.agreeButton.clicked.connect(self._onAgreeClicked)
         self.openSourceCheckBox.stateChanged.connect(self._onCheckBoxChanged)
         self.userAgreementCheckBox.stateChanged.connect(self._onCheckBoxChanged)
         self.privacyCheckBox.stateChanged.connect(self._onCheckBoxChanged)
+        self.finishButton.clicked.connect(self._onFinishClicked)
 
     def closeEvent(self, event):
         msg_box = MessageBox(
@@ -236,8 +310,67 @@ class WizardWindow(QDialog):
         self.agreeButton.setEnabled(all_checked)
     
     def _onAgreeClicked(self):
+        self._setCurrentIndexAnimated(2)
+
+    def _onFinishClicked(self):
+        cfg.autoStart.value = self.autoStartSwitch.isChecked()
+        cfg.autoOpenOnIdle.value = self.autoOpenOnIdleSwitch.isChecked()
+        cfg.autoOpenMaximize.value = self.autoOpenMaximizeSwitch.isChecked()
+        
+        if self.desktopShortcutSwitch.isChecked():
+            self._createDesktopShortcut()
+        
         complete_wizard()
         self.accept()
+
+    def _createSwitchCard(self, icon, title, content, default_value):
+        """开关设置卡片"""
+        card = SwitchSettingCard(icon, title, content, None, self.page3)
+        card.setChecked(default_value)
+        card.setFixedWidth(650)
+        return card
+
+    def _createDesktopShortcut(self):
+        """创建桌面快捷方式"""
+        try:
+            import sys
+            import os
+            import win32com.client
+            
+            desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
+            shortcut_path = os.path.join(desktop_path, "ClassLively.lnk")
+            
+            if getattr(sys, 'frozen', False):
+                exe_path = sys.executable
+            else:
+
+                exe_path = sys.executable
+                script_path = os.path.abspath(__file__)
+                # 快捷方式指向py
+                pass
+            
+            shell = win32com.client.Dispatch('WScript.Shell')
+            shortcut = shell.CreateShortCut(shortcut_path)
+            shortcut.Targetpath = exe_path
+            if not getattr(sys, 'frozen', False):
+                shortcut.Arguments = os.path.abspath(__file__)
+            shortcut.WorkingDirectory = BASE_DIR
+            shortcut.IconLocation = exe_path
+            shortcut.save()
+            
+            InfoBar.success(
+                title="成功",
+                content="已创建桌面快捷方式",
+                parent=self,
+                duration=3000
+            )
+        except Exception as e:
+            InfoBar.warning(
+                title="提示",
+                content=f"创建快捷方式失败：{str(e)}",
+                parent=self,
+                duration=5000
+            )
     
     def __setQss(self):
         theme = 'dark' if isDarkTheme() else 'light'
