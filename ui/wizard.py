@@ -114,7 +114,8 @@ class WizardWindow(QDialog):
                 uri = Path(target_path).as_uri()
             else:
                 uri = ""
-            link_style = 'color:#4fc08d; text-decoration:underline;'
+            theme_color = cfg.themeColor.value.name()
+            link_style = f'color:{theme_color}; text-decoration:underline;'
             lbl.setText(f'<span style="font-size:16px;">我已阅读并同意&nbsp;<a href="{uri}" style="{link_style}">{link_text}</a></span>')
             lbl.setOpenExternalLinks(False)
             
