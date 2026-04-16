@@ -205,15 +205,15 @@ class WizardWindow(QDialog):
         settings_title_font.setBold(True)
         self.settingsTitle.setFont(settings_title_font)
 
-        self.settingsText = BodyLabel("可在设置页面配置，请选择常用选项：", self.page3)
+        self.settingsText = BodyLabel("请选择您需要的功能选项：", self.page3)
         self.settingsText.setAlignment(Qt.AlignCenter)
         settings_txt_font = self.settingsText.font()
-        settings_txt_font.setPointSize(18)
+        settings_txt_font.setPointSize(14)
         self.settingsText.setFont(settings_txt_font)
 
         self.page3Layout.addWidget(self.settingsTitle, 0, Qt.AlignCenter)
         self.page3Layout.addWidget(self.settingsText, 0, Qt.AlignCenter)
-        self.page3Layout.addSpacing(24)
+        self.page3Layout.addSpacing(16)
 
         settings_container = QWidget(self.page3)
         settings_container.setMaximumWidth(700)
@@ -278,12 +278,12 @@ class WizardWindow(QDialog):
         self.appearanceText = BodyLabel("选择适合您的主题和颜色：", self.page4)
         self.appearanceText.setAlignment(Qt.AlignCenter)
         appearance_txt_font = self.appearanceText.font()
-        appearance_txt_font.setPointSize(18)
+        appearance_txt_font.setPointSize(14)
         self.appearanceText.setFont(appearance_txt_font)
 
         self.page4Layout.addWidget(self.appearanceTitle, 0, Qt.AlignCenter)
         self.page4Layout.addWidget(self.appearanceText, 0, Qt.AlignCenter)
-        self.page4Layout.addSpacing(24)
+        self.page4Layout.addSpacing(16)
 
         appearance_container = QWidget(self.page4)
         appearance_container.setMaximumWidth(700)
