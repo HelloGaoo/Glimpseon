@@ -2,13 +2,16 @@
 import json
 import os
 
-from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve
+from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve, QLocale
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QFont
-from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget, QHBoxLayout, QLabel, QGraphicsOpacityEffect
+from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget, QHBoxLayout, QLabel, QGraphicsOpacityEffect, QApplication
 from qfluentwidgets import (
     BodyLabel,
     CheckBox,
+    ComboBoxSettingCard,
+    CustomColorSettingCard,
     FluentIcon as FIF,
+    FluentTranslator,
     HyperlinkLabel,
     InfoBar,
     MessageBox,
@@ -31,6 +34,10 @@ class WizardWindow(QDialog):
         self.setWindowTitle("ClassLively 向导")
         self.setFixedSize(840, 650)
         self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint)
+
+        locale = QLocale(QLocale.Chinese, QLocale.China)
+        self.translator = FluentTranslator(locale)
+        QApplication.instance().installTranslator(self.translator)
 
         setTheme(cfg.themeMode.value)
 
@@ -255,17 +262,78 @@ class WizardWindow(QDialog):
 
         self.stackedWidget.addWidget(self.page3)
 
+        self.page4 = QWidget()
+        self.page4Layout = QVBoxLayout(self.page4)
+        self.page4Layout.setAlignment(Qt.AlignTop | Qt.AlignCenter)
+        self.page4Layout.setSpacing(16)
+        self.page4Layout.addSpacing(50)
+
+        self.appearanceTitle = StrongBodyLabel("外观设置", self.page4)
+        self.appearanceTitle.setAlignment(Qt.AlignCenter)
+        appearance_title_font = self.appearanceTitle.font()
+        appearance_title_font.setPointSize(30)
+        appearance_title_font.setBold(True)
+        self.appearanceTitle.setFont(appearance_title_font)
+
+        self.appearanceText = BodyLabel("选择适合您的主题和颜色：", self.page4)
+        self.appearanceText.setAlignment(Qt.AlignCenter)
+        appearance_txt_font = self.appearanceText.font()
+        appearance_txt_font.setPointSize(18)
+        self.appearanceText.setFont(appearance_txt_font)
+
+        self.page4Layout.addWidget(self.appearanceTitle, 0, Qt.AlignCenter)
+        self.page4Layout.addWidget(self.appearanceText, 0, Qt.AlignCenter)
+        self.page4Layout.addSpacing(24)
+
+        appearance_container = QWidget(self.page4)
+        appearance_container.setMaximumWidth(700)
+        appearance_layout = QVBoxLayout(appearance_container)
+        appearance_layout.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+        appearance_layout.setContentsMargins(0, 0, 0, 0)
+        appearance_layout.setSpacing(12)
+
+        self.themeCard = ComboBoxSettingCard(
+            cfg.themeMode,
+            FIF.BRUSH,
+            "应用颜色主题",
+            "更改应用程序的颜色外观",
+            texts=["浅色", "深色", "使用系统设置"],
+            parent=self.page4
+        )
+        self.themeCard.setFixedWidth(600)
+        appearance_layout.addWidget(self.themeCard)
+
+        self.themeColorCard = CustomColorSettingCard(
+            cfg.themeColor,
+            FIF.PALETTE,
+            "主要颜色",
+            "更改应用程序的主要颜色",
+            parent=self.page4
+        )
+        self.themeColorCard.setFixedWidth(600)
+        appearance_layout.addWidget(self.themeColorCard)
+
+        self.page4Layout.addWidget(appearance_container, 0, Qt.AlignCenter)
+        self.page4Layout.addSpacing(20)
+
+        self.finishButton2 = PrimaryPushButton(FIF.ACCEPT, "完成", self.page4)
+        self.finishButton2.setFixedHeight(36)
+        self.page4Layout.addWidget(self.finishButton2, 0, Qt.AlignCenter)
+
+        self.stackedWidget.addWidget(self.page4)
+
         self.nextButton.clicked.connect(self._onNextClicked)
         self.agreeButton.clicked.connect(self._onAgreeClicked)
         self.openSourceCheckBox.stateChanged.connect(self._onCheckBoxChanged)
         self.userAgreementCheckBox.stateChanged.connect(self._onCheckBoxChanged)
         self.privacyCheckBox.stateChanged.connect(self._onCheckBoxChanged)
         self.finishButton.clicked.connect(self._onFinishClicked)
+        self.finishButton2.clicked.connect(self._onFinishClicked2)
 
     def closeEvent(self, event):
         msg_box = MessageBox(
-            title="提示",
-            content="向导未完成，确定要退出吗？",
+            title=FluentTranslator.tr("MessageBox", "提示"),
+            content=FluentTranslator.tr("MessageBox", "向导未完成，确定要退出吗？"),
             parent=self
         )
         if msg_box.exec_():
@@ -320,6 +388,9 @@ class WizardWindow(QDialog):
         if self.desktopShortcutSwitch.isChecked():
             self._createDesktopShortcut()
         
+        self._setCurrentIndexAnimated(3)
+
+    def _onFinishClicked2(self):
         complete_wizard()
         self.accept()
 
@@ -327,7 +398,7 @@ class WizardWindow(QDialog):
         """开关设置卡片"""
         card = SwitchSettingCard(icon, title, content, None, self.page3)
         card.setChecked(default_value)
-        card.setFixedWidth(650)
+        card.setFixedWidth(600)
         return card
 
     def _createDesktopShortcut(self):
