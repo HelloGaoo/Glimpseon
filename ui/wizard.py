@@ -93,14 +93,21 @@ class WizardWindow(QDialog):
         txt_font.setPointSize(24)
         self.agreementText.setFont(txt_font)
         def _make_check_with_link(box_text, link_text, target_path):
-            h = QHBoxLayout()
-            h.setSpacing(10)
+            container = QWidget(self.page2)
+            container.setFixedHeight(56)
+            container.setFixedWidth(430)
+            
+            h = QHBoxLayout(container)
+            h.setSpacing(8)
             h.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            h.setContentsMargins(0, 8, 0, 8)
+            
             chk = CheckBox("", self.page2)
             chk_font = chk.font()
-            chk_font.setPointSize(18)
+            chk_font.setPointSize(16)
             chk.setFont(chk_font)
-
+            chk.setFixedWidth(24)
+            
             lbl = BodyLabel("", self.page2)
             lbl.setTextFormat(Qt.RichText)
             if target_path and os.path.exists(target_path):
@@ -108,9 +115,9 @@ class WizardWindow(QDialog):
             else:
                 uri = ""
             link_style = 'color:#4fc08d; text-decoration:underline;'
-            lbl.setText(f'<span style="font-size:18px;">我已阅读并同意&nbsp;<a href="{uri}" style="{link_style}">{link_text}</a></span>')
+            lbl.setText(f'<span style="font-size:16px;">我已阅读并同意&nbsp;<a href="{uri}" style="{link_style}">{link_text}</a></span>')
             lbl.setOpenExternalLinks(False)
-
+            
             def _on_link_activated(url):
                 if target_path and os.path.exists(target_path):
                     try:
@@ -118,22 +125,27 @@ class WizardWindow(QDialog):
                         show_text_file(link_text, f"{link_text}", target_path, parent=self.window())
                         return
                     except Exception:
-                        # fallback to system opener
                         try:
                             os.startfile(target_path)
                             return
                         except Exception:
                             pass
-
+                
                 msg = MessageBox(title="提示", content=f"无法打开协议文件：{link_text}", parent=self)
                 msg.exec_()
-
+            
             lbl.linkActivated.connect(_on_link_activated)
-            h.addWidget(chk, 0, Qt.AlignLeft)
+            
+            def _on_container_clicked():
+                chk.setChecked(not chk.isChecked())
+            
+            container.mousePressEvent = lambda e: _on_container_clicked()
+            
             h.addWidget(lbl, 0, Qt.AlignLeft)
-            w = QWidget(self.page2)
-            w.setLayout(h)
-            return chk, w
+            h.addStretch(1)
+            h.addWidget(chk, 0, Qt.AlignRight)
+            
+            return chk, container
 
         from pathlib import Path
         license_path = os.path.join(BASE_DIR, "LICENSE")
@@ -156,8 +168,8 @@ class WizardWindow(QDialog):
         checks_container = QWidget(self.page2)
         checks_container.setMaximumWidth(560)
         checks_layout = QVBoxLayout(checks_container)
-        checks_layout.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        checks_layout.setContentsMargins(6, 6, 6, 6)
+        checks_layout.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+        checks_layout.setContentsMargins(0, 6, 0, 6)
         checks_layout.setSpacing(14)
         checks_layout.addWidget(open_source_widget)
         checks_layout.addWidget(user_agree_widget)
