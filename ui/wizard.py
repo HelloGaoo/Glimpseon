@@ -88,7 +88,7 @@ class WizardWindow(QDialog):
         self.page2Layout = QVBoxLayout(self.page2)
         self.page2Layout.setAlignment(Qt.AlignTop | Qt.AlignCenter)
         self.page2Layout.setSpacing(16)
-        self.page2Layout.addSpacing(100)
+        self.page2Layout.addSpacing(50)
 
         self.agreementTitle = StrongBodyLabel("软件使用协议", self.page2)
         self.agreementTitle.setAlignment(Qt.AlignCenter)
@@ -100,8 +100,13 @@ class WizardWindow(QDialog):
         self.agreementText = BodyLabel("在使用本软件前，请阅读并同意以下协议：", self.page2)
         self.agreementText.setAlignment(Qt.AlignCenter)
         txt_font = self.agreementText.font()
-        txt_font.setPointSize(24)
+        txt_font.setPointSize(14)
         self.agreementText.setFont(txt_font)
+
+        self.page2Layout.addWidget(self.agreementTitle, 0, Qt.AlignCenter)
+        self.page2Layout.addWidget(self.agreementText, 0, Qt.AlignCenter)
+        self.page2Layout.addSpacing(16)
+
         def _make_check_with_link(box_text, link_text, target_path):
             container = QWidget(self.page2)
             container.setFixedHeight(56)
@@ -169,19 +174,16 @@ class WizardWindow(QDialog):
         self.privacyCheckBox, privacy_widget = _make_check_with_link(
             "", "隐私政策", "")
 
-        self.agreeButton = PrimaryPushButton(FIF.RIGHT_ARROW, "继续", self.page2)
+        self.agreeButton = PrimaryPushButton(FIF.ACCEPT, "完成", self.page2)
         self.agreeButton.setFixedHeight(36)
         self.agreeButton.setEnabled(False)
 
-        self.page2Layout.addWidget(self.agreementTitle, 0, Qt.AlignCenter)
-        self.page2Layout.addWidget(self.agreementText, 0, Qt.AlignCenter)
-        self.page2Layout.addSpacing(18)
         checks_container = QWidget(self.page2)
-        checks_container.setMaximumWidth(560)
+        checks_container.setMaximumWidth(700)
         checks_layout = QVBoxLayout(checks_container)
         checks_layout.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
         checks_layout.setContentsMargins(0, 6, 0, 6)
-        checks_layout.setSpacing(14)
+        checks_layout.setSpacing(12)
         checks_layout.addWidget(open_source_widget)
         checks_layout.addWidget(user_agree_widget)
         checks_layout.addWidget(privacy_widget)
