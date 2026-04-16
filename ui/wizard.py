@@ -53,23 +53,14 @@ class WizardWindow(QDialog):
         self.stackedWidget = QStackedWidget(self)
         self.mainLayout.addWidget(self.stackedWidget)
         
-        # 创建关闭按钮（绝对定位，不影响布局）
+        self.titleLabel = QLabel("ClassLively", self)
+        self.titleLabel.setObjectName("titleLabel")
+        self.titleLabel.move(30, 10)
+        
         self.closeButton = QPushButton(self)
+        self.closeButton.setObjectName("closeButton")
         self.closeButton.setFixedSize(30, 30)
         self.closeButton.move(self.width() - 35, 5)
-        self.closeButton.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                border: none;
-                color: {'#FFFFFF' if isDarkTheme() else '#000000'};
-                font-size: 20px;
-                border-radius: 15px;
-            }}
-            QPushButton:hover {{
-                background-color: #E81123;
-                color: #FFFFFF;
-            }}
-        """)
         self.closeButton.setText("×")
         self.closeButton.clicked.connect(self.close)
         
@@ -359,7 +350,7 @@ class WizardWindow(QDialog):
         self.themeColorCard.colorChanged.connect(self._onColorChanged)
 
     def resizeEvent(self, event):
-        # 更新关闭按钮位置（保持在右上角）
+        self.titleLabel.move(30, 10)
         self.closeButton.move(self.width() - 35, 5)
         super().resizeEvent(event)
 

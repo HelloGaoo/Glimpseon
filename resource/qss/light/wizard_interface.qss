@@ -35,3 +35,23 @@ WizardWindow CheckBox {
 WizardWindow a {
     color: #4fc08d;
 }
+
+WizardWindow QLabel#titleLabel {
+    color: black;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+WizardWindow QPushButton#closeButton {
+    background-color: transparent;
+    border: none;
+    color: black;
+    font-size: 20px;
+    border-radius: 15px;
+}
+
+WizardWindow QPushButton#closeButton:hover {
+    background-color: #E81123;
+    color: white;
+}
