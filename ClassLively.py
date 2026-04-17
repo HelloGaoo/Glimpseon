@@ -1563,46 +1563,41 @@ class MainWindow(FluentWindow):
             return ""
         now = datetime.datetime.now()
         delta = target_time - now
-        if delta.total_seconds() > 0:
-            total_seconds = delta.total_seconds()
-            days = int(total_seconds // 86400)
-            hours = int((total_seconds % 86400) // 3600)
-            minutes = int((total_seconds % 3600) // 60)
-            seconds = int(total_seconds % 60)
-            if total_seconds < 600:
-                time_text = f"{days}天{hours}小时{minutes}分钟{seconds}秒"
-            elif total_seconds < 10800:
-                time_text = f"{days}天{hours}小时{minutes}分钟"
-            elif total_seconds < 259200:
-                time_text = f"{days}天{hours}小时"
-            else:
-                time_text = f"{days}天"
-            
+        total_seconds = int(delta.total_seconds())
+        target_date = target_time.date()
+        now_date = now.date()
+        def fmt(text, connector=""):
             if hasattr(self, 'countdownTextColor'):
                 return (f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownTitleSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{title}</span>'
-                        f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">仅剩</span>'
-                        f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownDaysSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{time_text}</span>')
+                        f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{connector}</span>'
+                        f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownDaysSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{text}</span>')
             else:
-                return f"{title}仅剩{time_text}"
+                return f"{title}{connector}{text}"
+        if target_date == now_date:
+            if total_seconds >= 0 or abs(total_seconds) <= 86400:
+                return fmt("就在今天")
+            else:
+                past_days = abs(total_seconds) // 86400
+                return fmt(f"{past_days}天", "已过去")
+        elif total_seconds > 0:
+            days = total_seconds // 86400
+            hours = (total_seconds % 86400) // 3600
+            minutes = (total_seconds % 3600) // 60
+            seconds = total_seconds % 60
+            if days >= 3:
+                time_text = f"{days}天"
+            elif days >= 1:
+                time_text = f"{days}天{hours}时"
+            elif hours >= 1:
+                time_text = f"{hours}时"
+            elif minutes >= 3:
+                time_text = f"{minutes}分"
+            else:
+                time_text = f"{seconds}秒"
+            return fmt(time_text, "仅剩")
         else:
-            total_seconds = delta.total_seconds()
-            past_seconds = abs(total_seconds)
-            target_date = target_time.date()
-            now_date = now.date()
-            if target_date == now_date:
-                if hasattr(self, 'countdownTextColor'):
-                    return (f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownTitleSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{title}</span>'
-                            f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">就在今天</span>')
-                else:
-                    return f"{title}就在今天"
-            else:
-                past_days = int(past_seconds // 86400)
-                if hasattr(self, 'countdownTextColor'):
-                    return (f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownTitleSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{title}</span>'
-                            f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">已过去</span>'
-                            f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownDaysSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{past_days}天</span>')
-                else:
-                    return f"{title}已过去{past_days}天"
+            past_days = abs(total_seconds) // 86400
+            return fmt(f"{past_days}天", "已过去")
     
     def updateCountdownStyle(self):
         """ 更新倒计时样式 """

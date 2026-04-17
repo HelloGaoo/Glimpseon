@@ -974,25 +974,30 @@ class EditPanel(QWidget):
             now = datetime.datetime.now()
             delta = target - now
             total_seconds = int(delta.total_seconds())
-            
-            if total_seconds < 0:
-                return "已结束"
-            
-            days = total_seconds // 86400
-            hours = (total_seconds % 86400) // 3600
-            minutes = (total_seconds % 3600) // 60
-            seconds = total_seconds % 60
-            
-            total_hours = total_seconds // 3600
-            
-            if total_hours > 72:
-                return f"{days}天"
-            elif total_hours > 3:
-                return f"{days}天{hours}小时"
-            elif total_seconds > 600:
-                return f"{days}天{hours}小时{minutes}分钟"
+            target_date = target.date()
+            now_date = now.date()
+            if target_date == now_date:
+                if total_seconds >= 0 or abs(total_seconds) <= 86400:
+                    return "就在今天"
+                else:
+                    return f"已过去{abs(total_seconds) // 86400}天"
+            elif total_seconds > 0:
+                days = total_seconds // 86400
+                hours = (total_seconds % 86400) // 3600
+                minutes = (total_seconds % 3600) // 60
+                seconds = total_seconds % 60
+                if days >= 3:
+                    return f"{days}天"
+                elif days >= 1:
+                    return f"{days}天{hours}时"
+                elif hours >= 1:
+                    return f"{hours}时"
+                elif minutes >= 3:
+                    return f"{minutes}分"
+                else:
+                    return f"{seconds}秒"
             else:
-                return f"{days}天{hours}小时{minutes}分钟{seconds}秒"
+                return f"已过去{abs(total_seconds) // 86400}天"
         except:
             return ""
     
