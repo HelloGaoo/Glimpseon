@@ -599,7 +599,6 @@ class MainWindow(FluentWindow):
         try:
             if self.isVideoPlaying:
                 return
-            
             last_input = LASTINPUTINFO()
             last_input.cbSize = ctypes.sizeof(LASTINPUTINFO)
             ctypes.windll.user32.GetLastInputInfo(ctypes.byref(last_input))
