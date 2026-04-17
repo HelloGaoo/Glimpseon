@@ -861,12 +861,12 @@ class MainWindow(FluentWindow):
         
         # 时钟容器
         self.clockContainer = QWidget()
-        clockLayout = QVBoxLayout(self.clockContainer)
-        clockLayout.setAlignment(Qt.AlignTop)
-        clockLayout.setContentsMargins(0, 100, 0, 0)
-        clockLayout.setSpacing(0)
-        clockLayout.addWidget(self.clockLabel)
-        clockLayout.addWidget(self.dateLabel)
+        self.clockLayout = QVBoxLayout(self.clockContainer)
+        self.clockLayout.setAlignment(Qt.AlignTop)
+        self.clockLayout.setContentsMargins(0, 100, 0, 0)
+        self.clockLayout.setSpacing(0)
+        self.clockLayout.addWidget(self.clockLabel)
+        self.clockLayout.addWidget(self.dateLabel)
         self.clockContainer.setStyleSheet("background-color: transparent;")
         
         # 天气容器
@@ -916,14 +916,14 @@ class MainWindow(FluentWindow):
         editContainer.setStyleSheet("background-color: transparent;")
         
         # 网格布局
-        gridLayout = QGridLayout()
-        gridLayout.setContentsMargins(0, 0, 0, 0)
-        gridLayout.addWidget(self.homeBackgroundImage, 0, 0, 1, 1)
-        gridLayout.addWidget(self.clockContainer, 0, 0, 1, 1)
-        gridLayout.addWidget(self.weatherContainer, 0, 0, 1, 1)
-        gridLayout.addWidget(self.poetryContainer, 0, 0, 1, 1)
-        gridLayout.addWidget(self.countdownContainer, 0, 0, 1, 1)
-        gridLayout.addWidget(editContainer, 0, 0, 1, 1)
+        self.gridLayout = QGridLayout()
+        self.gridLayout.setContentsMargins(0, 0, 0, 0)
+        self.gridLayout.addWidget(self.homeBackgroundImage, 0, 0, 1, 1)
+        self.gridLayout.addWidget(self.clockContainer, 0, 0, 1, 1)
+        self.gridLayout.addWidget(self.weatherContainer, 0, 0, 1, 1)
+        self.gridLayout.addWidget(self.poetryContainer, 0, 0, 1, 1)
+        self.gridLayout.addWidget(self.countdownContainer, 0, 0, 1, 1)
+        self.gridLayout.addWidget(editContainer, 0, 0, 1, 1)
         
         self.homeContent = QWidget()
         self.homeContent.setLayout(gridLayout)
@@ -1628,52 +1628,68 @@ class MainWindow(FluentWindow):
     def __updateCountdownPosition(self):
         """ 更新倒计时组件位置 """
         position = cfg.countdownPosition.value
+        clock_position = cfg.clockPosition.value
         margin = 100
         small_margin = 20
         
+        clock_layout = self.clockContainer.layout()
         layout = self.countdownContainer.layout()
         
-        if position == "左上预留":
-            layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
-            layout.setContentsMargins(small_margin, small_margin, 0, 0)
-        elif position == "左上":
-            layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
-            layout.setContentsMargins(0, 0, 0, 0)
-        elif position == "右上预留":
-            layout.setAlignment(Qt.AlignTop | Qt.AlignRight)
-            layout.setContentsMargins(0, small_margin, small_margin, 0)
-        elif position == "右上":
-            layout.setAlignment(Qt.AlignTop | Qt.AlignRight)
-            layout.setContentsMargins(0, 0, 0, 0)
-        elif position == "左下预留":
-            layout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
-            layout.setContentsMargins(small_margin, 0, 0, small_margin)
-        elif position == "左下":
-            layout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
-            layout.setContentsMargins(0, 0, 0, 0)
-        elif position == "右下预留":
-            layout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
-            layout.setContentsMargins(0, 0, small_margin, small_margin)
-        elif position == "右下":
-            layout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
-            layout.setContentsMargins(0, 0, 0, 0)
-        elif position == "中部":
-            layout.setAlignment(Qt.AlignCenter)
-            layout.setContentsMargins(0, 0, 0, 0)
-        elif position == "顶部":
-            layout.setAlignment(Qt.AlignTop)
-            layout.setContentsMargins(0, 0, 0, 0)
-        elif position == "顶部偏下":
-            layout.setAlignment(Qt.AlignTop)
-            layout.setContentsMargins(0, margin, 0, 0)
-        elif position == "底部偏上":
-            layout.setAlignment(Qt.AlignBottom)
-            layout.setContentsMargins(0, 0, 0, margin)
-        elif position == "底部":
-            layout.setAlignment(Qt.AlignBottom)
-            layout.setContentsMargins(0, 0, 0, 0)
+        top_positions = ["顶部", "顶部偏下", "中部", "左上", "右上", "左上预留", "右上预留"]
+        
+        if position == "中部" and clock_position in top_positions:
+            if self.countdownLabel.parent() != clock_layout:
+                layout.removeWidget(self.countdownLabel)
+                clock_layout.addWidget(self.countdownLabel)
+            self.countdownLabel.setAlignment(Qt.AlignHCenter)
+            clock_layout.setSpacing(0)
+        else:
+            if self.countdownLabel.parent() == clock_layout:
+                clock_layout.removeWidget(self.countdownLabel)
+                layout.addWidget(self.countdownLabel)
+            
+            if self.countdownContainer.parent() != self.homeContent:
+                self.gridLayout.addWidget(self.countdownContainer, 0, 0, 1, 1)
+            
+            if position == "左上预留":
+                layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+                layout.setContentsMargins(small_margin, small_margin, 0, 0)
+            elif position == "左上":
+                layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+                layout.setContentsMargins(0, 0, 0, 0)
+            elif position == "右上预留":
+                layout.setAlignment(Qt.AlignTop | Qt.AlignRight)
+                layout.setContentsMargins(0, small_margin, small_margin, 0)
+            elif position == "右上":
+                layout.setAlignment(Qt.AlignTop | Qt.AlignRight)
+                layout.setContentsMargins(0, 0, 0, 0)
+            elif position == "左下预留":
+                layout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
+                layout.setContentsMargins(small_margin, 0, 0, small_margin)
+            elif position == "左下":
+                layout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
+                layout.setContentsMargins(0, 0, 0, 0)
+            elif position == "右下预留":
+                layout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
+                layout.setContentsMargins(0, 0, small_margin, small_margin)
+            elif position == "右下":
+                layout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
+                layout.setContentsMargins(0, 0, 0, 0)
+            elif position == "顶部":
+                layout.setAlignment(Qt.AlignTop)
+                layout.setContentsMargins(0, 0, 0, 0)
+            elif position == "顶部偏下":
+                layout.setAlignment(Qt.AlignTop)
+                layout.setContentsMargins(0, margin, 0, 0)
+            elif position == "底部偏上":
+                layout.setAlignment(Qt.AlignBottom)
+                layout.setContentsMargins(0, 0, 0, margin)
+            elif position == "底部":
+                layout.setAlignment(Qt.AlignBottom)
+                layout.setContentsMargins(0, 0, 0, 0)
         
         layout.update()
+        clock_layout.update()
         self.countdownContainer.update()
         self.homeContent.update()
         QApplication.processEvents()
