@@ -56,7 +56,7 @@ from qfluentwidgets import (
     ToolButton,
 )
 
-from core.config import cfg
+from core.config import cfg, save_cfg
 
 logger = logging.getLogger(__name__)
 
