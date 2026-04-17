@@ -926,7 +926,7 @@ class MainWindow(FluentWindow):
         self.gridLayout.addWidget(editContainer, 0, 0, 1, 1)
         
         self.homeContent = QWidget()
-        self.homeContent.setLayout(gridLayout)
+        self.homeContent.setLayout(self.gridLayout)
         
         # 主界面布局
         homeLayout = QVBoxLayout(home)
