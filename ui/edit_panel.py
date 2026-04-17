@@ -21,7 +21,7 @@
 import datetime
 import logging
 
-from PyQt5.QtCore import QEasingCurve, QPropertyAnimation, QRect, Qt
+from PyQt5.QtCore import QEasingCurve, QPropertyAnimation, QRect, Qt, QTimer
 from PyQt5.QtGui import QColor, QPalette
 from PyQt5.QtWidgets import (
     QApplication,
@@ -71,9 +71,12 @@ class EditPanel(QWidget):
         self._width = width
         self.setFixedWidth(self._width)
         self.setObjectName('EditPanel')
-        self.isLeftSide = False  # 是否在左侧显示
+        self.isLeftSide = False
+        self.updateTimer = QTimer()
+        self.updateTimer.timeout.connect(self._updateCountdownList)
+        self.updateTimer.start(1000)
         
-        # 设置不透明背景 我靠这个比东西弄了一万天才解决。。
+        # 设置不透明背景！！！！！！！
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setAutoFillBackground(True)
         self._updateTheme()
@@ -553,6 +556,7 @@ class EditPanel(QWidget):
         
         self.setGeometry(start_rect)
         self.show()
+        self.updateTimer.start(1000)
         
         try:
             self.anim.finished.disconnect(self._onShowFinished)
@@ -608,6 +612,7 @@ class EditPanel(QWidget):
     def _onHideFinished(self):
         """隐藏动画完成"""
         try:
+            self.updateTimer.stop()
             self.hide()
         finally:
             try:
