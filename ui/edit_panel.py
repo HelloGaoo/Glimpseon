@@ -976,11 +976,8 @@ class EditPanel(QWidget):
             total_seconds = int(delta.total_seconds())
             target_date = target.date()
             now_date = now.date()
-            if target_date == now_date:
-                if total_seconds >= 0 or abs(total_seconds) <= 86400:
-                    return "就在今天"
-                else:
-                    return f"已过去{abs(total_seconds) // 86400}天"
+            if target_date == now_date and total_seconds < 0:
+                return "就在今天"
             elif total_seconds > 0:
                 days = total_seconds // 86400
                 hours = (total_seconds % 86400) // 3600
