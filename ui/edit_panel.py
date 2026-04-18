@@ -1062,6 +1062,7 @@ class EditPanel(QWidget):
                 countdown_list = cfg.countdownList.value or []
                 countdown_list.append(countdown_data)
                 cfg.countdownList.value = countdown_list
+                save_cfg()
                 current_row = self.countdownListWidget.currentRow()
                 self._updateCountdownList()
                 if self.countdownListWidget.count() > 0:
@@ -1085,6 +1086,7 @@ class EditPanel(QWidget):
             if countdown_data:
                 countdown_list[current_row] = countdown_data
                 cfg.countdownList.value = countdown_list
+                save_cfg()
                 self._updateCountdownList()
                 if 0 <= current_row < self.countdownListWidget.count():
                     self.countdownListWidget.setCurrentRow(current_row)
@@ -1102,6 +1104,7 @@ class EditPanel(QWidget):
             return
         countdown_list.pop(current_row)
         cfg.countdownList.value = countdown_list
+        save_cfg()
         self._updateCountdownList()
         if self.countdownListWidget.count() > 0:
             new_row = min(current_row, self.countdownListWidget.count() - 1)
