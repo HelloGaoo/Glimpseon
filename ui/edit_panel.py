@@ -1004,6 +1004,7 @@ class EditPanel(QWidget):
             return ""
     
     def _updateCountdownList(self):
+        current_row = self.countdownListWidget.currentRow()
         self.countdownListWidget.clear()
         countdown_list = cfg.countdownList.value or []
         for cd in countdown_list:
@@ -1013,6 +1014,8 @@ class EditPanel(QWidget):
                 remaining = self._formatRemainingTime(target_time)
                 if remaining:
                     self.countdownListWidget.addItem(f"{title} {remaining}")
+        if 0 <= current_row < self.countdownListWidget.count():
+            self.countdownListWidget.setCurrentRow(current_row)
     
     def _onShowCountdownChanged(self, checked: bool):
         cfg.showCountdown.value = checked
