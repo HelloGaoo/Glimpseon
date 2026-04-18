@@ -182,7 +182,6 @@ class EditPanel(QWidget):
         self.countdownPositionCombo.setEnabled(enabled)
     
     def _updateSchoolInfoSettingsEnabled(self, enabled):
-        self.schoolInfoSwitch.setEnabled(enabled)
         self.schoolEdit.setEnabled(enabled)
         self.schoolClassEdit.setEnabled(enabled)
         self.schoolInfoPositionCombo.setEnabled(enabled)
