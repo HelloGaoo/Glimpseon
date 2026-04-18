@@ -994,8 +994,8 @@ class EditPanel(QWidget):
                     return f"{days}天{hours}时"
                 elif hours >= 1:
                     return f"{hours}时"
-                elif minutes >= 3:
-                    return f"{minutes}分"
+                elif minutes >= 1:
+                    return f"{minutes}分{seconds}秒"
                 else:
                     return f"{seconds}秒"
             else:

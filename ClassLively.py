@@ -1590,8 +1590,8 @@ class MainWindow(FluentWindow):
                 time_text = f"{days}天{hours}时"
             elif hours >= 1:
                 time_text = f"{hours}时"
-            elif minutes >= 3:
-                time_text = f"{minutes}分"
+            elif minutes >= 1:
+                time_text = f"{minutes}分{seconds}秒"
             else:
                 time_text = f"{seconds}秒"
             return fmt(time_text, "仅剩")
