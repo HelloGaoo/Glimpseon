@@ -115,6 +115,9 @@ class EditPanel(QWidget):
         self._addSeparator(v)
         self._createCountdownSettings(v)
         self._updateCountdownSettingsEnabled(cfg.showCountdown.value)
+        self._addSeparator(v)
+        self._createSchoolInfoSettings(v)
+        self._updateSchoolInfoSettingsEnabled(cfg.showSchoolInfo.value)
         self._connectConfigSignals()
         self.__connectSignalToSlot()
     
@@ -178,6 +181,14 @@ class EditPanel(QWidget):
         self.countdownCarouselIntervalSpin.setEnabled(enabled)
         self.countdownPositionCombo.setEnabled(enabled)
     
+    def _updateSchoolInfoSettingsEnabled(self, enabled):
+        self.schoolInfoSwitch.setEnabled(enabled)
+        self.schoolEdit.setEnabled(enabled)
+        self.schoolClassEdit.setEnabled(enabled)
+        self.schoolInfoPositionCombo.setEnabled(enabled)
+        self.schoolInfoTextColorCombo.setEnabled(enabled)
+        self.schoolInfoTextSizeSpin.setEnabled(enabled)
+    
     def _connectConfigSignals(self):
         """连接配置变化信到 UI 更新"""
         # 时间设置
@@ -214,6 +225,14 @@ class EditPanel(QWidget):
         cfg.countdownList.valueChanged.connect(self._updateCountdownList)
         cfg.countdownTextColor.valueChanged.connect(self._updateCountdownTextColorCombo)
         cfg.countdownConnectorColor.valueChanged.connect(self._updateCountdownConnectorColorCombo)
+        
+        # 学校信息设置
+        cfg.showSchoolInfo.valueChanged.connect(self._updateShowSchoolInfoSwitch)
+        cfg.schoolInfoPosition.valueChanged.connect(self._updateSchoolInfoPositionCombo)
+        cfg.schoolInfoTextColor.valueChanged.connect(self._updateSchoolInfoTextColorCombo)
+        cfg.schoolInfoTextSize.valueChanged.connect(self._updateSchoolInfoTextSizeSpin)
+        cfg.school.valueChanged.connect(self._updateSchoolEdit)
+        cfg.schoolClass.valueChanged.connect(self._updateSchoolClassEdit)
     
     def __connectSignalToSlot(self):
         cfg.themeChanged.connect(self._onThemeChanged)
@@ -973,6 +992,29 @@ class EditPanel(QWidget):
         self.countdownConnectorColorCombo.setCurrentText(self._getColorText(value, 'white'))
         self.countdownConnectorColorCombo.currentTextChanged.connect(self._onCountdownConnectorColorChanged)
     
+    def _updateShowSchoolInfoSwitch(self, value):
+        self.schoolInfoSwitch.setChecked(value)
+        self._updateSchoolInfoSettingsEnabled(value)
+    
+    def _updateSchoolInfoPositionCombo(self, value):
+        self.schoolInfoPositionCombo.currentTextChanged.disconnect(self._onSchoolInfoPositionChanged)
+        self.schoolInfoPositionCombo.setCurrentText(value)
+        self.schoolInfoPositionCombo.currentTextChanged.connect(self._onSchoolInfoPositionChanged)
+    
+    def _updateSchoolInfoTextColorCombo(self, value):
+        self.schoolInfoTextColorCombo.currentTextChanged.disconnect(self._onSchoolInfoTextColorChanged)
+        self.schoolInfoTextColorCombo.setCurrentText(self._getColorText(value, 'white'))
+        self.schoolInfoTextColorCombo.currentTextChanged.connect(self._onSchoolInfoTextColorChanged)
+    
+    def _updateSchoolInfoTextSizeSpin(self, value):
+        self.schoolInfoTextSizeSpin.setValue(value)
+    
+    def _updateSchoolEdit(self, value):
+        self.schoolEdit.setText(value)
+    
+    def _updateSchoolClassEdit(self, value):
+        self.schoolClassEdit.setText(value)
+    
     def _formatRemainingTime(self, target_time_str):
         try:
             target = datetime.datetime.strptime(target_time_str, '%Y-%m-%d %H:%M')
@@ -1146,6 +1188,128 @@ class EditPanel(QWidget):
         if hasattr(self.mainWindow, 'updateCountdownStyle'):
             self.mainWindow.updateCountdownStyle()
         logger.info(f"倒计时设置：连接词颜色={text}")
+    
+    def _onShowSchoolInfoChanged(self, checked: bool):
+        cfg.showSchoolInfo.value = checked
+        self._updateSchoolInfoSettingsEnabled(checked)
+        if hasattr(self.mainWindow, 'updateSchoolInfo'):
+            self.mainWindow.updateSchoolInfo()
+        logger.info(f"学校信息：启用学校信息={'开启' if checked else '关闭'}")
+    
+    def _onSchoolClassChanged(self, text: str):
+        cfg.schoolClass.value = text
+        if hasattr(self.mainWindow, 'updateSchoolInfo'):
+            self.mainWindow.updateSchoolInfo()
+        logger.info(f"学校信息：班级={text}")
+    
+    def _onSchoolChanged(self, text: str):
+        cfg.school.value = text
+        if hasattr(self.mainWindow, 'updateSchoolInfo'):
+            self.mainWindow.updateSchoolInfo()
+        logger.info(f"学校信息：学校={text}")
+    
+    def _onSchoolInfoPositionChanged(self, text: str):
+        cfg.schoolInfoPosition.value = text
+        if hasattr(self.mainWindow, '_MainWindow__updateSchoolInfoPosition'):
+            self.mainWindow._MainWindow__updateSchoolInfoPosition()
+        logger.info(f"学校信息：位置={text}")
+    
+    def _onSchoolInfoTextColorChanged(self, text: str):
+        from PyQt5.QtGui import QColor
+        
+        if text == '白色':
+            cfg.schoolInfoTextColor.value = QColor(255, 255, 255)
+        elif text == '黑色':
+            cfg.schoolInfoTextColor.value = QColor(0, 0, 0)
+        elif text == '红色':
+            cfg.schoolInfoTextColor.value = QColor(255, 0, 0)
+        else:
+            cfg.schoolInfoTextColor.value = cfg.themeColor.value
+        
+        if hasattr(self.mainWindow, 'updateSchoolInfoStyle'):
+            self.mainWindow.updateSchoolInfoStyle()
+        logger.info(f"学校信息：文字颜色={text}")
+    
+    def _onSchoolInfoTextSizeChanged(self, value: int):
+        cfg.schoolInfoTextSize.value = value
+        if hasattr(self.mainWindow, 'updateSchoolInfoStyle'):
+            self.mainWindow.updateSchoolInfoStyle()
+        logger.info(f"学校信息：文字大小={value}px")
+    
+    def _createSchoolInfoSettings(self, layout):
+        """创建学校信息设置"""
+        titleLabel = StrongBodyLabel('学校信息', self)
+        layout.addWidget(titleLabel)
+        
+        enableLayout = QHBoxLayout()
+        enableLabel = BodyLabel('启用学校信息', self)
+        enableLabel.setFixedWidth(100)
+        enableLayout.addWidget(enableLabel)
+        self.schoolInfoSwitch = SwitchButton(self)
+        self.schoolInfoSwitch.setChecked(cfg.showSchoolInfo.value)
+        self.schoolInfoSwitch.checkedChanged.connect(self._onShowSchoolInfoChanged)
+        enableLayout.addWidget(self.schoolInfoSwitch)
+        layout.addLayout(enableLayout)
+        
+        schoolClassLayout = QHBoxLayout()
+        schoolClassLabel = BodyLabel('班级', self)
+        schoolClassLabel.setFixedWidth(100)
+        schoolClassLayout.addWidget(schoolClassLabel)
+        self.schoolClassEdit = LineEdit(self)
+        self.schoolClassEdit.setText(cfg.schoolClass.value)
+        self.schoolClassEdit.setPlaceholderText('例如：高三 (1) 班')
+        self.schoolClassEdit.setFixedWidth(120)
+        self.schoolClassEdit.textChanged.connect(self._onSchoolClassChanged)
+        schoolClassLayout.addWidget(self.schoolClassEdit)
+        layout.addLayout(schoolClassLayout)
+        
+        schoolLayout = QHBoxLayout()
+        schoolLabel = BodyLabel('学校', self)
+        schoolLabel.setFixedWidth(100)
+        schoolLayout.addWidget(schoolLabel)
+        self.schoolEdit = LineEdit(self)
+        self.schoolEdit.setText(cfg.school.value)
+        self.schoolEdit.setPlaceholderText('例如：XX 中学')
+        self.schoolEdit.setFixedWidth(120)
+        self.schoolEdit.textChanged.connect(self._onSchoolChanged)
+        schoolLayout.addWidget(self.schoolEdit)
+        layout.addLayout(schoolLayout)
+        
+        positionLayout = QHBoxLayout()
+        positionLabel = BodyLabel('位置', self)
+        positionLabel.setFixedWidth(100)
+        positionLayout.addWidget(positionLabel)
+        self.schoolInfoPositionCombo = ComboBox(self)
+        self.schoolInfoPositionCombo.addItems(['左上', '右上', '左下', '右下', '左上预留', '右上预留', '左下预留', '右下预留'])
+        self.schoolInfoPositionCombo.setCurrentText(cfg.schoolInfoPosition.value)
+        self.schoolInfoPositionCombo.setFixedWidth(120)
+        self.schoolInfoPositionCombo.currentTextChanged.connect(self._onSchoolInfoPositionChanged)
+        positionLayout.addWidget(self.schoolInfoPositionCombo)
+        layout.addLayout(positionLayout)
+        
+        textColorLayout = QHBoxLayout()
+        textColorLabel = BodyLabel('文字颜色', self)
+        textColorLabel.setFixedWidth(100)
+        textColorLayout.addWidget(textColorLabel)
+        self.schoolInfoTextColorCombo = ComboBox(self)
+        self.schoolInfoTextColorCombo.addItems(['白色', '黑色', '红色', '主要颜色'])
+        self.schoolInfoTextColorCombo.setCurrentText(self._getColorText(cfg.schoolInfoTextColor.value, 'white'))
+        self.schoolInfoTextColorCombo.setFixedWidth(120)
+        self.schoolInfoTextColorCombo.currentTextChanged.connect(self._onSchoolInfoTextColorChanged)
+        textColorLayout.addWidget(self.schoolInfoTextColorCombo)
+        layout.addLayout(textColorLayout)
+        
+        textSizeLayout = QHBoxLayout()
+        textSizeLabel = BodyLabel('文字大小', self)
+        textSizeLabel.setFixedWidth(100)
+        textSizeLayout.addWidget(textSizeLabel)
+        self.schoolInfoTextSizeSpin = SpinBox(self)
+        self.schoolInfoTextSizeSpin.setRange(12, 60)
+        self.schoolInfoTextSizeSpin.setValue(cfg.schoolInfoTextSize.value)
+        self.schoolInfoTextSizeSpin.setFixedWidth(120)
+        self.schoolInfoTextSizeSpin.valueChanged.connect(self._onSchoolInfoTextSizeChanged)
+        textSizeLayout.addWidget(self.schoolInfoTextSizeSpin)
+        layout.addLayout(textSizeLayout)
 
 
 class CountdownEditDialog(MessageBoxBase):

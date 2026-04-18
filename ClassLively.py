@@ -906,6 +906,7 @@ class MainWindow(FluentWindow):
         self.schoolInfoLayout.addWidget(self.schoolNameLabel)
         self.schoolInfoContainer.setStyleSheet("background-color: transparent;")
         self.updateSchoolInfo()
+        self.updateSchoolInfoStyle()
         self.__updateSchoolInfoPosition()
         
         # 一言容器
@@ -1731,6 +1732,16 @@ class MainWindow(FluentWindow):
             self.schoolClassLabel.setText("")
             self.schoolNameLabel.setText("")
             self.schoolInfoContainer.hide()
+    
+    def updateSchoolInfoStyle(self):
+        """更新学校信息样式"""
+        text_color = cfg.schoolInfoTextColor.value
+        text_color_str = text_color.name() if hasattr(text_color, 'name') else str(text_color)
+        text_size = cfg.schoolInfoTextSize.value
+        self.schoolInfoTextColor = text_color_str
+        self.schoolInfoTextSize = text_size
+        self.schoolClassLabel.setStyleSheet(f"color: {text_color_str}; font-size: {text_size}px; font-weight: bold; font-family: \"HarmonyOS Sans SC\", \"HarmonyOS Sans\", \"Microsoft YaHei\", \"SimHei\", sans-serif;")
+        self.schoolNameLabel.setStyleSheet(f"color: {text_color_str}; font-size: {text_size}px; font-weight: bold; font-family: \"HarmonyOS Sans SC\", \"HarmonyOS Sans\", \"Microsoft YaHei\", \"SimHei\", sans-serif;")
     
     def __updateSchoolInfoPosition(self):
         """更新学校信息位置"""
