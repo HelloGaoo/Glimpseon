@@ -1777,7 +1777,8 @@ class MainWindow(FluentWindow):
         
         layout.update()
         self.schoolInfoContainer.update()
-        self.homeContent.update()
+        if hasattr(self, 'homeContent'):
+            self.homeContent.update()
         QApplication.processEvents()
         logger.info(f"学校信息位置已更新为：{position}")
 
