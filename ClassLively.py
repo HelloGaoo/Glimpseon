@@ -880,7 +880,34 @@ class MainWindow(FluentWindow):
         weatherLayout.addWidget(self.weatherTempLabel)
         weatherLayout.addWidget(self.weatherIconLabel)
         self.weatherContainer.setStyleSheet("background-color: transparent;")
-    
+        
+        # 学校信息容器
+        self.schoolInfoContainer = QWidget()
+        self.schoolInfoLayout = QVBoxLayout(self.schoolInfoContainer)
+        self.schoolInfoLayout.setSpacing(0)
+        self.schoolClassLabel = QLabel("")
+        self.schoolClassLabel.setAlignment(Qt.AlignCenter)
+        self.schoolClassLabel.setStyleSheet("""
+            color: #FFFFFF;
+            font-size: 16px;
+            font-weight: bold;
+            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            background-color: transparent;
+        """)
+        self.schoolNameLabel = QLabel("")
+        self.schoolNameLabel.setAlignment(Qt.AlignCenter)
+        self.schoolNameLabel.setStyleSheet("""
+            color: #FFFFFF;
+            font-size: 14px;
+            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            background-color: transparent;
+        """)
+        self.schoolInfoLayout.addWidget(self.schoolClassLabel)
+        self.schoolInfoLayout.addWidget(self.schoolNameLabel)
+        self.schoolInfoContainer.setStyleSheet("background-color: transparent;")
+        self.updateSchoolInfo()
+        self.__updateSchoolInfoPosition()
+        
         # 一言容器
         self.poetryContainer = QWidget()
         poetryLayout = QVBoxLayout(self.poetryContainer)
@@ -923,6 +950,7 @@ class MainWindow(FluentWindow):
         self.gridLayout.addWidget(self.weatherContainer, 0, 0, 1, 1)
         self.gridLayout.addWidget(self.poetryContainer, 0, 0, 1, 1)
         self.gridLayout.addWidget(self.countdownContainer, 0, 0, 1, 1)
+        self.gridLayout.addWidget(self.schoolInfoContainer, 0, 0, 1, 1)
         self.gridLayout.addWidget(editContainer, 0, 0, 1, 1)
         
         self.homeContent = QWidget()
@@ -1690,6 +1718,57 @@ class MainWindow(FluentWindow):
         QApplication.processEvents()
         
         logger.info(f"倒计时组件位置已更新为：{position}")
+    
+    def updateSchoolInfo(self):
+        """更新学校信息显示"""
+        school = cfg.school.value
+        school_class = cfg.schoolClass.value
+        if cfg.showSchoolInfo.value and (school or school_class):
+            self.schoolClassLabel.setText(school_class if school_class else "")
+            self.schoolNameLabel.setText(school if school else "")
+            self.schoolInfoContainer.show()
+        else:
+            self.schoolClassLabel.setText("")
+            self.schoolNameLabel.setText("")
+            self.schoolInfoContainer.hide()
+    
+    def __updateSchoolInfoPosition(self):
+        """更新学校信息位置"""
+        position = cfg.schoolInfoPosition.value
+        margin = 20
+        small_margin = 10
+        layout = self.schoolInfoContainer.layout()
+        
+        if position == "左上预留":
+            layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+            layout.setContentsMargins(small_margin, small_margin, 0, 0)
+        elif position == "左上":
+            layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+            layout.setContentsMargins(0, 0, 0, 0)
+        elif position == "右上预留":
+            layout.setAlignment(Qt.AlignTop | Qt.AlignRight)
+            layout.setContentsMargins(0, small_margin, small_margin, 0)
+        elif position == "右上":
+            layout.setAlignment(Qt.AlignTop | Qt.AlignRight)
+            layout.setContentsMargins(0, 0, 0, 0)
+        elif position == "左下预留":
+            layout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
+            layout.setContentsMargins(small_margin, 0, 0, small_margin)
+        elif position == "左下":
+            layout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
+            layout.setContentsMargins(0, 0, 0, 0)
+        elif position == "右下预留":
+            layout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
+            layout.setContentsMargins(0, 0, small_margin, small_margin)
+        elif position == "右下":
+            layout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
+            layout.setContentsMargins(0, 0, 0, 0)
+        
+        layout.update()
+        self.schoolInfoContainer.update()
+        self.homeContent.update()
+        QApplication.processEvents()
+        logger.info(f"学校信息位置已更新为：{position}")
 
 def autoStart_launch():
     """检查是否是通过开机自启动启动的"""

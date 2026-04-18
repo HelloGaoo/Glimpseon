@@ -275,6 +275,18 @@ class Config(QConfig):
     schoolClass = ConfigItem(
         "School", "Class", ""
     )
+    showSchoolInfo = ConfigItem(
+        "School", "ShowSchoolInfo", False
+    )
+    schoolInfoPosition = OptionsConfigItem(
+        "School", "SchoolInfoPosition", "左上", OptionsValidator(["左上", "右上", "左下", "右下", "左上预留", "右上预留", "左下预留", "右下预留"])
+    )
+    schoolInfoTextColor = ConfigItem(
+        "School", "SchoolInfoTextColor", "#FFFFFF"
+    )
+    schoolInfoTextSize = RangeConfigItem(
+        "School", "SchoolInfoTextSize", 16, RangeValidator(12, 60)
+    )
 
 
 cfg = Config()
