@@ -790,10 +790,13 @@ class MainWindow(FluentWindow):
         if self.editPanel.isLeftSide:
             self.editLayout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
             self.editLayout.setContentsMargins(20, 0, 0, 20)
+            self.gridLayout.setAlignment(self.editContainer, Qt.AlignBottom | Qt.AlignLeft)
         else:
             self.editLayout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
             self.editLayout.setContentsMargins(0, 0, 20, 20)
+            self.gridLayout.setAlignment(self.editContainer, Qt.AlignBottom | Qt.AlignRight)
         self.editLayout.addWidget(self.editButton)
+        self.editContainer.updateGeometry()
 
     def __createEditPanel(self):
         if hasattr(self, 'editPanel') and self.editPanel is not None:
@@ -937,11 +940,12 @@ class MainWindow(FluentWindow):
         self.quickLaunchLayout.setContentsMargins(0, 0, 0, 100)
         self.quickLaunchLayout.setSpacing(15)
         self.quickLaunchContainer.setStyleSheet("background-color: transparent;")
+        self.quickLaunchContainer.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
         self.__updateQuickLaunch()
         
         # 编辑按钮
-        editContainer = QWidget()
-        self.editLayout = QVBoxLayout(editContainer)
+        self.editContainer = QWidget()
+        self.editLayout = QVBoxLayout(self.editContainer)
         self.editLayout.setAlignment(Qt.AlignBottom)
         self.editLayout.setContentsMargins(0, 0, 0, 20)
         
@@ -951,7 +955,8 @@ class MainWindow(FluentWindow):
         self.editButton.clicked.connect(self.__enterEditMode)
         
         self.editLayout.addWidget(self.editButton)
-        editContainer.setStyleSheet("background-color: transparent;")
+        self.editContainer.setStyleSheet("background-color: transparent;")
+        self.editContainer.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
         
         # 网格布局
         self.gridLayout = QGridLayout()
@@ -962,8 +967,8 @@ class MainWindow(FluentWindow):
         self.gridLayout.addWidget(self.poetryContainer, 0, 0, 1, 1)
         self.gridLayout.addWidget(self.countdownContainer, 0, 0, 1, 1)
         self.gridLayout.addWidget(self.schoolInfoContainer, 0, 0, 1, 1)
-        self.gridLayout.addWidget(self.quickLaunchContainer, 0, 0, 1, 1)
-        self.gridLayout.addWidget(editContainer, 0, 0, 1, 1)
+        self.gridLayout.addWidget(self.quickLaunchContainer, 0, 0, 1, 1, Qt.AlignBottom | Qt.AlignHCenter)
+        self.gridLayout.addWidget(self.editContainer, 0, 0, 1, 1, Qt.AlignBottom | Qt.AlignLeft)
         
         self.homeContent = QWidget()
         self.homeContent.setLayout(self.gridLayout)
