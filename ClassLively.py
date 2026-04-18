@@ -1824,8 +1824,8 @@ class MainWindow(FluentWindow):
             return
 
         self.quickLaunchContainer.show()
-        apps = ql_cfg.quick_launch_apps or []
-        if not apps:
+        apps = ql_cfg.quick_launch_apps
+        if apps is None:
             apps = [
                 {
                     "name": "1",

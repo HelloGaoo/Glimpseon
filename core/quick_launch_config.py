@@ -98,9 +98,6 @@ class QuickLaunchConfig:
         self.quick_launch_apps = apps
         self.save()
     
-        self.quick_launch_apps.append(app)
-        self.save()
-    
     def remove_app(self, index):
         if 0 <= index < len(self.quick_launch_apps):
             self.quick_launch_apps.pop(index)

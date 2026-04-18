@@ -1462,8 +1462,7 @@ class QuickLaunchEditDialog(MessageBoxBase):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._apps = list(ql_cfg.quick_launch_apps) if ql_cfg.quick_launch_apps else []
-        if not self._apps:
+        if ql_cfg.quick_launch_apps is None:
             self._apps = [
                 {"name": "1", "path": "", "icon": "1.ico"},
                 {"name": "2", "path": "", "icon": "2.ico"},
@@ -1471,6 +1470,8 @@ class QuickLaunchEditDialog(MessageBoxBase):
                 {"name": "4", "path": "", "icon": "4.ico"},
                 {"name": "5", "path": "", "icon": "5.ico"}
             ]
+        else:
+            self._apps = list(ql_cfg.quick_launch_apps)
         self._init_ui()
     
     def _init_ui(self):
@@ -1490,6 +1491,8 @@ class QuickLaunchEditDialog(MessageBoxBase):
         
         self.appListWidget = ListWidget(self)
         self.appListWidget.setFixedHeight(200)
+        self.appListWidget.setSelectionMode(ListWidget.SingleSelection)
+        self.appListWidget.itemClicked.connect(self._on_item_clicked)
         self._update_app_list()
         self.viewLayout.addWidget(self.appListWidget)
         
@@ -1511,6 +1514,11 @@ class QuickLaunchEditDialog(MessageBoxBase):
         self.yesButton.setText('完成')
         self.cancelButton.setText('取消')
         self.widget.setMinimumWidth(400)
+        
+        self._selected_row = -1
+    
+    def _on_item_clicked(self, item):
+        self._selected_row = self.appListWidget.row(item)
     
     def _update_app_list(self):
         self.appListWidget.clear()
@@ -1521,7 +1529,7 @@ class QuickLaunchEditDialog(MessageBoxBase):
             self.appListWidget.addItem(display_text)
     
     def _on_add_app(self):
-        dialog = AppEditDialog(self)
+        dialog = AppEditDialog(self.parent())
         if dialog.exec_():
             app_data = dialog.get_app_data()
             if app_data:
@@ -1529,26 +1537,30 @@ class QuickLaunchEditDialog(MessageBoxBase):
                 self._update_app_list()
     
     def _on_edit_app(self):
-        current_row = self.appListWidget.currentRow()
-        if current_row < 0:
+        if self._selected_row < 0 or self._selected_row >= len(self._apps):
             InfoBar.warning('提示', '请先选择一个应用', parent=self, duration=2000)
             return
         
-        dialog = AppEditDialog(self, self._apps[current_row])
+        dialog = AppEditDialog(self.parent(), self._apps[self._selected_row])
         if dialog.exec_():
             app_data = dialog.get_app_data()
             if app_data:
-                self._apps[current_row] = app_data
+                self._apps[self._selected_row] = app_data
                 self._update_app_list()
+                if 0 <= self._selected_row < self.appListWidget.count():
+                    self.appListWidget.setCurrentRow(self._selected_row)
     
     def _on_delete_app(self):
-        current_row = self.appListWidget.currentRow()
-        if current_row < 0:
+        if self._selected_row < 0 or self._selected_row >= len(self._apps):
             InfoBar.warning('提示', '请先选择一个应用', parent=self, duration=2000)
             return
         
-        self._apps.pop(current_row)
+        self._apps.pop(self._selected_row)
         self._update_app_list()
+        if self.appListWidget.count() > 0:
+            new_row = min(self._selected_row, self.appListWidget.count() - 1)
+            self.appListWidget.setCurrentRow(new_row)
+            self._selected_row = new_row
     
     def accept(self):
         ql_cfg.set_apps(self._apps)
