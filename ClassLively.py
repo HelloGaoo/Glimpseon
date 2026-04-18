@@ -1753,27 +1753,43 @@ class MainWindow(FluentWindow):
         if position == "左上预留":
             layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
             layout.setContentsMargins(small_margin, small_margin, 0, 0)
+            self.schoolClassLabel.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self.schoolNameLabel.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         elif position == "左上":
             layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
             layout.setContentsMargins(0, 0, 0, 0)
+            self.schoolClassLabel.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self.schoolNameLabel.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         elif position == "右上预留":
             layout.setAlignment(Qt.AlignTop | Qt.AlignRight)
             layout.setContentsMargins(0, small_margin, small_margin, 0)
+            self.schoolClassLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.schoolNameLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         elif position == "右上":
             layout.setAlignment(Qt.AlignTop | Qt.AlignRight)
             layout.setContentsMargins(0, 0, 0, 0)
+            self.schoolClassLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.schoolNameLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         elif position == "左下预留":
             layout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
             layout.setContentsMargins(small_margin, 0, 0, small_margin)
+            self.schoolClassLabel.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self.schoolNameLabel.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         elif position == "左下":
             layout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
             layout.setContentsMargins(0, 0, 0, 0)
+            self.schoolClassLabel.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self.schoolNameLabel.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         elif position == "右下预留":
             layout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
             layout.setContentsMargins(0, 0, small_margin, small_margin)
+            self.schoolClassLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.schoolNameLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         elif position == "右下":
             layout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
             layout.setContentsMargins(0, 0, 0, 0)
+            self.schoolClassLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.schoolNameLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         
         layout.update()
         self.schoolInfoContainer.update()

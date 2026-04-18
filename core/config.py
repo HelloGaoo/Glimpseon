@@ -285,7 +285,7 @@ class Config(QConfig):
         "School", "SchoolInfoTextColor", "#FFFFFF"
     )
     schoolInfoTextSize = RangeConfigItem(
-        "School", "SchoolInfoTextSize", 16, RangeValidator(12, 60)
+        "School", "SchoolInfoTextSize", 34, RangeValidator(12, 60)
     )
 
 
