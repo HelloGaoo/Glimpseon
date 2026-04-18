@@ -20,9 +20,14 @@
 
 import datetime
 import logging
+import os
+import re
 
+import win32api
+import win32con
+import win32gui
 from PyQt5.QtCore import QEasingCurve, QPropertyAnimation, QRect, Qt, QTimer
-from PyQt5.QtGui import QColor, QPalette
+from PyQt5.QtGui import QColor, QIcon, QPalette, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -1586,6 +1591,34 @@ class AppEditDialog(MessageBoxBase):
         spacer.setFixedHeight(10)
         self.viewLayout.addWidget(spacer)
         
+        iconPreviewLayout = QHBoxLayout()
+        self.iconPreviewLabel = QLabel(self)
+        self.iconPreviewLabel.setFixedSize(48, 48)
+        self.iconPreviewLabel.setStyleSheet("background-color: rgba(255, 255, 255, 0.1); border-radius: 8px;")
+        self.iconPreviewLabel.setAlignment(Qt.AlignCenter)
+        self._set_default_icon()
+        iconPreviewLayout.addWidget(self.iconPreviewLabel)
+        
+        iconInfoLayout = QVBoxLayout()
+        iconInfoLabel = BodyLabel('应用图标', self)
+        iconInfoLayout.addWidget(iconInfoLabel)
+        self.iconNameLabel = BodyLabel('未选择图标', self)
+        self.iconNameLabel.setStyleSheet("color: gray;")
+        iconInfoLayout.addWidget(self.iconNameLabel)
+        iconPreviewLayout.addLayout(iconInfoLayout)
+        iconPreviewLayout.addStretch()
+        
+        self.extractIconButton = PushButton('提取图标', self)
+        self.extractIconButton.setFixedWidth(80)
+        self.extractIconButton.clicked.connect(self._on_extract_icon)
+        iconPreviewLayout.addWidget(self.extractIconButton)
+        
+        self.viewLayout.addLayout(iconPreviewLayout)
+        
+        spacer = QWidget()
+        spacer.setFixedHeight(8)
+        self.viewLayout.addWidget(spacer)
+        
         nameLabel = BodyLabel('应用名称')
         self.viewLayout.addWidget(nameLabel)
         self.nameEdit = LineEdit(self)
@@ -1618,6 +1651,115 @@ class AppEditDialog(MessageBoxBase):
         
         self.yesButton.clicked.disconnect()
         self.yesButton.clicked.connect(self._on_ok)
+        
+        self._icon_filename = self._app_data.get('icon', '') if self._app_data else ''
+        if self._icon_filename:
+            self._load_icon_preview(self._icon_filename)
+    
+    def _set_default_icon(self):
+        default_icon = QIcon.fromTheme('application-x-executable')
+        if default_icon.isNull():
+            pixmap = QPixmap(48, 48)
+            pixmap.fill(QColor(100, 100, 100))
+            self.iconPreviewLabel.setPixmap(pixmap)
+        else:
+            self.iconPreviewLabel.setPixmap(default_icon.pixmap(48, 48))
+    
+    def _load_icon_preview(self, icon_filename):
+        from data.software_list import get_software_icon_path
+        icon_path = get_software_icon_path(icon_filename)
+        if os.path.exists(icon_path):
+            pixmap = QPixmap(icon_path)
+            if not pixmap.isNull():
+                scaled = pixmap.scaled(40, 40, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                self.iconPreviewLabel.setPixmap(scaled)
+                self.iconNameLabel.setText(icon_filename)
+                self.iconNameLabel.setStyleSheet("color: inherit;")
+            else:
+                self._set_default_icon()
+                self.iconNameLabel.setText('图标加载失败')
+        else:
+            self._set_default_icon()
+            self.iconNameLabel.setText(icon_filename + ' (不存在)')
+    
+    def _extract_icon(self, exe_path):
+        try:
+            import win32gui
+            import win32ui
+            
+            hicon = None
+            try:
+                res = win32gui.PrivateExtractIcons(exe_path, 0, 256, 256, 1, 0)
+                if res and res[0]: hicon = res[0][0]
+            except: pass
+            if not hicon:
+                large, small = win32gui.ExtractIconEx(exe_path, 0)
+                if large and large[0]: hicon = large[0]
+            if not hicon: return 'exe.ico'
+            ico_info = win32gui.GetIconInfo(hicon)
+            hbm_mask = ico_info[3]
+            hbm_color = ico_info[4]
+            hbm = hbm_color if hbm_color else hbm_mask
+            bmp_obj = win32gui.GetObject(hbm)
+            if not bmp_obj: return 'exe.ico'
+            width = bmp_obj.bmWidth
+            height = bmp_obj.bmHeight
+            hdc = win32gui.GetDC(0)
+            hdc_src = win32ui.CreateDCFromHandle(hdc)
+            hdc_dest = hdc_src.CreateCompatibleDC()
+            bitmap = win32ui.CreateBitmap()
+            bitmap.CreateCompatibleBitmap(hdc_src, width, height)
+            hdc_dest.SelectObject(bitmap)
+            win32gui.DrawIcon(hdc_dest.GetSafeHdc(), 0, 0, hicon)
+            bmpinfo = bitmap.GetInfo()
+            bmpstr = bitmap.GetBitmapBits(True)
+            from PIL import Image
+            if hbm_color:
+                img = Image.frombuffer('RGBA', (width, height), bmpstr, 'raw', 'BGRA', 0, 1)
+            else:
+                img = Image.frombuffer('L', (width, height), bmpstr, 'raw', 'L', 0, 1).convert('RGBA')
+            
+            icon_filename = self._gen_icon_name()
+            icon_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'software_icon')
+            os.makedirs(icon_dir, exist_ok=True)
+            icon_save_path = os.path.join(icon_dir, icon_filename)
+            img.save(icon_save_path, format='PNG')
+
+            if hbm_color: win32gui.DeleteObject(hbm_color)
+            if hbm_mask: win32gui.DeleteObject(hbm_mask)
+            win32gui.DestroyIcon(hicon)
+            win32gui.ReleaseDC(0, hdc)
+            
+            return icon_filename
+        except Exception as e:
+            logger.error(f"提取图标失败：{e}")
+            return 'exe.ico'
+    
+    def _gen_icon_name(self):
+        name_text = self.nameEdit.text().strip()
+        if name_text:
+            cleaned_name = re.sub(r'[^\w\u4e00-\u9fff]', '', name_text)
+            if cleaned_name:
+                return cleaned_name + '.ico'
+        return 'default.ico'
+    
+    def _on_extract_icon(self):
+        path_text = self.pathEdit.text().strip()
+        if not path_text:
+            InfoBar.warning('提示', '请先选择应用程序路径', parent=self, duration=2000)
+            return
+        
+        if not os.path.exists(path_text):
+            InfoBar.error('错误', '文件路径不存在', parent=self, duration=2000)
+            return
+        
+        icon_path = self._extract_icon(path_text)
+        if icon_path:
+            self._icon_filename = icon_path
+            self._load_icon_preview(icon_path)
+            InfoBar.success('成功', f'图标已提取并保存', parent=self, duration=2000)
+        else:
+            InfoBar.warning('提示', '无法提取图标，请确认文件是有效的可执行文件', parent=self, duration=3000)
     
     def _on_browse(self):
         from PyQt5.QtWidgets import QFileDialog
@@ -1627,7 +1769,10 @@ class AppEditDialog(MessageBoxBase):
             '',
             'Executable Files (*.exe);;All Files (*)'
         )
-        if file_path:self.pathEdit.setText(file_path)
+        if file_path:
+            self.pathEdit.setText(file_path)
+            if file_path.lower().endswith('.exe'):
+                self._on_extract_icon()
     
     def _on_ok(self):
         name_text = self.nameEdit.text().strip()
@@ -1636,19 +1781,14 @@ class AppEditDialog(MessageBoxBase):
             return
         
         path_text = self.pathEdit.text().strip()
-        icon_filename = self._generate_icon_filename(name_text)
+        if not self._icon_filename:self._icon_filename = self._gen_icon_name()
+        
         self._result = {
             'name': name_text,
             'path': path_text,
-            'icon': icon_filename
+            'icon': self._icon_filename
         }
         self.accept()
-    
-    def _generate_icon_filename(self, name: str) -> str:
-        import re
-        cleaned_name = re.sub(r'[^\w\u4e00-\u9fff]', '', name)
-        if cleaned_name:return cleaned_name + '.ico'
-        return 'default.ico'
     
     def get_app_data(self):
         return self._result
