@@ -57,6 +57,7 @@ from qfluentwidgets import (
 )
 
 from core.config import cfg, save_cfg
+from core.quick_launch_config import ql_cfg
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +119,9 @@ class EditPanel(QWidget):
         self._addSeparator(v)
         self._createSchoolInfoSettings(v)
         self._updateSchoolInfoSettingsEnabled(cfg.showSchoolInfo.value)
+        self._addSeparator(v)
+        self._createQuickLaunchSettings(v)
+        self._updateQuickLaunchSettingsEnabled(ql_cfg.show_quick_launch)
         self._connectConfigSignals()
         self.__connectSignalToSlot()
     
@@ -187,6 +191,10 @@ class EditPanel(QWidget):
         self.schoolInfoPositionCombo.setEnabled(enabled)
         self.schoolInfoTextColorCombo.setEnabled(enabled)
         self.schoolInfoTextSizeSpin.setEnabled(enabled)
+    
+    def _updateQuickLaunchSettingsEnabled(self, enabled):
+        self.showQuickLaunchSwitch.setEnabled(enabled)
+        self.quickLaunchEditButton.setEnabled(enabled)
     
     def _connectConfigSignals(self):
         """连接配置变化信到 UI 更新"""
@@ -1235,6 +1243,19 @@ class EditPanel(QWidget):
             self.mainWindow.updateSchoolInfoStyle()
         logger.info(f"学校信息：文字大小={value}px")
     
+    def _onShowQuickLaunchChanged(self, checked: bool):
+        ql_cfg.show_quick_launch = checked
+        ql_cfg.save()
+        if hasattr(self.mainWindow, '_MainWindow__updateQuickLaunch'):
+            self.mainWindow._MainWindow__updateQuickLaunch()
+        logger.info(f"快捷启动栏：启用={'开启' if checked else '关闭'}")
+    
+    def _onQuickLaunchEditClicked(self):
+        dialog = QuickLaunchEditDialog(self.mainWindow)
+        dialog.exec_()
+        if hasattr(self.mainWindow, '_MainWindow__updateQuickLaunch'):
+            self.mainWindow._MainWindow__updateQuickLaunch()
+    
     def _createSchoolInfoSettings(self, layout):
         """创建学校信息设置"""
         titleLabel = StrongBodyLabel('学校信息', self)
@@ -1309,6 +1330,31 @@ class EditPanel(QWidget):
         self.schoolInfoTextSizeSpin.valueChanged.connect(self._onSchoolInfoTextSizeChanged)
         textSizeLayout.addWidget(self.schoolInfoTextSizeSpin)
         layout.addLayout(textSizeLayout)
+    
+    def _createQuickLaunchSettings(self, layout):
+        """创建快捷启动栏设置"""
+        titleLabel = StrongBodyLabel('快捷启动栏', self)
+        layout.addWidget(titleLabel)
+        
+        enableLayout = QHBoxLayout()
+        enableLabel = BodyLabel('启用快捷启动栏', self)
+        enableLabel.setFixedWidth(100)
+        enableLayout.addWidget(enableLabel)
+        self.showQuickLaunchSwitch = SwitchButton(self)
+        self.showQuickLaunchSwitch.setChecked(ql_cfg.show_quick_launch)
+        self.showQuickLaunchSwitch.checkedChanged.connect(self._onShowQuickLaunchChanged)
+        enableLayout.addWidget(self.showQuickLaunchSwitch)
+        layout.addLayout(enableLayout)
+        
+        appsLayout = QHBoxLayout()
+        appsLabel = BodyLabel('应用管理', self)
+        appsLabel.setFixedWidth(100)
+        appsLayout.addWidget(appsLabel)
+        self.quickLaunchEditButton = PushButton('编辑应用', self)
+        self.quickLaunchEditButton.setFixedWidth(120)
+        self.quickLaunchEditButton.clicked.connect(self._onQuickLaunchEditClicked)
+        appsLayout.addWidget(self.quickLaunchEditButton)
+        layout.addLayout(appsLayout)
 
 
 class CountdownEditDialog(MessageBoxBase):
@@ -1408,4 +1454,189 @@ class CountdownEditDialog(MessageBoxBase):
             InfoBar.error('错误', f'请输入有效的日期和时间：{e}', parent=self, duration=5000)
     
     def get_countdown(self):
+        return self._result
+
+
+class QuickLaunchEditDialog(MessageBoxBase):
+    """快捷启动栏编辑对话框"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._apps = list(ql_cfg.quick_launch_apps) if ql_cfg.quick_launch_apps else []
+        if not self._apps:
+            self._apps = [
+                {"name": "1", "path": "", "icon": "1.ico"},
+                {"name": "2", "path": "", "icon": "2.ico"},
+                {"name": "3", "path": "", "icon": "3.ico"},
+                {"name": "4", "path": "", "icon": "4.ico"},
+                {"name": "5", "path": "", "icon": "5.ico"}
+            ]
+        self._init_ui()
+    
+    def _init_ui(self):
+        title = SubtitleLabel('编辑快捷启动栏')
+        self.viewLayout.addWidget(title)
+        
+        spacer = QWidget()
+        spacer.setFixedHeight(10)
+        self.viewLayout.addWidget(spacer)
+        
+        infoLabel = BodyLabel('点击"添加应用"来配置快捷启动应用')
+        self.viewLayout.addWidget(infoLabel)
+        
+        spacer = QWidget()
+        spacer.setFixedHeight(8)
+        self.viewLayout.addWidget(spacer)
+        
+        self.appListWidget = ListWidget(self)
+        self.appListWidget.setFixedHeight(200)
+        self._update_app_list()
+        self.viewLayout.addWidget(self.appListWidget)
+        
+        buttonLayout = QHBoxLayout()
+        self.addButton = PushButton('添加应用', self)
+        self.addButton.clicked.connect(self._on_add_app)
+        buttonLayout.addWidget(self.addButton)
+        
+        self.editButton = PushButton('编辑', self)
+        self.editButton.clicked.connect(self._on_edit_app)
+        buttonLayout.addWidget(self.editButton)
+        
+        self.deleteButton = PushButton('删除', self)
+        self.deleteButton.clicked.connect(self._on_delete_app)
+        buttonLayout.addWidget(self.deleteButton)
+        
+        self.viewLayout.addLayout(buttonLayout)
+        
+        self.yesButton.setText('完成')
+        self.cancelButton.setText('取消')
+        self.widget.setMinimumWidth(400)
+    
+    def _update_app_list(self):
+        self.appListWidget.clear()
+        for app in self._apps:
+            name = app.get('name', '未知')
+            path = app.get('path', '')
+            display_text = f"{name} - {path if path else '未配置路径'}"
+            self.appListWidget.addItem(display_text)
+    
+    def _on_add_app(self):
+        dialog = AppEditDialog(self)
+        if dialog.exec_():
+            app_data = dialog.get_app_data()
+            if app_data:
+                self._apps.append(app_data)
+                self._update_app_list()
+    
+    def _on_edit_app(self):
+        current_row = self.appListWidget.currentRow()
+        if current_row < 0:
+            InfoBar.warning('提示', '请先选择一个应用', parent=self, duration=2000)
+            return
+        
+        dialog = AppEditDialog(self, self._apps[current_row])
+        if dialog.exec_():
+            app_data = dialog.get_app_data()
+            if app_data:
+                self._apps[current_row] = app_data
+                self._update_app_list()
+    
+    def _on_delete_app(self):
+        current_row = self.appListWidget.currentRow()
+        if current_row < 0:
+            InfoBar.warning('提示', '请先选择一个应用', parent=self, duration=2000)
+            return
+        
+        self._apps.pop(current_row)
+        self._update_app_list()
+    
+    def accept(self):
+        ql_cfg.set_apps(self._apps)
+        super().accept()
+    
+    def get_apps(self):
+        return self._apps
+
+
+class AppEditDialog(MessageBoxBase):
+    """应用编辑对话框"""
+    
+    def __init__(self, parent=None, app_data=None):
+        super().__init__(parent)
+        self._app_data = app_data
+        self._result = None
+        self._init_ui()
+    
+    def _init_ui(self):
+        title = SubtitleLabel('编辑应用' if self._app_data else '添加应用')
+        self.viewLayout.addWidget(title)
+        spacer = QWidget()
+        spacer.setFixedHeight(10)
+        self.viewLayout.addWidget(spacer)
+        
+        nameLabel = BodyLabel('应用名称')
+        self.viewLayout.addWidget(nameLabel)
+        self.nameEdit = LineEdit(self)
+        self.nameEdit.setPlaceholderText('例如：微信')
+        if self._app_data:self.nameEdit.setText(self._app_data.get('name', ''))
+        self.viewLayout.addWidget(self.nameEdit)
+        
+        spacer = QWidget()
+        spacer.setFixedHeight(8)
+        self.viewLayout.addWidget(spacer)
+        
+        pathLabel = BodyLabel('应用路径')
+        self.viewLayout.addWidget(pathLabel)
+        pathLayout = QHBoxLayout()
+        self.pathEdit = LineEdit(self)
+        self.pathEdit.setPlaceholderText('例如：C:\\Program Files\\WeChat\\WeChat.exe')
+        if self._app_data:self.pathEdit.setText(self._app_data.get('path', ''))
+        pathLayout.addWidget(self.pathEdit)
+        
+        self.browseButton = PushButton('浏览...', self)
+        self.browseButton.setFixedWidth(60)
+        self.browseButton.clicked.connect(self._on_browse)
+        pathLayout.addWidget(self.browseButton)
+        
+        self.viewLayout.addLayout(pathLayout)
+        
+        self.yesButton.setText('确定')
+        self.cancelButton.setText('取消')
+        self.widget.setMinimumWidth(400)
+        
+        self.yesButton.clicked.disconnect()
+        self.yesButton.clicked.connect(self._on_ok)
+    
+    def _on_browse(self):
+        from PyQt5.QtWidgets import QFileDialog
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            '选择应用程序',
+            '',
+            'Executable Files (*.exe);;All Files (*)'
+        )
+        if file_path:self.pathEdit.setText(file_path)
+    
+    def _on_ok(self):
+        name_text = self.nameEdit.text().strip()
+        if not name_text:
+            InfoBar.error('错误', '请输入应用名称', parent=self, duration=2000)
+            return
+        
+        path_text = self.pathEdit.text().strip()
+        icon_filename = self._generate_icon_filename(name_text)
+        self._result = {
+            'name': name_text,
+            'path': path_text,
+            'icon': icon_filename
+        }
+        self.accept()
+    
+    def _generate_icon_filename(self, name: str) -> str:
+        import re
+        cleaned_name = re.sub(r'[^\w\u4e00-\u9fff]', '', name)
+        if cleaned_name:return cleaned_name + '.ico'
+        return 'default.ico'
+    
+    def get_app_data(self):
         return self._result
