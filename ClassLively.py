@@ -115,6 +115,7 @@ from qfluentwidgets import (
 from data.url_dir import url_dir  # type: ignore
 from core.config import cfg, default_cfg, save_cfg
 from core.constants import APP_NAME, BASE_DIR, MEIPASS_DIR, get_resPath
+from core.quick_launch_config import ql_cfg
 from core.downloader import Downloader, clean_tempdir
 from core.font_manager import initialize_fonts
 from core.logger import logger, init_exhook
@@ -929,6 +930,15 @@ class MainWindow(FluentWindow):
         countdownLayout.addWidget(self.countdownLabel)
         self.countdownContainer.setStyleSheet("background-color: transparent;")
         
+        # 快捷启动栏容器
+        self.quickLaunchContainer = QWidget()
+        self.quickLaunchLayout = QHBoxLayout(self.quickLaunchContainer)
+        self.quickLaunchLayout.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
+        self.quickLaunchLayout.setContentsMargins(0, 0, 0, 100)
+        self.quickLaunchLayout.setSpacing(15)
+        self.quickLaunchContainer.setStyleSheet("background-color: transparent;")
+        self.__updateQuickLaunch()
+        
         # 编辑按钮
         editContainer = QWidget()
         self.editLayout = QVBoxLayout(editContainer)
@@ -952,6 +962,7 @@ class MainWindow(FluentWindow):
         self.gridLayout.addWidget(self.poetryContainer, 0, 0, 1, 1)
         self.gridLayout.addWidget(self.countdownContainer, 0, 0, 1, 1)
         self.gridLayout.addWidget(self.schoolInfoContainer, 0, 0, 1, 1)
+        self.gridLayout.addWidget(self.quickLaunchContainer, 0, 0, 1, 1)
         self.gridLayout.addWidget(editContainer, 0, 0, 1, 1)
         
         self.homeContent = QWidget()
@@ -1797,6 +1808,117 @@ class MainWindow(FluentWindow):
             self.homeContent.update()
         QApplication.processEvents()
         logger.info(f"学校信息位置已更新为：{position}")
+    
+    def __updateQuickLaunch(self):
+        """更新快捷启动栏显示"""
+        while self.quickLaunchLayout.count():
+            item = self.quickLaunchLayout.takeAt(0)
+            if item.widget():item.widget().deleteLater()
+        if not ql_cfg.show_quick_launch:
+            self.quickLaunchContainer.hide()
+            return
+
+        self.quickLaunchContainer.show()
+        apps = ql_cfg.quick_launch_apps or []
+        if not apps:
+            apps = [
+                {
+                    "name": "1",
+                    "path": "",
+                    "icon": "1.ico"
+                },
+                {
+                    "name": "2",
+                    "path": "",
+                    "icon": "2.ico"
+                },
+                {
+                    "name": "3",
+                    "path": "",
+                    "icon": "3.ico"
+                },
+                {
+                    "name": "4",
+                    "path": "",
+                    "icon": "4.ico"
+                },
+                {
+                    "name": "5",
+                    "path": "",
+                    "icon": "5.ico"
+                }
+            ]
+        for app in apps:
+            button = QPushButton(parent=self.quickLaunchContainer)
+            button.setFixedSize(80, 80)
+            button.setStyleSheet("""
+                QPushButton {
+                    background-color: rgba(255, 255, 255, 0.25);
+                    border-radius: 12px;
+                    border: 2px solid rgba(255, 255, 255, 0.4);
+                }
+                QPushButton:hover {
+                    background-color: rgba(255, 255, 255, 0.35);
+                    border: 2px solid rgba(255, 255, 255, 0.7);
+                }
+                QPushButton:pressed {
+                    background-color: rgba(255, 255, 255, 0.2);
+                }
+            """)
+            button.setToolTip(app.get("name", "未知"))
+            icon_filename = app.get("icon", "CY.png")
+            icon_path = get_software_icon_path(icon_filename)
+            if os.path.exists(icon_path):
+                pixmap = QPixmap(icon_path)
+                if not pixmap.isNull():
+                    scaled_pixmap = pixmap.scaled(56, 56, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    icon_label = QLabel(parent=button)
+                    icon_label.setPixmap(scaled_pixmap)
+                    icon_label.setAlignment(Qt.AlignCenter)
+                    icon_label.setStyleSheet("background-color: transparent;")
+                    icon_label.setAttribute(Qt.WA_TranslucentBackground)
+                    icon_label.setGeometry(12, 12, 56, 56)
+            button.clicked.connect(lambda checked, p=app.get("path", ""), n=app.get("name", ""): self.__launchApp(p, n))
+            self.quickLaunchLayout.addWidget(button)
+        self.quickLaunchContainer.update()
+    
+    def __launchApp(self, app_path, app_name):
+        """启动应用程序"""
+        try:
+            if not app_path:
+                InfoBar.warning(
+                    title="未配置路径",
+                    content=f"请在编辑面板中配置 {app_name} 的路径",
+                    parent=self,
+                    duration=3000
+                )
+                return
+            
+            if os.path.exists(app_path):
+                os.startfile(app_path)
+                logger.info(f"已启动应用：{app_name} ({app_path})")
+                InfoBar.success(
+                    title="启动成功",
+                    content=f"正在打开 {app_name}",
+                    parent=self,
+                    duration=2000
+                )
+            else:
+                logger.warning(f"应用路径不存在：{app_path}")
+                InfoBar.error(
+                    title="启动失败",
+                    content=f"找不到 {app_name}，请检查路径配置",
+                    parent=self,
+                    duration=3000
+                )
+        except Exception as e:
+            logger.error(f"启动应用失败：{app_name}, 错误：{e}")
+            InfoBar.error(
+                title="启动失败",
+                content=f"无法打开 {app_name}",
+                parent=self,
+                duration=3000
+            )
 
 def autoStart_launch():
     """检查是否是通过开机自启动启动的"""
