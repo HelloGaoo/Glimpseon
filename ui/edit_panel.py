@@ -1373,12 +1373,13 @@ class CountdownEditDialog(MessageBoxBase):
     
     def _init_ui(self):
         from PyQt5.QtCore import QDate, QTime
-        
+
         title = SubtitleLabel('编辑倒计时' if self._countdown_data else '添加倒计时')
         self.viewLayout.addWidget(title)
-        
+        infoLabel = BodyLabel('设置倒计时的目标名称和日期')
+        self.viewLayout.addWidget(infoLabel)
         spacer = QWidget()
-        spacer.setFixedHeight(10)
+        spacer.setFixedHeight(8)
         self.viewLayout.addWidget(spacer)
         
         titleLabel = BodyLabel('目标名称')
@@ -1482,12 +1483,7 @@ class QuickLaunchEditDialog(MessageBoxBase):
     def _init_ui(self):
         title = SubtitleLabel('编辑快捷启动栏')
         self.viewLayout.addWidget(title)
-        
-        spacer = QWidget()
-        spacer.setFixedHeight(10)
-        self.viewLayout.addWidget(spacer)
-        
-        infoLabel = BodyLabel('点击"添加应用"来配置快捷启动应用')
+        infoLabel = BodyLabel('管理快捷启动栏中的应用')
         self.viewLayout.addWidget(infoLabel)
         
         spacer = QWidget()
@@ -1587,36 +1583,12 @@ class AppEditDialog(MessageBoxBase):
     def _init_ui(self):
         title = SubtitleLabel('编辑应用' if self._app_data else '添加应用')
         self.viewLayout.addWidget(title)
-        spacer = QWidget()
-        spacer.setFixedHeight(10)
-        self.viewLayout.addWidget(spacer)
-        
-        iconPreviewLayout = QHBoxLayout()
-        self.iconPreviewLabel = QLabel(self)
-        self.iconPreviewLabel.setFixedSize(48, 48)
-        self.iconPreviewLabel.setStyleSheet("background-color: rgba(255, 255, 255, 0.1); border-radius: 8px;")
-        self.iconPreviewLabel.setAlignment(Qt.AlignCenter)
-        self._set_default_icon()
-        iconPreviewLayout.addWidget(self.iconPreviewLabel)
-        
-        iconInfoLayout = QVBoxLayout()
-        iconInfoLabel = BodyLabel('应用图标', self)
-        iconInfoLayout.addWidget(iconInfoLabel)
-        self.iconNameLabel = BodyLabel('未选择图标', self)
-        self.iconNameLabel.setStyleSheet("color: gray;")
-        iconInfoLayout.addWidget(self.iconNameLabel)
-        iconPreviewLayout.addLayout(iconInfoLayout)
-        iconPreviewLayout.addStretch()
-        
-        self.extractIconButton = PushButton('提取图标', self)
-        self.extractIconButton.setFixedWidth(80)
-        self.extractIconButton.clicked.connect(self._on_extract_icon)
-        iconPreviewLayout.addWidget(self.extractIconButton)
-        
-        self.viewLayout.addLayout(iconPreviewLayout)
+
+        descLabel = BodyLabel('配置快捷启动栏中的应用')
+        self.viewLayout.addWidget(descLabel)
         
         spacer = QWidget()
-        spacer.setFixedHeight(8)
+        spacer.setFixedHeight(12)
         self.viewLayout.addWidget(spacer)
         
         nameLabel = BodyLabel('应用名称')
@@ -1625,7 +1597,6 @@ class AppEditDialog(MessageBoxBase):
         self.nameEdit.setPlaceholderText('例如：微信')
         if self._app_data:self.nameEdit.setText(self._app_data.get('name', ''))
         self.viewLayout.addWidget(self.nameEdit)
-        
         spacer = QWidget()
         spacer.setFixedHeight(8)
         self.viewLayout.addWidget(spacer)
@@ -1638,13 +1609,34 @@ class AppEditDialog(MessageBoxBase):
         if self._app_data:self.pathEdit.setText(self._app_data.get('path', ''))
         self.pathEdit.textChanged.connect(self._on_path_changed)
         pathLayout.addWidget(self.pathEdit)
-        
-        self.browseButton = PushButton('浏览...', self)
+        self.browseButton = PushButton('浏览', self)
         self.browseButton.setFixedWidth(60)
         self.browseButton.clicked.connect(self._on_browse)
         pathLayout.addWidget(self.browseButton)
-        
         self.viewLayout.addLayout(pathLayout)
+        spacer = QWidget()
+        spacer.setFixedHeight(8)
+        self.viewLayout.addWidget(spacer)
+        
+        iconPathLabel = BodyLabel('图标路径')
+        self.viewLayout.addWidget(iconPathLabel)
+        iconInputLayout = QHBoxLayout()
+        self.iconPreviewLabel = QLabel(self)
+        self.iconPreviewLabel.setFixedSize(48, 48)
+        self.iconPreviewLabel.setStyleSheet("background-color: rgba(255, 255, 255, 0.1); border-radius: 8px;")
+        self.iconPreviewLabel.setAlignment(Qt.AlignCenter)
+        self._set_default_icon()
+        iconInputLayout.addWidget(self.iconPreviewLabel)
+        self.iconPathEdit = LineEdit(self)
+        self.iconPathEdit.setPlaceholderText('自定义图标路径')
+        if self._app_data:self.iconPathEdit.setText(self._app_data.get('icon', ''))
+        self.iconPathEdit.textChanged.connect(self._on_icon_path_changed)
+        iconInputLayout.addWidget(self.iconPathEdit)
+        self.iconBrowseButton = PushButton('浏览', self)
+        self.iconBrowseButton.setFixedWidth(60)
+        self.iconBrowseButton.clicked.connect(self._on_icon_browse)
+        iconInputLayout.addWidget(self.iconBrowseButton)
+        self.viewLayout.addLayout(iconInputLayout)
         
         self.yesButton.setText('确定')
         self.cancelButton.setText('取消')
@@ -1672,16 +1664,12 @@ class AppEditDialog(MessageBoxBase):
         if os.path.exists(icon_path):
             pixmap = QPixmap(icon_path)
             if not pixmap.isNull():
-                scaled = pixmap.scaled(40, 40, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                scaled = pixmap.scaled(36, 36, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 self.iconPreviewLabel.setPixmap(scaled)
-                self.iconNameLabel.setText(icon_filename)
-                self.iconNameLabel.setStyleSheet("color: inherit;")
             else:
                 self._set_default_icon()
-                self.iconNameLabel.setText('图标加载失败')
         else:
             self._set_default_icon()
-            self.iconNameLabel.setText(icon_filename + ' (不存在)')
     
     def _extract_icon(self, exe_path):
         try:
@@ -1748,7 +1736,14 @@ class AppEditDialog(MessageBoxBase):
         if path.lower().endswith('.exe') and os.path.exists(path):
             base_name = os.path.splitext(os.path.basename(path))[0]
             self.nameEdit.setText(base_name)
-            self._on_extract_icon()
+            self._do_extract_icon(path)
+    
+    def _do_extract_icon(self, exe_path):
+        icon_path = self._extract_icon(exe_path)
+        if icon_path:
+            self._icon_filename = icon_path
+            self.iconPathEdit.setText('')
+            self._load_icon_preview(icon_path)
     
     def _on_extract_icon(self):
         path_text = self.pathEdit.text().strip()
@@ -1760,13 +1755,25 @@ class AppEditDialog(MessageBoxBase):
             InfoBar.error('错误', '文件路径不存在', parent=self, duration=2000)
             return
         
-        icon_path = self._extract_icon(path_text)
-        if icon_path:
-            self._icon_filename = icon_path
-            self._load_icon_preview(icon_path)
-            InfoBar.success('成功', f'图标已提取并保存', parent=self, duration=2000)
-        else:
-            InfoBar.warning('提示', '无法提取图标，请确认文件是有效的可执行文件', parent=self, duration=3000)
+        self._do_extract_icon(path_text)
+    
+    def _on_icon_path_changed(self, path):
+        if path:
+            self._icon_filename = path
+            self._load_icon_preview(path)
+    
+    def _on_icon_browse(self):
+        from PyQt5.QtWidgets import QFileDialog
+        
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            '选择图标',
+            '',
+            'Image Files (*.ico *.png *.jpg *.jpeg *.bmp);;All Files (*)'
+        )
+        
+        if file_path:
+            self.iconPathEdit.setText(file_path)
     
     def _on_browse(self):
         from PyQt5.QtWidgets import QFileDialog
@@ -1788,12 +1795,19 @@ class AppEditDialog(MessageBoxBase):
             return
         
         path_text = self.pathEdit.text().strip()
-        if not self._icon_filename:self._icon_filename = self._get_icon_name()
+        icon_text = self.iconPathEdit.text().strip()
+        
+        if icon_text:
+            icon_val = icon_text
+        elif self._icon_filename:
+            icon_val = self._icon_filename
+        else:
+            icon_val = self._get_icon_name()
         
         self._result = {
             'name': name_text,
             'path': path_text,
-            'icon': self._icon_filename
+            'icon': icon_val
         }
         self.accept()
     
