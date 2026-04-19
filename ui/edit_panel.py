@@ -1719,7 +1719,7 @@ class AppEditDialog(MessageBoxBase):
             else:
                 img = Image.frombuffer('L', (width, height), bmpstr, 'raw', 'L', 0, 1).convert('RGBA')
             
-            icon_filename = self._gen_icon_name()
+            icon_filename = self._get_icon_name()
             icon_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'software_icon')
             os.makedirs(icon_dir, exist_ok=True)
             icon_save_path = os.path.join(icon_dir, icon_filename)
@@ -1735,7 +1735,7 @@ class AppEditDialog(MessageBoxBase):
             logger.error(f"提取图标失败：{e}")
             return 'exe.ico'
     
-    def _gen_icon_name(self):
+    def _get_icon_name(self):
         name_text = self.nameEdit.text().strip()
         if name_text:
             cleaned_name = re.sub(r'[^\w\u4e00-\u9fff]', '', name_text)
@@ -1763,15 +1763,22 @@ class AppEditDialog(MessageBoxBase):
     
     def _on_browse(self):
         from PyQt5.QtWidgets import QFileDialog
+        
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             '选择应用程序',
             '',
             'Executable Files (*.exe);;All Files (*)'
         )
+        
         if file_path:
             self.pathEdit.setText(file_path)
+            
             if file_path.lower().endswith('.exe'):
+                # 提取文件名 去后缀 作为名称
+                base_name = os.path.splitext(os.path.basename(file_path))[0]
+                self.nameEdit.setText(base_name)
+                # icon
                 self._on_extract_icon()
     
     def _on_ok(self):
@@ -1781,7 +1788,7 @@ class AppEditDialog(MessageBoxBase):
             return
         
         path_text = self.pathEdit.text().strip()
-        if not self._icon_filename:self._icon_filename = self._gen_icon_name()
+        if not self._icon_filename:self._icon_filename = self._get_icon_name()
         
         self._result = {
             'name': name_text,
