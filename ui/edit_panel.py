@@ -1374,14 +1374,13 @@ class CountdownEditDialog(MessageBoxBase):
     def _init_ui(self):
         from PyQt5.QtCore import QDate, QTime
 
+        self.viewLayout.setSpacing(8)
+
         title = SubtitleLabel('编辑倒计时' if self._countdown_data else '添加倒计时')
         self.viewLayout.addWidget(title)
         infoLabel = BodyLabel('设置倒计时的目标名称和日期')
         self.viewLayout.addWidget(infoLabel)
-        spacer = QWidget()
-        spacer.setFixedHeight(8)
-        self.viewLayout.addWidget(spacer)
-        
+
         titleLabel = BodyLabel('目标名称')
         self.viewLayout.addWidget(titleLabel)
         self.titleEdit = LineEdit()
@@ -1481,15 +1480,12 @@ class QuickLaunchEditDialog(MessageBoxBase):
         self._init_ui()
     
     def _init_ui(self):
+        self.viewLayout.setSpacing(8)
         title = SubtitleLabel('编辑快捷启动栏')
         self.viewLayout.addWidget(title)
         infoLabel = BodyLabel('管理快捷启动栏中的应用')
         self.viewLayout.addWidget(infoLabel)
-        
-        spacer = QWidget()
-        spacer.setFixedHeight(8)
-        self.viewLayout.addWidget(spacer)
-        
+
         self.appListWidget = ListWidget(self)
         self.appListWidget.setFixedHeight(200)
         self.appListWidget.setSelectionMode(ListWidget.SingleSelection)
@@ -1581,16 +1577,14 @@ class AppEditDialog(MessageBoxBase):
         self._init_ui()
     
     def _init_ui(self):
+        self.viewLayout.setSpacing(8)
+
         title = SubtitleLabel('编辑应用' if self._app_data else '添加应用')
         self.viewLayout.addWidget(title)
 
         descLabel = BodyLabel('配置快捷启动栏中的应用')
         self.viewLayout.addWidget(descLabel)
-        
-        spacer = QWidget()
-        spacer.setFixedHeight(12)
-        self.viewLayout.addWidget(spacer)
-        
+
         nameLabel = BodyLabel('应用名称')
         self.viewLayout.addWidget(nameLabel)
         self.nameEdit = LineEdit(self)
