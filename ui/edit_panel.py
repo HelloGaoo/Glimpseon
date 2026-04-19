@@ -1636,6 +1636,7 @@ class AppEditDialog(MessageBoxBase):
         self.pathEdit = LineEdit(self)
         self.pathEdit.setPlaceholderText('例如：C:\\Program Files\\WeChat\\WeChat.exe')
         if self._app_data:self.pathEdit.setText(self._app_data.get('path', ''))
+        self.pathEdit.textChanged.connect(self._on_path_changed)
         pathLayout.addWidget(self.pathEdit)
         
         self.browseButton = PushButton('浏览...', self)
@@ -1743,6 +1744,12 @@ class AppEditDialog(MessageBoxBase):
                 return cleaned_name + '.ico'
         return 'default.ico'
     
+    def _on_path_changed(self, path):
+        if path.lower().endswith('.exe') and os.path.exists(path):
+            base_name = os.path.splitext(os.path.basename(path))[0]
+            self.nameEdit.setText(base_name)
+            self._on_extract_icon()
+    
     def _on_extract_icon(self):
         path_text = self.pathEdit.text().strip()
         if not path_text:
@@ -1773,13 +1780,6 @@ class AppEditDialog(MessageBoxBase):
         
         if file_path:
             self.pathEdit.setText(file_path)
-            
-            if file_path.lower().endswith('.exe'):
-                # 提取文件名 去后缀 作为名称
-                base_name = os.path.splitext(os.path.basename(file_path))[0]
-                self.nameEdit.setText(base_name)
-                # icon
-                self._on_extract_icon()
     
     def _on_ok(self):
         name_text = self.nameEdit.text().strip()
