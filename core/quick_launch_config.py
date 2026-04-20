@@ -17,15 +17,23 @@ import json
 import os
 import logging
 from core.constants import BASE_DIR
+from PyQt5.QtCore import QObject, pyqtSignal
 
 logger = logging.getLogger(__name__)
 QUICK_LAUNCH_CONFIG_PATH = os.path.join(BASE_DIR, 'config', 'quick_launch.json')
 
 
-class QuickLaunchConfig:
+class QuickLaunchConfig(QObject):
+    quickLaunchChanged = pyqtSignal()
+
     def __init__(self):
+        super().__init__()
         self.show_quick_launch = True
         self.quick_launch_apps = []
+        self.icon_size = 56
+        self.icon_spacing = 15
+        self.display_rows = 1
+        self.show_labels = False
         self.load()
     
     def load(self):
@@ -38,6 +46,10 @@ class QuickLaunchConfig:
                 data = json.load(f)
             self.show_quick_launch = data.get('ShowQuickLaunch', True)
             self.quick_launch_apps = data.get('QuickLaunchApps', [])
+            self.icon_size = data.get('IconSize', 56)
+            self.icon_spacing = data.get('IconSpacing', 15)
+            self.display_rows = data.get('MaxRows', 1)
+            self.show_labels = data.get('ShowLabels', False)
             logger.info(f"已从 {QUICK_LAUNCH_CONFIG_PATH} 加载快捷启动配置")
         except Exception as e:
             logger.error(f"加载快捷启动配置失败：{e}")
@@ -50,10 +62,15 @@ class QuickLaunchConfig:
             if not os.path.exists(config_dir):os.makedirs(config_dir)
             data = {
                 'ShowQuickLaunch': self.show_quick_launch,
-                'QuickLaunchApps': self.quick_launch_apps
+                'QuickLaunchApps': self.quick_launch_apps,
+                'IconSize': self.icon_size,
+                'IconSpacing': self.icon_spacing,
+                'MaxRows': self.display_rows,
+                'ShowLabels': self.show_labels
             }
             with open(QUICK_LAUNCH_CONFIG_PATH, 'w', encoding='utf-8') as f:json.dump(data, f, ensure_ascii=False, indent=4)
             logger.info(f"已保存快捷启动配置到 {QUICK_LAUNCH_CONFIG_PATH}")
+            self.quickLaunchChanged.emit()
             return True
         except Exception as e:
             logger.error(f"保存快捷启动配置失败：{e}")
@@ -96,6 +113,22 @@ class QuickLaunchConfig:
     
     def set_apps(self, apps):
         self.quick_launch_apps = apps
+        self.save()
+    
+    def set_icon_size(self, size):
+        self.icon_size = size
+        self.save()
+    
+    def set_icon_spacing(self, spacing):
+        self.icon_spacing = spacing
+        self.save()
+    
+    def set_display_rows(self, rows):
+        self.display_rows = rows
+        self.save()
+    
+    def set_show_labels(self, show):
+        self.show_labels = show
         self.save()
     
     def remove_app(self, index):

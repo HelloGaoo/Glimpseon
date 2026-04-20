@@ -439,6 +439,8 @@ class MainWindow(FluentWindow):
         cfg.themeChanged.connect(self._onDeveloperPanelThemeChanged)
         cfg.themeChanged.connect(self._onEditPanelThemeChanged)
         
+        ql_cfg.quickLaunchChanged.connect(self.__updateQuickLaunch)
+        
         self.navigationInterface.installEventFilter(self)
         
         self.developerPanel = None
@@ -1816,9 +1818,10 @@ class MainWindow(FluentWindow):
     
     def __updateQuickLaunch(self):
         """更新快捷启动栏显示"""
-        while self.quickLaunchLayout.count():
-            item = self.quickLaunchLayout.takeAt(0)
-            if item.widget():item.widget().deleteLater()
+        self.__clearQuickLaunchLayout()
+        from PyQt5.QtWidgets import QApplication
+        QApplication.processEvents()
+        
         if not ql_cfg.show_quick_launch:
             self.quickLaunchContainer.hide()
             return
@@ -1827,65 +1830,148 @@ class MainWindow(FluentWindow):
         apps = ql_cfg.quick_launch_apps
         if apps is None:
             apps = [
-                {
-                    "name": "1",
-                    "path": "",
-                    "icon": "1.ico"
-                },
-                {
-                    "name": "2",
-                    "path": "",
-                    "icon": "2.ico"
-                },
-                {
-                    "name": "3",
-                    "path": "",
-                    "icon": "3.ico"
-                },
-                {
-                    "name": "4",
-                    "path": "",
-                    "icon": "4.ico"
-                },
-                {
-                    "name": "5",
-                    "path": "",
-                    "icon": "5.ico"
-                }
+                {"name": "1", "path": "", "icon": "1.ico"},
+                {"name": "2", "path": "", "icon": "2.ico"},
+                {"name": "3", "path": "", "icon": "3.ico"},
+                {"name": "4", "path": "", "icon": "4.ico"},
+                {"name": "5", "path": "", "icon": "5.ico"}
             ]
-        for app in apps:
-            button = QPushButton(parent=self.quickLaunchContainer)
-            button.setFixedSize(80, 80)
-            button.setStyleSheet("""
-                QPushButton {
-                    background-color: rgba(255, 255, 255, 0.25);
-                    border-radius: 12px;
-                    border: 2px solid rgba(255, 255, 255, 0.4);
-                }
-                QPushButton:hover {
-                    background-color: rgba(255, 255, 255, 0.35);
-                    border: 2px solid rgba(255, 255, 255, 0.7);
-                }
-                QPushButton:pressed {
-                    background-color: rgba(255, 255, 255, 0.2);
+        
+        icon_size = ql_cfg.icon_size
+        icon_spacing = ql_cfg.icon_spacing
+        display_rows = ql_cfg.display_rows
+        show_labels = ql_cfg.show_labels
+        
+        label_height = 20 if show_labels else 0
+        button_size = icon_size + 24
+        button_height = button_size + label_height
+        
+        self.quickLaunchLayout.setContentsMargins(0, 0, 0, 20)
+        self.quickLaunchLayout.setSpacing(icon_spacing)
+        self.quickLaunchLayout.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
+        if display_rows <= 1:
+            for app in apps:
+                container = self.__createAppButton(app, button_size, button_height, icon_size, show_labels)
+                self.quickLaunchLayout.addWidget(container)
+        else:
+            total_apps = len(apps)
+            if total_apps == 0:
+                self.quickLaunchContainer.update()
+                return
+            base_per_row = max(1, total_apps // display_rows)
+            extra = total_apps % display_rows
+
+            rows_layout = QVBoxLayout()
+            rows_layout.setContentsMargins(0, 0, 0, 0)
+            rows_layout.setSpacing(icon_spacing)
+            rows_layout.setAlignment(Qt.AlignCenter)
+            app_idx = 0
+            for row_idx in range(display_rows):
+                if app_idx >= total_apps:break
+                count_in_this_row = base_per_row + (1 if row_idx < extra else 0)
+                if count_in_this_row == 0:break
+                row_layout = QHBoxLayout()
+                row_layout.setSpacing(icon_spacing)
+                row_layout.setAlignment(Qt.AlignCenter)
+                for _ in range(count_in_this_row):
+                    if app_idx >= total_apps:break
+                    container = self.__createAppButton(apps[app_idx], button_size, button_height, icon_size, show_labels)
+                    row_layout.addWidget(container)
+                    app_idx += 1
+                rows_layout.addLayout(row_layout)
+            self.quickLaunchLayout.addLayout(rows_layout)
+        self.quickLaunchContainer.update()
+    
+    def __clearQuickLaunchLayout(self):
+        """清除所有子项"""
+        import sip
+        for child in self.quickLaunchContainer.children():
+            if isinstance(child, QWidget) and child is not self.quickLaunchContainer:
+                child.hide()
+                child.setParent(None)
+                child.deleteLater()
+        while self.quickLaunchLayout.count() > 0:
+            item = self.quickLaunchLayout.takeAt(0)
+            if item.widget():
+                item.widget().hide()
+                item.widget().setParent(None)
+                item.widget().deleteLater()
+            elif item.layout():
+                self.__deleteLayout(item.layout())
+            sip.delete(item)
+    
+    def __deleteLayout(self, layout):
+        """递归删除"""
+        import sip
+        
+        while layout.count() > 0:
+            item = layout.takeAt(0)
+            if item.widget():
+                item.widget().hide()
+                item.widget().setParent(None)
+                item.widget().deleteLater()
+            elif item.layout():
+                self.__deleteLayout(item.layout())
+            sip.delete(item)
+        sip.delete(layout)
+    
+    def __createAppButton(self, app, button_size, button_height, icon_size, show_labels):
+        """创建单个应用按钮"""
+        container = QWidget(parent=self.quickLaunchContainer)
+        container.setFixedSize(button_size, button_height)
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        layout.setAlignment(Qt.AlignCenter)
+        button = QPushButton(parent=container)
+        button.setFixedSize(button_size, button_size)
+        button.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(255, 255, 255, 0.25);
+                border-radius: 12px;
+                border: 2px solid rgba(255, 255, 255, 0.4);
+            }
+            QPushButton:hover {
+                background-color: rgba(255, 255, 255, 0.35);
+                border: 2px solid rgba(255, 255, 255, 0.7);
+            }
+            QPushButton:pressed {
+                background-color: rgba(255, 255, 255, 0.2);
+            }
+        """)
+        button.setToolTip(app.get("name", "未知"))
+        icon_filename = app.get("icon", "CY.png")
+        icon_path = get_software_icon_path(icon_filename)
+        if icon_path and os.path.exists(icon_path):
+            pixmap = QPixmap(icon_path)
+            if not pixmap.isNull():
+                scaled_pixmap = pixmap.scaled(icon_size, icon_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                icon_label = QLabel(parent=button)
+                icon_label.setPixmap(scaled_pixmap)
+                icon_label.setAlignment(Qt.AlignCenter)
+                icon_label.setStyleSheet("background-color: transparent;")
+                icon_label.setAttribute(Qt.WA_TranslucentBackground)
+                margin = (button_size - icon_size) // 2
+                icon_label.setGeometry(margin, margin, icon_size, icon_size)
+        layout.addWidget(button, alignment=Qt.AlignCenter)
+        if show_labels:
+            name_label = QLabel(app.get("name", "未知"), parent=container)
+            name_label.setAlignment(Qt.AlignCenter)
+            name_label.setStyleSheet("""
+                QLabel {
+                    color: white;
+                    font-size: 12px;
+                    background-color: transparent;
                 }
             """)
-            button.setToolTip(app.get("name", "未知"))
-            icon_filename = app.get("icon", "CY.png")
-            icon_path = get_software_icon_path(icon_filename)
-            if os.path.exists(icon_path):
-                pixmap = QPixmap(icon_path)
-                if not pixmap.isNull():
-                    scaled_pixmap = pixmap.scaled(56, 56, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                    icon_label = QLabel(parent=button)
-                    icon_label.setPixmap(scaled_pixmap)
-                    icon_label.setAlignment(Qt.AlignCenter)
-                    icon_label.setStyleSheet("background-color: transparent;")
-                    icon_label.setAttribute(Qt.WA_TranslucentBackground)
-                    icon_label.setGeometry(12, 12, 56, 56)
-            button.clicked.connect(lambda checked, p=app.get("path", ""), n=app.get("name", ""): self.__launchApp(p, n))
-            self.quickLaunchLayout.addWidget(button)
-        self.quickLaunchContainer.update()
+            name_label.setFixedHeight(18)
+            name_label.setWordWrap(True)
+            name_label.setMaximumWidth(button_size)
+            layout.addWidget(name_label, alignment=Qt.AlignCenter)
+        
+        button.clicked.connect(lambda checked, p=app.get("path", ""), n=app.get("name", ""): self.__launchApp(p, n))
+        
+        return container
     
     def __launchApp(self, app_path, app_name):
         """启动应用程序"""
