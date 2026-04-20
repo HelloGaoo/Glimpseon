@@ -1380,7 +1380,7 @@ class EditPanel(QWidget):
         displayRowsLabel.setFixedWidth(100)
         displayRowsLayout.addWidget(displayRowsLabel)
         self.quickLaunchDisplayRowsSpin = SpinBox(self)
-        self.quickLaunchDisplayRowsSpin.setRange(1, 10)
+        self.quickLaunchDisplayRowsSpin.setRange(1, 2)
         self.quickLaunchDisplayRowsSpin.setValue(ql_cfg.display_rows)
         self.quickLaunchDisplayRowsSpin.setFixedWidth(120)
         self.quickLaunchDisplayRowsSpin.valueChanged.connect(ql_cfg.set_display_rows)

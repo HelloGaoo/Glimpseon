@@ -1837,83 +1837,87 @@ class MainWindow(FluentWindow):
                 {"name": "5", "path": "", "icon": "5.ico"}
             ]
         
+        if not apps:
+            self.quickLaunchContainer.update()
+            return
         icon_size = ql_cfg.icon_size
         icon_spacing = ql_cfg.icon_spacing
         display_rows = ql_cfg.display_rows
         show_labels = ql_cfg.show_labels
-        
         label_height = 20 if show_labels else 0
         button_size = icon_size + 24
         button_height = button_size + label_height
+        total_apps = len(apps)
+        first_row_count = total_apps // max(1, display_rows) + (1 if total_apps % max(1, display_rows) > 0 else 0)
+        second_row_count = total_apps - first_row_count if display_rows > 1 else 0
+        wrapper_layout = QVBoxLayout()
+        wrapper_layout.setContentsMargins(0, 0, 0, 0)
+        wrapper_layout.setSpacing(icon_spacing)
+        wrapper_layout.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
+        app_idx = 0
         
-        self.quickLaunchLayout.setContentsMargins(0, 0, 0, 20)
-        self.quickLaunchLayout.setSpacing(icon_spacing)
+        # 第一行
+        row1_layout = QHBoxLayout()
+        row1_layout.setContentsMargins(0, 0, 0, 0)
+        row1_layout.setSpacing(icon_spacing)
+        row1_layout.setAlignment(Qt.AlignCenter)
+        for _ in range(first_row_count if display_rows > 1 else total_apps):
+            if app_idx >= total_apps:
+                break
+            container = self.__createAppButton(apps[app_idx], button_size, button_height, icon_size, show_labels)
+            row1_layout.addWidget(container)
+            app_idx += 1
+        wrapper_layout.addLayout(row1_layout)
+        
+        # 第二行
+        if display_rows > 1 and second_row_count > 0 and app_idx < total_apps:
+            row2_layout = QHBoxLayout()
+            row2_layout.setContentsMargins(0, 0, 0, 0)
+            row2_layout.setSpacing(icon_spacing)
+            row2_layout.setAlignment(Qt.AlignCenter)
+            for _ in range(second_row_count):
+                if app_idx >= total_apps:
+                    break
+                container = self.__createAppButton(apps[app_idx], button_size, button_height, icon_size, show_labels)
+                row2_layout.addWidget(container)
+                app_idx += 1
+            wrapper_layout.addLayout(row2_layout)
+        
+        self.quickLaunchLayout.setContentsMargins(0, 0, 0, 30)
+        self.quickLaunchLayout.setSpacing(0)
         self.quickLaunchLayout.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
-        if display_rows <= 1:
-            for app in apps:
-                container = self.__createAppButton(app, button_size, button_height, icon_size, show_labels)
-                self.quickLaunchLayout.addWidget(container)
-        else:
-            total_apps = len(apps)
-            if total_apps == 0:
-                self.quickLaunchContainer.update()
-                return
-            base_per_row = max(1, total_apps // display_rows)
-            extra = total_apps % display_rows
-
-            rows_layout = QVBoxLayout()
-            rows_layout.setContentsMargins(0, 0, 0, 0)
-            rows_layout.setSpacing(icon_spacing)
-            rows_layout.setAlignment(Qt.AlignCenter)
-            app_idx = 0
-            for row_idx in range(display_rows):
-                if app_idx >= total_apps:break
-                count_in_this_row = base_per_row + (1 if row_idx < extra else 0)
-                if count_in_this_row == 0:break
-                row_layout = QHBoxLayout()
-                row_layout.setSpacing(icon_spacing)
-                row_layout.setAlignment(Qt.AlignCenter)
-                for _ in range(count_in_this_row):
-                    if app_idx >= total_apps:break
-                    container = self.__createAppButton(apps[app_idx], button_size, button_height, icon_size, show_labels)
-                    row_layout.addWidget(container)
-                    app_idx += 1
-                rows_layout.addLayout(row_layout)
-            self.quickLaunchLayout.addLayout(rows_layout)
+        self.quickLaunchLayout.addLayout(wrapper_layout)
+        
         self.quickLaunchContainer.update()
     
     def __clearQuickLaunchLayout(self):
-        """清除所有子项"""
-        import sip
-        for child in self.quickLaunchContainer.children():
-            if isinstance(child, QWidget) and child is not self.quickLaunchContainer:
-                child.hide()
-                child.setParent(None)
-                child.deleteLater()
+        """清除子项"""
         while self.quickLaunchLayout.count() > 0:
             item = self.quickLaunchLayout.takeAt(0)
+            if item is None:
+                continue
             if item.widget():
-                item.widget().hide()
-                item.widget().setParent(None)
-                item.widget().deleteLater()
+                w = item.widget()
+                w.hide()
+                w.setParent(None)
+                w.deleteLater()
             elif item.layout():
                 self.__deleteLayout(item.layout())
-            sip.delete(item)
     
     def __deleteLayout(self, layout):
         """递归删除"""
-        import sip
-        
         while layout.count() > 0:
             item = layout.takeAt(0)
+            if item is None:
+                continue
             if item.widget():
-                item.widget().hide()
-                item.widget().setParent(None)
-                item.widget().deleteLater()
+                w = item.widget()
+                w.hide()
+                w.setParent(None)
+                w.deleteLater()
             elif item.layout():
                 self.__deleteLayout(item.layout())
-            sip.delete(item)
-        sip.delete(layout)
+        layout.setParent(None)
     
     def __createAppButton(self, app, button_size, button_height, icon_size, show_labels):
         """创建单个应用按钮"""
