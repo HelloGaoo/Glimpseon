@@ -157,17 +157,17 @@ class DeveloperPanel(QWidget):
         # FPS
         gridLayout.addWidget(StrongBodyLabel("FPS", self), 0, 0)
         self.fpsLabel = BodyLabel("0", self)
-        self.fpsLabel.setStyleSheet("font-size: 18px; font-weight: bold;")
+        self.fpsLabel.setObjectName("debugValueLabel")
         gridLayout.addWidget(self.fpsLabel, 0, 1)
         # 内存占用
         gridLayout.addWidget(StrongBodyLabel("内存", self), 0, 2)
         self.memoryLabel = BodyLabel("0 MB", self)
-        self.memoryLabel.setStyleSheet("font-size: 18px; font-weight: bold;")
+        self.memoryLabel.setObjectName("debugValueLabel")
         gridLayout.addWidget(self.memoryLabel, 0, 3)
         # CPU 使用率
         gridLayout.addWidget(StrongBodyLabel("CPU", self), 1, 0)
         self.cpuLabel = BodyLabel("0%", self)
-        self.cpuLabel.setStyleSheet("font-size: 18px; font-weight: bold;")
+        self.cpuLabel.setObjectName("debugValueLabel")
         gridLayout.addWidget(self.cpuLabel, 1, 1)
         # 窗口状态
         gridLayout.addWidget(StrongBodyLabel("窗口状态", self), 1, 2)
@@ -184,8 +184,8 @@ class DeveloperPanel(QWidget):
         layout.addLayout(gridLayout)
         # 分隔线
         line = QLabel(self)
+        line.setObjectName("debugSeparator")
         line.setFixedHeight(1)
-        line.setStyleSheet("background-color: #3d3d3d;")
         layout.addWidget(line)
         # 实时更新按钮
         self.debugUpdateToggle = ToggleButton("实时更新", self)
@@ -237,8 +237,8 @@ class DeveloperPanel(QWidget):
         
         # 分隔线
         line = QLabel(self)
+        line.setObjectName("debugSeparator")
         line.setFixedHeight(1)
-        line.setStyleSheet("background-color: #3d3d3d;")
         layout.addWidget(line)
         
         self.rawDataEdit = QTextEdit(self)

@@ -1,145 +1,109 @@
-/* 编辑面板 */
-#EditPanel {
-    background-color: rgb(32, 32, 32);
-    border: none;
+/* 主界面容器 */
+MainWindow #homeBackgroundImage {
+    background-color: transparent;
+}
+
+MainWindow #clockContainer {
+    background-color: transparent;
+}
+
+MainWindow #weatherContainer {
+    background-color: transparent;
+}
+
+MainWindow #schoolInfoContainer {
+    background-color: transparent;
+}
+
+MainWindow #poetryContainer {
+    background-color: transparent;
+}
+
+MainWindow #countdownContainer {
+    background-color: transparent;
+}
+
+MainWindow #quickLaunchContainer {
+    background-color: transparent;
+}
+
+MainWindow #editContainer {
+    background-color: transparent;
+}
+
+/* 快捷启动栏按钮 */
+MainWindow QPushButton#quickLaunchBtn {
+    background-color: rgba(255, 255, 255, 0.25);
     border-radius: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+}
+
+MainWindow QPushButton#quickLaunchBtn:hover {
+    background-color: rgba(255, 255, 255, 0.35);
+    border: 2px solid rgba(255, 255, 255, 0.7);
+}
+
+MainWindow QPushButton#quickLaunchBtn:pressed {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+MainWindow QPushButton#quickLaunchBtn QLabel {
+    background-color: transparent;
+}
+
+/* 快捷启动栏名称标签 */
+MainWindow #quickLaunchNameLabel {
+    color: white;
+    font-size: 12px;
+    background-color: transparent;
+}
+
+/* 天气温度标签 */
+MainWindow #weatherTempLabel {
+    color: #FFFFFF;
+    font-size: 14px;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
-}
-
-/* 编辑面板基础组件 */
-#EditPanel QWidget {
     background-color: transparent;
-    color: #FFFFFF;
 }
 
-#EditPanel SmoothScrollArea {
+/* 天气图标标签 */
+MainWindow #weatherIconLabel {
     background-color: transparent;
-    border: none;
 }
 
-/* 组件库标题 */
-#EditPanel StrongBodyLabel {
-    font-size: 20px;
-    font-weight: bold;
+/* 一言标签 */
+MainWindow #poetryLabel {
     color: #FFFFFF;
+    font-size: 16px;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     background-color: transparent;
-    padding: 4px 0;
 }
 
-/* 列表组件 */
-#EditPanel ListWidget {
-    background-color: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 8px;
-    outline: none;
-    font-size: 14px;
-    show-decoration-selected: 1;
-}
-
-EditPanel ListWidget::item {
-    height: 36px;
-    border-radius: 6px;
-    margin: 2px;
-    padding-left: 12px;
-    color: #FFFFFF !important;
-    font-weight: normal;
-}
-
-EditPanel ListWidget::item:hover {
-    background-color: rgba(255, 255, 255, 0.12);
-}
-
-EditPanel ListWidget::item:selected {
-    background-color: rgba(0, 120, 212, 0.35);
+/* 学校信息标签 */
+MainWindow #schoolClassLabel {
     color: #FFFFFF;
-    font-weight: bold;
-    border-left: 3px solid #4CC2FF;
-    padding-left: 9px;
-}
-
-/* 按钮样式 */
-#EditPanel PrimaryPushButton,
-#EditPanel PushButton {
-    border-radius: 8px;
-    font-weight: bold;
-    font-size: 14px;
-}
-
-/* 输入框样式 */
-#EditPanel LineEdit {
-    background-color: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 6px;
-    padding: 6px 12px;
-    outline: none;
-    color: #FFFFFF;
-    font-size: 13px;
-}
-
-EditPanel LineEdit:focus {
-    border: 1px solid #4CC2FF;
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-EditPanel LineEdit::placeholder {
-    color: rgba(255, 255, 255, 0.35);
-    font-size: 13px;
-}
-
-/* 标签样式 */
-#EditPanel StrongBodyLabel#propLabel,
-#EditPanel StrongBodyLabel#sizeLabel {
     font-size: 16px;
     font-weight: bold;
-    color: #E0E0E0;
-    padding: 8px 0 4px 0;
-}
-
-#EditPanel BodyLabel {
-    font-size: 13px;
-    color: #FFFFFF;
-    font-weight: normal;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     background-color: transparent;
 }
 
-/* 滚动条样式 */
-EditPanel QScrollBar:vertical {
-    width: 6px;
-    border: none;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 3px;
-}
-
-EditPanel QScrollBar::handle:vertical {
-    background: rgba(255, 255, 255, 0.4);
-    border-radius: 3px;
-    min-height: 20px;
-}
-
-EditPanel QScrollBar::handle:vertical:hover {
-    background: rgba(255, 255, 255, 0.6);
-}
-
-EditPanel QScrollBar::add-line:vertical,
-EditPanel QScrollBar::sub-line:vertical,
-EditPanel QScrollBar::add-page:vertical,
-EditPanel QScrollBar::sub-page:vertical {
-    height: 0px;
-}
-
-/* 主界面容器 */
-#homeContent QWidget {
+MainWindow #schoolNameLabel {
+    color: #FFFFFF;
+    font-size: 14px;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     background-color: transparent;
 }
 
 /* 编辑按钮 */
-#editButton {
-    border-radius: 8px;
-    font-weight: bold;
+MainWindow #editButton {
+    background-color: rgba(0, 0, 0, 0.3);
+    color: white;
+    border: none;
+    border-radius: 6px;
     font-size: 14px;
 }
 
-/* 分隔线 */
-#EditPanel #separator {
-    background-color: #666666;
+MainWindow #editButton:hover {
+    background-color: rgba(0, 0, 0, 0.5);
 }

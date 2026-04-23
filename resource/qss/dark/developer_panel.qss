@@ -290,3 +290,16 @@ QGroupBox::title {
     padding: 0 8px;
     color: #0078d4;
 }
+
+/* 调试面板数值标签 */
+BodyLabel#debugValueLabel {
+    font-size: 18px;
+    font-weight: bold;
+    color: #0078d4;
+}
+
+/* 调试面板分隔线 */
+QLabel#debugSeparator {
+    background-color: #3d3d3d;
+    max-height: 1px;
+}

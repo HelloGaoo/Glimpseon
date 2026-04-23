@@ -159,3 +159,20 @@ ProgressRing::chunk {
     background-color: #00e676;
     border-radius: 30px;
 }
+
+/* 软件空图标占位 */
+QLabel#softwareEmptyIconLabel {
+    font-size: 32px;
+    background-color: transparent;
+}
+
+/* 软件官网链接按钮 */
+QToolButton#softwareLinkButton {
+    border: none;
+    background: transparent;
+    border-radius: 4px;
+}
+
+QToolButton#softwareLinkButton:hover {
+    background: rgba(255, 255, 255, 0.1);
+}

@@ -19,3 +19,9 @@ SmoothScrollArea {
 SmoothScrollArea QWidget {
     background-color: rgb(249, 249, 249);
 }
+
+/* 图标预览标签 */
+QLabel#iconPreviewLabel {
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
+}

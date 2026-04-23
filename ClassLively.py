@@ -441,6 +441,8 @@ class MainWindow(FluentWindow):
         
         ql_cfg.quickLaunchChanged.connect(self.__updateQuickLaunch)
         
+        self._checkAndRefreshQuickLaunchIcons()
+        
         self.navigationInterface.installEventFilter(self)
         
         self.developerPanel = None
@@ -840,43 +842,34 @@ class MainWindow(FluentWindow):
         
         # 天气温度标签
         self.weatherTempLabel = QLabel("")
+        self.weatherTempLabel.setObjectName("weatherTempLabel")
         self.weatherTempLabel.setAlignment(Qt.AlignVCenter | Qt.AlignRight)
-        self.weatherTempLabel.setStyleSheet("""
-            color: #FFFFFF; 
-            font-size: 14px; 
-            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
-            background-color: transparent;
-        """)
         
         # 天气图标
         self.weatherIconLabel = QLabel("")
+        self.weatherIconLabel.setObjectName("weatherIconLabel")
         self.weatherIconLabel.setAlignment(Qt.AlignTop | Qt.AlignRight)
-        self.weatherIconLabel.setStyleSheet("background-color: transparent;")
         
         # 一言标签
         self.poetryLabel = QLabel("")
+        self.poetryLabel.setObjectName("poetryLabel")
         self.poetryLabel.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
-        self.poetryLabel.setStyleSheet("""
-            color: #FFFFFF; 
-            font-size: 16px; 
-            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
-            background-color: transparent;
-        """)
         self.poetryLabel.setWordWrap(False)
         self.updateClockStyle()
         
         # 时钟容器
         self.clockContainer = QWidget()
+        self.clockContainer.setObjectName("clockContainer")
         self.clockLayout = QVBoxLayout(self.clockContainer)
         self.clockLayout.setAlignment(Qt.AlignTop)
         self.clockLayout.setContentsMargins(0, 100, 0, 0)
         self.clockLayout.setSpacing(0)
         self.clockLayout.addWidget(self.clockLabel)
         self.clockLayout.addWidget(self.dateLabel)
-        self.clockContainer.setStyleSheet("background-color: transparent;")
         
         # 天气容器
         self.weatherContainer = QWidget()
+        self.weatherContainer.setObjectName("weatherContainer")
         weatherLayout = QHBoxLayout(self.weatherContainer)
         weatherLayout.setAlignment(Qt.AlignTop | Qt.AlignRight)
         weatherLayout.setContentsMargins(0, 20, 20, 0)
@@ -885,43 +878,31 @@ class MainWindow(FluentWindow):
         self.weatherIconLabel.setAlignment(Qt.AlignCenter)
         weatherLayout.addWidget(self.weatherTempLabel)
         weatherLayout.addWidget(self.weatherIconLabel)
-        self.weatherContainer.setStyleSheet("background-color: transparent;")
         
         # 学校信息容器
         self.schoolInfoContainer = QWidget()
+        self.schoolInfoContainer.setObjectName("schoolInfoContainer")
         self.schoolInfoLayout = QVBoxLayout(self.schoolInfoContainer)
         self.schoolInfoLayout.setSpacing(0)
         self.schoolClassLabel = QLabel("")
+        self.schoolClassLabel.setObjectName("schoolClassLabel")
         self.schoolClassLabel.setAlignment(Qt.AlignCenter)
-        self.schoolClassLabel.setStyleSheet("""
-            color: #FFFFFF;
-            font-size: 16px;
-            font-weight: bold;
-            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
-            background-color: transparent;
-        """)
         self.schoolNameLabel = QLabel("")
+        self.schoolNameLabel.setObjectName("schoolNameLabel")
         self.schoolNameLabel.setAlignment(Qt.AlignCenter)
-        self.schoolNameLabel.setStyleSheet("""
-            color: #FFFFFF;
-            font-size: 14px;
-            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
-            background-color: transparent;
-        """)
         self.schoolInfoLayout.addWidget(self.schoolClassLabel)
         self.schoolInfoLayout.addWidget(self.schoolNameLabel)
-        self.schoolInfoContainer.setStyleSheet("background-color: transparent;")
         self.updateSchoolInfo()
         self.updateSchoolInfoStyle()
         self.__updateSchoolInfoPosition()
         
         # 一言容器
         self.poetryContainer = QWidget()
+        self.poetryContainer.setObjectName("poetryContainer")
         poetryLayout = QVBoxLayout(self.poetryContainer)
         poetryLayout.setAlignment(Qt.AlignBottom)
         poetryLayout.setContentsMargins(0, 0, 0, 20)
         poetryLayout.addWidget(self.poetryLabel)
-        self.poetryContainer.setStyleSheet("background-color: transparent;")
         
         # 倒计时标签
         self.countdownLabel = QLabel("")
@@ -929,24 +910,25 @@ class MainWindow(FluentWindow):
         
         # 倒计时容器
         self.countdownContainer = QWidget()
+        self.countdownContainer.setObjectName("countdownContainer")
         countdownLayout = QVBoxLayout(self.countdownContainer)
         countdownLayout.setAlignment(Qt.AlignCenter)
         countdownLayout.setContentsMargins(0, 0, 0, 0)
         countdownLayout.addWidget(self.countdownLabel)
-        self.countdownContainer.setStyleSheet("background-color: transparent;")
         
         # 快捷启动栏容器
         self.quickLaunchContainer = QWidget()
+        self.quickLaunchContainer.setObjectName("quickLaunchContainer")
         self.quickLaunchLayout = QHBoxLayout(self.quickLaunchContainer)
         self.quickLaunchLayout.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
         self.quickLaunchLayout.setContentsMargins(0, 0, 0, 100)
         self.quickLaunchLayout.setSpacing(15)
-        self.quickLaunchContainer.setStyleSheet("background-color: transparent;")
         self.quickLaunchContainer.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
         self.__updateQuickLaunch()
         
         # 编辑按钮
         self.editContainer = QWidget()
+        self.editContainer.setObjectName("editContainer")
         self.editLayout = QVBoxLayout(self.editContainer)
         self.editLayout.setAlignment(Qt.AlignBottom)
         self.editLayout.setContentsMargins(0, 0, 0, 20)
@@ -957,7 +939,6 @@ class MainWindow(FluentWindow):
         self.editButton.clicked.connect(self.__enterEditMode)
         
         self.editLayout.addWidget(self.editButton)
-        self.editContainer.setStyleSheet("background-color: transparent;")
         self.editContainer.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
         
         # 网格布局
@@ -1816,6 +1797,86 @@ class MainWindow(FluentWindow):
         QApplication.processEvents()
         logger.info(f"学校信息位置已更新为：{position}")
     
+    def _checkAndRefreshQuickLaunchIcons(self):
+        """刷新启动栏图标"""
+        import re
+        apps = ql_cfg.quick_launch_apps
+        if not apps:return
+        icon_dir = os.path.join(BASE_DIR, 'data', 'software_icon')
+        os.makedirs(icon_dir, exist_ok=True)
+        for app in apps:
+            app_path = app.get('path', '')
+            icon_filename = app.get('icon', '')
+            if not app_path or not icon_filename:continue
+            icon_save_path = os.path.join(icon_dir, icon_filename)
+            if os.path.exists(icon_save_path):continue
+            if not os.path.exists(app_path):continue
+            logger.info(f"快捷启动栏图标不存在，重新提取: {app.get('name', '')} -> {icon_filename}")
+            try:
+                new_icon = self._extractIcon(app_path, icon_filename)
+                if new_icon and new_icon != 'exe.ico':
+                    app['icon'] = new_icon
+                    ql_cfg.save()
+                    logger.info(f"图标重新提取成功: {app.get('name', '')}")
+            except Exception as e:
+                logger.error(f"重新提取图标失败 {app.get('name', '')}: {e}")
+    
+    def _extractIcon(self, exe_path, icon_filename):
+        """提取图标"""
+        try:
+            import win32gui
+            import win32ui
+            from PIL import Image
+            hicon = None
+            try:
+                res = win32gui.PrivateExtractIcons(exe_path, 0, 256, 256, 1, 0)
+                if res and res[0]: hicon = res[0][0]
+            except:pass
+            if not hicon:
+                large, small = win32gui.ExtractIconEx(exe_path, 0)
+                if large and large[0]: hicon = large[0]
+            if not hicon:return 'exe.ico'
+            ico_info = win32gui.GetIconInfo(hicon)
+            hbm_mask = ico_info[3]
+            hbm_color = ico_info[4]
+            hbm = hbm_color if hbm_color else hbm_mask
+            bmp_obj = win32gui.GetObject(hbm)
+            if not bmp_obj:
+                if hbm_color: win32gui.DeleteObject(hbm_color)
+                if hbm_mask: win32gui.DeleteObject(hbm_mask)
+                win32gui.DestroyIcon(hicon)
+                return 'exe.ico'
+            
+            width = bmp_obj.bmWidth
+            height = bmp_obj.bmHeight
+            hdc = win32gui.GetDC(0)
+            hdc_src = win32ui.CreateDCFromHandle(hdc)
+            hdc_dest = hdc_src.CreateCompatibleDC()
+            bitmap = win32ui.CreateBitmap()
+            bitmap.CreateCompatibleBitmap(hdc_src, width, height)
+            hdc_dest.SelectObject(bitmap)
+            win32gui.DrawIcon(hdc_dest.GetSafeHdc(), 0, 0, hicon)
+            bmpstr = bitmap.GetBitmapBits(True)
+            
+            if hbm_color:
+                img = Image.frombuffer('RGBA', (width, height), bmpstr, 'raw', 'BGRA', 0, 1)
+            else:
+                img = Image.frombuffer('L', (width, height), bmpstr, 'raw', 'L', 0, 1).convert('RGBA')
+            
+            icon_dir = os.path.join(BASE_DIR, 'data', 'software_icon')
+            os.makedirs(icon_dir, exist_ok=True)
+            icon_save_path = os.path.join(icon_dir, icon_filename)
+            img.save(icon_save_path, format='PNG')
+            if hbm_color: win32gui.DeleteObject(hbm_color)
+            if hbm_mask: win32gui.DeleteObject(hbm_mask)
+            win32gui.DestroyIcon(hicon)
+            win32gui.ReleaseDC(0, hdc)
+            
+            return icon_filename
+        except Exception as e:
+            logger.error(f"提取图标失败: {e}")
+            return 'exe.ico'
+    
     def __updateQuickLaunch(self):
         """更新快捷启动栏显示"""
         self.__clearQuickLaunchLayout()
@@ -1928,21 +1989,8 @@ class MainWindow(FluentWindow):
         layout.setSpacing(4)
         layout.setAlignment(Qt.AlignCenter)
         button = QPushButton(parent=container)
+        button.setObjectName("quickLaunchBtn")
         button.setFixedSize(button_size, button_size)
-        button.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(255, 255, 255, 0.25);
-                border-radius: 12px;
-                border: 2px solid rgba(255, 255, 255, 0.4);
-            }
-            QPushButton:hover {
-                background-color: rgba(255, 255, 255, 0.35);
-                border: 2px solid rgba(255, 255, 255, 0.7);
-            }
-            QPushButton:pressed {
-                background-color: rgba(255, 255, 255, 0.2);
-            }
-        """)
         button.setToolTip(app.get("name", "未知"))
         icon_filename = app.get("icon", "CY.png")
         icon_path = get_software_icon_path(icon_filename)
@@ -1953,21 +2001,14 @@ class MainWindow(FluentWindow):
                 icon_label = QLabel(parent=button)
                 icon_label.setPixmap(scaled_pixmap)
                 icon_label.setAlignment(Qt.AlignCenter)
-                icon_label.setStyleSheet("background-color: transparent;")
                 icon_label.setAttribute(Qt.WA_TranslucentBackground)
                 margin = (button_size - icon_size) // 2
                 icon_label.setGeometry(margin, margin, icon_size, icon_size)
         layout.addWidget(button, alignment=Qt.AlignCenter)
         if show_labels:
             name_label = QLabel(app.get("name", "未知"), parent=container)
+            name_label.setObjectName("quickLaunchNameLabel")
             name_label.setAlignment(Qt.AlignCenter)
-            name_label.setStyleSheet("""
-                QLabel {
-                    color: white;
-                    font-size: 12px;
-                    background-color: transparent;
-                }
-            """)
             name_label.setFixedHeight(18)
             name_label.setWordWrap(True)
             name_label.setMaximumWidth(button_size)

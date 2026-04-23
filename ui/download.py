@@ -480,7 +480,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         else:
             iconLabel.setText("")
             iconLabel.setAlignment(Qt.AlignCenter)
-            iconLabel.setStyleSheet("font-size: 32px;")
+            iconLabel.setObjectName("softwareEmptyIconLabel")
         
         infoLayout = QVBoxLayout()
         infoLayout.setSpacing(6)
@@ -500,8 +500,8 @@ class DownloadInterface(BaseScrollAreaInterface):
             linkButton = QToolButton(softwareCard)
             linkButton.setIcon(FIF.LINK.icon())
             linkButton.setFixedSize(20, 20)
+            linkButton.setObjectName("softwareLinkButton")
             linkButton.setToolTip("打开官网")
-            linkButton.setStyleSheet("QToolButton { border: none; background: transparent; } QToolButton:hover { background: rgba(255, 255, 255, 0.1); }")
             linkButton.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(link)))
             nameLayout.addWidget(linkButton)
         

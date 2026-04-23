@@ -55,3 +55,9 @@ WizardWindow QPushButton#closeButton:hover {
     background-color: #E81123;
     color: white;
 }
+
+/* 欢迎标签 */
+WizardWindow QLabel#welcomeLabel {
+    margin: 0;
+    padding-left: 8px;
+}

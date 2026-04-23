@@ -87,7 +87,7 @@ class WizardWindow(QDialog):
         self.welcomeLabel.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
         self.welcomeLabel.setTextFormat(Qt.RichText)
         self.welcomeLabel.setText('<span style="font-family:\'HarmonyOS Sans SC\',\'HarmonyOS Sans\',\'Microsoft YaHei UI\',\'Microsoft YaHei\',\'SimHei\',sans-serif; font-weight:900; font-size:34px;">ClassLively</span>')
-        self.welcomeLabel.setStyleSheet("margin:0; padding-left:8px;")
+        self.welcomeLabel.setObjectName("welcomeLabel")
 
         self.nextButton = PrimaryPushButton(FIF.RIGHT_ARROW, "继续", self.page1)
         self.nextButton.setFixedHeight(36)
