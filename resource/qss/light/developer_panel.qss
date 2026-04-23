@@ -1,7 +1,19 @@
-/* 开发者面板 */
+/* 调试面板 */
 
 #developerPanel {
-    background-color: #f3f3f3;
+    background-color: rgb(249, 249, 249);
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 滚动区域 */
+#developerPanel #scrollWidget {
+    background-color: rgb(249, 249, 249);
+}
+
+/* 标题 */
+QLabel#settingLabel {
+    font-size: 33px;
+    background-color: transparent;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 

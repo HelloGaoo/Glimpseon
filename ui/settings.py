@@ -306,8 +306,8 @@ class SettingInterface(ScrollArea):
         self.resetDefaultCard.button.setText("恢复默认")
         self.developerModeCard = SwitchSettingCard(
             FIF.CODE,
-            "开发者模式",
-            "启用开发者模式以进行测试和调试",
+            "调试模式",
+            "启用调试模式以进行测试和调试",
             configItem=cfg.developerMode,
             parent=self.otherGroup
         )

@@ -1,20 +1,33 @@
-/* 开发者面板 */
+/* 调试面板 */
 
 #developerPanel {
-    background-color: #202020;
+    background-color: rgb(39, 39, 39);
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 滚动区域 */
+#developerPanel #scrollWidget {
+    background-color: rgb(39, 39, 39);
+}
+
+/* 标题 */
+QLabel#settingLabel {
+    font-size: 33px;
+    background-color: transparent;
+    color: white;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 卡片 */
 CardWidget {
-    background-color: #2b2b2b;
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
-    border: 1px solid #3d3d3d;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 CardWidget:hover {
-    border: 1px solid #0078d4;
+    background-color: rgba(255, 255, 255, 0.08);
 }
 
 /* 标题 */

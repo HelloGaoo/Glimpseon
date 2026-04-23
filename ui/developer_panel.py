@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-开发者面板
+调试面板
 """
 
 import os
@@ -26,11 +26,9 @@ from PyQt5.QtCore import QEvent, QPropertyAnimation, QRect, QTime, QTimer, Qt
 from PyQt5.QtGui import QColor, QFont, QPainter
 from PyQt5.QtWidgets import (
     QApplication,
-    QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
-    QScrollArea,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -45,6 +43,7 @@ from qfluentwidgets import (
     PrimaryPushButton,
     ProgressBar,
     PushButton,
+    ScrollArea,
     SpinBox,
     StrongBodyLabel,
     SubtitleLabel,
@@ -52,6 +51,7 @@ from qfluentwidgets import (
     ToggleButton,
     ToolTipFilter,
     ToolTipPosition,
+    isDarkTheme,
     setCustomStyleSheet,
 )
 
@@ -59,15 +59,26 @@ from core.config import cfg
 from core.logger import logger
 
 
-class DeveloperPanel(QWidget):
-    """开发者面板"""
+class DeveloperPanel(ScrollArea):
+    """调试面板"""
     
     def __init__(self, mainWindow):
-        super().__init__(mainWindow)
+        super().__init__(parent=mainWindow)
         self.mainWindow = mainWindow
         self.setObjectName('developerPanel')
+        self.scrollWidget = QWidget()
+        self.titleLabel = QLabel("调试", self)
         
-        # 性能监控
+        self.resize(1000, 800)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setViewportMargins(0, 120, 0, 20)
+        self.setWidget(self.scrollWidget)
+        self.setWidgetResizable(True)
+        
+        self.titleLabel.setObjectName('settingLabel')
+        self.scrollWidget.setObjectName('scrollWidget')
+        self.titleLabel.move(60, 63)
+        
         self.frameCount = 0
         self.lastFpsTime = time.time()
         self.currentFps = 0
@@ -76,7 +87,6 @@ class DeveloperPanel(QWidget):
         self.lastGeometry = None
         self.lastCurrentWidget = None
         
-        # CPU 使用率
         try:
             cpu_times = self.process.cpu_times()
             self.last_cpu_usage = cpu_times.user + cpu_times.system
@@ -93,20 +103,9 @@ class DeveloperPanel(QWidget):
         
     def _initUI(self):
         """初始化界面"""
-        self.setWindowTitle("开发者面板")
-        self.setWindowFlags(Qt.Tool | Qt.WindowStaysOnTopHint)
-        self.resize(800, 600)
-        mainLayout = QVBoxLayout()
-        mainLayout.setSpacing(10)
-        mainLayout.setContentsMargins(10, 10, 10, 10)
-        scrollArea = QScrollArea()
-        scrollArea.setWidgetResizable(True)
-        scrollArea.setFrameShape(QFrame.NoFrame)
-        scrollWidget = QWidget()
-        scrollLayout = QVBoxLayout(scrollWidget)
+        scrollLayout = QVBoxLayout(self.scrollWidget)
         scrollLayout.setSpacing(15)
-        
-
+        scrollLayout.setContentsMargins(60, 10, 60, 20)
 
         debugCard = self._createDebugCard()
         scrollLayout.addWidget(debugCard)
@@ -122,11 +121,6 @@ class DeveloperPanel(QWidget):
         
         elementCard = self._createElementCheckCard()
         scrollLayout.addWidget(elementCard)
-        
-        scrollArea.setWidget(scrollWidget)
-        mainLayout.addWidget(scrollArea)
-        
-        self.setLayout(mainLayout)
         
         self._loadStyleSheet()
         QTimer.singleShot(500, self._refreshComponentTree)
@@ -392,23 +386,16 @@ class DeveloperPanel(QWidget):
     def _loadStyleSheet(self):
         """加载样式表"""
         try:
-            if cfg.themeMode.value == 'dark':
-                qss_path = os.path.join(
-                    os.path.dirname(__file__),
-                    '..', 'resource', 'qss', 'dark', 'developer_panel.qss'
-                )
-            else:
-                qss_path = os.path.join(
-                    os.path.dirname(__file__),
-                    '..', 'resource', 'qss', 'light', 'developer_panel.qss'
-                )
+            theme = 'dark' if isDarkTheme() else 'light'
+            qss_path = os.path.join(
+                os.path.dirname(__file__),
+                '..', 'resource', 'qss', theme, 'developer_panel.qss'
+            )
             qss_path = os.path.normpath(qss_path)
             if os.path.exists(qss_path):
                 with open(qss_path, 'r', encoding='utf-8') as f:
                     qss_content = f.read()
                 self.setStyleSheet(qss_content)
-                for widget in self.findChildren(QWidget):
-                    widget.setStyleSheet(qss_content)
             else:
                 logger.warning(f"样式文件不存在：{qss_path}")
         except Exception as e:

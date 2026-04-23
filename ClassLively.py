@@ -154,12 +154,12 @@ def verify_singleInst():
             if 'Other' in config and 'DeveloperMode' in config['Other']:
                 if config['Other']['DeveloperMode']:
                     is_developer_mode = True
-                    logger.info("开发者模式已启用")
+                    logger.info("调试模式已启用")
         except Exception:
             pass
     old_instance_found = check_old_instances()
     
-    logger.info(f"旧实例检测结果：{old_instance_found}, 开发者模式：{is_developer_mode}")
+    logger.info(f"旧实例检测结果：{old_instance_found}, 调试模式：{is_developer_mode}")
     
     if old_instance_found:
         if is_developer_mode:
@@ -445,39 +445,24 @@ class MainWindow(FluentWindow):
         
         self.navigationInterface.installEventFilter(self)
         
-        self.developerPanel = None
-        if cfg.developerMode.value:
-            self.initDeveloperPanel()
+        self.developerPanel = DeveloperPanel(self)
+        self.developerNavItem = self.addSubInterface(self.developerPanel, FIF.DEVELOPER_TOOLS, "调试", NavigationItemPosition.BOTTOM)
+        self.developerNavItem.setVisible(cfg.developerMode.value)
+        cfg.developerMode.valueChanged.connect(self._onDeveloperModeChanged)
         
         logger.info("主窗口初始化完成")
     
-    def initDeveloperPanel(self):
-        """初始化开发者面板"""
-        self.developerPanel = DeveloperPanel(self)
-        self.developerPanel.hide()
-    
-    def toggleDeveloperPanel(self):
-        """切换显示状态"""
-        if not cfg.developerMode.value:
-            InfoBar.warning(
-                title="开发者模式未启用",
-                content="请在设置中启用开发者模式后再使用此功能",
-                parent=self,
-                duration=3000
-            )
-            return
-        if self.developerPanel is None:
-            self.initDeveloperPanel()
-        if self.developerPanel.isVisible():
-            self.developerPanel.hide()
-        else:
-            self.developerPanel.show()
-            self.developerPanel.activateWindow()
+    def _onDeveloperModeChanged(self, value):
+        """调试模式切换"""
+        self.developerNavItem.setVisible(value)
+        if not value and self.stackedWidget.currentWidget() == self.developerPanel:
+            self.switchTo(self.home)
     
     def keyPressEvent(self, event):
         """F12事件"""
         if event.key() == Qt.Key_F12:
-            self.toggleDeveloperPanel()
+            if cfg.developerMode.value and hasattr(self, 'developerPanel'):
+                self.switchTo(self.developerPanel)
             return
         super().keyPressEvent(event)
     
@@ -498,7 +483,7 @@ class MainWindow(FluentWindow):
             self.editPanel._updateTheme()
     
     def _onDeveloperPanelThemeChanged(self):
-        """主题变化时重新加载开发者面板样式"""
+        """主题变化时重新加载调试面板样式"""
         if hasattr(self, 'developerPanel') and self.developerPanel:
             self.developerPanel._updateTheme()
     
@@ -520,8 +505,8 @@ class MainWindow(FluentWindow):
         show_action.triggered.connect(self.show)
         self.tray_menu.addAction(show_action)
         if cfg.developerMode.value:
-            dev_action = Action(FIF.SETTING, "开发者工具", self)
-            dev_action.triggered.connect(self.toggleDeveloperPanel)
+            dev_action = Action(FIF.DEVELOPER_TOOLS, "调试", self)
+            dev_action.triggered.connect(lambda: self.switchTo(self.developerPanel))
             self.tray_menu.addAction(dev_action)
         
         exit_action = Action(FIF.CLOSE, "退出", self)
@@ -726,7 +711,7 @@ class MainWindow(FluentWindow):
     def closeEvent(self, event):
         """关闭事件处理"""
         if cfg.developerMode.value:
-            logger.info("开发者模式：直接退出应用")
+            logger.info("调试模式：直接退出应用")
             event.accept()
             
             if hasattr(self, 'keyboardHook') and self.keyboardHook:
@@ -822,8 +807,8 @@ class MainWindow(FluentWindow):
 
     def initMainNavigation(self):
         """ 初始化主界面导航 """
-        home = QWidget()
-        home.setObjectName("home")
+        self.home = QWidget()
+        self.home.setObjectName("home")
         
         # 照片显示控件
         self.homeBackgroundImage = QLabel()
@@ -933,7 +918,7 @@ class MainWindow(FluentWindow):
         self.editLayout.setAlignment(Qt.AlignBottom)
         self.editLayout.setContentsMargins(0, 0, 0, 20)
         
-        self.editButton = PushButton("编辑", parent=home)
+        self.editButton = PushButton("编辑", parent=self.home)
         self.editButton.setObjectName("editButton")
         self.editButton.setFixedSize(80, 32)
         self.editButton.clicked.connect(self.__enterEditMode)
@@ -957,12 +942,12 @@ class MainWindow(FluentWindow):
         self.homeContent.setLayout(self.gridLayout)
         
         # 主界面布局
-        homeLayout = QVBoxLayout(home)
+        homeLayout = QVBoxLayout(self.home)
         homeLayout.setAlignment(Qt.AlignCenter)
         homeLayout.setContentsMargins(0, 0, 0, 0)
         homeLayout.addWidget(self.homeContent)
         
-        self.addSubInterface(home, FIF.HOME, "主界面")
+        self.addSubInterface(self.home, FIF.HOME, "主界面")
         
         self.editPanelCreated = False
         
@@ -2156,7 +2141,7 @@ if __name__ == "__main__":
     if cfg.developerMode.value:
         log_max_count = 3
         log_max_days = 1
-        logger.info("开发者模式：日志最多保留 3 个，最多保留 3 天")
+        logger.info("调试模式：日志最多保留 3 个，最多保留 3 天")
     else:
         log_max_count = cfg.logMaxCount.value
         log_max_days = cfg.logMaxDays.value
@@ -2182,7 +2167,7 @@ if __name__ == "__main__":
     language_str = str(language) if not hasattr(language, 'name') else language.name
     logger.info(f"主窗口配置：主题模式={theme_mode_str}, 主题颜色={theme_color_str}, DPI 缩放={dpi_scale_str}, 语言={language_str}")
     logger.info(f"日志配置：禁用日志={cfg.disableLog.value}, 日志级别={log_level_str}, 最大条目数={cfg.logMaxCount.value}, 最大保留天数={cfg.logMaxDays.value}")
-    logger.info(f"其他配置：关闭动作={cfg.closeAction.value}, 允许多实例={cfg.allowMultipleInstances.value}, 开发者模式={cfg.developerMode.value}, 自动启动={cfg.autoStart.value}")
+    logger.info(f"其他配置：关闭动作={cfg.closeAction.value}, 允许多实例={cfg.allowMultipleInstances.value}, 调试模式={cfg.developerMode.value}, 自动启动={cfg.autoStart.value}")
     logger.info(f"下载配置：下载源={cfg.downloadSource.value}")
     logger.info(f"壁纸配置：保存限制={cfg.wallpaperSaveLimit.value}, 获取间隔={cfg.autoGetInterval.value}, 自动同步桌面={cfg.autoSyncToDesktop.value}, API={cfg.wallpaperApi.value}")
     logger.info(f"外观配置：背景模糊半径={cfg.backgroundBlurRadius.value}")

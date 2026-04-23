@@ -91,7 +91,7 @@ QLabel#versionInfo {
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 开发者和版权 */
+/* 调试和版权 */
 QLabel#developerLabel,
 QLabel#copyrightLabel {
     font-size: 13px;
