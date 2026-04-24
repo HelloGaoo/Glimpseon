@@ -11,45 +11,45 @@
 }
 
 /* 标题 */
-QLabel#settingLabel {
+#developerPanel QLabel#settingLabel {
     font-size: 33px;
     background-color: transparent;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 卡片 */
-CardWidget {
+#developerPanel CardWidget {
     background-color: #ffffff;
     border-radius: 8px;
     border: 1px solid #d0d0d0;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-CardWidget:hover {
+#developerPanel CardWidget:hover {
     border: 1px solid #0078d4;
 }
 
 /* 标题 */
-SubtitleLabel {
+#developerPanel SubtitleLabel {
     color: #000000;
     font-size: 18px;
     font-weight: bold;
     padding: 10px 0;
 }
 
-BodyLabel {
+#developerPanel BodyLabel {
     color: #333333;
     font-size: 14px;
 }
 
-StrongBodyLabel {
+#developerPanel StrongBodyLabel {
     color: #000000;
     font-size: 14px;
     font-weight: bold;
 }
 
 /* 按钮 */
-PrimaryPushButton {
+#developerPanel PrimaryPushButton {
     background-color: #0078d4;
     color: #ffffff;
     border: none;
@@ -58,15 +58,15 @@ PrimaryPushButton {
     font-weight: bold;
 }
 
-PrimaryPushButton:hover {
+#developerPanel PrimaryPushButton:hover {
     background-color: #1084d8;
 }
 
-PrimaryPushButton:pressed {
+#developerPanel PrimaryPushButton:pressed {
     background-color: #006cbe;
 }
 
-PushButton {
+#developerPanel PushButton {
     background-color: #e0e0e0;
     color: #000000;
     border: 1px solid #cccccc;
@@ -74,15 +74,15 @@ PushButton {
     padding: 6px 12px;
 }
 
-PushButton:hover {
+#developerPanel PushButton:hover {
     background-color: #f0f0f0;
 }
 
-PushButton:pressed {
+#developerPanel PushButton:pressed {
     background-color: #d0d0d0;
 }
 
-ToggleButton {
+#developerPanel ToggleButton {
     background-color: #e0e0e0;
     color: #000000;
     border: 1px solid #cccccc;
@@ -90,18 +90,18 @@ ToggleButton {
     padding: 6px 12px;
 }
 
-ToggleButton:checked {
+#developerPanel ToggleButton:checked {
     background-color: #0078d4;
     border-color: #0078d4;
     color: #ffffff;
 }
 
-ToggleButton:hover {
+#developerPanel ToggleButton:hover {
     background-color: #f0f0f0;
 }
 
 /* 文本编辑框 */
-QTextEdit {
+#developerPanel QTextEdit {
     background-color: #f9f9f9;
     color: #333333;
     border: 1px solid #d0d0d0;
@@ -111,50 +111,52 @@ QTextEdit {
     font-size: 13px;
 }
 
-QTextEdit:focus {
+#developerPanel QTextEdit:focus {
     border: 1px solid #0078d4;
 }
 
-QTextEdit:disabled {
+#developerPanel QTextEdit:disabled {
     background-color: #f0f0f0;
     color: #888888;
 }
 
 /* 滚动区域 */
-QScrollArea {
+#developerPanel QScrollArea {
     background-color: transparent;
     border: none;
 }
 
-QScrollBar:vertical {
+#developerPanel QScrollBar:vertical {
     background-color: #f3f3f3;
     width: 12px;
     border-radius: 6px;
 }
 
-QScrollBar::handle:vertical {
+#developerPanel QScrollBar::handle:vertical {
     background-color: #cccccc;
     border-radius: 6px;
     min-height: 20px;
 }
 
-QScrollBar::handle:vertical:hover {
+#developerPanel QScrollBar::handle:vertical:hover {
     background-color: #bbbbbb;
 }
 
-QScrollBar::add-line:vertical,
-QScrollBar::sub-line:vertical {
+#developerPanel QScrollBar::add-line:vertical,
+#developerPanel QScrollBar::sub-line:vertical {
     height: 0px;
 }
 
 /* 布局 */
-QVBoxLayout, QHBoxLayout, QGridLayout {
+#developerPanel QVBoxLayout,
+#developerPanel QHBoxLayout,
+#developerPanel QGridLayout {
     spacing: 10px;
     margin: 0px;
 }
 
 /* 分组框 */
-QGroupBox {
+#developerPanel QGroupBox {
     background-color: #ffffff;
     border: 1px solid #d0d0d0;
     border-radius: 8px;
@@ -164,7 +166,7 @@ QGroupBox {
     color: #000000;
 }
 
-QGroupBox::title {
+#developerPanel QGroupBox::title {
     subcontrol-origin: margin;
     subcontrol-position: top left;
     left: 10px;
@@ -173,7 +175,7 @@ QGroupBox::title {
 }
 
 /* 进度条 */
-QProgressBar {
+#developerPanel QProgressBar {
     background-color: #e0e0e0;
     border: none;
     border-radius: 4px;
@@ -182,13 +184,13 @@ QProgressBar {
     height: 20px;
 }
 
-QProgressBar::chunk {
+#developerPanel QProgressBar::chunk {
     background-color: #0078d4;
     border-radius: 4px;
 }
 
 /* 下拉框 */
-ComboBox {
+#developerPanel ComboBox {
     background-color: #ffffff;
     color: #000000;
     border: 1px solid #cccccc;
@@ -196,16 +198,16 @@ ComboBox {
     padding: 6px 12px;
 }
 
-ComboBox:hover {
+#developerPanel ComboBox:hover {
     border-color: #0078d4;
 }
 
-ComboBox::drop-down {
+#developerPanel ComboBox::drop-down {
     border: none;
     width: 20px;
 }
 
-ComboBox::down-arrow {
+#developerPanel ComboBox::down-arrow {
     image: none;
     border-left: 5px solid transparent;
     border-right: 5px solid transparent;
@@ -213,7 +215,7 @@ ComboBox::down-arrow {
     margin-right: 10px;
 }
 
-QComboBox QAbstractItemView {
+#developerPanel QComboBox QAbstractItemView {
     background-color: #ffffff;
     color: #000000;
     border: 1px solid #d0d0d0;
@@ -221,12 +223,12 @@ QComboBox QAbstractItemView {
 }
 
 /* 复选框 */
-QCheckBox {
+#developerPanel QCheckBox {
     color: #000000;
     spacing: 8px;
 }
 
-QCheckBox::indicator {
+#developerPanel QCheckBox::indicator {
     width: 18px;
     height: 18px;
     border-radius: 4px;
@@ -234,32 +236,32 @@ QCheckBox::indicator {
     background-color: #ffffff;
 }
 
-QCheckBox::indicator:checked {
+#developerPanel QCheckBox::indicator:checked {
     background-color: #0078d4;
     border-color: #0078d4;
 }
 
 /* 标签 */
-QLabel {
+#developerPanel QLabel {
     color: #333333;
     background-color: transparent;
 }
 
 /* 分隔线 */
-Line {
+#developerPanel Line {
     background-color: #d0d0d0;
     max-height: 1px;
 }
 
 /* 调试面板数值标签 */
-BodyLabel#debugValueLabel {
+#developerPanel BodyLabel#debugValueLabel {
     font-size: 18px;
     font-weight: bold;
     color: #0078d4;
 }
 
 /* 调试面板分隔线 */
-QLabel#debugSeparator {
+#developerPanel QLabel#debugSeparator {
     background-color: #d0d0d0;
     max-height: 1px;
 }

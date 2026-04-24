@@ -43,7 +43,6 @@ from qfluentwidgets import (
     PrimaryPushButton,
     ProgressBar,
     PushButton,
-    ScrollArea,
     SpinBox,
     StrongBodyLabel,
     SubtitleLabel,
@@ -59,25 +58,14 @@ from core.config import cfg
 from core.logger import logger
 
 
-class DeveloperPanel(ScrollArea):
+from .base_scroll import BaseScrollAreaInterface
+class DeveloperPanel(BaseScrollAreaInterface):
     """调试面板"""
     
     def __init__(self, mainWindow):
-        super().__init__(parent=mainWindow)
+        super().__init__("调试", parent=None)
         self.mainWindow = mainWindow
         self.setObjectName('developerPanel')
-        self.scrollWidget = QWidget()
-        self.titleLabel = QLabel("调试", self)
-        
-        self.resize(1000, 800)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setViewportMargins(0, 120, 0, 20)
-        self.setWidget(self.scrollWidget)
-        self.setWidgetResizable(True)
-        
-        self.titleLabel.setObjectName('settingLabel')
-        self.scrollWidget.setObjectName('scrollWidget')
-        self.titleLabel.move(60, 63)
         
         self.frameCount = 0
         self.lastFpsTime = time.time()
@@ -407,9 +395,9 @@ class DeveloperPanel(ScrollArea):
     
     
     def eventFilter(self, obj, event):
-        """事件过滤器 - 用于 FPS 计数"""
-        #Paint
-        if obj == self.mainWindow and event.type() == QEvent.Paint and self.debugUpdateToggle.isChecked():
+        """事件过滤器"""
+        if not hasattr(self, 'elementCheckEnabled'):return super().eventFilter(obj, event)
+        if obj == self.mainWindow and event.type() == QEvent.Paint and hasattr(self, 'debugUpdateToggle') and self.debugUpdateToggle.isChecked():
             self.frameCount += 1
             currentTime = time.time()
             if currentTime - self.lastFpsTime >= 0.5:
@@ -417,7 +405,28 @@ class DeveloperPanel(ScrollArea):
                 self.fpsLabel.setText(f"{self.currentFps:.1f}")
                 self.frameCount = 0
                 self.lastFpsTime = currentTime
-        return False
+        
+        if not self.elementCheckEnabled:
+            return super().eventFilter(obj, event)
+        
+        from PyQt5.QtCore import QEvent as QEventType
+        from PyQt5.QtWidgets import QWidget
+        
+        if event.type() == QEventType.Enter:
+            element_info = []
+            element_info.append(f"对象名称：{obj.objectName()}")
+            element_info.append(f"类    型：{obj.__class__.__name__}")
+            element_info.append(f"可    见：{obj.isVisible()}")
+            if isinstance(obj, QWidget):element_info.append(f"启    用：{obj.isEnabled()}")
+            
+            if hasattr(obj, 'geometry'):
+                geom = obj.geometry()
+                element_info.append(f"位    置：({geom.x()}, {geom.y()})")
+                element_info.append(f"大    小：{geom.width()}x{geom.height()}")
+            
+            self.elementInfoEdit.setText("\n".join(element_info))
+        
+        return super().eventFilter(obj, event)
     
     def _updateFPS(self):
         """更新FPS"""
@@ -772,30 +781,6 @@ class DeveloperPanel(ScrollArea):
                 parent=self,
                 duration=2000
             )
-    
-    def eventFilter(self, obj, event):
-        """元素检查过滤"""
-        if not self.elementCheckEnabled:
-            return super().eventFilter(obj, event)
-        
-        from PyQt5.QtCore import QEvent
-        from PyQt5.QtWidgets import QWidget
-        
-        if event.type() == QEvent.Enter:
-            element_info = []
-            element_info.append(f"对象名称：{obj.objectName()}")
-            element_info.append(f"类    型：{obj.__class__.__name__}")
-            element_info.append(f"可    见：{obj.isVisible()}")
-            if isinstance(obj, QWidget):element_info.append(f"启    用：{obj.isEnabled()}")
-            
-            if hasattr(obj, 'geometry'):
-                geom = obj.geometry()
-                element_info.append(f"位    置：({geom.x()}, {geom.y()})")
-                element_info.append(f"大    小：{geom.width()}x{geom.height()}")
-            
-            self.elementInfoEdit.setText("\n".join(element_info))
-        
-        return super().eventFilter(obj, event)
     
     def _refreshComponentTree(self):
         """刷新组件树"""

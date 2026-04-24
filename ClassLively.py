@@ -445,11 +445,6 @@ class MainWindow(FluentWindow):
         
         self.navigationInterface.installEventFilter(self)
         
-        self.developerPanel = DeveloperPanel(self)
-        self.developerNavItem = self.addSubInterface(self.developerPanel, FIF.DEVELOPER_TOOLS, "调试", NavigationItemPosition.BOTTOM)
-        self.developerNavItem.setVisible(cfg.developerMode.value)
-        cfg.developerMode.valueChanged.connect(self._onDeveloperModeChanged)
-        
         logger.info("主窗口初始化完成")
     
     def _onDeveloperModeChanged(self, value):
@@ -957,6 +952,11 @@ class MainWindow(FluentWindow):
         
         self.downloadInterface = DownloadInterface(parent=self)
         self.addSubInterface(self.downloadInterface, FIF.DOWNLOAD, "软件下载")
+        
+        self.developerPanel = DeveloperPanel(self)
+        self.developerNavItem = self.addSubInterface(self.developerPanel, FIF.DEVELOPER_TOOLS, "调试", NavigationItemPosition.BOTTOM)
+        self.developerNavItem.setVisible(cfg.developerMode.value)
+        cfg.developerMode.valueChanged.connect(self._onDeveloperModeChanged)
         
         for category in SOFTWARE_CATEGORIES:
             self.downloadInterface.addSection(category["name"])

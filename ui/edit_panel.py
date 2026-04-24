@@ -557,9 +557,9 @@ class EditPanel(QWidget):
         """更新主题"""
         from pathlib import Path
         if isDarkTheme():
-            qss_path = Path(__file__).parent.parent / 'resource' / 'qss' / 'dark' / 'main_interface.qss'
+            qss_path = Path(__file__).parent.parent / 'resource' / 'qss' / 'dark' / 'edit_panel.qss'
         else:
-            qss_path = Path(__file__).parent.parent / 'resource' / 'qss' / 'light' / 'main_interface.qss'
+            qss_path = Path(__file__).parent.parent / 'resource' / 'qss' / 'light' / 'edit_panel.qss'
         
         if qss_path.exists():
             try:

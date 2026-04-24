@@ -4,24 +4,24 @@
     border: none;
 }
 
-QWidget {
+#EditPanel QWidget {
     background-color: transparent;
     color: #000000;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-SmoothScrollArea {
+#EditPanel SmoothScrollArea {
     background-color: rgb(249, 249, 249);
     border: none;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-SmoothScrollArea QWidget {
+#EditPanel SmoothScrollArea QWidget {
     background-color: rgb(249, 249, 249);
 }
 
 /* 图标预览标签 */
-QLabel#iconPreviewLabel {
+#EditPanel QLabel#iconPreviewLabel {
     background-color: rgba(0, 0, 0, 0.05);
     border-radius: 8px;
 }
