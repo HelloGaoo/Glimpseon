@@ -1600,12 +1600,26 @@ class QuickLaunchEditDialog(MessageBoxBase):
             InfoBar.warning('提示', '请先选择一个应用', parent=self, duration=2000)
             return
         
-        self._apps.pop(self._selected_row)
+        deleted_app = self._apps.pop(self._selected_row)
+        self._delete_app_icon(deleted_app)
         self._update_app_list()
         if self.appListWidget.count() > 0:
             new_row = min(self._selected_row, self.appListWidget.count() - 1)
             self.appListWidget.setCurrentRow(new_row)
             self._selected_row = new_row
+    
+    def _delete_app_icon(self, app_data):
+        if not app_data:return
+        icon_filename = app_data.get('icon', '')
+        if not icon_filename or icon_filename in ('exe.ico', 'default.ico'):return
+        from data.software_list import get_software_icon_path
+        icon_path = get_software_icon_path(icon_filename)
+        if icon_path and os.path.exists(icon_path):
+            try:
+                os.remove(icon_path)
+                logger.info(f"已删除图标文件：{icon_path}")
+            except Exception as e:
+                logger.warning(f"删除图标文件失败：{e}")
     
     def accept(self):
         ql_cfg.set_apps(self._apps)
