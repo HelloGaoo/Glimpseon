@@ -1783,7 +1783,7 @@ class MainWindow(FluentWindow):
         import re
         apps = ql_cfg.quick_launch_apps
         if not apps:return
-        icon_dir = os.path.join(BASE_DIR, 'data', 'software_icon')
+        icon_dir = os.path.join(BASE_DIR, 'data', 'ql_icon')
         os.makedirs(icon_dir, exist_ok=True)
         for app in apps:
             app_path = app.get('path', '')
@@ -1844,7 +1844,7 @@ class MainWindow(FluentWindow):
             else:
                 img = Image.frombuffer('L', (width, height), bmpstr, 'raw', 'L', 0, 1).convert('RGBA')
             
-            icon_dir = os.path.join(BASE_DIR, 'data', 'software_icon')
+            icon_dir = os.path.join(BASE_DIR, 'data', 'ql_icon')
             os.makedirs(icon_dir, exist_ok=True)
             icon_save_path = os.path.join(icon_dir, icon_filename)
             img.save(icon_save_path, format='PNG')
