@@ -431,7 +431,8 @@ def default_cfg():
             "QuickLaunchApps": [],
             "IconSize": 64,
             "IconSpacing": 12,
-            "ShowLabels": False
+            "ShowLabels": True,
+            "OffsetY": 60
         }
     }
 
