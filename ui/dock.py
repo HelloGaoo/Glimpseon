@@ -26,7 +26,7 @@ from PyQt5.QtGui import (
 )
 from PyQt5.QtWidgets import QLabel, QSizePolicy, QVBoxLayout, QWidget
 
-from core.quick_launch_config import ql_cfg
+from core.config import cfg
 
 def get_ql_icon_path(icon_filename):
     if not icon_filename:return None
