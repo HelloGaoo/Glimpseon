@@ -25,14 +25,17 @@ from PyQt5.QtGui import (
 from PyQt5.QtWidgets import QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 from core.quick_launch_config import ql_cfg
-from data.software_list import get_software_icon_path
 
 def get_ql_icon_path(icon_filename):
     if not icon_filename:return None
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     icon_path = os.path.join(base_dir, 'data', 'ql_icon', icon_filename)
     if os.path.exists(icon_path):return icon_path
-    return get_software_icon_path(icon_filename)
+    sw_path = os.path.join(base_dir, 'data', 'software_icon', icon_filename)
+    if os.path.exists(sw_path):return sw_path
+    exe_icon = os.path.join(base_dir, 'data', 'software_icon', 'exe.ico')
+    if os.path.exists(exe_icon):return exe_icon
+    return None
 
 def get_ql_icon_save_dir():
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -122,7 +125,7 @@ class QuickLaunchDock(QWidget):
         self._icon_gap = ql_cfg.icon_spacing
         self._pixmaps = []
         for a in apps:
-            fn = a.get("icon", "CY.png")
+            fn = a.get("icon", "exe.ico")
             p = get_ql_icon_path(fn)
             pm = None
             if p and os.path.exists(p):
@@ -142,7 +145,7 @@ class QuickLaunchDock(QWidget):
         self._icon_gap = ql_cfg.icon_spacing
         self._pixmaps = []
         for a in self._apps:
-            fn = a.get("icon", "CY.png")
+            fn = a.get("icon", "exe.ico")
             p = get_ql_icon_path(fn)
             pm = None
             if p and os.path.exists(p):
@@ -549,19 +552,28 @@ class QuickLaunchDock(QWidget):
 
         for i in range(len(self._apps)):
             pm = self._pixmaps[i]
-            if not pm or pm.isNull():
-                continue
             sc = self._scales[i]
             s = sz * sc
             cx = pl[i]
             top = baseline_y - s
             if i == self._bounce_idx:
                 top += self._bounce_y
-            p.drawPixmap(
-                QRectF(cx - s / 2, top, s, s),
-                pm,
-                QRectF(0, 0, pm.width(), pm.height()),
-            )
+            if pm and not pm.isNull():
+                p.drawPixmap(
+                    QRectF(cx - s / 2, top, s, s),
+                    pm,
+                    QRectF(0, 0, pm.width(), pm.height()),
+                )
+            else:
+                p.setBrush(QColor(120, 120, 120, 60))
+                p.setPen(QPen(QColor(120, 120, 120, 100), 1))
+                r = QRectF(cx - s / 2, top, s, s)
+                p.drawRoundedRect(r, 8, 8)
+                p.setPen(QPen(QColor(180, 180, 180, 150), 2))
+                font = p.font()
+                font.setPixelSize(int(s * 0.4))
+                p.setFont(font)
+                p.drawText(r, Qt.AlignCenter, "?")
 
         p.end()
 
