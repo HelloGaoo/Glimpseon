@@ -73,6 +73,7 @@ class QuickLaunchDock(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
         self.setMouseTracking(True)
+        self.setAcceptDrops(True)
 
         self._apps = []
         self._pixmaps = []
@@ -285,6 +286,84 @@ class QuickLaunchDock(QWidget):
                     self._click(i)
                     break
         super().mousePressEvent(e)
+
+    def dragEnterEvent(self, e):
+        if e.mimeData().hasUrls():
+            urls = e.mimeData().urls()
+            for url in urls:
+                path = url.toLocalFile()
+                if path and (path.lower().endswith('.exe') or path.lower().endswith('.lnk')):
+                    e.acceptProposedAction()
+                    return
+        e.ignore()
+
+    def dragMoveEvent(self, e):
+        if e.mimeData().hasUrls():
+            e.acceptProposedAction()
+        else:
+            e.ignore()
+
+    def dropEvent(self, e):
+        e.acceptProposedAction()
+        urls = e.mimeData().urls()
+        for url in urls:
+            path = url.toLocalFile()
+            if not path:
+                continue
+            if not (path.lower().endswith('.exe') or path.lower().endswith('.lnk')):
+                continue
+            self._add_app_from_path(path)
+
+    def _add_app_from_path(self, file_path):
+        import re
+        from PyQt5.QtWidgets import QFileIconProvider
+        from PyQt5.QtCore import QFileInfo
+
+        real_path = file_path
+        if file_path.lower().endswith('.lnk'):
+            try:
+                import pythoncom
+                from win32com.shell import shell, shellcon
+                shortcut = pythoncom.CoCreateInstance(
+                    shell.CLSID_ShellLink, None, pythoncom.CLSCTX_INPROC_SERVER, shell.IID_IShellLink
+                )
+                persist = shortcut.QueryInterface(pythoncom.IID_IPersistFile)
+                persist.Load(file_path)
+                real_path = shortcut.GetPath(shell.SLGP_SHORTPATH)[0]
+                if not real_path:
+                    real_path = file_path
+            except Exception:
+                pass
+
+        name = os.path.splitext(os.path.basename(real_path))[0]
+
+        provider = QFileIconProvider()
+        fi = QFileInfo(real_path if os.path.exists(real_path) else file_path)
+        icon = provider.icon(fi)
+
+        icon_filename = 'default.ico'
+        sizes = icon.availableSizes()
+        if sizes:
+            best_size = max(sizes, key=lambda s: s.width() * s.height())
+            pixmap = icon.pixmap(best_size)
+            if not pixmap.isNull():
+                target_size = 256
+                if pixmap.width() < target_size:
+                    pixmap = pixmap.scaled(target_size, target_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                cleaned_name = re.sub(r'[^\w\u4e00-\u9fff]', '', name)
+                if cleaned_name:
+                    icon_filename = cleaned_name + '.ico'
+                else:
+                    icon_filename = 'default.ico'
+                icon_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'software_icon')
+                os.makedirs(icon_dir, exist_ok=True)
+                icon_save_path = os.path.join(icon_dir, icon_filename)
+                pixmap.save(icon_save_path, 'PNG')
+
+        new_app = {"name": name, "path": real_path, "icon": icon_filename}
+        apps = list(ql_cfg.quick_launch_apps)
+        apps.append(new_app)
+        ql_cfg.set_apps(apps)
 
     def _click(self, idx):
         a = self._apps[idx]
