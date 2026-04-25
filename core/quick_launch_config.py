@@ -13,14 +13,10 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-import json
-import os
 import logging
-from core.constants import BASE_DIR
 from PyQt5.QtCore import QObject, pyqtSignal
 
 logger = logging.getLogger(__name__)
-QUICK_LAUNCH_CONFIG_PATH = os.path.join(BASE_DIR, 'config', 'quick_launch.json')
 
 
 class QuickLaunchConfig(QObject):
@@ -28,122 +24,106 @@ class QuickLaunchConfig(QObject):
 
     def __init__(self):
         super().__init__()
-        self.show_quick_launch = True
-        self.quick_launch_apps = []
-        self.icon_size = 56
-        self.icon_spacing = 15
-        self.display_rows = 1
-        self.show_labels = False
-        self.load()
-    
-    def load(self):
-        if not os.path.exists(QUICK_LAUNCH_CONFIG_PATH):
-            logger.info("快捷启动配置文件不存在，使用默认配置")
-            self._create_default_config()
-            return
-        try:
-            with open(QUICK_LAUNCH_CONFIG_PATH, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            self.show_quick_launch = data.get('ShowQuickLaunch', True)
-            self.quick_launch_apps = data.get('QuickLaunchApps', [])
-            self.icon_size = data.get('IconSize', 56)
-            self.icon_spacing = data.get('IconSpacing', 15)
-            self.display_rows = data.get('MaxRows', 1)
-            self.show_labels = data.get('ShowLabels', False)
-            logger.info(f"已从 {QUICK_LAUNCH_CONFIG_PATH} 加载快捷启动配置")
-        except Exception as e:
-            logger.error(f"加载快捷启动配置失败：{e}")
-            self._create_default_config()
-    
-    def save(self, emit_signal=True):
-        """保存配置文件"""
-        try:
-            config_dir = os.path.dirname(QUICK_LAUNCH_CONFIG_PATH)
-            if not os.path.exists(config_dir):os.makedirs(config_dir)
-            data = {
-                'ShowQuickLaunch': self.show_quick_launch,
-                'QuickLaunchApps': self.quick_launch_apps,
-                'IconSize': self.icon_size,
-                'IconSpacing': self.icon_spacing,
-                'MaxRows': self.display_rows,
-                'ShowLabels': self.show_labels
-            }
-            with open(QUICK_LAUNCH_CONFIG_PATH, 'w', encoding='utf-8') as f:json.dump(data, f, ensure_ascii=False, indent=4)
-            logger.info(f"已保存快捷启动配置到 {QUICK_LAUNCH_CONFIG_PATH}")
-            if emit_signal:
-                self.quickLaunchChanged.emit()
-            return True
-        except Exception as e:
-            logger.error(f"保存快捷启动配置失败：{e}")
-            return False
-    
-    def _create_default_config(self, emit_signal=True):
-        self.show_quick_launch = True
-        self.quick_launch_apps = [
-            {
-                "name": "1",
-                "path": "",
-                "icon": "1.ico"
-            },
-            {
-                "name": "2",
-                "path": "",
-                "icon": "2.ico"
-            },
-            {
-                "name": "3",
-                "path": "",
-                "icon": "3.ico"
-            },
-            {
-                "name": "4",
-                "path": "",
-                "icon": "4.ico"
-            },
-            {
-                "name": "5",
-                "path": "",
-                "icon": "5.ico"
-            }
+        from core.config import cfg
+        self._cfg = cfg
+
+    @property
+    def show_quick_launch(self):
+        return self._cfg.showQuickLaunch.value
+
+    @show_quick_launch.setter
+    def show_quick_launch(self, value):
+        self._cfg.showQuickLaunch.value = value
+
+    @property
+    def quick_launch_apps(self):
+        apps = self._cfg.quickLaunchApps.value
+        if not apps:
+            return self._default_apps()
+        return apps
+
+    @quick_launch_apps.setter
+    def quick_launch_apps(self, value):
+        self._cfg.quickLaunchApps.value = value
+
+    @property
+    def icon_size(self):
+        return self._cfg.quickLaunchIconSize.value
+
+    @icon_size.setter
+    def icon_size(self, value):
+        self._cfg.quickLaunchIconSize.value = value
+
+    @property
+    def icon_spacing(self):
+        return self._cfg.quickLaunchIconSpacing.value
+
+    @icon_spacing.setter
+    def icon_spacing(self, value):
+        self._cfg.quickLaunchIconSpacing.value = value
+
+    @property
+    def show_labels(self):
+        return self._cfg.quickLaunchShowLabels.value
+
+    @show_labels.setter
+    def show_labels(self, value):
+        self._cfg.quickLaunchShowLabels.value = value
+
+    def _default_apps(self):
+        return [
+            {"name": "1", "path": "", "icon": "1.ico"},
+            {"name": "2", "path": "", "icon": "2.ico"},
+            {"name": "3", "path": "", "icon": "3.ico"},
+            {"name": "4", "path": "", "icon": "4.ico"},
+            {"name": "5", "path": "", "icon": "5.ico"}
         ]
-        self.icon_size = 56
-        self.icon_spacing = 15
-        self.display_rows = 1
-        self.show_labels = False
+
+    def save(self, emit_signal=True):
+        from core.config import save_cfg
+        save_cfg()
+        if emit_signal:
+            self.quickLaunchChanged.emit()
+
+    def _create_default_config(self, emit_signal=True):
+        self._cfg.quickLaunchApps.value = self._default_apps()
+        self._cfg.quickLaunchIconSize.value = 56
+        self._cfg.quickLaunchIconSpacing.value = 15
+        self._cfg.quickLaunchShowLabels.value = False
         self.save(emit_signal=emit_signal)
-    
+
     def set_show(self, show):
         self.show_quick_launch = show
         self.save()
-    
+
     def set_apps(self, apps):
         self.quick_launch_apps = apps
         self.save()
-    
+
     def set_icon_size(self, size):
         self.icon_size = size
         self.save()
-    
+
     def set_icon_spacing(self, spacing):
         self.icon_spacing = spacing
         self.save()
-    
-    def set_display_rows(self, rows):
-        self.display_rows = rows
-        self.save()
-    
+
     def set_show_labels(self, show):
         self.show_labels = show
         self.save()
-    
+
     def remove_app(self, index):
-        if 0 <= index < len(self.quick_launch_apps):
-            self.quick_launch_apps.pop(index)
+        apps = list(self.quick_launch_apps)
+        if 0 <= index < len(apps):
+            apps.pop(index)
+            self.quick_launch_apps = apps
             self.save()
-    
+
     def update_app(self, index, app):
-        if 0 <= index < len(self.quick_launch_apps):
-            self.quick_launch_apps[index] = app
+        apps = list(self.quick_launch_apps)
+        if 0 <= index < len(apps):
+            apps[index] = app
+            self.quick_launch_apps = apps
             self.save()
 
 

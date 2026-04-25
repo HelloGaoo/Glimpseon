@@ -287,6 +287,22 @@ class Config(QConfig):
     schoolInfoTextSize = RangeConfigItem(
         "School", "SchoolInfoTextSize", 34, RangeValidator(12, 60)
     )
+    
+    showQuickLaunch = ConfigItem(
+        "QuickLaunch", "ShowQuickLaunch", True, BoolValidator()
+    )
+    quickLaunchApps = ConfigItem(
+        "QuickLaunch", "QuickLaunchApps", []
+    )
+    quickLaunchIconSize = RangeConfigItem(
+        "QuickLaunch", "IconSize", 56, RangeValidator(32, 96)
+    )
+    quickLaunchIconSpacing = RangeConfigItem(
+        "QuickLaunch", "IconSpacing", 15, RangeValidator(4, 40)
+    )
+    quickLaunchShowLabels = ConfigItem(
+        "QuickLaunch", "ShowLabels", False, BoolValidator()
+    )
 
 
 cfg = Config()
@@ -406,6 +422,19 @@ def default_cfg():
             "SchoolInfoPosition": "左上",
             "SchoolInfoTextColor": "#FFFFFF",
             "SchoolInfoTextSize": 34
+        },
+        "QuickLaunch": {
+            "ShowQuickLaunch": True,
+            "QuickLaunchApps": [
+                {"name": "1", "path": "", "icon": "1.ico"},
+                {"name": "2", "path": "", "icon": "2.ico"},
+                {"name": "3", "path": "", "icon": "3.ico"},
+                {"name": "4", "path": "", "icon": "4.ico"},
+                {"name": "5", "path": "", "icon": "5.ico"}
+            ],
+            "IconSize": 56,
+            "IconSpacing": 15,
+            "ShowLabels": False
         }
     }
 

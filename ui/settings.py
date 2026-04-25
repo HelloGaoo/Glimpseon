@@ -384,11 +384,6 @@ class SettingInterface(ScrollArea):
                         if isinstance(attr, ConfigItem) and hasattr(attr, 'valueChanged'):
                             attr.valueChanged.emit(attr.value)
                 
-                from core.quick_launch_config import ql_cfg, QUICK_LAUNCH_CONFIG_PATH
-                if os.path.exists(QUICK_LAUNCH_CONFIG_PATH):
-                    os.remove(QUICK_LAUNCH_CONFIG_PATH)
-                ql_cfg._create_default_config(emit_signal=False)
-                
                 main_window = self.window()
                 if hasattr(main_window, 'editPanel'):
                     main_window.editPanel.refreshAllSettings()
