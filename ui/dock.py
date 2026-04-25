@@ -118,6 +118,7 @@ class QuickLaunchDock(QWidget):
 
     def set_apps(self, apps):
         self._apps = list(apps)
+        self._icon_gap = ql_cfg.icon_spacing
         self._pixmaps = []
         for a in apps:
             fn = a.get("icon", "CY.png")
