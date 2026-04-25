@@ -24,6 +24,19 @@ from PyQt5.QtWidgets import QLabel, QSizePolicy, QVBoxLayout, QWidget
 from core.quick_launch_config import ql_cfg
 from data.software_list import get_software_icon_path
 
+def get_ql_icon_path(icon_filename):
+    if not icon_filename:return None
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    icon_path = os.path.join(base_dir, 'data', 'ql_icon', icon_filename)
+    if os.path.exists(icon_path):return icon_path
+    return get_software_icon_path(icon_filename)
+
+def get_ql_icon_save_dir():
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    icon_dir = os.path.join(base_dir, 'data', 'ql_icon')
+    os.makedirs(icon_dir, exist_ok=True)
+    return icon_dir
+
 
 class QLTooltip(QWidget):
     def __init__(self):
@@ -100,7 +113,7 @@ class QuickLaunchDock(QWidget):
         self._pixmaps = []
         for a in apps:
             fn = a.get("icon", "CY.png")
-            p = get_software_icon_path(fn)
+            p = get_ql_icon_path(fn)
             pm = None
             if p and os.path.exists(p):
                 raw = QPixmap(p)
@@ -119,7 +132,7 @@ class QuickLaunchDock(QWidget):
         self._pixmaps = []
         for a in self._apps:
             fn = a.get("icon", "CY.png")
-            p = get_software_icon_path(fn)
+            p = get_ql_icon_path(fn)
             pm = None
             if p and os.path.exists(p):
                 raw = QPixmap(p)
@@ -335,7 +348,10 @@ class QuickLaunchDock(QWidget):
             except Exception:
                 pass
 
-        name = os.path.splitext(os.path.basename(real_path))[0]
+        if file_path.lower().endswith('.lnk'):
+            name = os.path.splitext(os.path.basename(file_path))[0]
+        else:
+            name = os.path.splitext(os.path.basename(real_path))[0]
 
         provider = QFileIconProvider()
         fi = QFileInfo(real_path if os.path.exists(real_path) else file_path)
@@ -355,8 +371,7 @@ class QuickLaunchDock(QWidget):
                     icon_filename = cleaned_name + '.ico'
                 else:
                     icon_filename = 'default.ico'
-                icon_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'software_icon')
-                os.makedirs(icon_dir, exist_ok=True)
+                icon_dir = get_ql_icon_save_dir()
                 icon_save_path = os.path.join(icon_dir, icon_filename)
                 pixmap.save(icon_save_path, 'PNG')
 

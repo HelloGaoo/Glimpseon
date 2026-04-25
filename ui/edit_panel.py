@@ -1612,14 +1612,22 @@ class QuickLaunchEditDialog(MessageBoxBase):
         if not app_data:return
         icon_filename = app_data.get('icon', '')
         if not icon_filename or icon_filename in ('exe.ico', 'default.ico'):return
-        from data.software_list import get_software_icon_path
-        icon_path = get_software_icon_path(icon_filename)
-        if icon_path and os.path.exists(icon_path):
-            try:
-                os.remove(icon_path)
-                logger.info(f"已删除图标文件：{icon_path}")
-            except Exception as e:
-                logger.warning(f"删除图标文件失败：{e}")
+        
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        icon_dirs = [
+            os.path.join(base_dir, 'data', 'ql_icon'),
+            os.path.join(base_dir, 'data', 'software_icon')
+        ]
+        
+        for icon_dir in icon_dirs:
+            icon_path = os.path.join(icon_dir, icon_filename)
+            if os.path.exists(icon_path):
+                try:
+                    os.remove(icon_path)
+                    logger.info(f"已删除图标文件：{icon_path}")
+                    return
+                except Exception as e:
+                    logger.warning(f"删除图标文件失败：{e}")
     
     def accept(self):
         ql_cfg.set_apps(self._apps)
@@ -1752,7 +1760,7 @@ class AppEditDialog(MessageBoxBase):
                 pixmap = pixmap.scaled(target_size, target_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             
             icon_filename = self._get_icon_name()
-            icon_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'software_icon')
+            icon_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'ql_icon')
             os.makedirs(icon_dir, exist_ok=True)
             icon_save_path = os.path.join(icon_dir, icon_filename)
             pixmap.save(icon_save_path, 'PNG')

@@ -238,9 +238,14 @@ def get_software_icon_path(icon_filename):
     if os.path.exists(icon_path):
         return icon_path
     
+    ql_icon_path = get_resPath(os.path.join("data", "ql_icon", icon_filename))
+    if os.path.exists(ql_icon_path):return ql_icon_path
+    
     if icon_filename in ['exe.ico', 'default.ico']:
         default_exe_icon = get_resPath(os.path.join("data", "software_icon", "exe.ico"))
         if os.path.exists(default_exe_icon):return default_exe_icon
+        default_ql_icon = get_resPath(os.path.join("data", "ql_icon", "exe.ico"))
+        if os.path.exists(default_ql_icon):return default_ql_icon
         import logging
         logger = logging.getLogger(__name__)
         logger.warning(f'默认图标文件不存在: {icon_filename}，将使用透明图标')
