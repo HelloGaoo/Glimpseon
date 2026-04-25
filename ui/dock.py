@@ -165,8 +165,14 @@ class QuickLaunchDock(QWidget):
     def _fix_size(self):
         bg = self._bg_rect()
         if bg.width() > 0:
-            overflow = int(self._sz() * (self.MAX_SCALE - self.BASE_SCALE))
-            self.setFixedSize(int(bg.width()), int(bg.height()) + overflow)
+            sz = self._sz()
+            scale_overflow = int(sz * (self.MAX_SCALE - self.BASE_SCALE))
+            bounce_overflow = self.BOUNCE_H + 10
+            side_overflow = int(sz * (self.MAX_SCALE - self.BASE_SCALE) * 0.3)
+            overflow = scale_overflow + bounce_overflow
+            w = int(bg.width()) + side_overflow * 2
+            h = int(bg.height()) + overflow
+            self.setFixedSize(w, h)
 
     def _icon_positions(self):
         sz = self._sz()
