@@ -115,7 +115,6 @@ from qfluentwidgets import (
 from data.url_dir import url_dir  # type: ignore
 from core.config import cfg, default_cfg, save_cfg
 from core.constants import APP_NAME, BASE_DIR, MEIPASS_DIR, get_resPath
-from core.quick_launch_config import ql_cfg
 from core.downloader import Downloader, clean_tempdir
 from core.font_manager import initialize_fonts
 from core.logger import logger, init_exhook
@@ -439,8 +438,6 @@ class MainWindow(FluentWindow):
         cfg.themeChanged.connect(self.aboutInterface._onThemeChanged)
         cfg.themeChanged.connect(self._onDeveloperPanelThemeChanged)
         cfg.themeChanged.connect(self._onEditPanelThemeChanged)
-        
-        ql_cfg.quickLaunchChanged.connect(self.__updateQuickLaunch)
         
         self._checkAndRefreshQuickLaunchIcons()
         
@@ -1781,7 +1778,7 @@ class MainWindow(FluentWindow):
     def _checkAndRefreshQuickLaunchIcons(self):
         """刷新启动栏图标"""
         import re
-        apps = ql_cfg.quick_launch_apps
+        apps = cfg.quickLaunchApps.value
         if not apps:return
         icon_dir = os.path.join(BASE_DIR, 'data', 'ql_icon')
         os.makedirs(icon_dir, exist_ok=True)
@@ -1797,7 +1794,8 @@ class MainWindow(FluentWindow):
                 new_icon = self._extractIcon(app_path, icon_filename)
                 if new_icon and new_icon != 'exe.ico':
                     app['icon'] = new_icon
-                    ql_cfg.save()
+                    cfg.quickLaunchApps.value = apps
+                    save_cfg()
                     logger.info(f"图标重新提取成功: {app.get('name', '')}")
             except Exception as e:
                 logger.error(f"重新提取图标失败 {app.get('name', '')}: {e}")
@@ -1863,17 +1861,17 @@ class MainWindow(FluentWindow):
         if not hasattr(self, 'quickLaunchDock'):
             return
         
-        if not ql_cfg.show_quick_launch:
+        if not cfg.showQuickLaunch.value:
             self.quickLaunchDock.hide()
             return
 
         self.quickLaunchDock.show()
-        apps = ql_cfg.quick_launch_apps
+        apps = cfg.quickLaunchApps.value
         if not apps:
             self.quickLaunchDock.hide()
             return
         
-        self.quickLaunchDock.update_icon_size(ql_cfg.icon_size)
+        self.quickLaunchDock.update_icon_size(cfg.quickLaunchIconSize.value)
         self.quickLaunchDock.set_apps(apps)
     
     def __launchApp(self, app_path, app_name):
@@ -2047,6 +2045,7 @@ if __name__ == "__main__":
     logger.info(f"时间配置：显示秒={cfg.showClockSeconds.value}, 显示农历={cfg.showLunarCalendar.value}, 时钟颜色={cfg.clockColor.value.name() if hasattr(cfg.clockColor.value, 'name') else str(cfg.clockColor.value)}, 时钟大小={cfg.clockSize.value}, 日期大小={cfg.dateSize.value}")
     logger.info(f"一言配置：显示一言={cfg.showPoetry.value}, API 地址={cfg.poetryApiUrl.value}, 更新间隔={cfg.poetryUpdateInterval.value}, 字体大小={cfg.poetrySize.value}")
     logger.info(f"天气配置：字体大小={cfg.weatherSize.value}, 图标大小={cfg.weatherIconSize.value}, 更新间隔={cfg.weatherUpdateInterval.value}, 城市={cfg.city.value}")
+    logger.info(f"快捷启动栏配置：启用={cfg.showQuickLaunch.value}, 图标大小={cfg.quickLaunchIconSize.value}, 图标间距={cfg.quickLaunchIconSpacing.value}, 显示名称={cfg.quickLaunchShowLabels.value}")
     logger.info(f"自动配置：空闲自动打开={cfg.autoOpenOnIdle.value}, 空闲分钟={cfg.idleMinutes.value}, 自动打开最大化={cfg.autoOpenMaximize.value}, 自动检查更新={cfg.autoCheckUpdate.value}, 自动更新={cfg.autoUpdate.value}")
     logger.info(f"{APP_NAME}版本信息：")
     logger.info(f"版本号：{VERSION} 构建日期：{BUILD_DATE}")
@@ -2054,8 +2053,6 @@ if __name__ == "__main__":
     logger.info(f"系统版本：Windows {platform.version()} Python 版本：{platform.python_version()}")
     logger.info(f"软件运行路径：{BASE_DIR}")
     logger.debug(f"url_dir 内容：{url_dir}")
-
-    logger.info("后台初始化任务已提交")
 
     # 等待后台初始化完
     wait_start = time.time()

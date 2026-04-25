@@ -72,8 +72,8 @@ class QuickLaunchDock(QWidget):
         
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._launch_result.connect(self._on_launch_result)
-        self._icon_gap = ql_cfg.icon_spacing
-        self._show_labels = ql_cfg.show_labels
+        self._icon_gap = cfg.quickLaunchIconSpacing.value
+        self._show_labels = cfg.quickLaunchShowLabels.value
 
         self._apps = []
         self._pixmaps = []
@@ -92,11 +92,11 @@ class QuickLaunchDock(QWidget):
         self._timer.start(int(1000 / self.FPS))
 
     def _sz(self):
-        return ql_cfg.icon_size
+        return cfg.quickLaunchIconSize.value
 
     def set_apps(self, apps):
         self._apps = list(apps)
-        self._icon_gap = ql_cfg.icon_spacing
+        self._icon_gap = cfg.quickLaunchIconSpacing.value
         self._pixmaps = []
         for a in apps:
             fn = a.get("icon", "exe.ico")
@@ -116,8 +116,8 @@ class QuickLaunchDock(QWidget):
         self.update()
 
     def update_icon_size(self, size):
-        self._icon_gap = ql_cfg.icon_spacing
-        self._show_labels = ql_cfg.show_labels
+        self._icon_gap = cfg.quickLaunchIconSpacing.value
+        self._show_labels = cfg.quickLaunchShowLabels.value
         self._pixmaps = []
         for a in self._apps:
             fn = a.get("icon", "exe.ico")
@@ -369,7 +369,7 @@ class QuickLaunchDock(QWidget):
                 pixmap.save(icon_save_path, 'PNG')
 
         new_app = {"name": name, "path": real_path, "icon": icon_filename}
-        apps = list(ql_cfg.quick_launch_apps)
+        apps = list(cfg.quickLaunchApps.value)
         if len(apps) >= self.MAX_APPS:
             from qfluentwidgets import InfoBar
             InfoBar.warning(
@@ -380,7 +380,9 @@ class QuickLaunchDock(QWidget):
             )
             return
         apps.append(new_app)
-        ql_cfg.set_apps(apps)
+        cfg.quickLaunchApps.value = apps
+        from core.config import save_cfg
+        save_cfg()
 
     def _click(self, idx):
         a = self._apps[idx]

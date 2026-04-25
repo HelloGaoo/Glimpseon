@@ -62,7 +62,6 @@ from qfluentwidgets import (
 )
 
 from core.config import cfg, save_cfg
-from core.quick_launch_config import ql_cfg
 from ui.dock import QuickLaunchDock
 
 logger = logging.getLogger(__name__)
@@ -127,7 +126,7 @@ class EditPanel(QWidget):
         self._updateSchoolInfoSettingsEnabled(cfg.showSchoolInfo.value)
         self._addSeparator(v)
         self._createQuickLaunchSettings(v)
-        self._updateQuickLaunchSettingsEnabled(ql_cfg.show_quick_launch)
+        self._updateQuickLaunchSettingsEnabled(cfg.showQuickLaunch.value)
         self._connectConfigSignals()
         self.__connectSignalToSlot()
     
@@ -1250,17 +1249,28 @@ class EditPanel(QWidget):
         logger.info(f"学校信息：文字大小={value}px")
     
     def _onShowQuickLaunchChanged(self, checked: bool):
-        ql_cfg.show_quick_launch = checked
-        ql_cfg.save()
+        cfg.showQuickLaunch.value = checked
+        save_cfg()
         if hasattr(self.mainWindow, '_MainWindow__updateQuickLaunch'):
             self.mainWindow._MainWindow__updateQuickLaunch()
-        logger.info(f"快捷启动栏：启用={'开启' if checked else '关闭'}")
     
     def _onQuickLaunchEditClicked(self):
         dialog = QuickLaunchEditDialog(self.mainWindow)
         dialog.exec_()
         if hasattr(self.mainWindow, '_MainWindow__updateQuickLaunch'):
             self.mainWindow._MainWindow__updateQuickLaunch()
+    
+    def _onQuickLaunchIconSizeChanged(self, value: int):
+        cfg.quickLaunchIconSize.value = value
+        save_cfg()
+    
+    def _onQuickLaunchIconSpacingChanged(self, value: int):
+        cfg.quickLaunchIconSpacing.value = value
+        save_cfg()
+    
+    def _onQuickLaunchShowLabelsChanged(self, checked: bool):
+        cfg.quickLaunchShowLabels.value = checked
+        save_cfg()
     
     def refreshQuickLaunchSettings(self):
         self.showQuickLaunchSwitch.setChecked(cfg.showQuickLaunch.value)
@@ -1410,7 +1420,7 @@ class EditPanel(QWidget):
         self.quickLaunchIconSizeSpin.setRange(32, 96)
         self.quickLaunchIconSizeSpin.setValue(cfg.quickLaunchIconSize.value)
         self.quickLaunchIconSizeSpin.setFixedWidth(120)
-        self.quickLaunchIconSizeSpin.valueChanged.connect(ql_cfg.set_icon_size)
+        self.quickLaunchIconSizeSpin.valueChanged.connect(lambda v: self._onQuickLaunchIconSizeChanged(v))
         iconSizeLayout.addWidget(self.quickLaunchIconSizeSpin)
         layout.addLayout(iconSizeLayout)
 
@@ -1422,7 +1432,7 @@ class EditPanel(QWidget):
         self.quickLaunchIconSpacingSpin.setRange(4, 40)
         self.quickLaunchIconSpacingSpin.setValue(cfg.quickLaunchIconSpacing.value)
         self.quickLaunchIconSpacingSpin.setFixedWidth(120)
-        self.quickLaunchIconSpacingSpin.valueChanged.connect(ql_cfg.set_icon_spacing)
+        self.quickLaunchIconSpacingSpin.valueChanged.connect(lambda v: self._onQuickLaunchIconSpacingChanged(v))
         iconSpacingLayout.addWidget(self.quickLaunchIconSpacingSpin)
         layout.addLayout(iconSpacingLayout)
 
@@ -1431,10 +1441,10 @@ class EditPanel(QWidget):
         showLabelsLabel.setFixedWidth(100)
         showLabelsLayout.addWidget(showLabelsLabel)
         self.quickLaunchShowLabelsSwitch = SwitchButton(self)
-        self.quickLaunchShowLabelsSwitch.setChecked(ql_cfg.show_labels)
+        self.quickLaunchShowLabelsSwitch.setChecked(cfg.quickLaunchShowLabels.value)
         self.quickLaunchShowLabelsSwitch.setOffText('关')
         self.quickLaunchShowLabelsSwitch.setOnText('开')
-        self.quickLaunchShowLabelsSwitch.checkedChanged.connect(ql_cfg.set_show_labels)
+        self.quickLaunchShowLabelsSwitch.checkedChanged.connect(lambda v: self._onQuickLaunchShowLabelsChanged(v))
         showLabelsLayout.addWidget(self.quickLaunchShowLabelsSwitch)
         layout.addLayout(showLabelsLayout)
         
@@ -1554,7 +1564,7 @@ class QuickLaunchEditDialog(MessageBoxBase):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        apps = ql_cfg.quick_launch_apps
+        apps = cfg.quickLaunchApps.value
         self._apps = list(apps) if apps else []
         self._init_ui()
     
@@ -1657,7 +1667,8 @@ class QuickLaunchEditDialog(MessageBoxBase):
                 logger.warning(f"删除图标文件失败：{e}")
     
     def accept(self):
-        ql_cfg.set_apps(self._apps)
+        cfg.quickLaunchApps.value = self._apps
+        save_cfg()
         super().accept()
     
     def get_apps(self):
