@@ -1,5 +1,6 @@
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from PyQt5.QtCore import (
     QPoint,
@@ -9,6 +10,8 @@ from PyQt5.QtCore import (
     QTimer,
     pyqtProperty,
     QSize,
+    pyqtSignal,
+    QThread,
 )
 from PyQt5.QtGui import (
     QBrush,
@@ -79,6 +82,8 @@ class QuickLaunchDock(QWidget):
     ICON_GAP = 4
     RADIUS = 16
     FPS = 120
+    
+    _launch_result = pyqtSignal(str, str, bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -87,6 +92,9 @@ class QuickLaunchDock(QWidget):
         self.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
         self.setMouseTracking(True)
         self.setAcceptDrops(True)
+        
+        self._executor = ThreadPoolExecutor(max_workers=1)
+        self._launch_result.connect(self._on_launch_result)
 
         self._apps = []
         self._pixmaps = []
@@ -385,12 +393,47 @@ class QuickLaunchDock(QWidget):
         path = a.get("path", "")
         name = a.get("name", "")
         self._start_bounce(idx)
-        if path and hasattr(self.window(), "_MainWindow__launchApp"):
-            self.window()._MainWindow__launchApp(path, name)
+        if path:
+            self._executor.submit(self._launch_app_thread, path, name)
+
+    def _launch_app_thread(self, app_path, app_name):
+        try:
+            if not app_path:
+                self._launch_result.emit(app_name, "未配置路径", False)
+                return
+            
+            if os.path.exists(app_path):
+                os.startfile(app_path)
+                self._launch_result.emit(app_name, app_path, True)
+            else:
+                self._launch_result.emit(app_name, f"路径不存在: {app_path}", False)
+        except Exception as e:
+            self._launch_result.emit(app_name, str(e), False)
+
+    def _on_launch_result(self, app_name, info, success):
+        import logging
+        from qfluentwidgets import InfoBar
+        logger = logging.getLogger(__name__)
+        
+        if success:
+            logger.info(f"已启动应用：{app_name} ({info})")
+            InfoBar.success(
+                title="启动成功",
+                content=f"正在打开 {app_name}",
+                parent=self.window(),
+                duration=2000
+            )
+        else:
+            logger.warning(f"启动应用失败：{app_name}, {info}")
+            InfoBar.error(
+                title="启动失败",
+                content=f"{app_name}: {info}",
+                parent=self.window(),
+                duration=3000
+            )
 
     def _start_bounce(self, idx):
-        if idx < 0 or idx >= len(self._apps):
-            return
+        if idx < 0 or idx >= len(self._apps):return
         self._bounce_idx = idx
         self._bounce_y = 0.0
         self._bounce_active = True
@@ -406,8 +449,7 @@ class QuickLaunchDock(QWidget):
     bounceY = pyqtProperty(float, _get_by, _set_by)
 
     def paintEvent(self, event):
-        if self._painting:
-            return
+        if self._painting:return
         self._painting = True
         try:
             self._render()
