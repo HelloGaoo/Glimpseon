@@ -87,8 +87,8 @@ class QuickLaunchConfig(QObject):
 
     def _create_default_config(self, emit_signal=True):
         self._cfg.quickLaunchApps.value = self._default_apps()
-        self._cfg.quickLaunchIconSize.value = 56
-        self._cfg.quickLaunchIconSpacing.value = 15
+        self._cfg.quickLaunchIconSize.value = 64
+        self._cfg.quickLaunchIconSpacing.value = 12
         self._cfg.quickLaunchShowLabels.value = False
         self.save(emit_signal=emit_signal)
 

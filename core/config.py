@@ -295,10 +295,10 @@ class Config(QConfig):
         "QuickLaunch", "QuickLaunchApps", []
     )
     quickLaunchIconSize = RangeConfigItem(
-        "QuickLaunch", "IconSize", 56, RangeValidator(32, 96)
+        "QuickLaunch", "IconSize", 64, RangeValidator(32, 96)
     )
     quickLaunchIconSpacing = RangeConfigItem(
-        "QuickLaunch", "IconSpacing", 15, RangeValidator(4, 40)
+        "QuickLaunch", "IconSpacing", 12, RangeValidator(4, 40)
     )
     quickLaunchShowLabels = ConfigItem(
         "QuickLaunch", "ShowLabels", False, BoolValidator()
@@ -432,8 +432,8 @@ def default_cfg():
                 {"name": "4", "path": "", "icon": "4.ico"},
                 {"name": "5", "path": "", "icon": "5.ico"}
             ],
-            "IconSize": 56,
-            "IconSpacing": 15,
+            "IconSize": 64,
+            "IconSpacing": 12,
             "ShowLabels": False
         }
     }
