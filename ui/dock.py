@@ -550,18 +550,10 @@ class QuickLaunchDock(QWidget):
                     p.setFont(label_font)
                     fm = QFontMetrics(label_font)
                     sz = self._sz()
-                    max_label_w = sz + 20
                     
-                    text_width = fm.horizontalAdvance(name)
                     display_name = name
-                    if text_width > max_label_w - 16:
-                        ellipsis_width = fm.horizontalAdvance("...")
-                        for j in range(len(name) - 1, 0, -1):
-                            test_name = name[:j] + "..."
-                            test_width = fm.horizontalAdvance(test_name)
-                            if test_width <= max_label_w - 16:
-                                display_name = test_name
-                                break
+                    if len(name) > 50:
+                        display_name = name[:50] + "..."
                     
                     padding_x = 10
                     label_w = fm.horizontalAdvance(display_name) + padding_x * 2
