@@ -335,7 +335,7 @@ class QuickLaunchDock(QWidget):
                 )
                 persist = shortcut.QueryInterface(pythoncom.IID_IPersistFile)
                 persist.Load(file_path)
-                real_path = shortcut.GetPath(shell.SLGP_SHORTPATH)[0]
+                real_path = shortcut.GetPath(shell.SLGP_RAWPATH)[0]
                 if not real_path:
                     real_path = file_path
             except Exception:
