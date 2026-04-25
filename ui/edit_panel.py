@@ -1729,70 +1729,33 @@ class AppEditDialog(MessageBoxBase):
     
     def _extract_icon(self, exe_path):
         try:
-            import win32gui
-            import win32ui
-            import win32con
+            from PyQt5.QtWidgets import QFileIconProvider
+            from PyQt5.QtGui import QIcon
+            from PyQt5.QtCore import QFileInfo
+
+            provider = QFileIconProvider()
+            fi = QFileInfo(exe_path)
+            icon = provider.icon(fi)
             
-            hicon = None
-            try:
-                res = win32gui.PrivateExtractIcons(exe_path, 0, 256, 256, 1, 0)
-                if res and res[0]: hicon = res[0][0]
-            except: pass
-            if not hicon:
-                large, small = win32gui.ExtractIconEx(exe_path, 0)
-                if large and large[0]: hicon = large[0]
-            if not hicon: return 'exe.ico'
+            sizes = icon.availableSizes()
+            if not sizes:
+                return 'exe.ico'
             
-            ico_info = win32gui.GetIconInfo(hicon)
-            hbm_mask = ico_info[3]
-            hbm_color = ico_info[4]
+            best_size = max(sizes, key=lambda s: s.width() * s.height())
+            pixmap = icon.pixmap(best_size)
             
-            width = ico_info[1]
-            height = ico_info[2]
+            if pixmap.isNull():
+                return 'exe.ico'
             
-            if hbm_color:
-                bmp_obj = win32gui.GetObject(hbm_color)
-            else:
-                bmp_obj = win32gui.GetObject(hbm_mask)
-            
-            if not bmp_obj: return 'exe.ico'
-            width = bmp_obj.bmWidth
-            height = bmp_obj.bmHeight
-            
-            hdc = win32gui.GetDC(0)
-            hdc_src = win32ui.CreateDCFromHandle(hdc)
-            hdc_dest = hdc_src.CreateCompatibleDC()
-            
-            bitmap = win32ui.CreateBitmap()
-            bitmap.CreateCompatibleBitmap(hdc_src, width, height)
-            hdc_dest.SelectObject(bitmap)
-            
-            win32gui.DrawIconEx(hdc_dest.GetSafeHdc(), 0, 0, hicon, width, height, 0, None, win32con.DI_NORMAL)
-            
-            bmpstr = bitmap.GetBitmapBits(True)
-            from PIL import Image
-            img = Image.frombuffer('RGBA', (width, height), bmpstr, 'raw', 'BGRA', 0, 1)
-            
-            if hbm_mask and not hbm_color:
-                mask_obj = win32gui.GetObject(hbm_mask)
-                mask_bmpstr = win32gui.GetBitmapBits(hbm_mask, mask_obj.bmWidthBytes * mask_obj.bmHeight)
-                from PIL import Image as PILImage
-                mask_img = PILImage.frombuffer('1', (width, height), mask_bmpstr, 'raw', '1;8', 0, 1)
-                alpha_channel = mask_img.convert('L')
-                alpha_channel = PILImage.eval(alpha_channel, lambda x: 255 - x)
-                img = img.convert('RGBA')
-                img.putalpha(alpha_channel)
+            target_size = 256
+            if pixmap.width() < target_size:
+                pixmap = pixmap.scaled(target_size, target_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             
             icon_filename = self._get_icon_name()
             icon_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'software_icon')
             os.makedirs(icon_dir, exist_ok=True)
             icon_save_path = os.path.join(icon_dir, icon_filename)
-            img.save(icon_save_path, format='PNG')
-
-            if hbm_color: win32gui.DeleteObject(hbm_color)
-            if hbm_mask: win32gui.DeleteObject(hbm_mask)
-            win32gui.DestroyIcon(hicon)
-            win32gui.ReleaseDC(0, hdc)
+            pixmap.save(icon_save_path, 'PNG')
             
             return icon_filename
         except Exception as e:

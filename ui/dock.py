@@ -97,7 +97,6 @@ class QuickLaunchDock(QWidget):
     def set_apps(self, apps):
         self._apps = list(apps)
         self._pixmaps = []
-        cache_sz = int(self._sz() * self.MAX_SCALE * 2)
         for a in apps:
             fn = a.get("icon", "CY.png")
             p = get_software_icon_path(fn)
@@ -105,7 +104,9 @@ class QuickLaunchDock(QWidget):
             if p and os.path.exists(p):
                 raw = QPixmap(p)
                 if not raw.isNull():
-                    pm = raw.scaled(cache_sz, cache_sz, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+                    raw.setDevicePixelRatio(dpr)
+                    pm = raw
             self._pixmaps.append(pm)
         n = len(apps)
         self._scales = [self.BASE_SCALE] * n
@@ -114,7 +115,6 @@ class QuickLaunchDock(QWidget):
         self.update()
 
     def update_icon_size(self, size):
-        cache_sz = int(size * self.MAX_SCALE * 2)
         self._pixmaps = []
         for a in self._apps:
             fn = a.get("icon", "CY.png")
@@ -122,7 +122,10 @@ class QuickLaunchDock(QWidget):
             pm = None
             if p and os.path.exists(p):
                 raw = QPixmap(p)
-                if not raw.isNull():pm = raw.scaled(cache_sz, cache_sz, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                if not raw.isNull():
+                    dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+                    raw.setDevicePixelRatio(dpr)
+                    pm = raw
             self._pixmaps.append(pm)
         self._fix_size()
         self.update()
