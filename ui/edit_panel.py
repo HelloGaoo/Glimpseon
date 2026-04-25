@@ -1554,16 +1554,8 @@ class QuickLaunchEditDialog(MessageBoxBase):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        if ql_cfg.quick_launch_apps is None:
-            self._apps = [
-                {"name": "1", "path": "", "icon": "1.ico"},
-                {"name": "2", "path": "", "icon": "2.ico"},
-                {"name": "3", "path": "", "icon": "3.ico"},
-                {"name": "4", "path": "", "icon": "4.ico"},
-                {"name": "5", "path": "", "icon": "5.ico"}
-            ]
-        else:
-            self._apps = list(ql_cfg.quick_launch_apps)
+        apps = ql_cfg.quick_launch_apps
+        self._apps = list(apps) if apps else []
         self._init_ui()
     
     def _init_ui(self):

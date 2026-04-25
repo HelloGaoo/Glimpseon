@@ -1869,15 +1869,6 @@ class MainWindow(FluentWindow):
 
         self.quickLaunchDock.show()
         apps = ql_cfg.quick_launch_apps
-        if apps is None:
-            apps = [
-                {"name": "1", "path": "", "icon": "1.ico"},
-                {"name": "2", "path": "", "icon": "2.ico"},
-                {"name": "3", "path": "", "icon": "3.ico"},
-                {"name": "4", "path": "", "icon": "4.ico"},
-                {"name": "5", "path": "", "icon": "5.ico"}
-            ]
-        
         if not apps:
             self.quickLaunchDock.hide()
             return

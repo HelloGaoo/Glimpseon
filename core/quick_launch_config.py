@@ -71,13 +71,7 @@ class QuickLaunchConfig(QObject):
         self._cfg.quickLaunchShowLabels.value = value
 
     def _default_apps(self):
-        return [
-            {"name": "1", "path": "", "icon": "1.ico"},
-            {"name": "2", "path": "", "icon": "2.ico"},
-            {"name": "3", "path": "", "icon": "3.ico"},
-            {"name": "4", "path": "", "icon": "4.ico"},
-            {"name": "5", "path": "", "icon": "5.ico"}
-        ]
+        return []
 
     def save(self, emit_signal=True):
         from core.config import save_cfg
