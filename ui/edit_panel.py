@@ -1263,14 +1263,20 @@ class EditPanel(QWidget):
     def _onQuickLaunchIconSizeChanged(self, value: int):
         cfg.quickLaunchIconSize.value = value
         save_cfg()
+        if hasattr(self.mainWindow, '_MainWindow__updateQuickLaunch'):
+            self.mainWindow._MainWindow__updateQuickLaunch()
     
     def _onQuickLaunchIconSpacingChanged(self, value: int):
         cfg.quickLaunchIconSpacing.value = value
         save_cfg()
+        if hasattr(self.mainWindow, '_MainWindow__updateQuickLaunch'):
+            self.mainWindow._MainWindow__updateQuickLaunch()
     
     def _onQuickLaunchShowLabelsChanged(self, checked: bool):
         cfg.quickLaunchShowLabels.value = checked
         save_cfg()
+        if hasattr(self.mainWindow, '_MainWindow__updateQuickLaunch'):
+            self.mainWindow._MainWindow__updateQuickLaunch()
     
     def refreshQuickLaunchSettings(self):
         self.showQuickLaunchSwitch.setChecked(cfg.showQuickLaunch.value)
