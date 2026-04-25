@@ -1627,6 +1627,7 @@ class QuickLaunchEditDialog(MessageBoxBase):
         self.widget.setMinimumWidth(400)
         
         self._selected_row = -1
+        self.setAcceptDrops(True)
     
     def _on_item_clicked(self, item):
         self._selected_row = self.appListWidget.row(item)
@@ -1698,6 +1699,41 @@ class QuickLaunchEditDialog(MessageBoxBase):
         """刷新 dock 栏显示"""
         if hasattr(self, 'mainWindow') and hasattr(self.mainWindow, '_MainWindow__updateQuickLaunch'):
             self.mainWindow._MainWindow__updateQuickLaunch()
+    
+    def dragEnterEvent(self, e):
+        if e.mimeData().hasUrls():
+            urls = e.mimeData().urls()
+            for url in urls:
+                path = url.toLocalFile()
+                if path and (path.lower().endswith('.exe') or path.lower().endswith('.lnk')):
+                    e.acceptProposedAction()
+                    return
+        e.ignore()
+
+    def dragMoveEvent(self, e):
+        if e.mimeData().hasUrls():
+            e.acceptProposedAction()
+        else:
+            e.ignore()
+
+    def dropEvent(self, e):
+        e.acceptProposedAction()
+        from ui.dock import resolve_app_from_path
+        urls = e.mimeData().urls()
+        for url in urls:
+            path = url.toLocalFile()
+            if not path:
+                continue
+            if not (path.lower().endswith('.exe') or path.lower().endswith('.lnk')):
+                continue
+            if len(self._apps) >= QuickLaunchDock.MAX_APPS:
+                InfoBar.warning('提示', f'快捷启动栏最多只能添加 {QuickLaunchDock.MAX_APPS} 个应用', parent=self, duration=3000)
+                return
+            app_data = resolve_app_from_path(path)
+            if app_data:
+                self._apps.append(app_data)
+                self._update_app_list()
+                self._refresh_dock()
     
     def accept(self):
         cfg.quickLaunchApps.value = self._apps

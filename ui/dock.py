@@ -46,6 +46,52 @@ def get_ql_icon_save_dir():
     return icon_dir
 
 
+def resolve_app_from_path(file_path):
+    import re
+    from PyQt5.QtWidgets import QFileIconProvider
+    from PyQt5.QtCore import QFileInfo
+    real_path = file_path
+    if file_path.lower().endswith('.lnk'):
+        try:
+            import pythoncom
+            from win32com.shell import shell, shellcon
+            shortcut = pythoncom.CoCreateInstance(
+                shell.CLSID_ShellLink, None, pythoncom.CLSCTX_INPROC_SERVER, shell.IID_IShellLink
+            )
+            persist = shortcut.QueryInterface(pythoncom.IID_IPersistFile)
+            persist.Load(file_path)
+            real_path = shortcut.GetPath(shell.SLGP_RAWPATH)[0]
+            if not real_path:real_path = file_path
+        except Exception:pass
+
+    if file_path.lower().endswith('.lnk'):
+        name = os.path.splitext(os.path.basename(file_path))[0]
+    else:
+        name = os.path.splitext(os.path.basename(real_path))[0]
+    provider = QFileIconProvider()
+    fi = QFileInfo(real_path if os.path.exists(real_path) else file_path)
+    icon = provider.icon(fi)
+    icon_filename = 'exe.ico'
+    sizes = icon.availableSizes()
+    if sizes:
+        best_size = max(sizes, key=lambda s: s.width() * s.height())
+        pixmap = icon.pixmap(best_size)
+        if not pixmap.isNull():
+            target_size = 256
+            if pixmap.width() < target_size:
+                pixmap = pixmap.scaled(target_size, target_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            cleaned_name = re.sub(r'[^\w\u4e00-\u9fff]', '', name)
+            if cleaned_name:
+                icon_filename = cleaned_name + '.ico'
+            else:
+                icon_filename = 'default.ico'
+            icon_dir = get_ql_icon_save_dir()
+            icon_save_path = os.path.join(icon_dir, icon_filename)
+            pixmap.save(icon_save_path, 'PNG')
+
+    return {"name": name, "path": real_path, "icon": icon_filename}
+
+
 class QuickLaunchDock(QWidget):
     MAX_SCALE = 1.45
     BASE_SCALE = 1.0
@@ -321,54 +367,7 @@ class QuickLaunchDock(QWidget):
             self._add_app_from_path(path)
 
     def _add_app_from_path(self, file_path):
-        import re
-        from PyQt5.QtWidgets import QFileIconProvider
-        from PyQt5.QtCore import QFileInfo
-
-        real_path = file_path
-        if file_path.lower().endswith('.lnk'):
-            try:
-                import pythoncom
-                from win32com.shell import shell, shellcon
-                shortcut = pythoncom.CoCreateInstance(
-                    shell.CLSID_ShellLink, None, pythoncom.CLSCTX_INPROC_SERVER, shell.IID_IShellLink
-                )
-                persist = shortcut.QueryInterface(pythoncom.IID_IPersistFile)
-                persist.Load(file_path)
-                real_path = shortcut.GetPath(shell.SLGP_RAWPATH)[0]
-                if not real_path:
-                    real_path = file_path
-            except Exception:
-                pass
-
-        if file_path.lower().endswith('.lnk'):
-            name = os.path.splitext(os.path.basename(file_path))[0]
-        else:
-            name = os.path.splitext(os.path.basename(real_path))[0]
-
-        provider = QFileIconProvider()
-        fi = QFileInfo(real_path if os.path.exists(real_path) else file_path)
-        icon = provider.icon(fi)
-
-        icon_filename = 'default.ico'
-        sizes = icon.availableSizes()
-        if sizes:
-            best_size = max(sizes, key=lambda s: s.width() * s.height())
-            pixmap = icon.pixmap(best_size)
-            if not pixmap.isNull():
-                target_size = 256
-                if pixmap.width() < target_size:
-                    pixmap = pixmap.scaled(target_size, target_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                cleaned_name = re.sub(r'[^\w\u4e00-\u9fff]', '', name)
-                if cleaned_name:
-                    icon_filename = cleaned_name + '.ico'
-                else:
-                    icon_filename = 'default.ico'
-                icon_dir = get_ql_icon_save_dir()
-                icon_save_path = os.path.join(icon_dir, icon_filename)
-                pixmap.save(icon_save_path, 'PNG')
-
-        new_app = {"name": name, "path": real_path, "icon": icon_filename}
+        new_app = resolve_app_from_path(file_path)
         apps = list(cfg.quickLaunchApps.value)
         if len(apps) >= self.MAX_APPS:
             from qfluentwidgets import InfoBar
@@ -547,7 +546,6 @@ class QuickLaunchDock(QWidget):
                     p.setFont(label_font)
                     fm = QFontMetrics(label_font)
                     sz = self._sz()
-                    
                     bg_rect = self._bg_rect()
                     max_label_w = sz + 20
                     
@@ -567,7 +565,6 @@ class QuickLaunchDock(QWidget):
                     label_h = 24
                     label_x = cx - label_w / 2
                     label_y = top - label_h - 4
-                    
                     if label_x < bg_rect.left():
                         label_x = bg_rect.left() + 2
                     if label_x + label_w > bg_rect.right():
