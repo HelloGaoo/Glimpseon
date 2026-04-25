@@ -1624,6 +1624,7 @@ class QuickLaunchEditDialog(MessageBoxBase):
             if app_data:
                 self._apps.append(app_data)
                 self._update_app_list()
+                self._refresh_dock()
     
     def _on_edit_app(self):
         if self._selected_row < 0 or self._selected_row >= len(self._apps):
@@ -1638,6 +1639,7 @@ class QuickLaunchEditDialog(MessageBoxBase):
                 self._update_app_list()
                 if 0 <= self._selected_row < self.appListWidget.count():
                     self.appListWidget.setCurrentRow(self._selected_row)
+                self._refresh_dock()
     
     def _on_delete_app(self):
         if self._selected_row < 0 or self._selected_row >= len(self._apps):
@@ -1651,6 +1653,7 @@ class QuickLaunchEditDialog(MessageBoxBase):
             new_row = min(self._selected_row, self.appListWidget.count() - 1)
             self.appListWidget.setCurrentRow(new_row)
             self._selected_row = new_row
+        self._refresh_dock()
     
     def _delete_app_icon(self, app_data):
         if not app_data:return
@@ -1665,6 +1668,11 @@ class QuickLaunchEditDialog(MessageBoxBase):
                 logger.info(f"已删除图标文件：{icon_path}")
             except Exception as e:
                 logger.warning(f"删除图标文件失败：{e}")
+    
+    def _refresh_dock(self):
+        """刷新 dock 栏显示"""
+        if hasattr(self, 'mainWindow') and hasattr(self.mainWindow, '_MainWindow__updateQuickLaunch'):
+            self.mainWindow._MainWindow__updateQuickLaunch()
     
     def accept(self):
         cfg.quickLaunchApps.value = self._apps

@@ -383,6 +383,7 @@ class QuickLaunchDock(QWidget):
         cfg.quickLaunchApps.value = apps
         from core.config import save_cfg
         save_cfg()
+        self.set_apps(apps)
 
     def _click(self, idx):
         a = self._apps[idx]
