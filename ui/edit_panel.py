@@ -63,6 +63,7 @@ from qfluentwidgets import (
 
 from core.config import cfg, save_cfg
 from core.quick_launch_config import ql_cfg
+from ui.dock import QuickLaunchDock
 
 logger = logging.getLogger(__name__)
 
@@ -1612,6 +1613,9 @@ class QuickLaunchEditDialog(MessageBoxBase):
             self.appListWidget.addItem(display_text)
     
     def _on_add_app(self):
+        if len(self._apps) >= QuickLaunchDock.MAX_APPS:
+            InfoBar.warning('提示', f'快捷启动栏最多只能添加 {QuickLaunchDock.MAX_APPS} 个应用', parent=self, duration=3000)
+            return
         dialog = AppEditDialog(self.parent())
         if dialog.exec_():
             app_data = dialog.get_app_data()

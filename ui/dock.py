@@ -81,6 +81,7 @@ class QuickLaunchDock(QWidget):
     PAD_Y_TOP = 6
     RADIUS = 16
     FPS = 120
+    MAX_APPS = 12
     
     _launch_result = pyqtSignal(str, str, bool)
 
@@ -407,6 +408,15 @@ class QuickLaunchDock(QWidget):
 
         new_app = {"name": name, "path": real_path, "icon": icon_filename}
         apps = list(ql_cfg.quick_launch_apps)
+        if len(apps) >= self.MAX_APPS:
+            from qfluentwidgets import InfoBar
+            InfoBar.warning(
+                title="数量限制",
+                content=f"快捷启动栏最多只能添加 {self.MAX_APPS} 个应用",
+                parent=self.window(),
+                duration=3000
+            )
+            return
         apps.append(new_app)
         ql_cfg.set_apps(apps)
 
