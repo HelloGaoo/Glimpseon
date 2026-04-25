@@ -140,7 +140,7 @@ class QuickLaunchDock(QWidget):
         w = n * sz + (n - 1) * self._icon_gap + self.PAD_X * 2
         h = sz + self.PAD_Y_TOP + self.PAD_Y_BOTTOM
         x = (self.width() - w) / 2
-        y = self.height() - h
+        y = self.height() - h - cfg.quickLaunchOffsetY.value
         return QRectF(x, y, w, h)
 
     def _fix_size(self):

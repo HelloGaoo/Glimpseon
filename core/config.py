@@ -301,7 +301,10 @@ class Config(QConfig):
         "QuickLaunch", "IconSpacing", 12, RangeValidator(4, 40)
     )
     quickLaunchShowLabels = ConfigItem(
-        "QuickLaunch", "ShowLabels", False, BoolValidator()
+        "QuickLaunch", "ShowLabels", True, BoolValidator()
+    )
+    quickLaunchOffsetY = RangeConfigItem(
+        "QuickLaunch", "OffsetY", 60, RangeValidator(0, 120)
     )
 
 

@@ -2045,7 +2045,7 @@ if __name__ == "__main__":
     logger.info(f"时间配置：显示秒={cfg.showClockSeconds.value}, 显示农历={cfg.showLunarCalendar.value}, 时钟颜色={cfg.clockColor.value.name() if hasattr(cfg.clockColor.value, 'name') else str(cfg.clockColor.value)}, 时钟大小={cfg.clockSize.value}, 日期大小={cfg.dateSize.value}")
     logger.info(f"一言配置：显示一言={cfg.showPoetry.value}, API 地址={cfg.poetryApiUrl.value}, 更新间隔={cfg.poetryUpdateInterval.value}, 字体大小={cfg.poetrySize.value}")
     logger.info(f"天气配置：字体大小={cfg.weatherSize.value}, 图标大小={cfg.weatherIconSize.value}, 更新间隔={cfg.weatherUpdateInterval.value}, 城市={cfg.city.value}")
-    logger.info(f"快捷启动栏配置：启用={cfg.showQuickLaunch.value}, 图标大小={cfg.quickLaunchIconSize.value}, 图标间距={cfg.quickLaunchIconSpacing.value}, 显示名称={cfg.quickLaunchShowLabels.value}")
+    logger.info(f"快捷启动栏配置：启用={cfg.showQuickLaunch.value}, 图标大小={cfg.quickLaunchIconSize.value}, 图标间距={cfg.quickLaunchIconSpacing.value}, 显示名称={cfg.quickLaunchShowLabels.value}, 向上偏移={cfg.quickLaunchOffsetY.value}px")
     logger.info(f"自动配置：空闲自动打开={cfg.autoOpenOnIdle.value}, 空闲分钟={cfg.idleMinutes.value}, 自动打开最大化={cfg.autoOpenMaximize.value}, 自动检查更新={cfg.autoCheckUpdate.value}, 自动更新={cfg.autoUpdate.value}")
     logger.info(f"{APP_NAME}版本信息：")
     logger.info(f"版本号：{VERSION} 构建日期：{BUILD_DATE}")
