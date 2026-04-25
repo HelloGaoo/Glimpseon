@@ -384,6 +384,41 @@ class SettingInterface(ScrollArea):
                         if isinstance(attr, ConfigItem) and hasattr(attr, 'valueChanged'):
                             attr.valueChanged.emit(attr.value)
                 
+                from core.quick_launch_config import ql_cfg, QUICK_LAUNCH_CONFIG_PATH
+                if os.path.exists(QUICK_LAUNCH_CONFIG_PATH):
+                    os.remove(QUICK_LAUNCH_CONFIG_PATH)
+                ql_cfg._create_default_config(emit_signal=False)
+                
+                main_window = self.window()
+                if hasattr(main_window, 'editPanel'):
+                    main_window.editPanel.refreshAllSettings()
+                
+                if hasattr(main_window, '_MainWindow__updateQuickLaunch'):
+                    main_window._MainWindow__updateQuickLaunch()
+                
+                if hasattr(main_window, '_MainWindow__updateClock'):
+                    main_window._MainWindow__updateClock()
+                if hasattr(main_window, '_MainWindow__updatePoetry'):
+                    main_window._MainWindow__updatePoetry()
+                if hasattr(main_window, '_MainWindow__updateWeather'):
+                    main_window._MainWindow__updateWeather()
+                if hasattr(main_window, '_MainWindow__updateCountdown'):
+                    main_window._MainWindow__updateCountdown()
+                if hasattr(main_window, 'updateSchoolInfo'):
+                    main_window.updateSchoolInfo()
+                if hasattr(main_window, 'updateSchoolInfoStyle'):
+                    main_window.updateSchoolInfoStyle()
+                if hasattr(main_window, '_MainWindow__updateSchoolInfoPosition'):
+                    main_window._MainWindow__updateSchoolInfoPosition()
+                if hasattr(main_window, '_MainWindow__updateClockPosition'):
+                    main_window._MainWindow__updateClockPosition()
+                if hasattr(main_window, '_MainWindow__updatePoetryPosition'):
+                    main_window._MainWindow__updatePoetryPosition()
+                if hasattr(main_window, '_MainWindow__updateWeatherPosition'):
+                    main_window._MainWindow__updateWeatherPosition()
+                if hasattr(main_window, '_MainWindow__updateCountdownPosition'):
+                    main_window._MainWindow__updateCountdownPosition()
+                
                 from core.font_manager import apply_fonts
                 from PyQt5.QtWidgets import QApplication
                 app = QApplication.instance()

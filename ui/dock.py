@@ -79,7 +79,6 @@ class QuickLaunchDock(QWidget):
     PAD_X = 20
     PAD_Y_BOTTOM = 6
     PAD_Y_TOP = 6
-    ICON_GAP = 4
     RADIUS = 16
     FPS = 120
     
@@ -95,6 +94,7 @@ class QuickLaunchDock(QWidget):
         
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._launch_result.connect(self._on_launch_result)
+        self._icon_gap = ql_cfg.icon_spacing
 
         self._apps = []
         self._pixmaps = []
@@ -137,6 +137,7 @@ class QuickLaunchDock(QWidget):
         self.update()
 
     def update_icon_size(self, size):
+        self._icon_gap = ql_cfg.icon_spacing
         self._pixmaps = []
         for a in self._apps:
             fn = a.get("icon", "CY.png")
@@ -156,7 +157,7 @@ class QuickLaunchDock(QWidget):
         sz = self._sz()
         n = len(self._apps)
         if n == 0:return QRectF()
-        w = n * sz + (n - 1) * self.ICON_GAP + self.PAD_X * 2
+        w = n * sz + (n - 1) * self._icon_gap + self.PAD_X * 2
         h = sz + self.PAD_Y_TOP + self.PAD_Y_BOTTOM
         x = (self.width() - w) / 2
         y = self.height() - h
@@ -180,7 +181,7 @@ class QuickLaunchDock(QWidget):
         if n == 0:return []
 
         widths = [sz * sc for sc in self._scales]
-        total = sum(widths) + (n - 1) * self.ICON_GAP
+        total = sum(widths) + (n - 1) * self._icon_gap
         bg = self._bg_rect()
         content_w = bg.width() - self.PAD_X * 2
         start_x = bg.x() + self.PAD_X + (content_w - total) / 2
@@ -189,7 +190,7 @@ class QuickLaunchDock(QWidget):
         cx = start_x
         for i in range(n):
             pos.append(cx + widths[i] / 2)
-            cx += widths[i] + self.ICON_GAP
+            cx += widths[i] + self._icon_gap
         return pos
 
     def _icon_rect(self, i, positions=None):

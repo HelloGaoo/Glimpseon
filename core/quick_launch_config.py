@@ -55,7 +55,7 @@ class QuickLaunchConfig(QObject):
             logger.error(f"加载快捷启动配置失败：{e}")
             self._create_default_config()
     
-    def save(self):
+    def save(self, emit_signal=True):
         """保存配置文件"""
         try:
             config_dir = os.path.dirname(QUICK_LAUNCH_CONFIG_PATH)
@@ -70,13 +70,14 @@ class QuickLaunchConfig(QObject):
             }
             with open(QUICK_LAUNCH_CONFIG_PATH, 'w', encoding='utf-8') as f:json.dump(data, f, ensure_ascii=False, indent=4)
             logger.info(f"已保存快捷启动配置到 {QUICK_LAUNCH_CONFIG_PATH}")
-            self.quickLaunchChanged.emit()
+            if emit_signal:
+                self.quickLaunchChanged.emit()
             return True
         except Exception as e:
             logger.error(f"保存快捷启动配置失败：{e}")
             return False
     
-    def _create_default_config(self):
+    def _create_default_config(self, emit_signal=True):
         self.show_quick_launch = True
         self.quick_launch_apps = [
             {
@@ -105,7 +106,11 @@ class QuickLaunchConfig(QObject):
                 "icon": "5.ico"
             }
         ]
-        self.save()
+        self.icon_size = 56
+        self.icon_spacing = 15
+        self.display_rows = 1
+        self.show_labels = False
+        self.save(emit_signal=emit_signal)
     
     def set_show(self, show):
         self.show_quick_launch = show

@@ -700,9 +700,9 @@ class EditPanel(QWidget):
         """时钟颜色变化"""
         from PyQt5.QtGui import QColor
         
-        if text == '白色':cfg.clockColor.value = QColor(255, 255, 255)
-        elif text == '黑色':cfg.clockColor.value = QColor(0, 0, 0)
-        else:cfg.clockColor.value = cfg.themeColor.value
+        if text == '白色':cfg.clockColor.value = "#FFFFFF"
+        elif text == '黑色':cfg.clockColor.value = "#000000"
+        else:cfg.clockColor.value = cfg.themeColor.value.name() if hasattr(cfg.themeColor.value, 'name') else str(cfg.themeColor.value)
         
         if hasattr(self.mainWindow, 'updateClockStyle'):
             self.mainWindow.updateClockStyle()
@@ -1172,13 +1172,13 @@ class EditPanel(QWidget):
         from PyQt5.QtGui import QColor
         
         if text == '红色':
-            cfg.countdownTextColor.value = QColor(255, 0, 0)
+            cfg.countdownTextColor.value = "#FF0000"
         elif text == '白色':
-            cfg.countdownTextColor.value = QColor(255, 255, 255)
+            cfg.countdownTextColor.value = "#FFFFFF"
         elif text == '黑色':
-            cfg.countdownTextColor.value = QColor(0, 0, 0)
-        else:  # 主要颜色
-            cfg.countdownTextColor.value = cfg.themeColor.value
+            cfg.countdownTextColor.value = "#000000"
+        else:
+            cfg.countdownTextColor.value = cfg.themeColor.value.name() if hasattr(cfg.themeColor.value, 'name') else str(cfg.themeColor.value)
         
         if hasattr(self.mainWindow, 'updateCountdownStyle'):
             self.mainWindow.updateCountdownStyle()
@@ -1189,13 +1189,13 @@ class EditPanel(QWidget):
         from PyQt5.QtGui import QColor
         
         if text == '红色':
-            cfg.countdownConnectorColor.value = QColor(255, 0, 0)
+            cfg.countdownConnectorColor.value = "#FF0000"
         elif text == '白色':
-            cfg.countdownConnectorColor.value = QColor(255, 255, 255)
+            cfg.countdownConnectorColor.value = "#FFFFFF"
         elif text == '黑色':
-            cfg.countdownConnectorColor.value = QColor(0, 0, 0)
-        else:  # 主要颜色
-            cfg.countdownConnectorColor.value = cfg.themeColor.value
+            cfg.countdownConnectorColor.value = "#000000"
+        else:
+            cfg.countdownConnectorColor.value = cfg.themeColor.value.name() if hasattr(cfg.themeColor.value, 'name') else str(cfg.themeColor.value)
         
         if hasattr(self.mainWindow, 'updateCountdownStyle'):
             self.mainWindow.updateCountdownStyle()
@@ -1230,13 +1230,13 @@ class EditPanel(QWidget):
         from PyQt5.QtGui import QColor
         
         if text == '白色':
-            cfg.schoolInfoTextColor.value = QColor(255, 255, 255)
+            cfg.schoolInfoTextColor.value = "#FFFFFF"
         elif text == '黑色':
-            cfg.schoolInfoTextColor.value = QColor(0, 0, 0)
+            cfg.schoolInfoTextColor.value = "#000000"
         elif text == '红色':
-            cfg.schoolInfoTextColor.value = QColor(255, 0, 0)
+            cfg.schoolInfoTextColor.value = "#FF0000"
         else:
-            cfg.schoolInfoTextColor.value = cfg.themeColor.value
+            cfg.schoolInfoTextColor.value = cfg.themeColor.value.name() if hasattr(cfg.themeColor.value, 'name') else str(cfg.themeColor.value)
         
         if hasattr(self.mainWindow, 'updateSchoolInfoStyle'):
             self.mainWindow.updateSchoolInfoStyle()
@@ -1260,6 +1260,57 @@ class EditPanel(QWidget):
         dialog.exec_()
         if hasattr(self.mainWindow, '_MainWindow__updateQuickLaunch'):
             self.mainWindow._MainWindow__updateQuickLaunch()
+    
+    def refreshQuickLaunchSettings(self):
+        self.showQuickLaunchSwitch.setChecked(ql_cfg.show_quick_launch)
+        self.quickLaunchIconSizeSpin.setValue(ql_cfg.icon_size)
+        self.quickLaunchIconSpacingSpin.setValue(ql_cfg.icon_spacing)
+        self.quickLaunchDisplayRowsSpin.setValue(ql_cfg.display_rows)
+        self.quickLaunchShowLabelsSwitch.setChecked(ql_cfg.show_labels)
+    
+    def refreshAllSettings(self):
+        self.showClockSwitch.setChecked(cfg.showClock.value)
+        self.showSecondsSwitch.setChecked(cfg.showClockSeconds.value)
+        self.showLunarSwitch.setChecked(cfg.showLunarCalendar.value)
+        self.clockColorCombo.setCurrentText(self._getColorText(cfg.clockColor.value))
+        self.clockSizeSpin.setValue(cfg.clockSize.value)
+        self.dateSizeSpin.setValue(cfg.dateSize.value)
+        self.clockPositionCombo.setCurrentText(cfg.clockPosition.value)
+        
+        self.showPoetrySwitch.setChecked(cfg.showPoetry.value)
+        if cfg.poetryApiUrl.value == 'https://www.ffapi.cn/int/v1/shici':
+            self.poetryApiCombo.setCurrentText('诗词 API')
+        else:
+            self.poetryApiCombo.setCurrentText('一言 API')
+        self.poetrySizeSpin.setValue(cfg.poetrySize.value)
+        self.poetryUpdateIntervalCombo.setCurrentText(cfg.poetryUpdateInterval.value)
+        self.poetryPositionCombo.setCurrentText(cfg.poetryPosition.value)
+        
+        self.showWeatherSwitch.setChecked(cfg.showWeather.value)
+        self.cityButton.setText(cfg.city.value)
+        self.weatherSizeSpin.setValue(cfg.weatherSize.value)
+        self.weatherIconSizeSpin.setValue(cfg.weatherIconSize.value)
+        self.weatherUpdateIntervalCombo.setCurrentText(cfg.weatherUpdateInterval.value)
+        self.weatherPositionCombo.setCurrentText(cfg.weatherPosition.value)
+        
+        self.showCountdownSwitch.setChecked(cfg.showCountdown.value)
+        self.countdownDisplayModeCombo.setCurrentText('同时显示' if cfg.countdownDisplayMode.value == 'simultaneous' else '轮播显示')
+        self.countdownPositionCombo.setCurrentText(cfg.countdownPosition.value)
+        self.countdownTextSizeSpin.setValue(cfg.countdownTextSize.value)
+        self.countdownConnectorSizeSpin.setValue(cfg.countdownConnectorSize.value)
+        self.countdownCarouselIntervalSpin.setValue(cfg.countdownCarouselInterval.value)
+        self.countdownTextColorCombo.setCurrentText(self._getColorText(cfg.countdownTextColor.value, 'red'))
+        self.countdownConnectorColorCombo.setCurrentText(self._getColorText(cfg.countdownConnectorColor.value, 'white'))
+        self._updateCountdownList()
+        
+        self.schoolInfoSwitch.setChecked(cfg.showSchoolInfo.value)
+        self.schoolEdit.setText(cfg.school.value)
+        self.schoolClassEdit.setText(cfg.schoolClass.value)
+        self.schoolInfoPositionCombo.setCurrentText(cfg.schoolInfoPosition.value)
+        self.schoolInfoTextColorCombo.setCurrentText(self._getColorText(cfg.schoolInfoTextColor.value, 'white'))
+        self.schoolInfoTextSizeSpin.setValue(cfg.schoolInfoTextSize.value)
+        
+        self.refreshQuickLaunchSettings()
     
     def _createSchoolInfoSettings(self, layout):
         """创建学校信息设置"""

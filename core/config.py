@@ -391,9 +391,21 @@ def default_cfg():
         "Countdown": {
             "ShowCountdown": True,
             "DisplayMode": "simultaneous",
+            "CountdownPosition": "中部",
             "TextColor": "#FF0000",
             "TextSize": 35,
             "ConnectorColor": "#FFFFFF",
+            "ConnectorSize": 35,
+            "CarouselInterval": 5,
+            "CountdownList": []
+        },
+        "School": {
+            "School": "",
+            "Class": "",
+            "ShowSchoolInfo": False,
+            "SchoolInfoPosition": "左上",
+            "SchoolInfoTextColor": "#FFFFFF",
+            "SchoolInfoTextSize": 34
         }
     }
 
