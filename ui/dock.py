@@ -547,6 +547,8 @@ class QuickLaunchDock(QWidget):
                     p.setFont(label_font)
                     fm = QFontMetrics(label_font)
                     sz = self._sz()
+                    
+                    bg_rect = self._bg_rect()
                     max_label_w = sz + 20
                     
                     text_width = fm.horizontalAdvance(name)
@@ -565,6 +567,14 @@ class QuickLaunchDock(QWidget):
                     label_h = 24
                     label_x = cx - label_w / 2
                     label_y = top - label_h - 4
+                    
+                    if label_x < bg_rect.left():
+                        label_x = bg_rect.left() + 2
+                    if label_x + label_w > bg_rect.right():
+                        label_x = bg_rect.right() - label_w - 2
+                    if label_y < bg_rect.top():
+                        label_y = top + sz + 4
+                    
                     label_path = QPainterPath()
                     label_path.addRoundedRect(label_x, label_y, label_w, label_h, label_h / 2, label_h / 2)
                     p.setPen(Qt.NoPen)
