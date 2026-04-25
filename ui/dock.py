@@ -224,18 +224,32 @@ class QuickLaunchDock(QWidget):
         new_hover = -1
 
         for i in range(len(self._apps)):
-            cx = pos_list[i]
-            d = abs(mx - cx)
-            if d < self.MAGNIFY_RANGE:
-                t = self._smoothstep(1.0 - d / self.MAGNIFY_RANGE)
-                sc = self.BASE_SCALE + (self.MAX_SCALE - self.BASE_SCALE) * t
+            r = self._icon_rect(i, pos_list)
+            if r.contains(QPointF(pos)):
+                new_hover = i
+                break
+
+        if new_hover < 0:
+            min_dist = float('inf')
+            for i in range(len(self._apps)):
+                cx = pos_list[i]
+                d = abs(mx - cx)
+                if d < min_dist:
+                    min_dist = d
+                    new_hover = i
+
+        for i in range(len(self._apps)):
+            if new_hover >= 0 and abs(i - new_hover) <= 2:
+                cx = pos_list[i]
+                d = abs(mx - cx)
+                if d < self.MAGNIFY_RANGE:
+                    t = self._smoothstep(1.0 - d / self.MAGNIFY_RANGE)
+                    sc = self.BASE_SCALE + (self.MAX_SCALE - self.BASE_SCALE) * t
+                else:
+                    sc = self.BASE_SCALE
             else:
                 sc = self.BASE_SCALE
             self._target_scales[i] = sc
-            if new_hover < 0:
-                r = self._icon_rect(i, pos_list)
-                if r.contains(QPointF(pos)):
-                    new_hover = i
 
         if new_hover != self._hover_idx:
             self._hover_idx = new_hover
