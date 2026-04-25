@@ -190,17 +190,21 @@ class QuickLaunchDock(QWidget):
         return QRectF(x, y, w, h)
 
     def _fix_size(self):
-        bg = self._bg_rect()
-        if bg.width() > 0:
-            sz = self._sz()
-            scale_overflow = int(sz * (self.MAX_SCALE - self.BASE_SCALE))
-            bounce_overflow = self.BOUNCE_H + 10
-            side_overflow = int(sz * (self.MAX_SCALE - self.BASE_SCALE) * 0.3)
-            label_overflow = 24 if self._show_labels else 0
-            overflow = scale_overflow + bounce_overflow + label_overflow
-            w = int(bg.width()) + side_overflow * 2
-            h = int(bg.height()) + overflow
-            self.setFixedSize(w, h)
+        sz = self._sz()
+        n = len(self._apps)
+        if n == 0:
+            self.setFixedSize(0, 0)
+            return
+        w_icons = n * sz + (n - 1) * self._icon_gap + self.PAD_X * 2
+        h_icons = sz + self.PAD_Y_TOP + self.PAD_Y_BOTTOM
+        scale_overflow = int(sz * (self.MAX_SCALE - self.BASE_SCALE))
+        bounce_overflow = self.BOUNCE_H + 10
+        side_overflow = int(sz * (self.MAX_SCALE - self.BASE_SCALE) * 0.3)
+        label_overflow = 28 if self._show_labels else 0
+        offset_y = cfg.quickLaunchOffsetY.value
+        w = w_icons + side_overflow * 2
+        h = h_icons + scale_overflow + bounce_overflow + label_overflow + offset_y
+        self.setFixedSize(w, h)
 
     def _icon_positions(self):
         sz = self._sz()
@@ -546,7 +550,6 @@ class QuickLaunchDock(QWidget):
                     p.setFont(label_font)
                     fm = QFontMetrics(label_font)
                     sz = self._sz()
-                    bg_rect = self._bg_rect()
                     max_label_w = sz + 20
                     
                     text_width = fm.horizontalAdvance(name)
@@ -565,11 +568,13 @@ class QuickLaunchDock(QWidget):
                     label_h = 24
                     label_x = cx - label_w / 2
                     label_y = top - label_h - 4
-                    if label_x < bg_rect.left():
-                        label_x = bg_rect.left() + 2
-                    if label_x + label_w > bg_rect.right():
-                        label_x = bg_rect.right() - label_w - 2
-                    if label_y < bg_rect.top():
+                    
+                    widget_rect = self.rect()
+                    if label_x < widget_rect.left() + 2:
+                        label_x = widget_rect.left() + 2
+                    if label_x + label_w > widget_rect.right() - 2:
+                        label_x = widget_rect.right() - label_w - 2
+                    if label_y < widget_rect.top() + 2:
                         label_y = top + sz + 4
                     
                     label_path = QPainterPath()
