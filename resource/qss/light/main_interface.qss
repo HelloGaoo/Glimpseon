@@ -23,38 +23,26 @@ MainWindow #countdownContainer {
     background-color: transparent;
 }
 
-MainWindow #quickLaunchContainer {
-    background-color: transparent;
-}
-
 MainWindow #editContainer {
     background-color: transparent;
 }
 
-/* 快捷启动栏按钮 */
-MainWindow QPushButton#quickLaunchBtn {
-    background-color: rgba(0, 0, 0, 0.15);
-    border-radius: 12px;
-    border: 2px solid rgba(0, 0, 0, 0.3);
-}
-
-MainWindow QPushButton#quickLaunchBtn:hover {
-    background-color: rgba(0, 0, 0, 0.25);
-    border: 2px solid rgba(0, 0, 0, 0.5);
-}
-
-MainWindow QPushButton#quickLaunchBtn:pressed {
-    background-color: rgba(0, 0, 0, 0.1);
-}
-
-MainWindow QPushButton#quickLaunchBtn QLabel {
+/* 快捷启动栏 */
+MainWindow #quickLaunchDock {
     background-color: transparent;
 }
 
-/* 快捷启动栏名称标签 */
-MainWindow #quickLaunchNameLabel {
+/* Dock 悬停提示 */
+#qlTooltip {
+    background-color: rgba(240, 240, 240, 220);
+    border: 1px solid rgba(0, 0, 0, 40);
+    border-radius: 6px;
+}
+
+#qlTooltipLabel {
     color: #333333;
     font-size: 12px;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     background-color: transparent;
 }
 

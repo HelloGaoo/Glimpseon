@@ -1731,6 +1731,7 @@ class AppEditDialog(MessageBoxBase):
         try:
             import win32gui
             import win32ui
+            import win32con
             
             hicon = None
             try:
@@ -1741,28 +1742,46 @@ class AppEditDialog(MessageBoxBase):
                 large, small = win32gui.ExtractIconEx(exe_path, 0)
                 if large and large[0]: hicon = large[0]
             if not hicon: return 'exe.ico'
+            
             ico_info = win32gui.GetIconInfo(hicon)
             hbm_mask = ico_info[3]
             hbm_color = ico_info[4]
-            hbm = hbm_color if hbm_color else hbm_mask
-            bmp_obj = win32gui.GetObject(hbm)
+            
+            width = ico_info[1]
+            height = ico_info[2]
+            
+            if hbm_color:
+                bmp_obj = win32gui.GetObject(hbm_color)
+            else:
+                bmp_obj = win32gui.GetObject(hbm_mask)
+            
             if not bmp_obj: return 'exe.ico'
             width = bmp_obj.bmWidth
             height = bmp_obj.bmHeight
+            
             hdc = win32gui.GetDC(0)
             hdc_src = win32ui.CreateDCFromHandle(hdc)
             hdc_dest = hdc_src.CreateCompatibleDC()
+            
             bitmap = win32ui.CreateBitmap()
             bitmap.CreateCompatibleBitmap(hdc_src, width, height)
             hdc_dest.SelectObject(bitmap)
-            win32gui.DrawIcon(hdc_dest.GetSafeHdc(), 0, 0, hicon)
-            bmpinfo = bitmap.GetInfo()
+            
+            win32gui.DrawIconEx(hdc_dest.GetSafeHdc(), 0, 0, hicon, width, height, 0, None, win32con.DI_NORMAL)
+            
             bmpstr = bitmap.GetBitmapBits(True)
             from PIL import Image
-            if hbm_color:
-                img = Image.frombuffer('RGBA', (width, height), bmpstr, 'raw', 'BGRA', 0, 1)
-            else:
-                img = Image.frombuffer('L', (width, height), bmpstr, 'raw', 'L', 0, 1).convert('RGBA')
+            img = Image.frombuffer('RGBA', (width, height), bmpstr, 'raw', 'BGRA', 0, 1)
+            
+            if hbm_mask and not hbm_color:
+                mask_obj = win32gui.GetObject(hbm_mask)
+                mask_bmpstr = win32gui.GetBitmapBits(hbm_mask, mask_obj.bmWidthBytes * mask_obj.bmHeight)
+                from PIL import Image as PILImage
+                mask_img = PILImage.frombuffer('1', (width, height), mask_bmpstr, 'raw', '1;8', 0, 1)
+                alpha_channel = mask_img.convert('L')
+                alpha_channel = PILImage.eval(alpha_channel, lambda x: 255 - x)
+                img = img.convert('RGBA')
+                img.putalpha(alpha_channel)
             
             icon_filename = self._get_icon_name()
             icon_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'software_icon')

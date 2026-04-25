@@ -132,6 +132,7 @@ from services.weather import WeatherService
 from ui import AboutInterface, DownloadInterface, EditPanel, UpdateInterface, WizardWindow, check_wizard_needed, create_wizard_file
 from ui.city_selector import RegionDatabase
 from ui.developer_panel import DeveloperPanel
+from ui.dock import QuickLaunchDock
 from ui.settings import SettingInterface
 from ui.wallpaper import WallpaperInterface
 from ui.splash_screen import SplashScreen
@@ -896,14 +897,9 @@ class MainWindow(FluentWindow):
         countdownLayout.setContentsMargins(0, 0, 0, 0)
         countdownLayout.addWidget(self.countdownLabel)
         
-        # 快捷启动栏容器
-        self.quickLaunchContainer = QWidget()
-        self.quickLaunchContainer.setObjectName("quickLaunchContainer")
-        self.quickLaunchLayout = QHBoxLayout(self.quickLaunchContainer)
-        self.quickLaunchLayout.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
-        self.quickLaunchLayout.setContentsMargins(0, 0, 0, 100)
-        self.quickLaunchLayout.setSpacing(15)
-        self.quickLaunchContainer.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        # 快捷启动栏
+        self.quickLaunchDock = QuickLaunchDock(self.home)
+        self.quickLaunchDock.setObjectName("quickLaunchDock")
         self.__updateQuickLaunch()
         
         # 编辑按钮
@@ -930,7 +926,7 @@ class MainWindow(FluentWindow):
         self.gridLayout.addWidget(self.poetryContainer, 0, 0, 1, 1)
         self.gridLayout.addWidget(self.countdownContainer, 0, 0, 1, 1)
         self.gridLayout.addWidget(self.schoolInfoContainer, 0, 0, 1, 1)
-        self.gridLayout.addWidget(self.quickLaunchContainer, 0, 0, 1, 1, Qt.AlignBottom | Qt.AlignHCenter)
+        self.gridLayout.addWidget(self.quickLaunchDock, 0, 0, 1, 1, Qt.AlignBottom | Qt.AlignHCenter)
         self.gridLayout.addWidget(self.editContainer, 0, 0, 1, 1, Qt.AlignBottom | Qt.AlignLeft)
         
         self.homeContent = QWidget()
@@ -1864,15 +1860,14 @@ class MainWindow(FluentWindow):
     
     def __updateQuickLaunch(self):
         """更新快捷启动栏显示"""
-        self.__clearQuickLaunchLayout()
-        from PyQt5.QtWidgets import QApplication
-        QApplication.processEvents()
+        if not hasattr(self, 'quickLaunchDock'):
+            return
         
         if not ql_cfg.show_quick_launch:
-            self.quickLaunchContainer.hide()
+            self.quickLaunchDock.hide()
             return
 
-        self.quickLaunchContainer.show()
+        self.quickLaunchDock.show()
         apps = ql_cfg.quick_launch_apps
         if apps is None:
             apps = [
@@ -1884,124 +1879,11 @@ class MainWindow(FluentWindow):
             ]
         
         if not apps:
-            self.quickLaunchContainer.update()
+            self.quickLaunchDock.hide()
             return
-        icon_size = ql_cfg.icon_size
-        icon_spacing = ql_cfg.icon_spacing
-        display_rows = ql_cfg.display_rows
-        show_labels = ql_cfg.show_labels
-        label_height = 20 if show_labels else 0
-        button_size = icon_size + 24
-        button_height = button_size + label_height
-        total_apps = len(apps)
-        first_row_count = total_apps // max(1, display_rows) + (1 if total_apps % max(1, display_rows) > 0 else 0)
-        second_row_count = total_apps - first_row_count if display_rows > 1 else 0
-        wrapper_layout = QVBoxLayout()
-        wrapper_layout.setContentsMargins(0, 0, 0, 0)
-        wrapper_layout.setSpacing(icon_spacing)
-        wrapper_layout.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
-        app_idx = 0
         
-        # 第一行
-        row1_layout = QHBoxLayout()
-        row1_layout.setContentsMargins(0, 0, 0, 0)
-        row1_layout.setSpacing(icon_spacing)
-        row1_layout.setAlignment(Qt.AlignCenter)
-        for _ in range(first_row_count if display_rows > 1 else total_apps):
-            if app_idx >= total_apps:
-                break
-            container = self.__createAppButton(apps[app_idx], button_size, button_height, icon_size, show_labels)
-            row1_layout.addWidget(container)
-            app_idx += 1
-        wrapper_layout.addLayout(row1_layout)
-        
-        # 第二行
-        if display_rows > 1 and second_row_count > 0 and app_idx < total_apps:
-            row2_layout = QHBoxLayout()
-            row2_layout.setContentsMargins(0, 0, 0, 0)
-            row2_layout.setSpacing(icon_spacing)
-            row2_layout.setAlignment(Qt.AlignCenter)
-            for _ in range(second_row_count):
-                if app_idx >= total_apps:
-                    break
-                container = self.__createAppButton(apps[app_idx], button_size, button_height, icon_size, show_labels)
-                row2_layout.addWidget(container)
-                app_idx += 1
-            wrapper_layout.addLayout(row2_layout)
-        
-        self.quickLaunchLayout.setContentsMargins(0, 0, 0, 30)
-        self.quickLaunchLayout.setSpacing(0)
-        self.quickLaunchLayout.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
-        self.quickLaunchLayout.addLayout(wrapper_layout)
-        
-        self.quickLaunchContainer.update()
-    
-    def __clearQuickLaunchLayout(self):
-        """清除子项"""
-        while self.quickLaunchLayout.count() > 0:
-            item = self.quickLaunchLayout.takeAt(0)
-            if item is None:
-                continue
-            if item.widget():
-                w = item.widget()
-                w.hide()
-                w.setParent(None)
-                w.deleteLater()
-            elif item.layout():
-                self.__deleteLayout(item.layout())
-    
-    def __deleteLayout(self, layout):
-        """递归删除"""
-        while layout.count() > 0:
-            item = layout.takeAt(0)
-            if item is None:
-                continue
-            if item.widget():
-                w = item.widget()
-                w.hide()
-                w.setParent(None)
-                w.deleteLater()
-            elif item.layout():
-                self.__deleteLayout(item.layout())
-        layout.setParent(None)
-    
-    def __createAppButton(self, app, button_size, button_height, icon_size, show_labels):
-        """创建单个应用按钮"""
-        container = QWidget(parent=self.quickLaunchContainer)
-        container.setFixedSize(button_size, button_height)
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
-        layout.setAlignment(Qt.AlignCenter)
-        button = QPushButton(parent=container)
-        button.setObjectName("quickLaunchBtn")
-        button.setFixedSize(button_size, button_size)
-        button.setToolTip(app.get("name", "未知"))
-        icon_filename = app.get("icon", "CY.png")
-        icon_path = get_software_icon_path(icon_filename)
-        if icon_path and os.path.exists(icon_path):
-            pixmap = QPixmap(icon_path)
-            if not pixmap.isNull():
-                scaled_pixmap = pixmap.scaled(icon_size, icon_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                icon_label = QLabel(parent=button)
-                icon_label.setPixmap(scaled_pixmap)
-                icon_label.setAlignment(Qt.AlignCenter)
-                icon_label.setAttribute(Qt.WA_TranslucentBackground)
-                margin = (button_size - icon_size) // 2
-                icon_label.setGeometry(margin, margin, icon_size, icon_size)
-        layout.addWidget(button, alignment=Qt.AlignCenter)
-        if show_labels:
-            name_label = QLabel(app.get("name", "未知"), parent=container)
-            name_label.setObjectName("quickLaunchNameLabel")
-            name_label.setAlignment(Qt.AlignCenter)
-            name_label.setFixedHeight(18)
-            name_label.setWordWrap(True)
-            name_label.setMaximumWidth(button_size)
-            layout.addWidget(name_label, alignment=Qt.AlignCenter)
-        
-        button.clicked.connect(lambda checked, p=app.get("path", ""), n=app.get("name", ""): self.__launchApp(p, n))
-        
-        return container
+        self.quickLaunchDock.update_icon_size(ql_cfg.icon_size)
+        self.quickLaunchDock.set_apps(apps)
     
     def __launchApp(self, app_path, app_name):
         """启动应用程序"""
