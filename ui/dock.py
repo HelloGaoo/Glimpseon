@@ -541,14 +541,28 @@ class QuickLaunchDock(QWidget):
                 name = self._apps[i].get("name", "")
                 if name:
                     label_font = p.font()
-                    label_font.setPixelSize(12)
+                    label_font.setFamily("HarmonyOS Sans,Microsoft YaHei,sans-serif")
+                    label_font.setPixelSize(14)
                     label_font.setWeight(QFont.Medium)
                     p.setFont(label_font)
                     fm = QFontMetrics(label_font)
+                    sz = self._sz()
+                    max_label_w = sz + 20
+                    
                     text_width = fm.horizontalAdvance(name)
-                    padding_x = 8
-                    label_w = text_width + padding_x * 2
-                    label_h = 20
+                    display_name = name
+                    if text_width > max_label_w - 16:
+                        ellipsis_width = fm.horizontalAdvance("...")
+                        for j in range(len(name) - 1, 0, -1):
+                            test_name = name[:j] + "..."
+                            test_width = fm.horizontalAdvance(test_name)
+                            if test_width <= max_label_w - 16:
+                                display_name = test_name
+                                break
+                    
+                    padding_x = 10
+                    label_w = fm.horizontalAdvance(display_name) + padding_x * 2
+                    label_h = 24
                     label_x = cx - label_w / 2
                     label_y = top - label_h - 4
                     label_path = QPainterPath()
@@ -559,7 +573,7 @@ class QuickLaunchDock(QWidget):
                     p.setPen(QColor(255, 255, 255, 255))
                     p.setFont(label_font)
                     text_rect = QRectF(label_x, label_y, label_w, label_h)
-                    p.drawText(text_rect, Qt.AlignCenter | Qt.TextSingleLine, name)
+                    p.drawText(text_rect, Qt.AlignCenter | Qt.TextSingleLine, display_name)
 
         p.end()
 
