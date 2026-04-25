@@ -16,6 +16,8 @@ from PyQt5.QtCore import (
 from PyQt5.QtGui import (
     QBrush,
     QColor,
+    QFont,
+    QFontMetrics,
     QLinearGradient,
     QPainter,
     QPainterPath,
@@ -42,34 +44,6 @@ def get_ql_icon_save_dir():
     icon_dir = os.path.join(base_dir, 'data', 'ql_icon')
     os.makedirs(icon_dir, exist_ok=True)
     return icon_dir
-
-
-class QLTooltip(QWidget):
-    def __init__(self):
-        super().__init__(None)
-        self.setObjectName("qlTooltip")
-        self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setAttribute(Qt.WA_ShowWithoutActivating)
-        self.setWindowFlags(Qt.ToolTip | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
-        self._label = QLabel(self)
-        self._label.setAlignment(Qt.AlignCenter)
-        self._label.setObjectName("qlTooltipLabel")
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 6, 12, 6)
-        layout.addWidget(self._label)
-        self.hide()
-
-    def show_tooltip(self, text, global_pos):
-        self._label.setText(text)
-        self.adjustSize()
-        w = max(self.width(), self._label.sizeHint().width() + 24)
-        self.setFixedSize(w, self.height())
-        self.move(global_pos.x() - self.width() // 2, global_pos.y() - self.height() - 10)
-        self.show()
-        self.raise_()
-
-    def hide_tooltip(self):
-        self.hide()
 
 
 class QuickLaunchDock(QWidget):
@@ -99,13 +73,13 @@ class QuickLaunchDock(QWidget):
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._launch_result.connect(self._on_launch_result)
         self._icon_gap = ql_cfg.icon_spacing
+        self._show_labels = ql_cfg.show_labels
 
         self._apps = []
         self._pixmaps = []
         self._scales = []
         self._target_scales = []
         self._hover_idx = -1
-        self._tooltip = QLTooltip()
         self._bounce_idx = -1
         self._bounce_y = 0.0
         self._bounce_active = False
@@ -143,6 +117,7 @@ class QuickLaunchDock(QWidget):
 
     def update_icon_size(self, size):
         self._icon_gap = ql_cfg.icon_spacing
+        self._show_labels = ql_cfg.show_labels
         self._pixmaps = []
         for a in self._apps:
             fn = a.get("icon", "exe.ico")
@@ -175,7 +150,8 @@ class QuickLaunchDock(QWidget):
             scale_overflow = int(sz * (self.MAX_SCALE - self.BASE_SCALE))
             bounce_overflow = self.BOUNCE_H + 10
             side_overflow = int(sz * (self.MAX_SCALE - self.BASE_SCALE) * 0.3)
-            overflow = scale_overflow + bounce_overflow
+            label_overflow = 24 if self._show_labels else 0
+            overflow = scale_overflow + bounce_overflow + label_overflow
             w = int(bg.width()) + side_overflow * 2
             h = int(bg.height()) + overflow
             self.setFixedSize(w, h)
@@ -218,7 +194,6 @@ class QuickLaunchDock(QWidget):
         n = len(self._target_scales)
         self._target_scales = [self.BASE_SCALE] * n
         self._hover_idx = -1
-        self._tooltip.hide_tooltip()
         super().leaveEvent(e)
 
     def _calc_targets(self, pos):
@@ -257,15 +232,6 @@ class QuickLaunchDock(QWidget):
 
         if new_hover != self._hover_idx:
             self._hover_idx = new_hover
-            if new_hover >= 0:
-                name = self._apps[new_hover].get("name", "")
-                if name:
-                    pl = self._icon_positions()
-                    r = self._icon_rect(new_hover, pl)
-                    gp = self.mapToGlobal(QPoint(int(r.center().x()), int(r.top())))
-                    self._tooltip.show_tooltip(name, gp)
-            else:
-                self._tooltip.hide_tooltip()
 
     def _tick(self):
         now = time.time()
@@ -317,13 +283,6 @@ class QuickLaunchDock(QWidget):
 
         if changed:
             self.update()
-            if self._hover_idx >= 0:
-                pl = self._icon_positions()
-                r = self._icon_rect(self._hover_idx, pl)
-                gp = self.mapToGlobal(QPoint(int(r.center().x()), int(r.top())))
-                self._tooltip.show_tooltip(
-                    self._apps[self._hover_idx].get("name", ""), gp
-                )
 
     def mousePressEvent(self, e):
         if e.button() == Qt.LeftButton:
@@ -574,6 +533,30 @@ class QuickLaunchDock(QWidget):
                 font.setPixelSize(int(s * 0.4))
                 p.setFont(font)
                 p.drawText(r, Qt.AlignCenter, "?")
+            
+            if i == self._hover_idx and self._show_labels:
+                name = self._apps[i].get("name", "")
+                if name:
+                    label_font = p.font()
+                    label_font.setPixelSize(12)
+                    label_font.setWeight(QFont.Medium)
+                    p.setFont(label_font)
+                    fm = QFontMetrics(label_font)
+                    text_width = fm.horizontalAdvance(name)
+                    padding_x = 8
+                    label_w = text_width + padding_x * 2
+                    label_h = 20
+                    label_x = cx - label_w / 2
+                    label_y = top - label_h - 4
+                    label_path = QPainterPath()
+                    label_path.addRoundedRect(label_x, label_y, label_w, label_h, label_h / 2, label_h / 2)
+                    p.setPen(Qt.NoPen)
+                    p.setBrush(QColor(0, 0, 0, 220))
+                    p.drawPath(label_path)
+                    p.setPen(QColor(255, 255, 255, 255))
+                    p.setFont(label_font)
+                    text_rect = QRectF(label_x, label_y, label_w, label_h)
+                    p.drawText(text_rect, Qt.AlignCenter | Qt.TextSingleLine, name)
 
         p.end()
 
