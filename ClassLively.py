@@ -58,6 +58,7 @@ from PyQt5.QtGui import (
 from PyQt5.QtWidgets import (
     QApplication,
     QFileDialog,
+    QGraphicsBlurEffect,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -792,6 +793,7 @@ class MainWindow(FluentWindow):
         # 照片显示控件
         self.homeBackgroundImage = QLabel()
         self.homeBackgroundImage.setAlignment(Qt.AlignCenter)
+        self.homeBackgroundImage.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.originalPixmap = QPixmap(1, 1)
         self.originalPixmap.fill(Qt.transparent)
         self.homeBackgroundImage.setPixmap(self.originalPixmap)
