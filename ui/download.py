@@ -41,13 +41,12 @@ from qfluentwidgets import (
     ScrollArea,
     SmoothScrollArea,
     Theme,
-    isDarkTheme,
     qconfig,
 )
 
 from core.config import cfg
 from data.url_dir import url_dir
-from core.constants import get_resPath
+from core.constants import get_resPath, load_qss
 from core.downloader import DOWNLOAD_SOURCES, DEFAULT_SOURCE, Downloader, set_download_src
 from core.logger import logger
 
@@ -117,14 +116,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         """ 设置样式表 """
         self.scrollWidget.setObjectName('scrollWidget')
         self.titleLabel.setObjectName('settingLabel')
-        
-        theme = 'dark' if isDarkTheme() else 'light'
-        try:
-            qss_path = get_resPath(os.path.join('resource', 'qss', theme, 'download_interface.qss'))
-            with open(qss_path, encoding='utf-8') as f:
-                self.setStyleSheet(f.read())
-        except Exception:
-            pass
+        self.setStyleSheet(load_qss('download_interface.qss'))
     
     def _onThemeChanged(self, theme: Theme):
         """ 主题变更槽函数 """

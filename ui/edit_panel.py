@@ -46,7 +46,6 @@ from qfluentwidgets import (
     ExpandGroupSettingCard,
     FluentIcon as FIF,
     InfoBar,
-    isDarkTheme,
     LineEdit,
     ListWidget,
     MessageBoxBase,
@@ -62,6 +61,7 @@ from qfluentwidgets import (
 )
 
 from core.config import cfg, save_cfg
+from core.constants import load_qss
 from ui.dock import QuickLaunchDock
 
 logger = logging.getLogger(__name__)
@@ -555,21 +555,7 @@ class EditPanel(QWidget):
     
     def _updateTheme(self):
         """更新主题"""
-        from pathlib import Path
-        if isDarkTheme():
-            qss_path = Path(__file__).parent.parent / 'resource' / 'qss' / 'dark' / 'edit_panel.qss'
-        else:
-            qss_path = Path(__file__).parent.parent / 'resource' / 'qss' / 'light' / 'edit_panel.qss'
-        
-        if qss_path.exists():
-            try:
-                with open(qss_path, 'r', encoding='utf-8') as f:
-                    qss_content = f.read()
-                self.setStyleSheet(qss_content)
-            except Exception as e:
-                logger.error(f"加载编辑面板样式失败：{e}")
-        else:
-            logger.warning(f"编辑面板样式文件不存在：{qss_path}")
+        self.setStyleSheet(load_qss('edit_panel.qss'))
     
     def showPanel(self):
         """显示编辑面板"""

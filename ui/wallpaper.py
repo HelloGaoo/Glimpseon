@@ -45,11 +45,10 @@ from qfluentwidgets import (
     ScrollArea,
     SmoothScrollArea,
     Theme,
-    isDarkTheme,
 )
 
 from core.config import cfg
-from core.constants import BASE_DIR, get_resPath
+from core.constants import BASE_DIR, get_resPath, load_qss
 
 logger = logging.getLogger(__name__)
 
@@ -133,14 +132,7 @@ class WallpaperInterface(ScrollArea):
         """ 设置样式表 """
         self.scrollWidget.setObjectName('scrollWidget')
         self.wallpaperLabel.setObjectName('settingLabel')
-
-        theme = 'dark' if isDarkTheme() else 'light'
-        try:
-            qss_path = get_resPath(os.path.join('resource', 'qss', theme, 'setting_interface.qss'))
-            with open(qss_path, encoding='utf-8') as f:
-                self.setStyleSheet(f.read())
-        except Exception:
-            pass
+        self.setStyleSheet(load_qss('setting_interface.qss'))
 
     def __connectSignalToSlot(self):
         self.getButton.clicked.connect(self.__getWallpaper)

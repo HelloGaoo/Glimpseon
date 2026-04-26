@@ -50,11 +50,11 @@ from qfluentwidgets import (
     ToggleButton,
     ToolTipFilter,
     ToolTipPosition,
-    isDarkTheme,
     setCustomStyleSheet,
 )
 
 from core.config import cfg
+from core.constants import load_qss
 from core.logger import logger
 
 
@@ -373,21 +373,7 @@ class DeveloperPanel(BaseScrollAreaInterface):
         
     def _loadStyleSheet(self):
         """加载样式表"""
-        try:
-            theme = 'dark' if isDarkTheme() else 'light'
-            qss_path = os.path.join(
-                os.path.dirname(__file__),
-                '..', 'resource', 'qss', theme, 'developer_panel.qss'
-            )
-            qss_path = os.path.normpath(qss_path)
-            if os.path.exists(qss_path):
-                with open(qss_path, 'r', encoding='utf-8') as f:
-                    qss_content = f.read()
-                self.setStyleSheet(qss_content)
-            else:
-                logger.warning(f"样式文件不存在：{qss_path}")
-        except Exception as e:
-            logger.error(f"加载样式失败：{e}")
+        self.setStyleSheet(load_qss('developer_panel.qss'))
     
     def _updateTheme(self):
         """更新主题"""

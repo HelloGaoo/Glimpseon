@@ -42,14 +42,13 @@ from qfluentwidgets import (
     SpinBox,
     SwitchSettingCard,
     Theme,
-    isDarkTheme,
     qconfig,
     setTheme,
     setThemeColor,
 )
 
 from core.config import cfg, default_cfg, ConfigItem
-from core.constants import BASE_DIR, get_resPath
+from core.constants import BASE_DIR, get_resPath, load_qss
 from core.logger import log_dir
 from ui.city_selector import RegionSelectorDialog
 
@@ -324,11 +323,7 @@ class SettingInterface(ScrollArea):
         """ 设置样式表 """
         self.scrollWidget.setObjectName('scrollWidget')
         self.settingLabel.setObjectName('settingLabel')
-        theme = 'dark' if isDarkTheme() else 'light'
-        try:
-            qss_path = get_resPath(os.path.join('resource', 'qss', theme, 'setting_interface.qss'))
-            with open(qss_path, encoding='utf-8') as f:self.setStyleSheet(f.read())
-        except Exception:pass
+        self.setStyleSheet(load_qss('setting_interface.qss'))
 
     def __onThemeChanged(self, theme: Theme):
         """ 主题变更 """

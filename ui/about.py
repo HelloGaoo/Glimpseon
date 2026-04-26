@@ -35,10 +35,9 @@ from qfluentwidgets import (
     SmoothScrollArea,
     TextEdit,
     Theme,
-    isDarkTheme,
 )
 
-from core.constants import get_resPath
+from core.constants import get_resPath, load_qss
 from version import BUILD_DATE, VERSION
 from .common import show_text_file
 
@@ -176,14 +175,7 @@ class AboutInterface(BaseScrollAreaInterface):
     def __setQss(self):
         """ 设置样式表 """
         self.scrollWidget.setObjectName('scrollWidget')
-        
-        theme = 'dark' if isDarkTheme() else 'light'
-        try:
-            qss_path = get_resPath(os.path.join('resource', 'qss', theme, 'about_interface.qss'))
-            with open(qss_path, encoding='utf-8') as f:
-                self.setStyleSheet(f.read())
-        except Exception:
-            pass
+        self.setStyleSheet(load_qss('about_interface.qss'))
     
     def __connectSignalToSlot(self):
         self.githubButton.clicked.connect(self.__openGithub)

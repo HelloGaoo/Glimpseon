@@ -18,7 +18,6 @@ from qfluentwidgets import (
     PrimaryPushButton,
     PushButton,
     setTheme,
-    isDarkTheme,
     StrongBodyLabel,
     Theme,
     SwitchSettingCard,
@@ -28,7 +27,7 @@ from qfluentwidgets import (
 )
 
 from core.config import cfg
-from core.constants import BASE_DIR, get_resPath
+from core.constants import BASE_DIR, get_resPath, load_qss
 from pathlib import Path
 from ui.city_selector import RegionSelectorDialog
 
@@ -670,13 +669,7 @@ class WizardWindow(QDialog):
         setThemeColor(theme_color)
     
     def __setQss(self):
-        theme = 'dark' if isDarkTheme() else 'light'
-        try:
-            qss_path = get_resPath(os.path.join('resource', 'qss', theme, 'wizard_interface.qss'))
-            with open(qss_path, encoding='utf-8') as f:
-                self.setStyleSheet(f.read())
-        except Exception:
-            pass
+        self.setStyleSheet(load_qss('wizard_interface.qss'))
 
 
 def check_wizard_needed():

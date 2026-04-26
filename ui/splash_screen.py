@@ -90,11 +90,8 @@ class SplashScreen(QWidget):
         
     def _loadQss(self):
         """加载 QSS"""
-        qss_path = self._getQssPath()
-        if os.path.exists(qss_path):
-            with open(qss_path, 'r', encoding='utf-8') as f:
-                qss = f.read()
-            self.setStyleSheet(qss)
+        from core.constants import load_qss
+        self.setStyleSheet(load_qss('splash_screen.qss'))
     
     def _updateBackgroundStyle(self):
         """更新背景"""
@@ -110,13 +107,6 @@ class SplashScreen(QWidget):
                 border-radius: 10px;
             }}
         """)
-        
-    def _getQssPath(self):
-        """获取 QSS 文件路径"""
-        from core.constants import BASE_DIR
-        is_dark = isDarkTheme()
-        qss_dir = 'dark' if is_dark else 'light'
-        return os.path.join(BASE_DIR, 'resource', 'qss', qss_dir, 'splash_screen.qss')
         
     def _loadIcon(self):
         """加载图标"""
