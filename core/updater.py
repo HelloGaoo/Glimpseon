@@ -45,9 +45,11 @@ def get_github_changelog(max_retries=3):
             
             logger.info(f"正在从 GitHub 获取更新日志：{CHANGELOG_URL}")
             response = requests.get(CHANGELOG_URL, timeout=10, verify=False)
+            logger.debug(f"更新日志请求返回：{response.status_code}")
             response.raise_for_status()
             
             content = response.text
+            logger.debug(f"更新日志内容：\n{content[:500]}...")
             return content
             
         except requests.exceptions.Timeout:
@@ -79,9 +81,11 @@ def check_github_verison(max_retries=3):
     try:
         logger.info(f"正在从 GitHub 获取版本信息：{VERSION_URL}")
         response = requests.get(VERSION_URL, timeout=10, verify=False)
+        logger.debug(f"版本信息请求返回：{response.status_code}")
         response.raise_for_status()
         
         content = response.text
+        logger.debug(f"版本信息内容：\n{content}")
         
         version_match = re.search(r'VERSION\s*=\s*["\']([^"\']+)["\']', content)
         build_date_match = re.search(r'BUILD_DATE\s*=\s*["\']([^"\']+)["\']', content)
