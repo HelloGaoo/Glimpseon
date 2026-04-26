@@ -249,6 +249,7 @@ class QuickLaunchDock(QWidget):
     def _calc_targets(self, pos):
         if not self._apps:return
         mx = pos.x()
+        my = pos.y()
         pos_list = self._icon_positions()
         new_hover = -1
 
@@ -259,13 +260,15 @@ class QuickLaunchDock(QWidget):
                 break
 
         if new_hover < 0:
-            min_dist = float('inf')
-            for i in range(len(self._apps)):
-                cx = pos_list[i]
-                d = abs(mx - cx)
-                if d < min_dist:
-                    min_dist = d
-                    new_hover = i
+            bg = self._bg_rect()
+            if bg.contains(QPointF(pos)):
+                min_dist = float('inf')
+                for i in range(len(self._apps)):
+                    cx = pos_list[i]
+                    d = abs(mx - cx)
+                    if d < min_dist:
+                        min_dist = d
+                        new_hover = i
 
         for i in range(len(self._apps)):
             if new_hover >= 0 and abs(i - new_hover) <= 2:
