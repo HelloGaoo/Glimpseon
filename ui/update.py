@@ -24,7 +24,7 @@ import shutil
 import subprocess
 import threading
 
-from PyQt5.QtCore import QMetaObject, Q_ARG, Qt, QTimer, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtWidgets import QApplication, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from qfluentwidgets import (
@@ -111,7 +111,7 @@ class UpdateInterface(BaseScrollAreaInterface):
         self.versionHeaderLayout = QHBoxLayout()
         self.versionIcon = QLabel(self.versionCard)
         self.versionIcon.setFixedSize(48, 48)
-        self.versionIcon.setPixmap(QPixmap("resource/icons/CY.png").scaled(
+        self.versionIcon.setPixmap(QPixmap(get_resPath(os.path.join("resource", "icons", "CY.png"))).scaled(
             48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation
         ))
         

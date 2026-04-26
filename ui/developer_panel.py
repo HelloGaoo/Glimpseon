@@ -23,8 +23,7 @@ import time
 
 import psutil
 import requests
-from PyQt5.QtCore import QEvent, QPropertyAnimation, QTimer, Qt
-from PyQt5.QtGui import QColor
+from PyQt5.QtCore import QEvent, QTimer, Qt
 from PyQt5.QtWidgets import (
     QApplication,
     QGridLayout,

@@ -65,6 +65,7 @@ SwitchSettingCard:hover {
 
 /* 应用图标 */
 QLabel#appIconLabel {
+    font-size: 48px;
     background-color: transparent;
 }
 
@@ -130,11 +131,5 @@ QLabel#githubIcon,
 QLabel#authorIcon,
 QLabel#updateIcon,
 QLabel#licenseIcon {
-    background-color: transparent;
-}
-
-/* 应用图标 Emoji 回退样式 */
-QLabel#appIconLabel {
-    font-size: 48px;
     background-color: transparent;
 }

@@ -1,11 +1,12 @@
 /* 关于界面 */
-AboutInterface {
+#about {
     background-color: rgb(249, 249, 249);
+    border: none;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 滚动区域 */
-AboutInterface #scrollWidget {
+#about #scrollWidget {
     background-color: rgb(249, 249, 249);
 }
 
@@ -64,6 +65,7 @@ SwitchSettingCard:hover {
 
 /* 应用图标 */
 QLabel#appIconLabel {
+    font-size: 48px;
     background-color: transparent;
 }
 
@@ -129,11 +131,5 @@ QLabel#githubIcon,
 QLabel#authorIcon,
 QLabel#updateIcon,
 QLabel#licenseIcon {
-    background-color: transparent;
-}
-
-/* 应用图标回退 */
-QLabel#appIconLabel {
-    font-size: 48px;
     background-color: transparent;
 }

@@ -439,4 +439,4 @@ def default_cfg():
 
 if not os.path.exists(os.path.join(BASE_DIR, 'config')):
     os.makedirs(os.path.join(BASE_DIR, 'config'))
-qconfig.load(os.path.join(BASE_DIR, 'config', 'config.json'), cfg)
+qconfig.load(CONFIG_PATH, cfg)

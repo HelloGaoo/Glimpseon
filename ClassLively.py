@@ -31,18 +31,15 @@ from concurrent.futures import ThreadPoolExecutor, wait
 
 import cnlunar
 import psutil
-import re
 import requests
 import win32gui
 import win32ui
 from PIL import Image
 from pycaw.pycaw import AudioUtilities
 from PyQt5.QtCore import (
-    Q_ARG,
     QDate,
     QEvent,
     QLocale,
-    QMetaObject,
     QPropertyAnimation,
     QRect,
     Qt,
@@ -50,14 +47,11 @@ from PyQt5.QtCore import (
     QTimer,
     QTranslator,
     QUrl,
-    pyqtSlot,
 )
 from PyQt5.QtGui import (
     QColor,
     QFont,
-    QFontDatabase,
     QIcon,
-    QImage,
     QPainter,
     QPixmap,
 )
@@ -106,7 +100,7 @@ from qfluentwidgets import (
 )
 
 from data.url_dir import url_dir  # type: ignore
-from core.config import cfg, default_cfg, save_cfg
+from core.config import cfg, default_cfg, save_cfg, CONFIG_PATH
 from core.constants import APP_NAME, BASE_DIR, MEIPASS_DIR, get_resPath
 from core.downloader import Downloader, clean_tempdir
 from core.font_manager import initialize_fonts
@@ -134,7 +128,7 @@ def verify_singleInst():
     """检查是否已经有实例"""
     #这个地方还有问题 如果有进程 终止后新进程也终止了 怀疑是自己杀自己。。
     #不会修。。。
-    config_path = os.path.join(BASE_DIR, 'config', 'config.json')
+    config_path = CONFIG_PATH
     allow_multiple = False
     is_developer_mode = False
     
@@ -1798,7 +1792,7 @@ class MainWindow(FluentWindow):
             try:
                 res = win32gui.PrivateExtractIcons(exe_path, 0, 256, 256, 1, 0)
                 if res and res[0]: hicon = res[0][0]
-            except:pass
+            except Exception: pass
             if not hicon:
                 large, small = win32gui.ExtractIconEx(exe_path, 0)
                 if large and large[0]: hicon = large[0]

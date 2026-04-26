@@ -18,7 +18,7 @@ QScrollArea {
 
 /* 标题 */
 QLabel#settingLabel {
-    font: 33px;
+    font-size: 33px;
     background-color: transparent;
     color: white;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;

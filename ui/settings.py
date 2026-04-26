@@ -45,7 +45,7 @@ from qfluentwidgets import (
     setThemeColor,
 )
 
-from core.config import cfg, default_cfg, ConfigItem
+from core.config import cfg, default_cfg, ConfigItem, CONFIG_PATH
 from core.constants import BASE_DIR, get_resPath, load_qss
 from core.font_manager import _load_app_fonts, apply_fonts
 from core.logger import log_dir
@@ -364,7 +364,7 @@ class SettingInterface(ScrollArea):
         msgBox.cancelButton.setText("取消")
         if msgBox.exec() == 1: 
             try:
-                config_path = os.path.join(BASE_DIR, 'config', 'config.json')
+                config_path = CONFIG_PATH
                 if os.path.exists(config_path):
                     os.remove(config_path)
                 config_dir = os.path.join(BASE_DIR, 'config')
@@ -461,7 +461,7 @@ class SettingInterface(ScrollArea):
                             try:
                                 os.remove(os.path.join(log_dir, file))
                                 deleted_count += 1
-                            except:pass
+                            except Exception: pass
                     if deleted_count > 0:
                         InfoBar.success(
                             "成功",

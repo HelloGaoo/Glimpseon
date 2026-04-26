@@ -23,9 +23,6 @@ import logging
 import os
 import re
 
-import win32api
-import win32con
-import win32gui
 from PyQt5.QtCore import QDate, QEasingCurve, QFileInfo, QPropertyAnimation, QRect, Qt, QTime, QTimer
 from PyQt5.QtGui import QColor, QIcon, QPixmap
 from PyQt5.QtWidgets import (
@@ -1041,7 +1038,7 @@ class EditPanel(QWidget):
                     return f"{seconds}秒"
             else:
                 return f"已过去{abs(total_seconds) // 86400}天"
-        except:
+        except Exception:
             return ""
     
     def _updateCountdownList(self):
@@ -1507,7 +1504,7 @@ class CountdownEditDialog(MessageBoxBase):
                 try:
                     dt = datetime.datetime.strptime(target_time, '%Y-%m-%d %H:%M')
                     self.datePicker.setDate(QDate(dt.year, dt.month, dt.day))
-                except:
+                except Exception:
                     pass
         else:
             now = datetime.datetime.now()
@@ -1527,7 +1524,7 @@ class CountdownEditDialog(MessageBoxBase):
                 try:
                     dt = datetime.datetime.strptime(target_time, '%Y-%m-%d %H:%M')
                     self.timePicker.setTime(QTime(dt.hour, dt.minute))
-                except:
+                except Exception:
                     pass
         else:
             self.timePicker.setTime(QTime(0, 0))

@@ -1,7 +1,7 @@
 # Common UI helpers for dialogs
 import os
 from PyQt5.QtGui import QFont
-from qfluentwidgets import MessageBox, TextEdit, isDarkTheme
+from qfluentwidgets import MessageBox, TextEdit
 
 
 def show_text_file(title: str, intro: str, file_path: str, parent=None):
@@ -9,8 +9,6 @@ def show_text_file(title: str, intro: str, file_path: str, parent=None):
 
     If file_path does not exist, intro will be shown as fallback content.
     """
-    theme = 'dark' if isDarkTheme() else 'light'
-
     content_text = ""
     if file_path and os.path.exists(file_path):
         try:
@@ -21,12 +19,10 @@ def show_text_file(title: str, intro: str, file_path: str, parent=None):
     else:
         content_text = intro
 
-    main_window = parent
-
     msg_box = MessageBox(
         title=title,
         content=intro,
-        parent=main_window
+        parent=parent
     )
     try:
         msg_box.cancelButton.hide()
