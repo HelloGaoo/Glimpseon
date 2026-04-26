@@ -2,6 +2,7 @@
 
 #developerPanel {
     background-color: rgb(249, 249, 249);
+    border: none;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
