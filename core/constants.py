@@ -22,6 +22,8 @@ import logging
 import os
 import sys
 
+from qfluentwidgets import isDarkTheme
+
 logger = logging.getLogger(__name__)
 
 APP_NAME = "ClassLively"
@@ -45,7 +47,6 @@ def get_resPath(relative_path):
 
 
 def load_qss(qss_filename):
-    from qfluentwidgets import isDarkTheme
     theme = 'dark' if isDarkTheme() else 'light'
     qss_path = get_resPath(os.path.join('resource', 'qss', theme, qss_filename))
     if not os.path.exists(qss_path):

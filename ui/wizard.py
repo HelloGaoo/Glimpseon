@@ -1,7 +1,10 @@
 
 import json
 import os
+import sys
 
+import win32com.client
+from pathlib import Path
 from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve, QLocale
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QFont
 from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget, QHBoxLayout, QLabel, QGraphicsOpacityEffect, QApplication, QPushButton, QLineEdit
@@ -18,6 +21,7 @@ from qfluentwidgets import (
     PrimaryPushButton,
     PushButton,
     setTheme,
+    setThemeColor,
     StrongBodyLabel,
     Theme,
     SwitchSettingCard,
@@ -28,8 +32,9 @@ from qfluentwidgets import (
 
 from core.config import cfg
 from core.constants import BASE_DIR, get_resPath, load_qss
-from pathlib import Path
 from ui.city_selector import RegionSelectorDialog
+from ui.common import show_text_file
+from ui.edit_panel import CountdownEditDialog
 
 
 class WizardWindow(QDialog):
@@ -156,7 +161,6 @@ class WizardWindow(QDialog):
             def _on_link_activated(url):
                 if target_path and os.path.exists(target_path):
                     try:
-                        from .common import show_text_file
                         show_text_file(link_text, f"{link_text}", target_path, parent=self.window())
                         return
                     except Exception:
@@ -579,7 +583,6 @@ class WizardWindow(QDialog):
     def _onCountdownConfigClicked(self):
         """打开倒计时添加对话框"""
         try:
-            from ui.edit_panel import CountdownEditDialog
             dialog = CountdownEditDialog(self)
             if dialog.exec_():
                 countdown_data = dialog.get_countdown()
@@ -611,9 +614,6 @@ class WizardWindow(QDialog):
     def _createDesktopShortcut(self):
         """创建桌面快捷方式"""
         try:
-            import sys
-            import os
-            import win32com.client
             
             desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
             shortcut_path = os.path.join(desktop_path, "ClassLively.lnk")
@@ -665,7 +665,6 @@ class WizardWindow(QDialog):
     def _onColorChanged(self, color):
         """颜色变更"""
         theme_color = cfg.themeColor.value
-        from qfluentwidgets import setThemeColor
         setThemeColor(theme_color)
     
     def __setQss(self):

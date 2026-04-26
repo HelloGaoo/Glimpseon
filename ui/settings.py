@@ -23,7 +23,7 @@ import os
 import sys
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QLabel, QWidget
+from PyQt5.QtWidgets import QApplication, QLabel, QWidget
 from qfluentwidgets import (
     ComboBoxSettingCard,
     CustomColorSettingCard,
@@ -49,6 +49,7 @@ from qfluentwidgets import (
 
 from core.config import cfg, default_cfg, ConfigItem
 from core.constants import BASE_DIR, get_resPath, load_qss
+from core.font_manager import _load_app_fonts, apply_fonts
 from core.logger import log_dir
 from ui.city_selector import RegionSelectorDialog
 
@@ -409,11 +410,8 @@ class SettingInterface(ScrollArea):
                 if hasattr(main_window, '_MainWindow__updateCountdownPosition'):
                     main_window._MainWindow__updateCountdownPosition()
                 
-                from core.font_manager import apply_fonts
-                from PyQt5.QtWidgets import QApplication
                 app = QApplication.instance()
                 if app:
-                    from core.font_manager import _load_app_fonts
                     font_loaded = _load_app_fonts()
                     apply_fonts(app, use_harmonyos=font_loaded)
                 current_theme = cfg.theme.value

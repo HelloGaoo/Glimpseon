@@ -24,6 +24,7 @@ import shutil
 from typing import List
 from PyQt5.QtGui import QFont, QFontDatabase
 from PyQt5.QtWidgets import QApplication
+from qfluentwidgets import setFontFamilies
 from core.constants import get_resPath
 from core.logger import logger
 
@@ -117,7 +118,6 @@ def _load_app_fonts() -> bool:
 
 def apply_fonts(app: QApplication, use_harmonyos: bool = True):
     """应用字体设置"""
-    from qfluentwidgets import setFontFamilies
     if use_harmonyos:
         setFontFamilies(HARMONYOS_FONT_FAMILIES, save=False)
         app.setFont(QFont("HarmonyOS Sans SC", 10))

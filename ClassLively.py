@@ -29,6 +29,11 @@ import webbrowser
 import winreg
 from concurrent.futures import ThreadPoolExecutor, wait
 
+import re
+import win32gui
+import win32ui
+from PIL import Image
+from pycaw.pycaw import AudioUtilities
 import cnlunar
 import psutil
 import requests
@@ -542,7 +547,6 @@ class MainWindow(FluentWindow):
     def __isMediaPlaying(self):
         """检测媒体"""
         try:
-            from pycaw.pycaw import AudioUtilities
             sessions = AudioUtilities.GetAllSessions()
             for session in sessions:
                 if session.State == 1:
@@ -1777,7 +1781,6 @@ class MainWindow(FluentWindow):
     
     def _checkAndRefreshQuickLaunchIcons(self):
         """刷新启动栏图标"""
-        import re
         apps = cfg.quickLaunchApps.value
         if not apps:return
         icon_dir = os.path.join(BASE_DIR, 'data', 'ql_icon')
@@ -1803,9 +1806,6 @@ class MainWindow(FluentWindow):
     def _extractIcon(self, exe_path, icon_filename):
         """提取图标"""
         try:
-            import win32gui
-            import win32ui
-            from PIL import Image
             hicon = None
             try:
                 res = win32gui.PrivateExtractIcons(exe_path, 0, 256, 256, 1, 0)
@@ -2076,8 +2076,7 @@ if __name__ == "__main__":
     splash.setProgress(90)
     allow_ui_update(0.06)
 
-    import time as _tl_time
-    _tl_time.sleep(0.06)
+    time.sleep(0.06)
 
     splash.setProgress(100)
     # 等待进度条动画平滑到 100% 后再关闭 splash 并显示主窗口

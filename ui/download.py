@@ -20,6 +20,7 @@
 
 import os
 import threading
+import time
 from concurrent import futures as concurrent_futures
 from concurrent.futures import ThreadPoolExecutor, wait
 
@@ -819,7 +820,6 @@ class DownloadInterface(BaseScrollAreaInterface):
             self.futures.append(future)
 
         def _wait_tasks():
-            import time
             while True:
                 all_done = all(future.done() for future in self.futures)
                 if all_done:

@@ -90,7 +90,6 @@ class SplashScreen(QWidget):
         
     def _loadQss(self):
         """加载 QSS"""
-        from core.constants import load_qss
         self.setStyleSheet(load_qss('splash_screen.qss'))
     
     def _updateBackgroundStyle(self):
@@ -122,7 +121,6 @@ class SplashScreen(QWidget):
         
     def centerOnScreen(self):
         """将窗口居中显示"""
-        from PyQt5.QtWidgets import QApplication
         desktop = QApplication.desktop()
         screen_rect = desktop.availableGeometry()
         x = (screen_rect.width() - self.width()) // 2

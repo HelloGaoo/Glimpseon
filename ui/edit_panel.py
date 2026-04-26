@@ -26,10 +26,12 @@ import re
 import win32api
 import win32con
 import win32gui
-from PyQt5.QtCore import QEasingCurve, QPropertyAnimation, QRect, Qt, QTimer
+from PyQt5.QtCore import QDate, QEasingCurve, QFileInfo, QPropertyAnimation, QRect, Qt, QTime, QTimer
 from PyQt5.QtGui import QColor, QIcon, QPalette, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
+    QFileDialog,
+    QFileIconProvider,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -62,7 +64,9 @@ from qfluentwidgets import (
 
 from core.config import cfg, save_cfg
 from core.constants import load_qss
-from ui.dock import QuickLaunchDock
+from data.software_list import get_software_icon_path
+from ui.city_selector import RegionSelectorDialog
+from ui.dock import QuickLaunchDock, resolve_app_from_path
 
 logger = logging.getLogger(__name__)
 
@@ -684,7 +688,6 @@ class EditPanel(QWidget):
     
     def _onClockColorChanged(self, text: str):
         """时钟颜色变化"""
-        from PyQt5.QtGui import QColor
         
         if text == '白色':cfg.clockColor.value = "#FFFFFF"
         elif text == '黑色':cfg.clockColor.value = "#000000"
@@ -795,7 +798,6 @@ class EditPanel(QWidget):
     
     def _onCityButtonClicked(self):
         """城市选择按钮点击"""
-        from ui.city_selector import RegionSelectorDialog
         dialog = RegionSelectorDialog(self.mainWindow)
         if dialog.exec():
             selected_region = dialog.get_selected_region()
@@ -1155,7 +1157,6 @@ class EditPanel(QWidget):
     
     def _onCountdownTextColorChanged(self, text: str):
         """倒计时文字颜色变化"""
-        from PyQt5.QtGui import QColor
         
         if text == '红色':
             cfg.countdownTextColor.value = "#FF0000"
@@ -1172,7 +1173,6 @@ class EditPanel(QWidget):
     
     def _onCountdownConnectorColorChanged(self, text: str):
         """倒计时连接词颜色变化"""
-        from PyQt5.QtGui import QColor
         
         if text == '红色':
             cfg.countdownConnectorColor.value = "#FF0000"
@@ -1213,7 +1213,6 @@ class EditPanel(QWidget):
         logger.info(f"学校信息：位置={text}")
     
     def _onSchoolInfoTextColorChanged(self, text: str):
-        from PyQt5.QtGui import QColor
         
         if text == '白色':
             cfg.schoolInfoTextColor.value = "#FFFFFF"
@@ -1480,7 +1479,6 @@ class CountdownEditDialog(MessageBoxBase):
         self._init_ui()
     
     def _init_ui(self):
-        from PyQt5.QtCore import QDate, QTime
 
         self.viewLayout.setSpacing(8)
 
@@ -1704,7 +1702,6 @@ class QuickLaunchEditDialog(MessageBoxBase):
 
     def dropEvent(self, e):
         e.acceptProposedAction()
-        from ui.dock import resolve_app_from_path
         urls = e.mimeData().urls()
         for url in urls:
             path = url.toLocalFile()
@@ -1816,7 +1813,6 @@ class AppEditDialog(MessageBoxBase):
             self.iconPreviewLabel.setPixmap(default_icon.pixmap(48, 48))
     
     def _load_icon_preview(self, icon_filename):
-        from data.software_list import get_software_icon_path
         icon_path = get_software_icon_path(icon_filename)
         if os.path.exists(icon_path):
             pixmap = QPixmap(icon_path)
@@ -1830,10 +1826,6 @@ class AppEditDialog(MessageBoxBase):
     
     def _extract_icon(self, exe_path):
         try:
-            from PyQt5.QtWidgets import QFileIconProvider
-            from PyQt5.QtGui import QIcon
-            from PyQt5.QtCore import QFileInfo
-
             provider = QFileIconProvider()
             fi = QFileInfo(exe_path)
             icon = provider.icon(fi)
@@ -1902,7 +1894,6 @@ class AppEditDialog(MessageBoxBase):
             self._load_icon_preview(path)
     
     def _on_icon_browse(self):
-        from PyQt5.QtWidgets import QFileDialog
         
         file_path, _ = QFileDialog.getOpenFileName(
             self,
@@ -1915,7 +1906,6 @@ class AppEditDialog(MessageBoxBase):
             self.iconPathEdit.setText(file_path)
     
     def _on_browse(self):
-        from PyQt5.QtWidgets import QFileDialog
         
         file_path, _ = QFileDialog.getOpenFileName(
             self,

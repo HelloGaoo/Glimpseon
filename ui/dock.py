@@ -1,8 +1,12 @@
+import logging
 import os
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 
+import pythoncom
 from PyQt5.QtCore import (
+    QFileInfo,
     QPoint,
     QPointF,
     QRectF,
@@ -24,9 +28,11 @@ from PyQt5.QtGui import (
     QPen,
     QPixmap,
 )
-from PyQt5.QtWidgets import QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QFileIconProvider, QLabel, QSizePolicy, QVBoxLayout, QWidget
+from qfluentwidgets import InfoBar, isDarkTheme
+from win32com.shell import shell, shellcon
 
-from core.config import cfg
+from core.config import cfg, save_cfg
 
 def get_ql_icon_path(icon_filename):
     if not icon_filename:return None
@@ -47,14 +53,9 @@ def get_ql_icon_save_dir():
 
 
 def resolve_app_from_path(file_path):
-    import re
-    from PyQt5.QtWidgets import QFileIconProvider
-    from PyQt5.QtCore import QFileInfo
     real_path = file_path
     if file_path.lower().endswith('.lnk'):
         try:
-            import pythoncom
-            from win32com.shell import shell, shellcon
             shortcut = pythoncom.CoCreateInstance(
                 shell.CLSID_ShellLink, None, pythoncom.CLSCTX_INPROC_SERVER, shell.IID_IShellLink
             )
@@ -377,7 +378,6 @@ class QuickLaunchDock(QWidget):
         new_app = resolve_app_from_path(file_path)
         apps = list(cfg.quickLaunchApps.value)
         if len(apps) >= self.MAX_APPS:
-            from qfluentwidgets import InfoBar
             InfoBar.warning(
                 title="数量限制",
                 content=f"快捷启动栏最多只能添加 {self.MAX_APPS} 个应用",
@@ -387,7 +387,6 @@ class QuickLaunchDock(QWidget):
             return
         apps.append(new_app)
         cfg.quickLaunchApps.value = apps
-        from core.config import save_cfg
         save_cfg()
         self.set_apps(apps)
 
@@ -414,8 +413,6 @@ class QuickLaunchDock(QWidget):
             self._launch_result.emit(app_name, str(e), False)
 
     def _on_launch_result(self, app_name, info, success):
-        import logging
-        from qfluentwidgets import InfoBar
         logger = logging.getLogger(__name__)
         
         if success:
@@ -469,7 +466,6 @@ class QuickLaunchDock(QWidget):
             p.end()
             return
 
-        from qfluentwidgets import isDarkTheme
         dark = isDarkTheme()
 
         path = QPainterPath()

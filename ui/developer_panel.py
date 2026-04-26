@@ -22,6 +22,7 @@ import os
 import time
 
 import psutil
+import requests
 from PyQt5.QtCore import QEvent, QPropertyAnimation, QRect, QTime, QTimer, Qt
 from PyQt5.QtGui import QColor, QFont, QPainter
 from PyQt5.QtWidgets import (
@@ -56,6 +57,8 @@ from qfluentwidgets import (
 from core.config import cfg
 from core.constants import load_qss
 from core.logger import logger
+from services.weather import WeatherService
+from ui.city_selector import RegionDatabase
 
 
 from .base_scroll import BaseScrollAreaInterface
@@ -395,10 +398,7 @@ class DeveloperPanel(BaseScrollAreaInterface):
         if not self.elementCheckEnabled:
             return super().eventFilter(obj, event)
         
-        from PyQt5.QtCore import QEvent as QEventType
-        from PyQt5.QtWidgets import QWidget
-        
-        if event.type() == QEventType.Enter:
+        if event.type() == QEvent.Enter:
             element_info = []
             element_info.append(f"对象名称：{obj.objectName()}")
             element_info.append(f"类    型：{obj.__class__.__name__}")
@@ -500,8 +500,6 @@ class DeveloperPanel(BaseScrollAreaInterface):
     
     def _testPoetryAPI(self):
         """测试一言 API"""
-        import requests
-        
         start_time = time.time()
         try:
             timeout = 10
@@ -533,8 +531,6 @@ class DeveloperPanel(BaseScrollAreaInterface):
     
     def _testWeatherAPI(self):
         """测试天气 API"""
-        from services.weather import WeatherService
-        from ui.city_selector import RegionDatabase
         
         start_time = time.time()
         try:
