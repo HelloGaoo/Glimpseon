@@ -36,7 +36,6 @@ from PyQt5.QtWidgets import (
 )
 from qfluentwidgets import (
     CardWidget,
-    ExpandLayout,
     FluentIcon as FIF,
     ImageLabel,
     InfoBar,
@@ -58,6 +57,7 @@ class WallpaperInterface(ScrollArea):
 
     def __init__(self, mainWindow=None, parent=None):
         super().__init__(parent=parent)
+        self.setObjectName("wallpaper")
         self.mainWindow = mainWindow
         self.scrollWidget = QWidget()
         self.mainLayout = QVBoxLayout(self.scrollWidget)

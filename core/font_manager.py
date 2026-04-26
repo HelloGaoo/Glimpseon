@@ -21,7 +21,6 @@
 import ctypes
 import os
 import shutil
-from typing import List
 from PyQt5.QtGui import QFont, QFontDatabase
 from PyQt5.QtWidgets import QApplication
 from qfluentwidgets import setFontFamilies

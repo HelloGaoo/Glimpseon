@@ -19,21 +19,16 @@
 """
 
 import os
-import sys
 import webbrowser
 
-from PyQt5.QtCore import QUrl, Qt
-from PyQt5.QtGui import QDesktopServices, QFont, QPixmap
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont, QPixmap
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QMessageBox, QVBoxLayout, QWidget
 from qfluentwidgets import (
     CardWidget,
-    ExpandLayout,
     FluentIcon as FIF,
     MessageBox,
     PushButton,
-    ScrollArea,
-    SmoothScrollArea,
-    TextEdit,
     Theme,
 )
 

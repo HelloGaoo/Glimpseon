@@ -20,7 +20,6 @@
 
 import json
 import os
-import sys
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication, QLabel, QWidget
@@ -32,7 +31,6 @@ from qfluentwidgets import (
     InfoBar,
     LineEdit,
     MessageBox,
-    NavigationItemPosition,
     OptionsSettingCard,
     PushButton,
     RangeSettingCard,
@@ -113,6 +111,7 @@ class SettingInterface(ScrollArea):
     """ 设置界面 """
     def __init__(self, parent=None):
         super().__init__(parent=parent)
+        self.setObjectName("setting")
         self.scrollWidget = QWidget()
         self.expandLayout = ExpandLayout(self.scrollWidget)
         self.settingLabel = QLabel("设置", self)

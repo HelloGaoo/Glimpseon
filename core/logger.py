@@ -19,7 +19,6 @@
 旧项目SeevvoDownloader复制来的 稍作修改
 """
 
-import ctypes
 import inspect
 import logging
 import logging.handlers

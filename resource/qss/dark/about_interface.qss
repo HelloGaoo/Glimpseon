@@ -1,11 +1,12 @@
 /* 关于界面 */
-AboutInterface {
+#about {
     background-color: rgb(39, 39, 39);
+    border: none;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 滚动区域 */
-AboutInterface #scrollWidget {
+#about #scrollWidget {
     background-color: rgb(39, 39, 39);
 }
 

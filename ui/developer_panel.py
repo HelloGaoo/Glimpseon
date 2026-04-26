@@ -23,8 +23,8 @@ import time
 
 import psutil
 import requests
-from PyQt5.QtCore import QEvent, QPropertyAnimation, QRect, QTime, QTimer, Qt
-from PyQt5.QtGui import QColor, QFont, QPainter
+from PyQt5.QtCore import QEvent, QPropertyAnimation, QTimer, Qt
+from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
     QApplication,
     QGridLayout,
@@ -37,21 +37,15 @@ from PyQt5.QtWidgets import (
 from qfluentwidgets import (
     BodyLabel,
     CardWidget,
-    ComboBox,
     FluentIcon as FIF,
     InfoBar,
-    InfoBarPosition,
     PrimaryPushButton,
-    ProgressBar,
     PushButton,
-    SpinBox,
     StrongBodyLabel,
     SubtitleLabel,
-    TitleLabel,
     ToggleButton,
     ToolTipFilter,
     ToolTipPosition,
-    setCustomStyleSheet,
 )
 
 from core.config import cfg

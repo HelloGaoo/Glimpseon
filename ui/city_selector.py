@@ -27,7 +27,7 @@ from PyQt5.QtWidgets import QWidget
 from qfluentwidgets import BodyLabel, MessageBoxBase, SearchLineEdit, SubtitleLabel, ListWidget
 
 from core.config import cfg
-from core.constants import BASE_DIR, MEIPASS_DIR, get_resPath
+from core.constants import BASE_DIR, get_resPath
 
 
 class RegionDatabase:

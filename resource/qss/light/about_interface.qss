@@ -69,7 +69,8 @@ QLabel#appIconLabel {
 
 /* 应用名称 */
 QLabel#appNameLabel {
-    font: bold 32px;
+    font-size: 32px;
+    font-weight: bold;
     color: #000000;
     background-color: transparent;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;

@@ -94,4 +94,5 @@ MainWindow #editButton {
 
 MainWindow #editButton:hover {
     background-color: rgba(0, 0, 0, 0.5);
+    border: none;
 }

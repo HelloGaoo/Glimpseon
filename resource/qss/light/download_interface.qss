@@ -119,10 +119,12 @@ PushButton#startButton {
 
 PushButton#startButton:hover {
     background-color: #00e676;
+    border: none;
 }
 
 PushButton#startButton:pressed {
     background-color: #009624;
+    border: none;
 }
 
 /* 模式选择单选按钮 */

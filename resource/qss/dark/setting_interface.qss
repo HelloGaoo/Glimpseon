@@ -1,6 +1,7 @@
 /* 界面 */
-SettingInterface, #scrollWidget {
+#setting, #scrollWidget {
     background-color: rgb(39, 39, 39);
+    border: none;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 

@@ -27,7 +27,7 @@ import win32api
 import win32con
 import win32gui
 from PyQt5.QtCore import QDate, QEasingCurve, QFileInfo, QPropertyAnimation, QRect, Qt, QTime, QTimer
-from PyQt5.QtGui import QColor, QIcon, QPalette, QPixmap
+from PyQt5.QtGui import QColor, QIcon, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -35,7 +35,6 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QListWidget,
     QPushButton,
     QVBoxLayout,
     QWidget,

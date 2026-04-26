@@ -54,6 +54,7 @@ WizardWindow QPushButton#closeButton {
 WizardWindow QPushButton#closeButton:hover {
     background-color: #E81123;
     color: white;
+    border: none;
 }
 
 /* 欢迎标签 */

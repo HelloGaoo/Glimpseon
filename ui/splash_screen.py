@@ -22,6 +22,8 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout
 from qfluentwidgets import ProgressBar, BodyLabel, StrongBodyLabel, isDarkTheme
 import os
 
+from core.constants import load_qss
+
 # 感谢chatgpt5mini
 class SplashScreen(QWidget):
     """启动窗口"""

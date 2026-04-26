@@ -20,21 +20,19 @@
 
 import logging
 import os
+import shutil
 import subprocess
 import threading
 
 from PyQt5.QtCore import QMetaObject, Q_ARG, Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QIcon, QPixmap
-from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QApplication, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from qfluentwidgets import (
     CardWidget,
-    ExpandLayout,
     FluentIcon as FIF,
     InfoBar,
     PrimaryPushButton,
     PushButton,
-    ScrollArea,
-    SmoothScrollArea,
     SwitchSettingCard,
     TextEdit,
     Theme,

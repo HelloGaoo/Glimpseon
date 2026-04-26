@@ -21,17 +21,15 @@
 import os
 import threading
 import time
-from concurrent import futures as concurrent_futures
 from concurrent.futures import ThreadPoolExecutor, wait
 
 from PyQt5.QtCore import QMetaObject, Q_ARG, QUrl, Qt, QTimer, pyqtSlot
-from PyQt5.QtGui import QIcon, QPixmap, QDesktopServices
+from PyQt5.QtGui import QPixmap, QDesktopServices
 from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QToolButton, QVBoxLayout, QWidget
 from qfluentwidgets import (
     CardWidget,
     CheckBox,
     ComboBox,
-    ExpandLayout,
     FluentIcon as FIF,
     InfoBar,
     MessageBox,
@@ -40,7 +38,6 @@ from qfluentwidgets import (
     PushButton,
     RadioButton,
     ScrollArea,
-    SmoothScrollArea,
     Theme,
     qconfig,
 )

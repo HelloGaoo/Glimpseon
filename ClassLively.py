@@ -29,14 +29,14 @@ import webbrowser
 import winreg
 from concurrent.futures import ThreadPoolExecutor, wait
 
+import cnlunar
+import psutil
 import re
+import requests
 import win32gui
 import win32ui
 from PIL import Image
 from pycaw.pycaw import AudioUtilities
-import cnlunar
-import psutil
-import requests
 from PyQt5.QtCore import (
     Q_ARG,
     QDate,
@@ -59,27 +59,20 @@ from PyQt5.QtGui import (
     QIcon,
     QImage,
     QPainter,
-    QPalette,
     QPixmap,
 )
 from PyQt5.QtWidgets import (
     QApplication,
     QFileDialog,
-    QFrame,
     QGridLayout,
-    QGraphicsBlurEffect,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QListWidget,
-    QListWidgetItem,
     QMessageBox,
     QMenu,
-    QPlainTextEdit,
     QPushButton,
     QSizePolicy,
-    QSpacerItem,
-    QStackedLayout,
     QSystemTrayIcon,
     QVBoxLayout,
     QWidget,
@@ -89,7 +82,6 @@ from qfluentwidgets import (
     BodyLabel,
     CardWidget,
     CheckBox,
-    ExpandLayout,
     FluentIcon as FIF,
     FluentTranslator,
     FluentWindow,
@@ -101,19 +93,15 @@ from qfluentwidgets import (
     MessageBox,
     NavigationItemPosition,
     PrimaryPushButton,
-    ProgressBar,
-    ProgressRing,
     PushButton,
     qconfig,
     RadioButton,
     RoundMenu,
     ScrollArea,
-    SettingCardGroup,
     setTheme,
     SmoothScrollArea,
     StrongBodyLabel,
     SwitchSettingCard,
-    TextEdit,
     Theme,
 )
 
@@ -2082,7 +2070,7 @@ if __name__ == "__main__":
     # 等待进度条动画平滑到 100% 后再关闭 splash 并显示主窗口
     splash.waitForProgress(100, timeout=1.0)
     allow_ui_update(0.06)
-    _tl_time.sleep(0.04)
+    time.sleep(0.04)
     splash.close()
     
     if auto_start_launch:

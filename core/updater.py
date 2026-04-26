@@ -23,7 +23,6 @@ import logging
 import os
 import re
 import shutil
-import zipfile
 
 import py7zr
 import requests

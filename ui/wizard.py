@@ -15,7 +15,6 @@ from qfluentwidgets import (
     CustomColorSettingCard,
     FluentIcon as FIF,
     FluentTranslator,
-    HyperlinkLabel,
     InfoBar,
     MessageBox,
     PrimaryPushButton,
@@ -25,7 +24,6 @@ from qfluentwidgets import (
     StrongBodyLabel,
     Theme,
     SwitchSettingCard,
-    SwitchButton,
     LineEdit,
     ToolButton,
 )

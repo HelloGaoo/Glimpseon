@@ -1,11 +1,12 @@
 /* 更新界面 */
-UpdateInterface {
+#update {
     background-color: rgb(39, 39, 39);
+    border: none;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 滚动区域 */
-UpdateInterface #scrollWidget {
+#update #scrollWidget {
     background-color: rgb(39, 39, 39);
 }
 
@@ -104,7 +105,7 @@ QLabel#updateStatusLabel {
 }
 
 /* 检查更新按钮 */
-UpdateInterface PrimaryPushButton {
+#update PrimaryPushButton {
     border-radius: 8px;
     font-weight: bold;
     font-size: 14px;
