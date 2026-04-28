@@ -690,7 +690,7 @@ class WallpaperInterface(ScrollArea):
     def _initWidget(self):
         self.resize(1000, 800)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setViewportMargins(0, 120, 0, 20)
+        self.setViewportMargins(0, 0, 0, 0)
         self.setWidgetResizable(True)
         
         self._initLayout()
@@ -700,7 +700,6 @@ class WallpaperInterface(ScrollArea):
     
     def _initLayout(self):
         self.wallpaperLabel.setObjectName('settingLabel')
-        self.wallpaperLabel.move(60, 63)
         
         actionRow = QHBoxLayout()
         actionRow.setSpacing(12)
@@ -710,6 +709,8 @@ class WallpaperInterface(ScrollArea):
         actionRow.addStretch(1)
         actionRow.addWidget(self.setWallpaperButton)
         
+        self.contentLayout.addWidget(self.wallpaperLabel)
+        self.contentLayout.addSpacing(16)
         self.contentLayout.addLayout(actionRow)
         self.contentLayout.addWidget(self.infoCard)
         self.contentLayout.addSpacing(24)
