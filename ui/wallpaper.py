@@ -33,6 +33,7 @@ from PyQt5.QtWidgets import (
     QApplication,
     QFileDialog,
     QGridLayout,
+    QGraphicsBlurEffect,
     QHBoxLayout,
     QLabel,
     QScrollArea,
@@ -44,7 +45,6 @@ from qfluentwidgets import (
     BodyLabel,
     CardWidget,
     FluentIcon as FIF,
-    ImageLabel,
     InfoBar,
     MessageBoxBase,
     PrimaryPushButton,
@@ -640,23 +640,31 @@ class WallpaperInterface(ScrollArea):
         self.current_wallpaper_path = None
         self.current_wallpaper_source = None
         self.last_sync_path = None
+        self.originalPixmap = QPixmap(1, 1)
+        self.originalPixmap.fill(Qt.transparent)
         
         self.autoGetTimer = QTimer(self)
         self.autoGetTimer.timeout.connect(self._getWallpaper)
         self.autoSyncCheckTimer = QTimer(self)
         self.autoSyncCheckTimer.timeout.connect(self._checkAutoSync)
         
-        self.scrollWidget = QWidget()
-        self.mainLayout = QVBoxLayout(self.scrollWidget)
-        
         self.wallpaperLabel = QLabel("壁纸", self)
         
-        self.imageLabel = ImageLabel()
-        self.imageLabel.setAlignment(Qt.AlignCenter)
-        self.imageLabel.setFixedHeight(320)
-        self.imageLabel.setMinimumWidth(1)
+        self.backgroundImage = QLabel()
+        self.backgroundImage.setAlignment(Qt.AlignCenter)
+        self.backgroundImage.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.backgroundImage.setMinimumSize(100, 100)
         
-        self.infoCard = WallpaperInfoCard(self)
+        self.dimOverlay = QWidget()
+        self.dimOverlay.setObjectName("dimOverlay")
+        
+        self.contentWidget = QWidget()
+        self.contentWidget.setObjectName("wallpaperContent")
+        self.contentLayout = QVBoxLayout(self.contentWidget)
+        self.contentLayout.setContentsMargins(60, 20, 60, 40)
+        self.contentLayout.setSpacing(16)
+        
+        self.infoCard = WallpaperInfoCard(self.contentWidget)
         
         self.getButton = PrimaryPushButton(FIF.DOWNLOAD, "获取壁纸")
         self.getButton.setFixedHeight(40)
@@ -671,23 +679,22 @@ class WallpaperInterface(ScrollArea):
         self.setWallpaperButton.setFixedHeight(40)
         self.setWallpaperButton.setFixedWidth(120)
         
-        self.historyWidget = WallpaperHistoryWidget(self)
+        self.historyWidget = WallpaperHistoryWidget(self.contentWidget)
         
         self._initWidget()
         self._connectSignalToSlot()
     
     def _onThemeChanged(self, theme: Theme):
-        self._setQss()
+        if hasattr(self, 'scrollWidget'):self._setQss()
     
     def _initWidget(self):
         self.resize(1000, 800)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setViewportMargins(0, 120, 0, 20)
-        self.setWidget(self.scrollWidget)
         self.setWidgetResizable(True)
         
-        self._setQss()
         self._initLayout()
+        self._setQss()
         
         self._loadDefaultWallpaper()
     
@@ -703,18 +710,32 @@ class WallpaperInterface(ScrollArea):
         actionRow.addStretch(1)
         actionRow.addWidget(self.setWallpaperButton)
         
-        self.mainLayout.setSpacing(16)
-        self.mainLayout.setContentsMargins(60, 20, 60, 40)
-        self.mainLayout.addWidget(self.imageLabel)
-        self.mainLayout.addLayout(actionRow)
-        self.mainLayout.addWidget(self.infoCard)
-        self.mainLayout.addSpacing(24)
-        self.mainLayout.addWidget(self.historyWidget)
+        self.contentLayout.addLayout(actionRow)
+        self.contentLayout.addWidget(self.infoCard)
+        self.contentLayout.addSpacing(24)
+        self.contentLayout.addWidget(self.historyWidget)
+        self.contentLayout.addStretch(1)
+        
+        gridLayout = QGridLayout()
+        gridLayout.setContentsMargins(0, 0, 0, 0)
+        gridLayout.setSpacing(0)
+        gridLayout.addWidget(self.backgroundImage, 0, 0, 1, 1)
+        gridLayout.addWidget(self.dimOverlay, 0, 0, 1, 1)
+        gridLayout.addWidget(self.contentWidget, 0, 0, 1, 1)
+        
+        self.scrollWidget = QWidget()
+        self.scrollWidget.setObjectName('scrollWidget')
+        self.scrollWidget.setLayout(gridLayout)
+        self.setWidget(self.scrollWidget)
     
     def _setQss(self):
         self.scrollWidget.setObjectName('scrollWidget')
         self.wallpaperLabel.setObjectName('settingLabel')
         self.setStyleSheet(load_qss('setting_interface.qss'))
+    
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self.current_pixmap and not self.current_pixmap.isNull():self._updateBackground()
     
     def _connectSignalToSlot(self):
         self.getButton.clicked.connect(self._getWallpaper)
@@ -807,7 +828,7 @@ class WallpaperInterface(ScrollArea):
                 self.current_wallpaper_source = source
                 
                 if not self.current_pixmap.isNull():
-                    self.imageLabel.setPixmap(self.current_pixmap)
+                    self._updateBackground()
                     self._updateMainWindowBackground()
                     
                     self.historyManager.add(wallpaper_path, source, url)
@@ -849,7 +870,7 @@ class WallpaperInterface(ScrollArea):
             self.current_wallpaper_source = "默认"
             
             if not self.current_pixmap.isNull():
-                self.imageLabel.setPixmap(self.current_pixmap)
+                self._updateBackground()
                 self._updateMainWindowBackground()
             
             self.infoCard.updateInfo(default_wallpaper_path, "默认")
@@ -858,6 +879,8 @@ class WallpaperInterface(ScrollArea):
             self.infoCard.updateInfo()
     
     def _setBlankBackground(self):
+        self.backgroundImage.setPixmap(QPixmap(1, 1))
+        self.backgroundImage.setMinimumSize(100, 100)
         if self.mainWindow and hasattr(self.mainWindow, 'homeBackgroundImage'):
             available_width = self.mainWindow.width() - 50
             available_height = self.mainWindow.height()
@@ -867,6 +890,27 @@ class WallpaperInterface(ScrollArea):
             self.mainWindow.homeBackgroundImage.setPixmap(blank_pixmap)
             self.mainWindow.homeBackgroundImage.setMinimumSize(available_width, available_height)
             QApplication.processEvents()
+    
+    def _updateBackground(self):
+        if not self.current_pixmap or self.current_pixmap.isNull():
+            return
+        
+        self.originalPixmap = self.current_pixmap
+        available_width = self.width()
+        available_height = max(self.height(), 600)
+        
+        scaled_pixmap = self.current_pixmap.scaled(
+            available_width, available_height,
+            Qt.KeepAspectRatioByExpanding,
+            Qt.SmoothTransformation
+        )
+        
+        blur_effect = QGraphicsBlurEffect()
+        blur_effect.setBlurRadius(12)
+        self.backgroundImage.setGraphicsEffect(blur_effect)
+        
+        self.backgroundImage.setPixmap(scaled_pixmap)
+        self.backgroundImage.setMinimumSize(available_width, available_height)
     
     def _updateMainWindowBackground(self):
         if self.mainWindow and hasattr(self.mainWindow, 'homeBackgroundImage') and self.current_pixmap:
@@ -926,7 +970,7 @@ class WallpaperInterface(ScrollArea):
             self.current_wallpaper_source = source
             
             if not self.current_pixmap.isNull():
-                self.imageLabel.setPixmap(self.current_pixmap)
+                self._updateBackground()
                 self._updateMainWindowBackground()
                 
                 if source != "历史记录":

@@ -115,15 +115,14 @@ ComboBoxSettingCard:hover {
     background-color: rgba(0, 0, 0, 0.03);
 }
 
-/* 壁纸预览卡片 */
-#previewCard {
-    background-color: rgba(0, 0, 0, 0.02);
-    border: 1px solid rgba(0, 0, 0, 0.05);
-    border-radius: 10px;
+/* 壁纸页面暗色遮罩 */
+#dimOverlay {
+    background-color: rgba(0, 0, 0, 100);
 }
 
-#previewCard QScrollArea {
-    border: none;
+/* 壁纸页面内容层 */
+#wallpaperContent {
+    background-color: transparent;
 }
 
 /* 壁纸信息卡片 */
