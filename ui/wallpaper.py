@@ -489,7 +489,6 @@ class WallpaperHistoryWidget(QWidget):
         headerLayout.addWidget(self.clearInvalidBtn)
         
         self.gridContainer = QWidget()
-        self.gridContainer.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
         self.gridLayout = QGridLayout(self.gridContainer)
         self.gridLayout.setContentsMargins(GRID_MARGIN_H, 5, GRID_MARGIN_H, 5)
         self.gridLayout.setSpacing(CARD_SPACING)
@@ -548,8 +547,6 @@ class WallpaperHistoryWidget(QWidget):
             col = i % columns
             card.setParent(self.gridContainer)
             self.gridLayout.addWidget(card, row, col)
-        
-        self.gridContainer.adjustSize()
     
     def _loadHistory(self):
         self._allRecords = self.historyManager.get_valid()
@@ -704,11 +701,6 @@ class WallpaperInterface(ScrollArea):
         self.wallpaperLabel.setObjectName('settingLabel')
         self.wallpaperLabel.move(60, 63)
         
-        self.previewCard = CardWidget(self)
-        previewLayout = QVBoxLayout(self.previewCard)
-        previewLayout.setContentsMargins(0, 0, 0, 0)
-        previewLayout.addWidget(self.previewScrollArea)
-        
         actionRow = QHBoxLayout()
         actionRow.setSpacing(12)
         actionRow.addWidget(self.getButton)
@@ -719,7 +711,7 @@ class WallpaperInterface(ScrollArea):
         
         self.mainLayout.setSpacing(16)
         self.mainLayout.setContentsMargins(60, 20, 60, 40)
-        self.mainLayout.addWidget(self.previewCard)
+        self.mainLayout.addWidget(self.previewScrollArea)
         self.mainLayout.addLayout(actionRow)
         self.mainLayout.addWidget(self.infoCard)
         self.mainLayout.addSpacing(24)
