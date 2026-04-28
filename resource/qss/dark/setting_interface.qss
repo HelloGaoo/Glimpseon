@@ -115,3 +115,75 @@ CustomColorSettingCard:hover,
 ComboBoxSettingCard:hover {
     background-color: rgba(255, 255, 255, 0.05);
 }
+
+/* 壁纸预览卡片 */
+#previewCard {
+    background-color: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+}
+
+#previewCard QScrollArea {
+    border: none;
+}
+
+/* 壁纸信息卡片 */
+#wallpaperInfoCard {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+}
+
+/* 历史壁纸区域 */
+#historyWidget {
+    background-color: transparent;
+}
+
+#historyWidget QLabel#historyTitle {
+    color: #FFFFFF;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+#historyWidget QLabel#historyCount {
+    color: #999999;
+    font-size: 13px;
+}
+
+#historyWidget QLabel#emptyLabel {
+    color: #666666;
+}
+
+/* 历史缩略图卡片 */
+#thumbnailCard {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+}
+
+#thumbnailCard:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+#thumbnailCard QLabel#thumbImage {
+    background-color: rgba(128, 128, 128, 30);
+    border-radius: 4px;
+}
+
+#thumbnailCard QLabel#thumbInfo {
+    color: #999999;
+    font-size: 11px;
+}
+
+/* 加载更多按钮 */
+#historyWidget PushButton#loadMoreBtn {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+}
+
+#historyWidget PushButton#loadMoreBtn:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+}
