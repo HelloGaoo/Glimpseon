@@ -27,7 +27,7 @@ from dataclasses import dataclass, asdict
 from typing import List, Optional
 
 import requests
-from PyQt5.QtCore import Qt, pyqtSignal, QTimer
+from PyQt5.QtCore import Qt, pyqtSignal, QTimer, QSize
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
@@ -523,7 +523,12 @@ class WallpaperHistoryWidget(QWidget):
         layout.addWidget(self.emptyLabel)
     
     def _calcColumns(self) -> int:
-        available = self.gridContainer.width() - 2 * GRID_MARGIN_H
+        w = self.gridContainer.width()
+        if w <= 0:
+            p = self.parentWidget()
+            if p:
+                w = p.width()
+        available = w - 2 * GRID_MARGIN_H
         if available <= 0:
             return 4
         cols = int((available + CARD_SPACING) / (CARD_WIDTH + CARD_SPACING))
@@ -627,6 +632,12 @@ class WallpaperHistoryWidget(QWidget):
             self._rebuildGrid()
 
 
+class _ShrinkableWidget(QWidget):
+    def minimumSizeHint(self):
+        hint = super().minimumSizeHint()
+        return QSize(0, hint.height())
+
+
 class WallpaperInterface(ScrollArea):
     """壁纸界面"""
 
@@ -652,11 +663,11 @@ class WallpaperInterface(ScrollArea):
         
         self.backgroundImage = QLabel()
         self.backgroundImage.setAlignment(Qt.AlignCenter)
-        self.backgroundImage.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.backgroundImage.setMinimumSize(100, 100)
+        self.backgroundImage.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
         
         self.dimOverlay = QWidget()
         self.dimOverlay.setObjectName("dimOverlay")
+        self.dimOverlay.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
         
         self.contentWidget = QWidget()
         self.contentWidget.setObjectName("wallpaperContent")
@@ -724,7 +735,7 @@ class WallpaperInterface(ScrollArea):
         gridLayout.addWidget(self.dimOverlay, 0, 0, 1, 1)
         gridLayout.addWidget(self.contentWidget, 0, 0, 1, 1)
         
-        self.scrollWidget = QWidget()
+        self.scrollWidget = _ShrinkableWidget()
         self.scrollWidget.setObjectName('scrollWidget')
         self.scrollWidget.setLayout(gridLayout)
         self.setWidget(self.scrollWidget)
@@ -897,8 +908,8 @@ class WallpaperInterface(ScrollArea):
             return
         
         self.originalPixmap = self.current_pixmap
-        available_width = self.width()
-        available_height = max(self.height(), 600)
+        available_width = self.viewport().width()
+        available_height = max(self.viewport().height(), 600)
         
         scaled_pixmap = self.current_pixmap.scaled(
             available_width, available_height,
