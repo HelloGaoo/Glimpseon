@@ -50,7 +50,6 @@ from qfluentwidgets import (
     PrimaryPushButton,
     PushButton,
     ScrollArea,
-    SmoothScrollArea,
     StrongBodyLabel,
     SubtitleLabel,
     Theme,
@@ -652,15 +651,10 @@ class WallpaperInterface(ScrollArea):
         
         self.wallpaperLabel = QLabel("壁纸", self)
         
-        self.previewScrollArea = SmoothScrollArea()
-        self.previewScrollArea.viewport().setStyleSheet("background-color: transparent;")
-        self.previewScrollArea.setFixedHeight(320)
         self.imageLabel = ImageLabel()
         self.imageLabel.setAlignment(Qt.AlignCenter)
-        self.previewScrollArea.setWidget(self.imageLabel)
-        self.previewScrollArea.setWidgetResizable(True)
-        self.previewScrollArea.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.previewScrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.imageLabel.setFixedHeight(320)
+        self.imageLabel.setMinimumWidth(1)
         
         self.infoCard = WallpaperInfoCard(self)
         
@@ -711,7 +705,7 @@ class WallpaperInterface(ScrollArea):
         
         self.mainLayout.setSpacing(16)
         self.mainLayout.setContentsMargins(60, 20, 60, 40)
-        self.mainLayout.addWidget(self.previewScrollArea)
+        self.mainLayout.addWidget(self.imageLabel)
         self.mainLayout.addLayout(actionRow)
         self.mainLayout.addWidget(self.infoCard)
         self.mainLayout.addSpacing(24)
