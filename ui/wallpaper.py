@@ -64,8 +64,9 @@ HISTORY_FILE_NAME = "history.json"
 HISTORY_VERSION = 1
 MAX_HISTORY_RECORDS = 100
 
-INITIAL_PAGE_SIZE = 8
-LOAD_MORE_SIZE = 12
+INITIAL_MIN_ROWS = 2
+INITIAL_MAX_ROWS = 4
+LOAD_MORE_ROWS = 2
 CARD_WIDTH = 160
 CARD_HEIGHT = 130
 CARD_SPACING = 10
@@ -534,6 +535,14 @@ class WallpaperHistoryWidget(QWidget):
         cols = int((available + CARD_SPACING) / (CARD_WIDTH + CARD_SPACING))
         return max(1, cols)
     
+    def _calcInitialCount(self) -> int:
+        cols = self._calcColumns()
+        rows = min(INITIAL_MAX_ROWS, max(INITIAL_MIN_ROWS, self.gridContainer.height() // (CARD_HEIGHT + CARD_SPACING) if self.gridContainer.height() > 0 else INITIAL_MIN_ROWS))
+        return cols * rows
+    
+    def _calcLoadMoreCount(self) -> int:
+        return self._calcColumns() * LOAD_MORE_ROWS
+    
     def _rebuildGrid(self):
         columns = self._calcColumns()
         self._currentColumns = columns
@@ -568,7 +577,7 @@ class WallpaperHistoryWidget(QWidget):
         self.gridContainer.show()
         self.emptyLabel.hide()
         
-        self._displayPage(INITIAL_PAGE_SIZE)
+        self._displayPage(self._calcInitialCount())
     
     def _displayPage(self, count: int):
         start = self._displayedCount
@@ -585,7 +594,7 @@ class WallpaperHistoryWidget(QWidget):
         
         if self._displayedCount >= len(self._allRecords):
             self.loadMoreWidget.hide()
-            if len(self._allRecords) > INITIAL_PAGE_SIZE:
+            if len(self._allRecords) > self._calcInitialCount():
                 self.noMoreLabel.show()
             else:
                 self.noMoreLabel.hide()
@@ -596,7 +605,7 @@ class WallpaperHistoryWidget(QWidget):
             self.noMoreLabel.hide()
     
     def _loadMore(self):
-        self._displayPage(LOAD_MORE_SIZE)
+        self._displayPage(self._calcLoadMoreCount())
     
     def _showPreview(self, record: WallpaperRecord):
         dialog = WallpaperPreviewDialog(record, self.window())
@@ -630,6 +639,10 @@ class WallpaperHistoryWidget(QWidget):
         new_cols = self._calcColumns()
         if self._cards and new_cols != self._currentColumns:
             self._rebuildGrid()
+        if self._allRecords and self._displayedCount < len(self._allRecords):
+            target = self._calcInitialCount()
+            if target > self._displayedCount:
+                self._displayPage(target - self._displayedCount)
 
 
 class _ShrinkableWidget(QWidget):
