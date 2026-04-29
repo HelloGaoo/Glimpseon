@@ -731,13 +731,14 @@ class WallpaperInterface(ScrollArea):
         gridLayout = QGridLayout()
         gridLayout.setContentsMargins(0, 0, 0, 0)
         gridLayout.setSpacing(0)
-        gridLayout.addWidget(self.backgroundImage, 0, 0, 1, 1)
         gridLayout.addWidget(self.dimOverlay, 0, 0, 1, 1)
         gridLayout.addWidget(self.contentWidget, 0, 0, 1, 1)
         
         self.scrollWidget = _ShrinkableWidget()
         self.scrollWidget.setObjectName('scrollWidget')
         self.scrollWidget.setLayout(gridLayout)
+        self.backgroundImage.setParent(self.scrollWidget)
+        self.backgroundImage.lower()
         self.setWidget(self.scrollWidget)
     
     def _setQss(self):
@@ -922,7 +923,8 @@ class WallpaperInterface(ScrollArea):
         self.backgroundImage.setGraphicsEffect(blur_effect)
         
         self.backgroundImage.setPixmap(scaled_pixmap)
-        self.backgroundImage.setMinimumSize(available_width, available_height)
+        self.backgroundImage.setGeometry(0, 0, available_width, available_height)
+        self.backgroundImage.lower()
     
     def _updateMainWindowBackground(self):
         if self.mainWindow and hasattr(self.mainWindow, 'homeBackgroundImage') and self.current_pixmap:
