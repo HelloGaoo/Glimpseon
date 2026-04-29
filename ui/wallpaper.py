@@ -753,6 +753,7 @@ class WallpaperInterface(ScrollArea):
         self.backgroundImage.setParent(self.scrollWidget)
         self.backgroundImage.lower()
         self.setWidget(self.scrollWidget)
+        self.scrollWidget.installEventFilter(self)
     
     def _setQss(self):
         self.scrollWidget.setObjectName('scrollWidget')
@@ -762,6 +763,12 @@ class WallpaperInterface(ScrollArea):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if self.current_pixmap and not self.current_pixmap.isNull():self._updateBackground()
+    
+    def eventFilter(self, obj, event):
+        if obj is self.scrollWidget and event.type() == event.Type.Resize:
+            if self.current_pixmap and not self.current_pixmap.isNull():
+                self._updateBackground()
+        return super().eventFilter(obj, event)
     
     def _connectSignalToSlot(self):
         self.getButton.clicked.connect(self._getWallpaper)
@@ -923,7 +930,7 @@ class WallpaperInterface(ScrollArea):
         
         self.originalPixmap = self.current_pixmap
         available_width = self.viewport().width()
-        available_height = max(self.viewport().height(), 600)
+        available_height = max(self.viewport().height(), self.scrollWidget.height(), 600)
         
         scaled_pixmap = self.current_pixmap.scaled(
             available_width, available_height,
