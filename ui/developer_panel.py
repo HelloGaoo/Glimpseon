@@ -36,8 +36,11 @@ from PyQt5.QtWidgets import (
 from qfluentwidgets import (
     BodyLabel,
     CardWidget,
+    ComboBox,
     FluentIcon as FIF,
+    ImageLabel,
     InfoBar,
+    LineEdit,
     PrimaryPushButton,
     PushButton,
     StrongBodyLabel,
@@ -81,6 +84,7 @@ class DeveloperPanel(BaseScrollAreaInterface):
         
         self.elementCheckEnabled = False
         self.elementCheckOverlay = None
+        self._popOutWindow = None
         
         self._initUI()
         self._setupTimers()
@@ -96,6 +100,9 @@ class DeveloperPanel(BaseScrollAreaInterface):
         
         apiCard = self._createAPITestCard()
         scrollLayout.addWidget(apiCard)
+        
+        weatherDebugCard = self._createWeatherDebugCard()
+        scrollLayout.addWidget(weatherDebugCard)
         
         resourceCard = self._createResourceMonitorCard()
         scrollLayout.addWidget(resourceCard)
@@ -171,6 +178,11 @@ class DeveloperPanel(BaseScrollAreaInterface):
         self.debugUpdateToggle.setIcon(FIF.SYNC)
         layout.addWidget(self.debugUpdateToggle)
         
+        # 弹出窗口按钮
+        self.popOutButton = PushButton("弹出窗口", self)
+        self.popOutButton.clicked.connect(self._togglePopOut)
+        layout.addWidget(self.popOutButton)
+        
         return card
     
     def _createAPITestCard(self):
@@ -226,6 +238,149 @@ class DeveloperPanel(BaseScrollAreaInterface):
         
         return card
     
+    def _createWeatherDebugCard(self):
+        """天气调试"""
+        card = CardWidget()
+        layout = QVBoxLayout(card)
+        layout.setSpacing(12)
+        layout.setContentsMargins(16, 16, 16, 16)
+        titleLayout = QHBoxLayout()
+        iconLabel = QLabel()
+        iconLabelPixmap = FIF.CLOUD.icon().pixmap(24, 24)
+        iconLabel.setPixmap(iconLabelPixmap)
+        titleLayout.addWidget(iconLabel)
+        title = SubtitleLabel("天气模拟", self)
+        titleLayout.addWidget(title)
+        titleLayout.addStretch()
+        layout.addLayout(titleLayout)
+
+        self.weatherCodeMap = {
+            0: "晴", 1: "多云", 2: "阴", 3: "阵雨", 4: "雷阵雨",
+            5: "雷阵雨并伴有冰雹", 6: "雨夹雪", 7: "小雨", 8: "中雨",
+            9: "大雨", 10: "暴雨", 11: "大暴雨", 12: "特大暴雨",
+            13: "阵雪", 14: "小雪", 15: "中雪", 16: "大雪", 17: "暴雪",
+            18: "雾", 19: "冻雨", 20: "沙尘暴", 21: "小雨 - 中雨",
+            22: "中雨 - 大雨", 23: "大雨 - 暴雨", 24: "暴雨 - 大暴雨",
+            25: "大暴雨 - 特大暴雨", 26: "小雪 - 中雪", 27: "中雪 - 大雪",
+            28: "大雪 - 暴雪", 29: "浮尘", 30: "扬沙", 31: "强沙尘暴",
+            32: "飑", 33: "龙卷风", 34: "弱高吹雪", 35: "轻雾",
+            50: "晴(夜)", 51: "多云(夜)", 52: "阴(夜)", 53: "霾",
+            54: "小雨(夜)", 55: "中雨(夜)", 56: "大雨(夜)", 57: "暴雨(夜)",
+            58: "雷阵雨(夜)", 59: "冰雹(夜)", 60: "小雪(夜)", 61: "中雪(夜)",
+            62: "大雪(夜)", 63: "雾(夜)", 64: "霾(夜)", 65: "沙尘(夜)",
+            66: "大风(夜)", 67: "台风(夜)", 68: "暴雨(夜)", 69: "暴雪(夜)",
+            70: "雨夹雪(夜)", 71: "冻雨(夜)", 72: "雾凇(夜)", 73: "霜冻(夜)",
+            74: "沙尘暴(夜)", 75: "扬沙(夜)", 76: "浮尘(夜)", 77: "强沙尘暴(夜)",
+            99: "未知",
+        }
+
+        selectRow = QHBoxLayout()
+        selectRow.addWidget(BodyLabel("选择天气:", self))
+        self.weatherCodeCombo = ComboBox(self)
+        for code, name in sorted(self.weatherCodeMap.items()):
+            self.weatherCodeCombo.addItem(f"{code} - {name}", userData=code)
+        self.weatherCodeCombo.currentIndexChanged.connect(self._onWeatherCodeChanged)
+        self.weatherCodeCombo.setMinimumWidth(280)
+        selectRow.addWidget(self.weatherCodeCombo)
+        selectRow.addStretch()
+        layout.addLayout(selectRow)
+
+        previewRow = QHBoxLayout()
+        previewRow.addWidget(BodyLabel("图标预览:", self))
+        self.weatherIconPreviewLabel = ImageLabel(self)
+        self.weatherIconPreviewLabel.setFixedSize(48, 48)
+        previewRow.addWidget(self.weatherIconPreviewLabel)
+        self.weatherNamePreviewLabel = BodyLabel("-", self)
+        previewRow.addWidget(self.weatherNamePreviewLabel)
+        previewRow.addStretch()
+        layout.addLayout(previewRow)
+
+        tempRow = QHBoxLayout()
+        tempRow.addWidget(BodyLabel("温度显示:", self))
+        self.weatherTempInput = LineEdit(self)
+        self.weatherTempInput.setPlaceholderText("例如: 25°C")
+        self.weatherTempInput.setMaximumWidth(150)
+        tempRow.addWidget(self.weatherTempInput)
+        tempRow.addStretch()
+        layout.addLayout(tempRow)
+
+        buttonRow = QHBoxLayout()
+        self.applyWeatherButton = PrimaryPushButton("应用到主界面", self)
+        self.applyWeatherButton.setIcon(FIF.PLAY)
+        self.applyWeatherButton.clicked.connect(self._applyWeatherToMain)
+        buttonRow.addWidget(self.applyWeatherButton)
+        self.resetWeatherButton = PushButton("重置", self)
+        self.resetWeatherButton.clicked.connect(self._resetWeatherDebug)
+        buttonRow.addWidget(self.resetWeatherButton)
+        buttonRow.addStretch()
+        layout.addLayout(buttonRow)
+
+        self.weatherCodeCombo.setCurrentIndex(0)
+        self._onWeatherCodeChanged(0)
+
+        return card
+
+    def _onWeatherCodeChanged(self, index):
+        """更新预览"""
+        code = self.weatherCodeCombo.currentData()
+        name = self.weatherCodeMap.get(code, "未知")
+        self.weatherNamePreviewLabel.setText(name)
+        self._previewWeatherIcon(code)
+    
+    def _previewWeatherIcon(self, code):
+        """预览天气图标"""
+        from core.constants import get_resPath
+        import os
+        icon_map = {
+            0: "0.svg", 1: "1.svg", 2: "2.svg", 3: "7.svg", 4: "4.svg",
+            5: "5.svg", 6: "19.svg", 7: "7.svg", 8: "8.svg", 9: "9.svg",
+            10: "10.svg", 11: "11.svg", 12: "11.svg", 13: "14.svg", 14: "14.svg",
+            15: "15.svg", 16: "16.svg", 17: "17.svg", 18: "18.svg", 19: "19.svg",
+            20: "20.svg", 21: "7.svg", 22: "8.svg", 23: "9.svg", 24: "10.svg",
+            25: "11.svg", 26: "14.svg", 27: "15.svg", 28: "16.svg", 29: "18.svg",
+            30: "20.svg", 31: "20.svg", 32: "3.svg", 33: "3.svg", 34: "16.svg",
+            35: "18.svg", 50: "0.svg", 51: "1.svg", 52: "2.svg", 53: "18.svg",
+            54: "7.svg", 55: "8.svg", 56: "9.svg", 57: "10.svg", 58: "4.svg",
+            59: "5.svg", 60: "14.svg", 61: "15.svg", 62: "16.svg", 63: "18.svg",
+            64: "18.svg", 65: "18.svg", 66: "3.svg", 67: "3.svg", 68: "11.svg",
+            69: "17.svg", 70: "19.svg", 71: "19.svg", 72: "18.svg", 73: "18.svg",
+            74: "20.svg", 75: "20.svg", 76: "18.svg", 77: "20.svg", 99: "0.svg",
+        }
+        icon_file = icon_map.get(code, "0.svg")
+        icon_path = get_resPath(os.path.join("resource", "icons", "weather", icon_file))
+        if os.path.exists(icon_path):
+            from PyQt5.QtGui import QPixmap
+            pixmap = QPixmap(icon_path).scaled(40, 40, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.weatherIconPreviewLabel.setImage(pixmap)
+    
+    def _applyWeatherToMain(self):
+        """将选中的天气应用到主界面"""
+        code = self.weatherCodeCombo.currentData()
+        if code is None:return
+        mw = self.mainWindow
+        mw.current_weather_code = code
+        
+        temp_text = self.weatherTempInput.text().strip()
+        if temp_text:
+            mw.weatherTempLabel.setText(temp_text)
+        elif hasattr(mw, 'weatherTempLabel'):
+            name = self.weatherCodeMap.get(code, "")
+            mw.weatherTempLabel.setText(f"模拟: {name}")
+        
+        mw._MainWindow__updateWeatherIcon()
+        
+        InfoBar.success(
+            title="天气模拟",
+            content=f"已应用天气代码 {code} ({self.weatherCodeMap.get(code, '')}) 到主界面",
+            parent=self,
+            duration=2500
+        )
+    
+    def _resetWeatherDebug(self):
+        """重置天气模拟"""
+        self.weatherCodeCombo.setCurrentIndex(0)
+        self.weatherTempInput.clear()
+
     def _createResourceMonitorCard(self):
         """创建资源监控卡片"""
         card = CardWidget()
@@ -775,6 +930,42 @@ class DeveloperPanel(BaseScrollAreaInterface):
             self.componentTreeEdit.setText("\n".join(tree_lines))
         except Exception as e:
             logger.error(f"刷新组件树失败：{e}")
+    
+    def _togglePopOut(self):
+        """切换弹出/恢复窗口"""
+        if hasattr(self, '_popOutWindow') and self._popOutWindow is not None:
+            self._restoreFromPopOut()
+        else:
+            self._popOut()
+    
+    def _popOut(self):
+        """将调试面板弹出到独立窗口"""
+        self._popOutWindow = QWidget()
+        self._popOutWindow.setWindowTitle("调试面板 - ClassLively")
+        self._popOutWindow.setMinimumSize(500, 600)
+        self._popOutWindow.resize(800, 700)
+        
+        app = QApplication.instance()
+        self._popOutWindow.setStyleSheet(app.styleSheet() if app else "")
+        
+        layout = QVBoxLayout(self._popOutWindow)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.scrollWidget.setParent(self._popOutWindow)
+        layout.addWidget(self.scrollWidget)
+        
+        self._popOutWindow.closeEvent = lambda e: self._restoreFromPopOut()
+        self._popOutWindow.show()
+        self.popOutButton.setText("恢复面板")
+    
+    def _restoreFromPopOut(self):
+        """从独立窗口恢复调试面板"""
+        if hasattr(self, '_popOutWindow') and self._popOutWindow is not None:
+            pop_win = self._popOutWindow
+            self._popOutWindow = None
+            self.scrollWidget.setParent(self)
+            self.setWidget(self.scrollWidget)
+            pop_win.close()
+            self.popOutButton.setText("弹出窗口")
     
     def _findComponent(self):
         """查找组件"""
