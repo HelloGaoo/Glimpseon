@@ -358,6 +358,10 @@ class DeveloperPanel(BaseScrollAreaInterface):
         code = self.weatherCodeCombo.currentData()
         if code is None:return
         mw = self.mainWindow
+        
+        self._savedWeatherCode = getattr(mw, 'current_weather_code', None)
+        self._savedWeatherTemp = mw.weatherTempLabel.text() if hasattr(mw, 'weatherTempLabel') else ""
+        
         mw.current_weather_code = code
         
         temp_text = self.weatherTempInput.text().strip()
@@ -379,7 +383,27 @@ class DeveloperPanel(BaseScrollAreaInterface):
     def _resetWeatherDebug(self):
         """重置天气模拟"""
         self.weatherCodeCombo.setCurrentIndex(0)
+        self._onWeatherCodeChanged(0)
         self.weatherTempInput.clear()
+        
+        if not hasattr(self, '_savedWeatherCode'):return
+        mw = self.mainWindow
+        if self._savedWeatherCode is not None:
+            mw.current_weather_code = self._savedWeatherCode
+        else:
+            mw.current_weather_code = None
+        
+        if hasattr(mw, 'weatherTempLabel'):
+            mw.weatherTempLabel.setText(self._savedWeatherTemp)
+        
+        if mw.current_weather_code is not None:
+            mw._MainWindow__updateWeatherIcon()
+        else:
+            if hasattr(mw, 'weatherIconLabel'):
+                mw.weatherIconLabel.clear()
+        
+        del self._savedWeatherCode
+        del self._savedWeatherTemp
 
     def _createResourceMonitorCard(self):
         """创建资源监控卡片"""
