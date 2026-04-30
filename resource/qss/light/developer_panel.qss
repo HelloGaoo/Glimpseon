@@ -266,3 +266,23 @@
     background-color: #d0d0d0;
     max-height: 1px;
 }
+
+/* 天气图标网格 */
+#developerPanel #weatherIconGrid {
+    background-color: transparent;
+}
+
+#developerPanel #weatherIconGrid CardWidget {
+    background-color: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 8px;
+}
+
+#developerPanel #weatherIconGrid CardWidget:hover {
+    background-color: rgba(0, 120, 212, 0.08);
+    border: 1px solid rgba(0, 120, 212, 0.3);
+}
+
+#developerPanel #weatherIconGrid CardWidget BodyLabel {
+    color: #555555;
+}

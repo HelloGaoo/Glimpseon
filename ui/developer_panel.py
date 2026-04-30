@@ -43,6 +43,7 @@ from qfluentwidgets import (
     LineEdit,
     PrimaryPushButton,
     PushButton,
+    ScrollArea,
     StrongBodyLabel,
     SubtitleLabel,
     ToggleButton,
@@ -315,10 +316,102 @@ class DeveloperPanel(BaseScrollAreaInterface):
         buttonRow.addStretch()
         layout.addLayout(buttonRow)
 
+        line = QLabel(self)
+        line.setObjectName("debugSeparator")
+        line.setFixedHeight(1)
+        layout.addWidget(line)
+
+        iconGridLabel = BodyLabel("图标列表 (点击快速选择):", self)
+        layout.addWidget(iconGridLabel)
+        
+        self.weatherIconGrid = QWidget(self)
+        self.weatherIconGridLayout = QGridLayout(self.weatherIconGrid)
+        self.weatherIconGridLayout.setSpacing(8)
+        self.weatherIconGrid.setObjectName("weatherIconGrid")
+        
+        icon_map = {
+            0: "0.svg", 1: "1.svg", 2: "2.svg", 3: "7.svg", 4: "4.svg",
+            5: "5.svg", 6: "19.svg", 7: "7.svg", 8: "8.svg", 9: "9.svg",
+            10: "10.svg", 11: "11.svg", 12: "11.svg", 13: "14.svg", 14: "14.svg",
+            15: "15.svg", 16: "16.svg", 17: "17.svg", 18: "18.svg", 19: "19.svg",
+            20: "20.svg", 21: "7.svg", 22: "8.svg", 23: "9.svg", 24: "10.svg",
+            25: "11.svg", 26: "14.svg", 27: "15.svg", 28: "16.svg", 29: "18.svg",
+            30: "20.svg", 31: "20.svg", 32: "3.svg", 33: "3.svg", 34: "16.svg",
+            35: "18.svg", 50: "0.svg", 51: "1.svg", 52: "2.svg", 53: "18.svg",
+            54: "7.svg", 55: "8.svg", 56: "9.svg", 57: "10.svg", 58: "4.svg",
+            59: "5.svg", 60: "14.svg", 61: "15.svg", 62: "16.svg", 63: "18.svg",
+            64: "18.svg", 65: "18.svg", 66: "3.svg", 67: "3.svg", 68: "11.svg",
+            69: "17.svg", 70: "19.svg", 71: "19.svg", 72: "18.svg", 73: "18.svg",
+            74: "20.svg", 75: "20.svg", 76: "18.svg", 77: "20.svg", 99: "0.svg",
+        }
+        
+        col = 0
+        row = 0
+        for code, name in sorted(self.weatherCodeMap.items()):
+            item = self._createWeatherIconItem(code, name, icon_map.get(code, "0.svg"))
+            self.weatherIconGridLayout.addWidget(item, row, col)
+            col += 1
+            if col >= 6:
+                col = 0
+                row += 1
+        
+        gridScroll = ScrollArea(self)
+        gridScroll.setWidget(self.weatherIconGrid)
+        gridScroll.setWidgetResizable(True)
+        gridScroll.setMinimumHeight(200)
+        gridScroll.setMaximumHeight(280)
+        layout.addWidget(gridScroll)
+
         self.weatherCodeCombo.setCurrentIndex(0)
         self._onWeatherCodeChanged(0)
 
         return card
+
+    def _createWeatherIconItem(self, code, name, icon_file):
+        """气图标网格项"""
+        from core.constants import get_resPath
+        from PyQt5.QtGui import QPixmap
+        
+        item = CardWidget()
+        item.setFixedSize(115, 80)
+        item.setCursor(Qt.PointingHandCursor)
+        item._weatherCode = code
+        
+        layout = QVBoxLayout(item)
+        layout.setContentsMargins(4, 6, 4, 4)
+        layout.setSpacing(2)
+        layout.setAlignment(Qt.AlignCenter)
+        
+        imgLabel = ImageLabel(self)
+        imgLabel.setFixedSize(32, 32)
+        icon_path = get_resPath(os.path.join("resource", "icons", "weather", icon_file))
+        if os.path.exists(icon_path):
+            pixmap = QPixmap(icon_path).scaled(28, 28, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            imgLabel.setImage(pixmap)
+        else:
+            imgLabel.setImage(QPixmap(28, 28))
+        layout.addWidget(imgLabel, alignment=Qt.AlignHCenter)
+        
+        codeLabel = BodyLabel(f"{code}", self)
+        codeLabel.setStyleSheet("font-size: 11px; font-weight: bold;")
+        codeLabel.setAlignment(Qt.AlignHCenter)
+        layout.addWidget(codeLabel)
+        
+        nameLabel = BodyLabel(name[:5], self)
+        nameLabel.setStyleSheet("font-size: 10px;")
+        nameLabel.setAlignment(Qt.AlignHCenter)
+        layout.addWidget(nameLabel)
+        
+        item.mousePressEvent = lambda e, c=code: self._onGridItemClick(c)
+        
+        return item
+    
+    def _onGridItemClick(self, code):
+        """选中"""
+        for i in range(self.weatherCodeCombo.count()):
+            if self.weatherCodeCombo.itemData(i) == code:
+                self.weatherCodeCombo.setCurrentIndex(i)
+                break
 
     def _onWeatherCodeChanged(self, index):
         """更新预览"""
@@ -354,7 +447,7 @@ class DeveloperPanel(BaseScrollAreaInterface):
             self.weatherIconPreviewLabel.setImage(pixmap)
     
     def _applyWeatherToMain(self):
-        """将选中的天气应用到主界面"""
+        """应用到主界面"""
         code = self.weatherCodeCombo.currentData()
         if code is None:return
         mw = self.mainWindow

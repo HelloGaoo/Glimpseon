@@ -314,3 +314,23 @@
     font-weight: bold;
     color: #0078d4;
 }
+
+/* 天气图标网格 */
+#developerPanel #weatherIconGrid {
+    background-color: transparent;
+}
+
+#developerPanel #weatherIconGrid CardWidget {
+    background-color: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 8px;
+}
+
+#developerPanel #weatherIconGrid CardWidget:hover {
+    background-color: rgba(0, 120, 212, 0.15);
+    border: 1px solid rgba(0, 120, 212, 0.4);
+}
+
+#developerPanel #weatherIconGrid CardWidget BodyLabel {
+    color: #cccccc;
+}
