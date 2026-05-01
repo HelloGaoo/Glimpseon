@@ -22,6 +22,7 @@ import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, wait
+from typing import Optional
 
 from PyQt5.QtCore import QMetaObject, Q_ARG, QUrl, Qt, QTimer, pyqtSlot
 from PyQt5.QtGui import QPixmap, QDesktopServices
@@ -49,6 +50,20 @@ from core.downloader import DOWNLOAD_SOURCES, DEFAULT_SOURCE, Downloader, set_do
 from core.logger import logger
 
 from .base_scroll import BaseScrollAreaInterface
+
+_software_icon_cache = {}
+
+def get_cached_icon(icon_path: str, size: tuple = (64, 64)) -> Optional[QPixmap]:
+    if icon_path in _software_icon_cache:return _software_icon_cache[icon_path]
+    if not os.path.exists(icon_path):return None
+    try:
+        pixmap = QPixmap(icon_path)
+        if pixmap.isNull():return None
+        scaled = pixmap.scaled(size[0], size[1], Qt.KeepAspectRatio, Qt.FastTransformation)
+        _software_icon_cache[icon_path] = scaled
+        return scaled
+    except Exception:
+        return None
 
 
 class DownloadInterface(BaseScrollAreaInterface):
@@ -454,21 +469,20 @@ class DownloadInterface(BaseScrollAreaInterface):
         """ 添加一个软件到列表 """
         if self.currentGridLayout is None:
             self.addSection("常用软件")
-        
+
         softwareCard = CardWidget(self.softwareContainer)
         softwareCard.setMinimumHeight(100)
         softwareCard.setMaximumHeight(100)
         softwareCard.setMinimumWidth(400)
-        
+
         cardLayout = QHBoxLayout(softwareCard)
         cardLayout.setContentsMargins(20, 16, 20, 16)
         cardLayout.setSpacing(16)
-        
+
         iconLabel = QLabel(softwareCard)
         iconLabel.setFixedSize(64, 64)
-        if os.path.exists(icon_path):
-            pixmap = QPixmap(icon_path).scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            iconLabel.setPixmap(pixmap)
+        cached_icon = get_cached_icon(icon_path)
+        if cached_icon:iconLabel.setPixmap(cached_icon)
         else:
             iconLabel.setText("")
             iconLabel.setAlignment(Qt.AlignCenter)

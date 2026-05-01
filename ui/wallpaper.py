@@ -75,6 +75,31 @@ CARD_HEIGHT = 130
 CARD_SPACING = 10
 GRID_MARGIN_H = 10
 
+_thumbnail_cache = {}
+_cache_max_size = 200
+
+def get_cached_thumbnail(path: str, size: tuple = (144, 90)) -> Optional[QPixmap]:
+    cache_key = (path, size)
+    if cache_key in _thumbnail_cache:return _thumbnail_cache[cache_key]
+    if not os.path.exists(path):return None
+    try:
+        pixmap = QPixmap(path)
+        if pixmap.isNull():return None
+        scaled = pixmap.scaled(size[0], size[1], Qt.KeepAspectRatioByExpanding, Qt.FastTransformation)
+        if len(_thumbnail_cache) >= _cache_max_size:
+            old_keys = list(_thumbnail_cache.keys())[:50]
+            for k in old_keys:del _thumbnail_cache[k]
+
+        _thumbnail_cache[cache_key] = scaled
+        return scaled
+    except Exception as e:
+        logger.warning(f"加载缩略图失败：{e}")
+        return None
+
+def clear_thumbnail_cache():
+    global _thumbnail_cache
+    _thumbnail_cache.clear()
+
 
 @dataclass
 class WallpaperRecord:
@@ -429,30 +454,28 @@ class WallpaperThumbnailCard(CardWidget):
     def _setupUi(self):
         self.setFixedSize(CARD_WIDTH, CARD_HEIGHT)
         self.setCursor(Qt.PointingHandCursor)
-        
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
-        
+
         self.imageLabel = QLabel()
         self.imageLabel.setObjectName("thumbImage")
         self.imageLabel.setAlignment(Qt.AlignCenter)
-        
-        if os.path.exists(self.record.path):
-            pixmap = QPixmap(self.record.path)
-            if not pixmap.isNull():
-                scaled = pixmap.scaled(144, 90, Qt.KeepAspectRatioByExpanding, Qt.FastTransformation)
-                self.imageLabel.setPixmap(scaled)
-            else:
-                self._showPlaceholder("加载失败")
+
+        cached_pixmap = get_cached_thumbnail(self.record.path)
+        if cached_pixmap:
+            self.imageLabel.setPixmap(cached_pixmap)
+        elif os.path.exists(self.record.path):
+            self._showPlaceholder("加载失败")
         else:
             self._showPlaceholder("文件不存在")
-        
+
         self.infoLabel = BodyLabel(self)
         self.infoLabel.setObjectName("thumbInfo")
         self.infoLabel.setText(self.record.resolution)
         self.infoLabel.setAlignment(Qt.AlignCenter)
-        
+
         layout.addWidget(self.imageLabel)
         layout.addWidget(self.infoLabel)
     
@@ -572,20 +595,24 @@ class WallpaperHistoryWidget(QWidget):
     def _rebuildGrid(self):
         columns = self._calcColumns()
         self._currentColumns = columns
-        
+
+        self.setUpdatesEnabled(False)
+
         while self.gridLayout.count():
             item = self.gridLayout.takeAt(0)
             if item.widget():
                 item.widget().setParent(None)
-        
+
         for col in range(columns):
             self.gridLayout.setColumnStretch(col, 0)
-        
+
         for i, card in enumerate(self._cards):
             row = i // columns
             col = i % columns
             card.setParent(self.gridContainer)
             self.gridLayout.addWidget(card, row, col)
+
+        self.setUpdatesEnabled(True)
     
     def _loadHistory(self):
         records = self.historyManager.get_valid()
@@ -612,16 +639,20 @@ class WallpaperHistoryWidget(QWidget):
     def _displayPage(self, count: int):
         start = self._displayedCount
         end = min(start + count, len(self._allRecords))
-        
+
+        self.setUpdatesEnabled(False)
+
         for i in range(start, end):
             record = self._allRecords[i]
             card = WallpaperThumbnailCard(record, self)
             card.clicked.connect(self._showPreview)
             self._cards.append(card)
-        
+
         self._displayedCount = end
         self._rebuildGrid()
-        
+
+        self.setUpdatesEnabled(True)
+
         if self._displayedCount >= len(self._allRecords):
             self.loadMoreWidget.hide()
             if len(self._allRecords) > self._calcInitialCount():

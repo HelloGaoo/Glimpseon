@@ -1903,11 +1903,14 @@ def autoStart_launch():
 
 if __name__ == "__main__":
     auto_start_launch = autoStart_launch()
-    
+
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
-    
+
+    QApplication.setAttribute(Qt.AA_UseOpenGLES)
+    QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
+
     extract_files()
     
     app = QApplication(sys.argv)
