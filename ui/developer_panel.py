@@ -19,6 +19,8 @@
 """
 
 import os
+import socket
+import subprocess
 import time
 import datetime
 import psutil
@@ -50,8 +52,6 @@ from qfluentwidgets import (
     StrongBodyLabel,
     SubtitleLabel,
     ToggleButton,
-    ToolTipFilter,
-    ToolTipPosition,
 )
 
 from core.config import cfg
@@ -62,22 +62,21 @@ from ui.city_selector import RegionDatabase
 
 
 from .base_scroll import BaseScrollAreaInterface
+
 class DeveloperPanel(BaseScrollAreaInterface):
-    """调试面板"""
-    
+
     def __init__(self, mainWindow):
         super().__init__("调试", parent=None)
         self.mainWindow = mainWindow
         self.setObjectName('developerPanel')
-        
+
         self.frameCount = 0
         self.lastFpsTime = time.time()
         self.currentFps = 0
         self.process = psutil.Process(os.getpid())
-        
         self.lastGeometry = None
         self.lastCurrentWidget = None
-        
+
         try:
             cpu_times = self.process.cpu_times()
             self.last_cpu_usage = cpu_times.user + cpu_times.system
@@ -85,181 +84,247 @@ class DeveloperPanel(BaseScrollAreaInterface):
         except Exception:
             self.last_cpu_usage = 0
             self.last_cpu_time = time.time()
-        
+
         self.elementCheckEnabled = False
         self.elementCheckOverlay = None
         self._popOutWindow = None
-        
+
         self._initUI()
         self._setupTimers()
-        
+
     def _initUI(self):
-        """初始化界面"""
         scrollLayout = QVBoxLayout(self.scrollWidget)
         scrollLayout.setSpacing(15)
         scrollLayout.setContentsMargins(60, 10, 60, 20)
-
-        debugCard = self._createDebugCard()
-        scrollLayout.addWidget(debugCard)
-        
-        apiCard = self._createAPITestCard()
-        scrollLayout.addWidget(apiCard)
-        
-        weatherDebugCard = self._createWeatherDebugCard()
-        scrollLayout.addWidget(weatherDebugCard)
-        
-        resourceCard = self._createResourceMonitorCard()
-        scrollLayout.addWidget(resourceCard)
-        
-        windowCard = self._createWindowDebugCard()
-        scrollLayout.addWidget(windowCard)
-        
-        elementCard = self._createElementCheckCard()
-        scrollLayout.addWidget(elementCard)
-        
-        batchCard = self._createBatchWallpaperCard()
-        scrollLayout.addWidget(batchCard)
-        
+        scrollLayout.addWidget(self._createSystemMonitorCard())
+        scrollLayout.addWidget(self._createQuickActionsCard())
+        scrollLayout.addWidget(self._createNetworkDiagCard())
+        scrollLayout.addWidget(self._createAPITestCard())
+        scrollLayout.addWidget(self._createWeatherDebugCard())
+        scrollLayout.addWidget(self._createElementCheckCard())
+        scrollLayout.addWidget(self._createBatchWallpaperCard())
         self._loadStyleSheet()
         QTimer.singleShot(500, self._refreshComponentTree)
-        
         QTimer.singleShot(1000, self._installEventFilter)
+
     def _installEventFilter(self):
-        if self.mainWindow:self.mainWindow.installEventFilter(self)
-        
-    def _createDebugCard(self):
-        """创建调试信息显示卡片"""
+        if self.mainWindow: self.mainWindow.installEventFilter(self)
+
+    def _cardTitle(self, icon, text, parent=None):
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        iconLabel = QLabel(parent)
+        iconLabel.setPixmap(icon.icon().pixmap(22, 22))
+        layout.addWidget(iconLabel)
+        layout.addWidget(SubtitleLabel(text, parent))
+        layout.addStretch()
+        return layout
+
+    def _createSystemMonitorCard(self):
         card = CardWidget()
         layout = QVBoxLayout(card)
-        layout.setSpacing(16)
+        layout.setSpacing(14)
         layout.setContentsMargins(16, 16, 16, 16)
-        titleLayout = QHBoxLayout()
-        iconLabel = QLabel()
-        iconLabelPixmap = FIF.DEVELOPER_TOOLS.icon().pixmap(24, 24)
-        iconLabel.setPixmap(iconLabelPixmap)
-        titleLayout.addWidget(iconLabel)
-        title = SubtitleLabel("调试信息", self)
-        titleLayout.addWidget(title)
-        titleLayout.addStretch()
-        layout.addLayout(titleLayout)
-        gridLayout = QGridLayout()
-        gridLayout.setSpacing(12)
-        gridLayout.setHorizontalSpacing(24)
-        
-        # FPS
-        gridLayout.addWidget(StrongBodyLabel("FPS", self), 0, 0)
-        self.fpsLabel = BodyLabel("0", self)
+        layout.addLayout(self._cardTitle(FIF.APPLICATION, "系统监控", card))
+
+        grid = QGridLayout()
+        grid.setSpacing(12)
+        grid.setHorizontalSpacing(20)
+
+        grid.addWidget(StrongBodyLabel("FPS", card), 0, 0)
+        self.fpsLabel = BodyLabel("0", card)
         self.fpsLabel.setObjectName("debugValueLabel")
-        gridLayout.addWidget(self.fpsLabel, 0, 1)
-        # 内存占用
-        gridLayout.addWidget(StrongBodyLabel("内存", self), 0, 2)
-        self.memoryLabel = BodyLabel("0 MB", self)
+        grid.addWidget(self.fpsLabel, 0, 1)
+
+        grid.addWidget(StrongBodyLabel("内存", card), 0, 2)
+        self.memoryLabel = BodyLabel("0 MB", card)
         self.memoryLabel.setObjectName("debugValueLabel")
-        gridLayout.addWidget(self.memoryLabel, 0, 3)
-        # CPU 使用率
-        gridLayout.addWidget(StrongBodyLabel("CPU", self), 1, 0)
-        self.cpuLabel = BodyLabel("0%", self)
+        grid.addWidget(self.memoryLabel, 0, 3)
+
+        grid.addWidget(StrongBodyLabel("CPU", card), 1, 0)
+        self.cpuLabel = BodyLabel("0%", card)
         self.cpuLabel.setObjectName("debugValueLabel")
-        gridLayout.addWidget(self.cpuLabel, 1, 1)
-        # 窗口状态
-        gridLayout.addWidget(StrongBodyLabel("窗口状态", self), 1, 2)
-        self.windowStateLabel = BodyLabel("正常", self)
-        gridLayout.addWidget(self.windowStateLabel, 1, 3)
-        # 界面状态
-        gridLayout.addWidget(StrongBodyLabel("界面状态", self), 2, 0)
-        self.interfaceStateLabel = BodyLabel("-", self)
-        gridLayout.addWidget(self.interfaceStateLabel, 2, 1)
-        # 组件数量
-        gridLayout.addWidget(StrongBodyLabel("组件数量", self), 2, 2)
-        self.componentCountLabel = BodyLabel("0", self)
-        gridLayout.addWidget(self.componentCountLabel, 2, 3)
-        layout.addLayout(gridLayout)
-        # 分隔线
-        line = QLabel(self)
+        grid.addWidget(self.cpuLabel, 1, 1)
+
+        grid.addWidget(StrongBodyLabel("窗口状态", card), 1, 2)
+        self.windowStateLabel = BodyLabel("正常", card)
+        grid.addWidget(self.windowStateLabel, 1, 3)
+
+        grid.addWidget(StrongBodyLabel("壁纸文件夹", card), 2, 0)
+        self.wallpaperSizeLabel = StrongBodyLabel("-", card)
+        grid.addWidget(self.wallpaperSizeLabel, 2, 1)
+
+        grid.addWidget(StrongBodyLabel("壁纸数量", card), 2, 2)
+        self.wallpaperCountLabel = StrongBodyLabel("0", card)
+        grid.addWidget(self.wallpaperCountLabel, 2, 3)
+
+        layout.addLayout(grid)
+
+        line = QLabel(card)
         line.setObjectName("debugSeparator")
         line.setFixedHeight(1)
         layout.addWidget(line)
-        # 实时更新按钮
-        self.debugUpdateToggle = ToggleButton("实时更新", self)
+
+        btnRow = QHBoxLayout()
+        self.debugUpdateToggle = ToggleButton("启用监测", card)
         self.debugUpdateToggle.setChecked(True)
         self.debugUpdateToggle.setIcon(FIF.SYNC)
-        layout.addWidget(self.debugUpdateToggle)
-        
-        # 弹出窗口按钮
-        self.popOutButton = PushButton("弹出窗口", self)
+        btnRow.addWidget(self.debugUpdateToggle)
+        self.popOutButton = PushButton(FIF.FULL_SCREEN, "弹出窗口", card)
         self.popOutButton.clicked.connect(self._togglePopOut)
-        layout.addWidget(self.popOutButton)
-        
+        btnRow.addWidget(self.popOutButton)
+        btnRow.addStretch()
+        layout.addLayout(btnRow)
+
         return card
-    
-    def _createAPITestCard(self):
-        """创建 API 测试工具卡片"""
+
+    def _createQuickActionsCard(self):
         card = CardWidget()
         layout = QVBoxLayout(card)
-        layout.setSpacing(16)
+        layout.setSpacing(14)
         layout.setContentsMargins(16, 16, 16, 16)
-        titleLayout = QHBoxLayout()
-        iconLabel = QLabel()
-        iconLabelPixmap = FIF.SETTING.icon().pixmap(24, 24)
-        iconLabel.setPixmap(iconLabelPixmap)
-        titleLayout.addWidget(iconLabel)
-        title = SubtitleLabel("API 测试工具", self)
-        titleLayout.addWidget(title)
-        titleLayout.addStretch()
-        layout.addLayout(titleLayout)
-        poetryLayout = QHBoxLayout()
-        poetryLayout.addWidget(StrongBodyLabel("一言 API", self))
-        poetryLayout.addStretch()
-        self.testPoetryButton = PrimaryPushButton("测试", self)
-        self.testPoetryButton.setIcon(FIF.PLAY)
-        self.testPoetryButton.setFixedWidth(120)
+        layout.addLayout(self._cardTitle(FIF.MENU, "快捷操作", card))
+
+        row1 = QHBoxLayout()
+        self.reloadThemeBtn = PrimaryPushButton(FIF.PALETTE, "刷新主题", card)
+        self.reloadThemeBtn.clicked.connect(self._reloadTheme)
+        row1.addWidget(self.reloadThemeBtn)
+        self.clearCacheBtn = PushButton(FIF.DELETE, "清理壁纸缓存", card)
+        self.clearCacheBtn.clicked.connect(self._clearCache)
+        row1.addWidget(self.clearCacheBtn)
+        self.clearLogsBtn = PushButton(FIF.BROOM, "清理日志", card)
+        self.clearLogsBtn.clicked.connect(self._clearLogs)
+        row1.addWidget(self.clearLogsBtn)
+        layout.addLayout(row1)
+
+        row2 = QHBoxLayout()
+        self.openLogDirBtn = PushButton(FIF.FOLDER, "打开日志目录", card)
+        self.openLogDirBtn.clicked.connect(lambda: os.startfile(os.path.join(BASE_DIR, 'logs')))
+        row2.addWidget(self.openLogDirBtn)
+        self.openWallpaperDirBtn = PushButton(FIF.FOLDER_ADD, "打开壁纸目录", card)
+        self.openWallpaperDirBtn.clicked.connect(lambda: os.startfile(os.path.join(BASE_DIR, 'wallpaper')))
+        row2.addWidget(self.openWallpaperDirBtn)
+        self.openConfigDirBtn = PushButton(FIF.SETTING, "打开配置目录", card)
+        self.openConfigDirBtn.clicked.connect(lambda: os.startfile(os.path.join(BASE_DIR, 'config')))
+        row2.addWidget(self.openConfigDirBtn)
+        layout.addLayout(row2)
+
+        row3 = QHBoxLayout()
+        self.forceRepaintBtn = PushButton(FIF.SYNC, "强制重绘界面", card)
+        self.forceRepaintBtn.clicked.connect(self._forceRepaint)
+        row3.addWidget(self.forceRepaintBtn)
+        self.restartAppBtn = PushButton(FIF.UPDATE, "重启应用", card)
+        self.restartAppBtn.clicked.connect(self._restartApp)
+        row3.addWidget(self.restartAppBtn)
+        row3.addStretch()
+        layout.addLayout(row3)
+
+        return card
+
+    def _createNetworkDiagCard(self):
+        card = CardWidget()
+        layout = QVBoxLayout(card)
+        layout.setSpacing(14)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.addLayout(self._cardTitle(FIF.GLOBE, "网络诊断", card))
+
+        targetRow = QHBoxLayout()
+        targetRow.addWidget(BodyLabel("测试目标:", card))
+        self.networkTargetCombo = ComboBox(card)
+        self.networkTargetCombo.addItems(["www.baidu.com", "www.qq.com", "www.aliyun.com", "www.bilibili.com"])
+        self.networkTargetCombo.setMinimumWidth(200)
+        targetRow.addWidget(self.networkTargetCombo)
+        targetRow.addStretch()
+        layout.addLayout(targetRow)
+
+        resultGrid = QGridLayout()
+        resultGrid.setSpacing(8)
+
+        resultGrid.addWidget(BodyLabel("连通性:", card), 0, 0)
+        self.networkConnectLabel = StrongBodyLabel("-", card)
+        resultGrid.addWidget(self.networkConnectLabel, 0, 1)
+
+        resultGrid.addWidget(BodyLabel("延迟:", card), 0, 2)
+        self.networkLatencyLabel = StrongBodyLabel("-", card)
+        resultGrid.addWidget(self.networkLatencyLabel, 0, 3)
+
+        resultGrid.addWidget(BodyLabel("DNS 解析:", card), 1, 0)
+        self.networkDnsLabel = StrongBodyLabel("-", card)
+        resultGrid.addWidget(self.networkDnsLabel, 1, 1)
+
+        resultGrid.addWidget(BodyLabel("一言 API:", card), 1, 2)
+        self.networkPoetryLabel = StrongBodyLabel("-", card)
+        resultGrid.addWidget(self.networkPoetryLabel, 1, 3)
+
+        layout.addLayout(resultGrid)
+
+        btnRow = QHBoxLayout()
+        self.networkTestBtn = PrimaryPushButton(FIF.PLAY, "开始诊断", card)
+        self.networkTestBtn.clicked.connect(self._runNetworkDiag)
+        btnRow.addWidget(self.networkTestBtn)
+        self.networkTestAllBtn = PushButton("全部测试", card)
+        self.networkTestAllBtn.clicked.connect(self._runNetworkDiagAll)
+        btnRow.addWidget(self.networkTestAllBtn)
+        btnRow.addStretch()
+        layout.addLayout(btnRow)
+
+        self.networkLogEdit = QTextEdit(card)
+        self.networkLogEdit.setPlaceholderText("诊断日志...")
+        self.networkLogEdit.setMaximumHeight(100)
+        self.networkLogEdit.setReadOnly(True)
+        layout.addWidget(self.networkLogEdit)
+
+        return card
+
+    def _createAPITestCard(self):
+        card = CardWidget()
+        layout = QVBoxLayout(card)
+        layout.setSpacing(14)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.addLayout(self._cardTitle(FIF.CODE, "API 测试", card))
+
+        poetryRow = QHBoxLayout()
+        poetryRow.addWidget(StrongBodyLabel("一言 API", card))
+        poetryRow.addStretch()
+        self.testPoetryButton = PrimaryPushButton(FIF.PLAY, "测试", card)
+        self.testPoetryButton.setFixedWidth(100)
         self.testPoetryButton.clicked.connect(self._testPoetryAPI)
-        poetryLayout.addWidget(self.testPoetryButton)
-        layout.addLayout(poetryLayout)
-        self.poetryResultLabel = BodyLabel("结果：-", self)
+        poetryRow.addWidget(self.testPoetryButton)
+        layout.addLayout(poetryRow)
+        self.poetryResultLabel = BodyLabel("结果：-", card)
         self.poetryResultLabel.setWordWrap(True)
         layout.addWidget(self.poetryResultLabel)
-        weatherLayout = QHBoxLayout()
-        weatherLayout.addWidget(StrongBodyLabel("天气 API", self))
-        weatherLayout.addStretch()
-        self.testWeatherButton = PrimaryPushButton("测试", self)
-        self.testWeatherButton.setIcon(FIF.PLAY)
-        self.testWeatherButton.setFixedWidth(120)
+
+        weatherRow = QHBoxLayout()
+        weatherRow.addWidget(StrongBodyLabel("天气 API", card))
+        weatherRow.addStretch()
+        self.testWeatherButton = PrimaryPushButton(FIF.PLAY, "测试", card)
+        self.testWeatherButton.setFixedWidth(100)
         self.testWeatherButton.clicked.connect(self._testWeatherAPI)
-        weatherLayout.addWidget(self.testWeatherButton)
-        layout.addLayout(weatherLayout)
-        self.weatherResultLabel = BodyLabel("结果：-", self)
+        weatherRow.addWidget(self.testWeatherButton)
+        layout.addLayout(weatherRow)
+        self.weatherResultLabel = BodyLabel("结果：-", card)
         self.weatherResultLabel.setWordWrap(True)
         layout.addWidget(self.weatherResultLabel)
-        
-        # 分隔线
-        line = QLabel(self)
+
+        line = QLabel(card)
         line.setObjectName("debugSeparator")
         line.setFixedHeight(1)
         layout.addWidget(line)
-        
-        self.rawDataEdit = QTextEdit(self)
+
+        self.rawDataEdit = QTextEdit(card)
         self.rawDataEdit.setPlaceholderText("API 原始响应数据...")
-        self.rawDataEdit.setMaximumHeight(150)
+        self.rawDataEdit.setMaximumHeight(120)
         layout.addWidget(self.rawDataEdit)
-        
+
         return card
-    
+
     def _createWeatherDebugCard(self):
-        """天气调试"""
         card = CardWidget()
         layout = QVBoxLayout(card)
         layout.setSpacing(12)
         layout.setContentsMargins(16, 16, 16, 16)
-        titleLayout = QHBoxLayout()
-        iconLabel = QLabel()
-        iconLabelPixmap = FIF.CLOUD.icon().pixmap(24, 24)
-        iconLabel.setPixmap(iconLabelPixmap)
-        titleLayout.addWidget(iconLabel)
-        title = SubtitleLabel("天气模拟", self)
-        titleLayout.addWidget(title)
-        titleLayout.addStretch()
-        layout.addLayout(titleLayout)
+        layout.addLayout(self._cardTitle(FIF.CLOUD, "天气模拟", card))
 
         self.weatherCodeMap = {
             0: "晴", 1: "多云", 2: "阴", 3: "阵雨", 4: "雷阵雨",
@@ -282,8 +347,8 @@ class DeveloperPanel(BaseScrollAreaInterface):
         }
 
         selectRow = QHBoxLayout()
-        selectRow.addWidget(BodyLabel("选择天气:", self))
-        self.weatherCodeCombo = ComboBox(self)
+        selectRow.addWidget(BodyLabel("选择天气:", card))
+        self.weatherCodeCombo = ComboBox(card)
         for code, name in sorted(self.weatherCodeMap.items()):
             self.weatherCodeCombo.addItem(f"{code} - {name}", userData=code)
         self.weatherCodeCombo.currentIndexChanged.connect(self._onWeatherCodeChanged)
@@ -293,18 +358,18 @@ class DeveloperPanel(BaseScrollAreaInterface):
         layout.addLayout(selectRow)
 
         previewRow = QHBoxLayout()
-        previewRow.addWidget(BodyLabel("图标预览:", self))
-        self.weatherIconPreviewLabel = ImageLabel(self)
+        previewRow.addWidget(BodyLabel("图标预览:", card))
+        self.weatherIconPreviewLabel = ImageLabel(card)
         self.weatherIconPreviewLabel.setFixedSize(48, 48)
         previewRow.addWidget(self.weatherIconPreviewLabel)
-        self.weatherNamePreviewLabel = BodyLabel("-", self)
+        self.weatherNamePreviewLabel = BodyLabel("-", card)
         previewRow.addWidget(self.weatherNamePreviewLabel)
         previewRow.addStretch()
         layout.addLayout(previewRow)
 
         tempRow = QHBoxLayout()
-        tempRow.addWidget(BodyLabel("温度显示:", self))
-        self.weatherTempInput = LineEdit(self)
+        tempRow.addWidget(BodyLabel("温度显示:", card))
+        self.weatherTempInput = LineEdit(card)
         self.weatherTempInput.setPlaceholderText("例如: 25°C")
         self.weatherTempInput.setMaximumWidth(150)
         tempRow.addWidget(self.weatherTempInput)
@@ -312,29 +377,28 @@ class DeveloperPanel(BaseScrollAreaInterface):
         layout.addLayout(tempRow)
 
         buttonRow = QHBoxLayout()
-        self.applyWeatherButton = PrimaryPushButton("应用到主界面", self)
-        self.applyWeatherButton.setIcon(FIF.PLAY)
+        self.applyWeatherButton = PrimaryPushButton(FIF.PLAY, "应用到主界面", card)
         self.applyWeatherButton.clicked.connect(self._applyWeatherToMain)
         buttonRow.addWidget(self.applyWeatherButton)
-        self.resetWeatherButton = PushButton("重置", self)
+        self.resetWeatherButton = PushButton("重置", card)
         self.resetWeatherButton.clicked.connect(self._resetWeatherDebug)
         buttonRow.addWidget(self.resetWeatherButton)
         buttonRow.addStretch()
         layout.addLayout(buttonRow)
 
-        line = QLabel(self)
+        line = QLabel(card)
         line.setObjectName("debugSeparator")
         line.setFixedHeight(1)
         layout.addWidget(line)
 
-        iconGridLabel = BodyLabel("图标列表 (点击快速选择):", self)
+        iconGridLabel = BodyLabel("图标列表 (点击快速选择):", card)
         layout.addWidget(iconGridLabel)
-        
-        self.weatherIconGrid = QWidget(self)
+
+        self.weatherIconGrid = QWidget(card)
         self.weatherIconGridLayout = QGridLayout(self.weatherIconGrid)
         self.weatherIconGridLayout.setSpacing(8)
         self.weatherIconGrid.setObjectName("weatherIconGrid")
-        
+
         icon_map = {
             0: "0.svg", 1: "1.svg", 2: "2.svg", 3: "7.svg", 4: "4.svg",
             5: "5.svg", 6: "19.svg", 7: "7.svg", 8: "8.svg", 9: "9.svg",
@@ -350,18 +414,17 @@ class DeveloperPanel(BaseScrollAreaInterface):
             69: "17.svg", 70: "19.svg", 71: "19.svg", 72: "18.svg", 73: "18.svg",
             74: "20.svg", 75: "20.svg", 76: "18.svg", 77: "20.svg", 99: "0.svg",
         }
-        
         col = 0
         row = 0
         for code, name in sorted(self.weatherCodeMap.items()):
-            item = self._createWeatherIconItem(code, name, icon_map.get(code, "0.svg"))
+            item = self._createWeatherIconItem(code, name, icon_map.get(code, "0.svg"), card)
             self.weatherIconGridLayout.addWidget(item, row, col)
             col += 1
             if col >= 6:
                 col = 0
                 row += 1
-        
-        gridScroll = ScrollArea(self)
+
+        gridScroll = ScrollArea(card)
         gridScroll.setWidget(self.weatherIconGrid)
         gridScroll.setWidgetResizable(True)
         gridScroll.setMinimumHeight(200)
@@ -373,22 +436,17 @@ class DeveloperPanel(BaseScrollAreaInterface):
 
         return card
 
-    def _createWeatherIconItem(self, code, name, icon_file):
-        """气图标网格项"""
+    def _createWeatherIconItem(self, code, name, icon_file, parent_card):
         from core.constants import get_resPath
-        from PyQt5.QtGui import QPixmap
-        
         item = CardWidget()
         item.setFixedSize(115, 80)
         item.setCursor(Qt.PointingHandCursor)
         item._weatherCode = code
-        
         layout = QVBoxLayout(item)
         layout.setContentsMargins(4, 6, 4, 4)
         layout.setSpacing(2)
         layout.setAlignment(Qt.AlignCenter)
-        
-        imgLabel = ImageLabel(self)
+        imgLabel = ImageLabel(parent_card)
         imgLabel.setFixedSize(32, 32)
         icon_path = get_resPath(os.path.join("resource", "icons", "weather", icon_file))
         if os.path.exists(icon_path):
@@ -397,39 +455,31 @@ class DeveloperPanel(BaseScrollAreaInterface):
         else:
             imgLabel.setImage(QPixmap(28, 28))
         layout.addWidget(imgLabel, alignment=Qt.AlignHCenter)
-        
-        codeLabel = BodyLabel(f"{code}", self)
+        codeLabel = BodyLabel(f"{code}", parent_card)
         codeLabel.setStyleSheet("font-size: 11px; font-weight: bold;")
         codeLabel.setAlignment(Qt.AlignHCenter)
         layout.addWidget(codeLabel)
-        
-        nameLabel = BodyLabel(name[:5], self)
+        nameLabel = BodyLabel(name[:5], parent_card)
         nameLabel.setStyleSheet("font-size: 10px;")
         nameLabel.setAlignment(Qt.AlignHCenter)
         layout.addWidget(nameLabel)
-        
         item.mousePressEvent = lambda e, c=code: self._onGridItemClick(c)
-        
         return item
-    
+
     def _onGridItemClick(self, code):
-        """选中"""
         for i in range(self.weatherCodeCombo.count()):
             if self.weatherCodeCombo.itemData(i) == code:
                 self.weatherCodeCombo.setCurrentIndex(i)
                 break
 
     def _onWeatherCodeChanged(self, index):
-        """更新预览"""
         code = self.weatherCodeCombo.currentData()
         name = self.weatherCodeMap.get(code, "未知")
         self.weatherNamePreviewLabel.setText(name)
         self._previewWeatherIcon(code)
-    
+
     def _previewWeatherIcon(self, code):
-        """预览天气图标"""
         from core.constants import get_resPath
-        import os
         icon_map = {
             0: "0.svg", 1: "1.svg", 2: "2.svg", 3: "7.svg", 4: "4.svg",
             5: "5.svg", 6: "19.svg", 7: "7.svg", 8: "8.svg", 9: "9.svg",
@@ -448,181 +498,66 @@ class DeveloperPanel(BaseScrollAreaInterface):
         icon_file = icon_map.get(code, "0.svg")
         icon_path = get_resPath(os.path.join("resource", "icons", "weather", icon_file))
         if os.path.exists(icon_path):
-            from PyQt5.QtGui import QPixmap
             pixmap = QPixmap(icon_path).scaled(40, 40, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             self.weatherIconPreviewLabel.setImage(pixmap)
-    
+
     def _applyWeatherToMain(self):
-        """应用到主界面"""
         code = self.weatherCodeCombo.currentData()
-        if code is None:return
+        if code is None: return
         mw = self.mainWindow
-        
         self._savedWeatherCode = getattr(mw, 'current_weather_code', None)
         self._savedWeatherTemp = mw.weatherTempLabel.text() if hasattr(mw, 'weatherTempLabel') else ""
-        
         mw.current_weather_code = code
-        
         temp_text = self.weatherTempInput.text().strip()
         if temp_text:
             mw.weatherTempLabel.setText(temp_text)
         elif hasattr(mw, 'weatherTempLabel'):
             name = self.weatherCodeMap.get(code, "")
             mw.weatherTempLabel.setText(f"模拟: {name}")
-        
         mw._MainWindow__updateWeatherIcon()
-        
-        InfoBar.success(
-            title="天气模拟",
-            content=f"已应用天气代码 {code} ({self.weatherCodeMap.get(code, '')}) 到主界面",
-            parent=self,
-            duration=2500
-        )
-    
+        InfoBar.success(title="天气模拟", content=f"已应用天气代码 {code} ({self.weatherCodeMap.get(code, '')}) 到主界面", parent=self, duration=2500)
+
     def _resetWeatherDebug(self):
-        """重置天气模拟"""
         self.weatherCodeCombo.setCurrentIndex(0)
         self._onWeatherCodeChanged(0)
         self.weatherTempInput.clear()
-        
         if hasattr(self, '_savedWeatherCode'): del self._savedWeatherCode
         if hasattr(self, '_savedWeatherTemp'): del self._savedWeatherTemp
-        
         mw = self.mainWindow
         mw._MainWindow__updateWeather()
 
-    def _createResourceMonitorCard(self):
-        """创建资源监控卡片"""
-        card = CardWidget()
-        layout = QVBoxLayout(card)
-        layout.setSpacing(10)
-        title = SubtitleLabel("资源监控", self)
-        layout.addWidget(title)
-        gridLayout = QGridLayout()
-        gridLayout.setSpacing(10)
-        
-        # 壁纸文件夹大小
-        gridLayout.addWidget(BodyLabel("壁纸文件夹:", self), 0, 0)
-        self.wallpaperSizeLabel = StrongBodyLabel("0 MB", self)
-        gridLayout.addWidget(self.wallpaperSizeLabel, 0, 1)
-        # 壁纸文件数量
-        gridLayout.addWidget(BodyLabel("壁纸数量:", self), 0, 2)
-        self.wallpaperCountLabel = StrongBodyLabel("0", self)
-        gridLayout.addWidget(self.wallpaperCountLabel, 0, 3)
-        # 日志文件数量
-        gridLayout.addWidget(BodyLabel("日志文件:", self), 1, 0)
-        self.logFileCountLabel = StrongBodyLabel("0", self)
-        gridLayout.addWidget(self.logFileCountLabel, 1, 1)
-        # 日志文件夹大小
-        gridLayout.addWidget(BodyLabel("日志大小:", self), 1, 2)
-        self.logSizeLabel = StrongBodyLabel("0 MB", self)
-        gridLayout.addWidget(self.logSizeLabel, 1, 3)
-        
-        layout.addLayout(gridLayout)
-        
-        # 清理按钮
-        buttonLayout = QHBoxLayout()
-        self.clearCacheButton = PushButton("清理缓存", self)
-        self.clearCacheButton.clicked.connect(self._clearCache)
-        buttonLayout.addWidget(self.clearCacheButton)
-        
-        self.clearLogsButton = PushButton("清理日志", self)
-        self.clearLogsButton.clicked.connect(self._clearLogs)
-        buttonLayout.addWidget(self.clearLogsButton)
-        
-        layout.addLayout(buttonLayout)
-        return card
-    
-    def _createWindowDebugCard(self):
-        """创建窗口调试卡片"""
-        card = CardWidget()
-        layout = QVBoxLayout(card)
-        layout.setSpacing(10)
-        title = SubtitleLabel("窗口调试", self)
-        layout.addWidget(title)
-        gridLayout = QGridLayout()
-        gridLayout.setSpacing(10)
-        
-        # 窗口尺寸
-        gridLayout.addWidget(BodyLabel("窗口尺寸:", self), 0, 0)
-        self.windowSizeLabel = StrongBodyLabel("0x0", self)
-        gridLayout.addWidget(self.windowSizeLabel, 0, 1)
-        # 窗口位置
-        gridLayout.addWidget(BodyLabel("窗口位置:", self), 0, 2)
-        self.windowPosLabel = StrongBodyLabel("(0, 0)", self)
-        gridLayout.addWidget(self.windowPosLabel, 0, 3)
-        # DPI 缩放
-        gridLayout.addWidget(BodyLabel("DPI 缩放:", self), 1, 0)
-        self.dpiScaleLabel = StrongBodyLabel("1.0", self)
-        gridLayout.addWidget(self.dpiScaleLabel, 1, 1)
-        # 活动窗口
-        gridLayout.addWidget(BodyLabel("活动窗口:", self), 1, 2)
-        self.activeWindowLabel = StrongBodyLabel("-", self)
-        gridLayout.addWidget(self.activeWindowLabel, 1, 3)
-        layout.addLayout(gridLayout)
-        # 操作按钮
-        buttonLayout = QHBoxLayout()
-        self.refreshWindowButton = PushButton("刷新信息", self)
-        self.refreshWindowButton.clicked.connect(self._updateWindowDebug)
-        buttonLayout.addWidget(self.refreshWindowButton)
-        self.forceRepaintButton = PushButton("强制重绘", self)
-        self.forceRepaintButton.clicked.connect(self._forceRepaint)
-        buttonLayout.addWidget(self.forceRepaintButton)
-        layout.addLayout(buttonLayout)
-        # 窗口信息详情
-        self.windowInfoEdit = QTextEdit(self)
-        self.windowInfoEdit.setPlaceholderText("窗口详细信息")
-        self.windowInfoEdit.setMaximumHeight(100)
-        self.windowInfoEdit.setReadOnly(True)
-        layout.addWidget(self.windowInfoEdit)
-        
-        return card
-    
     def _createElementCheckCard(self):
-        """创建界面元素检查卡片"""
         card = CardWidget()
         layout = QVBoxLayout(card)
-        layout.setSpacing(10)
-        title = SubtitleLabel("界面元素", self)
-        layout.addWidget(title)
-        
-        # 启用检查
-        enableLayout = QHBoxLayout()
-        enableLayout.addWidget(BodyLabel("启用元素检查:", self))
-        self.elementCheckToggle = ToggleButton("启用", self)
+        layout.setSpacing(12)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.addLayout(self._cardTitle(FIF.SEARCH, "元素检查", card))
+
+        enableRow = QHBoxLayout()
+        enableRow.addWidget(BodyLabel("启用悬停检查:", card))
+        self.elementCheckToggle = ToggleButton("启用", card)
         self.elementCheckToggle.toggled.connect(self._toggleElementCheck)
-        enableLayout.addWidget(self.elementCheckToggle)
-        layout.addLayout(enableLayout)
-        # 元素信息
-        infoLayout = QVBoxLayout()
-        infoLayout.addWidget(BodyLabel("当前元素:", self))
-        self.elementInfoEdit = QTextEdit(self)
-        self.elementInfoEdit.setPlaceholderText("鼠标悬停在元素上查看信息")
-        self.elementInfoEdit.setMaximumHeight(150)
+        enableRow.addWidget(self.elementCheckToggle)
+        enableRow.addStretch()
+        layout.addLayout(enableRow)
+
+        self.elementInfoEdit = QTextEdit(card)
+        self.elementInfoEdit.setPlaceholderText("鼠标悬停在组件上查看信息（对象名 / 类型 / 位置 / 大小）")
+        self.elementInfoEdit.setMaximumHeight(130)
         self.elementInfoEdit.setReadOnly(True)
-        infoLayout.addWidget(self.elementInfoEdit)
-        layout.addLayout(infoLayout)
-        # 组件树
-        treeLayout = QVBoxLayout()
-        treeLayout.addWidget(BodyLabel("组件树:", self))
-        self.componentTreeEdit = QTextEdit(self)
-        self.componentTreeEdit.setPlaceholderText("组件层级结构")
-        self.componentTreeEdit.setMaximumHeight(200)
-        self.componentTreeEdit.setReadOnly(True)
-        treeLayout.addWidget(self.componentTreeEdit)
-        layout.addLayout(treeLayout)
-    
+        layout.addWidget(self.elementInfoEdit)
+
         return card
-    
+
     def _createBatchWallpaperCard(self):
         card = CardWidget()
         layout = QVBoxLayout(card)
-        layout.setSpacing(10)
-        title = SubtitleLabel("获取壁纸", self)
-        layout.addWidget(title)
-        
+        layout.setSpacing(12)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.addLayout(self._cardTitle(FIF.DOWNLOAD, "获取壁纸", card))
+
         row = QHBoxLayout()
-        row.addWidget(BodyLabel("获取数量:", self))
+        row.addWidget(BodyLabel("获取数量:", card))
         self.batchWallpaperSpin = SpinBox(card)
         self.batchWallpaperSpin.setRange(1, 100)
         self.batchWallpaperSpin.setValue(5)
@@ -640,23 +575,23 @@ class DeveloperPanel(BaseScrollAreaInterface):
         row.addWidget(self.batchWallpaperStopBtn)
         row.addStretch(1)
         layout.addLayout(row)
-        
+
         self.batchWallpaperProgress = QProgressBar(card)
         self.batchWallpaperProgress.setRange(0, 100)
         self.batchWallpaperProgress.setValue(0)
         self.batchWallpaperProgress.setFixedHeight(6)
         self.batchWallpaperProgress.setTextVisible(False)
         layout.addWidget(self.batchWallpaperProgress)
-        
+
         self.batchWallpaperLog = QTextEdit(card)
         self.batchWallpaperLog.setPlaceholderText("获取日志")
         self.batchWallpaperLog.setMaximumHeight(120)
         self.batchWallpaperLog.setReadOnly(True)
         layout.addWidget(self.batchWallpaperLog)
-        
+
         self._batchRunning = False
         return card
-    
+
     def _batchGetWallpaper(self):
         if self._batchRunning: return
         count = self.batchWallpaperSpin.value()
@@ -671,22 +606,19 @@ class DeveloperPanel(BaseScrollAreaInterface):
         self._batchWallpaperCount = count
         self._batchWallpaperIndex = 0
         QTimer.singleShot(100, self._batchGetNextWallpaper)
-    
+
     def _batchGetNextWallpaper(self):
         if not self._batchRunning or self._batchWallpaperIndex >= self._batchWallpaperCount:
             self._finishBatchWallpaper()
             return
-        
         idx = self._batchWallpaperIndex + 1
         total = self._batchWallpaperCount
         self.batchWallpaperLog.append(f"[{idx}/{total}] 正在获取")
-        
         mw = self.mainWindow
         try:
             wallpaper = mw.wallpaper
             url, source = wallpaper._getApiUrl()
             response = requests.get(url, stream=True, timeout=10)
-            
             if response.status_code == 200:
                 wallpaper_dir = os.path.join(BASE_DIR, 'wallpaper')
                 if not os.path.exists(wallpaper_dir): os.makedirs(wallpaper_dir)
@@ -701,7 +633,6 @@ class DeveloperPanel(BaseScrollAreaInterface):
                     wallpaper._updateMainWindowBackground()
                     wallpaper.historyManager.add(wallpaper_path, source, url)
                     wallpaper.historyWidget.refresh()
-                
                 wallpaper.infoCard.updateInfo(wallpaper_path, source)
                 self._batchSuccess += 1
                 self.batchWallpaperLog.append(f"[{idx}/{total}] ✓ 成功 - {source}")
@@ -711,24 +642,21 @@ class DeveloperPanel(BaseScrollAreaInterface):
         except Exception as e:
             self._batchFail += 1
             self.batchWallpaperLog.append(f"[{idx}/{total}] ✗ 错误 - {str(e)}")
-        
         self._batchWallpaperIndex += 1
         self._updateBatchProgress()
         QTimer.singleShot(800, self._batchGetNextWallpaper)
-    
+
     def _updateBatchProgress(self):
         total = self._batchWallpaperCount
         done = self._batchWallpaperIndex
         self.batchWallpaperProgress.setValue(int(done / total * 100))
-    
+
     def _stopBatchWallpaper(self):
-        """停止获取"""
         self._batchRunning = False
         self.batchWallpaperLog.append("已停止")
         self._finishBatchWallpaper()
-    
+
     def _finishBatchWallpaper(self):
-        """完成获取"""
         self._batchRunning = False
         self.batchWallpaperBtn.setEnabled(True)
         self.batchWallpaperStopBtn.setEnabled(False)
@@ -736,9 +664,94 @@ class DeveloperPanel(BaseScrollAreaInterface):
         s = getattr(self, '_batchSuccess', 0)
         f = getattr(self, '_batchFail', 0)
         self.batchWallpaperLog.append(f"成功 {s} 张，失败 {f} 张")
-    
+
+    def _reloadTheme(self):
+        try:
+            from qfluentwidgets import setTheme
+            setTheme(cfg.themeMode.value)
+            self._loadStyleSheet()
+            InfoBar.success(title="主题刷新", content="样式表已重新加载", parent=self, duration=2000)
+        except Exception as e:
+            logger.error(f"刷新主题失败: {e}")
+            InfoBar.error(title="主题刷新", content=f"失败: {e}", parent=self, duration=3000)
+
+    def _restartApp(self):
+        import sys
+        InfoBar.info(title="重启应用", content="正在重启...", parent=self, duration=2000)
+        QTimer.singleShot(800, lambda: subprocess.Popen([sys.executable] + sys.argv))
+
+    def _runNetworkDiag(self):
+        target = self.networkTargetCombo.currentText().strip()
+        if not target: return
+        self.networkLogEdit.clear()
+        self.networkLogEdit.append(f"[{time.strftime('%H:%M:%S')}] 开始诊断: {target}")
+        QApplication.processEvents()
+
+        try:
+            start = time.time()
+            ip = socket.gethostbyname(target)
+            dns_ms = (time.time() - start) * 1000
+            self.networkDnsLabel.setText(f"{ip} ({dns_ms:.0f}ms)")
+            self.networkLogEdit.append(f"  DNS 解析: {ip} ({dns_ms:.0f}ms)")
+        except Exception as e:
+            self.networkDnsLabel.setText(f"失败 ({e})")
+            self.networkLogEdit.append(f"  DNS 解析失败: {e}")
+
+        QApplication.processEvents()
+
+        try:
+            start = time.time()
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(5)
+            port = 443
+            sock.connect((target, port))
+            latency = (time.time() - start) * 1000
+            sock.close()
+            self.networkConnectLabel.setText("✓ 正常")
+            self.networkLatencyLabel.setText(f"{latency:.0f} ms")
+            self.networkLogEdit.append(f"  连通性: OK (端口 {port}, {latency:.0f}ms)")
+        except socket.timeout:
+            self.networkConnectLabel.setText("✗ 超时")
+            self.networkLatencyLabel.setText(">5000ms")
+            self.networkLogEdit.append(f"  连通性: 超时 (>5s)")
+        except Exception as e:
+            self.networkConnectLabel.setText(f"✗ 失败")
+            self.networkLatencyLabel.setText("-")
+            self.networkLogEdit.append(f"  连通性失败: {e}")
+
+        QApplication.processEvents()
+
+        try:
+            start = time.time()
+            api_url = cfg.poetryApiUrl.value
+            resp = requests.get(api_url, timeout=5)
+            elapsed = (time.time() - start) * 1000
+            if resp.status_code == 200:
+                self.networkPoetryLabel.setText(f"✓ {elapsed:.0f}ms")
+                self.networkLogEdit.append(f"  一言 API: OK ({elapsed:.0f}ms)")
+            else:
+                self.networkPoetryLabel.setText(f"HTTP {resp.status_code}")
+                self.networkLogEdit.append(f"  一言 API: HTTP {resp.status_code}")
+        except Exception as e:
+            self.networkPoetryLabel.setText("失败")
+            self.networkLogEdit.append(f"  一言 API: {e}")
+
+        self.networkLogEdit.append("--- 诊断完成 ---")
+
+    def _runNetworkDiagAll(self):
+        combo = self.networkTargetCombo
+        items = [combo.itemText(i) for i in range(combo.count())]
+        self.networkLogEdit.clear()
+        self.networkLogEdit.append(f"[{time.strftime('%H:%M:%S')}] 开始全部目标诊断...\n")
+        original = combo.currentIndex()
+        for idx, target in enumerate(items):
+            combo.setCurrentIndex(idx)
+            self.networkLogEdit.append(f"\n{'='*30} [{idx+1}/{len(items)}] {target} {'='*30}")
+            self._runNetworkDiag()
+        combo.setCurrentIndex(original)
+        self.networkLogEdit.append(f"\n[{time.strftime('%H:%M:%S')}] 全部诊断完成")
+
     def _setupTimers(self):
-        """设置定时器"""
         self.fpsTimer = QTimer(self)
         self.fpsTimer.timeout.connect(self._updateDebugInfo)
         self.fpsTimer.start(100)
@@ -754,19 +767,15 @@ class DeveloperPanel(BaseScrollAreaInterface):
         self.changeTimer = QTimer(self)
         self.changeTimer.timeout.connect(self._checkWindowChanges)
         self.changeTimer.start(50)
-        
+
     def _loadStyleSheet(self):
-        """加载样式表"""
         self.setStyleSheet(load_qss('developer_panel.qss'))
-    
+
     def _updateTheme(self):
-        """更新主题"""
         self._loadStyleSheet()
-    
-    
+
     def eventFilter(self, obj, event):
-        """事件过滤器"""
-        if not hasattr(self, 'elementCheckEnabled'):return super().eventFilter(obj, event)
+        if not hasattr(self, 'elementCheckEnabled'): return super().eventFilter(obj, event)
         if obj == self.mainWindow and event.type() == QEvent.Paint and hasattr(self, 'debugUpdateToggle') and self.debugUpdateToggle.isChecked():
             self.frameCount += 1
             currentTime = time.time()
@@ -775,30 +784,23 @@ class DeveloperPanel(BaseScrollAreaInterface):
                 self.fpsLabel.setText(f"{self.currentFps:.1f}")
                 self.frameCount = 0
                 self.lastFpsTime = currentTime
-        
         if not self.elementCheckEnabled:
             return super().eventFilter(obj, event)
-        
         if event.type() == QEvent.Enter:
             element_info = []
             element_info.append(f"对象名称：{obj.objectName()}")
             element_info.append(f"类    型：{obj.__class__.__name__}")
             element_info.append(f"可    见：{obj.isVisible()}")
-            if isinstance(obj, QWidget):element_info.append(f"启    用：{obj.isEnabled()}")
-            
+            if isinstance(obj, QWidget): element_info.append(f"启    用：{obj.isEnabled()}")
             if hasattr(obj, 'geometry'):
                 geom = obj.geometry()
                 element_info.append(f"位    置：({geom.x()}, {geom.y()})")
                 element_info.append(f"大    小：{geom.width()}x{geom.height()}")
-            
             self.elementInfoEdit.setText("\n".join(element_info))
-        
         return super().eventFilter(obj, event)
-    
+
     def _updateFPS(self):
-        """更新FPS"""
-        if not self.debugUpdateToggle.isChecked():
-            return
+        if not self.debugUpdateToggle.isChecked(): return
         if self.mainWindow.isVisible():
             self.frameCount += 1
             currentTime = time.time()
@@ -807,11 +809,9 @@ class DeveloperPanel(BaseScrollAreaInterface):
                 self.fpsLabel.setText(f"{self.currentFps:.1f}")
                 self.frameCount = 0
                 self.lastFpsTime = currentTime
-    
+
     def _checkWindowChanges(self):
-        """检测窗口变化来估算 FPS"""
-        if not self.debugUpdateToggle.isChecked():
-            return
+        if not self.debugUpdateToggle.isChecked(): return
         current_widget = self.mainWindow.stackedWidget.currentWidget()
         widget_changed = False
         if current_widget != self.lastCurrentWidget:
@@ -830,23 +830,16 @@ class DeveloperPanel(BaseScrollAreaInterface):
                 self.fpsLabel.setText(f"{self.currentFps:.1f}")
                 self.frameCount = 0
                 self.lastFpsTime = currentTime
-    
+
     def _updateDebugInfo(self):
-        """更新信息"""
-        if not self.debugUpdateToggle.isChecked():
-            return
-        
+        if not self.debugUpdateToggle.isChecked(): return
         currentTime = time.time()
-        
-        # 内存占用
         try:
             mem_info = self.process.memory_info()
             mem_mb = mem_info.rss / 1024 / 1024
             self.memoryLabel.setText(f"{mem_mb:.1f} MB")
         except Exception:
             self.memoryLabel.setText("N/A")
-        
-        # CPU 使用
         try:
             cpu_times = self.process.cpu_times()
             process_cpu = cpu_times.user + cpu_times.system
@@ -864,102 +857,11 @@ class DeveloperPanel(BaseScrollAreaInterface):
             self.last_cpu_usage = process_cpu
         except Exception:
             self.cpuLabel.setText("N/A")
-        
-        if self.mainWindow.isVisible():
-            self.windowStateLabel.setText("可见")
-        else:
-            self.windowStateLabel.setText("隐藏")
-        
-        # 界面状态
-        current_widget = self.mainWindow.stackedWidget.currentWidget()
-        if current_widget:
-            self.interfaceStateLabel.setText(current_widget.objectName())
-        
-        # 组件数量
-        component_count = len(self.mainWindow.findChildren(QWidget))
-        self.componentCountLabel.setText(str(component_count))
-    
-    def _testPoetryAPI(self):
-        """测试一言 API"""
-        start_time = time.time()
-        try:
-            timeout = 10
-            
-            api_url = cfg.poetryApiUrl.value
-            response = requests.get(api_url, timeout=timeout)
-            elapsed = (time.time() - start_time) * 1000
-            
-            self.poetryResultLabel.setText(f"✓ 成功 ({elapsed:.0f}ms): {response.text[:50]}")
-            self.rawDataEdit.setText(response.text)
-            
-            InfoBar.success(
-                title="API 测试",
-                content="一言 API 测试成功",
-                parent=self,
-                duration=2000
-            )
-        except Exception as e:
-            elapsed = (time.time() - start_time) * 1000
-            self.poetryResultLabel.setText(f"✗ 失败 ({elapsed:.0f}ms): {str(e)}")
-            logger.error(f"一言 API 测试失败：{e}")
-            
-            InfoBar.error(
-                title="API 测试",
-                content=f"一言 API 测试失败：{str(e)}",
-                parent=self,
-                duration=3000
-            )
-    
-    def _testWeatherAPI(self):
-        """测试天气 API"""
-        
-        start_time = time.time()
-        try:
-            city_name = cfg.city.value if hasattr(cfg, 'city') and cfg.city.value else "北京"
-            city_db = RegionDatabase()
-            city_code = city_db.get_code(city_name)
-            if not city_code:city_code = "101010100"
-            
-            weather_service = WeatherService(city_code)
-            
-            weather_data = weather_service.get_weather()
-            elapsed = (time.time() - start_time) * 1000
-            if weather_data:
-                self.weatherResultLabel.setText(f"✓ 成功 ({elapsed:.0f}ms): {weather_data['weather_text']} {weather_data['temperature']}")
-                self.rawDataEdit.setText(f"天气数据:\n温度：{weather_data['temperature']}\n天气：{weather_data['weather_text']}\n天气代码：{weather_data['weather_code']}\n图标：{weather_data['weather_icon']}")
-                InfoBar.success(
-                    title="API 测试",
-                    content=f"天气 API 测试成功 - {weather_data['weather_text']} {weather_data['temperature']}",
-                    parent=self,
-                    duration=2000
-                )
-            else:
-                self.weatherResultLabel.setText(f"✗ 失败 ({elapsed:.0f}ms): 未获取到天气数据")
-                self.rawDataEdit.setText("天气 API 返回数据为空")
-                InfoBar.warning(
-                    title="API 测试",
-                    content="天气 API 测试失败 - 未获取到天气数据",
-                    parent=self,
-                    duration=3000
-                )
-        except Exception as e:
-            elapsed = (time.time() - start_time) * 1000
-            self.weatherResultLabel.setText(f"✗ 失败 ({elapsed:.0f}ms): {str(e)}")
-            logger.error(f"天气 API 测试失败：{e}")
-            InfoBar.error(
-                title="API 测试",
-                content=f"天气 API 测试失败：{str(e)}",
-                parent=self,
-                duration=3000
-            )
-    
-    
+        self.windowStateLabel.setText("可见" if self.mainWindow.isVisible() else "隐藏")
+
     def _updateResourceMonitor(self):
-        """更新资源监控"""
         try:
-            wallpaper_dir = os.path.join(os.path.dirname(__file__), '..', 'wallpaper')
-            wallpaper_dir = os.path.normpath(wallpaper_dir)
-     
+            wallpaper_dir = os.path.normpath(os.path.join(BASE_DIR, 'wallpaper'))
             if os.path.exists(wallpaper_dir):
                 total_size = 0
                 file_count = 0
@@ -971,37 +873,59 @@ class DeveloperPanel(BaseScrollAreaInterface):
                             file_count += 1
                         except Exception:
                             pass
-                
                 self.wallpaperSizeLabel.setText(f"{total_size / 1024 / 1024:.1f} MB")
                 self.wallpaperCountLabel.setText(str(file_count))
-            
-
-            log_dir = os.path.join(os.path.dirname(__file__), '..', 'logs')
-            log_dir = os.path.normpath(log_dir)
-            
-            if os.path.exists(log_dir):
-                total_size = 0
-                file_count = 0
-                for root, dirs, files in os.walk(log_dir):
-                    for f in files:
-                        fp = os.path.join(root, f)
-                        try:
-                            total_size += os.path.getsize(fp)
-                            file_count += 1
-                        except Exception:
-                            pass
-                
-                self.logFileCountLabel.setText(str(file_count))
-                self.logSizeLabel.setText(f"{total_size / 1024 / 1024:.1f} MB")
+            else:
+                self.wallpaperSizeLabel.setText("-")
+                self.wallpaperCountLabel.setText("0")
         except Exception as e:
             logger.error(f"更新资源监控失败：{e}")
-    
-    def _clearCache(self):
-        """清理缓存"""
-        try:
-            wallpaper_dir = os.path.join(os.path.dirname(__file__), '..', 'wallpaper')
-            wallpaper_dir = os.path.normpath(wallpaper_dir)
 
+    def _updateWindowDebug(self):
+        pass
+
+    def _testPoetryAPI(self):
+        start_time = time.time()
+        try:
+            api_url = cfg.poetryApiUrl.value
+            response = requests.get(api_url, timeout=10)
+            elapsed = (time.time() - start_time) * 1000
+            self.poetryResultLabel.setText(f"✓ 成功 ({elapsed:.0f}ms): {response.text[:50]}")
+            self.rawDataEdit.setText(response.text)
+            InfoBar.success(title="API 测试", content="一言 API 测试成功", parent=self, duration=2000)
+        except Exception as e:
+            elapsed = (time.time() - start_time) * 1000
+            self.poetryResultLabel.setText(f"✗ 失败 ({elapsed:.0f}ms): {str(e)}")
+            logger.error(f"一言 API 测试失败：{e}")
+            InfoBar.error(title="API 测试", content=f"一言 API 测试失败：{str(e)}", parent=self, duration=3000)
+
+    def _testWeatherAPI(self):
+        start_time = time.time()
+        try:
+            city_name = cfg.city.value if hasattr(cfg, 'city') and cfg.city.value else "北京"
+            city_db = RegionDatabase()
+            city_code = city_db.get_code(city_name)
+            if not city_code: city_code = "101010100"
+            weather_service = WeatherService(city_code)
+            weather_data = weather_service.get_weather()
+            elapsed = (time.time() - start_time) * 1000
+            if weather_data:
+                self.weatherResultLabel.setText(f"✓ 成功 ({elapsed:.0f}ms): {weather_data['weather_text']} {weather_data['temperature']}")
+                self.rawDataEdit.setText(f"温度：{weather_data['temperature']}\n天气：{weather_data['weather_text']}\n代码：{weather_data['weather_code']}\n图标：{weather_data['weather_icon']}")
+                InfoBar.success(title="API 测试", content=f"天气 API 测试成功 - {weather_data['weather_text']} {weather_data['temperature']}", parent=self, duration=2000)
+            else:
+                self.weatherResultLabel.setText(f"✗ 失败 ({elapsed:.0f}ms): 未获取到数据")
+                self.rawDataEdit.setText("返回数据为空")
+                InfoBar.warning(title="API 测试", content="未获取到天气数据", parent=self, duration=3000)
+        except Exception as e:
+            elapsed = (time.time() - start_time) * 1000
+            self.weatherResultLabel.setText(f"✗ 失败 ({elapsed:.0f}ms): {str(e)}")
+            logger.error(f"天气 API 测试失败：{e}")
+            InfoBar.error(title="API 测试", content=f"天气 API 测试失败：{str(e)}", parent=self, duration=3000)
+
+    def _clearCache(self):
+        try:
+            wallpaper_dir = os.path.normpath(os.path.join(BASE_DIR, 'wallpaper'))
             if os.path.exists(wallpaper_dir):
                 deleted_count = 0
                 deleted_size = 0
@@ -1009,44 +933,22 @@ class DeveloperPanel(BaseScrollAreaInterface):
                     for f in files:
                         fp = os.path.join(root, f)
                         try:
-                            # 获取文件大小
                             deleted_size += os.path.getsize(fp)
                             os.remove(fp)
                             deleted_count += 1
                         except Exception as e:
                             logger.warning(f"删除壁纸文件失败：{fp}, {e}")
-                
-                # 更新监控数据
                 self._updateResourceMonitor()
-                
-                InfoBar.success(
-                    title="清理缓存",
-                    content=f"已清理 {deleted_count} 个文件，释放 {deleted_size / 1024:.1f} KB 空间",
-                    parent=self,
-                    duration=3000
-                )
+                InfoBar.success(title="清理完成", content=f"已清理 {deleted_count} 个文件，释放 {deleted_size / 1024:.1f} KB", parent=self, duration=3000)
             else:
-                InfoBar.info(
-                    title="清理缓存",
-                    content="壁纸文件夹不存在",
-                    parent=self,
-                    duration=2000
-                )
+                InfoBar.info(title="清理缓存", content="壁纸文件夹不存在", parent=self, duration=2000)
         except Exception as e:
             logger.error(f"清理缓存失败：{e}")
-            InfoBar.error(
-                title="清理缓存",
-                content=f"清理缓存失败：{str(e)}",
-                parent=self,
-                duration=3000
-            )
-    
+            InfoBar.error(title="清理失败", content=str(e), parent=self, duration=3000)
+
     def _clearLogs(self):
-        """清理日志"""
         try:
-            log_dir = os.path.join(os.path.dirname(__file__), '..', 'logs')
-            log_dir = os.path.normpath(log_dir)
-            
+            log_dir = os.path.normpath(os.path.join(BASE_DIR, 'logs'))
             if os.path.exists(log_dir):
                 for root, dirs, files in os.walk(log_dir):
                     for f in files:
@@ -1056,154 +958,71 @@ class DeveloperPanel(BaseScrollAreaInterface):
                                 os.remove(fp)
                             except Exception:
                                 pass
-                
-                InfoBar.success(
-                    title="清理日志",
-                    content="日志已清理",
-                    parent=self,
-                    duration=2000
-                )
+                InfoBar.success(title="清理日志", content="日志已清理", parent=self, duration=2000)
                 self._updateResourceMonitor()
         except Exception as e:
             logger.error(f"清理日志失败：{e}")
-            InfoBar.error(
-                title="清理日志",
-                content=f"清理日志失败：{str(e)}",
-                parent=self,
-                duration=3000
-            )
-    
-    def _updateWindowDebug(self):
-        """更新窗口调试信息"""
-        try:
-            # 窗口尺寸
-            size = self.mainWindow.size()
-            self.windowSizeLabel.setText(f"{size.width()}x{size.height()}")
-            # 窗口位置
-            pos = self.mainWindow.pos()
-            self.windowPosLabel.setText(f"({pos.x()}, {pos.y()})")
-            # DPI缩放
-            dpi = self.mainWindow.logicalDpiX()
-            dpi_scale = dpi / 96.0
-            self.dpiScaleLabel.setText(f"{dpi_scale:.2f}")
-            # 活动窗口
-            active_window = QApplication.activeWindow()
-            if active_window:
-                self.activeWindowLabel.setText(active_window.objectName())
-            else:
-                self.activeWindowLabel.setText("无")
-            info = []
-            info.append(f"窗口标题：{self.mainWindow.windowTitle()}")
-            info.append(f"窗口状态：{'正常' if self.mainWindow.isVisible() else '隐藏'}")
-            info.append(f"窗口激活：{'是' if self.mainWindow.isActiveWindow() else '否'}")
-            info.append(f"窗口焦点：{'是' if self.mainWindow.hasFocus() else '否'}")
-            info.append(f"窗口置顶：{'是' if self.mainWindow.windowFlags() & Qt.WindowStaysOnTopHint else '否'}")
-            
-            self.windowInfoEdit.setText("\n".join(info))
-        except Exception as e:
-            logger.error(f"更新窗口调试信息失败：{e}")
-    
+            InfoBar.error(title="清理失败", content=str(e), parent=self, duration=3000)
+
     def _forceRepaint(self):
-        """强制重绘"""
         try:
             self.mainWindow.update()
             self.mainWindow.repaint()
-            
-            InfoBar.success(
-                title="重绘",
-                content="窗口已强制重绘",
-                parent=self,
-                duration=1500
-            )
+            InfoBar.success(title="重绘", content="界面已强制重绘", parent=self, duration=1500)
         except Exception as e:
             logger.error(f"强制重绘失败：{e}")
-            InfoBar.error(
-                title="重绘",
-                content=f"强制重绘失败：{str(e)}",
-                parent=self,
-                duration=3000
-            )
-    
+            InfoBar.error(title="重绘失败", content=str(e), parent=self, duration=3000)
+
     def _toggleElementCheck(self, enabled):
-        """切换元素检查"""
         self.elementCheckEnabled = enabled
-        
         if enabled:
             QApplication.instance().installEventFilter(self)
-            InfoBar.success(
-                title="元素检查",
-                content="元素检查已启用，鼠标悬停在元素上查看信息",
-                parent=self,
-                duration=3000
-            )
+            InfoBar.success(title="元素检查", content="鼠标悬停查看组件信息", parent=self, duration=3000)
         else:
             QApplication.instance().removeEventFilter(self)
-            InfoBar.info(
-                title="元素检查",
-                content="元素检查已禁用",
-                parent=self,
-                duration=2000
-            )
-    
+            InfoBar.info(title="元素检查", content="已禁用", parent=self, duration=2000)
+
     def _refreshComponentTree(self):
-        """刷新组件树"""
-        try:
-            tree_lines = []
-            def get_widget_tree(widget, indent=0):
-                lines = []
-                prefix = "  " * indent
-                widget_name = widget.objectName() or widget.__class__.__name__
-                lines.append(f"{prefix}├─ {widget_name}")
-                for child in widget.children():
-                    if isinstance(child, QWidget):
-                        lines.extend(get_widget_tree(child, indent + 1))
-                return lines
-            
-            tree_lines = get_widget_tree(self.mainWindow)
-            self.componentTreeEdit.setText("\n".join(tree_lines))
-        except Exception as e:
-            logger.error(f"刷新组件树失败：{e}")
-    
+        pass
+
     def _togglePopOut(self):
-        """切换弹出/恢复窗口"""
         if hasattr(self, '_popOutWindow') and self._popOutWindow is not None:
             self._restoreFromPopOut()
         else:
             self._popOut()
-    
+
     def _saveWidgetRefs(self):
         self._savedWidgetRefs = {}
         for attr in list(vars(self)):
             obj = getattr(self, attr)
-            if isinstance(obj, QWidget):self._savedWidgetRefs[attr] = obj
-    
+            if isinstance(obj, QWidget): self._savedWidgetRefs[attr] = obj
+
     def _restoreWidgetRefs(self):
-        if not hasattr(self, '_savedWidgetRefs'):return
+        if not hasattr(self, '_savedWidgetRefs'): return
         for attr, value in self._savedWidgetRefs.items():
             setattr(self, attr, value)
         del self._savedWidgetRefs
-    
+
     def _stopTimers(self):
         self.fpsTimer.stop()
         self.resourceTimer.stop()
         self.windowTimer.stop()
         self.fpsCheckTimer.stop()
         self.changeTimer.stop()
-    
+
     def _startTimers(self):
         self.fpsTimer.start(100)
         self.resourceTimer.start(10000)
         self.windowTimer.start(2000)
         self.fpsCheckTimer.start(16)
         self.changeTimer.start(50)
-    
+
     def _popOut(self):
-        """将调试面板弹出到独立窗口"""
         try:
             self._savedViewportMargins = self.viewportMargins()
             self.setViewportMargins(0, 0, 0, 0)
             self._saveWidgetRefs()
-            
+
             class _PopOutWindow(QWidget):
                 def __init__(self, panel):
                     super().__init__()
@@ -1211,44 +1030,36 @@ class DeveloperPanel(BaseScrollAreaInterface):
                 def closeEvent(self, event):
                     panel = self._panel_ref
                     self._panel_ref = None
-                    if panel:panel._restoreFromPopOut()
+                    if panel: panel._restoreFromPopOut()
                     event.accept()
-            
+
             self._popOutWindow = _PopOutWindow(self)
             self._popOutWindow.setObjectName('developerPanel')
             self._popOutWindow.setWindowTitle("调试面板 - ClassLively")
             self._popOutWindow.setFixedSize(850, 750)
-            
+
             qss = load_qss('developer_panel.qss')
             self._popOutWindow.setStyleSheet(qss)
-            
+
             outer_layout = QVBoxLayout(self._popOutWindow)
             outer_layout.setContentsMargins(0, 0, 0, 0)
             outer_layout.setSpacing(0)
-            
+
             container = QWidget()
             container.setObjectName('scrollWidget')
             container.setStyleSheet("background-color: transparent;")
             content_layout = QVBoxLayout(container)
             content_layout.setContentsMargins(36, 20, 36, 20)
             content_layout.setSpacing(15)
-            
-            debugCard = self._createDebugCard()
-            apiCard = self._createAPITestCard()
-            weatherDebugCard = self._createWeatherDebugCard()
-            resourceCard = self._createResourceMonitorCard()
-            windowCard = self._createWindowDebugCard()
-            elementCard = self._createElementCheckCard()
-            batchCard = self._createBatchWallpaperCard()
-            
-            content_layout.addWidget(debugCard)
-            content_layout.addWidget(apiCard)
-            content_layout.addWidget(weatherDebugCard)
-            content_layout.addWidget(resourceCard)
-            content_layout.addWidget(windowCard)
-            content_layout.addWidget(elementCard)
-            content_layout.addWidget(batchCard)
-            
+
+            content_layout.addWidget(self._createSystemMonitorCard())
+            content_layout.addWidget(self._createQuickActionsCard())
+            content_layout.addWidget(self._createNetworkDiagCard())
+            content_layout.addWidget(self._createAPITestCard())
+            content_layout.addWidget(self._createWeatherDebugCard())
+            content_layout.addWidget(self._createElementCheckCard())
+            content_layout.addWidget(self._createBatchWallpaperCard())
+
             scroll = ScrollArea(self._popOutWindow)
             scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             scroll.setWidgetResizable(True)
@@ -1256,28 +1067,27 @@ class DeveloperPanel(BaseScrollAreaInterface):
             scroll.setWidget(container)
             self._popOutContentContainer = container
             outer_layout.addWidget(scroll)
-            
+
             screen = QApplication.primaryScreen().availableGeometry()
             x = (screen.width() - self._popOutWindow.width()) // 2
             y = (screen.height() - self._popOutWindow.height()) // 2
             self._popOutWindow.move(x, y)
-            
+
             self._popOutWindow.show()
             self.popOutButton.setText("恢复面板")
-            
+
             mw = self.mainWindow
             if hasattr(mw, 'developerNavItem'): mw.developerNavItem.setVisible(False)
             if hasattr(mw, 'home'): mw.switchTo(mw.home)
-            
+
             QTimer.singleShot(300, self._refreshComponentTree)
         except Exception as e:
             logger.error(f"弹出调试面板失败: {e}")
             self._safeCleanupPopOut()
-    
+
     def _restoreFromPopOut(self):
-        """从独立窗口恢复调试面板"""
         pop_win = getattr(self, '_popOutWindow', None)
-        if pop_win is None:return
+        if pop_win is None: return
         self._stopTimers()
         self._popOutWindow = None
         self._popOutContentContainer = None
@@ -1287,9 +1097,8 @@ class DeveloperPanel(BaseScrollAreaInterface):
         mw = self.mainWindow
         if hasattr(mw, 'developerNavItem') and cfg.developerMode.value: mw.developerNavItem.setVisible(True)
         self._startTimers()
-    
+
     def _safeCleanupPopOut(self):
-        """安全清理弹出窗口"""
         self._stopTimers()
         pop_win = getattr(self, '_popOutWindow', None)
         if pop_win is not None:
@@ -1304,7 +1113,3 @@ class DeveloperPanel(BaseScrollAreaInterface):
         mw = self.mainWindow
         if hasattr(mw, 'developerNavItem') and cfg.developerMode.value: mw.developerNavItem.setVisible(True)
         self._startTimers()
-    
-    def _findComponent(self):
-        """查找组件"""
-        pass
