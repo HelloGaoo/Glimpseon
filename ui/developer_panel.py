@@ -1055,34 +1055,128 @@ class DeveloperPanel(BaseScrollAreaInterface):
         else:
             self._popOut()
     
+    def _saveWidgetRefs(self):
+        self._savedWidgetRefs = {}
+        for attr in list(vars(self)):
+            obj = getattr(self, attr)
+            if isinstance(obj, QWidget):self._savedWidgetRefs[attr] = obj
+    
+    def _restoreWidgetRefs(self):
+        if not hasattr(self, '_savedWidgetRefs'):return
+        for attr, value in self._savedWidgetRefs.items():
+            setattr(self, attr, value)
+        del self._savedWidgetRefs
+    
+    def _stopTimers(self):
+        self.fpsTimer.stop()
+        self.resourceTimer.stop()
+        self.windowTimer.stop()
+        self.fpsCheckTimer.stop()
+        self.changeTimer.stop()
+    
+    def _startTimers(self):
+        self.fpsTimer.start(100)
+        self.resourceTimer.start(10000)
+        self.windowTimer.start(2000)
+        self.fpsCheckTimer.start(16)
+        self.changeTimer.start(50)
+    
     def _popOut(self):
         """将调试面板弹出到独立窗口"""
-        self._popOutWindow = QWidget()
-        self._popOutWindow.setWindowTitle("调试面板 - ClassLively")
-        self._popOutWindow.setMinimumSize(500, 600)
-        self._popOutWindow.resize(800, 700)
-        
-        app = QApplication.instance()
-        self._popOutWindow.setStyleSheet(app.styleSheet() if app else "")
-        
-        layout = QVBoxLayout(self._popOutWindow)
-        layout.setContentsMargins(0, 0, 0, 0)
-        self.scrollWidget.setParent(self._popOutWindow)
-        layout.addWidget(self.scrollWidget)
-        
-        self._popOutWindow.closeEvent = lambda e: self._restoreFromPopOut()
-        self._popOutWindow.show()
-        self.popOutButton.setText("恢复面板")
+        try:
+            self._savedViewportMargins = self.viewportMargins()
+            self.setViewportMargins(0, 0, 0, 0)
+            self._saveWidgetRefs()
+            
+            class _PopOutWindow(QWidget):
+                def __init__(self, panel):
+                    super().__init__()
+                    self._panel_ref = panel
+                def closeEvent(self, event):
+                    panel = self._panel_ref
+                    self._panel_ref = None
+                    if panel:panel._restoreFromPopOut()
+                    event.accept()
+            
+            self._popOutWindow = _PopOutWindow(self)
+            self._popOutWindow.setObjectName('developerPanel')
+            self._popOutWindow.setWindowTitle("调试面板 - ClassLively")
+            self._popOutWindow.setFixedSize(850, 750)
+            
+            qss = load_qss('developer_panel.qss')
+            self._popOutWindow.setStyleSheet(qss)
+            
+            outer_layout = QVBoxLayout(self._popOutWindow)
+            outer_layout.setContentsMargins(0, 0, 0, 0)
+            outer_layout.setSpacing(0)
+            
+            container = QWidget()
+            container.setObjectName('scrollWidget')
+            container.setStyleSheet("background-color: transparent;")
+            content_layout = QVBoxLayout(container)
+            content_layout.setContentsMargins(36, 20, 36, 20)
+            content_layout.setSpacing(15)
+            
+            debugCard = self._createDebugCard()
+            apiCard = self._createAPITestCard()
+            weatherDebugCard = self._createWeatherDebugCard()
+            resourceCard = self._createResourceMonitorCard()
+            windowCard = self._createWindowDebugCard()
+            elementCard = self._createElementCheckCard()
+            
+            content_layout.addWidget(debugCard)
+            content_layout.addWidget(apiCard)
+            content_layout.addWidget(weatherDebugCard)
+            content_layout.addWidget(resourceCard)
+            content_layout.addWidget(windowCard)
+            content_layout.addWidget(elementCard)
+            
+            scroll = ScrollArea(self._popOutWindow)
+            scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            scroll.setWidgetResizable(True)
+            scroll.setStyleSheet("background-color: transparent; border: none;")
+            scroll.setWidget(container)
+            self._popOutContentContainer = container
+            outer_layout.addWidget(scroll)
+            
+            screen = QApplication.primaryScreen().availableGeometry()
+            x = (screen.width() - self._popOutWindow.width()) // 2
+            y = (screen.height() - self._popOutWindow.height()) // 2
+            self._popOutWindow.move(x, y)
+            
+            self._popOutWindow.show()
+            self.popOutButton.setText("恢复面板")
+            QTimer.singleShot(300, self._refreshComponentTree)
+        except Exception as e:
+            logger.error(f"弹出调试面板失败: {e}")
+            self._safeCleanupPopOut()
     
     def _restoreFromPopOut(self):
         """从独立窗口恢复调试面板"""
-        if hasattr(self, '_popOutWindow') and self._popOutWindow is not None:
-            pop_win = self._popOutWindow
+        pop_win = getattr(self, '_popOutWindow', None)
+        if pop_win is None:return
+        self._stopTimers()
+        self._popOutWindow = None
+        self._popOutContentContainer = None
+        self._restoreWidgetRefs()
+        if hasattr(self, '_savedViewportMargins'): self.setViewportMargins(self._savedViewportMargins)
+        self.popOutButton.setText("弹出窗口")
+        self._startTimers()
+    
+    def _safeCleanupPopOut(self):
+        """安全清理弹出窗口"""
+        self._stopTimers()
+        pop_win = getattr(self, '_popOutWindow', None)
+        if pop_win is not None:
             self._popOutWindow = None
-            self.scrollWidget.setParent(self)
-            self.setWidget(self.scrollWidget)
-            pop_win.close()
-            self.popOutButton.setText("弹出窗口")
+            self._popOutContentContainer = None
+            if hasattr(pop_win, '_panel_ref'): pop_win._panel_ref = None
+            pop_win.hide()
+            pop_win.deleteLater()
+        self._restoreWidgetRefs()
+        if hasattr(self, '_savedViewportMargins'): self.setViewportMargins(self._savedViewportMargins)
+        self.popOutButton.setText("弹出窗口")
+        self._startTimers()
     
     def _findComponent(self):
         """查找组件"""
