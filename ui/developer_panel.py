@@ -479,24 +479,11 @@ class DeveloperPanel(BaseScrollAreaInterface):
         self._onWeatherCodeChanged(0)
         self.weatherTempInput.clear()
         
-        if not hasattr(self, '_savedWeatherCode'):return
+        if hasattr(self, '_savedWeatherCode'): del self._savedWeatherCode
+        if hasattr(self, '_savedWeatherTemp'): del self._savedWeatherTemp
+        
         mw = self.mainWindow
-        if self._savedWeatherCode is not None:
-            mw.current_weather_code = self._savedWeatherCode
-        else:
-            mw.current_weather_code = None
-        
-        if hasattr(mw, 'weatherTempLabel'):
-            mw.weatherTempLabel.setText(self._savedWeatherTemp)
-        
-        if mw.current_weather_code is not None:
-            mw._MainWindow__updateWeatherIcon()
-        else:
-            if hasattr(mw, 'weatherIconLabel'):
-                mw.weatherIconLabel.clear()
-        
-        del self._savedWeatherCode
-        del self._savedWeatherTemp
+        mw._MainWindow__updateWeather()
 
     def _createResourceMonitorCard(self):
         """创建资源监控卡片"""
