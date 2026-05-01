@@ -85,6 +85,7 @@ class WallpaperRecord:
     added_time: str
     file_size: int
     resolution: str
+    favorite: bool = False
     
     def exists(self) -> bool:
         return os.path.exists(self.path)
@@ -101,7 +102,8 @@ class WallpaperRecord:
             api_url=data.get('api_url', ''),
             added_time=data.get('added_time', ''),
             file_size=data.get('file_size', 0),
-            resolution=data.get('resolution', '未知')
+            resolution=data.get('resolution', '未知'),
+            favorite=data.get('favorite', False)
         )
 
 
@@ -234,6 +236,17 @@ class WallpaperHistory:
     
     def count(self) -> int:
         return len(self._history)
+    
+    def toggle_favorite(self, record_id: str):
+        for r in self._history:
+            if r.id == record_id:
+                r.favorite = not r.favorite
+                self._save()
+                return r.favorite
+        return False
+    
+    def get_favorites(self) -> List[WallpaperRecord]:
+        return [r for r in self._history if r.favorite and r.exists()]
 
 
 def get_wallpaper_history() -> WallpaperHistory:
@@ -300,6 +313,7 @@ class WallpaperPreviewDialog(MessageBoxBase):
     """壁纸预览弹窗"""
     useRequested = pyqtSignal(str)
     deleteRequested = pyqtSignal(str)
+    favoriteToggled = pyqtSignal(str, bool)
     
     def __init__(self, record: WallpaperRecord, parent=None):
         super().__init__(parent)
@@ -340,12 +354,20 @@ class WallpaperPreviewDialog(MessageBoxBase):
         self.useButton.setFixedWidth(120)
         self.useButton.clicked.connect(self._onUse)
         
+        self.favButton = PushButton("★ 收藏" if not self.record.favorite else "★ 已收藏", self)
+        self.favButton.setFixedWidth(90)
+        self.favButton.setCheckable(True)
+        self.favButton.setChecked(self.record.favorite)
+        self.favButton.clicked.connect(self._toggleFavorite)
+        
         self.deleteButton = PushButton(FIF.DELETE, "删除", self)
         self.deleteButton.setFixedWidth(100)
         self.deleteButton.clicked.connect(self._onDelete)
         
         btnLayout = QHBoxLayout()
         btnLayout.addStretch(1)
+        btnLayout.addWidget(self.favButton)
+        btnLayout.addSpacing(10)
         btnLayout.addWidget(self.useButton)
         btnLayout.addSpacing(10)
         btnLayout.addWidget(self.deleteButton)
@@ -380,6 +402,12 @@ class WallpaperPreviewDialog(MessageBoxBase):
     def _onDelete(self):
         self.deleteRequested.emit(self.record.id)
         self.reject()
+    
+    def _toggleFavorite(self):
+        self.record.favorite = not self.record.favorite
+        self.favButton.setText("★ 已收藏" if self.record.favorite else "★ 收藏")
+        self.favButton.setChecked(self.record.favorite)
+        self.favoriteToggled.emit(self.record.id, self.record.favorite)
 
 
 class WallpaperThumbnailCard(CardWidget):
@@ -401,19 +429,14 @@ class WallpaperThumbnailCard(CardWidget):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
         
-        self.imageLabel = QLabel(self)
+        self.imageLabel = QLabel()
         self.imageLabel.setObjectName("thumbImage")
-        self.imageLabel.setFixedSize(144, 90)
         self.imageLabel.setAlignment(Qt.AlignCenter)
         
         if os.path.exists(self.record.path):
             pixmap = QPixmap(self.record.path)
             if not pixmap.isNull():
-                scaled = pixmap.scaled(
-                    144, 90,
-                    Qt.KeepAspectRatioByExpanding,
-                    Qt.SmoothTransformation
-                )
+                scaled = pixmap.scaled(144, 90, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
                 self.imageLabel.setPixmap(scaled)
             else:
                 self._showPlaceholder("加载失败")
@@ -450,6 +473,7 @@ class WallpaperHistoryWidget(QWidget):
         self._displayedCount = 0
         self._cards: list[WallpaperThumbnailCard] = []
         self._currentColumns = 4
+        self._showOnlyFavorites = False
         self._setupUi()
         self._loadHistory()
     
@@ -472,10 +496,17 @@ class WallpaperHistoryWidget(QWidget):
         self.clearInvalidBtn.setMinimumWidth(100)
         self.clearInvalidBtn.clicked.connect(self._clearAll)
         
+        self.favFilterBtn = PushButton("★ 收藏", self)
+        self.favFilterBtn.setFixedHeight(32)
+        self.favFilterBtn.setCheckable(True)
+        self.favFilterBtn.clicked.connect(self._toggleFavFilter)
+        
         headerLayout.addWidget(self.titleLabel)
         headerLayout.addSpacing(10)
         headerLayout.addWidget(self.countLabel)
         headerLayout.addStretch(1)
+        headerLayout.addWidget(self.favFilterBtn)
+        headerLayout.addSpacing(6)
         headerLayout.addWidget(self.clearInvalidBtn)
         
         self.gridContainer = QWidget()
@@ -552,7 +583,9 @@ class WallpaperHistoryWidget(QWidget):
             self.gridLayout.addWidget(card, row, col)
     
     def _loadHistory(self):
-        self._allRecords = self.historyManager.get_valid()
+        records = self.historyManager.get_valid()
+        if self._showOnlyFavorites: records = [r for r in records if r.favorite]
+        self._allRecords = records
         self._displayedCount = 0
         self._cards.clear()
         
@@ -599,6 +632,19 @@ class WallpaperHistoryWidget(QWidget):
     def _loadMore(self):
         self._displayPage(self._calcLoadMoreCount())
     
+    def _toggleFavFilter(self):
+        self._showOnlyFavorites = not self._showOnlyFavorites
+        self.favFilterBtn.setText("★ 全部" if self._showOnlyFavorites else "★ 收藏")
+        self._loadHistory()
+    
+    def _onDialogFavoriteToggled(self, record_id: str, is_fav: bool):
+        for r in self.historyManager._history:
+            if r.id == record_id:
+                r.favorite = is_fav
+                break
+        self.historyManager._save()
+        if self._showOnlyFavorites and not is_fav: self._loadHistory()
+    
     def _showPreview(self, record: WallpaperRecord):
         mw = self.window()
         mask = QWidget(mw)
@@ -611,6 +657,7 @@ class WallpaperHistoryWidget(QWidget):
         dialog = WallpaperPreviewDialog(record, mask)
         dialog.useRequested.connect(self._onUseWallpaper)
         dialog.deleteRequested.connect(self._onDeleteWallpaper)
+        dialog.favoriteToggled.connect(self._onDialogFavoriteToggled)
         dialog.exec()
         mask.close()
         mask.deleteLater()
