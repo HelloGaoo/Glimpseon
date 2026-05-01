@@ -231,7 +231,7 @@ class WallpaperHistory:
         return len(invalid)
     
     def clear_all(self):
-        self._history.clear()
+        self._history = [r for r in self._history if r.favorite]
         self._save()
     
     def count(self) -> int:
@@ -673,6 +673,7 @@ class WallpaperHistoryWidget(QWidget):
     def _clearAll(self):
         from qfluentwidgets import MessageBox
         count = self.historyManager.count()
+        fav_count = len(self.historyManager.get_favorites())
         if count == 0:return
         mw = self.window()
         
@@ -683,7 +684,8 @@ class WallpaperHistoryWidget(QWidget):
         mask.setStyleSheet("background-color: rgba(0, 0, 0, 120);")
         mask.show()
         
-        w = MessageBox("确认清空", f"确定要清空全部 {count} 条壁纸历史记录吗？\n此操作不可恢复。", mask)
+        hint = f"\n（保留已收藏的 {fav_count} 条）" if fav_count > 0 else ""
+        w = MessageBox("确认清空", f"确定要清空全部 {count} 条壁纸历史记录吗？{hint}", mask)
         w.yesButton.setText('确认清空')
         w.cancelButton.setText('取消')
         if w.exec_() == 1:
