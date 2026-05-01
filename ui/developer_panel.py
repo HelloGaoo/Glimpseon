@@ -21,6 +21,7 @@
 import os
 import socket
 import subprocess
+import sys
 import time
 import datetime
 import psutil
@@ -48,6 +49,7 @@ from qfluentwidgets import (
     PrimaryPushButton,
     PushButton,
     ScrollArea,
+    setTheme,
     SpinBox,
     StrongBodyLabel,
     SubtitleLabel,
@@ -55,7 +57,7 @@ from qfluentwidgets import (
 )
 
 from core.config import cfg
-from core.constants import BASE_DIR, load_qss
+from core.constants import BASE_DIR, get_resPath, load_qss
 from core.logger import logger
 from services.weather import WeatherService
 from ui.city_selector import RegionDatabase
@@ -437,7 +439,6 @@ class DeveloperPanel(BaseScrollAreaInterface):
         return card
 
     def _createWeatherIconItem(self, code, name, icon_file, parent_card):
-        from core.constants import get_resPath
         item = CardWidget()
         item.setFixedSize(115, 80)
         item.setCursor(Qt.PointingHandCursor)
@@ -479,7 +480,6 @@ class DeveloperPanel(BaseScrollAreaInterface):
         self._previewWeatherIcon(code)
 
     def _previewWeatherIcon(self, code):
-        from core.constants import get_resPath
         icon_map = {
             0: "0.svg", 1: "1.svg", 2: "2.svg", 3: "7.svg", 4: "4.svg",
             5: "5.svg", 6: "19.svg", 7: "7.svg", 8: "8.svg", 9: "9.svg",
@@ -667,7 +667,6 @@ class DeveloperPanel(BaseScrollAreaInterface):
 
     def _reloadTheme(self):
         try:
-            from qfluentwidgets import setTheme
             setTheme(cfg.themeMode.value)
             self._loadStyleSheet()
             InfoBar.success(title="主题刷新", content="样式表已重新加载", parent=self, duration=2000)
@@ -676,7 +675,6 @@ class DeveloperPanel(BaseScrollAreaInterface):
             InfoBar.error(title="主题刷新", content=f"失败: {e}", parent=self, duration=3000)
 
     def _restartApp(self):
-        import sys
         InfoBar.info(title="重启应用", content="正在重启...", parent=self, duration=2000)
         QTimer.singleShot(800, lambda: subprocess.Popen([sys.executable] + sys.argv))
 

@@ -28,7 +28,7 @@ from typing import List, Optional
 
 import requests
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer, QSize
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QPixmap, QImageReader
 from PyQt5.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -46,6 +46,7 @@ from qfluentwidgets import (
     CardWidget,
     FluentIcon as FIF,
     InfoBar,
+    MessageBox,
     MaskDialogBase,
     MessageBoxBase,
     PrimaryPushButton,
@@ -173,7 +174,6 @@ class WallpaperHistory:
         file_size = os.path.getsize(path)
         resolution = "未知"
         try:
-            from PyQt5.QtGui import QImageReader
             reader = QImageReader(path)
             size = reader.size()
             if size.isValid(): resolution = f"{size.width()}x{size.height()}"
@@ -295,7 +295,6 @@ class WallpaperInfoCard(CardWidget):
         
         resolution = "未知"
         try:
-            from PyQt5.QtGui import QImageReader
             reader = QImageReader(path)
             size = reader.size()
             if size.isValid(): resolution = f"{size.width()}x{size.height()}"
@@ -674,7 +673,6 @@ class WallpaperHistoryWidget(QWidget):
         self.historyChanged.emit()
     
     def _clearAll(self):
-        from qfluentwidgets import MessageBox
         count = self.historyManager.count()
         fav_count = len(self.historyManager.get_favorites())
         if count == 0:return
