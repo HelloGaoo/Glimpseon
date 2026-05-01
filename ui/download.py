@@ -378,6 +378,7 @@ class DownloadInterface(BaseScrollAreaInterface):
 
         self.selectAllButton = PushButton("全选", modeGroup)
         self.selectAllButton.setObjectName("selectAllButton")
+        self.selectAllButton.setFixedHeight(36)
         self.selectAllButton.setFixedWidth(80)
         self.selectAllButton.hide()
         modeGroupLayout.addWidget(self.selectAllButton)
@@ -408,6 +409,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         
         self.startButton = PrimaryPushButton(FIF.PLAY, "开始下载", self.modeContainer)
         self.startButton.setObjectName("startButton")
+        self.startButton.setFixedHeight(36)
         self.startButton.hide()
         
         self.modeLayout.addWidget(modeGroup)
@@ -515,7 +517,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         
         # 创建下载按钮或复选框
         downloadButton = PrimaryPushButton(FIF.DOWNLOAD, "下载", softwareCard)
-        downloadButton.setFixedHeight(32)
+        downloadButton.setFixedHeight(36)
         downloadButton.setFixedWidth(100)
         
         checkbox = CheckBox(softwareCard)

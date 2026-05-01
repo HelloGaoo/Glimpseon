@@ -103,6 +103,7 @@ class ButtonSettingCard(SettingCard):
     def __init__(self, icon, title, content=None, parent=None):
         super().__init__(icon, title, content, parent)
         self.button = PushButton(FIF.EDIT, "执行", self)
+        self.button.setFixedHeight(36)
         self.hBoxLayout.addWidget(self.button, 0, Qt.AlignRight)
         self.hBoxLayout.addSpacing(16)
 

@@ -354,16 +354,19 @@ class WallpaperPreviewDialog(MessageBoxBase):
         
         self.useButton = PrimaryPushButton(FIF.ACCEPT, "使用此壁纸", self)
         self.useButton.setFixedWidth(120)
+        self.useButton.setFixedHeight(36)
         self.useButton.clicked.connect(self._onUse)
-        
+
         self.favButton = PushButton("★ 收藏" if not self.record.favorite else "★ 已收藏", self)
         self.favButton.setFixedWidth(90)
+        self.favButton.setFixedHeight(36)
         self.favButton.setCheckable(True)
         self.favButton.setChecked(self.record.favorite)
         self.favButton.clicked.connect(self._toggleFavorite)
-        
+
         self.deleteButton = PushButton(FIF.DELETE, "删除", self)
         self.deleteButton.setFixedWidth(100)
+        self.deleteButton.setFixedHeight(36)
         self.deleteButton.clicked.connect(self._onDelete)
         
         btnLayout = QHBoxLayout()
@@ -494,12 +497,12 @@ class WallpaperHistoryWidget(QWidget):
         self.countLabel.setObjectName("historyCount")
         
         self.clearInvalidBtn = PushButton(FIF.DELETE, "清空全部", self)
-        self.clearInvalidBtn.setFixedHeight(32)
+        self.clearInvalidBtn.setFixedHeight(36)
         self.clearInvalidBtn.setMinimumWidth(100)
         self.clearInvalidBtn.clicked.connect(self._clearAll)
-        
+
         self.favFilterBtn = PushButton("★ 收藏", self)
-        self.favFilterBtn.setFixedHeight(32)
+        self.favFilterBtn.setFixedHeight(36)
         self.favFilterBtn.setCheckable(True)
         self.favFilterBtn.clicked.connect(self._toggleFavFilter)
         
@@ -523,7 +526,7 @@ class WallpaperHistoryWidget(QWidget):
         loadMoreLayout.addStretch(1)
         self.loadMoreBtn = PushButton(FIF.SYNC, "加载更多", self)
         self.loadMoreBtn.setObjectName("loadMoreBtn")
-        self.loadMoreBtn.setFixedHeight(32)
+        self.loadMoreBtn.setFixedHeight(36)
         self.loadMoreBtn.setMinimumWidth(140)
         self.loadMoreBtn.clicked.connect(self._loadMore)
         loadMoreLayout.addWidget(self.loadMoreBtn)
@@ -760,16 +763,16 @@ class WallpaperInterface(ScrollArea):
         self.infoCard = WallpaperInfoCard(self.contentWidget)
         
         self.getButton = PrimaryPushButton(FIF.DOWNLOAD, "获取壁纸")
-        self.getButton.setFixedHeight(40)
+        self.getButton.setFixedHeight(36)
         self.getButton.setFixedWidth(140)
         self.saveButton = PushButton(FIF.SAVE, "另存壁纸")
-        self.saveButton.setFixedHeight(40)
+        self.saveButton.setFixedHeight(36)
         self.saveButton.setFixedWidth(120)
         self.selectButton = PushButton(FIF.FOLDER, "手动选择")
-        self.selectButton.setFixedHeight(40)
+        self.selectButton.setFixedHeight(36)
         self.selectButton.setFixedWidth(120)
         self.setWallpaperButton = PushButton(FIF.HOME, "设为桌面")
-        self.setWallpaperButton.setFixedHeight(40)
+        self.setWallpaperButton.setFixedHeight(36)
         self.setWallpaperButton.setFixedWidth(120)
         
         self.historyWidget = WallpaperHistoryWidget(self.contentWidget)
