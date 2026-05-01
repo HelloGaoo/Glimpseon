@@ -638,7 +638,7 @@ class WallpaperHistoryWidget(QWidget):
         w = MessageBox("确认清空", f"确定要清空全部 {count} 条壁纸历史记录吗？\n此操作不可恢复。", mask)
         w.yesButton.setText('确认清空')
         w.cancelButton.setText('取消')
-        if w.exec_() == w.AcceptButton:
+        if w.exec_() == 1:
             self.historyManager.clear_all()
             self._loadHistory()
             self.historyChanged.emit()
