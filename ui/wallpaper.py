@@ -573,6 +573,8 @@ class WallpaperHistoryWidget(QWidget):
         if not total:
             self.gridContainer.hide()
             self.emptyLabel.show()
+            self.loadMoreWidget.hide()
+            self.noMoreLabel.hide()
             return
         
         self.gridContainer.show()
