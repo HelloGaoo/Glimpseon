@@ -1146,6 +1146,11 @@ class DeveloperPanel(BaseScrollAreaInterface):
             
             self._popOutWindow.show()
             self.popOutButton.setText("恢复面板")
+            
+            mw = self.mainWindow
+            if hasattr(mw, 'developerNavItem'): mw.developerNavItem.setVisible(False)
+            if hasattr(mw, 'home'): mw.switchTo(mw.home)
+            
             QTimer.singleShot(300, self._refreshComponentTree)
         except Exception as e:
             logger.error(f"弹出调试面板失败: {e}")
@@ -1161,6 +1166,8 @@ class DeveloperPanel(BaseScrollAreaInterface):
         self._restoreWidgetRefs()
         if hasattr(self, '_savedViewportMargins'): self.setViewportMargins(self._savedViewportMargins)
         self.popOutButton.setText("弹出窗口")
+        mw = self.mainWindow
+        if hasattr(mw, 'developerNavItem') and cfg.developerMode.value: mw.developerNavItem.setVisible(True)
         self._startTimers()
     
     def _safeCleanupPopOut(self):
@@ -1176,6 +1183,8 @@ class DeveloperPanel(BaseScrollAreaInterface):
         self._restoreWidgetRefs()
         if hasattr(self, '_savedViewportMargins'): self.setViewportMargins(self._savedViewportMargins)
         self.popOutButton.setText("弹出窗口")
+        mw = self.mainWindow
+        if hasattr(mw, 'developerNavItem') and cfg.developerMode.value: mw.developerNavItem.setVisible(True)
         self._startTimers()
     
     def _findComponent(self):
