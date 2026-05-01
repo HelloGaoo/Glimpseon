@@ -173,8 +173,10 @@ class WallpaperHistory:
         file_size = os.path.getsize(path)
         resolution = "未知"
         try:
-            pixmap = QPixmap(path)
-            if not pixmap.isNull():resolution = f"{pixmap.width()}x{pixmap.height()}"
+            from PyQt5.QtGui import QImageReader
+            reader = QImageReader(path)
+            size = reader.size()
+            if size.isValid(): resolution = f"{size.width()}x{size.height()}"
         except Exception:
             pass
         record = WallpaperRecord(
@@ -293,9 +295,10 @@ class WallpaperInfoCard(CardWidget):
         
         resolution = "未知"
         try:
-            pixmap = QPixmap(path)
-            if not pixmap.isNull():
-                resolution = f"{pixmap.width()}x{pixmap.height()}"
+            from PyQt5.QtGui import QImageReader
+            reader = QImageReader(path)
+            size = reader.size()
+            if size.isValid(): resolution = f"{size.width()}x{size.height()}"
         except Exception:
             pass
         
@@ -436,7 +439,7 @@ class WallpaperThumbnailCard(CardWidget):
         if os.path.exists(self.record.path):
             pixmap = QPixmap(self.record.path)
             if not pixmap.isNull():
-                scaled = pixmap.scaled(144, 90, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+                scaled = pixmap.scaled(144, 90, Qt.KeepAspectRatioByExpanding, Qt.FastTransformation)
                 self.imageLabel.setPixmap(scaled)
             else:
                 self._showPlaceholder("加载失败")
@@ -830,12 +833,15 @@ class WallpaperInterface(ScrollArea):
     
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        if self.current_pixmap and not self.current_pixmap.isNull():self._updateBackground()
+        if self.current_pixmap and not self.current_pixmap.isNull():
+            if not hasattr(self, '_resizeTimer'): self._resizeTimer = QTimer(self); self._resizeTimer.setSingleShot(True); self._resizeTimer.timeout.connect(self._updateBackground)
+            self._resizeTimer.start(100)
     
     def eventFilter(self, obj, event):
         if obj is self.scrollWidget and event.type() == event.Type.Resize:
             if self.current_pixmap and not self.current_pixmap.isNull():
-                self._updateBackground()
+                if not hasattr(self, '_resizeTimer'): self._resizeTimer = QTimer(self); self._resizeTimer.setSingleShot(True); self._resizeTimer.timeout.connect(self._updateBackground)
+                self._resizeTimer.start(100)
         return super().eventFilter(obj, event)
     
     def _connectSignalToSlot(self):
@@ -990,7 +996,6 @@ class WallpaperInterface(ScrollArea):
             self.mainWindow.originalPixmap = blank_pixmap
             self.mainWindow.homeBackgroundImage.setPixmap(blank_pixmap)
             self.mainWindow.homeBackgroundImage.setMinimumSize(available_width, available_height)
-            QApplication.processEvents()
     
     def _updateBackground(self):
         if not self.current_pixmap or self.current_pixmap.isNull():
@@ -1000,15 +1005,20 @@ class WallpaperInterface(ScrollArea):
         available_width = self.viewport().width()
         available_height = max(self.viewport().height(), self.scrollWidget.height(), 600)
         
+        if hasattr(self, '_cachedBgSize') and self._cachedBgSize == (available_width, available_height) and hasattr(self, '_cachedBgPixmap') and self._cachedBgPixmap == self.current_pixmap:return
+        self._cachedBgSize = (available_width, available_height)
+        self._cachedBgPixmap = self.current_pixmap
+        
         scaled_pixmap = self.current_pixmap.scaled(
             available_width, available_height,
             Qt.KeepAspectRatioByExpanding,
             Qt.SmoothTransformation
         )
         
-        blur_effect = QGraphicsBlurEffect()
-        blur_effect.setBlurRadius(12)
-        self.backgroundImage.setGraphicsEffect(blur_effect)
+        if not hasattr(self, '_blurEffect'):
+            self._blurEffect = QGraphicsBlurEffect()
+            self._blurEffect.setBlurRadius(12)
+            self.backgroundImage.setGraphicsEffect(self._blurEffect)
         
         self.backgroundImage.setPixmap(scaled_pixmap)
         self.backgroundImage.setGeometry(0, 0, available_width, available_height)
@@ -1024,7 +1034,6 @@ class WallpaperInterface(ScrollArea):
                 Qt.IgnoreAspectRatio, Qt.SmoothTransformation
             )
             self.mainWindow.homeBackgroundImage.setPixmap(scaled_pixmap)
-            QApplication.processEvents()
     
     def _saveWallpaper(self):
         logger.info("开始另存壁纸")
