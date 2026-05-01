@@ -23,12 +23,13 @@ import logging
 import os
 import re
 
-from PyQt5.QtCore import QDate, QEasingCurve, QFileInfo, QPropertyAnimation, QRect, Qt, QTime, QTimer
-from PyQt5.QtGui import QColor, QIcon, QPixmap
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import QDate, QEasingCurve, QFileInfo, QPropertyAnimation, QRect, Qt, QTime, QTimer
+from PyQt6.QtGui import QColor, QIcon, QPixmap
+from PyQt6.QtWidgets import (
     QApplication,
     QFileDialog,
     QFileIconProvider,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -83,14 +84,14 @@ class EditPanel(QWidget):
         self.updateTimer.start(1000)
         
         # 设置不透明背景！！！！！！！
-        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setAutoFillBackground(True)
         self._updateTheme()
         
         scroll = SmoothScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setFrameShape(SmoothScrollArea.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
         content = QWidget()
         scroll.setWidget(content)
         v = QVBoxLayout(content)
@@ -143,7 +144,7 @@ class EditPanel(QWidget):
         
         # 动画
         self.anim = QPropertyAnimation(self, b'geometry')
-        self.anim.setEasingCurve(QEasingCurve.OutCubic)
+        self.anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._updateTheme()
         
         self.hide()
@@ -1241,7 +1242,7 @@ class EditPanel(QWidget):
     
     def _onQuickLaunchEditClicked(self):
         dialog = QuickLaunchEditDialog(self.mainWindow)
-        dialog.exec_()
+        dialog.exec()
         if hasattr(self.mainWindow, '_MainWindow__updateQuickLaunch'):
             self.mainWindow._MainWindow__updateQuickLaunch()
     
@@ -1630,7 +1631,7 @@ class QuickLaunchEditDialog(MessageBoxBase):
             InfoBar.warning('提示', f'快捷启动栏最多只能添加 {QuickLaunchDock.MAX_APPS} 个应用', parent=self, duration=3000)
             return
         dialog = AppEditDialog(self.parent())
-        if dialog.exec_():
+        if dialog.exec():
             app_data = dialog.get_app_data()
             if app_data:
                 self._apps.append(app_data)
@@ -1643,7 +1644,7 @@ class QuickLaunchEditDialog(MessageBoxBase):
             return
         
         dialog = AppEditDialog(self.parent(), self._apps[self._selected_row])
-        if dialog.exec_():
+        if dialog.exec():
             app_data = dialog.get_app_data()
             if app_data:
                 self._apps[self._selected_row] = app_data
@@ -1779,7 +1780,7 @@ class AppEditDialog(MessageBoxBase):
         self.iconPreviewLabel = QLabel(self)
         self.iconPreviewLabel.setObjectName("iconPreviewLabel")
         self.iconPreviewLabel.setFixedSize(48, 48)
-        self.iconPreviewLabel.setAlignment(Qt.AlignCenter)
+        self.iconPreviewLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._set_default_icon()
         iconInputLayout.addWidget(self.iconPreviewLabel)
         self.iconPathEdit = LineEdit(self)
@@ -1818,7 +1819,7 @@ class AppEditDialog(MessageBoxBase):
         if os.path.exists(icon_path):
             pixmap = QPixmap(icon_path)
             if not pixmap.isNull():
-                scaled = pixmap.scaled(36, 36, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                scaled = pixmap.scaled(36, 36, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
                 self.iconPreviewLabel.setPixmap(scaled)
             else:
                 self._set_default_icon()
@@ -1843,7 +1844,7 @@ class AppEditDialog(MessageBoxBase):
             
             target_size = 256
             if pixmap.width() < target_size:
-                pixmap = pixmap.scaled(target_size, target_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                pixmap = pixmap.scaled(target_size, target_size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             
             icon_filename = self._get_icon_name()
             icon_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'ql_icon')

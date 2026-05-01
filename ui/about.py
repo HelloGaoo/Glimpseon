@@ -21,9 +21,9 @@
 import os
 import webbrowser
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from qfluentwidgets import (
     CardWidget,
     FluentIcon as FIF,
@@ -64,13 +64,13 @@ class AboutInterface(BaseScrollAreaInterface):
             icon_path = get_resPath(os.path.join('resource', 'icons', 'CY.png'))
             if os.path.exists(icon_path):
                 pixmap = QPixmap(icon_path)
-                self.appIconLabel.setPixmap(pixmap.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                self.appIconLabel.setPixmap(pixmap.scaled(64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
             else:
                 self.appIconLabel.setText("📱")
-                self.appIconLabel.setAlignment(Qt.AlignCenter)
+                self.appIconLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         except Exception:
             self.appIconLabel.setText("📱")
-            self.appIconLabel.setAlignment(Qt.AlignCenter)
+            self.appIconLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         self.appNameLabel = QLabel("ClassLively", self.aboutCard)
         self.appNameLabel.setObjectName("appNameLabel")
@@ -151,7 +151,7 @@ class AboutInterface(BaseScrollAreaInterface):
     
     def __initWidget(self):
         """ 初始化界面 """
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setWidget(self.scrollWidget)
         self.setWidgetResizable(True)
         

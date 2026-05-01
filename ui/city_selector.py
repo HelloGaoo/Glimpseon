@@ -21,8 +21,8 @@
 import os
 import sqlite3
 
-from PyQt5.QtCore import QCoreApplication, Qt
-from PyQt5.QtWidgets import QWidget
+from PyQt6.QtCore import QCoreApplication, Qt
+from PyQt6.QtWidgets import QWidget
 from qfluentwidgets import BodyLabel, MessageBoxBase, SearchLineEdit, SubtitleLabel, ListWidget
 
 from core.config import cfg
@@ -177,7 +177,7 @@ class RegionSelectorDialog(MessageBoxBase):
         try:
             current = cfg.city.value
             if current:
-                items = self._region_list.findItems(current, Qt.MatchExactly)
+                items = self._region_list.findItems(current, Qt.MatchFlag.MatchExactly)
                 if items:
                     self._region_list.setCurrentItem(items[0])
                     self._region_list.scrollToItem(items[0])

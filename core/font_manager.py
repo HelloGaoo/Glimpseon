@@ -21,8 +21,8 @@
 import ctypes
 import os
 import shutil
-from PyQt5.QtGui import QFont, QFontDatabase
-from PyQt5.QtWidgets import QApplication
+from PyQt6.QtGui import QFont, QFontDatabase
+from PyQt6.QtWidgets import QApplication
 from qfluentwidgets import setFontFamilies
 from core.constants import get_resPath
 from core.logger import logger

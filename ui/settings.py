@@ -21,8 +21,8 @@
 import json
 import os
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QApplication, QLabel, QWidget
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QApplication, QLabel, QWidget
 from qfluentwidgets import (
     ComboBoxSettingCard,
     CustomColorSettingCard,
@@ -60,7 +60,7 @@ class LineEditSettingCard(SettingCard):
         self.configItem = configItem
         self.lineEdit = LineEdit(self)
 
-        self.hBoxLayout.addWidget(self.lineEdit, 0, Qt.AlignRight)
+        self.hBoxLayout.addWidget(self.lineEdit, 0, Qt.AlignmentFlag.AlignRight)
         self.hBoxLayout.addSpacing(16)
 
         value = qconfig.get(configItem)
@@ -85,7 +85,7 @@ class SpinBoxSettingCard(SettingCard):
         self.spinBox = SpinBox(self)
         self.spinBox.setRange(min_value, max_value)
         self.spinBox.setValue(qconfig.get(configItem))
-        self.hBoxLayout.addWidget(self.spinBox, 0, Qt.AlignRight)
+        self.hBoxLayout.addWidget(self.spinBox, 0, Qt.AlignmentFlag.AlignRight)
         self.hBoxLayout.addSpacing(16)
         self.spinBox.valueChanged.connect(self.__onValueChanged)
         configItem.valueChanged.connect(self.setValue)
@@ -104,7 +104,7 @@ class ButtonSettingCard(SettingCard):
         super().__init__(icon, title, content, parent)
         self.button = PushButton(FIF.EDIT, "执行", self)
         self.button.setFixedHeight(36)
-        self.hBoxLayout.addWidget(self.button, 0, Qt.AlignRight)
+        self.hBoxLayout.addWidget(self.button, 0, Qt.AlignmentFlag.AlignRight)
         self.hBoxLayout.addSpacing(16)
 
 
@@ -252,7 +252,7 @@ class SettingInterface(ScrollArea):
     def __initWidget(self):
         """ 初始化界面 """
         self.resize(1000, 800)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setViewportMargins(0, 120, 0, 20)
         self.setWidget(self.scrollWidget)
         self.setWidgetResizable(True)
@@ -363,7 +363,7 @@ class SettingInterface(ScrollArea):
         )
         msgBox.yesButton.setText("确定")
         msgBox.cancelButton.setText("取消")
-        if msgBox.exec() == 1: 
+        if msgBox.exec(): 
             try:
                 config_path = CONFIG_PATH
                 if os.path.exists(config_path):
@@ -442,7 +442,7 @@ class SettingInterface(ScrollArea):
         msgBox.yesButton.setText("确定")
         msgBox.cancelButton.setText("取消")
         
-        if msgBox.exec() == 1:
+        if msgBox.exec():
             try:
                 if os.path.exists(log_dir):
                     log_files = []

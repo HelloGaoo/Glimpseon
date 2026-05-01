@@ -5,7 +5,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 import pythoncom
-from PyQt5.QtCore import (
+from PyQt6.QtCore import (
     QFileInfo,
     QPoint,
     QPointF,
@@ -17,7 +17,7 @@ from PyQt5.QtCore import (
     pyqtSignal,
     QThread,
 )
-from PyQt5.QtGui import (
+from PyQt6.QtGui import (
     QBrush,
     QColor,
     QFont,
@@ -28,7 +28,7 @@ from PyQt5.QtGui import (
     QPen,
     QPixmap,
 )
-from PyQt5.QtWidgets import QFileIconProvider, QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFileIconProvider, QLabel, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import InfoBar, isDarkTheme
 from win32com.shell import shell, shellcon
 
@@ -80,7 +80,7 @@ def resolve_app_from_path(file_path):
         if not pixmap.isNull():
             target_size = 256
             if pixmap.width() < target_size:
-                pixmap = pixmap.scaled(target_size, target_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                pixmap = pixmap.scaled(target_size, target_size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             cleaned_name = re.sub(r'[^\w\u4e00-\u9fff]', '', name)
             if cleaned_name:
                 icon_filename = cleaned_name + '.ico'
@@ -112,8 +112,8 @@ class QuickLaunchDock(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("quickLaunchDock")
-        self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         self.setMouseTracking(True)
         self.setAcceptDrops(True)
         
@@ -339,7 +339,7 @@ class QuickLaunchDock(QWidget):
             self.update()
 
     def mousePressEvent(self, e):
-        if e.button() == Qt.LeftButton:
+        if e.button() == Qt.MouseButton.LeftButton:
             pl = self._icon_positions()
             for i in range(len(self._apps)):
                 if self._icon_rect(i, pl).contains(QPointF(e.pos())):
@@ -458,8 +458,8 @@ class QuickLaunchDock(QWidget):
 
     def _render(self):
         p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        p.setRenderHint(QPainter.SmoothPixmapTransform)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
         bg = self._bg_rect()
         if bg.isEmpty():
@@ -484,7 +484,7 @@ class QuickLaunchDock(QWidget):
             sh_mid = QColor(255, 255, 255, 18)
             inner_glow = QColor(255, 255, 255, 25)
 
-        p.setPen(Qt.NoPen)
+        p.setPen(Qt.PenStyle.NoPen)
 
         shadow_path = QPainterPath()
         sr = QRectF(bg.x() + 1.5, bg.y() + 2, bg.width() - 3, bg.height() * 0.5)
@@ -500,14 +500,14 @@ class QuickLaunchDock(QWidget):
         grad.setColorAt(0.30, sh_mid)
         grad.setColorAt(1.0, QColor(0, 0, 0, 0))
 
-        p.setCompositionMode(QPainter.CompositionMode_Lighten)
+        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Lighten)
         p.fillPath(path, grad)
-        p.setCompositionMode(QPainter.CompositionMode_SourceOver)
+        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
 
         pen = QPen(brd_c)
         pen.setWidth(1)
         p.setPen(pen)
-        p.setBrush(Qt.NoBrush)
+        p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawPath(path)
 
         pl = self._icon_positions()
@@ -537,7 +537,7 @@ class QuickLaunchDock(QWidget):
                 font = p.font()
                 font.setPixelSize(int(s * 0.4))
                 p.setFont(font)
-                p.drawText(r, Qt.AlignCenter, "?")
+                p.drawText(r, Qt.AlignmentFlag.AlignCenter, "?")
             
             if i == self._hover_idx and self._show_labels:
                 name = self._apps[i].get("name", "")
@@ -545,7 +545,7 @@ class QuickLaunchDock(QWidget):
                     label_font = p.font()
                     label_font.setFamily("HarmonyOS Sans,Microsoft YaHei,sans-serif")
                     label_font.setPixelSize(14)
-                    label_font.setWeight(QFont.Medium)
+                    label_font.setWeight(QFont.Weight.Medium)
                     p.setFont(label_font)
                     fm = QFontMetrics(label_font)
                     sz = self._sz()
@@ -570,13 +570,13 @@ class QuickLaunchDock(QWidget):
                     
                     label_path = QPainterPath()
                     label_path.addRoundedRect(label_x, label_y, label_w, label_h, label_h / 2, label_h / 2)
-                    p.setPen(Qt.NoPen)
+                    p.setPen(Qt.PenStyle.NoPen)
                     p.setBrush(QColor(0, 0, 0, 220))
                     p.drawPath(label_path)
                     p.setPen(QColor(255, 255, 255, 255))
                     p.setFont(label_font)
                     text_rect = QRectF(label_x, label_y, label_w, label_h)
-                    p.drawText(text_rect, Qt.AlignCenter | Qt.TextSingleLine, display_name)
+                    p.drawText(text_rect, Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextSingleLine, display_name)
 
         p.end()
 

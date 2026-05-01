@@ -26,9 +26,9 @@ import time
 import datetime
 import psutil
 import requests
-from PyQt5.QtCore import QEvent, QTimer, Qt
-from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import QEvent, QTimer, Qt
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import (
     QApplication,
     QGridLayout,
     QHBoxLayout,
@@ -441,28 +441,28 @@ class DeveloperPanel(BaseScrollAreaInterface):
     def _createWeatherIconItem(self, code, name, icon_file, parent_card):
         item = CardWidget()
         item.setFixedSize(115, 80)
-        item.setCursor(Qt.PointingHandCursor)
+        item.setCursor(Qt.CursorShape.PointingHandCursor)
         item._weatherCode = code
         layout = QVBoxLayout(item)
         layout.setContentsMargins(4, 6, 4, 4)
         layout.setSpacing(2)
-        layout.setAlignment(Qt.AlignCenter)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         imgLabel = ImageLabel(parent_card)
         imgLabel.setFixedSize(32, 32)
         icon_path = get_resPath(os.path.join("resource", "icons", "weather", icon_file))
         if os.path.exists(icon_path):
-            pixmap = QPixmap(icon_path).scaled(28, 28, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            pixmap = QPixmap(icon_path).scaled(28, 28, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             imgLabel.setImage(pixmap)
         else:
             imgLabel.setImage(QPixmap(28, 28))
-        layout.addWidget(imgLabel, alignment=Qt.AlignHCenter)
+        layout.addWidget(imgLabel, alignment=Qt.AlignmentFlag.AlignHCenter)
         codeLabel = BodyLabel(f"{code}", parent_card)
         codeLabel.setStyleSheet("font-size: 11px; font-weight: bold;")
-        codeLabel.setAlignment(Qt.AlignHCenter)
+        codeLabel.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         layout.addWidget(codeLabel)
         nameLabel = BodyLabel(name[:5], parent_card)
         nameLabel.setStyleSheet("font-size: 10px;")
-        nameLabel.setAlignment(Qt.AlignHCenter)
+        nameLabel.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         layout.addWidget(nameLabel)
         item.mousePressEvent = lambda e, c=code: self._onGridItemClick(c)
         return item
@@ -498,7 +498,7 @@ class DeveloperPanel(BaseScrollAreaInterface):
         icon_file = icon_map.get(code, "0.svg")
         icon_path = get_resPath(os.path.join("resource", "icons", "weather", icon_file))
         if os.path.exists(icon_path):
-            pixmap = QPixmap(icon_path).scaled(40, 40, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            pixmap = QPixmap(icon_path).scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             self.weatherIconPreviewLabel.setImage(pixmap)
 
     def _applyWeatherToMain(self):
@@ -774,7 +774,7 @@ class DeveloperPanel(BaseScrollAreaInterface):
 
     def eventFilter(self, obj, event):
         if not hasattr(self, 'elementCheckEnabled'): return super().eventFilter(obj, event)
-        if obj == self.mainWindow and event.type() == QEvent.Paint and hasattr(self, 'debugUpdateToggle') and self.debugUpdateToggle.isChecked():
+        if obj == self.mainWindow and event.type() == QEvent.Type.Paint and hasattr(self, 'debugUpdateToggle') and self.debugUpdateToggle.isChecked():
             self.frameCount += 1
             currentTime = time.time()
             if currentTime - self.lastFpsTime >= 0.5:
@@ -784,7 +784,7 @@ class DeveloperPanel(BaseScrollAreaInterface):
                 self.lastFpsTime = currentTime
         if not self.elementCheckEnabled:
             return super().eventFilter(obj, event)
-        if event.type() == QEvent.Enter:
+        if event.type() == QEvent.Type.Enter:
             element_info = []
             element_info.append(f"对象名称：{obj.objectName()}")
             element_info.append(f"类    型：{obj.__class__.__name__}")
@@ -1059,7 +1059,7 @@ class DeveloperPanel(BaseScrollAreaInterface):
             content_layout.addWidget(self._createBatchWallpaperCard())
 
             scroll = ScrollArea(self._popOutWindow)
-            scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
             scroll.setWidgetResizable(True)
             scroll.setStyleSheet("background-color: transparent; border: none;")
             scroll.setWidget(container)

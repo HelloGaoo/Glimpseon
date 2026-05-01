@@ -36,7 +36,7 @@ import win32gui
 import win32ui
 from PIL import Image
 from pycaw.pycaw import AudioUtilities
-from PyQt5.QtCore import (
+from PyQt6.QtCore import (
     QDate,
     QEvent,
     QLocale,
@@ -48,14 +48,14 @@ from PyQt5.QtCore import (
     QTranslator,
     QUrl,
 )
-from PyQt5.QtGui import (
+from PyQt6.QtGui import (
     QColor,
     QFont,
     QIcon,
     QPainter,
     QPixmap,
 )
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QApplication,
     QFileDialog,
     QGraphicsBlurEffect,
@@ -441,7 +441,7 @@ class MainWindow(FluentWindow):
     
     def keyPressEvent(self, event):
         """F12事件"""
-        if event.key() == Qt.Key_F12:
+        if event.key() == Qt.Key.Key_F12:
             if cfg.developerMode.value and hasattr(self, 'developerPanel'):
                 self.switchTo(self.developerPanel)
             return
@@ -451,7 +451,7 @@ class MainWindow(FluentWindow):
         """ 拦截导航切换"""
         
         if hasattr(self, 'isEditMode') and self.isEditMode:
-            if event.type() == QEvent.MouseButtonRelease:
+            if event.type() == QEvent.Type.MouseButtonRelease:
                 nav_interface = getattr(self, 'navigationInterface', None)
                 if nav_interface and obj == nav_interface:
                     return True
@@ -503,14 +503,14 @@ class MainWindow(FluentWindow):
     def __onTrayIconActivated(self, reason):
         """ 托盘图标激活槽函数 """
         #脑子抽了闲的没事在这区分双击和单击 细节吧嗯对。。
-        if reason == QSystemTrayIcon.DoubleClick:
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
             if self.isVisible():
                 logger.info("双击托盘图标，隐藏主窗口")
                 self.hide()
             else:
                 logger.info("双击托盘图标，显示主窗口")
                 self.show()
-        elif reason == QSystemTrayIcon.Trigger:
+        elif reason == QSystemTrayIcon.ActivationReason.Trigger:
             if self.isVisible():
                 logger.info("单击托盘图标，隐藏主窗口")
                 self.hide()
@@ -712,7 +712,7 @@ class MainWindow(FluentWindow):
             
             self.hide()
             if cfg.minimizeNotificationCount.value < self.maxMinimizeNotifications:
-                self.tray_icon.showMessage(APP_NAME, "应用已最小化到系统托盘", QSystemTrayIcon.Information, 2000)
+                self.tray_icon.showMessage(APP_NAME, "应用已最小化到系统托盘", QSystemTrayIcon.MessageIcon.Information, 2000)
                 cfg.minimizeNotificationCount.value = cfg.minimizeNotificationCount.value + 1
                 save_cfg()
         else:
@@ -757,13 +757,13 @@ class MainWindow(FluentWindow):
                 item.widget().setParent(None)
         
         if self.editPanel.isLeftSide:
-            self.editLayout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
+            self.editLayout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
             self.editLayout.setContentsMargins(20, 0, 0, 20)
-            self.gridLayout.setAlignment(self.editContainer, Qt.AlignBottom | Qt.AlignLeft)
+            self.gridLayout.setAlignment(self.editContainer, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
         else:
-            self.editLayout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
+            self.editLayout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
             self.editLayout.setContentsMargins(0, 0, 20, 20)
-            self.gridLayout.setAlignment(self.editContainer, Qt.AlignBottom | Qt.AlignRight)
+            self.gridLayout.setAlignment(self.editContainer, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
         self.editLayout.addWidget(self.editButton)
         self.editContainer.updateGeometry()
 
@@ -792,34 +792,34 @@ class MainWindow(FluentWindow):
         
         # 照片显示控件
         self.homeBackgroundImage = QLabel()
-        self.homeBackgroundImage.setAlignment(Qt.AlignCenter)
-        self.homeBackgroundImage.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.homeBackgroundImage.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.homeBackgroundImage.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.originalPixmap = QPixmap(1, 1)
-        self.originalPixmap.fill(Qt.transparent)
+        self.originalPixmap.fill(Qt.GlobalColor.transparent)
         self.homeBackgroundImage.setPixmap(self.originalPixmap)
         self.homeBackgroundImage.setMinimumSize(100, 100)
         
         # 时钟和日期标签
         self.clockLabel = QLabel("00:00:00")
-        self.clockLabel.setAlignment(Qt.AlignCenter)
+        self.clockLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         self.dateLabel = QLabel("")
-        self.dateLabel.setAlignment(Qt.AlignCenter)
+        self.dateLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         # 天气温度标签
         self.weatherTempLabel = QLabel("")
         self.weatherTempLabel.setObjectName("weatherTempLabel")
-        self.weatherTempLabel.setAlignment(Qt.AlignVCenter | Qt.AlignRight)
+        self.weatherTempLabel.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
         
         # 天气图标
         self.weatherIconLabel = QLabel("")
         self.weatherIconLabel.setObjectName("weatherIconLabel")
-        self.weatherIconLabel.setAlignment(Qt.AlignTop | Qt.AlignRight)
+        self.weatherIconLabel.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
         
         # 一言标签
         self.poetryLabel = QLabel("")
         self.poetryLabel.setObjectName("poetryLabel")
-        self.poetryLabel.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
+        self.poetryLabel.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter)
         self.poetryLabel.setWordWrap(False)
         self.updateClockStyle()
         
@@ -827,7 +827,7 @@ class MainWindow(FluentWindow):
         self.clockContainer = QWidget()
         self.clockContainer.setObjectName("clockContainer")
         self.clockLayout = QVBoxLayout(self.clockContainer)
-        self.clockLayout.setAlignment(Qt.AlignTop)
+        self.clockLayout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.clockLayout.setContentsMargins(0, 100, 0, 0)
         self.clockLayout.setSpacing(0)
         self.clockLayout.addWidget(self.clockLabel)
@@ -837,11 +837,11 @@ class MainWindow(FluentWindow):
         self.weatherContainer = QWidget()
         self.weatherContainer.setObjectName("weatherContainer")
         weatherLayout = QHBoxLayout(self.weatherContainer)
-        weatherLayout.setAlignment(Qt.AlignTop | Qt.AlignRight)
+        weatherLayout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
         weatherLayout.setContentsMargins(0, 20, 20, 0)
         weatherLayout.setSpacing(10)
-        self.weatherTempLabel.setAlignment(Qt.AlignCenter)
-        self.weatherIconLabel.setAlignment(Qt.AlignCenter)
+        self.weatherTempLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.weatherIconLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         weatherLayout.addWidget(self.weatherTempLabel)
         weatherLayout.addWidget(self.weatherIconLabel)
         
@@ -852,10 +852,10 @@ class MainWindow(FluentWindow):
         self.schoolInfoLayout.setSpacing(0)
         self.schoolClassLabel = QLabel("")
         self.schoolClassLabel.setObjectName("schoolClassLabel")
-        self.schoolClassLabel.setAlignment(Qt.AlignCenter)
+        self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.schoolNameLabel = QLabel("")
         self.schoolNameLabel.setObjectName("schoolNameLabel")
-        self.schoolNameLabel.setAlignment(Qt.AlignCenter)
+        self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.schoolInfoLayout.addWidget(self.schoolClassLabel)
         self.schoolInfoLayout.addWidget(self.schoolNameLabel)
         self.updateSchoolInfo()
@@ -866,19 +866,19 @@ class MainWindow(FluentWindow):
         self.poetryContainer = QWidget()
         self.poetryContainer.setObjectName("poetryContainer")
         poetryLayout = QVBoxLayout(self.poetryContainer)
-        poetryLayout.setAlignment(Qt.AlignBottom)
+        poetryLayout.setAlignment(Qt.AlignmentFlag.AlignBottom)
         poetryLayout.setContentsMargins(0, 0, 0, 20)
         poetryLayout.addWidget(self.poetryLabel)
         
         # 倒计时标签
         self.countdownLabel = QLabel("")
-        self.countdownLabel.setAlignment(Qt.AlignCenter)
+        self.countdownLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         # 倒计时容器
         self.countdownContainer = QWidget()
         self.countdownContainer.setObjectName("countdownContainer")
         countdownLayout = QVBoxLayout(self.countdownContainer)
-        countdownLayout.setAlignment(Qt.AlignCenter)
+        countdownLayout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         countdownLayout.setContentsMargins(0, 0, 0, 0)
         countdownLayout.addWidget(self.countdownLabel)
         
@@ -891,7 +891,7 @@ class MainWindow(FluentWindow):
         self.editContainer = QWidget()
         self.editContainer.setObjectName("editContainer")
         self.editLayout = QVBoxLayout(self.editContainer)
-        self.editLayout.setAlignment(Qt.AlignBottom)
+        self.editLayout.setAlignment(Qt.AlignmentFlag.AlignBottom)
         self.editLayout.setContentsMargins(0, 0, 0, 20)
         
         self.editButton = PushButton("编辑", parent=self.home)
@@ -900,7 +900,7 @@ class MainWindow(FluentWindow):
         self.editButton.clicked.connect(self.__enterEditMode)
         
         self.editLayout.addWidget(self.editButton)
-        self.editContainer.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        self.editContainer.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         
         # 网格布局
         self.gridLayout = QGridLayout()
@@ -911,15 +911,15 @@ class MainWindow(FluentWindow):
         self.gridLayout.addWidget(self.poetryContainer, 0, 0, 1, 1)
         self.gridLayout.addWidget(self.countdownContainer, 0, 0, 1, 1)
         self.gridLayout.addWidget(self.schoolInfoContainer, 0, 0, 1, 1)
-        self.gridLayout.addWidget(self.quickLaunchDock, 0, 0, 1, 1, Qt.AlignBottom | Qt.AlignHCenter)
-        self.gridLayout.addWidget(self.editContainer, 0, 0, 1, 1, Qt.AlignBottom | Qt.AlignLeft)
+        self.gridLayout.addWidget(self.quickLaunchDock, 0, 0, 1, 1, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter)
+        self.gridLayout.addWidget(self.editContainer, 0, 0, 1, 1, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
         
         self.homeContent = QWidget()
         self.homeContent.setLayout(self.gridLayout)
         
         # 主界面布局
         homeLayout = QVBoxLayout(self.home)
-        homeLayout.setAlignment(Qt.AlignCenter)
+        homeLayout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         homeLayout.setContentsMargins(0, 0, 0, 0)
         homeLayout.addWidget(self.homeContent)
         
@@ -962,7 +962,7 @@ class MainWindow(FluentWindow):
                 available_height = self.height()
                 
                 if hasattr(self, 'originalPixmap') and self.originalPixmap is not None and not self.originalPixmap.isNull():
-                    scaled_pixmap = self.originalPixmap.scaled(available_width, available_height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+                    scaled_pixmap = self.originalPixmap.scaled(available_width, available_height, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
                     
                     # 应用模糊效果
                     blur_effect = QGraphicsBlurEffect()
@@ -983,9 +983,11 @@ class MainWindow(FluentWindow):
 
     def moveToCenter(self):
         """ 移动窗口到屏幕中央 """
-        desktop = QApplication.desktop().availableGeometry()
-        w, h = desktop.width(), desktop.height()
-        self.move(w//2 - self.width()//2, h//2 - self.height()//2)
+        screen = QApplication.primaryScreen()
+        if screen:
+            rect = screen.availableGeometry()
+            w, h = rect.width(), rect.height()
+            self.move(w//2 - self.width()//2, h//2 - self.height()//2)
     
     def __updateClock(self):
         """ 更新时钟显示 """
@@ -1081,43 +1083,43 @@ class MainWindow(FluentWindow):
         layout = self.clockContainer.layout()
         #看完享福去了 感谢ai
         if position == "左上预留":
-            layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
             layout.setContentsMargins(small_margin, small_margin, 0, 0)
         elif position == "左上":
-            layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
             layout.setContentsMargins(0, 0, 0, 0)
         elif position == "右上预留":
-            layout.setAlignment(Qt.AlignTop | Qt.AlignRight)
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
             layout.setContentsMargins(0, small_margin, small_margin, 0)
         elif position == "右上":
-            layout.setAlignment(Qt.AlignTop | Qt.AlignRight)
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
             layout.setContentsMargins(0, 0, 0, 0)
         elif position == "左下预留":
-            layout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
+            layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
             layout.setContentsMargins(small_margin, 0, 0, small_margin)
         elif position == "左下":
-            layout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
+            layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
             layout.setContentsMargins(0, 0, 0, 0)
         elif position == "右下预留":
-            layout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
+            layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
             layout.setContentsMargins(0, 0, small_margin, small_margin)
         elif position == "右下":
-            layout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
+            layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
             layout.setContentsMargins(0, 0, 0, 0)
         elif position == "中部":
-            layout.setAlignment(Qt.AlignCenter)
+            layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.setContentsMargins(0, 0, 0, 0)
         elif position == "顶部":
-            layout.setAlignment(Qt.AlignTop)
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop)
             layout.setContentsMargins(0, 0, 0, 0)
         elif position == "顶部偏下":
-            layout.setAlignment(Qt.AlignTop)
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop)
             layout.setContentsMargins(0, margin, 0, 0)
         elif position == "底部偏上":
-            layout.setAlignment(Qt.AlignBottom)
+            layout.setAlignment(Qt.AlignmentFlag.AlignBottom)
             layout.setContentsMargins(0, 0, 0, margin)
         elif position == "底部":
-            layout.setAlignment(Qt.AlignBottom)
+            layout.setAlignment(Qt.AlignmentFlag.AlignBottom)
             layout.setContentsMargins(0, 0, 0, 0)
         
         layout.update()
@@ -1143,16 +1145,16 @@ class MainWindow(FluentWindow):
             layout.addWidget(self.weatherIconLabel)
         
         if position == "左上预留":
-            layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
             layout.setContentsMargins(small_margin, small_margin, 0, 0)
         elif position == "右上预留":
-            layout.setAlignment(Qt.AlignTop | Qt.AlignRight)
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
             layout.setContentsMargins(0, small_margin, small_margin, 0)
         elif position == "左下预留":
-            layout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
+            layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
             layout.setContentsMargins(small_margin, 0, 0, small_margin)
         elif position == "右下预留":
-            layout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
+            layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
             layout.setContentsMargins(0, 0, small_margin, small_margin)
         
         layout.update()
@@ -1168,10 +1170,10 @@ class MainWindow(FluentWindow):
         small_margin = 20
         layout = self.poetryContainer.layout()
         if position == "顶部预留":
-            layout.setAlignment(Qt.AlignTop)
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop)
             layout.setContentsMargins(0, small_margin, 0, 0)
         elif position == "底部预留":
-            layout.setAlignment(Qt.AlignBottom)
+            layout.setAlignment(Qt.AlignmentFlag.AlignBottom)
             layout.setContentsMargins(0, 0, 0, small_margin)
         
         layout.update()
@@ -1630,7 +1632,7 @@ class MainWindow(FluentWindow):
             if self.countdownLabel.parent() != clock_layout:
                 layout.removeWidget(self.countdownLabel)
                 clock_layout.addWidget(self.countdownLabel)
-            self.countdownLabel.setAlignment(Qt.AlignHCenter)
+            self.countdownLabel.setAlignment(Qt.AlignmentFlag.AlignHCenter)
             clock_layout.setSpacing(0)
         else:
             if self.countdownLabel.parent() == clock_layout:
@@ -1641,40 +1643,40 @@ class MainWindow(FluentWindow):
                 self.gridLayout.addWidget(self.countdownContainer, 0, 0, 1, 1)
             
             if position == "左上预留":
-                layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+                layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
                 layout.setContentsMargins(small_margin, small_margin, 0, 0)
             elif position == "左上":
-                layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+                layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
                 layout.setContentsMargins(0, 0, 0, 0)
             elif position == "右上预留":
-                layout.setAlignment(Qt.AlignTop | Qt.AlignRight)
+                layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
                 layout.setContentsMargins(0, small_margin, small_margin, 0)
             elif position == "右上":
-                layout.setAlignment(Qt.AlignTop | Qt.AlignRight)
+                layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
                 layout.setContentsMargins(0, 0, 0, 0)
             elif position == "左下预留":
-                layout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
                 layout.setContentsMargins(small_margin, 0, 0, small_margin)
             elif position == "左下":
-                layout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
                 layout.setContentsMargins(0, 0, 0, 0)
             elif position == "右下预留":
-                layout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
                 layout.setContentsMargins(0, 0, small_margin, small_margin)
             elif position == "右下":
-                layout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
                 layout.setContentsMargins(0, 0, 0, 0)
             elif position == "顶部":
-                layout.setAlignment(Qt.AlignTop)
+                layout.setAlignment(Qt.AlignmentFlag.AlignTop)
                 layout.setContentsMargins(0, 0, 0, 0)
             elif position == "顶部偏下":
-                layout.setAlignment(Qt.AlignTop)
+                layout.setAlignment(Qt.AlignmentFlag.AlignTop)
                 layout.setContentsMargins(0, margin, 0, 0)
             elif position == "底部偏上":
-                layout.setAlignment(Qt.AlignBottom)
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom)
                 layout.setContentsMargins(0, 0, 0, margin)
             elif position == "底部":
-                layout.setAlignment(Qt.AlignBottom)
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom)
                 layout.setContentsMargins(0, 0, 0, 0)
         
         layout.update()
@@ -1716,45 +1718,45 @@ class MainWindow(FluentWindow):
         layout = self.schoolInfoContainer.layout()
         
         if position == "左上预留":
-            layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
             layout.setContentsMargins(small_margin, small_margin, 0, 0)
-            self.schoolClassLabel.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            self.schoolNameLabel.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         elif position == "左上":
-            layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
             layout.setContentsMargins(0, 0, 0, 0)
-            self.schoolClassLabel.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            self.schoolNameLabel.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         elif position == "右上预留":
-            layout.setAlignment(Qt.AlignTop | Qt.AlignRight)
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
             layout.setContentsMargins(0, small_margin, small_margin, 0)
-            self.schoolClassLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.schoolNameLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         elif position == "右上":
-            layout.setAlignment(Qt.AlignTop | Qt.AlignRight)
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
             layout.setContentsMargins(0, 0, 0, 0)
-            self.schoolClassLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.schoolNameLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         elif position == "左下预留":
-            layout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
+            layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
             layout.setContentsMargins(small_margin, 0, 0, small_margin)
-            self.schoolClassLabel.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            self.schoolNameLabel.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         elif position == "左下":
-            layout.setAlignment(Qt.AlignBottom | Qt.AlignLeft)
+            layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
             layout.setContentsMargins(0, 0, 0, 0)
-            self.schoolClassLabel.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            self.schoolNameLabel.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         elif position == "右下预留":
-            layout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
+            layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
             layout.setContentsMargins(0, 0, small_margin, small_margin)
-            self.schoolClassLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.schoolNameLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         elif position == "右下":
-            layout.setAlignment(Qt.AlignBottom | Qt.AlignRight)
+            layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
             layout.setContentsMargins(0, 0, 0, 0)
-            self.schoolClassLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.schoolNameLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         
         layout.update()
         self.schoolInfoContainer.update()
@@ -1905,11 +1907,6 @@ if __name__ == "__main__":
     auto_start_launch = autoStart_launch()
 
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
-    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
-    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
-
-    QApplication.setAttribute(Qt.AA_UseOpenGLES)
-    QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
 
     extract_files()
     
@@ -1918,7 +1915,7 @@ if __name__ == "__main__":
     if check_wizard_needed():
         create_wizard_file()
         wizard = WizardWindow()
-        wizard.exec_()
+        wizard.exec()
     
     icon_path = get_resPath(os.path.join("resource", "icons", "CY.png"))
     
@@ -1956,7 +1953,7 @@ if __name__ == "__main__":
     logger.info("启动：正在加载翻译")
     splash.setProgress(15)
     allow_ui_update(0.06)
-    locale = QLocale(QLocale.Chinese, QLocale.China)
+    locale = QLocale(QLocale.Language.Chinese, QLocale.Country.China)
     fluentTranslator = FluentTranslator(locale)
     app.installTranslator(fluentTranslator)
     
@@ -1964,12 +1961,13 @@ if __name__ == "__main__":
         splash.close()
         
         temp_widget = QWidget()
-        temp_widget.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
-        temp_widget.setAttribute(Qt.WA_TranslucentBackground)
+        temp_widget.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
+        temp_widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         
-        desktop = QApplication.desktop()
-        screen_rect = desktop.availableGeometry()
-        temp_widget.setGeometry(screen_rect)
+        screen = QApplication.primaryScreen()
+        if screen:
+            screen_rect = screen.availableGeometry()
+            temp_widget.setGeometry(screen_rect)
         temp_widget.show()
         
         title = f"{APP_NAME} 已有实例运行"
@@ -2083,4 +2081,4 @@ if __name__ == "__main__":
         window.show()
         logger.info("正常启动模式：显示主窗口")
     
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
