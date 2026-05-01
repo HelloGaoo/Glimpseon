@@ -20,15 +20,17 @@
 
 import os
 import time
-
+import datetime
 import psutil
 import requests
 from PyQt5.QtCore import QEvent, QTimer, Qt
+from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QProgressBar,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -44,6 +46,7 @@ from qfluentwidgets import (
     PrimaryPushButton,
     PushButton,
     ScrollArea,
+    SpinBox,
     StrongBodyLabel,
     SubtitleLabel,
     ToggleButton,
@@ -52,7 +55,7 @@ from qfluentwidgets import (
 )
 
 from core.config import cfg
-from core.constants import load_qss
+from core.constants import BASE_DIR, load_qss
 from core.logger import logger
 from services.weather import WeatherService
 from ui.city_selector import RegionDatabase
@@ -113,6 +116,9 @@ class DeveloperPanel(BaseScrollAreaInterface):
         
         elementCard = self._createElementCheckCard()
         scrollLayout.addWidget(elementCard)
+        
+        batchCard = self._createBatchWallpaperCard()
+        scrollLayout.addWidget(batchCard)
         
         self._loadStyleSheet()
         QTimer.singleShot(500, self._refreshComponentTree)
@@ -607,6 +613,129 @@ class DeveloperPanel(BaseScrollAreaInterface):
         layout.addLayout(treeLayout)
     
         return card
+    
+    def _createBatchWallpaperCard(self):
+        card = CardWidget()
+        layout = QVBoxLayout(card)
+        layout.setSpacing(10)
+        title = SubtitleLabel("获取壁纸", self)
+        layout.addWidget(title)
+        
+        row = QHBoxLayout()
+        row.addWidget(BodyLabel("获取数量:", self))
+        self.batchWallpaperSpin = SpinBox(card)
+        self.batchWallpaperSpin.setRange(1, 100)
+        self.batchWallpaperSpin.setValue(5)
+        self.batchWallpaperSpin.setFixedWidth(120)
+        row.addWidget(self.batchWallpaperSpin)
+        row.addSpacing(16)
+        self.batchWallpaperBtn = PrimaryPushButton(FIF.DOWNLOAD, "开始获取", card)
+        self.batchWallpaperBtn.setFixedSize(110, 32)
+        self.batchWallpaperBtn.clicked.connect(self._batchGetWallpaper)
+        row.addWidget(self.batchWallpaperBtn)
+        self.batchWallpaperStopBtn = PushButton("停止", card)
+        self.batchWallpaperStopBtn.setFixedSize(70, 32)
+        self.batchWallpaperStopBtn.clicked.connect(self._stopBatchWallpaper)
+        self.batchWallpaperStopBtn.setEnabled(False)
+        row.addWidget(self.batchWallpaperStopBtn)
+        row.addStretch(1)
+        layout.addLayout(row)
+        
+        self.batchWallpaperProgress = QProgressBar(card)
+        self.batchWallpaperProgress.setRange(0, 100)
+        self.batchWallpaperProgress.setValue(0)
+        self.batchWallpaperProgress.setFixedHeight(6)
+        self.batchWallpaperProgress.setTextVisible(False)
+        layout.addWidget(self.batchWallpaperProgress)
+        
+        self.batchWallpaperLog = QTextEdit(card)
+        self.batchWallpaperLog.setPlaceholderText("获取日志")
+        self.batchWallpaperLog.setMaximumHeight(120)
+        self.batchWallpaperLog.setReadOnly(True)
+        layout.addWidget(self.batchWallpaperLog)
+        
+        self._batchRunning = False
+        return card
+    
+    def _batchGetWallpaper(self):
+        if self._batchRunning: return
+        count = self.batchWallpaperSpin.value()
+        self._batchRunning = True
+        self._batchSuccess = 0
+        self._batchFail = 0
+        self.batchWallpaperBtn.setEnabled(False)
+        self.batchWallpaperStopBtn.setEnabled(True)
+        self.batchWallpaperProgress.setValue(0)
+        self.batchWallpaperLog.clear()
+        self.batchWallpaperLog.append(f"获取 {count} 张壁纸")
+        self._batchWallpaperCount = count
+        self._batchWallpaperIndex = 0
+        QTimer.singleShot(100, self._batchGetNextWallpaper)
+    
+    def _batchGetNextWallpaper(self):
+        if not self._batchRunning or self._batchWallpaperIndex >= self._batchWallpaperCount:
+            self._finishBatchWallpaper()
+            return
+        
+        idx = self._batchWallpaperIndex + 1
+        total = self._batchWallpaperCount
+        self.batchWallpaperLog.append(f"[{idx}/{total}] 正在获取")
+        
+        mw = self.mainWindow
+        try:
+            wallpaper = mw.wallpaper
+            url, source = wallpaper._getApiUrl()
+            response = requests.get(url, stream=True, timeout=10)
+            
+            if response.status_code == 200:
+                wallpaper_dir = os.path.join(BASE_DIR, 'wallpaper')
+                if not os.path.exists(wallpaper_dir): os.makedirs(wallpaper_dir)
+                current_date = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+                wallpaper_path = os.path.join(wallpaper_dir, f'wallpaper_{current_date}.jpg')
+                with open(wallpaper_path, 'wb') as f: f.write(response.content)
+                wallpaper.current_pixmap = QPixmap(wallpaper_path)
+                wallpaper.current_wallpaper_path = wallpaper_path
+                wallpaper.current_wallpaper_source = source
+                if not wallpaper.current_pixmap.isNull():
+                    wallpaper._updateBackground()
+                    wallpaper._updateMainWindowBackground()
+                    wallpaper.historyManager.add(wallpaper_path, source, url)
+                    wallpaper.historyWidget.refresh()
+                
+                wallpaper.infoCard.updateInfo(wallpaper_path, source)
+                self._batchSuccess += 1
+                self.batchWallpaperLog.append(f"[{idx}/{total}] ✓ 成功 - {source}")
+            else:
+                self._batchFail += 1
+                self.batchWallpaperLog.append(f"[{idx}/{total}] ✗ 失败 - HTTP {response.status_code}")
+        except Exception as e:
+            self._batchFail += 1
+            self.batchWallpaperLog.append(f"[{idx}/{total}] ✗ 错误 - {str(e)}")
+        
+        self._batchWallpaperIndex += 1
+        self._updateBatchProgress()
+        QTimer.singleShot(800, self._batchGetNextWallpaper)
+    
+    def _updateBatchProgress(self):
+        total = self._batchWallpaperCount
+        done = self._batchWallpaperIndex
+        self.batchWallpaperProgress.setValue(int(done / total * 100))
+    
+    def _stopBatchWallpaper(self):
+        """停止获取"""
+        self._batchRunning = False
+        self.batchWallpaperLog.append("已停止")
+        self._finishBatchWallpaper()
+    
+    def _finishBatchWallpaper(self):
+        """完成获取"""
+        self._batchRunning = False
+        self.batchWallpaperBtn.setEnabled(True)
+        self.batchWallpaperStopBtn.setEnabled(False)
+        self.batchWallpaperProgress.setValue(100)
+        s = getattr(self, '_batchSuccess', 0)
+        f = getattr(self, '_batchFail', 0)
+        self.batchWallpaperLog.append(f"成功 {s} 张，失败 {f} 张")
     
     def _setupTimers(self):
         """设置定时器"""
@@ -1110,6 +1239,7 @@ class DeveloperPanel(BaseScrollAreaInterface):
             resourceCard = self._createResourceMonitorCard()
             windowCard = self._createWindowDebugCard()
             elementCard = self._createElementCheckCard()
+            batchCard = self._createBatchWallpaperCard()
             
             content_layout.addWidget(debugCard)
             content_layout.addWidget(apiCard)
@@ -1117,6 +1247,7 @@ class DeveloperPanel(BaseScrollAreaInterface):
             content_layout.addWidget(resourceCard)
             content_layout.addWidget(windowCard)
             content_layout.addWidget(elementCard)
+            content_layout.addWidget(batchCard)
             
             scroll = ScrollArea(self._popOutWindow)
             scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
