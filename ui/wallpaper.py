@@ -478,9 +478,10 @@ class WallpaperHistoryWidget(QWidget):
         self.countLabel = BodyLabel("", self)
         self.countLabel.setObjectName("historyCount")
         
-        self.clearInvalidBtn = PushButton(FIF.DELETE, "清理无效", self)
-        self.clearInvalidBtn.setFixedHeight(28)
-        self.clearInvalidBtn.clicked.connect(self._clearInvalid)
+        self.clearInvalidBtn = PushButton(FIF.DELETE, "清空全部", self)
+        self.clearInvalidBtn.setFixedHeight(32)
+        self.clearInvalidBtn.setMinimumWidth(100)
+        self.clearInvalidBtn.clicked.connect(self._clearAll)
         
         headerLayout.addWidget(self.titleLabel)
         headerLayout.addSpacing(10)
@@ -621,11 +622,28 @@ class WallpaperHistoryWidget(QWidget):
         self._loadHistory()
         self.historyChanged.emit()
     
-    def _clearInvalid(self):
-        count = self.historyManager.clear_invalid()
-        if count > 0:
+    def _clearAll(self):
+        from qfluentwidgets import MessageBox
+        count = self.historyManager.count()
+        if count == 0:return
+        mw = self.window()
+        
+        mask = QWidget(mw)
+        mask.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        mask.setAttribute(Qt.WA_TranslucentBackground)
+        mask.setGeometry(0, 0, mw.width(), mw.height())
+        mask.setStyleSheet("background-color: rgba(0, 0, 0, 120);")
+        mask.show()
+        
+        w = MessageBox("确认清空", f"确定要清空全部 {count} 条壁纸历史记录吗？\n此操作不可恢复。", mask)
+        w.yesButton.setText('确认清空')
+        w.cancelButton.setText('取消')
+        if w.exec_() == w.AcceptButton:
+            self.historyManager.clear_all()
             self._loadHistory()
             self.historyChanged.emit()
+        mask.close()
+        mask.deleteLater()
     
     def refresh(self):
         self._loadHistory()
