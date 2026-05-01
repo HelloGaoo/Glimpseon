@@ -46,10 +46,12 @@ from qfluentwidgets import (
     CardWidget,
     FluentIcon as FIF,
     InfoBar,
+    MaskDialogBase,
     MessageBoxBase,
     PrimaryPushButton,
     PushButton,
     ScrollArea,
+    SmoothScrollArea,
     StrongBodyLabel,
     SubtitleLabel,
     Theme,
@@ -305,45 +307,34 @@ class WallpaperPreviewDialog(MessageBoxBase):
         self._setupUi()
     
     def _setupUi(self):
-        self.titleLabel = SubtitleLabel(self.record.id, self)
-        self.imageCard = CardWidget(self)
-        imageLayout = QHBoxLayout(self.imageCard)
-        imageLayout.setContentsMargins(0, 0, 0, 0)
-        self.imageScrollArea = QScrollArea(self.imageCard)
-        self.imageScrollArea.setWidgetResizable(True)
-        self.imageScrollArea.setMinimumSize(580, 380)
-        self.imageScrollArea.setAlignment(Qt.AlignCenter)
-        self.imageLabel = QLabel(self.imageScrollArea)
-        self.imageLabel.setAlignment(Qt.AlignCenter)
-        self.imageScrollArea.setWidget(self.imageLabel)
+        self.titleLabel = SubtitleLabel(os.path.splitext(self.record.id)[0], self)
         
+        self.imageCard = CardWidget(self)
+        imageLayout = QVBoxLayout(self.imageCard)
+        imageLayout.setContentsMargins(0, 0, 0, 0)
+        self.imageLabel = QLabel()
+        self.imageLabel.setAlignment(Qt.AlignCenter)
+        self.imageLabel.setScaledContents(True)
+        
+        max_w, max_h = 640, 400
         if os.path.exists(self.record.path):
             pixmap = QPixmap(self.record.path)
             if not pixmap.isNull():
-                max_width = 760
-                max_height = 470
-                if pixmap.width() > max_width or pixmap.height() > max_height:
-                    scaled = pixmap.scaled(
-                        max_width, max_height,
-                        Qt.KeepAspectRatio,
-                        Qt.SmoothTransformation
-                    )
-                    self.imageLabel.setPixmap(scaled)
-                else:
-                    self.imageLabel.setPixmap(pixmap)
+                scaled = pixmap.scaled(max_w, max_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                self.imageLabel.setPixmap(scaled)
+                self.imageLabel.setFixedSize(scaled.size())
             else:
                 self.imageLabel.setText("无法加载图片")
+                self.imageLabel.setFixedSize(max_w, max_h)
         else:
             self.imageLabel.setText("文件不存在")
+            self.imageLabel.setFixedSize(max_w, max_h)
         
-        imageLayout.addWidget(self.imageScrollArea)
-        self.infoLabel = BodyLabel(self)
-        self.infoLabel.setText(
-            f"分辨率：{self.record.resolution}  |  "
-            f"大小：{self._format_size(self.record.file_size)}  |  "
-            f"来源：{self.record.source}  |  "
-            f"时间：{self.record.added_time}"
-        )
+        imageLayout.addWidget(self.imageLabel, 0, Qt.AlignCenter)
+        
+        infoText = f"分辨率：{self.record.resolution}  |  大小：{self._format_size(self.record.file_size)}  |  来源：{self.record.source}  |  时间：{self.record.added_time}"
+        self.infoLabel = BodyLabel(infoText, self)
+        self.infoLabel.setWordWrap(True)
         
         self.useButton = PrimaryPushButton(FIF.ACCEPT, "使用此壁纸", self)
         self.useButton.setFixedWidth(120)
@@ -353,26 +344,25 @@ class WallpaperPreviewDialog(MessageBoxBase):
         self.deleteButton.setFixedWidth(100)
         self.deleteButton.clicked.connect(self._onDelete)
         
-        self.buttonLayout = QHBoxLayout()
-        self.buttonLayout.addStretch(1)
-        self.buttonLayout.addWidget(self.useButton)
-        self.buttonLayout.addSpacing(10)
-        self.buttonLayout.addWidget(self.deleteButton)
-        self.buttonLayout.addStretch(1)
+        btnLayout = QHBoxLayout()
+        btnLayout.addStretch(1)
+        btnLayout.addWidget(self.useButton)
+        btnLayout.addSpacing(10)
+        btnLayout.addWidget(self.deleteButton)
+        btnLayout.addStretch(1)
         
         self.viewLayout.addWidget(self.titleLabel)
-        self.viewLayout.addSpacing(10)
+        self.viewLayout.addSpacing(12)
         self.viewLayout.addWidget(self.imageCard)
         self.viewLayout.addSpacing(10)
         self.viewLayout.addWidget(self.infoLabel)
-        self.viewLayout.addSpacing(15)
-        self.viewLayout.addLayout(self.buttonLayout)
+        self.viewLayout.addSpacing(16)
+        self.viewLayout.addLayout(btnLayout)
         
         self.yesButton.setText("关闭")
         self.cancelButton.hide()
-        
         self.widget.setMinimumWidth(700)
-        self.widget.setMinimumHeight(550)
+        self.widget.setMinimumHeight(560)
     
     def _format_size(self, size: int) -> str:
         if size < 1024:
@@ -441,10 +431,9 @@ class WallpaperThumbnailCard(CardWidget):
     def _showPlaceholder(self, text: str):
         self.imageLabel.setText(text)
     
-    def mousePressEvent(self, event):
+    def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
             self.clicked.emit(self.record)
-        super().mousePressEvent(event)
 
 
 class WallpaperHistoryWidget(QWidget):
@@ -611,10 +600,20 @@ class WallpaperHistoryWidget(QWidget):
         self._displayPage(self._calcLoadMoreCount())
     
     def _showPreview(self, record: WallpaperRecord):
-        dialog = WallpaperPreviewDialog(record, self.window())
+        mw = self.window()
+        mask = QWidget(mw)
+        mask.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        mask.setAttribute(Qt.WA_TranslucentBackground)
+        mask.setGeometry(0, 0, mw.width(), mw.height())
+        mask.setStyleSheet("background-color: rgba(0, 0, 0, 120);")
+        mask.show()
+        
+        dialog = WallpaperPreviewDialog(record, mask)
         dialog.useRequested.connect(self._onUseWallpaper)
         dialog.deleteRequested.connect(self._onDeleteWallpaper)
         dialog.exec()
+        mask.close()
+        mask.deleteLater()
     
     def _onUseWallpaper(self, path: str):
         self.wallpaperSelected.emit(path)
