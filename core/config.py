@@ -23,7 +23,7 @@ import os
 import sys
 from enum import Enum
 
-from PyQt5.QtCore import QLocale
+from PyQt6.QtCore import QLocale
 from qfluentwidgets import (
     BoolValidator,
     ColorConfigItem,
@@ -64,9 +64,9 @@ class ThemeSerializer(ConfigSerializer):
 class Language(Enum):
     """ 语言枚举 """
 
-    CHINESE_SIMPLIFIED = QLocale(QLocale.Chinese, QLocale.China)
-    CHINESE_TRADITIONAL = QLocale(QLocale.Chinese, QLocale.HongKong)
-    ENGLISH = QLocale(QLocale.English)
+    CHINESE_SIMPLIFIED = QLocale(QLocale.Language.Chinese, QLocale.Country.China)
+    CHINESE_TRADITIONAL = QLocale(QLocale.Language.Chinese, QLocale.Country.HongKong)
+    ENGLISH = QLocale(QLocale.Language.English)
     AUTO = QLocale()
 
 

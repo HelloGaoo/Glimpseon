@@ -1,6 +1,6 @@
 # Common UI helpers for dialogs
 import os
-from PyQt5.QtGui import QFont
+from PyQt6.QtGui import QFont
 from qfluentwidgets import MessageBox, TextEdit
 
 
@@ -44,4 +44,4 @@ def show_text_file(title: str, intro: str, file_path: str, parent=None):
         pass
 
     msg_box.setMinimumWidth(600)
-    msg_box.exec_()
+    msg_box.exec()

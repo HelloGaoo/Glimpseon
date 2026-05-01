@@ -14,11 +14,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from PyQt5.QtCore import Qt, QTimer, pyqtSlot, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, pyqtSlot, pyqtSignal
 import time
-from PyQt5.QtWidgets import QApplication
-from PyQt5.QtGui import QPixmap, QFont
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout
+from PyQt6.QtWidgets import QApplication
+from PyQt6.QtGui import QPixmap, QFont
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout
 from qfluentwidgets import ProgressBar, BodyLabel, StrongBodyLabel, isDarkTheme
 import os
 
@@ -43,8 +43,8 @@ class SplashScreen(QWidget):
     
     def _initUI(self):
         """初始化 UI"""
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
-        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setFixedSize(360, 160)
         
         self.content_widget = QWidget(self)
@@ -113,22 +113,22 @@ class SplashScreen(QWidget):
         """加载图标"""
         if self.icon_path and os.path.exists(self.icon_path):
             pixmap = QPixmap(self.icon_path).scaled(
-                64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
             )
             self.icon_label.setPixmap(pixmap)
         else:
             self.icon_label.setText("❓")
             self.icon_label.setFont(QFont("Segoe UI Emoji", 32))
-            self.icon_label.setAlignment(Qt.AlignCenter)
+            self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
     def centerOnScreen(self):
         """将窗口居中显示"""
-        desktop = QApplication.desktop()
-        screen_rect = desktop.availableGeometry()
-        x = (screen_rect.width() - self.width()) // 2
-        y = (screen_rect.height() - self.height()) // 2
-        
-        self.move(x, y)
+        screen = QApplication.primaryScreen()
+        if screen:
+            screen_rect = screen.availableGeometry()
+            x = (screen_rect.width() - self.width()) // 2
+            y = (screen_rect.height() - self.height()) // 2
+            self.move(x, y)
         
     @pyqtSlot(str)
     def updateStatus(self, status: str):

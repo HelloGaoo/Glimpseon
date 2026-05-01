@@ -18,9 +18,9 @@
 基础滚动界面模块
 """
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QIcon, QPixmap
-from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon, QPixmap
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from qfluentwidgets import (
     CardWidget,
     ExpandLayout,
@@ -45,7 +45,7 @@ class BaseScrollAreaInterface(ScrollArea):
         self.titleLabel = QLabel(title, self)
         
         self.resize(width, height)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setViewportMargins(*viewport_margins)
         self.setWidget(self.scrollWidget)
         self.setWidgetResizable(True)

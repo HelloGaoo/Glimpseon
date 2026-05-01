@@ -5,9 +5,9 @@ import sys
 
 import win32com.client
 from pathlib import Path
-from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve, QLocale
-from PyQt5.QtGui import QIcon, QPixmap, QColor, QFont
-from PyQt5.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget, QHBoxLayout, QLabel, QGraphicsOpacityEffect, QApplication, QPushButton, QLineEdit
+from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QLocale
+from PyQt6.QtGui import QIcon, QPixmap, QColor, QFont
+from PyQt6.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget, QHBoxLayout, QLabel, QGraphicsOpacityEffect, QApplication, QPushButton, QLineEdit
 from qfluentwidgets import (
     BodyLabel,
     CheckBox,
@@ -40,9 +40,9 @@ class WizardWindow(QDialog):
         super().__init__()
         self.setWindowTitle("ClassLively 向导")
         self.setFixedSize(840, 650)
-        self.setWindowFlags(Qt.FramelessWindowHint)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
 
-        locale = QLocale(QLocale.Chinese, QLocale.China)
+        locale = QLocale(QLocale.Language.Chinese, QLocale.Country.China)
         self.translator = FluentTranslator(locale)
         QApplication.instance().installTranslator(self.translator)
 
@@ -75,19 +75,19 @@ class WizardWindow(QDialog):
         # 第 1 页：欢迎页面
         self.page1 = QWidget()
         self.page1Layout = QVBoxLayout(self.page1)
-        self.page1Layout.setAlignment(Qt.AlignCenter)
+        self.page1Layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.page1Layout.setSpacing(16)
 
         self.iconLabel = QLabel(self.page1)
         self.iconLabel.setFixedSize(112, 112)
-        self.iconLabel.setAlignment(Qt.AlignCenter)
+        self.iconLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         if os.path.exists(icon_path):
             pixmap = QPixmap(icon_path)
-            self.iconLabel.setPixmap(pixmap.scaled(112, 112, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            self.iconLabel.setPixmap(pixmap.scaled(112, 112, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
 
         self.welcomeLabel = StrongBodyLabel("ClassLively", self.page1)
-        self.welcomeLabel.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
-        self.welcomeLabel.setTextFormat(Qt.RichText)
+        self.welcomeLabel.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+        self.welcomeLabel.setTextFormat(Qt.TextFormat.RichText)
         self.welcomeLabel.setText('<span style="font-family:\'HarmonyOS Sans SC\',\'HarmonyOS Sans\',\'Microsoft YaHei UI\',\'Microsoft YaHei\',\'SimHei\',sans-serif; font-weight:900; font-size:34px;">ClassLively</span>')
         self.welcomeLabel.setObjectName("welcomeLabel")
 
@@ -96,22 +96,22 @@ class WizardWindow(QDialog):
 
         self.headerLayout = QHBoxLayout()
         self.headerLayout.setSpacing(12)
-        self.headerLayout.setAlignment(Qt.AlignCenter)
+        self.headerLayout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.headerLayout.addWidget(self.iconLabel)
         self.headerLayout.addWidget(self.welcomeLabel)
 
         self.page1Layout.addLayout(self.headerLayout)
-        self.page1Layout.addWidget(self.nextButton, 0, Qt.AlignCenter)
+        self.page1Layout.addWidget(self.nextButton, 0, Qt.AlignmentFlag.AlignCenter)
 
         # 第 2 页：软件使用协议
         self.page2 = QWidget()
         self.page2Layout = QVBoxLayout(self.page2)
-        self.page2Layout.setAlignment(Qt.AlignTop | Qt.AlignCenter)
+        self.page2Layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignCenter)
         self.page2Layout.setSpacing(16)
         self.page2Layout.addSpacing(50)
 
         self.agreementTitle = StrongBodyLabel("软件使用协议", self.page2)
-        self.agreementTitle.setAlignment(Qt.AlignCenter)
+        self.agreementTitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_font = self.agreementTitle.font()
         title_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
         title_font.setPointSize(30)
@@ -119,14 +119,14 @@ class WizardWindow(QDialog):
         self.agreementTitle.setFont(title_font)
 
         self.agreementText = BodyLabel("在使用本软件前，请阅读并同意以下协议：", self.page2)
-        self.agreementText.setAlignment(Qt.AlignCenter)
+        self.agreementText.setAlignment(Qt.AlignmentFlag.AlignCenter)
         txt_font = self.agreementText.font()
         txt_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
         txt_font.setPointSize(14)
         self.agreementText.setFont(txt_font)
 
-        self.page2Layout.addWidget(self.agreementTitle, 0, Qt.AlignCenter)
-        self.page2Layout.addWidget(self.agreementText, 0, Qt.AlignCenter)
+        self.page2Layout.addWidget(self.agreementTitle, 0, Qt.AlignmentFlag.AlignCenter)
+        self.page2Layout.addWidget(self.agreementText, 0, Qt.AlignmentFlag.AlignCenter)
         self.page2Layout.addSpacing(16)
 
         def _make_check_with_link(box_text, link_text, target_path):
@@ -136,7 +136,7 @@ class WizardWindow(QDialog):
             
             h = QHBoxLayout(container)
             h.setSpacing(8)
-            h.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            h.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             h.setContentsMargins(0, 8, 0, 8)
             
             chk = CheckBox("", self.page2)
@@ -146,7 +146,7 @@ class WizardWindow(QDialog):
             chk.setFixedWidth(24)
             
             lbl = BodyLabel("", self.page2)
-            lbl.setTextFormat(Qt.RichText)
+            lbl.setTextFormat(Qt.TextFormat.RichText)
             if target_path and os.path.exists(target_path):
                 uri = Path(target_path).as_uri()
             else:
@@ -169,7 +169,7 @@ class WizardWindow(QDialog):
                             pass
                 
                 msg = MessageBox(title="提示", content=f"无法打开协议文件：{link_text}", parent=self)
-                msg.exec_()
+                msg.exec()
             
             lbl.linkActivated.connect(_on_link_activated)
             
@@ -178,9 +178,9 @@ class WizardWindow(QDialog):
             
             container.mousePressEvent = lambda e: _on_container_clicked()
             
-            h.addWidget(lbl, 0, Qt.AlignLeft)
+            h.addWidget(lbl, 0, Qt.AlignmentFlag.AlignLeft)
             h.addStretch(1)
-            h.addWidget(chk, 0, Qt.AlignRight)
+            h.addWidget(chk, 0, Qt.AlignmentFlag.AlignRight)
             
             return chk, container
 
@@ -201,15 +201,15 @@ class WizardWindow(QDialog):
         checks_container = QWidget(self.page2)
         checks_container.setMaximumWidth(700)
         checks_layout = QVBoxLayout(checks_container)
-        checks_layout.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+        checks_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
         checks_layout.setContentsMargins(0, 6, 0, 6)
         checks_layout.setSpacing(12)
         checks_layout.addWidget(open_source_widget)
         checks_layout.addWidget(user_agree_widget)
         checks_layout.addWidget(privacy_widget)
-        self.page2Layout.addWidget(checks_container, 0, Qt.AlignCenter)
+        self.page2Layout.addWidget(checks_container, 0, Qt.AlignmentFlag.AlignCenter)
         self.page2Layout.addSpacing(20)
-        self.page2Layout.addWidget(self.agreeButton, 0, Qt.AlignCenter)
+        self.page2Layout.addWidget(self.agreeButton, 0, Qt.AlignmentFlag.AlignCenter)
 
         self.stackedWidget.addWidget(self.page1)
         self.stackedWidget.addWidget(self.page2)
@@ -217,12 +217,12 @@ class WizardWindow(QDialog):
         # 第 3 页：基本设置
         self.page3 = QWidget()
         self.page3Layout = QVBoxLayout(self.page3)
-        self.page3Layout.setAlignment(Qt.AlignTop | Qt.AlignCenter)
+        self.page3Layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignCenter)
         self.page3Layout.setSpacing(16)
         self.page3Layout.addSpacing(50)
 
         self.settingsTitle = StrongBodyLabel("基本设置", self.page3)
-        self.settingsTitle.setAlignment(Qt.AlignCenter)
+        self.settingsTitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         settings_title_font = self.settingsTitle.font()
         settings_title_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
         settings_title_font.setPointSize(30)
@@ -230,20 +230,20 @@ class WizardWindow(QDialog):
         self.settingsTitle.setFont(settings_title_font)
 
         self.settingsText = BodyLabel("请选择您需要的功能选项：", self.page3)
-        self.settingsText.setAlignment(Qt.AlignCenter)
+        self.settingsText.setAlignment(Qt.AlignmentFlag.AlignCenter)
         settings_txt_font = self.settingsText.font()
         settings_txt_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
         settings_txt_font.setPointSize(14)
         self.settingsText.setFont(settings_txt_font)
 
-        self.page3Layout.addWidget(self.settingsTitle, 0, Qt.AlignCenter)
-        self.page3Layout.addWidget(self.settingsText, 0, Qt.AlignCenter)
+        self.page3Layout.addWidget(self.settingsTitle, 0, Qt.AlignmentFlag.AlignCenter)
+        self.page3Layout.addWidget(self.settingsText, 0, Qt.AlignmentFlag.AlignCenter)
         self.page3Layout.addSpacing(16)
 
         settings_container = QWidget(self.page3)
         settings_container.setMaximumWidth(700)
         settings_layout = QVBoxLayout(settings_container)
-        settings_layout.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+        settings_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
         settings_layout.setContentsMargins(0, 0, 0, 0)
         settings_layout.setSpacing(12)
 
@@ -278,24 +278,24 @@ class WizardWindow(QDialog):
         )
         settings_layout.addWidget(self.desktopShortcutSwitch)
 
-        self.page3Layout.addWidget(settings_container, 0, Qt.AlignCenter)
+        self.page3Layout.addWidget(settings_container, 0, Qt.AlignmentFlag.AlignCenter)
         self.page3Layout.addSpacing(20)
 
         self.finishButton = PrimaryPushButton(FIF.ACCEPT, "完成", self.page3)
         self.finishButton.setFixedHeight(36)
-        self.page3Layout.addWidget(self.finishButton, 0, Qt.AlignCenter)
+        self.page3Layout.addWidget(self.finishButton, 0, Qt.AlignmentFlag.AlignCenter)
 
         self.stackedWidget.addWidget(self.page3)
 
         # 第 4 页：外观设置
         self.page4 = QWidget()
         self.page4Layout = QVBoxLayout(self.page4)
-        self.page4Layout.setAlignment(Qt.AlignTop | Qt.AlignCenter)
+        self.page4Layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignCenter)
         self.page4Layout.setSpacing(16)
         self.page4Layout.addSpacing(50)
 
         self.appearanceTitle = StrongBodyLabel("外观设置", self.page4)
-        self.appearanceTitle.setAlignment(Qt.AlignCenter)
+        self.appearanceTitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         appearance_title_font = self.appearanceTitle.font()
         appearance_title_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
         appearance_title_font.setPointSize(30)
@@ -303,20 +303,20 @@ class WizardWindow(QDialog):
         self.appearanceTitle.setFont(appearance_title_font)
 
         self.appearanceText = BodyLabel("选择适合您的主题和颜色：", self.page4)
-        self.appearanceText.setAlignment(Qt.AlignCenter)
+        self.appearanceText.setAlignment(Qt.AlignmentFlag.AlignCenter)
         appearance_txt_font = self.appearanceText.font()
         appearance_txt_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
         appearance_txt_font.setPointSize(14)
         self.appearanceText.setFont(appearance_txt_font)
 
-        self.page4Layout.addWidget(self.appearanceTitle, 0, Qt.AlignCenter)
-        self.page4Layout.addWidget(self.appearanceText, 0, Qt.AlignCenter)
+        self.page4Layout.addWidget(self.appearanceTitle, 0, Qt.AlignmentFlag.AlignCenter)
+        self.page4Layout.addWidget(self.appearanceText, 0, Qt.AlignmentFlag.AlignCenter)
         self.page4Layout.addSpacing(16)
 
         appearance_container = QWidget(self.page4)
         appearance_container.setMaximumWidth(700)
         appearance_layout = QVBoxLayout(appearance_container)
-        appearance_layout.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+        appearance_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
         appearance_layout.setContentsMargins(0, 0, 0, 0)
         appearance_layout.setSpacing(12)
 
@@ -341,24 +341,24 @@ class WizardWindow(QDialog):
         self.themeColorCard.setFixedWidth(600)
         appearance_layout.addWidget(self.themeColorCard)
 
-        self.page4Layout.addWidget(appearance_container, 0, Qt.AlignCenter)
+        self.page4Layout.addWidget(appearance_container, 0, Qt.AlignmentFlag.AlignCenter)
         self.page4Layout.addSpacing(20)
 
         self.finishButton2 = PrimaryPushButton(FIF.ACCEPT, "完成", self.page4)
         self.finishButton2.setFixedHeight(36)
-        self.page4Layout.addWidget(self.finishButton2, 0, Qt.AlignCenter)
+        self.page4Layout.addWidget(self.finishButton2, 0, Qt.AlignmentFlag.AlignCenter)
 
         self.stackedWidget.addWidget(self.page4)
 
         # 第 5 页：学校信息设置
         self.page5 = QWidget()
         self.page5Layout = QVBoxLayout(self.page5)
-        self.page5Layout.setAlignment(Qt.AlignTop | Qt.AlignCenter)
+        self.page5Layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignCenter)
         self.page5Layout.setSpacing(16)
         self.page5Layout.addSpacing(50)
 
         self.schoolInfoTitle = StrongBodyLabel("学校信息设置", self.page5)
-        self.schoolInfoTitle.setAlignment(Qt.AlignCenter)
+        self.schoolInfoTitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         school_info_title_font = self.schoolInfoTitle.font()
         school_info_title_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
         school_info_title_font.setPointSize(30)
@@ -366,20 +366,20 @@ class WizardWindow(QDialog):
         self.schoolInfoTitle.setFont(school_info_title_font)
 
         self.schoolInfoText = BodyLabel("请输入您的学校和班级信息，以及选择天气城市：", self.page5)
-        self.schoolInfoText.setAlignment(Qt.AlignCenter)
+        self.schoolInfoText.setAlignment(Qt.AlignmentFlag.AlignCenter)
         school_info_txt_font = self.schoolInfoText.font()
         school_info_txt_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
         school_info_txt_font.setPointSize(14)
         self.schoolInfoText.setFont(school_info_txt_font)
 
-        self.page5Layout.addWidget(self.schoolInfoTitle, 0, Qt.AlignCenter)
-        self.page5Layout.addWidget(self.schoolInfoText, 0, Qt.AlignCenter)
+        self.page5Layout.addWidget(self.schoolInfoTitle, 0, Qt.AlignmentFlag.AlignCenter)
+        self.page5Layout.addWidget(self.schoolInfoText, 0, Qt.AlignmentFlag.AlignCenter)
         self.page5Layout.addSpacing(16)
 
         school_info_container = QWidget(self.page5)
         school_info_container.setMaximumWidth(700)
         school_info_layout = QVBoxLayout(school_info_container)
-        school_info_layout.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+        school_info_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
         school_info_layout.setContentsMargins(0, 0, 0, 0)
         school_info_layout.setSpacing(12)
 
@@ -474,12 +474,12 @@ class WizardWindow(QDialog):
         
         school_info_layout.addWidget(countdown_row)
 
-        self.page5Layout.addWidget(school_info_container, 0, Qt.AlignCenter)
+        self.page5Layout.addWidget(school_info_container, 0, Qt.AlignmentFlag.AlignCenter)
         self.page5Layout.addSpacing(20)
 
         self.finishButton3 = PrimaryPushButton(FIF.ACCEPT, "完成", self.page5)
         self.finishButton3.setFixedHeight(36)
-        self.page5Layout.addWidget(self.finishButton3, 0, Qt.AlignCenter)
+        self.page5Layout.addWidget(self.finishButton3, 0, Qt.AlignmentFlag.AlignCenter)
 
         self.stackedWidget.addWidget(self.page5)
 
@@ -505,7 +505,7 @@ class WizardWindow(QDialog):
             content="向导未完成，确定要退出吗？",
             parent=self
         )
-        if msg_box.exec_():
+        if msg_box.exec():
             event.accept()
         else:
             event.ignore()
@@ -524,7 +524,7 @@ class WizardWindow(QDialog):
         anim.setDuration(max(50, duration // 2))
         anim.setStartValue(1.0)
         anim.setEndValue(0.0)
-        anim.setEasingCurve(QEasingCurve.InOutQuad)
+        anim.setEasingCurve(QEasingCurve.Type.InOutQuad)
 
         def _after_fade_out():
             self.stackedWidget.setCurrentIndex(index)
@@ -532,7 +532,7 @@ class WizardWindow(QDialog):
             anim2.setDuration(max(50, duration // 2))
             anim2.setStartValue(0.0)
             anim2.setEndValue(1.0)
-            anim2.setEasingCurve(QEasingCurve.InOutQuad)
+            anim2.setEasingCurve(QEasingCurve.Type.InOutQuad)
             self._current_animation = anim2
             anim2.start()
 
@@ -573,7 +573,7 @@ class WizardWindow(QDialog):
     def _onCityButtonClicked(self):
         """打开城市选择对话框"""
         dialog = RegionSelectorDialog(self)
-        if dialog.exec_():
+        if dialog.exec():
             selected_city = dialog.get_selected_region()
             if selected_city:
                 self.cityDisplayButton.setText(selected_city)
@@ -582,7 +582,7 @@ class WizardWindow(QDialog):
         """打开倒计时添加对话框"""
         try:
             dialog = CountdownEditDialog(self)
-            if dialog.exec_():
+            if dialog.exec():
                 countdown_data = dialog.get_countdown()
                 if countdown_data:
                     countdown_list = cfg.countdownList.value or []

@@ -24,9 +24,9 @@ import time
 from concurrent.futures import ThreadPoolExecutor, wait
 from typing import Optional
 
-from PyQt5.QtCore import QMetaObject, Q_ARG, QUrl, Qt, QTimer, pyqtSlot
-from PyQt5.QtGui import QPixmap, QDesktopServices
-from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QToolButton, QVBoxLayout, QWidget
+from PyQt6.QtCore import QMetaObject, Q_ARG, QUrl, Qt, QTimer, pyqtSlot
+from PyQt6.QtGui import QPixmap, QDesktopServices
+from PyQt6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QToolButton, QVBoxLayout, QWidget
 from qfluentwidgets import (
     CardWidget,
     CheckBox,
@@ -59,7 +59,7 @@ def get_cached_icon(icon_path: str, size: tuple = (64, 64)) -> Optional[QPixmap]
     try:
         pixmap = QPixmap(icon_path)
         if pixmap.isNull():return None
-        scaled = pixmap.scaled(size[0], size[1], Qt.KeepAspectRatio, Qt.FastTransformation)
+        scaled = pixmap.scaled(size[0], size[1], Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.FastTransformation)
         _software_icon_cache[icon_path] = scaled
         return scaled
     except Exception:
@@ -143,8 +143,8 @@ class DownloadInterface(BaseScrollAreaInterface):
             self
         )
         
-        result = msg_box.exec_()
-        if result != 1:
+        result = msg_box.exec()
+        if not result:
             return
         software_item = None
         for item in self.softwareList:
@@ -187,7 +187,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                         QMetaObject.invokeMethod(
                             self,
                             '_show_download_error',
-                            Qt.QueuedConnection,
+                            Qt.ConnectionType.QueuedConnection,
                             Q_ARG(str, software_name),
                             Q_ARG(str, "未找到对应的下载链接")
                         )
@@ -198,7 +198,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                         QMetaObject.invokeMethod(
                             self,
                             '_show_download_error',
-                            Qt.QueuedConnection,
+                            Qt.ConnectionType.QueuedConnection,
                             Q_ARG(str, software_name),
                             Q_ARG(str, "无法获取下载链接")
                         )
@@ -217,7 +217,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                             QMetaObject.invokeMethod(
                                 item['progressBar'], 
                                 'setValue', 
-                                Qt.QueuedConnection, 
+                                Qt.ConnectionType.QueuedConnection, 
                                 Q_ARG(int, val)
                             )
 
@@ -240,13 +240,13 @@ class DownloadInterface(BaseScrollAreaInterface):
                             QMetaObject.invokeMethod(
                                 software_item['progressBar'],
                                 'setValue',
-                                Qt.QueuedConnection,
+                                Qt.ConnectionType.QueuedConnection,
                                 Q_ARG(int, 100)
                             )
                             QMetaObject.invokeMethod(
                                 self,
                                 '_show_download_complete',
-                                Qt.QueuedConnection,
+                                Qt.ConnectionType.QueuedConnection,
                                 Q_ARG(str, software_name),
                                 Q_ARG(int, 500)
                             )
@@ -255,7 +255,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                             QMetaObject.invokeMethod(
                                 self,
                                 '_show_download_error',
-                                Qt.QueuedConnection,
+                                Qt.ConnectionType.QueuedConnection,
                                 Q_ARG(str, software_name),
                                 Q_ARG(str, str(e))
                             )
@@ -268,7 +268,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                     QMetaObject.invokeMethod(
                         self,
                         '_show_download_error',
-                        Qt.QueuedConnection,
+                        Qt.ConnectionType.QueuedConnection,
                         Q_ARG(str, software_name),
                         Q_ARG(str, "未找到对应的安装方法")
                     )
@@ -276,7 +276,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                 QMetaObject.invokeMethod(
                     self,
                     '_show_download_error',
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                     Q_ARG(str, software_name),
                     Q_ARG(str, str(e))
                 )
@@ -291,7 +291,7 @@ class DownloadInterface(BaseScrollAreaInterface):
             QMetaObject.invokeMethod(
                 software_item['progressBar'], 
                 'setValue', 
-                Qt.QueuedConnection, 
+                Qt.ConnectionType.QueuedConnection, 
                 Q_ARG(int, 100)
             )
             try:
@@ -377,7 +377,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         modeGroupLayout = QHBoxLayout(modeGroup)
         modeGroupLayout.setContentsMargins(0, 0, 0, 0)
         modeGroupLayout.setSpacing(16)
-        modeGroupLayout.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        modeGroupLayout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         
         self.modeLabel = QLabel("选择模式:", modeGroup)
         self.modeLabel.setObjectName("modeLabel")
@@ -404,7 +404,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         sourceGroupLayout = QHBoxLayout(sourceGroup)
         sourceGroupLayout.setContentsMargins(0, 0, 0, 0)
         sourceGroupLayout.setSpacing(8)
-        sourceGroupLayout.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        sourceGroupLayout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         
         self.sourceLabel = QLabel("下载源:", sourceGroup)
         self.sourceLabel.setObjectName("sourceLabel")   
@@ -431,7 +431,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         self.modeLayout.addWidget(sourceGroup)
         self.modeLayout.addStretch()
         self.modeLayout.addWidget(self.startButton)
-        self.modeLayout.setAlignment(Qt.AlignVCenter)
+        self.modeLayout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         
         # 软件容器
         self.softwareContainer = QWidget(self.scrollWidget)
@@ -485,7 +485,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         if cached_icon:iconLabel.setPixmap(cached_icon)
         else:
             iconLabel.setText("")
-            iconLabel.setAlignment(Qt.AlignCenter)
+            iconLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
             iconLabel.setObjectName("softwareEmptyIconLabel")
         
         infoLayout = QVBoxLayout()
@@ -564,7 +564,7 @@ class DownloadInterface(BaseScrollAreaInterface):
     
     def __handleCheckboxChange(self, software_name, state):
         """ 复选框状态变更 """
-        if state == Qt.Checked:
+        if state == Qt.CheckState.Checked:
             if software_name not in self.selectedSoftware:
                 self.selectedSoftware.append(software_name)
         else:
@@ -660,8 +660,8 @@ class DownloadInterface(BaseScrollAreaInterface):
             self
         )
         
-        result = msg_box.exec_()
-        if result != 1:
+        result = msg_box.exec()
+        if not result:
             return
         
         # 显示下载中提示
@@ -708,24 +708,24 @@ class DownloadInterface(BaseScrollAreaInterface):
                     QMetaObject.invokeMethod(
                         item['progressBar'],
                         'show',
-                        Qt.QueuedConnection
+                        Qt.ConnectionType.QueuedConnection
                     )
                     QMetaObject.invokeMethod(
                         item['progressBar'],
                         'setValue',
-                        Qt.QueuedConnection,
+                        Qt.ConnectionType.QueuedConnection,
                         Q_ARG(int, 0)
                     )
                     QMetaObject.invokeMethod(
                         item['button'],
                         'hide',
-                        Qt.QueuedConnection
+                        Qt.ConnectionType.QueuedConnection
                     )
                     try:
                         QMetaObject.invokeMethod(
                             item['checkbox'],
                             'hide',
-                            Qt.QueuedConnection
+                            Qt.ConnectionType.QueuedConnection
                         )
                     except Exception:
                         pass
@@ -745,7 +745,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                 QMetaObject.invokeMethod(
                     self,
                     '_show_download_error',
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                     Q_ARG(str, software_name),
                     Q_ARG(str, '未找到对应的下载链接')
                 )
@@ -756,7 +756,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                 QMetaObject.invokeMethod(
                     self,
                     '_show_download_error',
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                     Q_ARG(str, software_name),
                     Q_ARG(str, '无法获取下载链接')
                 )
@@ -775,7 +775,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                     QMetaObject.invokeMethod(
                         item_ref['progressBar'],
                         'setValue',
-                        Qt.QueuedConnection,
+                        Qt.ConnectionType.QueuedConnection,
                         Q_ARG(int, val)
                     )
 
@@ -800,13 +800,13 @@ class DownloadInterface(BaseScrollAreaInterface):
                         QMetaObject.invokeMethod(
                             item['progressBar'],
                             'setValue',
-                            Qt.QueuedConnection,
+                            Qt.ConnectionType.QueuedConnection,
                             Q_ARG(int, 100)
                         )
                     QMetaObject.invokeMethod(
                         self,
                         '_show_download_complete',
-                        Qt.QueuedConnection,
+                        Qt.ConnectionType.QueuedConnection,
                         Q_ARG(str, software_name),
                         Q_ARG(int, 500)
                     )
@@ -814,7 +814,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                     QMetaObject.invokeMethod(
                         self,
                         '_show_download_error',
-                        Qt.QueuedConnection,
+                        Qt.ConnectionType.QueuedConnection,
                         Q_ARG(str, software_name),
                         Q_ARG(str, '未找到对应的安装方法')
                     )
@@ -823,7 +823,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                 QMetaObject.invokeMethod(
                     self,
                     '_show_download_error',
-                    Qt.QueuedConnection,
+                    Qt.ConnectionType.QueuedConnection,
                     Q_ARG(str, software_name),
                     Q_ARG(str, str(e))
                 )
@@ -847,7 +847,7 @@ class DownloadInterface(BaseScrollAreaInterface):
             QMetaObject.invokeMethod(
                 self,
                 '_clear_selected_software',
-                Qt.QueuedConnection
+                Qt.ConnectionType.QueuedConnection
             )
 
         threading.Thread(target=_wait_tasks, daemon=True).start()

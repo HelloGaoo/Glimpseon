@@ -27,9 +27,9 @@ from dataclasses import dataclass, asdict
 from typing import List, Optional
 
 import requests
-from PyQt5.QtCore import Qt, pyqtSignal, QTimer, QSize
-from PyQt5.QtGui import QPixmap, QImageReader
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QSize
+from PyQt6.QtGui import QPixmap, QImageReader
+from PyQt6.QtWidgets import (
     QApplication,
     QFileDialog,
     QGridLayout,
@@ -85,7 +85,7 @@ def get_cached_thumbnail(path: str, size: tuple = (144, 90)) -> Optional[QPixmap
     try:
         pixmap = QPixmap(path)
         if pixmap.isNull():return None
-        scaled = pixmap.scaled(size[0], size[1], Qt.KeepAspectRatioByExpanding, Qt.FastTransformation)
+        scaled = pixmap.scaled(size[0], size[1], Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.FastTransformation)
         if len(_thumbnail_cache) >= _cache_max_size:
             old_keys = list(_thumbnail_cache.keys())[:50]
             for k in old_keys:del _thumbnail_cache[k]
@@ -289,7 +289,7 @@ class WallpaperInfoCard(CardWidget):
         self._setupUi()
     
     def _setupUi(self):
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 12, 16, 12)
         layout.setSpacing(20)
@@ -354,14 +354,14 @@ class WallpaperPreviewDialog(MessageBoxBase):
         imageLayout = QVBoxLayout(self.imageCard)
         imageLayout.setContentsMargins(0, 0, 0, 0)
         self.imageLabel = QLabel()
-        self.imageLabel.setAlignment(Qt.AlignCenter)
+        self.imageLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.imageLabel.setScaledContents(True)
         
         max_w, max_h = 640, 400
         if os.path.exists(self.record.path):
             pixmap = QPixmap(self.record.path)
             if not pixmap.isNull():
-                scaled = pixmap.scaled(max_w, max_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                scaled = pixmap.scaled(max_w, max_h, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
                 self.imageLabel.setPixmap(scaled)
                 self.imageLabel.setFixedSize(scaled.size())
             else:
@@ -371,7 +371,7 @@ class WallpaperPreviewDialog(MessageBoxBase):
             self.imageLabel.setText("文件不存在")
             self.imageLabel.setFixedSize(max_w, max_h)
         
-        imageLayout.addWidget(self.imageLabel, 0, Qt.AlignCenter)
+        imageLayout.addWidget(self.imageLabel, 0, Qt.AlignmentFlag.AlignCenter)
         
         infoText = f"分辨率：{self.record.resolution}  |  大小：{self._format_size(self.record.file_size)}  |  来源：{self.record.source}  |  时间：{self.record.added_time}"
         self.infoLabel = BodyLabel(infoText, self)
@@ -453,7 +453,7 @@ class WallpaperThumbnailCard(CardWidget):
     
     def _setupUi(self):
         self.setFixedSize(CARD_WIDTH, CARD_HEIGHT)
-        self.setCursor(Qt.PointingHandCursor)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -461,7 +461,7 @@ class WallpaperThumbnailCard(CardWidget):
 
         self.imageLabel = QLabel()
         self.imageLabel.setObjectName("thumbImage")
-        self.imageLabel.setAlignment(Qt.AlignCenter)
+        self.imageLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         cached_pixmap = get_cached_thumbnail(self.record.path)
         if cached_pixmap:
@@ -474,7 +474,7 @@ class WallpaperThumbnailCard(CardWidget):
         self.infoLabel = BodyLabel(self)
         self.infoLabel.setObjectName("thumbInfo")
         self.infoLabel.setText(self.record.resolution)
-        self.infoLabel.setAlignment(Qt.AlignCenter)
+        self.infoLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         layout.addWidget(self.imageLabel)
         layout.addWidget(self.infoLabel)
@@ -483,7 +483,7 @@ class WallpaperThumbnailCard(CardWidget):
         self.imageLabel.setText(text)
     
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit(self.record)
 
 
@@ -541,7 +541,7 @@ class WallpaperHistoryWidget(QWidget):
         self.gridLayout = QGridLayout(self.gridContainer)
         self.gridLayout.setContentsMargins(GRID_MARGIN_H, 5, GRID_MARGIN_H, 5)
         self.gridLayout.setSpacing(CARD_SPACING)
-        self.gridLayout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self.gridLayout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         
         self.loadMoreWidget = QWidget()
         loadMoreLayout = QHBoxLayout(self.loadMoreWidget)
@@ -558,12 +558,12 @@ class WallpaperHistoryWidget(QWidget):
         
         self.noMoreLabel = BodyLabel("已显示全部历史壁纸", self)
         self.noMoreLabel.setObjectName("emptyLabel")
-        self.noMoreLabel.setAlignment(Qt.AlignCenter)
+        self.noMoreLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.noMoreLabel.hide()
         
         self.emptyLabel = BodyLabel("暂无历史壁纸记录", self)
         self.emptyLabel.setObjectName("emptyLabel")
-        self.emptyLabel.setAlignment(Qt.AlignCenter)
+        self.emptyLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.emptyLabel.hide()
         
         layout.addLayout(headerLayout)
@@ -684,8 +684,8 @@ class WallpaperHistoryWidget(QWidget):
     def _showPreview(self, record: WallpaperRecord):
         mw = self.window()
         mask = QWidget(mw)
-        mask.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
-        mask.setAttribute(Qt.WA_TranslucentBackground)
+        mask.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
+        mask.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         mask.setGeometry(0, 0, mw.width(), mw.height())
         mask.setStyleSheet("background-color: rgba(0, 0, 0, 120);")
         mask.show()
@@ -713,8 +713,8 @@ class WallpaperHistoryWidget(QWidget):
         mw = self.window()
         
         mask = QWidget(mw)
-        mask.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
-        mask.setAttribute(Qt.WA_TranslucentBackground)
+        mask.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
+        mask.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         mask.setGeometry(0, 0, mw.width(), mw.height())
         mask.setStyleSheet("background-color: rgba(0, 0, 0, 120);")
         mask.show()
@@ -723,7 +723,7 @@ class WallpaperHistoryWidget(QWidget):
         w = MessageBox("确认清空", f"确定要清空全部 {count} 条壁纸历史记录吗？{hint}", mask)
         w.yesButton.setText('确认清空')
         w.cancelButton.setText('取消')
-        if w.exec_() == 1:
+        if w.exec():
             self.historyManager.clear_all()
             self._loadHistory()
             self.historyChanged.emit()
@@ -768,7 +768,7 @@ class WallpaperInterface(ScrollArea):
         self.current_wallpaper_source = None
         self.last_sync_path = None
         self.originalPixmap = QPixmap(1, 1)
-        self.originalPixmap.fill(Qt.transparent)
+        self.originalPixmap.fill(Qt.GlobalColor.transparent)
         
         self.autoGetTimer = QTimer(self)
         self.autoGetTimer.timeout.connect(self._getWallpaper)
@@ -778,12 +778,12 @@ class WallpaperInterface(ScrollArea):
         self.wallpaperLabel = QLabel("壁纸", self)
         
         self.backgroundImage = QLabel()
-        self.backgroundImage.setAlignment(Qt.AlignCenter)
-        self.backgroundImage.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.backgroundImage.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.backgroundImage.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
         
         self.dimOverlay = QWidget()
         self.dimOverlay.setObjectName("dimOverlay")
-        self.dimOverlay.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.dimOverlay.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
         
         self.contentWidget = QWidget()
         self.contentWidget.setObjectName("wallpaperContent")
@@ -816,7 +816,7 @@ class WallpaperInterface(ScrollArea):
     
     def _initWidget(self):
         self.resize(1000, 800)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setViewportMargins(0, 0, 0, 0)
         self.setWidgetResizable(True)
         
@@ -1024,7 +1024,7 @@ class WallpaperInterface(ScrollArea):
             available_width = self.mainWindow.width() - 50
             available_height = self.mainWindow.height()
             blank_pixmap = QPixmap(available_width, available_height)
-            blank_pixmap.fill(Qt.transparent)
+            blank_pixmap.fill(Qt.GlobalColor.transparent)
             self.mainWindow.originalPixmap = blank_pixmap
             self.mainWindow.homeBackgroundImage.setPixmap(blank_pixmap)
             self.mainWindow.homeBackgroundImage.setMinimumSize(available_width, available_height)
@@ -1043,8 +1043,8 @@ class WallpaperInterface(ScrollArea):
         
         scaled_pixmap = self.current_pixmap.scaled(
             available_width, available_height,
-            Qt.KeepAspectRatioByExpanding,
-            Qt.SmoothTransformation
+            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.TransformationMode.SmoothTransformation
         )
         
         if not hasattr(self, '_blurEffect'):
@@ -1063,7 +1063,7 @@ class WallpaperInterface(ScrollArea):
             available_height = self.mainWindow.height()
             scaled_pixmap = self.current_pixmap.scaled(
                 available_width, available_height,
-                Qt.IgnoreAspectRatio, Qt.SmoothTransformation
+                Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation
             )
             self.mainWindow.homeBackgroundImage.setPixmap(scaled_pixmap)
     
