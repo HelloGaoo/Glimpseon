@@ -368,7 +368,7 @@ def default_cfg():
         },
         "Wallpaper": {
             "SaveLimit": 50,
-            "AutoGetInterval": "30 分钟",
+            "AutoGetInterval": "30分钟",
             "AutoSyncToDesktop": True,
             "WallpaperApi": "wp.upx8.com"
         },
