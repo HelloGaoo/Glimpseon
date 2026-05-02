@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import atexit
 import ctypes
 import datetime
 import json
@@ -104,7 +105,7 @@ from core.constants import APP_NAME, BASE_DIR, MEIPASS_DIR, get_resPath
 from core.downloader import Downloader, clean_tempdir
 from core.font_manager import initialize_fonts
 from core.logger import logger, init_exhook
-from core.process_manager import check_old_instances, kill_old
+from core.process_manager import check_single_instance, release_single_instance
 from core.updater import (
     create_update_script,
     download_update,
@@ -124,46 +125,19 @@ from ui.splash_screen import SplashScreen
 from version import BUILD_DATE, VERSION
 
 def verify_singleInst():
-    """检查是否已经有实例"""
-    #这个地方还有问题 如果有进程 终止后新进程也终止了 怀疑是自己杀自己。。
-    #不会修。。。
-    config_path = CONFIG_PATH
-    allow_multiple = False
-    is_developer_mode = False
-    
-    if os.path.exists(config_path):
-        try:
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config = json.load(f)
-            if 'Other' in config and 'AllowMultipleInstances' in config['Other']:
-                allow_multiple = config['Other']['AllowMultipleInstances']
-            if 'Other' in config and 'DeveloperMode' in config['Other']:
-                if config['Other']['DeveloperMode']:
-                    is_developer_mode = True
-                    logger.info("调试模式已启用")
-        except Exception:
-            pass
-    old_instance_found = check_old_instances()
-    
-    logger.info(f"旧实例检测结果：{old_instance_found}, 调试模式：{is_developer_mode}")
-    
-    if old_instance_found:
-        if is_developer_mode:
-            logger.info("检测到旧进程，正在终止")
-            terminate_result = kill_old()
-            if terminate_result:
-                time.sleep(1)
-                return True
-            else:
-                logger.warning("终止旧进程失败")
-                time.sleep(1)
-                return True
-        elif not allow_multiple:
-            return False
-    if is_developer_mode or allow_multiple:
-        logger.info("允许重复启动")
+    """检查是否已经有实例运行"""
+    allow_multiple = cfg.allowMultipleInstances.value
+    is_developer_mode = cfg.developerMode.value
+    if allow_multiple:
+        logger.info("允许多实例启动，跳过单实例检测")
         return True
-    
+    if is_developer_mode:
+        logger.info("调试模式已启用，跳过单实例检测")
+        return True
+    is_only_instance = check_single_instance()
+    if not is_only_instance:
+        logger.info("检测到已有实例运行")
+        return False
     return True
 
 def extract_files():
@@ -490,7 +464,7 @@ class MainWindow(FluentWindow):
             self.tray_menu.addAction(dev_action)
         
         exit_action = Action(FIF.CLOSE, "退出", self)
-        exit_action.triggered.connect(QApplication.quit)
+        exit_action.triggered.connect(lambda: (release_single_instance(), QApplication.quit()))
         self.tray_menu.addAction(exit_action)
         
         self.tray_icon.setContextMenu(self.tray_menu)
@@ -698,6 +672,7 @@ class MainWindow(FluentWindow):
             if hasattr(self, 'mouseHook') and self.mouseHook:
                 ctypes.windll.user32.UnhookWindowsHookEx(self.mouseHook)
             
+            release_single_instance()
             QApplication.quit()
             return
         
@@ -723,6 +698,7 @@ class MainWindow(FluentWindow):
             if hasattr(self, 'mouseHook') and self.mouseHook:
                 ctypes.windll.user32.UnhookWindowsHookEx(self.mouseHook)
             
+            release_single_instance()
             QApplication.quit()
     
     def __enterEditMode(self):
@@ -1937,6 +1913,7 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
 
     init_exhook()
+    atexit.register(release_single_instance)
 
     if check_wizard_needed():
         create_wizard_file()

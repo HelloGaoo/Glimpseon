@@ -16,117 +16,58 @@
 
 """
 进程管理模块
-有问题有问题有问题有问题有问题有问题有问题有问题有问题有问题有问题有问题有问题有问题有问题有问题
-这是什么幌子咋还能把自己taskkill了？？
 """
 
-import os
-import time
-import psutil
+import ctypes
+from ctypes import wintypes
+
 from core.logger import logger
 
-def _check_classlively_process(proc, current_pid=None):
-    """是否 ClassLively"""
-    try:
-        pid = proc.pid
-        if current_pid is not None and pid == current_pid:return False
-        name = proc.name()
-        if name == 'ClassLively.exe':return True
-        if name in ['python.exe', 'pythonw.exe']:
-            try:
-                cmdline = proc.cmdline()
-                if not cmdline:return False
-                cmdline_str = ' '.join(cmdline)
-                if 'debugpy' in cmdline_str.lower():return False
-                if any('ClassLively' in arg for arg in cmdline):return True
-            except (psutil.NoSuchProcess, psutil.AccessDenied, IndexError):pass
-    except (psutil.NoSuchProcess, psutil.AccessDenied):pass
-    return False
+kernel32 = ctypes.windll.kernel32
+ERROR_ALREADY_EXISTS = 183
+MutexHandle = wintypes.HANDLE
 
-
-def _find_classlively(current_pid=None):
-    """查找所有软件进程"""
-    pids = []
-    for proc in psutil.process_iter(['pid', 'name']):
-        try:
-            if _check_classlively_process(proc, current_pid):
-                pids.append(proc.pid)
-                logger.info(f"发现 ClassLively 进程 PID: {proc.pid}, 名称: {proc.name()}")
-        except (psutil.NoSuchProcess, psutil.AccessDenied):continue
-    return pids
-
-
-def _wait_classlively_exit(pids, max_wait=3, check_interval=0.5):
-    """等待进程退出"""
-    start_time = time.time()
-    
-    while time.time() - start_time < max_wait:
-        remaining = 0
-        for pid in pids:
-            try:
-                proc = psutil.Process(pid)
-                if proc.is_running():
-                    remaining += 1
-            except psutil.NoSuchProcess:continue
-        if remaining == 0:break
-        time.sleep(check_interval)
-    return remaining
-
-
-def check_old_instances():
-    """是否有旧的在运行"""
-    try:
-        current_pid = os.getpid()
-        logger.debug(f"当前进程 PID: {current_pid}")
-        processes = _find_classlively(current_pid)
-        if processes:
-            logger.info(f"发现 {len(processes)} 个旧进程")
+class SingleInstanceManager:
+    MUTEX_NAME = "ClassLively_SingleInstance_Mutex_{A7F3E2D1-8B4C-4F6A-9D0E-1C2B3A4F5E6D}"
+    def __init__(self):
+        self._mutex_handle: MutexHandle = None
+        self._is_owner = False
+    def try_acquire(self) -> bool:
+        if self._mutex_handle is not None:return self._is_owner
+        self._mutex_handle = kernel32.CreateMutexW(None, True, self.MUTEX_NAME)
+        last_error = kernel32.GetLastError()
+        if self._mutex_handle is None or self._mutex_handle == 0:
+            logger.error(f"创建互斥锁失败，句柄: {self._mutex_handle}")
             return True
-        return False
-    except Exception as e:
-        logger.error(f"检查旧实例失败: {e}")
-        return False
+        if last_error == ERROR_ALREADY_EXISTS:
+            logger.info(f"检测到已有实例运行 (互斥锁已存在)")
+            self._is_owner = False
+            return False
 
-
-def kill_old():
-    """终止所有旧的进程"""
-    try:
-        current_pid = os.getpid()
-        logger.info(f"当前进程 PID: {current_pid}")
-        processes_to_kill = _find_classlively(current_pid)
-        if not processes_to_kill:
-            return True
-        terminated_count = 0
-        for pid in processes_to_kill:
-            try:
-                logger.info(f"正在终止进程 {pid}")
-                proc = psutil.Process(pid)
-                if not proc.is_running():
-                    logger.warning(f"进程 {pid} 已经停止")
-                    continue
-                proc.kill()
-                logger.info(f"已强制终止 PID {pid}")
-                terminated_count += 1
-            except psutil.NoSuchProcess:
-                logger.warning(f"进程 {pid} 已不存在")
-                continue
-            except psutil.AccessDenied as e:
-                logger.error(f"无法终止进程 {pid}，权限不足: {e}")
-                continue
-            except Exception as e:
-                logger.error(f"终止进程 {pid} 时发生错误: {e}", exc_info=True)
-                continue
-        logger.info(f"终止循环完成，共终止 {terminated_count} 个进程")
-        
-        if terminated_count > 0:
-            logger.info(f"等待进程退出")
-            remaining = _wait_classlively_exit(processes_to_kill, max_wait=3)
-            if remaining > 0:
-                logger.warning(f"仍有 {remaining} 个旧进程未退出，但将继续启动")
-            else:
-                logger.info("所有旧进程已退出")
-        
+        self._is_owner = True
+        logger.info("互斥锁获取成功，当前为唯一实例")
         return True
-    except Exception as e:
-        logger.error(f"终止旧进程失败: {e}", exc_info=True)
-        return False
+    def release(self):
+        if self._mutex_handle is not None and self._mutex_handle != 0:
+            if self._is_owner:kernel32.ReleaseMutex(self._mutex_handle)
+            kernel32.CloseHandle(self._mutex_handle)
+            self._mutex_handle = None
+            self._is_owner = False
+            logger.info("互斥锁已释放")
+    @property
+    def is_owner(self) -> bool:return self._is_owner
+_instance_manager: SingleInstanceManager = None
+def get_instance_manager() -> SingleInstanceManager:
+    global _instance_manager
+    if _instance_manager is None:_instance_manager = SingleInstanceManager()
+    return _instance_manager
+
+
+def check_single_instance() -> bool:
+    manager = get_instance_manager()
+    return manager.try_acquire()
+
+
+def release_single_instance():
+    manager = get_instance_manager()
+    manager.release()
