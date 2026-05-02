@@ -18,6 +18,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import (
     QBrush,
     QColor,
+    QCursor,
     QFont,
     QFontMetrics,
     QLinearGradient,
@@ -192,7 +193,7 @@ class QuickLaunchDock(QWidget):
     def _sz(self):
         return cfg.quickLaunchIconSize.value
 
-    def set_apps(self, apps):
+    def set_apps(self, apps, animate_idx=-1):
         self._apps = list(apps)
         self._icon_gap = cfg.quickLaunchIconSpacing.value
         self._pixmaps = []
@@ -211,7 +212,16 @@ class QuickLaunchDock(QWidget):
         self._scales = [self.BASE_SCALE] * n
         self._target_scales = [self.BASE_SCALE] * n
         self._fix_size()
+        
+        if animate_idx >= 0 and animate_idx < n:
+            self._start_add_animation(animate_idx)
+        
         self.update()
+    
+    def _start_add_animation(self, idx):
+        if idx < 0 or idx >= len(self._apps):
+            return
+        self._start_bounce(idx)
 
     def update_icon_size(self, size):
         self._icon_gap = cfg.quickLaunchIconSpacing.value
@@ -398,7 +408,7 @@ class QuickLaunchDock(QWidget):
         
         cfg.quickLaunchApps.value = apps
         save_cfg()
-        self.set_apps(apps)
+        self.set_apps(apps, animate_idx=insert_idx)
         
         logger.info(f"快捷启动栏顺序已调整: {self._dragging_idx} -> {insert_idx}")
 
@@ -636,7 +646,7 @@ class QuickLaunchDock(QWidget):
         apps.append(new_app)
         cfg.quickLaunchApps.value = apps
         save_cfg()
-        self.set_apps(apps)
+        self.set_apps(apps, animate_idx=len(apps) - 1)
         InfoBar.success("添加成功", f"已添加 {new_app['name']}", parent=self.window(), duration=2000)
 
     def _add_folder_from_path(self, folder_path):
@@ -659,7 +669,7 @@ class QuickLaunchDock(QWidget):
         apps.append(new_item)
         cfg.quickLaunchApps.value = apps
         save_cfg()
-        self.set_apps(apps)
+        self.set_apps(apps, animate_idx=len(apps) - 1)
         InfoBar.success("添加成功", f"已添加文件夹 {name}", parent=self.window(), duration=2000)
 
     def _add_url(self, url):
@@ -676,7 +686,7 @@ class QuickLaunchDock(QWidget):
         apps.append(new_item)
         cfg.quickLaunchApps.value = apps
         save_cfg()
-        self.set_apps(apps)
+        self.set_apps(apps, animate_idx=len(apps) - 1)
         InfoBar.success("添加成功", f"已添加网址 {new_item['name']}", parent=self.window(), duration=2000)
 
     def _click(self, idx):
