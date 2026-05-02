@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pythoncom
 from PyQt6.QtCore import (
     QFileInfo,
+    QPointF,
     QRectF,
     Qt,
     QTimer,
@@ -265,8 +266,9 @@ class QuickLaunchDock(QWidget):
         side_overflow = int(sz * (self.MAX_SCALE - self.BASE_SCALE) * 0.3)
         label_overflow = 28 if self._show_labels else 0
         offset_y = cfg.quickLaunchOffsetY.value
-        w = w_icons + side_overflow * 2
-        h = h_icons + scale_overflow + bounce_overflow + label_overflow + offset_y
+        drag_extra = int(sz * 0.5)
+        w = w_icons + side_overflow * 2 + drag_extra
+        h = h_icons + scale_overflow + bounce_overflow + label_overflow + offset_y + drag_extra
         self.setFixedSize(w, h)
 
     def _icon_positions(self):
@@ -318,7 +320,12 @@ class QuickLaunchDock(QWidget):
                 self._start_internal_drag(self._dragging_idx)
         
         if self._is_internal_drag and self._dragging_idx >= 0:
-            self._drag_pos = e.position()
+            rect = self.rect()
+            sz = self._sz() * self.MAX_SCALE
+            pos = e.position()
+            x = max(rect.x() + sz / 2, min(pos.x(), rect.x() + rect.width() - sz / 2))
+            y = max(rect.y() + sz / 2, min(pos.y(), rect.y() + rect.height() - sz / 2))
+            self._drag_pos = QPointF(x, y)
             self._update_drop_target(e.position())
             self.update()
         
