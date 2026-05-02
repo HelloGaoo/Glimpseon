@@ -63,7 +63,6 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QListWidget,
     QMenu,
     QPushButton,
     QSizePolicy,
@@ -400,6 +399,7 @@ class MainWindow(FluentWindow):
         cfg.clockPosition.valueChanged.connect(self.__updateClockPosition)
         cfg.weatherPosition.valueChanged.connect(self.__updateWeatherPosition)
         cfg.poetryPosition.valueChanged.connect(self.__updatePoetryPosition)
+        cfg.schoolInfoPosition.valueChanged.connect(self.__updateSchoolInfoPosition)
         
         # 空闲检测定时
         self.idleTimer = QTimer(self)
@@ -1072,6 +1072,7 @@ class MainWindow(FluentWindow):
         self.__updateWeatherPosition()
         self.__updatePoetryPosition()
         self.__updateCountdownPosition()
+        self.__updateSchoolInfoPosition()
     
     def __updateClockPosition(self):
         """ 更新时间组件位置 """
@@ -1124,7 +1125,6 @@ class MainWindow(FluentWindow):
         layout.update()
         self.clockContainer.update()
         self.homeContent.update()
-        QApplication.processEvents()
         
         logger.info(f"时间组件位置已更新为：{position}")
     
@@ -1134,14 +1134,19 @@ class MainWindow(FluentWindow):
         small_margin = 20
         layout = self.weatherContainer.layout()
         left_side = position in ["左上预留", "左下预留"]
-        layout.removeWidget(self.weatherTempLabel)
-        layout.removeWidget(self.weatherIconLabel)
-        if left_side:
-            layout.addWidget(self.weatherIconLabel)
-            layout.addWidget(self.weatherTempLabel)
-        else:
-            layout.addWidget(self.weatherTempLabel)
-            layout.addWidget(self.weatherIconLabel)
+        
+        idx_temp = layout.indexOf(self.weatherTempLabel)
+        idx_icon = layout.indexOf(self.weatherIconLabel)
+        need_reorder = (left_side and idx_icon > idx_temp) or (not left_side and idx_temp > idx_icon)
+        if need_reorder or idx_temp < 0 or idx_icon < 0:
+            layout.removeWidget(self.weatherTempLabel)
+            layout.removeWidget(self.weatherIconLabel)
+            if left_side:
+                layout.addWidget(self.weatherIconLabel)
+                layout.addWidget(self.weatherTempLabel)
+            else:
+                layout.addWidget(self.weatherTempLabel)
+                layout.addWidget(self.weatherIconLabel)
         
         if position == "左上预留":
             layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
@@ -1159,7 +1164,6 @@ class MainWindow(FluentWindow):
         layout.update()
         self.weatherContainer.update()
         self.homeContent.update()
-        QApplication.processEvents()
         
         logger.info(f"天气组件位置已更新为：{position}")
     
@@ -1178,7 +1182,6 @@ class MainWindow(FluentWindow):
         layout.update()
         self.poetryContainer.update()
         self.homeContent.update()
-        QApplication.processEvents()
         
         logger.info(f"一言组件位置已更新为：{position}")
     
@@ -1628,17 +1631,21 @@ class MainWindow(FluentWindow):
         top_positions = ["顶部", "顶部偏下", "中部", "左上", "右上", "左上预留", "右上预留"]
         
         if position == "中部" and clock_position in top_positions:
-            if self.countdownLabel.parent() != clock_layout:
+            if self.countdownLabel.parentWidget() is not self.clockContainer:
                 layout.removeWidget(self.countdownLabel)
+                self.countdownLabel.setParent(self.clockContainer)
                 clock_layout.addWidget(self.countdownLabel)
+                self.countdownLabel.show()
             self.countdownLabel.setAlignment(Qt.AlignmentFlag.AlignHCenter)
             clock_layout.setSpacing(0)
         else:
-            if self.countdownLabel.parent() == clock_layout:
+            if self.countdownLabel.parentWidget() is self.clockContainer:
                 clock_layout.removeWidget(self.countdownLabel)
+                self.countdownLabel.setParent(self.countdownContainer)
                 layout.addWidget(self.countdownLabel)
+                self.countdownLabel.show()
             
-            if self.countdownContainer.parent() != self.homeContent:
+            if self.countdownContainer.parentWidget() is not self.homeContent:
                 self.gridLayout.addWidget(self.countdownContainer, 0, 0, 1, 1)
             
             if position == "左上预留":
@@ -1682,7 +1689,6 @@ class MainWindow(FluentWindow):
         clock_layout.update()
         self.countdownContainer.update()
         self.homeContent.update()
-        QApplication.processEvents()
         
         logger.info(f"倒计时组件位置已更新为：{position}")
     
@@ -1761,7 +1767,6 @@ class MainWindow(FluentWindow):
         self.schoolInfoContainer.update()
         if hasattr(self, 'homeContent'):
             self.homeContent.update()
-        QApplication.processEvents()
         logger.info(f"学校信息位置已更新为：{position}")
     
     def _checkAndRefreshQuickLaunchIcons(self):

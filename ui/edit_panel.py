@@ -797,22 +797,16 @@ class EditPanel(QWidget):
     def _onClockPositionChanged(self, text: str):
         """时间位置变化"""
         cfg.clockPosition.value = text
-        if hasattr(self.mainWindow, '_MainWindow__updateClockPosition'):
-            self.mainWindow._MainWindow__updateClockPosition()
         logger.info(f"时间设置：位置={text}")
     
     def _onPoetryPositionChanged(self, text: str):
         """一言位置变化"""
         cfg.poetryPosition.value = text
-        if hasattr(self.mainWindow, '_MainWindow__updatePoetryPosition'):
-            self.mainWindow._MainWindow__updatePoetryPosition()
         logger.info(f"一言设置：位置={text}")
     
     def _onWeatherPositionChanged(self, text: str):
         """天气位置变化"""
         cfg.weatherPosition.value = text
-        if hasattr(self.mainWindow, '_MainWindow__updateWeatherPosition'):
-            self.mainWindow._MainWindow__updateWeatherPosition()
         logger.info(f"天气设置：位置={text}")
     
     def _onCityButtonClicked(self):
@@ -1132,8 +1126,6 @@ class EditPanel(QWidget):
     
     def _onCountdownPositionChanged(self, text: str):
         cfg.countdownPosition.value = text
-        if hasattr(self.mainWindow, '_MainWindow__updateCountdownPosition'):
-            self.mainWindow._MainWindow__updateCountdownPosition()
         logger.info(f"倒计时设置：位置={text}")
     
     def _onCountdownAddClicked(self):
@@ -1248,8 +1240,6 @@ class EditPanel(QWidget):
     
     def _onSchoolInfoPositionChanged(self, text: str):
         cfg.schoolInfoPosition.value = text
-        if hasattr(self.mainWindow, '_MainWindow__updateSchoolInfoPosition'):
-            self.mainWindow._MainWindow__updateSchoolInfoPosition()
         logger.info(f"学校信息：位置={text}")
     
     def _onSchoolInfoTextColorChanged(self, text: str):

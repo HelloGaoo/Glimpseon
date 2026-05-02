@@ -414,9 +414,9 @@ class SettingInterface(ScrollArea):
                 if app:
                     font_loaded = _load_app_fonts()
                     apply_fonts(app, use_harmonyos=font_loaded)
-                current_theme = cfg.theme.value
+                current_theme = cfg.themeMode.value
                 setTheme(current_theme)
-                cfg.themeChanged.emit(Theme(current_theme))
+                cfg.themeChanged.emit(current_theme)
                 
                 InfoBar.success(
                     "成功",
