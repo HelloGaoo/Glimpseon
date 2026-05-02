@@ -109,6 +109,24 @@ class ButtonSettingCard(SettingCard):
         self.hBoxLayout.addSpacing(16)
 
 
+class DualButtonSettingCard(SettingCard):
+    def __init__(self, icon, title, content=None, parent=None):
+        super().__init__(icon, title, content, parent)
+        self.button1 = PushButton(FIF.SAVE, "导出", self)
+        self.button1.setFixedSize(80, 32)
+        self.button2 = PushButton(FIF.DOWNLOAD, "导入", self)
+        self.button2.setFixedSize(80, 32)
+        from PyQt6.QtWidgets import QHBoxLayout
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(self.button1)
+        button_layout.addWidget(self.button2)
+        button_layout.setSpacing(8)
+        container = QWidget()
+        container.setLayout(button_layout)
+        self.hBoxLayout.addWidget(container, 0, Qt.AlignmentFlag.AlignRight)
+        self.hBoxLayout.addSpacing(16)
+
+
 class SettingInterface(ScrollArea):
     """ 设置界面 """
     def __init__(self, parent=None):
@@ -297,22 +315,13 @@ class SettingInterface(ScrollArea):
             parent=self.otherGroup
         )
         self.otherGroup.addSettingCard(self.allowMultipleInstancesCard)
-        self.exportConfigCard = ButtonSettingCard(
-            FIF.SAVE,
-            "导出配置",
-            "将当前配置导出为 JSON 文件",
+        self.configIOCard = DualButtonSettingCard(
+            FIF.SYNC,
+            "配置导入/导出",
+            "导出或导入配置文件（JSON格式）",
             parent=self.otherGroup
         )
-        self.otherGroup.addSettingCard(self.exportConfigCard)
-        self.exportConfigCard.button.setText("导出")
-        self.importConfigCard = ButtonSettingCard(
-            FIF.DOWNLOAD,
-            "导入配置",
-            "从 JSON 文件导入配置",
-            parent=self.otherGroup
-        )
-        self.otherGroup.addSettingCard(self.importConfigCard)
-        self.importConfigCard.button.setText("导入")
+        self.otherGroup.addSettingCard(self.configIOCard)
         self.resetDefaultCard = ButtonSettingCard(
             FIF.SETTING,
             "恢复默认设置",
@@ -369,8 +378,8 @@ class SettingInterface(ScrollArea):
         self.disableLogCard.checkedChanged.connect(self.__onDisableLogChanged)
         self.resetDefaultCard.button.clicked.connect(self.__resetDefaultSettings)
         self.clearLogCard.button.clicked.connect(self.__clearLog)
-        self.exportConfigCard.button.clicked.connect(self.__exportConfig)
-        self.importConfigCard.button.clicked.connect(self.__importConfig)
+        self.configIOCard.button1.clicked.connect(self.__exportConfig)
+        self.configIOCard.button2.clicked.connect(self.__importConfig)
         self.__onDisableLogChanged(cfg.disableLog.value)
     
     def __resetDefaultSettings(self):
