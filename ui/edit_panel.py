@@ -37,6 +37,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from PyQt6.QtWidgets import QAbstractItemView
 from qfluentwidgets import (
     BodyLabel,
     CalendarPicker,
@@ -1620,7 +1621,7 @@ class QuickLaunchEditDialog(MessageBoxBase):
 
         self.appListWidget = ListWidget(self)
         self.appListWidget.setFixedHeight(200)
-        self.appListWidget.setSelectionMode(ListWidget.SingleSelection)
+        self.appListWidget.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.appListWidget.itemClicked.connect(self._on_item_clicked)
         self._update_app_list()
         self.viewLayout.addWidget(self.appListWidget)

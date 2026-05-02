@@ -1076,114 +1076,126 @@ class MainWindow(FluentWindow):
     
     def __updateClockPosition(self):
         """ 更新时间组件位置 """
-        position = cfg.clockPosition.value
-        margin = 100
-        small_margin = 20
-        
-        layout = self.clockContainer.layout()
-        #看完享福去了 感谢ai
-        if position == "左上预留":
-            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-            layout.setContentsMargins(small_margin, small_margin, 0, 0)
-        elif position == "左上":
-            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-            layout.setContentsMargins(0, 0, 0, 0)
-        elif position == "右上预留":
-            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
-            layout.setContentsMargins(0, small_margin, small_margin, 0)
-        elif position == "右上":
-            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
-            layout.setContentsMargins(0, 0, 0, 0)
-        elif position == "左下预留":
-            layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-            layout.setContentsMargins(small_margin, 0, 0, small_margin)
-        elif position == "左下":
-            layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-            layout.setContentsMargins(0, 0, 0, 0)
-        elif position == "右下预留":
-            layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
-            layout.setContentsMargins(0, 0, small_margin, small_margin)
-        elif position == "右下":
-            layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
-            layout.setContentsMargins(0, 0, 0, 0)
-        elif position == "中部":
-            layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            layout.setContentsMargins(0, 0, 0, 0)
-        elif position == "顶部":
-            layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-            layout.setContentsMargins(0, 0, 0, 0)
-        elif position == "顶部偏下":
-            layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-            layout.setContentsMargins(0, margin, 0, 0)
-        elif position == "底部偏上":
-            layout.setAlignment(Qt.AlignmentFlag.AlignBottom)
-            layout.setContentsMargins(0, 0, 0, margin)
-        elif position == "底部":
-            layout.setAlignment(Qt.AlignmentFlag.AlignBottom)
-            layout.setContentsMargins(0, 0, 0, 0)
-        
-        layout.update()
-        self.clockContainer.update()
-        self.homeContent.update()
-        
-        logger.info(f"时间组件位置已更新为：{position}")
+        try:
+            position = cfg.clockPosition.value
+            margin = 100
+            small_margin = 20
+
+            layout = self.clockContainer.layout()
+            #看完享福去了 感谢ai
+            if position == "左上预留":
+                layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+                layout.setContentsMargins(small_margin, small_margin, 0, 0)
+            elif position == "左上":
+                layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+                layout.setContentsMargins(0, 0, 0, 0)
+            elif position == "右上预留":
+                layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+                layout.setContentsMargins(0, small_margin, small_margin, 0)
+            elif position == "右上":
+                layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+                layout.setContentsMargins(0, 0, 0, 0)
+            elif position == "左下预留":
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
+                layout.setContentsMargins(small_margin, 0, 0, small_margin)
+            elif position == "左下":
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
+                layout.setContentsMargins(0, 0, 0, 0)
+            elif position == "右下预留":
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
+                layout.setContentsMargins(0, 0, small_margin, small_margin)
+            elif position == "右下":
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
+                layout.setContentsMargins(0, 0, 0, 0)
+            elif position == "中部":
+                layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                layout.setContentsMargins(0, 0, 0, 0)
+            elif position == "顶部":
+                layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+                layout.setContentsMargins(0, 0, 0, 0)
+            elif position == "顶部偏下":
+                layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+                layout.setContentsMargins(0, margin, 0, 0)
+            elif position == "底部偏上":
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom)
+                layout.setContentsMargins(0, 0, 0, margin)
+            elif position == "底部":
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom)
+                layout.setContentsMargins(0, 0, 0, 0)
+
+            layout.update()
+            self.clockContainer.update()
+            self.homeContent.update()
+
+            logger.info(f"时间组件位置已更新为：{position}")
+        except Exception as e:
+            logger.exception(f"更新时间组件位置失败：{e}")
+            return
     
     def __updateWeatherPosition(self):
         """ 更新天气组件位置 """
-        position = cfg.weatherPosition.value
-        small_margin = 20
-        layout = self.weatherContainer.layout()
-        left_side = position in ["左上预留", "左下预留"]
-        
-        idx_temp = layout.indexOf(self.weatherTempLabel)
-        idx_icon = layout.indexOf(self.weatherIconLabel)
-        need_reorder = (left_side and idx_icon > idx_temp) or (not left_side and idx_temp > idx_icon)
-        if need_reorder or idx_temp < 0 or idx_icon < 0:
-            layout.removeWidget(self.weatherTempLabel)
-            layout.removeWidget(self.weatherIconLabel)
-            if left_side:
-                layout.addWidget(self.weatherIconLabel)
-                layout.addWidget(self.weatherTempLabel)
-            else:
-                layout.addWidget(self.weatherTempLabel)
-                layout.addWidget(self.weatherIconLabel)
-        
-        if position == "左上预留":
-            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-            layout.setContentsMargins(small_margin, small_margin, 0, 0)
-        elif position == "右上预留":
-            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
-            layout.setContentsMargins(0, small_margin, small_margin, 0)
-        elif position == "左下预留":
-            layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-            layout.setContentsMargins(small_margin, 0, 0, small_margin)
-        elif position == "右下预留":
-            layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
-            layout.setContentsMargins(0, 0, small_margin, small_margin)
-        
-        layout.update()
-        self.weatherContainer.update()
-        self.homeContent.update()
-        
-        logger.info(f"天气组件位置已更新为：{position}")
+        try:
+            position = cfg.weatherPosition.value
+            small_margin = 20
+            layout = self.weatherContainer.layout()
+            left_side = position in ["左上预留", "左下预留"]
+
+            idx_temp = layout.indexOf(self.weatherTempLabel)
+            idx_icon = layout.indexOf(self.weatherIconLabel)
+            need_reorder = (left_side and idx_icon > idx_temp) or (not left_side and idx_temp > idx_icon)
+            if need_reorder or idx_temp < 0 or idx_icon < 0:
+                layout.removeWidget(self.weatherTempLabel)
+                layout.removeWidget(self.weatherIconLabel)
+                if left_side:
+                    layout.addWidget(self.weatherIconLabel)
+                    layout.addWidget(self.weatherTempLabel)
+                else:
+                    layout.addWidget(self.weatherTempLabel)
+                    layout.addWidget(self.weatherIconLabel)
+
+            if position == "左上预留":
+                layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+                layout.setContentsMargins(small_margin, small_margin, 0, 0)
+            elif position == "右上预留":
+                layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+                layout.setContentsMargins(0, small_margin, small_margin, 0)
+            elif position == "左下预留":
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
+                layout.setContentsMargins(small_margin, 0, 0, small_margin)
+            elif position == "右下预留":
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
+                layout.setContentsMargins(0, 0, small_margin, small_margin)
+
+            layout.update()
+            self.weatherContainer.update()
+            self.homeContent.update()
+
+            logger.info(f"天气组件位置已更新为：{position}")
+        except Exception as e:
+            logger.exception(f"更新天气组件位置失败：{e}")
+            return
     
     def __updatePoetryPosition(self):
         """ 更新一言组件位置 """
-        position = cfg.poetryPosition.value
-        small_margin = 20
-        layout = self.poetryContainer.layout()
-        if position == "顶部预留":
-            layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-            layout.setContentsMargins(0, small_margin, 0, 0)
-        elif position == "底部预留":
-            layout.setAlignment(Qt.AlignmentFlag.AlignBottom)
-            layout.setContentsMargins(0, 0, 0, small_margin)
-        
-        layout.update()
-        self.poetryContainer.update()
-        self.homeContent.update()
-        
-        logger.info(f"一言组件位置已更新为：{position}")
+        try:
+            position = cfg.poetryPosition.value
+            small_margin = 20
+            layout = self.poetryContainer.layout()
+            if position == "顶部预留":
+                layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+                layout.setContentsMargins(0, small_margin, 0, 0)
+            elif position == "底部预留":
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom)
+                layout.setContentsMargins(0, 0, 0, small_margin)
+
+            layout.update()
+            self.poetryContainer.update()
+            self.homeContent.update()
+
+            logger.info(f"一言组件位置已更新为：{position}")
+        except Exception as e:
+            logger.exception(f"更新一言组件位置失败：{e}")
+            return
     
     def __updatePoetryInterval(self):
         """ 更新一言更新间隔定时器 """
@@ -1620,76 +1632,80 @@ class MainWindow(FluentWindow):
     
     def __updateCountdownPosition(self):
         """ 更新倒计时组件位置 """
-        position = cfg.countdownPosition.value
-        clock_position = cfg.clockPosition.value
-        margin = 100
-        small_margin = 20
-        
-        clock_layout = self.clockContainer.layout()
-        layout = self.countdownContainer.layout()
-        
-        top_positions = ["顶部", "顶部偏下", "中部", "左上", "右上", "左上预留", "右上预留"]
-        
-        if position == "中部" and clock_position in top_positions:
-            if self.countdownLabel.parentWidget() is not self.clockContainer:
-                layout.removeWidget(self.countdownLabel)
-                self.countdownLabel.setParent(self.clockContainer)
-                clock_layout.addWidget(self.countdownLabel)
-                self.countdownLabel.show()
-            self.countdownLabel.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-            clock_layout.setSpacing(0)
-        else:
-            if self.countdownLabel.parentWidget() is self.clockContainer:
-                clock_layout.removeWidget(self.countdownLabel)
-                self.countdownLabel.setParent(self.countdownContainer)
-                layout.addWidget(self.countdownLabel)
-                self.countdownLabel.show()
+        try:
+            position = cfg.countdownPosition.value
+            clock_position = cfg.clockPosition.value
+            margin = 100
+            small_margin = 20
             
-            if self.countdownContainer.parentWidget() is not self.homeContent:
-                self.gridLayout.addWidget(self.countdownContainer, 0, 0, 1, 1)
+            clock_layout = self.clockContainer.layout()
+            layout = self.countdownContainer.layout()
             
-            if position == "左上预留":
-                layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-                layout.setContentsMargins(small_margin, small_margin, 0, 0)
-            elif position == "左上":
-                layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-                layout.setContentsMargins(0, 0, 0, 0)
-            elif position == "右上预留":
-                layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
-                layout.setContentsMargins(0, small_margin, small_margin, 0)
-            elif position == "右上":
-                layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
-                layout.setContentsMargins(0, 0, 0, 0)
-            elif position == "左下预留":
-                layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-                layout.setContentsMargins(small_margin, 0, 0, small_margin)
-            elif position == "左下":
-                layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-                layout.setContentsMargins(0, 0, 0, 0)
-            elif position == "右下预留":
-                layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
-                layout.setContentsMargins(0, 0, small_margin, small_margin)
-            elif position == "右下":
-                layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
-                layout.setContentsMargins(0, 0, 0, 0)
-            elif position == "顶部":
-                layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-                layout.setContentsMargins(0, 0, 0, 0)
-            elif position == "顶部偏下":
-                layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-                layout.setContentsMargins(0, margin, 0, 0)
-            elif position == "底部偏上":
-                layout.setAlignment(Qt.AlignmentFlag.AlignBottom)
-                layout.setContentsMargins(0, 0, 0, margin)
-            elif position == "底部":
-                layout.setAlignment(Qt.AlignmentFlag.AlignBottom)
-                layout.setContentsMargins(0, 0, 0, 0)
-        
+            top_positions = ["顶部", "顶部偏下", "中部", "左上", "右上", "左上预留", "右上预留"]
+            
+            if position == "中部" and clock_position in top_positions:
+                if self.countdownLabel.parentWidget() is not self.clockContainer:
+                    layout.removeWidget(self.countdownLabel)
+                    self.countdownLabel.setParent(self.clockContainer)
+                    clock_layout.addWidget(self.countdownLabel)
+                    self.countdownLabel.show()
+                self.countdownLabel.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+                clock_layout.setSpacing(0)
+            else:
+                if self.countdownLabel.parentWidget() is self.clockContainer:
+                    clock_layout.removeWidget(self.countdownLabel)
+                    self.countdownLabel.setParent(self.countdownContainer)
+                    layout.addWidget(self.countdownLabel)
+                    self.countdownLabel.show()
+                
+                if self.countdownContainer.parentWidget() is not self.homeContent:
+                    self.gridLayout.addWidget(self.countdownContainer, 0, 0, 1, 1)
+                
+                if position == "左上预留":
+                    layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+                    layout.setContentsMargins(small_margin, small_margin, 0, 0)
+                elif position == "左上":
+                    layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+                    layout.setContentsMargins(0, 0, 0, 0)
+                elif position == "右上预留":
+                    layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+                    layout.setContentsMargins(0, small_margin, small_margin, 0)
+                elif position == "右上":
+                    layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+                    layout.setContentsMargins(0, 0, 0, 0)
+                elif position == "左下预留":
+                    layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
+                    layout.setContentsMargins(small_margin, 0, 0, small_margin)
+                elif position == "左下":
+                    layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
+                    layout.setContentsMargins(0, 0, 0, 0)
+                elif position == "右下预留":
+                    layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
+                    layout.setContentsMargins(0, 0, small_margin, small_margin)
+                elif position == "右下":
+                    layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
+                    layout.setContentsMargins(0, 0, 0, 0)
+                elif position == "顶部":
+                    layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+                    layout.setContentsMargins(0, 0, 0, 0)
+                elif position == "顶部偏下":
+                    layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+                    layout.setContentsMargins(0, margin, 0, 0)
+                elif position == "底部偏上":
+                    layout.setAlignment(Qt.AlignmentFlag.AlignBottom)
+                    layout.setContentsMargins(0, 0, 0, margin)
+                elif position == "底部":
+                    layout.setAlignment(Qt.AlignmentFlag.AlignBottom)
+                    layout.setContentsMargins(0, 0, 0, 0)
+        except Exception as e:
+            logger.exception(f"更新倒计时组件位置失败：{e}")
+            return
+
         layout.update()
         clock_layout.update()
         self.countdownContainer.update()
         self.homeContent.update()
-        
+
         logger.info(f"倒计时组件位置已更新为：{position}")
     
     def updateSchoolInfo(self):
@@ -1717,52 +1733,56 @@ class MainWindow(FluentWindow):
     
     def __updateSchoolInfoPosition(self):
         """更新学校信息位置"""
-        position = cfg.schoolInfoPosition.value
-        margin = 20
-        small_margin = 10
-        layout = self.schoolInfoContainer.layout()
-        
-        if position == "左上预留":
-            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-            layout.setContentsMargins(small_margin, small_margin, 0, 0)
-            self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-            self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        elif position == "左上":
-            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-            layout.setContentsMargins(0, 0, 0, 0)
-            self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-            self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        elif position == "右上预留":
-            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
-            layout.setContentsMargins(0, small_margin, small_margin, 0)
-            self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        elif position == "右上":
-            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
-            layout.setContentsMargins(0, 0, 0, 0)
-            self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        elif position == "左下预留":
-            layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-            layout.setContentsMargins(small_margin, 0, 0, small_margin)
-            self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-            self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        elif position == "左下":
-            layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-            layout.setContentsMargins(0, 0, 0, 0)
-            self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-            self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        elif position == "右下预留":
-            layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
-            layout.setContentsMargins(0, 0, small_margin, small_margin)
-            self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        elif position == "右下":
-            layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
-            layout.setContentsMargins(0, 0, 0, 0)
-            self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        
+        try:
+            position = cfg.schoolInfoPosition.value
+            margin = 20
+            small_margin = 10
+            layout = self.schoolInfoContainer.layout()
+            
+            if position == "左上预留":
+                layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+                layout.setContentsMargins(small_margin, small_margin, 0, 0)
+                self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            elif position == "左上":
+                layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+                layout.setContentsMargins(0, 0, 0, 0)
+                self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            elif position == "右上预留":
+                layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+                layout.setContentsMargins(0, small_margin, small_margin, 0)
+                self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            elif position == "右上":
+                layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+                layout.setContentsMargins(0, 0, 0, 0)
+                self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            elif position == "左下预留":
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
+                layout.setContentsMargins(small_margin, 0, 0, small_margin)
+                self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            elif position == "左下":
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
+                layout.setContentsMargins(0, 0, 0, 0)
+                self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            elif position == "右下预留":
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
+                layout.setContentsMargins(0, 0, small_margin, small_margin)
+                self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            elif position == "右下":
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
+                layout.setContentsMargins(0, 0, 0, 0)
+                self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        except Exception as e:
+            logger.exception(f"更新学校信息位置失败：{e}")
+            return
+
         layout.update()
         self.schoolInfoContainer.update()
         if hasattr(self, 'homeContent'):
