@@ -272,7 +272,10 @@ class EditPanel(QWidget):
     
     def _updateClockColorCombo(self, value):
         """更新时钟颜色下拉框"""
-        self.clockColorCombo.currentTextChanged.disconnect(self._onClockColorChanged)
+        try:
+            self.clockColorCombo.currentTextChanged.disconnect(self._onClockColorChanged)
+        except TypeError:
+            pass
         self.clockColorCombo.setCurrentText(self._getColorText(value))
         self.clockColorCombo.currentTextChanged.connect(self._onClockColorChanged)
     
@@ -290,7 +293,10 @@ class EditPanel(QWidget):
     
     def _updatePoetryApiEdit(self, value):
         """更新一言 API 地址下拉框"""
-        self.poetryApiCombo.currentTextChanged.disconnect(self._onPoetryApiChanged)
+        try:
+            self.poetryApiCombo.currentTextChanged.disconnect(self._onPoetryApiChanged)
+        except TypeError:
+            pass
         if value == 'https://api.imlcd.cn/yy/api.php':
             self.poetryApiCombo.setCurrentText('一言 API')
         elif value == 'https://www.ffapi.cn/int/v1/shici':
@@ -305,7 +311,10 @@ class EditPanel(QWidget):
     
     def _updatePoetryUpdateIntervalCombo(self, value):
         """更新一言更新间隔下拉框"""
-        self.poetryUpdateIntervalCombo.currentTextChanged.disconnect(self._onPoetryUpdateIntervalChanged)
+        try:
+            self.poetryUpdateIntervalCombo.currentTextChanged.disconnect(self._onPoetryUpdateIntervalChanged)
+        except TypeError:
+            pass
         self.poetryUpdateIntervalCombo.setCurrentText(value)
         self.poetryUpdateIntervalCombo.currentTextChanged.connect(self._onPoetryUpdateIntervalChanged)
     
@@ -323,7 +332,10 @@ class EditPanel(QWidget):
     
     def _updateWeatherUpdateIntervalCombo(self, value):
         """更新天气更新间隔下拉框"""
-        self.weatherUpdateIntervalCombo.currentTextChanged.disconnect(self._onWeatherUpdateIntervalChanged)
+        try:
+            self.weatherUpdateIntervalCombo.currentTextChanged.disconnect(self._onWeatherUpdateIntervalChanged)
+        except TypeError:
+            pass
         self.weatherUpdateIntervalCombo.setCurrentText(value)
         self.weatherUpdateIntervalCombo.currentTextChanged.connect(self._onWeatherUpdateIntervalChanged)
     
@@ -333,19 +345,28 @@ class EditPanel(QWidget):
     
     def _updateClockPositionCombo(self, value):
         """更新时间位置下拉框"""
-        self.clockPositionCombo.currentTextChanged.disconnect(self._onClockPositionChanged)
+        try:
+            self.clockPositionCombo.currentTextChanged.disconnect(self._onClockPositionChanged)
+        except TypeError:
+            pass
         self.clockPositionCombo.setCurrentText(value)
         self.clockPositionCombo.currentTextChanged.connect(self._onClockPositionChanged)
     
     def _updatePoetryPositionCombo(self, value):
         """更新一言位置下拉框"""
-        self.poetryPositionCombo.currentTextChanged.disconnect(self._onPoetryPositionChanged)
+        try:
+            self.poetryPositionCombo.currentTextChanged.disconnect(self._onPoetryPositionChanged)
+        except TypeError:
+            pass
         self.poetryPositionCombo.setCurrentText(value)
         self.poetryPositionCombo.currentTextChanged.connect(self._onPoetryPositionChanged)
     
     def _updateWeatherPositionCombo(self, value):
         """更新天气位置下拉框"""
-        self.weatherPositionCombo.currentTextChanged.disconnect(self._onWeatherPositionChanged)
+        try:
+            self.weatherPositionCombo.currentTextChanged.disconnect(self._onWeatherPositionChanged)
+        except TypeError:
+            pass
         self.weatherPositionCombo.setCurrentText(value)
         self.weatherPositionCombo.currentTextChanged.connect(self._onWeatherPositionChanged)
     
@@ -965,12 +986,18 @@ class EditPanel(QWidget):
         self._updateCountdownSettingsEnabled(value)
     
     def _updateCountdownDisplayModeCombo(self, value):
-        self.countdownDisplayModeCombo.currentTextChanged.disconnect(self._onCountdownDisplayModeChanged)
+        try:
+            self.countdownDisplayModeCombo.currentTextChanged.disconnect(self._onCountdownDisplayModeChanged)
+        except TypeError:
+            pass
         self.countdownDisplayModeCombo.setCurrentText('同时显示' if value == 'simultaneous' else '轮播显示')
         self.countdownDisplayModeCombo.currentTextChanged.connect(self._onCountdownDisplayModeChanged)
     
     def _updateCountdownPositionCombo(self, value):
-        self.countdownPositionCombo.currentTextChanged.disconnect(self._onCountdownPositionChanged)
+        try:
+            self.countdownPositionCombo.currentTextChanged.disconnect(self._onCountdownPositionChanged)
+        except TypeError:
+            pass
         self.countdownPositionCombo.setCurrentText(value)
         self.countdownPositionCombo.currentTextChanged.connect(self._onCountdownPositionChanged)
     
@@ -984,12 +1011,18 @@ class EditPanel(QWidget):
         self.countdownCarouselIntervalSpin.setValue(value)
     
     def _updateCountdownTextColorCombo(self, value):
-        self.countdownTextColorCombo.currentTextChanged.disconnect(self._onCountdownTextColorChanged)
+        try:
+            self.countdownTextColorCombo.currentTextChanged.disconnect(self._onCountdownTextColorChanged)
+        except TypeError:
+            pass
         self.countdownTextColorCombo.setCurrentText(self._getColorText(value, 'red'))
         self.countdownTextColorCombo.currentTextChanged.connect(self._onCountdownTextColorChanged)
     
     def _updateCountdownConnectorColorCombo(self, value):
-        self.countdownConnectorColorCombo.currentTextChanged.disconnect(self._onCountdownConnectorColorChanged)
+        try:
+            self.countdownConnectorColorCombo.currentTextChanged.disconnect(self._onCountdownConnectorColorChanged)
+        except TypeError:
+            pass
         self.countdownConnectorColorCombo.setCurrentText(self._getColorText(value, 'white'))
         self.countdownConnectorColorCombo.currentTextChanged.connect(self._onCountdownConnectorColorChanged)
     
@@ -998,12 +1031,18 @@ class EditPanel(QWidget):
         self._updateSchoolInfoSettingsEnabled(value)
     
     def _updateSchoolInfoPositionCombo(self, value):
-        self.schoolInfoPositionCombo.currentTextChanged.disconnect(self._onSchoolInfoPositionChanged)
+        try:
+            self.schoolInfoPositionCombo.currentTextChanged.disconnect(self._onSchoolInfoPositionChanged)
+        except TypeError:
+            pass
         self.schoolInfoPositionCombo.setCurrentText(value)
         self.schoolInfoPositionCombo.currentTextChanged.connect(self._onSchoolInfoPositionChanged)
     
     def _updateSchoolInfoTextColorCombo(self, value):
-        self.schoolInfoTextColorCombo.currentTextChanged.disconnect(self._onSchoolInfoTextColorChanged)
+        try:
+            self.schoolInfoTextColorCombo.currentTextChanged.disconnect(self._onSchoolInfoTextColorChanged)
+        except TypeError:
+            pass
         self.schoolInfoTextColorCombo.setCurrentText(self._getColorText(value, 'white'))
         self.schoolInfoTextColorCombo.currentTextChanged.connect(self._onSchoolInfoTextColorChanged)
     
@@ -1541,7 +1580,10 @@ class CountdownEditDialog(MessageBoxBase):
         
         self.widget.setMinimumWidth(360)
         
-        self.yesButton.clicked.disconnect()
+        try:
+            self.yesButton.clicked.disconnect()
+        except TypeError:
+            pass
         self.yesButton.clicked.connect(self._on_ok)
     
     def _on_ok(self):
@@ -1798,7 +1840,10 @@ class AppEditDialog(MessageBoxBase):
         self.cancelButton.setText('取消')
         self.widget.setMinimumWidth(400)
         
-        self.yesButton.clicked.disconnect()
+        try:
+            self.yesButton.clicked.disconnect()
+        except TypeError:
+            pass
         self.yesButton.clicked.connect(self._on_ok)
         
         self._icon_filename = self._app_data.get('icon', '') if self._app_data else ''
