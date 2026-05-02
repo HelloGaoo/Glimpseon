@@ -18,20 +18,20 @@
 import asyncio
 import atexit
 import faulthandler
-import gc
+import functools
 import inspect
 import logging
 import logging.handlers
 import os
 import platform
-import shutil
 import signal
 import sys
 import threading
 import traceback
 import zipfile
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, Future
 from datetime import datetime
+from typing import Optional, Dict, Any
 
 from PyQt6.QtCore import qInstallMessageHandler, QtMsgType
 
@@ -49,36 +49,59 @@ DEFAULT_LOG_LEVEL = logging.INFO
 LOG_FORMAT = '%(asctime)s|%(levelname)s|%(caller_info)s|%(module)s:%(lineno)d|%(message)s'
 DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
 LOG_MAX_BYTES = 1 * 1024 * 1024
+
 _faulthandler_file = None
-_original_sig_handlers = {}
+_original_sig_handlers: Dict[signal.Signals, Any] = {}
+_psutil_available: Optional[bool] = None
+_log_lock = threading.RLock()
 
 
-def _get_system_context():
+def _safe_call(func, default="", log_errors=False):
+    try:
+        return func()
+    except Exception as e:
+        if log_errors:
+            try: print(f"[logger] safe_call error: {e}", file=sys.stderr)
+            except Exception: pass
+        return default
+
+
+def _get_system_context() -> str:
+    global _psutil_available
     ctx = []
     ctx.append(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     ctx.append(f"PID: {os.getpid()}")
     ctx.append(f"Python: {platform.python_version()}")
     ctx.append(f"系统: {platform.system()} {platform.release()}")
-    try:
-        import psutil
-        mem = psutil.virtual_memory()
-        ctx.append(f"内存: {mem.percent}% ({mem.used // 1024 // 1024}MB / {mem.total // 1024 // 1024}MB)")
-        ctx.append(f"CPU: {psutil.cpu_percent(interval=0.1)}%")
-        disk = psutil.disk_usage(BASE_DIR)
-        ctx.append(f"磁盘: {disk.percent}% ({disk.used // 1024 // 1024 // 1024}GB / {disk.total // 1024 // 1024 // 1024}GB)")
-    except Exception:
-        pass
+    if _psutil_available is None:
+        _psutil_available = _safe_call(lambda: __import__('psutil'), default=None) is not None
+    if _psutil_available:
+        def _get_psutil_info():
+            import psutil
+            lines = []
+            mem = psutil.virtual_memory()
+            lines.append(f"内存: {mem.percent}% ({mem.used // 1024 // 1024}MB / {mem.total // 1024 // 1024}MB)")
+            lines.append(f"CPU: {psutil.cpu_percent(interval=0.1)}%")
+            disk = psutil.disk_usage(BASE_DIR)
+            lines.append(f"磁盘: {disk.percent}% ({disk.used // 1024 // 1024 // 1024}GB / {disk.total // 1024 // 1024 // 1024}GB)")
+            return '\n'.join(lines)
+        psutil_info = _safe_call(_get_psutil_info)
+        if psutil_info: ctx.append(psutil_info)
     ctx.append(f"线程数: {threading.active_count()}")
-    ctx.append(f"线程列表: {[t.name for t in threading.enumerate()]}")
+    ctx.append(f"线程: {[t.name for t in threading.enumerate()]}")
     return '\n'.join(ctx)
 
 
-def _format_exception_chain(exc):
-    """嵌套异常"""
+def _format_exception_chain(exc: BaseException) -> str:
     lines = []
+    seen = set()
     current = exc
     depth = 0
-    while current is not None:
+    while current is not None and depth < 15:
+        if id(current) in seen:
+            lines.append("  " * depth + "└─ [循环引用]")
+            break
+        seen.add(id(current))
         prefix = "  " * depth + ("└─ " if depth > 0 else "")
         tb = current.__traceback__
         if tb:
@@ -86,36 +109,41 @@ def _format_exception_chain(exc):
         else:
             tb_str = f"{type(current).__name__}: {current}"
         lines.append(f"{prefix}{tb_str.strip()}")
+        if current.__suppress_context__:
+            break
         current = current.__context__ or current.__cause__
-        depth += 1
-        if depth > 10: break
+        if current and not current.__suppress_context__:
+            depth += 1
+        else:
+            break
     return '\n'.join(lines)
 
 
 class CustomLogger(logging.Logger):
     def _log(self, level, msg, args, exc_info=None, extra=None, stack_info=False, stacklevel=3):
-        try:
-            caller_frame = inspect.stack()[stacklevel]
-            module_name = caller_frame[1].split(os.sep)[-1].replace('.py', '')
-            function_name = caller_frame[3]
-            class_name = ''
-            frame = caller_frame[0]
+        with _log_lock:
             try:
-                if 'self' in frame.f_locals: class_name = frame.f_locals['self'].__class__.__name__
-                elif 'cls' in frame.f_locals: class_name = frame.f_locals['cls'].__name__
+                caller_frame = inspect.stack()[stacklevel]
+                module_name = caller_frame[1].split(os.sep)[-1].replace('.py', '')
+                function_name = caller_frame[3]
+                class_name = ''
+                frame = caller_frame[0]
+                try:
+                    if 'self' in frame.f_locals: class_name = frame.f_locals['self'].__class__.__name__
+                    elif 'cls' in frame.f_locals: class_name = frame.f_locals['cls'].__name__
+                except Exception:
+                    pass
+                if class_name:
+                    caller_info = f"{APP_NAME}.{class_name}.{function_name}"
+                elif function_name == '<module>':
+                    caller_info = f"{APP_NAME}.Main.<module>"
+                else:
+                    caller_info = f"{APP_NAME}.{function_name}"
             except Exception:
-                pass
-            if class_name:
-                caller_info = f"{APP_NAME}.{class_name}.{function_name}"
-            elif function_name == '<module>':
-                caller_info = f"{APP_NAME}.Main.<module>"
-            else:
-                caller_info = f"{APP_NAME}.{function_name}"
-        except Exception:
-            caller_info = f"{APP_NAME}.Unknown"
-        if extra is None: extra = {}
-        extra['caller_info'] = caller_info
-        super()._log(level, msg, args, exc_info, extra, stack_info, stacklevel)
+                caller_info = f"{APP_NAME}.Unknown"
+            if extra is None: extra = {}
+            extra['caller_info'] = caller_info
+            super()._log(level, msg, args, exc_info, extra, stack_info, stacklevel)
 
 logging.setLoggerClass(CustomLogger)
 
@@ -135,42 +163,42 @@ class Logger:
         self.__setup_handlers()
 
     def __compress_old_logs(self):
-        """压缩旧日志文件"""
         if not self.compress_logs: return
-        try:
-            for file in os.listdir(log_dir):
-                if file.endswith('.log') and not file.endswith('.zip'):
-                    file_path = os.path.join(log_dir, file)
-                    if os.path.isfile(file_path):
-                        mtime = os.path.getmtime(file_path)
-                        age_hours = (datetime.now().timestamp() - mtime) / 3600
-                        if age_hours > 24:
-                            zip_path = file_path + '.zip'
-                            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-                                zf.write(file_path, file)
-                            os.remove(file_path)
-        except Exception:
-            pass
+        for file in _safe_call(lambda: os.listdir(log_dir), default=[]):
+            if not file.endswith('.log') or file.endswith('.zip'): continue
+            file_path = os.path.join(log_dir, file)
+            if not _safe_call(lambda: os.path.isfile(file_path)): continue
+            mtime = _safe_call(lambda: os.path.getmtime(file_path))
+            if mtime is None: continue
+            age_hours = (datetime.now().timestamp() - mtime) / 3600
+            if age_hours > 24:
+                zip_path = file_path + '.zip'
+                try:
+                    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                        zf.write(file_path, file)
+                    os.remove(file_path)
+                except Exception as e:
+                    try: print(f"[logger] 压缩失败 {file}: {e}", file=sys.stderr)
+                    except Exception: pass
 
     def __clean_oldlog(self):
         if not os.path.exists(log_dir): return
         self.__compress_old_logs()
         log_files = []
-        for file in os.listdir(log_dir):
+        for file in _safe_call(lambda: os.listdir(log_dir), default=[]):
             if (file.startswith("app_") or file.startswith("crash_")) and (file.endswith(".log") or file.endswith(".zip")):
                 file_path = os.path.join(log_dir, file)
-                if os.path.isfile(file_path):
-                    log_files.append((file_path, os.path.getmtime(file_path)))
+                if _safe_call(lambda: os.path.isfile(file_path)):
+                    mtime = _safe_call(lambda: os.path.getmtime(file_path))
+                    if mtime: log_files.append((file_path, mtime))
         log_files.sort(key=lambda x: x[1], reverse=True)
         if len(log_files) > self.max_count:
             for file_path, _ in log_files[self.max_count:]:
-                try: os.remove(file_path)
-                except Exception: pass
+                _safe_call(lambda: os.remove(file_path))
         cutoff_time = datetime.now().timestamp() - (self.max_days * 24 * 3600)
         for file_path, mtime in log_files:
             if mtime < cutoff_time:
-                try: os.remove(file_path)
-                except Exception: pass
+                _safe_call(lambda: os.remove(file_path))
 
     def __setup_handlers(self):
         for handler in self.logger.handlers[:]:
@@ -236,8 +264,8 @@ def _install_sys_excepthook():
         if issubclass(exctype, KeyboardInterrupt):
             _original_excepthook(exctype, value, tb)
             return
-        tb_str = _format_exception_chain(value)
-        ctx = _get_system_context()
+        tb_str = _safe_call(lambda: _format_exception_chain(value), default=str(value))
+        ctx = _safe_call(_get_system_context)
         logger.critical(f"[主线程问题] {exctype.__name__}: {value}\n{tb_str}\n\n[系统上下文]\n{ctx}")
         _original_excepthook(exctype, value, tb)
     sys.excepthook = custom_exception_hook
@@ -251,7 +279,7 @@ def _install_threading_excepthook():
         if exc_type is not None and issubclass(exc_type, KeyboardInterrupt):
             if _original: _original(args)
             return
-        tb_str = _format_exception_chain(exc_value)
+        tb_str = _safe_call(lambda: _format_exception_chain(exc_value), default=str(exc_value))
         logger.critical(f"[线程问题] {thread_name} | {exc_type.__name__}: {exc_value}\n{tb_str}")
         if _original: _original(args)
     threading.excepthook = custom_threading_hook
@@ -297,7 +325,7 @@ def _install_asyncio_exception_handler():
             exception = context.get('exception')
             message = context.get('message', '未知异步异常')
             if exception:
-                tb_str = _format_exception_chain(exception)
+                tb_str = _safe_call(lambda: _format_exception_chain(exception), default=str(exception))
                 logger.critical(f"[asyncio问题] {message} | {type(exception).__name__}: {exception}\n{tb_str}")
             else:
                 logger.critical(f"[asyncio问题] {message}")
@@ -324,58 +352,59 @@ def _install_asyncio_exception_handler():
 def _install_multiprocessing_handler():
     try:
         import multiprocessing
-        def mp_excepthook(exc):
-            tb_str = _format_exception_chain(exc)
-            ctx = _get_system_context()
-            logger.critical(f"[子进程问题] {type(exc).__name__}: {exc}\n{tb_str}\n\n[系统上下文]\n{ctx}")
-        if hasattr(multiprocessing, 'set_start_method'):
-            try:
-                multiprocessing.set_start_method('spawn', force=True)
-            except RuntimeError:
-                pass
+        original_get_context = multiprocessing.get_context
+        def patched_get_context(method=None):
+            ctx = original_get_context(method)
+            original_run = ctx.Process.run
+            @functools.wraps(original_run)
+            def patched_run(self, *args, **kwargs):
+                try:
+                    original_run(self, *args, **kwargs)
+                except Exception as e:
+                    tb_str = _safe_call(lambda: _format_exception_chain(e), default=str(e))
+                    ctx_str = _safe_call(_get_system_context)
+                    print(f"[子进程问题] {type(e).__name__}: {e}\n{tb_str}\n\n[系统上下文]\n{ctx_str}", file=sys.stderr)
+                    raise
+            ctx.Process.run = patched_run
+            return ctx
+        multiprocessing.get_context = patched_get_context
     except Exception as e:
         logger.warning(f"multiprocessing 安装问题: {e}")
 
 
+def _wrap_executor_submit(original_submit, pool_type: str):
+    @functools.wraps(original_submit)
+    def wrapped_submit(self, fn, *args, **kwargs):
+        future = original_submit(self, fn, *args, **kwargs)
+        def log_exception(f: Future):
+            try: f.result()
+            except Exception as e:
+                tb_str = _safe_call(lambda: _format_exception_chain(e), default=str(e))
+                logger.critical(f"[{pool_type}问题] {type(e).__name__}: {e}\n{tb_str}")
+        future.add_done_callback(log_exception)
+        return future
+    return wrapped_submit
+
+
 def _install_concurrent_futures_handler():
-    """concurrent.futures 异常处理"""
-    _original_thread_init = ThreadPoolExecutor.__init__
-    _original_process_init = ProcessPoolExecutor.__init__
+    original_thread_init = ThreadPoolExecutor.__init__
+    original_process_init = ProcessPoolExecutor.__init__
+    @functools.wraps(original_thread_init)
     def patched_thread_init(self, max_workers=None, thread_name_prefix=''):
-        _original_thread_init(self, max_workers=max_workers, thread_name_prefix=thread_name_prefix)
-        original_submit = self.submit
-        def patched_submit(fn, *args, **kwargs):
-            future = original_submit(fn, *args, **kwargs)
-            def log_exception(f):
-                try: f.result()
-                except Exception as e:
-                    tb_str = _format_exception_chain(e)
-                    logger.critical(f"[ThreadPool问题] {type(e).__name__}: {e}\n{tb_str}")
-            future.add_done_callback(log_exception)
-            return future
-        self.submit = patched_submit
+        original_thread_init(self, max_workers=max_workers, thread_name_prefix=thread_name_prefix)
+        self.submit = _wrap_executor_submit(object.__getattribute__(self, 'submit'), "ThreadPool")
     ThreadPoolExecutor.__init__ = patched_thread_init
+    @functools.wraps(original_process_init)
     def patched_process_init(self, max_workers=None, mp_context=None, initializer=None, initargs=()):
-        _original_process_init(self, max_workers=max_workers, mp_context=mp_context, initializer=initializer, initargs=initargs)
-        original_submit = self.submit
-        def patched_submit(fn, *args, **kwargs):
-            future = original_submit(fn, *args, **kwargs)
-            def log_exception(f):
-                try: f.result()
-                except Exception as e:
-                    tb_str = _format_exception_chain(e)
-                    logger.critical(f"[ProcessPool问题] {type(e).__name__}: {e}\n{tb_str}")
-            future.add_done_callback(log_exception)
-            return future
-        self.submit = patched_submit
+        original_process_init(self, max_workers=max_workers, mp_context=mp_context, initializer=initializer, initargs=initargs)
+        self.submit = _wrap_executor_submit(object.__getattribute__(self, 'submit'), "ProcessPool")
     ProcessPoolExecutor.__init__ = patched_process_init
 
 
 def _install_signal_handlers():
-    """信号处理"""
     def signal_handler(signum, frame):
         sig_name = signal.Signals(signum).name if hasattr(signal, 'Signals') else str(signum)
-        ctx = _get_system_context()
+        ctx = _safe_call(_get_system_context)
         if signum in (signal.SIGINT, signal.SIGTERM):
             logger.info(f"[信号] 收到 {sig_name}，准备退出\n{ctx}")
             sys.exit(0)
@@ -396,6 +425,10 @@ def _install_atexit_handler():
         if _faulthandler_file:
             try: faulthandler.disable(); _faulthandler_file.close()
             except Exception: pass
+        for sig, handler in _original_sig_handlers.items():
+            if handler is not None:
+                try: signal.signal(sig, handler)
+                except Exception: pass
     atexit.register(on_exit)
 
 
