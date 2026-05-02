@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import time
+import webbrowser
 from concurrent.futures import ThreadPoolExecutor
 
 import pythoncom
@@ -14,6 +15,8 @@ from PyQt6.QtCore import (
     pyqtProperty,
     QSize,
     pyqtSignal,
+    QMimeData,
+    QByteArray,
 )
 from PyQt6.QtGui import (
     QBrush,
@@ -25,22 +28,36 @@ from PyQt6.QtGui import (
     QPainterPath,
     QPen,
     QPixmap,
+    QDrag,
+    QCursor,
 )
-from PyQt6.QtWidgets import QFileIconProvider, QLabel, QSizePolicy, QVBoxLayout, QWidget
-from qfluentwidgets import InfoBar, isDarkTheme
+from PyQt6.QtWidgets import QFileIconProvider, QLabel, QSizePolicy, QWidget
+from qfluentwidgets import InfoBar, isDarkTheme, RoundMenu, Action, FluentIcon as FIF
 from win32com.shell import shell, shellcon
 
 from core.config import cfg, save_cfg
 
+logger = logging.getLogger(__name__)
+
+DEFAULT_ICON_DIR = 'default_icon'
+
+def get_default_icon_path(icon_filename='exe.ico'):
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_dir, 'data', DEFAULT_ICON_DIR, icon_filename)
+
 def get_ql_icon_path(icon_filename):
-    if not icon_filename:return None
+    if not icon_filename:
+        return None
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     icon_path = os.path.join(base_dir, 'data', 'ql_icon', icon_filename)
-    if os.path.exists(icon_path):return icon_path
+    if os.path.exists(icon_path):
+        return icon_path
     sw_path = os.path.join(base_dir, 'data', 'software_icon', icon_filename)
-    if os.path.exists(sw_path):return sw_path
-    exe_icon = os.path.join(base_dir, 'data', 'software_icon', 'exe.ico')
-    if os.path.exists(exe_icon):return exe_icon
+    if os.path.exists(sw_path):
+        return sw_path
+    default_icon = get_default_icon_path(icon_filename)
+    if os.path.exists(default_icon):
+        return default_icon
     return None
 
 def get_ql_icon_save_dir():
@@ -49,9 +66,20 @@ def get_ql_icon_save_dir():
     os.makedirs(icon_dir, exist_ok=True)
     return icon_dir
 
+def get_folder_icon():
+    return 'Directory.ico'
+
+def get_url_icon():
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    icon_path = os.path.join(base_dir, 'data', 'software_icon', 'url.ico')
+    if os.path.exists(icon_path):
+        return 'url.ico'
+    return 'exe.ico'
 
 def resolve_app_from_path(file_path):
     real_path = file_path
+    app_type = "app"
+    
     if file_path.lower().endswith('.lnk'):
         try:
             shortcut = pythoncom.CoCreateInstance(
@@ -60,13 +88,21 @@ def resolve_app_from_path(file_path):
             persist = shortcut.QueryInterface(pythoncom.IID_IPersistFile)
             persist.Load(file_path)
             real_path = shortcut.GetPath(shell.SLGP_RAWPATH)[0]
-            if not real_path:real_path = file_path
-        except Exception:pass
+            if not real_path:
+                real_path = file_path
+        except Exception:
+            pass
 
     if file_path.lower().endswith('.lnk'):
         name = os.path.splitext(os.path.basename(file_path))[0]
     else:
         name = os.path.splitext(os.path.basename(real_path))[0]
+    
+    if os.path.isdir(real_path):
+        app_type = "folder"
+        icon_filename = get_folder_icon()
+        return {"name": name, "path": real_path, "icon": icon_filename, "type": app_type}
+    
     provider = QFileIconProvider()
     fi = QFileInfo(real_path if os.path.exists(real_path) else file_path)
     icon = provider.icon(fi)
@@ -88,7 +124,23 @@ def resolve_app_from_path(file_path):
             icon_save_path = os.path.join(icon_dir, icon_filename)
             pixmap.save(icon_save_path, 'PNG')
 
-    return {"name": name, "path": real_path, "icon": icon_filename}
+    return {"name": name, "path": real_path, "icon": icon_filename, "type": app_type}
+
+def resolve_url_from_string(url_string, name=None):
+    url = url_string.strip()
+    if not url.startswith(('http://', 'https://')):
+        url = 'https://' + url
+    
+    if not name:
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            name = parsed.netloc or url
+        except Exception:
+            name = url
+    
+    icon_filename = get_url_icon()
+    return {"name": name, "path": url, "icon": icon_filename, "type": "url"}
 
 
 class QuickLaunchDock(QWidget):
@@ -105,7 +157,10 @@ class QuickLaunchDock(QWidget):
     FPS = 120
     MAX_APPS = 12
     
+    MIME_TYPE = "application/x-quicklaunch-index"
+    
     _launch_result = pyqtSignal(str, str, bool)
+    _order_changed = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -131,6 +186,11 @@ class QuickLaunchDock(QWidget):
         self._bounce_start_time = 0.0
         self._painting = False
         self._last_frame = 0.0
+        
+        self._dragging_idx = -1
+        self._drag_start_pos = None
+        self._is_internal_drag = False
+        self._drop_indicator_idx = -1
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
@@ -181,7 +241,8 @@ class QuickLaunchDock(QWidget):
     def _bg_rect(self):
         sz = self._sz()
         n = len(self._apps)
-        if n == 0:return QRectF()
+        if n == 0:
+            return QRectF()
         w = n * sz + (n - 1) * self._icon_gap + self.PAD_X * 2
         h = sz + self.PAD_Y_TOP + self.PAD_Y_BOTTOM
         x = (self.width() - w) / 2
@@ -208,7 +269,8 @@ class QuickLaunchDock(QWidget):
     def _icon_positions(self):
         sz = self._sz()
         n = len(self._scales)
-        if n == 0:return []
+        if n == 0:
+            return []
 
         widths = [sz * sc for sc in self._scales]
         total = sum(widths) + (n - 1) * self._icon_gap
@@ -224,7 +286,8 @@ class QuickLaunchDock(QWidget):
         return pos
 
     def _icon_rect(self, i, positions=None):
-        if positions is None:positions = self._icon_positions()
+        if positions is None:
+            positions = self._icon_positions()
         s = self._sz() * self._scales[i]
         cx = positions[i]
         bg = self._bg_rect()
@@ -235,9 +298,195 @@ class QuickLaunchDock(QWidget):
         t = max(0.0, min(1.0, t))
         return t * t * (3.0 - 2.0 * t)
 
+    def _get_icon_at_pos(self, pos):
+        if not self._apps:
+            return -1
+        pos_list = self._icon_positions()
+        for i in range(len(self._apps)):
+            r = self._icon_rect(i, pos_list)
+            if r.contains(pos):
+                return i
+        return -1
+
     def mouseMoveEvent(self, e):
+        if self._is_internal_drag and self._dragging_idx >= 0:
+            self._update_drop_indicator(e.position())
+        
         self._calc_targets(e.position())
         super().mouseMoveEvent(e)
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton:
+            pl = self._icon_positions()
+            for i in range(len(self._apps)):
+                if self._icon_rect(i, pl).contains(e.position()):
+                    self._drag_start_pos = e.position()
+                    self._dragging_idx = i
+                    break
+        elif e.button() == Qt.MouseButton.RightButton:
+            pl = self._icon_positions()
+            for i in range(len(self._apps)):
+                if self._icon_rect(i, pl).contains(e.position()):
+                    self._show_context_menu(i, e.position())
+                    break
+        super().mousePressEvent(e)
+
+    def mouseReleaseEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton:
+            if self._is_internal_drag and self._dragging_idx >= 0:
+                self._finish_drag_reorder()
+            elif self._dragging_idx >= 0 and self._drag_start_pos:
+                pl = self._icon_positions()
+                if self._icon_rect(self._dragging_idx, pl).contains(e.position()):
+                    self._click(self._dragging_idx)
+            
+            self._dragging_idx = -1
+            self._drag_start_pos = None
+            self._is_internal_drag = False
+            self._drop_indicator_idx = -1
+            self.update()
+        
+        super().mouseReleaseEvent(e)
+
+    def _start_internal_drag(self, idx):
+        self._is_internal_drag = True
+        self._dragging_idx = idx
+        
+        drag = QDrag(self)
+        mime_data = QMimeData()
+        mime_data.setData(self.MIME_TYPE, QByteArray(str(idx).encode()))
+        drag.setMimeData(mime_data)
+        
+        if idx < len(self._pixmaps) and self._pixmaps[idx]:
+            pm = self._pixmaps[idx]
+            drag.setPixmap(pm.scaled(48, 48, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            drag.setHotSpot(pm.rect().center())
+        
+        self.update()
+        drag.exec(Qt.DropAction.MoveAction)
+
+    def _update_drop_indicator(self, pos):
+        if not self._apps:
+            return
+        
+        pos_list = self._icon_positions()
+        new_drop_idx = -1
+        
+        for i in range(len(self._apps)):
+            cx = pos_list[i]
+            if pos.x() < cx:
+                new_drop_idx = i
+                break
+        
+        if new_drop_idx == -1 and len(self._apps) > 0:
+            new_drop_idx = len(self._apps)
+        
+        if new_drop_idx != self._drop_indicator_idx:
+            self._drop_indicator_idx = new_drop_idx
+            self.update()
+
+    def _finish_drag_reorder(self):
+        if self._dragging_idx < 0 or self._drop_indicator_idx < 0:
+            return
+        
+        if self._dragging_idx == self._drop_indicator_idx or self._dragging_idx == self._drop_indicator_idx - 1:
+            return
+        
+        apps = list(self._apps)
+        dragged_app = apps.pop(self._dragging_idx)
+        
+        insert_idx = self._drop_indicator_idx
+        if insert_idx > self._dragging_idx:
+            insert_idx -= 1
+        
+        apps.insert(insert_idx, dragged_app)
+        
+        cfg.quickLaunchApps.value = apps
+        save_cfg()
+        self.set_apps(apps)
+        
+        logger.info(f"快捷启动栏顺序已调整: {self._dragging_idx} -> {insert_idx}")
+        InfoBar.success("排序成功", "快捷方式顺序已更新", parent=self.window(), duration=1500)
+
+    def _show_context_menu(self, idx, pos):
+        if idx < 0 or idx >= len(self._apps):
+            return
+        
+        app = self._apps[idx]
+        menu = RoundMenu(app.get("name", "应用"), self)
+        
+        open_action = Action(FIF.PLAY, "打开", self)
+        open_action.triggered.connect(lambda: self._click(idx))
+        menu.addAction(open_action)
+        
+        menu.addSeparator()
+        
+        edit_action = Action(FIF.EDIT, "编辑", self)
+        edit_action.triggered.connect(lambda: self._edit_app(idx))
+        menu.addAction(edit_action)
+        
+        delete_action = Action(FIF.DELETE, "删除", self)
+        delete_action.triggered.connect(lambda: self._delete_app(idx))
+        menu.addAction(delete_action)
+        
+        menu.addSeparator()
+        
+        app_type = app.get("type", "app")
+        if app_type == "url":
+            path_info = f"网址: {app.get('path', '')}"
+        else:
+            path_info = f"路径: {app.get('path', '')}"
+        
+        info_action = Action(FIF.INFO, path_info, self)
+        info_action.setEnabled(False)
+        menu.addAction(info_action)
+        
+        menu.exec(QCursor.pos())
+
+    def _edit_app(self, idx):
+        if idx < 0 or idx >= len(self._apps):
+            return
+        
+        from ui.edit_panel import AppEditDialog
+        
+        dialog = AppEditDialog(self.window(), self._apps[idx])
+        if dialog.exec():
+            result = dialog.get_app_data()
+            if result:
+                self._apps[idx] = result
+                cfg.quickLaunchApps.value = self._apps
+                save_cfg()
+                self.set_apps(self._apps)
+                InfoBar.success("保存成功", "快捷方式已更新", parent=self.window(), duration=2000)
+
+    def _delete_app(self, idx):
+        if idx < 0 or idx >= len(self._apps):
+            return
+        
+        app_name = self._apps[idx].get("name", "此应用")
+        
+        mw = self.window()
+        mask = QWidget(mw)
+        mask.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
+        mask.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        mask.setGeometry(0, 0, mw.width(), mw.height())
+        mask.setStyleSheet("background-color: rgba(0, 0, 0, 120);")
+        mask.show()
+        
+        from qfluentwidgets import MessageBox
+        box = MessageBox("确认删除", f"确定要从快捷启动栏删除 \"{app_name}\" 吗？", mask)
+        box.yesButton.setText("删除")
+        box.cancelButton.setText("取消")
+        
+        if box.exec():
+            self._apps.pop(idx)
+            cfg.quickLaunchApps.value = self._apps
+            save_cfg()
+            self.set_apps(self._apps)
+            InfoBar.success("删除成功", f"已删除 {app_name}", parent=self.window(), duration=2000)
+        
+        mask.close()
+        mask.deleteLater()
 
     def leaveEvent(self, e):
         n = len(self._target_scales)
@@ -246,7 +495,8 @@ class QuickLaunchDock(QWidget):
         super().leaveEvent(e)
 
     def _calc_targets(self, pos):
-        if not self._apps:return
+        if not self._apps:
+            return
         mx = pos.x()
         my = pos.y()
         pos_list = self._icon_positions()
@@ -292,7 +542,8 @@ class QuickLaunchDock(QWidget):
         changed = False
 
         for i in range(len(self._scales)):
-            if i >= len(self._target_scales):break
+            if i >= len(self._target_scales):
+                break
             cur = self._scales[i]
             tgt = self._target_scales[i]
             diff = tgt - cur
@@ -336,41 +587,56 @@ class QuickLaunchDock(QWidget):
         if changed:
             self.update()
 
-    def mousePressEvent(self, e):
-        if e.button() == Qt.MouseButton.LeftButton:
-            pl = self._icon_positions()
-            for i in range(len(self._apps)):
-                if self._icon_rect(i, pl).contains(e.position()):
-                    self._click(i)
-                    break
-        super().mousePressEvent(e)
-
     def dragEnterEvent(self, e):
         if e.mimeData().hasUrls():
             urls = e.mimeData().urls()
             for url in urls:
                 path = url.toLocalFile()
-                if path and (path.lower().endswith('.exe') or path.lower().endswith('.lnk')):
-                    e.acceptProposedAction()
-                    return
+                if path:
+                    if path.lower().endswith(('.exe', '.lnk')) or os.path.isdir(path):
+                        e.acceptProposedAction()
+                        return
+        elif e.mimeData().hasText():
+            text = e.mimeData().text().strip()
+            if text.startswith(('http://', 'https://', 'www.')):
+                e.acceptProposedAction()
+                return
+        elif e.mimeData().hasFormat(self.MIME_TYPE):
+            e.acceptProposedAction()
+            return
         e.ignore()
 
     def dragMoveEvent(self, e):
-        if e.mimeData().hasUrls():
+        if e.mimeData().hasFormat(self.MIME_TYPE):
+            self._is_internal_drag = True
+            self._update_drop_indicator(e.position())
+            e.acceptProposedAction()
+        elif e.mimeData().hasUrls() or e.mimeData().hasText():
             e.acceptProposedAction()
         else:
             e.ignore()
 
     def dropEvent(self, e):
         e.acceptProposedAction()
-        urls = e.mimeData().urls()
-        for url in urls:
-            path = url.toLocalFile()
-            if not path:
-                continue
-            if not (path.lower().endswith('.exe') or path.lower().endswith('.lnk')):
-                continue
-            self._add_app_from_path(path)
+        
+        if e.mimeData().hasFormat(self.MIME_TYPE):
+            return
+        
+        if e.mimeData().hasUrls():
+            urls = e.mimeData().urls()
+            for url in urls:
+                path = url.toLocalFile()
+                if not path:
+                    continue
+                if os.path.isdir(path):
+                    self._add_folder_from_path(path)
+                elif path.lower().endswith(('.exe', '.lnk')):
+                    self._add_app_from_path(path)
+        
+        elif e.mimeData().hasText():
+            text = e.mimeData().text().strip()
+            if text.startswith(('http://', 'https://', 'www.')):
+                self._add_url(text)
 
     def _add_app_from_path(self, file_path):
         new_app = resolve_app_from_path(file_path)
@@ -387,34 +653,87 @@ class QuickLaunchDock(QWidget):
         cfg.quickLaunchApps.value = apps
         save_cfg()
         self.set_apps(apps)
+        InfoBar.success("添加成功", f"已添加 {new_app['name']}", parent=self.window(), duration=2000)
+
+    def _add_folder_from_path(self, folder_path):
+        name = os.path.basename(folder_path)
+        new_item = {
+            "name": name,
+            "path": folder_path,
+            "icon": get_folder_icon(),
+            "type": "folder"
+        }
+        apps = list(cfg.quickLaunchApps.value)
+        if len(apps) >= self.MAX_APPS:
+            InfoBar.warning(
+                title="数量限制",
+                content=f"快捷启动栏最多只能添加 {self.MAX_APPS} 个项目",
+                parent=self.window(),
+                duration=3000
+            )
+            return
+        apps.append(new_item)
+        cfg.quickLaunchApps.value = apps
+        save_cfg()
+        self.set_apps(apps)
+        InfoBar.success("添加成功", f"已添加文件夹 {name}", parent=self.window(), duration=2000)
+
+    def _add_url(self, url):
+        new_item = resolve_url_from_string(url)
+        apps = list(cfg.quickLaunchApps.value)
+        if len(apps) >= self.MAX_APPS:
+            InfoBar.warning(
+                title="数量限制",
+                content=f"快捷启动栏最多只能添加 {self.MAX_APPS} 个项目",
+                parent=self.window(),
+                duration=3000
+            )
+            return
+        apps.append(new_item)
+        cfg.quickLaunchApps.value = apps
+        save_cfg()
+        self.set_apps(apps)
+        InfoBar.success("添加成功", f"已添加网址 {new_item['name']}", parent=self.window(), duration=2000)
 
     def _click(self, idx):
         a = self._apps[idx]
         path = a.get("path", "")
         name = a.get("name", "")
+        app_type = a.get("type", "app")
         self._start_bounce(idx)
         if path:
-            self._executor.submit(self._launch_app_thread, path, name)
+            self._executor.submit(self._launch_thread, path, name, app_type)
 
-    def _launch_app_thread(self, app_path, app_name):
+    def _launch_thread(self, target, name, app_type):
         try:
-            if not app_path:
-                self._launch_result.emit(app_name, "未配置路径", False)
+            if not target:
+                self._launch_result.emit(name, "未配置路径", False)
                 return
             
-            if os.path.exists(app_path):
-                os.startfile(app_path)
-                self._launch_result.emit(app_name, app_path, True)
+            if app_type == "url":
+                webbrowser.open(target)
+                self._launch_result.emit(name, target, True)
+            elif app_type == "folder":
+                if os.path.exists(target):
+                    os.startfile(target)
+                    self._launch_result.emit(name, target, True)
+                else:
+                    self._launch_result.emit(name, f"文件夹不存在: {target}", False)
             else:
-                self._launch_result.emit(app_name, f"路径不存在: {app_path}", False)
+                if os.path.exists(target):
+                    os.startfile(target)
+                    self._launch_result.emit(name, target, True)
+                else:
+                    self._launch_result.emit(name, f"路径不存在: {target}", False)
         except Exception as e:
-            self._launch_result.emit(app_name, str(e), False)
+            self._launch_result.emit(name, str(e), False)
+
+    def _launch_app_thread(self, app_path, app_name):
+        self._launch_thread(app_path, app_name, "app")
 
     def _on_launch_result(self, app_name, info, success):
-        logger = logging.getLogger(__name__)
-        
         if success:
-            logger.info(f"已启动应用：{app_name} ({info})")
+            logger.info(f"已启动：{app_name} ({info})")
             InfoBar.success(
                 title="启动成功",
                 content=f"正在打开 {app_name}",
@@ -422,7 +741,7 @@ class QuickLaunchDock(QWidget):
                 duration=2000
             )
         else:
-            logger.warning(f"启动应用失败：{app_name}, {info}")
+            logger.warning(f"启动失败：{app_name}, {info}")
             InfoBar.error(
                 title="启动失败",
                 content=f"{app_name}: {info}",
@@ -431,7 +750,8 @@ class QuickLaunchDock(QWidget):
             )
 
     def _start_bounce(self, idx):
-        if idx < 0 or idx >= len(self._apps):return
+        if idx < 0 or idx >= len(self._apps):
+            return
         self._bounce_idx = idx
         self._bounce_y = 0.0
         self._bounce_active = True
@@ -447,7 +767,8 @@ class QuickLaunchDock(QWidget):
     bounceY = pyqtProperty(float, _get_by, _set_by)
 
     def paintEvent(self, event):
-        if self._painting:return
+        if self._painting:
+            return
         self._painting = True
         try:
             self._render()
@@ -520,6 +841,10 @@ class QuickLaunchDock(QWidget):
             top = baseline_y - s
             if i == self._bounce_idx:
                 top += self._bounce_y
+            
+            if i == self._dragging_idx and self._is_internal_drag:
+                p.setOpacity(0.3)
+            
             if pm and not pm.isNull():
                 p.drawPixmap(
                     QRectF(cx - s / 2, top, s, s),
@@ -537,6 +862,8 @@ class QuickLaunchDock(QWidget):
                 p.setFont(font)
                 p.drawText(r, Qt.AlignmentFlag.AlignCenter, "?")
             
+            p.setOpacity(1.0)
+            
             if i == self._hover_idx and self._show_labels:
                 name = self._apps[i].get("name", "")
                 if name:
@@ -546,7 +873,6 @@ class QuickLaunchDock(QWidget):
                     label_font.setWeight(QFont.Weight.Medium)
                     p.setFont(label_font)
                     fm = QFontMetrics(label_font)
-                    sz = self._sz()
                     
                     display_name = name
                     if len(name) > 50:
@@ -575,6 +901,17 @@ class QuickLaunchDock(QWidget):
                     p.setFont(label_font)
                     text_rect = QRectF(label_x, label_y, label_w, label_h)
                     p.drawText(text_rect, Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextSingleLine, display_name)
+
+        if self._is_internal_drag and self._drop_indicator_idx >= 0:
+            indicator_x = 0
+            if self._drop_indicator_idx < len(pl):
+                indicator_x = pl[self._drop_indicator_idx] - sz / 2 - self._icon_gap / 2
+            else:
+                last_cx = pl[-1] if pl else bg.x() + self.PAD_X
+                indicator_x = last_cx + sz / 2 + self._icon_gap / 2
+            
+            p.setPen(QPen(QColor(30, 195, 97), 3))
+            p.drawLine(int(indicator_x), int(baseline_y - sz), int(indicator_x), int(baseline_y))
 
         p.end()
 
