@@ -100,6 +100,7 @@ from qfluentwidgets import (
 )
 
 from data.url_dir import url_dir  # type: ignore
+from core.cache_manager import get_cached_content, save_cache, clear_cache
 from core.config import cfg, default_cfg, save_cfg, CONFIG_PATH
 from core.constants import APP_NAME, BASE_DIR, MEIPASS_DIR, get_resPath
 from core.downloader import Downloader, clean_tempdir
@@ -1228,7 +1229,6 @@ class MainWindow(FluentWindow):
     
     def __updatePoetry(self):
         """ 更新一言显示 """
-        #其实我挺不明白为啥要把这个放在主程序 应该是扔services呀。。
         if not cfg.showPoetry.value:
             self.poetryLabel.hide()
             return
@@ -1236,6 +1236,12 @@ class MainWindow(FluentWindow):
         self.poetryLabel.show()
         
         logger.debug("开始更新一言")
+        
+        cached = get_cached_content("poetry")
+        if cached:
+            self.poetryLabel.setText(cached)
+            logger.info(f"使用缓存一言：{cached[:50]}")
+            return
         
         try:
             api_url = cfg.poetryApiUrl.value
@@ -1246,6 +1252,7 @@ class MainWindow(FluentWindow):
                 logger.debug(f"一言 API 请求成功，状态码：{response.status_code}")
                 poetry_text = response.text.strip()
                 self.poetryLabel.setText(poetry_text)
+                save_cache("poetry", poetry_text, cfg.poetryUpdateInterval.value)
                 logger.info(f"已更新一言：{poetry_text[:50]}")
             else:
                 logger.error(f"一言 API 请求失败，状态码：{response.status_code}")
@@ -1256,7 +1263,6 @@ class MainWindow(FluentWindow):
     #笑死我了我就应该整个愿得一人心白首不分离
     def __updateWeather(self):
         """ 更新天气显示 """
-        #其实我挺不明白为啥要把这个放在主程序 应该是扔services呀。。
 
         if not cfg.showWeather.value:
             self.weatherTempLabel.hide()
@@ -1265,6 +1271,18 @@ class MainWindow(FluentWindow):
         
         self.weatherTempLabel.show()
         self.weatherIconLabel.show()
+        
+        cached = get_cached_content("weather")
+        if cached:
+            try:
+                weather_text = f"{cached.get('current_temp', '?')}{cached.get('temp_unit', '°C')}"
+                self.weatherTempLabel.setText(weather_text)
+                self.current_weather_code = cached.get('weather_code')
+                self.__updateWeatherIcon()
+                logger.info(f"使用缓存天气：{weather_text}")
+                return
+            except Exception as e:
+                logger.warning(f"读取缓存天气数据失败：{e}")
         
         success = False
         try:
@@ -1291,12 +1309,10 @@ class MainWindow(FluentWindow):
                 if 'current' in data:
                     current = data['current']
                     
-                    # 解析温度数据
                     temperature = current.get('temperature', {})
                     current_temp = temperature.get('value', 0)
                     temp_unit = temperature.get('unit', '°C')
                     
-                    # 解析天气代码
                     weather_code = current.get('weather', 0)
                     try:
                         weather_code = int(weather_code)
@@ -1315,7 +1331,6 @@ class MainWindow(FluentWindow):
                                 max_temp = first_day.get('from', 0)
                                 min_temp = first_day.get('to', 0)
                     
-                    # 代码映射 这个也不知道能不能正常用 这一段和映射图标用的是ai写的
                     weather_map = {
                         0: "晴",
                         1: "多云",
@@ -1395,6 +1410,16 @@ class MainWindow(FluentWindow):
                     
                     self.__updateWeatherIcon()
                     logger.info(f"已更新天气图标：天气代码={weather_code}, 天气状况={weather}")
+                    
+                    cache_data = {
+                        "current_temp": current_temp,
+                        "temp_unit": temp_unit,
+                        "weather_code": weather_code,
+                        "weather": weather,
+                        "max_temp": max_temp,
+                        "min_temp": min_temp,
+                    }
+                    save_cache("weather", cache_data, cfg.weatherUpdateInterval.value)
                     success = True
             else:
                 logger.error(f"天气 API 请求失败，状态码：{response.status_code}，响应内容：{response.text}")

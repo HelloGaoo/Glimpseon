@@ -60,6 +60,7 @@ from qfluentwidgets import (
 
 from core.config import cfg
 from core.constants import BASE_DIR, get_resPath, load_qss
+from core.cache_manager import get_cached_content, save_cache, get_cache_info
 
 logger = logging.getLogger(__name__)
 
@@ -939,6 +940,25 @@ class WallpaperInterface(ScrollArea):
     
     def _getWallpaper(self):
         logger.info("开始获取壁纸")
+        
+        cached = get_cached_content("wallpaper")
+        if cached:
+            wallpaper_path = cached.get("path", "")
+            if os.path.exists(wallpaper_path):
+                logger.info(f"使用缓存壁纸: {wallpaper_path}")
+                self.current_pixmap = QPixmap(wallpaper_path)
+                self.current_wallpaper_path = wallpaper_path
+                self.current_wallpaper_source = cached.get("source", "缓存")
+                
+                if not self.current_pixmap.isNull():
+                    self._updateBackground()
+                    self._updateMainWindowBackground()
+                
+                self.infoCard.updateInfo(wallpaper_path, cached.get("source", "缓存"))
+                return
+            else:
+                logger.warning(f"缓存壁纸文件不存在: {wallpaper_path}")
+        
         success = False
         
         try:
@@ -965,6 +985,13 @@ class WallpaperInterface(ScrollArea):
                 self.current_pixmap = QPixmap(wallpaper_path)
                 self.current_wallpaper_path = wallpaper_path
                 self.current_wallpaper_source = source
+                
+                cache_data = {
+                    "path": wallpaper_path,
+                    "source": source,
+                    "url": url,
+                }
+                save_cache("wallpaper", cache_data, cfg.autoGetInterval.value)
                 
                 if not self.current_pixmap.isNull():
                     self._updateBackground()
