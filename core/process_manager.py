@@ -31,15 +31,20 @@ kernel32 = ctypes.windll.kernel32
 ERROR_ALREADY_EXISTS = 183
 MutexHandle = wintypes.HANDLE
 
+PROTECT_WINDOW_SECONDS = 15
+_protected_pids: dict[int, float] = {}
+
 
 class SingleInstanceManager:
     MUTEX_NAME = "ClassLively_SingleInstance_Mutex_{A7F3E2D1-8B4C-4F6A-9D0E-1C2B3A4F5E6D}"
+
     def __init__(self):
         self._mutex_handle: MutexHandle = None
         self._is_owner = False
 
     def try_acquire(self) -> bool:
-        if self._mutex_handle is not None:return self._is_owner
+        if self._mutex_handle is not None:
+            return self._is_owner
         self._mutex_handle = kernel32.CreateMutexW(None, True, self.MUTEX_NAME)
         last_error = kernel32.GetLastError()
         if self._mutex_handle is None or self._mutex_handle == 0:
@@ -52,9 +57,11 @@ class SingleInstanceManager:
         self._is_owner = True
         logger.info("互斥获取成功，当前为唯一实例")
         return True
+
     def release(self):
         if self._mutex_handle is not None and self._mutex_handle != 0:
-            if self._is_owner:kernel32.ReleaseMutex(self._mutex_handle)
+            if self._is_owner:
+                kernel32.ReleaseMutex(self._mutex_handle)
             kernel32.CloseHandle(self._mutex_handle)
             self._mutex_handle = None
             self._is_owner = False
@@ -63,11 +70,17 @@ class SingleInstanceManager:
     @property
     def is_owner(self) -> bool:
         return self._is_owner
+
+
 _instance_manager: SingleInstanceManager = None
+
+
 def get_instance_manager() -> SingleInstanceManager:
     global _instance_manager
-    if _instance_manager is None:_instance_manager = SingleInstanceManager()
+    if _instance_manager is None:
+        _instance_manager = SingleInstanceManager()
     return _instance_manager
+
 
 def check_single_instance() -> bool:
     manager = get_instance_manager()
@@ -79,10 +92,33 @@ def release_single_instance():
     manager.release()
 
 
+def _is_pid_protected(pid: int) -> bool:
+    now = time.time()
+    expired = [p for p, t in _protected_pids.items() if now > t]
+    for p in expired:del _protected_pids[p]
+    return pid in _protected_pids
+
+
+def _protect_current_pid():
+    """防误杀"""
+    pid = os.getpid()
+    _protected_pids[pid] = time.time() + PROTECT_WINDOW_SECONDS
+    logger.debug(f"已保护当前进程 PID={pid}，保护期 {PROTECT_WINDOW_SECONDS}s")
+
+
+def _cleanup_protection():
+    now = time.time()
+    expired = [p for p, t in _protected_pids.items() if now > t]
+    for p in expired:
+        del _protected_pids[p]
+
 def _is_classlively_process(proc, current_pid: int) -> bool:
     try:
         pid = proc.pid
         if pid == current_pid:return False
+        if _is_pid_protected(pid):
+            logger.debug(f"跳过受保护的进程 PID={pid}")
+            return False
         name = proc.name()
         if name == 'ClassLively.exe':return True
         if name in ('python.exe', 'pythonw.exe'):
@@ -90,15 +126,29 @@ def _is_classlively_process(proc, current_pid: int) -> bool:
                 cmdline = proc.cmdline()
                 if not cmdline:return False
                 cmdline_str = ' '.join(cmdline)
-                if 'debugpy' in cmdline_str.lower():return False
-                if any('ClassLively' in arg for arg in cmdline):return True
-            except (psutil.NoSuchProcess, psutil.AccessDenied, IndexError):pass
-    except (psutil.NoSuchProcess, psutil.AccessDenied):pass
+                if 'debugpy' in cmdline_str.lower():
+                    return False
+                if 'pytest' in cmdline_str.lower():
+                    return False
+                if 'ruff' in cmdline_str.lower():
+                    return False
+                if 'mypy' in cmdline_str.lower():
+                    return False
+                for arg in cmdline:
+                    if arg.endswith('ClassLively.py') or arg.endswith('ClassLively.exe'):
+                        return True
+                    if 'ClassLively.py' in arg or 'ClassLively.exe' in arg:
+                        return True
+            except (psutil.NoSuchProcess, psutil.AccessDenied, IndexError):
+                pass
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        pass
     return False
 
 
 def kill_old_instances() -> bool:
     current_pid = os.getpid()
+    _cleanup_protection()
     logger.info(f"进程: {current_pid}，正在查找旧实例")
     pids_to_kill = []
     for proc in psutil.process_iter(['pid', 'name']):
@@ -108,7 +158,8 @@ def kill_old_instances() -> bool:
                 logger.info(f"旧实例 PID: {proc.pid}, 名称: {proc.name()}")
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
-    if not pids_to_kill:return True
+    if not pids_to_kill:
+        return True
     terminated_count = 0
     for pid in pids_to_kill:
         try:
@@ -142,13 +193,16 @@ def kill_old_instances() -> bool:
             return True
     return True
 
+
 def force_acquire_single_instance() -> bool:
     manager = get_instance_manager()
-
     if manager.is_owner:return True
+
     if manager._mutex_handle is not None and not manager._is_owner:
         kernel32.CloseHandle(manager._mutex_handle)
         manager._mutex_handle = None
         manager._is_owner = False
     kill_old_instances()
-    return manager.try_acquire()
+    result = manager.try_acquire()
+    if result:_protect_current_pid()
+    return result
