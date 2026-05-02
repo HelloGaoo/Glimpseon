@@ -160,6 +160,7 @@ class Logger:
         self.console_handler = None
         self._qt_handler_installed = False
         self._hooks_installed = False
+        self._log_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         self.__setup_handlers()
 
     def __compress_old_logs(self):
@@ -206,9 +207,8 @@ class Logger:
         if self.disable_log: return
         log_level = getattr(logging, self.log_level.upper(), logging.INFO)
         self.logger.setLevel(log_level)
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         self.file_handler = logging.handlers.RotatingFileHandler(
-            os.path.join(log_dir, f"app_{timestamp}.log"),
+            os.path.join(log_dir, f"app_{self._log_timestamp}.log"),
             encoding="utf-8", maxBytes=LOG_MAX_BYTES, backupCount=self.max_count
         )
         self.file_handler.setLevel(log_level)

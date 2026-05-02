@@ -15,24 +15,17 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-进程管理模块
+进程管理模块 - 基于命名互斥锁实现单实例检测
 """
 
 import ctypes
-import os
-import time
 from ctypes import wintypes
-
-import psutil
 
 from core.logger import logger
 
 kernel32 = ctypes.windll.kernel32
 ERROR_ALREADY_EXISTS = 183
 MutexHandle = wintypes.HANDLE
-
-PROTECT_WINDOW_SECONDS = 15
-_protected_pids: dict[int, float] = {}
 
 
 class SingleInstanceManager:
@@ -90,119 +83,3 @@ def check_single_instance() -> bool:
 def release_single_instance():
     manager = get_instance_manager()
     manager.release()
-
-
-def _is_pid_protected(pid: int) -> bool:
-    now = time.time()
-    expired = [p for p, t in _protected_pids.items() if now > t]
-    for p in expired:del _protected_pids[p]
-    return pid in _protected_pids
-
-
-def _protect_current_pid():
-    """防误杀"""
-    pid = os.getpid()
-    _protected_pids[pid] = time.time() + PROTECT_WINDOW_SECONDS
-    logger.debug(f"已保护当前进程 PID={pid}，保护期 {PROTECT_WINDOW_SECONDS}s")
-
-
-def _cleanup_protection():
-    now = time.time()
-    expired = [p for p, t in _protected_pids.items() if now > t]
-    for p in expired:
-        del _protected_pids[p]
-
-def _is_classlively_process(proc, current_pid: int) -> bool:
-    try:
-        pid = proc.pid
-        if pid == current_pid:return False
-        if _is_pid_protected(pid):
-            logger.debug(f"跳过受保护的进程 PID={pid}")
-            return False
-        name = proc.name()
-        if name == 'ClassLively.exe':return True
-        if name in ('python.exe', 'pythonw.exe'):
-            try:
-                cmdline = proc.cmdline()
-                if not cmdline:return False
-                cmdline_str = ' '.join(cmdline)
-                if 'debugpy' in cmdline_str.lower():
-                    return False
-                if 'pytest' in cmdline_str.lower():
-                    return False
-                if 'ruff' in cmdline_str.lower():
-                    return False
-                if 'mypy' in cmdline_str.lower():
-                    return False
-                for arg in cmdline:
-                    if arg.endswith('ClassLively.py') or arg.endswith('ClassLively.exe'):
-                        return True
-                    if 'ClassLively.py' in arg or 'ClassLively.exe' in arg:
-                        return True
-            except (psutil.NoSuchProcess, psutil.AccessDenied, IndexError):
-                pass
-    except (psutil.NoSuchProcess, psutil.AccessDenied):
-        pass
-    return False
-
-
-def kill_old_instances() -> bool:
-    current_pid = os.getpid()
-    _cleanup_protection()
-    logger.info(f"进程: {current_pid}，正在查找旧实例")
-    pids_to_kill = []
-    for proc in psutil.process_iter(['pid', 'name']):
-        try:
-            if _is_classlively_process(proc, current_pid):
-                pids_to_kill.append(proc.pid)
-                logger.info(f"旧实例 PID: {proc.pid}, 名称: {proc.name()}")
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            continue
-    if not pids_to_kill:
-        return True
-    terminated_count = 0
-    for pid in pids_to_kill:
-        try:
-            proc = psutil.Process(pid)
-            if not proc.is_running():
-                logger.warning(f"进程 {pid} 已停止")
-                continue
-            proc.kill()
-            logger.info(f"已终止旧实例 PID: {pid}")
-            terminated_count += 1
-        except psutil.NoSuchProcess:
-            logger.warning(f"进程 {pid} 不存在")
-        except psutil.AccessDenied as e:
-            logger.error(f"终止进程 {pid}失败: {e}")
-        except Exception as e:
-            logger.error(f"终止进程 {pid} 失败: {e}", exc_info=True)
-
-    logger.info(f"共终止 {terminated_count} 个")
-
-    start_time = time.time()
-    while time.time() - start_time < 5:
-        remaining = 0
-        for pid in pids_to_kill:
-            try:
-                if psutil.Process(pid).is_running():
-                    remaining += 1
-            except psutil.NoSuchProcess:
-                continue
-        if remaining == 0:
-            logger.info("所有旧实例已退出")
-            return True
-    return True
-
-
-def force_acquire_single_instance() -> bool:
-    manager = get_instance_manager()
-    if manager.is_owner:return True
-
-    if manager._mutex_handle is not None and not manager._is_owner:
-        kernel32.CloseHandle(manager._mutex_handle)
-        manager._mutex_handle = None
-        manager._is_owner = False
-    kill_old_instances()
-    result = manager.try_acquire()
-    if result:_protect_current_pid()
-    return result

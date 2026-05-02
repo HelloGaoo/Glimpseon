@@ -105,7 +105,7 @@ from core.constants import APP_NAME, BASE_DIR, MEIPASS_DIR, get_resPath
 from core.downloader import Downloader, clean_tempdir
 from core.font_manager import initialize_fonts
 from core.logger import logger, init_exhook
-from core.process_manager import check_single_instance, force_acquire_single_instance, release_single_instance
+from core.process_manager import check_single_instance, release_single_instance
 from core.updater import (
     create_update_script,
     download_update,
@@ -129,11 +129,9 @@ def verify_singleInst():
     allow_multiple = cfg.allowMultipleInstances.value
     is_developer_mode = cfg.developerMode.value
     if allow_multiple:return True
+    if is_developer_mode:return True
     is_only_instance = check_single_instance()
     if is_only_instance:return True
-    if is_developer_mode:
-        result = force_acquire_single_instance()
-        return True
     logger.info("检测到已有实例运行")
     return False
 
