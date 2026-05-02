@@ -456,7 +456,7 @@ class UpdateInterface(BaseScrollAreaInterface):
                     except Exception:
                         pass
                 QTimer.singleShot(0, lambda: self.checkUpdateButton.setText("重试更新"))
-                QTimer.singleShot(0, lambda: self.checkUpdateButton.setIcon(QIcon(FIF.SYNC.value)))
+                QTimer.singleShot(0, lambda: self.checkUpdateButton.setIcon(FIF.SYNC))
                 QTimer.singleShot(0, lambda: self.checkUpdateButton.setEnabled(True))
                 QTimer.singleShot(0, lambda msg=str(e): self.updateStatusLabel.setText(f"更新失败：{msg}"))
                 QTimer.singleShot(0, lambda: self.updateStatusLabel.setStyleSheet("color: #FF0000;"))

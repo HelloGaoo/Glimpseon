@@ -64,7 +64,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
-    QMessageBox,
     QMenu,
     QPushButton,
     QSizePolicy,

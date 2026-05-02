@@ -7,7 +7,6 @@ from concurrent.futures import ThreadPoolExecutor
 import pythoncom
 from PyQt6.QtCore import (
     QFileInfo,
-    QPoint,
     QPointF,
     QRectF,
     Qt,
@@ -15,7 +14,6 @@ from PyQt6.QtCore import (
     pyqtProperty,
     QSize,
     pyqtSignal,
-    QThread,
 )
 from PyQt6.QtGui import (
     QBrush,
@@ -238,7 +236,7 @@ class QuickLaunchDock(QWidget):
         return t * t * (3.0 - 2.0 * t)
 
     def mouseMoveEvent(self, e):
-        self._calc_targets(e.pos())
+        self._calc_targets(e.position())
         super().mouseMoveEvent(e)
 
     def leaveEvent(self, e):
@@ -256,13 +254,13 @@ class QuickLaunchDock(QWidget):
 
         for i in range(len(self._apps)):
             r = self._icon_rect(i, pos_list)
-            if r.contains(QPointF(pos)):
+            if r.contains(pos):
                 new_hover = i
                 break
 
         if new_hover < 0:
             bg = self._bg_rect()
-            if bg.contains(QPointF(pos)):
+            if bg.contains(pos):
                 min_dist = float('inf')
                 for i in range(len(self._apps)):
                     cx = pos_list[i]
@@ -342,7 +340,7 @@ class QuickLaunchDock(QWidget):
         if e.button() == Qt.MouseButton.LeftButton:
             pl = self._icon_positions()
             for i in range(len(self._apps)):
-                if self._icon_rect(i, pl).contains(QPointF(e.pos())):
+                if self._icon_rect(i, pl).contains(e.position()):
                     self._click(i)
                     break
         super().mousePressEvent(e)

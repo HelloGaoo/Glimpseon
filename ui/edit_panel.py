@@ -23,7 +23,7 @@ import logging
 import os
 import re
 
-from PyQt6.QtCore import QDate, QEasingCurve, QFileInfo, QPropertyAnimation, QRect, Qt, QTime, QTimer
+from PyQt6.QtCore import QByteArray, QDate, QEasingCurve, QFileInfo, QPropertyAnimation, QRect, Qt, QTime, QTimer
 from PyQt6.QtGui import QColor, QIcon, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
@@ -143,7 +143,7 @@ class EditPanel(QWidget):
         layout.addWidget(scroll)
         
         # 动画
-        self.anim = QPropertyAnimation(self, b'geometry')
+        self.anim = QPropertyAnimation(self, QByteArray(b'geometry'))
         self.anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._updateTheme()
         

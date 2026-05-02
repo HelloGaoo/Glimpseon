@@ -5,7 +5,7 @@ import sys
 
 import win32com.client
 from pathlib import Path
-from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QLocale
+from PyQt6.QtCore import QByteArray, Qt, QPropertyAnimation, QEasingCurve, QLocale
 from PyQt6.QtGui import QIcon, QPixmap, QColor, QFont
 from PyQt6.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QWidget, QHBoxLayout, QLabel, QGraphicsOpacityEffect, QApplication, QPushButton, QLineEdit
 from qfluentwidgets import (
@@ -520,7 +520,7 @@ class WizardWindow(QDialog):
             effect.setOpacity(1.0)
             self.stackedWidget.setGraphicsEffect(effect)
 
-        anim = QPropertyAnimation(effect, b"opacity", self)
+        anim = QPropertyAnimation(effect, QByteArray(b"opacity"), self)
         anim.setDuration(max(50, duration // 2))
         anim.setStartValue(1.0)
         anim.setEndValue(0.0)
@@ -528,7 +528,7 @@ class WizardWindow(QDialog):
 
         def _after_fade_out():
             self.stackedWidget.setCurrentIndex(index)
-            anim2 = QPropertyAnimation(effect, b"opacity", self)
+            anim2 = QPropertyAnimation(effect, QByteArray(b"opacity"), self)
             anim2.setDuration(max(50, duration // 2))
             anim2.setStartValue(0.0)
             anim2.setEndValue(1.0)
