@@ -43,14 +43,14 @@ class SingleInstanceManager:
         self._mutex_handle = kernel32.CreateMutexW(None, True, self.MUTEX_NAME)
         last_error = kernel32.GetLastError()
         if self._mutex_handle is None or self._mutex_handle == 0:
-            logger.error(f"创建互斥锁失败，句柄: {self._mutex_handle}")
+            logger.error(f"创建互斥失败，句柄: {self._mutex_handle}")
             return True
         if last_error == ERROR_ALREADY_EXISTS:
-            logger.info("检测到已有实例运行 (互斥锁已存在)")
+            logger.info("检测到已有实例运行")
             self._is_owner = False
             return False
         self._is_owner = True
-        logger.info("互斥锁获取成功，当前为唯一实例")
+        logger.info("互斥获取成功，当前为唯一实例")
         return True
     def release(self):
         if self._mutex_handle is not None and self._mutex_handle != 0:
@@ -58,7 +58,7 @@ class SingleInstanceManager:
             kernel32.CloseHandle(self._mutex_handle)
             self._mutex_handle = None
             self._is_owner = False
-            logger.info("互斥锁已释放")
+            logger.info("互斥已释放")
 
     @property
     def is_owner(self) -> bool:
