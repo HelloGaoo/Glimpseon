@@ -105,7 +105,7 @@ from core.constants import APP_NAME, BASE_DIR, MEIPASS_DIR, get_resPath
 from core.downloader import Downloader, clean_tempdir
 from core.font_manager import initialize_fonts
 from core.logger import logger, init_exhook
-from core.process_manager import check_single_instance, release_single_instance
+from core.process_manager import check_single_instance, force_acquire_single_instance, release_single_instance
 from core.updater import (
     create_update_script,
     download_update,
@@ -128,17 +128,14 @@ def verify_singleInst():
     """检查是否已经有实例运行"""
     allow_multiple = cfg.allowMultipleInstances.value
     is_developer_mode = cfg.developerMode.value
-    if allow_multiple:
-        logger.info("允许多实例启动，跳过单实例检测")
-        return True
-    if is_developer_mode:
-        logger.info("调试模式已启用，跳过单实例检测")
-        return True
+    if allow_multiple:return True
     is_only_instance = check_single_instance()
-    if not is_only_instance:
-        logger.info("检测到已有实例运行")
-        return False
-    return True
+    if is_only_instance:return True
+    if is_developer_mode:
+        result = force_acquire_single_instance()
+        return True
+    logger.info("检测到已有实例运行")
+    return False
 
 def extract_files():
     if not getattr(sys, 'frozen', False) or not MEIPASS_DIR:
