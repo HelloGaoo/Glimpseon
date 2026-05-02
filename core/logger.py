@@ -266,7 +266,7 @@ def _install_sys_excepthook():
             return
         tb_str = _safe_call(lambda: _format_exception_chain(value), default=str(value))
         ctx = _safe_call(_get_system_context)
-        logger.critical(f"[主线程问题] {exctype.__name__}: {value}\n{tb_str}\n\n[系统上下文]\n{ctx}")
+        logger.critical(f"[主线程问题] {exctype.__name__}: {value}\n{tb_str}\n\n[上下文]\n{ctx}")
         _original_excepthook(exctype, value, tb)
     sys.excepthook = custom_exception_hook
 
@@ -363,7 +363,7 @@ def _install_multiprocessing_handler():
                 except Exception as e:
                     tb_str = _safe_call(lambda: _format_exception_chain(e), default=str(e))
                     ctx_str = _safe_call(_get_system_context)
-                    print(f"[子进程问题] {type(e).__name__}: {e}\n{tb_str}\n\n[系统上下文]\n{ctx_str}", file=sys.stderr)
+                    print(f"[子进程问题] {type(e).__name__}: {e}\n{tb_str}\n\n[上下文]\n{ctx_str}", file=sys.stderr)
                     raise
             ctx.Process.run = patched_run
             return ctx
@@ -372,33 +372,29 @@ def _install_multiprocessing_handler():
         logger.warning(f"multiprocessing 安装问题: {e}")
 
 
-def _wrap_executor_submit(original_submit, pool_type: str):
-    @functools.wraps(original_submit)
-    def wrapped_submit(self, fn, *args, **kwargs):
-        future = original_submit(self, fn, *args, **kwargs)
+def _install_concurrent_futures_handler():
+    _original_thread_submit = ThreadPoolExecutor.submit
+    _original_process_submit = ProcessPoolExecutor.submit
+    def patched_thread_submit(self, fn, *args, **kwargs):
+        future = _original_thread_submit(self, fn, *args, **kwargs)
         def log_exception(f: Future):
             try: f.result()
             except Exception as e:
                 tb_str = _safe_call(lambda: _format_exception_chain(e), default=str(e))
-                logger.critical(f"[{pool_type}问题] {type(e).__name__}: {e}\n{tb_str}")
+                logger.critical(f"[ThreadPool问题] {type(e).__name__}: {e}\n{tb_str}")
         future.add_done_callback(log_exception)
         return future
-    return wrapped_submit
-
-
-def _install_concurrent_futures_handler():
-    original_thread_init = ThreadPoolExecutor.__init__
-    original_process_init = ProcessPoolExecutor.__init__
-    @functools.wraps(original_thread_init)
-    def patched_thread_init(self, max_workers=None, thread_name_prefix=''):
-        original_thread_init(self, max_workers=max_workers, thread_name_prefix=thread_name_prefix)
-        self.submit = _wrap_executor_submit(object.__getattribute__(self, 'submit'), "ThreadPool")
-    ThreadPoolExecutor.__init__ = patched_thread_init
-    @functools.wraps(original_process_init)
-    def patched_process_init(self, max_workers=None, mp_context=None, initializer=None, initargs=()):
-        original_process_init(self, max_workers=max_workers, mp_context=mp_context, initializer=initializer, initargs=initargs)
-        self.submit = _wrap_executor_submit(object.__getattribute__(self, 'submit'), "ProcessPool")
-    ProcessPoolExecutor.__init__ = patched_process_init
+    ThreadPoolExecutor.submit = patched_thread_submit
+    def patched_process_submit(self, fn, *args, **kwargs):
+        future = _original_process_submit(self, fn, *args, **kwargs)
+        def log_exception(f: Future):
+            try: f.result()
+            except Exception as e:
+                tb_str = _safe_call(lambda: _format_exception_chain(e), default=str(e))
+                logger.critical(f"[ProcessPool问题] {type(e).__name__}: {e}\n{tb_str}")
+        future.add_done_callback(log_exception)
+        return future
+    ProcessPoolExecutor.submit = patched_process_submit
 
 
 def _install_signal_handlers():

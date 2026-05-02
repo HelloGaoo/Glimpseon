@@ -2030,8 +2030,6 @@ if __name__ == "__main__":
         max_count=log_max_count,
         max_days=log_max_days
     )
-    logger.info("ClassLively")
-
     splash.updateStatus("正在加载配置")
     logger.info("启动：正在加载配置")
     splash.setProgress(55)
