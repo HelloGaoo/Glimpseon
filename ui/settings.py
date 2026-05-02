@@ -20,9 +20,10 @@
 
 import json
 import os
+from datetime import datetime
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication, QLabel, QWidget
+from PyQt6.QtWidgets import QApplication, QFileDialog, QLabel, QWidget
 from qfluentwidgets import (
     ComboBoxSettingCard,
     CustomColorSettingCard,
@@ -296,6 +297,22 @@ class SettingInterface(ScrollArea):
             parent=self.otherGroup
         )
         self.otherGroup.addSettingCard(self.allowMultipleInstancesCard)
+        self.exportConfigCard = ButtonSettingCard(
+            FIF.SAVE,
+            "导出配置",
+            "将当前配置导出为 JSON 文件",
+            parent=self.otherGroup
+        )
+        self.otherGroup.addSettingCard(self.exportConfigCard)
+        self.exportConfigCard.button.setText("导出")
+        self.importConfigCard = ButtonSettingCard(
+            FIF.DOWNLOAD,
+            "导入配置",
+            "从 JSON 文件导入配置",
+            parent=self.otherGroup
+        )
+        self.otherGroup.addSettingCard(self.importConfigCard)
+        self.importConfigCard.button.setText("导入")
         self.resetDefaultCard = ButtonSettingCard(
             FIF.SETTING,
             "恢复默认设置",
@@ -352,6 +369,8 @@ class SettingInterface(ScrollArea):
         self.disableLogCard.checkedChanged.connect(self.__onDisableLogChanged)
         self.resetDefaultCard.button.clicked.connect(self.__resetDefaultSettings)
         self.clearLogCard.button.clicked.connect(self.__clearLog)
+        self.exportConfigCard.button.clicked.connect(self.__exportConfig)
+        self.importConfigCard.button.clicked.connect(self.__importConfig)
         self.__onDisableLogChanged(cfg.disableLog.value)
     
     def __resetDefaultSettings(self):
@@ -491,5 +510,93 @@ class SettingInterface(ScrollArea):
                     duration=5000,
                     parent=self
                 )
+    
+    def __exportConfig(self):
+        """导出配置"""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            default_filename = f"ClassLively_Config_{timestamp}.json"
+            file_path, _ = QFileDialog.getSaveFileName(
+                self, "导出配置", default_filename, "JSON 文件 (*.json);;所有文件 (*.*)"
+            )
+            if not file_path: return
+            
+            if os.path.exists(CONFIG_PATH):
+                import shutil
+                shutil.copy2(CONFIG_PATH, file_path)
+                InfoBar.success("成功", f"配置已导出到：{file_path}", duration=5000, parent=self)
+            else:
+                InfoBar.warning("提示", "配置文件不存在，无法导出", duration=5000, parent=self)
+        except Exception as e:
+            InfoBar.error("错误", f"导出配置失败: {str(e)}", duration=5000, parent=self)
+    
+    def __importConfig(self):
+        """导入配置"""
+        try:
+            file_path, _ = QFileDialog.getOpenFileName(
+                self, "导入配置", "", "JSON 文件 (*.json);;所有文件 (*.*)"
+            )
+            if not file_path: return
+            if not os.path.exists(file_path):
+                InfoBar.warning("提示", "选择的文件不存在", duration=5000, parent=self)
+                return
+            
+            with open(file_path, 'r', encoding='utf-8') as f:
+                imported_config = json.load(f)
+            if not isinstance(imported_config, dict):
+                InfoBar.error("错误", "配置文件格式不正确", duration=5000, parent=self)
+                return
+            
+            msgBox = MessageBox("导入配置", "确定要导入配置吗？这将覆盖当前的所有设置。", self.window())
+            msgBox.yesButton.setText("确定")
+            msgBox.cancelButton.setText("取消")
+            if not msgBox.exec(): return
+            
+            config_dir = os.path.join(BASE_DIR, 'config')
+            if not os.path.exists(config_dir): os.makedirs(config_dir)
+            
+            import shutil
+            if os.path.exists(CONFIG_PATH):
+                backup_path = CONFIG_PATH + '.backup'
+                shutil.copy2(CONFIG_PATH, backup_path)
+            
+            with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
+                json.dump(imported_config, f, ensure_ascii=False, indent=4)
+            qconfig.load(CONFIG_PATH, cfg)
+            
+            for attr_name in dir(cfg):
+                if not attr_name.startswith('_'):
+                    attr = getattr(cfg, attr_name)
+                    if isinstance(attr, ConfigItem) and hasattr(attr, 'valueChanged'):
+                        attr.valueChanged.emit(attr.value)
+            
+            main_window = self.window()
+            if hasattr(main_window, 'editPanel'): main_window.editPanel.refreshAllSettings()
+            if hasattr(main_window, '_MainWindow__updateQuickLaunch'): main_window._MainWindow__updateQuickLaunch()
+            if hasattr(main_window, '_MainWindow__updateClock'): main_window._MainWindow__updateClock()
+            if hasattr(main_window, '_MainWindow__updatePoetry'): main_window._MainWindow__updatePoetry()
+            if hasattr(main_window, '_MainWindow__updateWeather'): main_window._MainWindow__updateWeather()
+            if hasattr(main_window, '_MainWindow__updateCountdown'): main_window._MainWindow__updateCountdown()
+            if hasattr(main_window, 'updateSchoolInfo'): main_window.updateSchoolInfo()
+            if hasattr(main_window, 'updateSchoolInfoStyle'): main_window.updateSchoolInfoStyle()
+            if hasattr(main_window, '_MainWindow__updateSchoolInfoPosition'): main_window._MainWindow__updateSchoolInfoPosition()
+            if hasattr(main_window, '_MainWindow__updateClockPosition'): main_window._MainWindow__updateClockPosition()
+            if hasattr(main_window, '_MainWindow__updatePoetryPosition'): main_window._MainWindow__updatePoetryPosition()
+            if hasattr(main_window, '_MainWindow__updateWeatherPosition'): main_window._MainWindow__updateWeatherPosition()
+            if hasattr(main_window, '_MainWindow__updateCountdownPosition'): main_window._MainWindow__updateCountdownPosition()
+            
+            app = QApplication.instance()
+            if app:
+                font_loaded = _load_app_fonts()
+                apply_fonts(app, use_harmonyos=font_loaded)
+            
+            current_theme = cfg.themeMode.value
+            setTheme(current_theme)
+            cfg.themeChanged.emit(current_theme)
+            InfoBar.success("成功", f"配置已导入：{file_path}", duration=5000, parent=self)
+        except json.JSONDecodeError:
+            InfoBar.error("错误", "配置文件格式错误，无法解析 JSON", duration=5000, parent=self)
+        except Exception as e:
+            InfoBar.error("错误", f"导入配置失败: {str(e)}", duration=5000, parent=self)
     
 
