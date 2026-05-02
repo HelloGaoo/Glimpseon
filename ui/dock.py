@@ -8,15 +8,12 @@ from concurrent.futures import ThreadPoolExecutor
 import pythoncom
 from PyQt6.QtCore import (
     QFileInfo,
-    QPointF,
     QRectF,
     Qt,
     QTimer,
     pyqtProperty,
     QSize,
     pyqtSignal,
-    QMimeData,
-    QByteArray,
 )
 from PyQt6.QtGui import (
     QBrush,
@@ -28,8 +25,6 @@ from PyQt6.QtGui import (
     QPainterPath,
     QPen,
     QPixmap,
-    QDrag,
-    QCursor,
 )
 from PyQt6.QtWidgets import QFileIconProvider, QLabel, QSizePolicy, QWidget
 from qfluentwidgets import InfoBar, isDarkTheme, RoundMenu, Action, FluentIcon as FIF
@@ -157,10 +152,7 @@ class QuickLaunchDock(QWidget):
     FPS = 120
     MAX_APPS = 12
     
-    MIME_TYPE = "application/x-quicklaunch-index"
-    
     _launch_result = pyqtSignal(str, str, bool)
-    _order_changed = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -190,7 +182,8 @@ class QuickLaunchDock(QWidget):
         self._dragging_idx = -1
         self._drag_start_pos = None
         self._is_internal_drag = False
-        self._drop_indicator_idx = -1
+        self._drop_target_idx = -1
+        self._drag_pos = None
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
@@ -309,8 +302,15 @@ class QuickLaunchDock(QWidget):
         return -1
 
     def mouseMoveEvent(self, e):
+        if self._dragging_idx >= 0 and self._drag_start_pos and not self._is_internal_drag:
+            dist = (e.position() - self._drag_start_pos).manhattanLength()
+            if dist > 10:
+                self._start_internal_drag(self._dragging_idx)
+        
         if self._is_internal_drag and self._dragging_idx >= 0:
-            self._update_drop_indicator(e.position())
+            self._drag_pos = e.position()
+            self._update_drop_target(e.position())
+            self.update()
         
         self._calc_targets(e.position())
         super().mouseMoveEvent(e)
@@ -343,7 +343,8 @@ class QuickLaunchDock(QWidget):
             self._dragging_idx = -1
             self._drag_start_pos = None
             self._is_internal_drag = False
-            self._drop_indicator_idx = -1
+            self._drop_target_idx = -1
+            self._drag_pos = None
             self.update()
         
         super().mouseReleaseEvent(e)
@@ -351,51 +352,45 @@ class QuickLaunchDock(QWidget):
     def _start_internal_drag(self, idx):
         self._is_internal_drag = True
         self._dragging_idx = idx
-        
-        drag = QDrag(self)
-        mime_data = QMimeData()
-        mime_data.setData(self.MIME_TYPE, QByteArray(str(idx).encode()))
-        drag.setMimeData(mime_data)
-        
-        if idx < len(self._pixmaps) and self._pixmaps[idx]:
-            pm = self._pixmaps[idx]
-            drag.setPixmap(pm.scaled(48, 48, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-            drag.setHotSpot(pm.rect().center())
-        
+        self._drag_pos = self._drag_start_pos
+        self._drop_target_idx = idx
         self.update()
-        drag.exec(Qt.DropAction.MoveAction)
 
-    def _update_drop_indicator(self, pos):
+    def _update_drop_target(self, pos):
         if not self._apps:
             return
         
-        pos_list = self._icon_positions()
-        new_drop_idx = -1
+        sz = self._sz()
+        bg = self._bg_rect()
+        content_w = bg.width() - self.PAD_X * 2
+        n = len(self._apps)
+        total_w = n * sz + (n - 1) * self._icon_gap
+        start_x = bg.x() + self.PAD_X + (content_w - total_w) / 2
         
-        for i in range(len(self._apps)):
-            cx = pos_list[i]
-            if pos.x() < cx:
-                new_drop_idx = i
+        new_target = -1
+        for i in range(n):
+            icon_x = start_x + i * (sz + self._icon_gap)
+            if pos.x() < icon_x + sz / 2:
+                new_target = i
                 break
         
-        if new_drop_idx == -1 and len(self._apps) > 0:
-            new_drop_idx = len(self._apps)
+        if new_target == -1:
+            new_target = n
         
-        if new_drop_idx != self._drop_indicator_idx:
-            self._drop_indicator_idx = new_drop_idx
-            self.update()
+        if new_target != self._drop_target_idx:
+            self._drop_target_idx = new_target
 
     def _finish_drag_reorder(self):
-        if self._dragging_idx < 0 or self._drop_indicator_idx < 0:
+        if self._dragging_idx < 0 or self._drop_target_idx < 0:
             return
         
-        if self._dragging_idx == self._drop_indicator_idx or self._dragging_idx == self._drop_indicator_idx - 1:
+        if self._dragging_idx == self._drop_target_idx:
             return
         
         apps = list(self._apps)
         dragged_app = apps.pop(self._dragging_idx)
         
-        insert_idx = self._drop_indicator_idx
+        insert_idx = self._drop_target_idx
         if insert_idx > self._dragging_idx:
             insert_idx -= 1
         
@@ -406,7 +401,6 @@ class QuickLaunchDock(QWidget):
         self.set_apps(apps)
         
         logger.info(f"快捷启动栏顺序已调整: {self._dragging_idx} -> {insert_idx}")
-        InfoBar.success("排序成功", "快捷方式顺序已更新", parent=self.window(), duration=1500)
 
     def _show_context_menu(self, idx, pos):
         if idx < 0 or idx >= len(self._apps):
@@ -601,26 +595,16 @@ class QuickLaunchDock(QWidget):
             if text.startswith(('http://', 'https://', 'www.')):
                 e.acceptProposedAction()
                 return
-        elif e.mimeData().hasFormat(self.MIME_TYPE):
-            e.acceptProposedAction()
-            return
         e.ignore()
 
     def dragMoveEvent(self, e):
-        if e.mimeData().hasFormat(self.MIME_TYPE):
-            self._is_internal_drag = True
-            self._update_drop_indicator(e.position())
-            e.acceptProposedAction()
-        elif e.mimeData().hasUrls() or e.mimeData().hasText():
+        if e.mimeData().hasUrls() or e.mimeData().hasText():
             e.acceptProposedAction()
         else:
             e.ignore()
 
     def dropEvent(self, e):
         e.acceptProposedAction()
-        
-        if e.mimeData().hasFormat(self.MIME_TYPE):
-            return
         
         if e.mimeData().hasUrls():
             urls = e.mimeData().urls()
@@ -834,16 +818,26 @@ class QuickLaunchDock(QWidget):
         sz = self._sz()
 
         for i in range(len(self._apps)):
+            if self._is_internal_drag and i == self._dragging_idx:
+                continue
+            
             pm = self._pixmaps[i]
             sc = self._scales[i]
             s = sz * sc
-            cx = pl[i]
+            
+            if self._is_internal_drag and self._dragging_idx >= 0:
+                if i >= self._drop_target_idx and i < self._dragging_idx:
+                    cx = pl[i + 1]
+                elif i < self._drop_target_idx and i > self._dragging_idx:
+                    cx = pl[i - 1]
+                else:
+                    cx = pl[i]
+            else:
+                cx = pl[i]
+            
             top = baseline_y - s
             if i == self._bounce_idx:
                 top += self._bounce_y
-            
-            if i == self._dragging_idx and self._is_internal_drag:
-                p.setOpacity(0.3)
             
             if pm and not pm.isNull():
                 p.drawPixmap(
@@ -862,9 +856,7 @@ class QuickLaunchDock(QWidget):
                 p.setFont(font)
                 p.drawText(r, Qt.AlignmentFlag.AlignCenter, "?")
             
-            p.setOpacity(1.0)
-            
-            if i == self._hover_idx and self._show_labels:
+            if i == self._hover_idx and self._show_labels and not self._is_internal_drag:
                 name = self._apps[i].get("name", "")
                 if name:
                     label_font = p.font()
@@ -902,16 +894,23 @@ class QuickLaunchDock(QWidget):
                     text_rect = QRectF(label_x, label_y, label_w, label_h)
                     p.drawText(text_rect, Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextSingleLine, display_name)
 
-        if self._is_internal_drag and self._drop_indicator_idx >= 0:
-            indicator_x = 0
-            if self._drop_indicator_idx < len(pl):
-                indicator_x = pl[self._drop_indicator_idx] - sz / 2 - self._icon_gap / 2
-            else:
-                last_cx = pl[-1] if pl else bg.x() + self.PAD_X
-                indicator_x = last_cx + sz / 2 + self._icon_gap / 2
+        if self._is_internal_drag and self._dragging_idx >= 0 and self._drag_pos:
+            pm = self._pixmaps[self._dragging_idx] if self._dragging_idx < len(self._pixmaps) else None
+            s = sz * self.MAX_SCALE
+            cx = self._drag_pos.x()
+            top = self._drag_pos.y() - s / 2
             
-            p.setPen(QPen(QColor(30, 195, 97), 3))
-            p.drawLine(int(indicator_x), int(baseline_y - sz), int(indicator_x), int(baseline_y))
+            if pm and not pm.isNull():
+                p.drawPixmap(
+                    QRectF(cx - s / 2, top, s, s),
+                    pm,
+                    QRectF(0, 0, pm.width(), pm.height()),
+                )
+            else:
+                p.setBrush(QColor(120, 120, 120, 100))
+                p.setPen(QPen(QColor(120, 120, 120, 150), 1))
+                r = QRectF(cx - s / 2, top, s, s)
+                p.drawRoundedRect(r, 8, 8)
 
         p.end()
 
