@@ -1020,7 +1020,7 @@ class MainWindow(FluentWindow):
                 lunarString = f"{lunarMonthCn}{lunarDayCn}"
                 dateString = f"{solarString} {lunarString}"
             except Exception as e:
-                logging.error(f"农历显示错误：{e}")
+                logger.error(f"农历显示错误：{e}")
                 dateString = solarString
         else:
             dateString = solarString
@@ -1935,7 +1935,9 @@ if __name__ == "__main__":
     extract_files()
     
     app = QApplication(sys.argv)
-    
+
+    init_exhook()
+
     if check_wizard_needed():
         create_wizard_file()
         wizard = WizardWindow()
@@ -1961,10 +1963,6 @@ if __name__ == "__main__":
             splash.status_signal.emit("正在清理临时文件")
             splash.progress_signal.emit(10)
             clean_tempdir(logger=logger)
-
-            splash.status_signal.emit("正在初始化异常处理")
-            splash.progress_signal.emit(60)
-            init_exhook()
 
             splash.status_signal.emit("正在加载资源")
             splash.progress_signal.emit(70)

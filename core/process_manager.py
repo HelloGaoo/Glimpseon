@@ -83,7 +83,6 @@ def check_old_instances():
             logger.info(f"发现 {len(processes)} 个旧进程")
             return True
         return False
-    except ImportError:return False
     except Exception as e:
         logger.error(f"检查旧实例失败: {e}")
         return False
@@ -128,8 +127,6 @@ def kill_old():
                 logger.info("所有旧进程已退出")
         
         return True
-    except ImportError as e:
-        return False
     except Exception as e:
         logger.error(f"终止旧进程失败: {e}", exc_info=True)
         return False
