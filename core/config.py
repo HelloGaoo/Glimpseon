@@ -312,6 +312,38 @@ class Config(QConfig):
     quickLaunchOffsetY = RangeConfigItem(
         "QuickLaunch", "OffsetY", 60, RangeValidator(0, 120)
     )
+    
+    showMediaInfo = ConfigItem(
+        "Media", "ShowMediaInfo", True, BoolValidator()
+    )
+    mediaPosition = OptionsConfigItem(
+        "Media", "MediaPosition", "左下预留", 
+        OptionsValidator(["左上预留", "右上预留", "左下预留", "右下预留"])
+    )
+    showMediaCover = ConfigItem(
+        "Media", "ShowMediaCover", True, BoolValidator()
+    )
+    showMediaProgress = ConfigItem(
+        "Media", "ShowMediaProgress", True, BoolValidator()
+    )
+    showMediaLyrics = ConfigItem(
+        "Media", "ShowMediaLyrics", True, BoolValidator()
+    )
+    mediaUpdateInterval = RangeConfigItem(
+        "Media", "UpdateInterval", 1, RangeValidator(1, 5)
+    )
+    mediaTextSize = RangeConfigItem(
+        "Media", "TextSize", 16, RangeValidator(12, 32)
+    )
+    mediaCoverSize = RangeConfigItem(
+        "Media", "CoverSize", 64, RangeValidator(32, 128)
+    )
+    mediaLyricsSize = RangeConfigItem(
+        "Media", "LyricsSize", 14, RangeValidator(10, 24)
+    )
+    mediaLyricsLines = RangeConfigItem(
+        "Media", "LyricsLines", 3, RangeValidator(1, 7)
+    )
 
 
 cfg = Config()
@@ -441,6 +473,18 @@ def default_cfg():
             "IconSpacing": 12,
             "ShowLabels": True,
             "OffsetY": 60
+        },
+        "Media": {
+            "ShowMediaInfo": True,
+            "MediaPosition": "左下预留",
+            "ShowMediaCover": True,
+            "ShowMediaProgress": True,
+            "ShowMediaLyrics": True,
+            "UpdateInterval": 1,
+            "TextSize": 16,
+            "CoverSize": 64,
+            "LyricsSize": 14,
+            "LyricsLines": 3
         }
     }
 

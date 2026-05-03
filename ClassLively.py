@@ -123,6 +123,7 @@ from ui.dock import QuickLaunchDock
 from ui.settings import SettingInterface
 from ui.wallpaper import WallpaperInterface
 from ui.splash_screen import SplashScreen
+from ui.media_widget import MediaWidget
 from version import BUILD_DATE, VERSION
 
 def verify_singleInst():
@@ -362,6 +363,9 @@ class MainWindow(FluentWindow):
         
         # 初始更新天气
         self.__updateWeatherInterval()
+        
+        # 媒体信息更新
+        self.__initMediaWidget()
         
         sync_autostartCfg()
         
@@ -877,6 +881,18 @@ class MainWindow(FluentWindow):
         self.editLayout.addWidget(self.editButton)
         self.editContainer.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         
+        # 媒体信息容器
+        self.mediaContainer = QWidget()
+        self.mediaContainer.setObjectName("mediaContainer")
+        self.mediaContainerLayout = QVBoxLayout(self.mediaContainer)
+        self.mediaContainerLayout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
+        self.mediaContainerLayout.setContentsMargins(20, 0, 0, 100)
+        self.mediaContainerLayout.setSpacing(0)
+        
+        self.mediaWidget = MediaWidget(self.home)
+        self.mediaWidget.setObjectName("mediaWidget")
+        self.mediaContainerLayout.addWidget(self.mediaWidget)
+        
         # 网格布局
         self.gridLayout = QGridLayout()
         self.gridLayout.setContentsMargins(0, 0, 0, 0)
@@ -889,6 +905,7 @@ class MainWindow(FluentWindow):
         self.gridLayout.addWidget(self.schoolInfoContainer, 0, 0, 1, 1)
         self.gridLayout.addWidget(self.quickLaunchDock, 0, 0, 1, 1, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter)
         self.gridLayout.addWidget(self.editContainer, 0, 0, 1, 1, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
+        self.gridLayout.addWidget(self.mediaContainer, 0, 0, 1, 1)
         
         self.homeContent = QWidget()
         self.homeContent.setLayout(self.gridLayout)
@@ -1050,6 +1067,7 @@ class MainWindow(FluentWindow):
         self.__updatePoetryPosition()
         self.__updateCountdownPosition()
         self.__updateSchoolInfoPosition()
+        self.__updateMediaPosition()
     
     def __updateClockPosition(self):
         """ 更新时间组件位置 """
@@ -1789,6 +1807,86 @@ class MainWindow(FluentWindow):
         if hasattr(self, 'homeContent'):
             self.homeContent.update()
         logger.info(f"学校信息位置已更新为：{position}")
+    
+    def __initMediaWidget(self):
+        """初始化媒体控件"""
+        try:
+            cfg.showMediaInfo.valueChanged.connect(self.__onShowMediaInfoChanged)
+            cfg.mediaPosition.valueChanged.connect(self.__updateMediaPosition)
+            cfg.showMediaCover.valueChanged.connect(self.__onMediaSettingsChanged)
+            cfg.showMediaProgress.valueChanged.connect(self.__onMediaSettingsChanged)
+            cfg.showMediaLyrics.valueChanged.connect(self.__onMediaSettingsChanged)
+            cfg.mediaTextSize.valueChanged.connect(self.__onMediaSettingsChanged)
+            cfg.mediaCoverSize.valueChanged.connect(self.__onMediaSettingsChanged)
+            cfg.mediaLyricsSize.valueChanged.connect(self.__onMediaSettingsChanged)
+            cfg.mediaLyricsLines.valueChanged.connect(self.__onMediaSettingsChanged)
+            cfg.mediaUpdateInterval.valueChanged.connect(self.__onMediaUpdateIntervalChanged)
+            
+            self.__updateMediaPosition()
+            
+            if cfg.showMediaInfo.value:
+                self.mediaWidget.start()
+            else:
+                self.mediaContainer.hide()
+            
+            logger.info("媒体控件初始化完成")
+        except Exception as e:
+            logger.exception(f"初始化媒体控件失败: {e}")
+    
+    def __onShowMediaInfoChanged(self, value: bool):
+        """媒体控件显示状态变化"""
+        if value:
+            self.mediaContainer.show()
+            self.mediaWidget.start()
+        else:
+            self.mediaWidget.stop()
+            self.mediaContainer.hide()
+        logger.info(f"媒体控件显示: {value}")
+    
+    def __onMediaSettingsChanged(self, value):
+        """媒体设置变化"""
+        if hasattr(self, 'mediaWidget'):
+            self.mediaWidget.update_settings()
+    
+    def __onMediaUpdateIntervalChanged(self, value):
+        """媒体更新间隔变化"""
+        if hasattr(self, 'mediaWidget') and cfg.showMediaInfo.value:
+            self.mediaWidget.stop()
+            self.mediaWidget.start()
+    
+    def __updateMediaPosition(self):
+        """更新媒体控件位置"""
+        try:
+            position = cfg.mediaPosition.value
+            margin = 20
+            bottom_offset = 100
+            
+            layout = self.mediaContainerLayout
+            
+            if position == "左上预留":
+                layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+                layout.setContentsMargins(margin, margin, 0, 0)
+            elif position == "右上预留":
+                layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+                layout.setContentsMargins(0, margin, margin, 0)
+            elif position == "左下预留":
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
+                layout.setContentsMargins(margin, 0, 0, bottom_offset)
+            elif position == "右下预留":
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
+                layout.setContentsMargins(0, 0, margin, bottom_offset)
+            else:
+                layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
+                layout.setContentsMargins(margin, 0, 0, bottom_offset)
+            
+            layout.update()
+            self.mediaContainer.update()
+            if hasattr(self, 'homeContent'):
+                self.homeContent.update()
+            
+            logger.info(f"媒体控件位置已更新为：{position}")
+        except Exception as e:
+            logger.exception(f"更新媒体控件位置失败：{e}")
     
     def _checkAndRefreshQuickLaunchIcons(self):
         """刷新启动栏图标"""
