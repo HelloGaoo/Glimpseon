@@ -824,11 +824,19 @@ class WallpaperInterface(ScrollArea):
         self.settingsGroup.addSettingCard(self.autoSyncToDesktopCard)
         
         self.effectsGroup = SettingCardGroup("背景效果", self.contentWidget)
+        self.backgroundBlurCard = RangeSettingCard(
+            cfg.backgroundBlurRadius,
+            FIF.PHOTO,
+            "背景模糊",
+            "设置背景图片的模糊强度（0-30）",
+            parent=self.effectsGroup
+        )
+        self.effectsGroup.addSettingCard(self.backgroundBlurCard)
         self.brightnessCard = RangeSettingCard(
             cfg.wallpaperBrightness,
             FIF.BRIGHTNESS,
             "亮度/暗化",
-            "调整壁纸的明暗程度（负值变暗，正值变亮）",
+            "调整壁纸暗化程度（0正常 ~ -100最暗）",
             parent=self.effectsGroup
         )
         self.effectsGroup.addSettingCard(self.brightnessCard)
@@ -955,6 +963,7 @@ class WallpaperInterface(ScrollArea):
         if hasattr(self, 'mainWindow') and self.mainWindow and hasattr(self.mainWindow, 'homeBackgroundImage'):
             if self.mainWindow.originalPixmap is not None and not self.mainWindow.originalPixmap.isNull():
                 self.mainWindow.resizeEvent(None)
+        if hasattr(self, '_cachedBgSize'):self._cachedBgSize = None
         if self.current_pixmap and not self.current_pixmap.isNull():self._updateBackground()
     
     def _onWallpaperSaveLimitChanged(self, new_limit: int):
@@ -962,9 +971,9 @@ class WallpaperInterface(ScrollArea):
         self._manageWallpaperLimit(wallpaper_dir, new_limit)
     
     def _applyEffects(self):
+        """暗化效果（-100 最暗 ~ 0 正常）"""
         dim_value = cfg.wallpaperBrightness.value
-        opacity = max(0, min(1, 1 + dim_value / 100.0))
-        alpha = 1 - opacity
+        alpha = abs(dim_value) / 100.0
         style_str = f"#dimOverlay {{ background-color: rgba(0, 0, 0, {alpha:.2f}); }}"
         if hasattr(self, 'dimOverlay'):self.dimOverlay.setStyleSheet(style_str)
         if self.mainWindow and hasattr(self.mainWindow, 'homeDimOverlay'):self.mainWindow.homeDimOverlay.setStyleSheet(style_str)

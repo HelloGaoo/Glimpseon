@@ -182,15 +182,6 @@ class SettingInterface(ScrollArea):
             "更改应用程序的主要颜色",
             parent=self.appearanceGroup
         )
-        self.backgroundBlurCard = SpinBoxSettingCard(
-            cfg.backgroundBlurRadius,
-            FIF.PHOTO,
-            "主界面背景模糊",
-            "设置主界面背景图片的模糊强度（0-30）",
-            parent=self.appearanceGroup,
-            min_value=0,
-            max_value=30
-        )
         self.logGroup = SettingCardGroup("日志", self.scrollWidget)
         self.disableLogCard = SwitchSettingCard(
             FIF.CLOSE, 
@@ -255,7 +246,6 @@ class SettingInterface(ScrollArea):
         self.basicGroup.addSettingCard(self.autoOpenMaximizeCard)
         self.appearanceGroup.addSettingCard(self.themeCard)
         self.appearanceGroup.addSettingCard(self.themeColorCard)
-        self.appearanceGroup.addSettingCard(self.backgroundBlurCard)
         self.logGroup.addSettingCard(self.disableLogCard)
         self.logGroup.addSettingCard(self.logLevelCard)
         self.logGroup.addSettingCard(self.logMaxCountCard)
