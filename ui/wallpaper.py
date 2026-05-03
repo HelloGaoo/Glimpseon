@@ -827,35 +827,11 @@ class WallpaperInterface(ScrollArea):
         self.brightnessCard = RangeSettingCard(
             cfg.wallpaperBrightness,
             FIF.BRIGHTNESS,
-            "亮度",
-            "调整壁纸的明暗程度（-100最暗 ~ 0正常 ~ 100最亮）",
+            "亮度/暗化",
+            "调整壁纸的明暗程度（负值变暗，正值变亮）",
             parent=self.effectsGroup
         )
         self.effectsGroup.addSettingCard(self.brightnessCard)
-        self.contrastCard = RangeSettingCard(
-            cfg.wallpaperContrast,
-            FIF.ALBUM,
-            "对比度",
-            "调整壁纸的对比度（-100最低 ~ 0正常 ~ 100最高）",
-            parent=self.effectsGroup
-        )
-        self.effectsGroup.addSettingCard(self.contrastCard)
-        self.saturationCard = RangeSettingCard(
-            cfg.wallpaperSaturation,
-            FIF.PALETTE,
-            "饱和度",
-            "调整壁纸的色彩鲜艳程度（-100黑白 ~ 0正常 ~ 100最艳）",
-            parent=self.effectsGroup
-        )
-        self.effectsGroup.addSettingCard(self.saturationCard)
-        self.colorTemperatureCard = RangeSettingCard(
-            cfg.wallpaperColorTemperature,
-            FIF.HIGHTLIGHT,
-            "色温",
-            "调整壁纸的色调（-100冷色调 ~ 0正常 ~ 100暖色调）",
-            parent=self.effectsGroup
-        )
-        self.effectsGroup.addSettingCard(self.colorTemperatureCard)
         
         self._initWidget()
         self._connectSignalToSlot()
@@ -940,9 +916,6 @@ class WallpaperInterface(ScrollArea):
         cfg.backgroundBlurRadius.valueChanged.connect(self._updateBackgroundBlur)
         cfg.wallpaperSaveLimit.valueChanged.connect(self._onWallpaperSaveLimitChanged)
         cfg.wallpaperBrightness.valueChanged.connect(self._applyEffects)
-        cfg.wallpaperContrast.valueChanged.connect(self._applyEffects)
-        cfg.wallpaperSaturation.valueChanged.connect(self._applyEffects)
-        cfg.wallpaperColorTemperature.valueChanged.connect(self._applyEffects)
         
         self._updateAutoGetTimer()
         self._updateAutoSyncCheckTimer()
@@ -982,60 +955,19 @@ class WallpaperInterface(ScrollArea):
         if hasattr(self, 'mainWindow') and self.mainWindow and hasattr(self.mainWindow, 'homeBackgroundImage'):
             if self.mainWindow.originalPixmap is not None and not self.mainWindow.originalPixmap.isNull():
                 self.mainWindow.resizeEvent(None)
+        if self.current_pixmap and not self.current_pixmap.isNull():self._updateBackground()
     
     def _onWallpaperSaveLimitChanged(self, new_limit: int):
         wallpaper_dir = os.path.join(BASE_DIR, 'wallpaper')
         self._manageWallpaperLimit(wallpaper_dir, new_limit)
     
     def _applyEffects(self):
-        """应用亮度、对比度、饱和度、色温效果"""
-        if not self.current_pixmap or self.current_pixmap.isNull():
-            return
-        
-        brightness = cfg.wallpaperBrightness.value
-        contrast = cfg.wallpaperContrast.value
-        saturation = cfg.wallpaperSaturation.value
-        colorTemp = cfg.wallpaperColorTemperature.value
-        
-        if brightness == 0 and contrast == 0 and saturation == 0 and colorTemp == 0:
-            self._updateBackground()
-            return
-        
-        image = self.current_pixmap.toImage()
-        
-        for y in range(image.height()):
-            for x in range(image.width()):
-                color = image.pixelColor(x, y)
-                r, g, b = color.red(), color.green(), color.blue()
-                
-                if brightness != 0:
-                    factor = (259 * (brightness + 255)) / (255 * (259 - brightness))
-                    r = min(255, max(0, int(factor * (r - 128) + 128)))
-                    g = min(255, max(0, int(factor * (g - 128) + 128)))
-                    b = min(255, max(0, int(factor * (b - 128) + 128)))
-                
-                if contrast != 0:
-                    factor = (259 * (contrast + 255)) / (255 * (259 - contrast))
-                    r = min(255, max(0, int(factor * (r - 128) + 128)))
-                    g = min(255, max(0, int(factor * (g - 128) + 128)))
-                    b = min(255, max(0, int(factor * (b - 128) + 128)))
-                
-                if saturation != 0:
-                    gray = 0.299 * r + 0.587 * g + 0.114 * b
-                    sat_factor = 1 + saturation / 100.0
-                    r = min(255, max(0, int(gray + sat_factor * (r - gray))))
-                    g = min(255, max(0, int(gray + sat_factor * (g - gray))))
-                    b = min(255, max(0, int(gray + sat_factor * (b - gray))))
-                
-                if colorTemp != 0:
-                    temp_factor = colorTemp / 100.0
-                    r = min(255, max(0, int(r * (1 + temp_factor))))
-                    b = min(255, max(0, int(b * (1 - temp_factor))))
-                
-                image.setPixelColor(x, y, QColor(r, g, b))
-        
-        self.current_pixmap = QPixmap.fromImage(image)
-        self._updateBackground()
+        dim_value = cfg.wallpaperBrightness.value
+        opacity = max(0, min(1, 1 + dim_value / 100.0))
+        alpha = 1 - opacity
+        style_str = f"#dimOverlay {{ background-color: rgba(0, 0, 0, {alpha:.2f}); }}"
+        if hasattr(self, 'dimOverlay'):self.dimOverlay.setStyleSheet(style_str)
+        if self.mainWindow and hasattr(self.mainWindow, 'homeDimOverlay'):self.mainWindow.homeDimOverlay.setStyleSheet(style_str)
     
     def _loadWallpaperFromCache(self) -> bool:
         cached = get_cached_content("wallpaper")
@@ -1063,6 +995,7 @@ class WallpaperInterface(ScrollArea):
         
         self._updateBackground()
         self._updateMainWindowBackground()
+        self._applyEffects()
         self.infoCard.updateInfo(wallpaper_path, cached.get("source", "缓存"))
         return True
     
@@ -1118,6 +1051,7 @@ class WallpaperInterface(ScrollArea):
                 if not self.current_pixmap.isNull():
                     self._updateBackground()
                     self._updateMainWindowBackground()
+                    self._applyEffects()
                     
                     self.historyManager.add(wallpaper_path, source, url)
                 
@@ -1161,6 +1095,8 @@ class WallpaperInterface(ScrollArea):
             if not self.current_pixmap.isNull():
                 self._updateBackground()
                 self._updateMainWindowBackground()
+                self._applyEffects()
+                self._applyEffects()
             
             self.infoCard.updateInfo(default_wallpaper_path, "默认")
         else:
@@ -1193,14 +1129,17 @@ class WallpaperInterface(ScrollArea):
         
         scaled_pixmap = self.current_pixmap.scaled(
             available_width, available_height,
-            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.AspectRatioMode.IgnoreAspectRatio,
             Qt.TransformationMode.SmoothTransformation
         )
         
-        if not hasattr(self, '_blurEffect'):
-            self._blurEffect = QGraphicsBlurEffect()
-            self._blurEffect.setBlurRadius(12)
-            self.backgroundImage.setGraphicsEffect(self._blurEffect)
+        blur_radius = cfg.backgroundBlurRadius.value
+        if blur_radius > 0:
+            blur_effect = QGraphicsBlurEffect()
+            blur_effect.setBlurRadius(blur_radius)
+            self.backgroundImage.setGraphicsEffect(blur_effect)
+        else:
+            self.backgroundImage.setGraphicsEffect(None)
         
         self.backgroundImage.setPixmap(scaled_pixmap)
         self.backgroundImage.setGeometry(0, 0, available_width, available_height)
@@ -1262,6 +1201,7 @@ class WallpaperInterface(ScrollArea):
             if not self.current_pixmap.isNull():
                 self._updateBackground()
                 self._updateMainWindowBackground()
+                self._applyEffects()
                 
                 if source != "历史记录":
                     _, api_source = self._getApiUrl()

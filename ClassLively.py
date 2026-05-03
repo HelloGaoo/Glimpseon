@@ -770,6 +770,10 @@ class MainWindow(FluentWindow):
         self.homeBackgroundImage.setPixmap(self.originalPixmap)
         self.homeBackgroundImage.setMinimumSize(100, 100)
         
+        self.homeDimOverlay = QWidget()
+        self.homeDimOverlay.setObjectName("dimOverlay")
+        self.homeDimOverlay.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        
         # 时钟和日期标签
         self.clockLabel = QLabel("00:00:00")
         self.clockLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -877,6 +881,7 @@ class MainWindow(FluentWindow):
         self.gridLayout = QGridLayout()
         self.gridLayout.setContentsMargins(0, 0, 0, 0)
         self.gridLayout.addWidget(self.homeBackgroundImage, 0, 0, 1, 1)
+        self.gridLayout.addWidget(self.homeDimOverlay, 0, 0, 1, 1)
         self.gridLayout.addWidget(self.clockContainer, 0, 0, 1, 1)
         self.gridLayout.addWidget(self.weatherContainer, 0, 0, 1, 1)
         self.gridLayout.addWidget(self.poetryContainer, 0, 0, 1, 1)
