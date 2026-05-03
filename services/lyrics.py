@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-歌词服务模块
+音乐服务模块
 """
 
 import logging
@@ -24,7 +24,7 @@ import sys
 import os
 import time
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict, Any
 
 import requests
 
@@ -36,6 +36,14 @@ if _BASE_DIR not in sys.path:
     sys.path.insert(0, _BASE_DIR)
 
 logger = logging.getLogger(__name__)
+
+NCM_API_BASE = "https://music163.xuanmou.com.cn"
+
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+}
+
+REQUEST_TIMEOUT = 15
 
 
 @dataclass
@@ -59,6 +67,7 @@ class Lyrics:
     song_id: Optional[int] = None
     song_name: str = ""
     artist_name: str = ""
+    
     def is_empty(self) -> bool:
         return len(self.lines) == 0
     
@@ -67,6 +76,7 @@ class Lyrics:
         for i in range(len(self.lines) - 1, -1, -1):
             if self.lines[i].time_ms <= time_ms:return self.lines[i], i
         return self.lines[0], 0
+    
     def get_surrounding_lines(self, time_ms: int, count: int = 3) -> List[Tuple[LyricLine, bool]]:
         if self.is_empty():return []
         _, current_idx = self.get_line(time_ms)
@@ -76,12 +86,24 @@ class Lyrics:
         end_idx = min(len(self.lines), start_idx + count)
         if end_idx - start_idx < count:start_idx = max(0, end_idx - count)
         for i in range(start_idx, end_idx):result.append((self.lines[i], i == current_idx))
-        
         return result
+
+
+@dataclass
+class SongDetail:
+    """歌曲信息"""
+    song_id: int
+    name: str
+    artists: List[str]
+    album_name: str
+    cover_url: str
+    duration: int
+
 
 class LyricParser:
     """LRC"""
     TIME_PATTERN = re.compile(r'\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\]')
+    
     @classmethod
     def parse(cls, lrc_content: str) -> List[LyricLine]:
         if not lrc_content:return []
@@ -93,17 +115,15 @@ class LyricParser:
             if not matches:continue
             text = cls.TIME_PATTERN.sub('', line).strip()
             if not text:continue
-    
+            
             for match in matches:
                 try:
                     minutes = int(match[0])
                     seconds = int(match[1])
                     milliseconds = int(match[2]) if match[2] else 0
                     
-                    if len(match[2]) == 2:
-                        milliseconds *= 10
-                    elif len(match[2]) == 1:
-                        milliseconds *= 100
+                    if len(match[2]) == 2:milliseconds *= 10
+                    elif len(match[2]) == 1:milliseconds *= 100
                     
                     time_ms = minutes * 60 * 1000 + seconds * 1000 + milliseconds
                     lines.append(LyricLine(time_ms=time_ms, text=text))
@@ -114,24 +134,14 @@ class LyricParser:
         return lines
 
 
-class LyricsService:
-    """歌词服务"""
-    
-    SEARCH_API = "https://music.163.com/api/search/get"
-    LYRIC_API = "https://music.163.com/api/song/lyric"
-    
-    HEADERS = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': 'https://music.163.com/',
-    }
-    
-    REQUEST_TIMEOUT = 10
+class NeteaseCloudService:
+    """网易云音乐服务"""
     
     def __init__(self):
-        self._cache: dict = {}
-        self._cache_max_size = 100
+        self._cache: Dict[str, Any] = {}
+        self._cache_max_size = 200
         self._last_request_time = 0
-        self._request_interval = 0.5
+        self._request_interval = 0.3
     
     def _wait_rate_limit(self):
         elapsed = time.time() - self._last_request_time
@@ -139,149 +149,228 @@ class LyricsService:
             time.sleep(self._request_interval - elapsed)
         self._last_request_time = time.time()
     
-    def _get_cache_key(self, song_name: str, artist_name: str = "") -> str:
-        return f"{song_name}_{artist_name}".lower().strip()
+    def _get_cache_key(self, *args) -> str:
+        return "_".join(str(a) for a in args).lower().strip()
     
-    def _get_from_cache(self, key: str) -> Optional[Lyrics]:
+    def _get_cache(self, key: str) -> Optional[Any]:
         return self._cache.get(key)
     
-    def _save_to_cache(self, key: str, lyrics: Lyrics):
+    def _save_cache(self, key: str, data: Any):
         if len(self._cache) >= self._cache_max_size:
             keys = list(self._cache.keys())
             for k in keys[:len(keys) // 2]:
                 del self._cache[k]
-        
-        self._cache[key] = lyrics
+        self._cache[key] = data
     
-    def search_song(self, keyword: str) -> Optional[int]:
-        if not keyword:
-            return None
-        
-        try:
-            self._wait_rate_limit()
-            params = {
-                's': keyword,
-                'type': '1',
-                'limit': '5',
-            }
-            response = requests.get(
-                self.SEARCH_API,
-                params=params,
-                headers=self.HEADERS,
-                timeout=self.REQUEST_TIMEOUT
-            )
-            if response.status_code != 200:
-                logger.debug(f"搜索歌曲失败，状态码: {response.status_code}")
-                return None
-            data = response.json()
-            if data.get('code') != 200:
-                logger.debug(f"搜索歌曲 API 返回错误: {data.get('code')}")
-                return None
-            songs = data.get('result', {}).get('songs', [])
-            if not songs:
-                logger.debug(f"未找到歌曲: {keyword}")
-                return None
-            for song in songs:
-                song_id = song.get('id')
-                if song_id:return song_id
-            
-            return None
-            
-        except requests.exceptions.Timeout:
-            logger.warning(f"搜索歌曲超时: {keyword}")
-            return None
-        except requests.exceptions.RequestException as e:
-            logger.warning(f"搜索歌曲请求失败: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"搜索歌曲异常: {e}")
-            return None
-    
-    def get_lyrics(self, song_id: int) -> Optional[str]:
-        if not song_id:
-            return None
+    def _request(self, endpoint: str, params: Dict = None) -> Optional[Dict]:
+        if params is None:params = {}
         
         try:
             self._wait_rate_limit()
             
-            params = {
-                'id': song_id,
-                'lv': '1',
-                'tv': '-1',
-            }
-            
+            url = f"{NCM_API_BASE}{endpoint}"
             response = requests.get(
-                self.LYRIC_API,
+                url,
                 params=params,
-                headers=self.HEADERS,
-                timeout=self.REQUEST_TIMEOUT
+                headers=HEADERS,
+                timeout=REQUEST_TIMEOUT
             )
             
             if response.status_code != 200:
-                logger.debug(f"获取歌词失败，状态码: {response.status_code}")
+                logger.debug(f"请求失败 {endpoint}: HTTP {response.status_code}")
                 return None
             
             data = response.json()
             
-            if data.get('code') != 200:
-                logger.debug(f"获取歌词 API 返回错误: {data.get('code')}")
+            if data.get('code') != 200 and data.get('code') is not None:
+                logger.debug(f"API返回错误 {endpoint}: code={data.get('code')}")
                 return None
             
-            lrc = data.get('lrc', {})
-            lyric_content = lrc.get('lyric', '')
-            
-            if not lyric_content:
-                tlyric = data.get('tlyric', {})
-                lyric_content = tlyric.get('lyric', '')
-            
-            return lyric_content if lyric_content else None
+            return data
             
         except requests.exceptions.Timeout:
-            logger.warning(f"获取歌词超时: song_id={song_id}")
+            logger.warning(f"请求超时: {endpoint}")
             return None
         except requests.exceptions.RequestException as e:
-            logger.warning(f"获取歌词请求失败: {e}")
+            logger.warning(f"请求异常 {endpoint}: {e}")
             return None
         except Exception as e:
-            logger.error(f"获取歌词异常: {e}")
+            logger.error(f"请求错误 {endpoint}: {e}")
             return None
     
-    def fetch_lyrics(self, song_name: str, artist_name: str = "") -> Optional[Lyrics]:
-        if not song_name:return None
-        cache_key = self._get_cache_key(song_name, artist_name)
-        cached = self._get_from_cache(cache_key)
-        if cached:return cached
-        keyword = f"{song_name} {artist_name}".strip()
-        song_id = self.search_song(keyword)
-        if not song_id:
-            clean_keyword = re.sub(r'[^\w\s\u4e00-\u9fff]', '', song_name)
-            if clean_keyword != keyword:song_id = self.search_song(clean_keyword)
+    def search_song(self, keyword: str, artist: str = "") -> Optional[int]:
+        """搜索歌曲 返回song_id"""
+        if not keyword:return None
+        
+        search_text = keyword
+        if artist:search_text = f"{keyword} {artist}"
+        
+        logger.debug(f"搜索歌曲: {search_text}")
+        
+        data = self._request("/cloudsearch", {
+            'keywords': search_text,
+            'limit': '5',
+            'type': '1'
+        })
+        
+        if not data:return None
+        
+        result = data.get('result', {})
+        songs = result.get('songs', [])
+        
+        if not songs:
+            logger.debug(f"未找到歌曲: {search_text}")
+            return None
+        
+        best_match = songs[0]
+        song_id = best_match.get('id')
+        song_name = best_match.get('name', '')
+        artists = [a.get('name', '') for a in best_match.get('artists', [])]
+        
+        logger.info(f"找到歌曲: {song_name} - {'/'.join(artists)} (ID: {song_id})")
+        return song_id
+    
+    def get_song_detail(self, song_id: int) -> Optional[SongDetail]:
+        """获取信息"""
         if not song_id:return None
-        lrc_content = self.get_lyrics(song_id)
-        if not lrc_content:return None
-        lines = LyricParser.parse(lrc_content)
+        
+        cache_key = self._get_cache_key("detail", song_id)
+        cached = self._get_cache(cache_key)
+        if cached:return cached
+        logger.debug(f"获取歌曲详情: ID={song_id}")
+        data = self._request("/song/detail", {
+            'ids': str(song_id),
+        })
+        if not data:return None
+        songs = data.get('songs', [])
+        if not songs:return None
+        song = songs[0]
+        al = song.get('al', {})
+        ars = [a.get('name', '') for a in song.get('ar', [])]
+        
+        detail = SongDetail(
+            song_id=song.get('id', song_id),
+            name=song.get('name', ''),
+            artists=ars,
+            album_name=al.get('name', ''),
+            cover_url=al.get('picUrl', ''),
+            duration=song.get('dt', 0)
+        )
+        
+        self._save_cache(cache_key, detail)
+        logger.debug(f"歌曲详情: {detail.name} - 封面: {bool(detail.cover_url)}")
+        return detail
+    
+    def get_lyrics(self, song_id: int) -> Optional[Lyrics]:
+        """获取歌词"""
+        if not song_id:return None
+        
+        cache_key = self._get_cache_key("lyric", song_id)
+        cached = self._get_cache(cache_key)
+        if cached and isinstance(cached, Lyrics):return cached
+        
+        logger.debug(f"获取歌词: ID={song_id}")
+        
+        data = self._request("/lyric", {
+            'id': str(song_id),
+        })
+        
+        if not data:return None
+        
+        lrc_data = data.get('lrc', {})
+        lyric_content = lrc_data.get('lyric', '')
+        
+        if not lyric_content:
+            tlyric_data = data.get('tlyric', {})
+            lyric_content = tlyric_data.get('lyric', '')
+        
+        if not lyric_content:
+            logger.debug(f"无歌词内容: ID={song_id}")
+            return None
+        
+        lines = LyricParser.parse(lyric_content)
         if not lines:return None
         
         lyrics = Lyrics(
             lines=lines,
-            raw_lrc=lrc_content,
-            song_id=song_id,
-            song_name=song_name,
-            artist_name=artist_name
+            raw_lrc=lyric_content,
+            song_id=song_id
         )
         
-        self._save_to_cache(cache_key, lyrics)
-        
+        self._save_cache(cache_key, lyrics)
+        logger.info(f"获取到歌词: {len(lines)}行")
         return lyrics
+    
+    def fetch_cover_image(self, cover_url: str) -> Optional[bytes]:
+        """下载封面图片"""
+        if not cover_url:return None
+        
+        cache_key = self._get_cache_key("cover_img", hash(cover_url))
+        cached = self._get_cache(cache_key)
+        if cached:return cached
+        
+        try:
+            self._wait_rate_limit()
+            
+            response = requests.get(
+                cover_url,
+                headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+                    'Referer': 'https://music.163.com/'
+                },
+                timeout=REQUEST_TIMEOUT
+            )
+            
+            if response.status_code == 200:
+                content_type = response.headers.get('Content-Type', '')
+                if 'image' in content_type:
+                    img_data = response.content
+                    if 1024 < len(img_data) < 10 * 1024 * 1024:
+                        self._save_cache(cache_key, img_data)
+                        logger.debug(f"下载封面成功: {len(img_data)} bytes")
+                        return img_data
+            
+            return None
+            
+        except Exception as e:
+            logger.debug(f"下载封面失败: {e}")
+            return None
+    
+    def fetch_all_info(self, song_name: str, artist: str = "") -> Dict[str, Any]:
+        result = {
+            'song_id': None,
+            'detail': None,
+            'lyrics': None,
+            'cover_data': None
+        }
+        
+        song_id = self.search_song(song_name, artist)
+        if not song_id:return result
+        
+        result['song_id'] = song_id
+        
+        detail = self.get_song_detail(song_id)
+        if detail:
+            result['detail'] = detail
+            if detail.cover_url:
+                result['cover_data'] = self.fetch_cover_image(detail.cover_url)
+        
+        result['lyrics'] = self.get_lyrics(song_id)
+        
+        return result
     
     def clear_cache(self):
         self._cache.clear()
 
 
-_lyrics_service_instance: Optional[LyricsService] = None
+_netease_service_instance: Optional[NeteaseCloudService] = None
 
 
-def get_lyrics_service() -> LyricsService:
-    global _lyrics_service_instance
-    if _lyrics_service_instance is None:_lyrics_service_instance = LyricsService()
-    return _lyrics_service_instance
+def get_netease_service() -> NeteaseCloudService:
+    global _netease_service_instance
+    if _netease_service_instance is None:_netease_service_instance = NeteaseCloudService()
+    return _netease_service_instance
+
+
+def get_lyrics_service() -> NeteaseCloudService:
+    return get_netease_service()

@@ -45,7 +45,7 @@ if _BASE_DIR not in sys.path:
 
 from core.config import cfg
 from services.media import MediaInfo, get_media_info_sync, GSMTC_AVAILABLE
-from services.lyrics import Lyrics, get_lyrics_service
+from services.lyrics import get_netease_service, Lyrics
 
 logger = logging.getLogger(__name__)
 
@@ -203,6 +203,9 @@ class MediaWidget(QWidget):
         self._cover_pixmap: Optional[QPixmap] = None
         self._is_fetching_lyrics = False
         self._lyrics_cache: dict = {}
+        self._song_duration_ms: int = 0
+        self._current_position_ms: int = 0
+        self._is_playing: bool = False
         self._init_ui()
         self._setup_timer()
         self._apply_config()
@@ -268,6 +271,9 @@ class MediaWidget(QWidget):
     def _setup_timer(self):
         self._update_timer = QTimer(self)
         self._update_timer.timeout.connect(self._update_media_info)
+        
+        self._progress_timer = QTimer(self)
+        self._progress_timer.timeout.connect(self._update_progress)
     
     def _apply_config(self):
         self._update_style()
@@ -323,32 +329,50 @@ class MediaWidget(QWidget):
         self._lyrics_widget.set_visible_lines(cfg.mediaLyricsLines.value)
     
     def start(self):
-        if not GSMTC_AVAILABLE:
-            logger.warning("GSMTC 不可用，媒体控件不会启动")
-            self.hide()
-            return
-        
+        logger.info("正在启动媒体控件...")
         interval = cfg.mediaUpdateInterval.value * 1000
         self._update_timer.start(interval)
+        self._progress_timer.start(1000)
         self._update_media_info()
         logger.info("媒体控件已启动")
     
     def stop(self):
         self._update_timer.stop()
+        self._progress_timer.stop()
         logger.info("媒体控件已停止")
+    
+    def _update_progress(self):
+        if not self._is_playing or self._song_duration_ms <= 0:
+            return
+        
+        media_info = get_media_info_sync()
+        if media_info and media_info.is_valid() and media_info.position_ms > 0:
+            self._current_position_ms = media_info.position_ms
+            self._is_playing = media_info.is_playing
+            
+            if cfg.showMediaProgress.value and self._song_duration_ms > 0:
+                progress = int((self._current_position_ms / self._song_duration_ms) * 100)
+                self._progress_bar.setValue(min(100, progress))
+                self._time_label.setText(self._format_time(self._current_position_ms))
+            
+            if self._current_lyrics and not self._current_lyrics.is_empty():
+                self._lyrics_widget.update_position(self._current_position_ms)
     
     def _update_media_info(self):
         if not cfg.showMediaInfo.value:
             self.hide()
             return
         
+        logger.debug("正在获取媒体信息...")
         media_info = get_media_info_sync()
         
         if media_info is None:
+            logger.warning("get_media_info_sync 返回 None")
             self._show_no_media()
             return
         
         if not media_info.is_valid():
+            logger.info(f"媒体信息无效: title={media_info.title}, artist={media_info.artist}")
             self._show_no_media()
             return
         
@@ -367,35 +391,65 @@ class MediaWidget(QWidget):
         self._current_media = None
         self._current_lyrics = None
         self._last_title_artist = ""
+        self._is_playing = False
+        self._song_duration_ms = 0
         if cfg.showMediaInfo.value:self.show()
+    
+    @staticmethod
+    def _format_time(ms: int) -> str:
+        seconds = max(0, ms // 1000)
+        minutes = seconds // 60
+        secs = seconds % 60
+        return f"{minutes}:{secs:02d}"
     
     def _update_display(self, media_info: MediaInfo):
         title = media_info.title or "未知歌曲"
         artist = media_info.artist or ""
-        self._title_label.setText(title)
-        self._artist_label.setText(artist)
+        
+        is_new_song = (media_info.title_artist != self._last_title_artist)
+        
+        if is_new_song:
+            self._last_title_artist = media_info.title_artist
+            self._current_position_ms = media_info.position_ms
+            self._is_playing = media_info.is_playing
+            
+            if media_info.duration_ms > 0:
+                self._song_duration_ms = media_info.duration_ms
+            else:
+                self._song_duration_ms = 0
+            
+            self._title_label.setText(title)
+            self._artist_label.setText(artist)
+            
+            self._fetch_all_info_async(title, artist)
+        
+        self._is_playing = media_info.is_playing
+        
+        if media_info.position_ms > 0:
+            self._current_position_ms = media_info.position_ms
         
         if cfg.showMediaProgress.value:
             self._progress_container.show()
-            progress = int(media_info.get_progress_percent() * 100)
-            self._progress_bar.setValue(progress)
-            self._time_label.setText(media_info.format_position())
-            self._duration_label.setText(media_info.format_duration())
+            
+            if self._song_duration_ms > 0:
+                progress = int((self._current_position_ms / self._song_duration_ms) * 100)
+                self._progress_bar.setValue(min(100, progress))
+                self._time_label.setText(self._format_time(self._current_position_ms))
+                self._duration_label.setText(self._format_time(self._song_duration_ms))
+            else:
+                self._progress_bar.setValue(0)
+                self._time_label.setText(self._format_time(self._current_position_ms))
+                self._duration_label.setText("0:00")
         else:
             self._progress_container.hide()
         
         if cfg.showMediaCover.value:
             self._cover_label.show()
-            if media_info.thumbnail_data:
-                self._load_cover(media_info.thumbnail_data)
-            else:
-                self._set_default_cover()
         else:
             self._cover_label.hide()
         
         if cfg.showMediaLyrics.value:
             self._lyrics_widget.show()
-            self._update_lyrics(media_info)
         else:
             self._lyrics_widget.hide()
     
@@ -418,32 +472,29 @@ class MediaWidget(QWidget):
             logger.debug(f"加载封面失败: {e}")
             self._set_default_cover()
     
-    def _update_lyrics(self, media_info: MediaInfo):
-        current_title_artist = media_info.title_artist
-        
-        if current_title_artist != self._last_title_artist:
-            self._last_title_artist = current_title_artist
-            self._fetch_lyrics_async(media_info.title, media_info.artist)
-        
-        if self._current_lyrics:
-            self._lyrics_widget.update_position(media_info.position_ms)
-    
-    def _fetch_lyrics_async(self, title: str, artist: str):
+    def _fetch_all_info_async(self, title: str, artist: str):
+        """异步获取歌词和封面"""
         if self._is_fetching_lyrics:
             return
         
         cache_key = f"{title}_{artist}".lower()
-        if cache_key in self._lyrics_cache:
-            self._current_lyrics = self._lyrics_cache[cache_key]
-            self._lyrics_widget.set_lyrics(self._current_lyrics)
-            return
         
         self._is_fetching_lyrics = True
         
         try:
-            service = get_lyrics_service()
-            lyrics = service.fetch_lyrics(title, artist)
+            service = get_netease_service()
             
+            info = service.fetch_all_info(title, artist)
+            
+            if info.get('detail'):
+                detail = info['detail']
+                if detail.duration > 0:
+                    self._song_duration_ms = detail.duration
+            
+            if info.get('cover_data') and cfg.showMediaCover.value:
+                self._load_cover(info['cover_data'])
+            
+            lyrics = info.get('lyrics')
             if lyrics:
                 self._current_lyrics = lyrics
                 self._lyrics_cache[cache_key] = lyrics
@@ -451,8 +502,9 @@ class MediaWidget(QWidget):
             else:
                 self._current_lyrics = None
                 self._lyrics_widget.set_lyrics(None)
+                
         except Exception as e:
-            logger.debug(f"获取歌词失败: {e}")
+            logger.debug(f"获取歌曲信息失败: {e}")
             self._current_lyrics = None
         finally:
             self._is_fetching_lyrics = False
@@ -465,5 +517,5 @@ class MediaWidget(QWidget):
     
     def clear_cache(self):
         self._lyrics_cache.clear()
-        service = get_lyrics_service()
+        service = get_netease_service()
         service.clear_cache()
