@@ -18,6 +18,14 @@
 进程管理模块 - 基于命名互斥锁实现单实例检测
 """
 
+import os
+import sys
+if getattr(sys, 'frozen', False):
+    _BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
+else:
+    _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _BASE_DIR not in sys.path:sys.path.insert(0, _BASE_DIR)
+
 import ctypes
 from ctypes import wintypes
 

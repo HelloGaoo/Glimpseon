@@ -22,6 +22,12 @@ import datetime
 import logging
 import os
 import re
+import sys
+if getattr(sys, 'frozen', False):
+    _BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
+else:
+    _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _BASE_DIR not in sys.path:sys.path.insert(0, _BASE_DIR)
 
 from PyQt6.QtCore import QByteArray, QDate, QEasingCurve, QFileInfo, QPropertyAnimation, QRect, Qt, QTime, QTimer
 from PyQt6.QtGui import QColor, QIcon, QPixmap
