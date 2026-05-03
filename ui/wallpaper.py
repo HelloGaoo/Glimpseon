@@ -112,7 +112,6 @@ class WallpaperRecord:
     added_time: str
     file_size: int
     resolution: str
-    favorite: bool = False
     
     def exists(self) -> bool:
         return os.path.exists(self.path)
@@ -129,8 +128,7 @@ class WallpaperRecord:
             api_url=data.get('api_url', ''),
             added_time=data.get('added_time', ''),
             file_size=data.get('file_size', 0),
-            resolution=data.get('resolution', '未知'),
-            favorite=data.get('favorite', False)
+            resolution=data.get('resolution', '未知')
         )
 
 
@@ -173,6 +171,35 @@ class WallpaperHistory:
         except Exception as e:
             logger.error(f"加载壁纸历史记录失败：{e}")
             self._history = []
+        
+        self.clear_invalid()
+    
+    def sync_cleanup(self, max_files: int = None):
+        if max_files is None:
+            from core.config import cfg
+            max_files = cfg.wallpaperSaveLimit.value
+        if not os.path.exists(self.wallpaper_dir):return
+        wallpapers = []
+        for file in os.listdir(self.wallpaper_dir):
+            if file.endswith('.jpg') and file.startswith('wallpaper_'):
+                file_path = os.path.join(self.wallpaper_dir, file)
+                mtime = os.path.getmtime(file_path)
+                wallpapers.append((mtime, file_path))
+        
+        wallpapers.sort(key=lambda x: x[0])
+        deleted_count = 0
+        while len(wallpapers) > max_files:
+            _, old_file_path = wallpapers.pop(0)
+            try:
+                os.remove(old_file_path)
+                record_id = os.path.splitext(os.path.basename(old_file_path))[0]
+                self.remove(record_id)
+                deleted_count += 1
+            except Exception as e:
+                logger.warning(f"删除壁纸失败 {old_file_path}: {e}")
+        if deleted_count > 0:logger.info(f"共删除 {deleted_count} 个壁纸")
+        
+        return deleted_count
     
     def _save(self):
         if not os.path.exists(self.wallpaper_dir):
@@ -259,22 +286,11 @@ class WallpaperHistory:
         return len(invalid)
     
     def clear_all(self):
-        self._history = [r for r in self._history if r.favorite]
+        self._history.clear()
         self._save()
     
     def count(self) -> int:
         return len(self._history)
-    
-    def toggle_favorite(self, record_id: str):
-        for r in self._history:
-            if r.id == record_id:
-                r.favorite = not r.favorite
-                self._save()
-                return r.favorite
-        return False
-    
-    def get_favorites(self) -> List[WallpaperRecord]:
-        return [r for r in self._history if r.favorite and r.exists()]
 
 
 def get_wallpaper_history() -> WallpaperHistory:
@@ -341,7 +357,6 @@ class WallpaperPreviewDialog(MessageBoxBase):
     """壁纸预览弹窗"""
     useRequested = pyqtSignal(str)
     deleteRequested = pyqtSignal(str)
-    favoriteToggled = pyqtSignal(str, bool)
     
     def __init__(self, record: WallpaperRecord, parent=None):
         super().__init__(parent)
@@ -383,13 +398,6 @@ class WallpaperPreviewDialog(MessageBoxBase):
         self.useButton.setFixedHeight(36)
         self.useButton.clicked.connect(self._onUse)
 
-        self.favButton = PushButton("★ 收藏" if not self.record.favorite else "★ 已收藏", self)
-        self.favButton.setFixedWidth(90)
-        self.favButton.setFixedHeight(36)
-        self.favButton.setCheckable(True)
-        self.favButton.setChecked(self.record.favorite)
-        self.favButton.clicked.connect(self._toggleFavorite)
-
         self.deleteButton = PushButton(FIF.DELETE, "删除", self)
         self.deleteButton.setFixedWidth(100)
         self.deleteButton.setFixedHeight(36)
@@ -397,8 +405,6 @@ class WallpaperPreviewDialog(MessageBoxBase):
         
         btnLayout = QHBoxLayout()
         btnLayout.addStretch(1)
-        btnLayout.addWidget(self.favButton)
-        btnLayout.addSpacing(10)
         btnLayout.addWidget(self.useButton)
         btnLayout.addSpacing(10)
         btnLayout.addWidget(self.deleteButton)
@@ -433,12 +439,6 @@ class WallpaperPreviewDialog(MessageBoxBase):
     def _onDelete(self):
         self.deleteRequested.emit(self.record.id)
         self.reject()
-    
-    def _toggleFavorite(self):
-        self.record.favorite = not self.record.favorite
-        self.favButton.setText("★ 已收藏" if self.record.favorite else "★ 收藏")
-        self.favButton.setChecked(self.record.favorite)
-        self.favoriteToggled.emit(self.record.id, self.record.favorite)
 
 
 class WallpaperThumbnailCard(CardWidget):
@@ -502,7 +502,6 @@ class WallpaperHistoryWidget(QWidget):
         self._displayedCount = 0
         self._cards: list[WallpaperThumbnailCard] = []
         self._currentColumns = 4
-        self._showOnlyFavorites = False
         self._setupUi()
         self._loadHistory()
     
@@ -524,18 +523,11 @@ class WallpaperHistoryWidget(QWidget):
         self.clearInvalidBtn.setFixedHeight(36)
         self.clearInvalidBtn.setMinimumWidth(100)
         self.clearInvalidBtn.clicked.connect(self._clearAll)
-
-        self.favFilterBtn = PushButton("★ 收藏", self)
-        self.favFilterBtn.setFixedHeight(36)
-        self.favFilterBtn.setCheckable(True)
-        self.favFilterBtn.clicked.connect(self._toggleFavFilter)
         
         headerLayout.addWidget(self.titleLabel)
         headerLayout.addSpacing(10)
         headerLayout.addWidget(self.countLabel)
         headerLayout.addStretch(1)
-        headerLayout.addWidget(self.favFilterBtn)
-        headerLayout.addSpacing(6)
         headerLayout.addWidget(self.clearInvalidBtn)
         
         self.gridContainer = QWidget()
@@ -617,7 +609,6 @@ class WallpaperHistoryWidget(QWidget):
     
     def _loadHistory(self):
         records = self.historyManager.get_valid()
-        if self._showOnlyFavorites: records = [r for r in records if r.favorite]
         self._allRecords = records
         self._displayedCount = 0
         self._cards.clear()
@@ -669,19 +660,6 @@ class WallpaperHistoryWidget(QWidget):
     def _loadMore(self):
         self._displayPage(self._calcLoadMoreCount())
     
-    def _toggleFavFilter(self):
-        self._showOnlyFavorites = not self._showOnlyFavorites
-        self.favFilterBtn.setText("★ 全部" if self._showOnlyFavorites else "★ 收藏")
-        self._loadHistory()
-    
-    def _onDialogFavoriteToggled(self, record_id: str, is_fav: bool):
-        for r in self.historyManager._history:
-            if r.id == record_id:
-                r.favorite = is_fav
-                break
-        self.historyManager._save()
-        if self._showOnlyFavorites and not is_fav: self._loadHistory()
-    
     def _showPreview(self, record: WallpaperRecord):
         mw = self.window()
         mask = QWidget(mw)
@@ -694,7 +672,6 @@ class WallpaperHistoryWidget(QWidget):
         dialog = WallpaperPreviewDialog(record, mask)
         dialog.useRequested.connect(self._onUseWallpaper)
         dialog.deleteRequested.connect(self._onDeleteWallpaper)
-        dialog.favoriteToggled.connect(self._onDialogFavoriteToggled)
         dialog.exec()
         mask.close()
         mask.deleteLater()
@@ -709,7 +686,6 @@ class WallpaperHistoryWidget(QWidget):
     
     def _clearAll(self):
         count = self.historyManager.count()
-        fav_count = len(self.historyManager.get_favorites())
         if count == 0:return
         mw = self.window()
         
@@ -720,8 +696,7 @@ class WallpaperHistoryWidget(QWidget):
         mask.setStyleSheet("background-color: rgba(0, 0, 0, 120);")
         mask.show()
         
-        hint = f"\n（保留已收藏的 {fav_count} 条）" if fav_count > 0 else ""
-        w = MessageBox("确认清空", f"确定要清空全部 {count} 条壁纸历史记录吗？{hint}", mask)
+        w = MessageBox("确认清空", f"确定要清空全部 {count} 条壁纸历史记录吗？", mask)
         w.yesButton.setText('确认清空')
         w.cancelButton.setText('取消')
         if w.exec():
@@ -807,8 +782,6 @@ class WallpaperInterface(ScrollArea):
         self.setWallpaperButton.setFixedHeight(36)
         self.setWallpaperButton.setFixedWidth(120)
         
-        self.historyWidget = WallpaperHistoryWidget(self.contentWidget)
-        
         self._initWidget()
         self._connectSignalToSlot()
     
@@ -823,6 +796,8 @@ class WallpaperInterface(ScrollArea):
         
         self._initLayout()
         self._setQss()
+        
+        self.historyManager.sync_cleanup()
         
         self._loadDefaultWallpaper()
     
@@ -841,8 +816,6 @@ class WallpaperInterface(ScrollArea):
         self.contentLayout.addSpacing(16)
         self.contentLayout.addLayout(actionRow)
         self.contentLayout.addWidget(self.infoCard)
-        self.contentLayout.addSpacing(24)
-        self.contentLayout.addWidget(self.historyWidget)
         self.contentLayout.addStretch(1)
         
         gridLayout = QGridLayout()
@@ -882,8 +855,6 @@ class WallpaperInterface(ScrollArea):
         self.saveButton.clicked.connect(self._saveWallpaper)
         self.selectButton.clicked.connect(self._selectWallpaper)
         self.setWallpaperButton.clicked.connect(self._setWallpaper)
-        
-        self.historyWidget.wallpaperSelected.connect(self._useWallpaperFromHistory)
         
         cfg.autoGetInterval.valueChanged.connect(self._updateAutoGetTimer)
         cfg.autoSyncToDesktop.valueChanged.connect(self._updateAutoSyncCheckTimer)
@@ -928,6 +899,35 @@ class WallpaperInterface(ScrollArea):
             if self.mainWindow.originalPixmap is not None and not self.mainWindow.originalPixmap.isNull():
                 self.mainWindow.resizeEvent(None)
     
+    def _loadWallpaperFromCache(self) -> bool:
+        cached = get_cached_content("wallpaper")
+        if not cached:
+            logger.debug("壁纸缓存不存在")
+            return False
+        
+        wallpaper_path = cached.get("path", "")
+        if not wallpaper_path:
+            logger.warning("壁纸缓存数据异常：缺少路径信息")
+            return False
+        
+        if not os.path.exists(wallpaper_path):
+            logger.warning(f"缓存壁纸文件不存在: {wallpaper_path}")
+            return False
+        
+        logger.info(f"使用缓存壁纸: {wallpaper_path}")
+        self.current_pixmap = QPixmap(wallpaper_path)
+        self.current_wallpaper_path = wallpaper_path
+        self.current_wallpaper_source = cached.get("source", "缓存")
+        
+        if self.current_pixmap.isNull():
+            logger.error(f"无法加载缓存壁纸图片: {wallpaper_path}")
+            return False
+        
+        self._updateBackground()
+        self._updateMainWindowBackground()
+        self.infoCard.updateInfo(wallpaper_path, cached.get("source", "缓存"))
+        return True
+    
     def _getApiUrl(self) -> tuple:
         wallpaper_api = cfg.wallpaperApi.value
         api_map = {
@@ -941,23 +941,7 @@ class WallpaperInterface(ScrollArea):
     def _getWallpaper(self):
         logger.info("开始获取壁纸")
         
-        cached = get_cached_content("wallpaper")
-        if cached:
-            wallpaper_path = cached.get("path", "")
-            if os.path.exists(wallpaper_path):
-                logger.info(f"使用缓存壁纸: {wallpaper_path}")
-                self.current_pixmap = QPixmap(wallpaper_path)
-                self.current_wallpaper_path = wallpaper_path
-                self.current_wallpaper_source = cached.get("source", "缓存")
-                
-                if not self.current_pixmap.isNull():
-                    self._updateBackground()
-                    self._updateMainWindowBackground()
-                
-                self.infoCard.updateInfo(wallpaper_path, cached.get("source", "缓存"))
-                return
-            else:
-                logger.warning(f"缓存壁纸文件不存在: {wallpaper_path}")
+        if self._loadWallpaperFromCache():return
         
         success = False
         
@@ -998,7 +982,6 @@ class WallpaperInterface(ScrollArea):
                     self._updateMainWindowBackground()
                     
                     self.historyManager.add(wallpaper_path, source, url)
-                    self.historyWidget.refresh()
                 
                 self.infoCard.updateInfo(wallpaper_path, source)
                 
@@ -1020,6 +1003,8 @@ class WallpaperInterface(ScrollArea):
             self._loadDefaultWallpaper()
     
     def _loadDefaultWallpaper(self):
+        logger.info("加载默认壁纸")
+        if self._loadWallpaperFromCache():return
         default_wallpaper_path = get_resPath(os.path.join('resource', 'wallpaper', 'default.jpg'))
         
         if not os.path.exists(default_wallpaper_path):
@@ -1126,9 +1111,6 @@ class WallpaperInterface(ScrollArea):
         if file_path:
             self._useWallpaper(file_path, "本地选择")
     
-    def _useWallpaperFromHistory(self, path: str):
-        self._useWallpaper(path, "历史记录")
-    
     def _useWallpaper(self, path: str, source: str):
         if not os.path.exists(path):
             InfoBar.error("错误", "壁纸文件不存在", duration=3000, parent=self)
@@ -1146,7 +1128,6 @@ class WallpaperInterface(ScrollArea):
                 if source != "历史记录":
                     _, api_source = self._getApiUrl()
                     self.historyManager.add(path, source if source != "本地选择" else api_source, "")
-                    self.historyWidget.refresh()
                 
                 self.infoCard.updateInfo(path, source)
                 
@@ -1158,21 +1139,7 @@ class WallpaperInterface(ScrollArea):
             InfoBar.error("错误", f"应用失败：{str(e)}", duration=5000, parent=self)
     
     def _manageWallpaperLimit(self, wallpaper_dir, save_limit):
-        wallpapers = []
-        for file in os.listdir(wallpaper_dir):
-            if file.endswith('.jpg') and file.startswith('wallpaper_'):
-                file_path = os.path.join(wallpaper_dir, file)
-                mtime = os.path.getmtime(file_path)
-                wallpapers.append((mtime, file_path))
-        
-        wallpapers.sort(key=lambda x: x[0])
-        
-        while len(wallpapers) > save_limit:
-            _, file_path = wallpapers.pop(0)
-            try:
-                os.remove(file_path)
-            except Exception:
-                pass
+        self.historyManager.sync_cleanup(save_limit)
     
     def _setWallpaper(self, show_notification=True):
         if self.current_wallpaper_path is None:
