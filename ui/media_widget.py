@@ -65,11 +65,9 @@ class LyricsDisplayWidget(QWidget):
         self._highlight_color = QColor(255, 255, 255, 255)
         self._scroll_offset = 0.0
         self._target_offset = 0.0
-        
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setFixedHeight(self._visible_lines * self._line_height + 10)
-        
         self._scroll_animation = QPropertyAnimation(self, QByteArray(b'scrollOffset'))
         self._scroll_animation.setDuration(300)
         self._scroll_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
@@ -106,23 +104,18 @@ class LyricsDisplayWidget(QWidget):
         self.update()
     
     def update_position(self, position_ms: int):
-        if not self._lyrics or self._lyrics.is_empty():
-            return
-        
-        line, idx = self._lyrics.get_line_at_time(position_ms)
-        
+        if not self._lyrics or self._lyrics.is_empty():return
+        line, idx = self._lyrics.get_line(position_ms)
         if idx != self._current_index and idx >= 0:
             self._current_index = idx
             self._animate_to_line(idx)
             self.update()
     
     def _animate_to_line(self, line_index: int):
-        if not self._lines:
-            return
+        if not self._lines:return
         
         half = self._visible_lines // 2
         self._target_offset = max(0, (line_index - half) * self._line_height)
-        
         self._scroll_animation.stop()
         self._scroll_animation.setStartValue(self._scroll_offset)
         self._scroll_animation.setEndValue(self._target_offset)
@@ -132,7 +125,6 @@ class LyricsDisplayWidget(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
-        
         if not self._lines:
             painter.setPen(self._text_color)
             font = QFont("HarmonyOS Sans SC", self._text_size)
@@ -142,17 +134,12 @@ class LyricsDisplayWidget(QWidget):
         
         font = QFont("HarmonyOS Sans SC", self._text_size)
         painter.setFont(font)
-        
         rect_height = self.height()
         painter.setClipRect(0, 0, self.width(), rect_height)
-        
         y_offset = rect_height // 2 - self._line_height // 2 - self._scroll_offset
-        
         for i, line in enumerate(self._lines):
             y = y_offset + i * self._line_height + self._line_height - 5
-            
-            if y < -self._line_height or y > rect_height + self._line_height:
-                continue
+            if y < -self._line_height or y > rect_height + self._line_height:continue
             
             if i == self._current_index:
                 gradient = QLinearGradient(0, y - self._text_size, 0, y)
@@ -166,7 +153,6 @@ class LyricsDisplayWidget(QWidget):
                 distance = abs(i - self._current_index) if self._current_index >= 0 else 10
                 alpha = max(80, 200 - distance * 30)
                 painter.setPen(QColor(255, 255, 255, alpha))
-            
             text_rect = self.width() - 20
             painter.drawText(10, int(y), text_rect, self._line_height, 
                            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, 
@@ -181,7 +167,7 @@ class LyricsDisplayWidget(QWidget):
 
 
 class ProgressBar(QProgressBar):
-    """自定义进度条"""
+    """进度条"""
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -193,7 +179,6 @@ class ProgressBar(QProgressBar):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(self._bg_color)
         painter.drawRoundedRect(0, 0, self.width(), self.height(), 2, 2)
@@ -212,14 +197,12 @@ class MediaWidget(QWidget):
         self.setObjectName("mediaWidget")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        
         self._current_media: Optional[MediaInfo] = None
         self._current_lyrics: Optional[Lyrics] = None
         self._last_title_artist = ""
         self._cover_pixmap: Optional[QPixmap] = None
         self._is_fetching_lyrics = False
         self._lyrics_cache: dict = {}
-        
         self._init_ui()
         self._setup_timer()
         self._apply_config()
@@ -228,57 +211,45 @@ class MediaWidget(QWidget):
         self._main_layout = QHBoxLayout(self)
         self._main_layout.setContentsMargins(15, 10, 15, 10)
         self._main_layout.setSpacing(15)
-        
         self._cover_label = QLabel()
         self._cover_label.setFixedSize(64, 64)
         self._cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._cover_label.setObjectName("mediaCover")
         self._set_default_cover()
         self._main_layout.addWidget(self._cover_label)
-        
         self._info_layout = QVBoxLayout()
         self._info_layout.setSpacing(6)
         self._info_layout.setContentsMargins(0, 0, 0, 0)
-        
         self._title_label = QLabel("未在播放")
         self._title_label.setObjectName("mediaTitle")
         self._title_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self._title_label.setWordWrap(False)
         self._info_layout.addWidget(self._title_label)
-        
         self._artist_label = QLabel("")
         self._artist_label.setObjectName("mediaArtist")
         self._artist_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self._artist_label.setWordWrap(False)
         self._info_layout.addWidget(self._artist_label)
-        
         self._progress_container = QWidget()
         self._progress_layout = QHBoxLayout(self._progress_container)
         self._progress_layout.setContentsMargins(0, 0, 0, 0)
         self._progress_layout.setSpacing(8)
-        
         self._time_label = QLabel("0:00")
         self._time_label.setObjectName("mediaTime")
         self._time_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self._progress_layout.addWidget(self._time_label)
-        
         self._progress_bar = ProgressBar()
         self._progress_bar.setRange(0, 100)
         self._progress_bar.setValue(0)
         self._progress_layout.addWidget(self._progress_bar, 1)
-        
         self._duration_label = QLabel("0:00")
         self._duration_label.setObjectName("mediaTime")
         self._duration_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self._progress_layout.addWidget(self._duration_label)
-        
         self._info_layout.addWidget(self._progress_container)
-        
         self._main_layout.addLayout(self._info_layout, 1)
-        
         self._lyrics_widget = LyricsDisplayWidget()
         self._main_layout.addWidget(self._lyrics_widget, 1)
-        
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setFixedHeight(90)
     
@@ -396,13 +367,11 @@ class MediaWidget(QWidget):
         self._current_media = None
         self._current_lyrics = None
         self._last_title_artist = ""
-        if cfg.showMediaInfo.value:
-            self.show()
+        if cfg.showMediaInfo.value:self.show()
     
     def _update_display(self, media_info: MediaInfo):
         title = media_info.title or "未知歌曲"
         artist = media_info.artist or ""
-        
         self._title_label.setText(title)
         self._artist_label.setText(artist)
         

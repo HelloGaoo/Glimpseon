@@ -881,12 +881,14 @@ class MainWindow(FluentWindow):
         self.editLayout.addWidget(self.editButton)
         self.editContainer.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         
-        # 媒体信息容器
+        # 媒体信息
         self.mediaContainer = QWidget()
         self.mediaContainer.setObjectName("mediaContainer")
+        self.mediaContainer.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.mediaContainer.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         self.mediaContainerLayout = QVBoxLayout(self.mediaContainer)
         self.mediaContainerLayout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-        self.mediaContainerLayout.setContentsMargins(20, 0, 0, 100)
+        self.mediaContainerLayout.setContentsMargins(120, 0, 0, 100)
         self.mediaContainerLayout.setSpacing(0)
         
         self.mediaWidget = MediaWidget(self.home)
@@ -905,7 +907,7 @@ class MainWindow(FluentWindow):
         self.gridLayout.addWidget(self.schoolInfoContainer, 0, 0, 1, 1)
         self.gridLayout.addWidget(self.quickLaunchDock, 0, 0, 1, 1, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter)
         self.gridLayout.addWidget(self.editContainer, 0, 0, 1, 1, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-        self.gridLayout.addWidget(self.mediaContainer, 0, 0, 1, 1)
+        self.gridLayout.addWidget(self.mediaContainer, 0, 0, 1, 1, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
         
         self.homeContent = QWidget()
         self.homeContent.setLayout(self.gridLayout)
@@ -1823,18 +1825,16 @@ class MainWindow(FluentWindow):
             cfg.mediaUpdateInterval.valueChanged.connect(self.__onMediaUpdateIntervalChanged)
             
             self.__updateMediaPosition()
-            
             if cfg.showMediaInfo.value:
                 self.mediaWidget.start()
             else:
                 self.mediaContainer.hide()
             
-            logger.info("媒体控件初始化完成")
         except Exception as e:
             logger.exception(f"初始化媒体控件失败: {e}")
     
     def __onShowMediaInfoChanged(self, value: bool):
-        """媒体控件显示状态变化"""
+        """媒体状态变化"""
         if value:
             self.mediaContainer.show()
             self.mediaWidget.start()
@@ -1844,40 +1844,39 @@ class MainWindow(FluentWindow):
         logger.info(f"媒体控件显示: {value}")
     
     def __onMediaSettingsChanged(self, value):
-        """媒体设置变化"""
-        if hasattr(self, 'mediaWidget'):
-            self.mediaWidget.update_settings()
+        if hasattr(self, 'mediaWidget'):self.mediaWidget.update_settings()
     
     def __onMediaUpdateIntervalChanged(self, value):
-        """媒体更新间隔变化"""
+        """媒体间隔变化"""
         if hasattr(self, 'mediaWidget') and cfg.showMediaInfo.value:
             self.mediaWidget.stop()
             self.mediaWidget.start()
     
     def __updateMediaPosition(self):
-        """更新媒体控件位置"""
+        """更新媒体位置"""
         try:
             position = cfg.mediaPosition.value
             margin = 20
             bottom_offset = 100
+            left_offset = 120
             
             layout = self.mediaContainerLayout
             
             if position == "左上预留":
                 layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-                layout.setContentsMargins(margin, margin, 0, 0)
+                layout.setContentsMargins(left_offset, margin, 0, 0)
             elif position == "右上预留":
                 layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
                 layout.setContentsMargins(0, margin, margin, 0)
             elif position == "左下预留":
                 layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-                layout.setContentsMargins(margin, 0, 0, bottom_offset)
+                layout.setContentsMargins(left_offset, 0, 0, bottom_offset)
             elif position == "右下预留":
                 layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
                 layout.setContentsMargins(0, 0, margin, bottom_offset)
             else:
                 layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-                layout.setContentsMargins(margin, 0, 0, bottom_offset)
+                layout.setContentsMargins(left_offset, 0, 0, bottom_offset)
             
             layout.update()
             self.mediaContainer.update()

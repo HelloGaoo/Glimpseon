@@ -16,7 +16,6 @@
 
 """
 媒体信息服务模块
-使用 Windows Global System Media Transport Controls (GSMTC) API 获取系统媒体信息
 """
 
 import asyncio
@@ -46,9 +45,6 @@ try:
         GlobalSystemMediaTransportControlsSessionPlaybackStatus as PlaybackStatus,
     )
     GSMTC_AVAILABLE = True
-    logger.info("Windows GSMTC API 已加载")
-except ImportError:
-    logger.warning("winsdk 未安装，媒体信息功能不可用。请运行: pip install winsdk")
 except Exception as e:
     logger.warning(f"加载 Windows GSMTC API 失败: {e}")
 
@@ -130,12 +126,10 @@ class MediaService:
         if not self._initialized or not self._session_manager:
             if not await self.initialize():
                 return None
-        
+
         try:
             session = self._session_manager.get_current_session()
-            if not session:
-                return MediaInfo()
-            
+            if not session:return MediaInfo()
             media_info = MediaInfo()
             
             try:
