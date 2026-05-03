@@ -1927,7 +1927,9 @@ if __name__ == "__main__":
     auto_start_launch = autoStart_launch()
 
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
-
+    
+    if cfg.enableGpuAcceleration.value:QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseOpenGLES)
+    
     extract_files()
     
     app = QApplication(sys.argv)

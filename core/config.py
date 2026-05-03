@@ -221,6 +221,9 @@ class Config(QConfig):
     developerMode = ConfigItem(
         "Other", "DeveloperMode", False, BoolValidator()
     )
+    enableGpuAcceleration = ConfigItem(
+        "Other", "EnableGpuAcceleration", True, BoolValidator(), restart=True
+    )
     autoStart = ConfigItem(
         "Other", "AutoStart", False, BoolValidator()
     )
@@ -358,6 +361,7 @@ def default_cfg():
             "CloseAction": "minimize",
             "AllowMultipleInstances": False,
             "DeveloperMode": False,
+            "EnableGpuAcceleration": True,
             "AutoStart": False,
             "AutoOpenOnIdle": False,
             "IdleMinutes": 5,

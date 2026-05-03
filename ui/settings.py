@@ -315,10 +315,18 @@ class SettingInterface(ScrollArea):
             parent=self.otherGroup
         )
         self.otherGroup.addSettingCard(self.allowMultipleInstancesCard)
+        self.enableGpuAccelerationCard = SwitchSettingCard(
+            FIF.VIDEO,
+            "GPU 加速",
+            "使用 OpenGL ES 作为图形渲染后端（重启生效）",
+            configItem=cfg.enableGpuAcceleration,
+            parent=self.otherGroup
+        )
+        self.otherGroup.addSettingCard(self.enableGpuAccelerationCard)
         self.configIOCard = DualButtonSettingCard(
             FIF.SYNC,
             "配置导入/导出",
-            "导出或导入配置文件（JSON格式）",
+            "导出或导入配置文件（JSON）",
             parent=self.otherGroup
         )
         self.otherGroup.addSettingCard(self.configIOCard)
