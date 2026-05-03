@@ -191,39 +191,6 @@ class SettingInterface(ScrollArea):
             min_value=0,
             max_value=30
         )
-        self.wallpaperGroup = SettingCardGroup("壁纸", self.scrollWidget)
-        self.wallpaperSaveLimitCard = SpinBoxSettingCard(
-            cfg.wallpaperSaveLimit,
-            FIF.PHOTO,
-            "壁纸保存量",
-            "设置本地保存的壁纸数量，超过限制时会自动删除最旧的壁纸",
-            parent=self.wallpaperGroup,
-            min_value=10,
-            max_value=100
-        )
-        self.autoGetIntervalCard = ComboBoxSettingCard(
-            cfg.autoGetInterval,
-            FIF.ALBUM,
-            "自动获取间隔",
-            "设置自动获取新壁纸的时间间隔，选择'从不'则禁用自动获取",
-            texts=["从不", "10 分钟", "30 分钟", "1 小时", "3 小时", "6 小时", "12 小时", "1 天", "3 天", "5 天", "7 天"],
-            parent=self.wallpaperGroup
-        )
-        self.wallpaperApiCard = ComboBoxSettingCard(
-            cfg.wallpaperApi,
-            FIF.LINK,
-            "壁纸 API",
-            "选择获取壁纸的 API 源",
-            texts=["wp.upx8.com", "api.ltyuanfang.cn", "Bing 每日背景", "横屏 MC 酱", "横屏高清风景"],
-            parent=self.wallpaperGroup
-        )
-        self.autoSyncToDesktopCard = SwitchSettingCard(
-            FIF.HOME,
-            "自动同步至桌面",
-            "当获取新壁纸时，自动将其设置为桌面背景",
-            configItem=cfg.autoSyncToDesktop,
-            parent=self.wallpaperGroup
-        )
         self.logGroup = SettingCardGroup("日志", self.scrollWidget)
         self.disableLogCard = SwitchSettingCard(
             FIF.CLOSE, 
@@ -289,10 +256,6 @@ class SettingInterface(ScrollArea):
         self.appearanceGroup.addSettingCard(self.themeCard)
         self.appearanceGroup.addSettingCard(self.themeColorCard)
         self.appearanceGroup.addSettingCard(self.backgroundBlurCard)
-        self.wallpaperGroup.addSettingCard(self.wallpaperSaveLimitCard)
-        self.wallpaperGroup.addSettingCard(self.autoGetIntervalCard)
-        self.wallpaperGroup.addSettingCard(self.wallpaperApiCard)
-        self.wallpaperGroup.addSettingCard(self.autoSyncToDesktopCard)
         self.logGroup.addSettingCard(self.disableLogCard)
         self.logGroup.addSettingCard(self.logLevelCard)
         self.logGroup.addSettingCard(self.logMaxCountCard)
@@ -350,7 +313,6 @@ class SettingInterface(ScrollArea):
         self.expandLayout.setContentsMargins(60, 10, 60, 0)
         self.expandLayout.addWidget(self.basicGroup)
         self.expandLayout.addWidget(self.appearanceGroup)
-        self.expandLayout.addWidget(self.wallpaperGroup)
         self.expandLayout.addWidget(self.logGroup)
         self.expandLayout.addWidget(self.otherGroup)
 

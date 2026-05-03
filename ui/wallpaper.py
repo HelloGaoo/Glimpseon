@@ -28,7 +28,7 @@ from typing import List, Optional
 
 import requests
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QSize
-from PyQt6.QtGui import QPixmap, QImageReader
+from PyQt6.QtGui import QPixmap, QImageReader, QColor
 from PyQt6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -44,6 +44,7 @@ from PyQt6.QtWidgets import (
 from qfluentwidgets import (
     BodyLabel,
     CardWidget,
+    ComboBoxSettingCard,
     FluentIcon as FIF,
     InfoBar,
     MessageBox,
@@ -51,10 +52,14 @@ from qfluentwidgets import (
     MessageBoxBase,
     PrimaryPushButton,
     PushButton,
+    RangeSettingCard,
     ScrollArea,
+    SettingCard,
+    SettingCardGroup,
     SmoothScrollArea,
     StrongBodyLabel,
     SubtitleLabel,
+    SwitchSettingCard,
     Theme,
 )
 
@@ -782,6 +787,76 @@ class WallpaperInterface(ScrollArea):
         self.setWallpaperButton.setFixedHeight(36)
         self.setWallpaperButton.setFixedWidth(120)
         
+        self.settingsGroup = SettingCardGroup("壁纸设置", self.contentWidget)
+        self.wallpaperSaveLimitCard = RangeSettingCard(
+            cfg.wallpaperSaveLimit,
+            FIF.SAVE,
+            "壁纸保存量",
+            "设置本地保存的壁纸数量上限（10-200）",
+            parent=self.settingsGroup
+        )
+        self.settingsGroup.addSettingCard(self.wallpaperSaveLimitCard)
+        self.autoGetIntervalCard = ComboBoxSettingCard(
+            cfg.autoGetInterval,
+            FIF.SYNC,
+            "自动获取间隔",
+            "自动获取新壁纸的时间间隔（0表示禁用）",
+            texts=["从不", "10分钟", "30分钟", "1小时", "2小时", "6小时", "12小时", "1天", "3天", "7天"],
+            parent=self.settingsGroup
+        )
+        self.settingsGroup.addSettingCard(self.autoGetIntervalCard)
+        self.wallpaperApiCard = ComboBoxSettingCard(
+            cfg.wallpaperApi,
+            FIF.LINK,
+            "壁纸API",
+            "选择获取壁纸的API源",
+            texts=["wp.upx8.com", "api.ltyuanfang.cn", "imlcd.cn_bg_high", "imlcd.cn_bg_mc", "imlcd.cn_bg_gq"],
+            parent=self.settingsGroup
+        )
+        self.settingsGroup.addSettingCard(self.wallpaperApiCard)
+        self.autoSyncToDesktopCard = SwitchSettingCard(
+            FIF.HOME,
+            "自动同步至桌面",
+            "获取到新壁纸时自动设为系统桌面背景",
+            configItem=cfg.autoSyncToDesktop,
+            parent=self.settingsGroup
+        )
+        self.settingsGroup.addSettingCard(self.autoSyncToDesktopCard)
+        
+        self.effectsGroup = SettingCardGroup("背景效果", self.contentWidget)
+        self.brightnessCard = RangeSettingCard(
+            cfg.wallpaperBrightness,
+            FIF.BRIGHTNESS,
+            "亮度",
+            "调整壁纸的明暗程度（-100最暗 ~ 0正常 ~ 100最亮）",
+            parent=self.effectsGroup
+        )
+        self.effectsGroup.addSettingCard(self.brightnessCard)
+        self.contrastCard = RangeSettingCard(
+            cfg.wallpaperContrast,
+            FIF.ALBUM,
+            "对比度",
+            "调整壁纸的对比度（-100最低 ~ 0正常 ~ 100最高）",
+            parent=self.effectsGroup
+        )
+        self.effectsGroup.addSettingCard(self.contrastCard)
+        self.saturationCard = RangeSettingCard(
+            cfg.wallpaperSaturation,
+            FIF.PALETTE,
+            "饱和度",
+            "调整壁纸的色彩鲜艳程度（-100黑白 ~ 0正常 ~ 100最艳）",
+            parent=self.effectsGroup
+        )
+        self.effectsGroup.addSettingCard(self.saturationCard)
+        self.colorTemperatureCard = RangeSettingCard(
+            cfg.wallpaperColorTemperature,
+            FIF.HIGHTLIGHT,
+            "色温",
+            "调整壁纸的色调（-100冷色调 ~ 0正常 ~ 100暖色调）",
+            parent=self.effectsGroup
+        )
+        self.effectsGroup.addSettingCard(self.colorTemperatureCard)
+        
         self._initWidget()
         self._connectSignalToSlot()
     
@@ -816,6 +891,10 @@ class WallpaperInterface(ScrollArea):
         self.contentLayout.addSpacing(16)
         self.contentLayout.addLayout(actionRow)
         self.contentLayout.addWidget(self.infoCard)
+        self.contentLayout.addSpacing(24)
+        self.contentLayout.addWidget(self.settingsGroup)
+        self.contentLayout.addSpacing(24)
+        self.contentLayout.addWidget(self.effectsGroup)
         self.contentLayout.addStretch(1)
         
         gridLayout = QGridLayout()
@@ -859,6 +938,11 @@ class WallpaperInterface(ScrollArea):
         cfg.autoGetInterval.valueChanged.connect(self._updateAutoGetTimer)
         cfg.autoSyncToDesktop.valueChanged.connect(self._updateAutoSyncCheckTimer)
         cfg.backgroundBlurRadius.valueChanged.connect(self._updateBackgroundBlur)
+        cfg.wallpaperSaveLimit.valueChanged.connect(self._onWallpaperSaveLimitChanged)
+        cfg.wallpaperBrightness.valueChanged.connect(self._applyEffects)
+        cfg.wallpaperContrast.valueChanged.connect(self._applyEffects)
+        cfg.wallpaperSaturation.valueChanged.connect(self._applyEffects)
+        cfg.wallpaperColorTemperature.valueChanged.connect(self._applyEffects)
         
         self._updateAutoGetTimer()
         self._updateAutoSyncCheckTimer()
@@ -898,6 +982,60 @@ class WallpaperInterface(ScrollArea):
         if hasattr(self, 'mainWindow') and self.mainWindow and hasattr(self.mainWindow, 'homeBackgroundImage'):
             if self.mainWindow.originalPixmap is not None and not self.mainWindow.originalPixmap.isNull():
                 self.mainWindow.resizeEvent(None)
+    
+    def _onWallpaperSaveLimitChanged(self, new_limit: int):
+        wallpaper_dir = os.path.join(BASE_DIR, 'wallpaper')
+        self._manageWallpaperLimit(wallpaper_dir, new_limit)
+    
+    def _applyEffects(self):
+        """应用亮度、对比度、饱和度、色温效果"""
+        if not self.current_pixmap or self.current_pixmap.isNull():
+            return
+        
+        brightness = cfg.wallpaperBrightness.value
+        contrast = cfg.wallpaperContrast.value
+        saturation = cfg.wallpaperSaturation.value
+        colorTemp = cfg.wallpaperColorTemperature.value
+        
+        if brightness == 0 and contrast == 0 and saturation == 0 and colorTemp == 0:
+            self._updateBackground()
+            return
+        
+        image = self.current_pixmap.toImage()
+        
+        for y in range(image.height()):
+            for x in range(image.width()):
+                color = image.pixelColor(x, y)
+                r, g, b = color.red(), color.green(), color.blue()
+                
+                if brightness != 0:
+                    factor = (259 * (brightness + 255)) / (255 * (259 - brightness))
+                    r = min(255, max(0, int(factor * (r - 128) + 128)))
+                    g = min(255, max(0, int(factor * (g - 128) + 128)))
+                    b = min(255, max(0, int(factor * (b - 128) + 128)))
+                
+                if contrast != 0:
+                    factor = (259 * (contrast + 255)) / (255 * (259 - contrast))
+                    r = min(255, max(0, int(factor * (r - 128) + 128)))
+                    g = min(255, max(0, int(factor * (g - 128) + 128)))
+                    b = min(255, max(0, int(factor * (b - 128) + 128)))
+                
+                if saturation != 0:
+                    gray = 0.299 * r + 0.587 * g + 0.114 * b
+                    sat_factor = 1 + saturation / 100.0
+                    r = min(255, max(0, int(gray + sat_factor * (r - gray))))
+                    g = min(255, max(0, int(gray + sat_factor * (g - gray))))
+                    b = min(255, max(0, int(gray + sat_factor * (b - gray))))
+                
+                if colorTemp != 0:
+                    temp_factor = colorTemp / 100.0
+                    r = min(255, max(0, int(r * (1 + temp_factor))))
+                    b = min(255, max(0, int(b * (1 - temp_factor))))
+                
+                image.setPixelColor(x, y, QColor(r, g, b))
+        
+        self.current_pixmap = QPixmap.fromImage(image)
+        self._updateBackground()
     
     def _loadWallpaperFromCache(self) -> bool:
         cached = get_cached_content("wallpaper")

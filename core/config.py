@@ -160,6 +160,18 @@ class Config(QConfig):
     backgroundBlurRadius = RangeConfigItem(
         "Appearance", "BackgroundBlurRadius", 0, RangeValidator(0, 30)
     )
+    wallpaperBrightness = RangeConfigItem(
+        "Wallpaper", "Brightness", 0, RangeValidator(-100, 100)
+    )
+    wallpaperContrast = RangeConfigItem(
+        "Wallpaper", "Contrast", 0, RangeValidator(-100, 100)
+    )
+    wallpaperSaturation = RangeConfigItem(
+        "Wallpaper", "Saturation", 0, RangeValidator(-100, 100)
+    )
+    wallpaperColorTemperature = RangeConfigItem(
+        "Wallpaper", "ColorTemperature", 0, RangeValidator(-100, 100)
+    )
     showClock = ConfigItem(
         "Time", "ShowClock", True, BoolValidator()
     )
