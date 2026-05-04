@@ -1,0 +1,53 @@
+/* 媒体组件样式 - 浅色主题 */
+
+/* 媒体容器 */
+MainWindow #mediaContainer {
+    background-color: transparent;
+}
+
+#mediaWidget {
+    background-color: rgba(255, 255, 255, 0.5);
+    border-radius: 12px;
+}
+
+/* 标题标签 */
+#mediaTitleLabel {
+    color: #333333;
+    font-weight: bold;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    background-color: transparent;
+}
+
+/* 艺术家标签 */
+#mediaArtistLabel {
+    color: rgba(51, 51, 51, 180);
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    background-color: transparent;
+}
+
+/* 时间标签 */
+#mediaTimeLabel {
+    color: rgba(51, 51, 51, 150);
+    font-size: 11px;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    background-color: transparent;
+}
+
+/* 总时长标签 */
+#mediaDurationLabel {
+    color: rgba(51, 51, 51, 150);
+    font-size: 11px;
+    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    background-color: transparent;
+}
+
+/* 封面标签 */
+#mediaCoverLabel {
+    background-color: transparent;
+    border-radius: 8px;
+}
+
+/* 歌词控件 */
+#mediaLyricsWidget {
+    background-color: transparent;
+}

@@ -15,26 +15,17 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-媒体信息显示控件模块
+媒体信息显示控件
 """
 
 import logging
-import sys
 import os
-from io import BytesIO
+import sys
 from typing import Optional
 
 from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QByteArray, pyqtProperty
-from PyQt6.QtGui import QPixmap, QColor, QPainter, QFont, QLinearGradient
-from PyQt6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QLabel,
-    QProgressBar,
-    QFrame,
-    QSizePolicy,
-)
+from PyQt6.QtGui import QPixmap, QColor, QPainter, QFont
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar, QSizePolicy
 
 if getattr(sys, 'frozen', False):
     _BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
@@ -44,149 +35,116 @@ if _BASE_DIR not in sys.path:
     sys.path.insert(0, _BASE_DIR)
 
 from core.config import cfg
-from services.media import MediaInfo, get_media_info_sync, GSMTC_AVAILABLE
-from services.lyrics import get_netease_service, Lyrics
+from core.media import MediaInfo, Lyrics, get_media_info, fetch_all_info, close as close_media
+from core.constants import load_qss
 
 logger = logging.getLogger(__name__)
 
 
-class LyricsDisplayWidget(QWidget):
+class LyricsWidget(QWidget):
     """歌词显示控件"""
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._lines: list = []
-        self._current_index = -1
+        self._lines = []
+        self._current_idx = -1
         self._lyrics: Optional[Lyrics] = None
         self._line_height = 24
         self._visible_lines = 3
         self._text_size = 14
-        self._text_color = QColor(255, 255, 255, 180)
-        self._highlight_color = QColor(255, 255, 255, 255)
         self._scroll_offset = 0.0
-        self._target_offset = 0.0
+        
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setFixedHeight(self._visible_lines * self._line_height + 10)
-        self._scroll_animation = QPropertyAnimation(self, QByteArray(b'scrollOffset'))
-        self._scroll_animation.setDuration(300)
-        self._scroll_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        
+        self._anim = QPropertyAnimation(self, QByteArray(b'scrollOffset'))
+        self._anim.setDuration(300)
+        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
     
-    def get_scrollOffset(self):
-        return self._scroll_offset
-    
-    def set_scrollOffset(self, value):
-        self._scroll_offset = value
-        self.update()
-    
+    def get_scrollOffset(self): return self._scroll_offset
+    def set_scrollOffset(self, v): self._scroll_offset = v; self.update()
     scrollOffset = pyqtProperty(float, fget=get_scrollOffset, fset=set_scrollOffset)
     
     def set_text_size(self, size: int):
         self._text_size = size
         self._line_height = size + 10
         self.setFixedHeight(self._visible_lines * self._line_height + 10)
-        self.update()
     
-    def set_visible_lines(self, count: int):
-        self._visible_lines = count
+    def set_visible_lines(self, n: int):
+        self._visible_lines = n
         self.setFixedHeight(self._visible_lines * self._line_height + 10)
-        self.update()
     
     def set_lyrics(self, lyrics: Optional[Lyrics]):
         self._lyrics = lyrics
-        self._current_index = -1
+        self._current_idx = -1
         self._scroll_offset = 0.0
-        self._target_offset = 0.0
-        if lyrics and not lyrics.is_empty():
-            self._lines = lyrics.lines
-        else:
-            self._lines = []
+        self._lines = lyrics.lines if lyrics and not lyrics.is_empty() else []
         self.update()
     
-    def update_position(self, position_ms: int):
-        if not self._lyrics or self._lyrics.is_empty():return
-        line, idx = self._lyrics.get_line(position_ms)
-        if idx != self._current_index and idx >= 0:
-            self._current_index = idx
-            self._animate_to_line(idx)
-            self.update()
-    
-    def _animate_to_line(self, line_index: int):
-        if not self._lines:return
-        
-        half = self._visible_lines // 2
-        self._target_offset = max(0, (line_index - half) * self._line_height)
-        self._scroll_animation.stop()
-        self._scroll_animation.setStartValue(self._scroll_offset)
-        self._scroll_animation.setEndValue(self._target_offset)
-        self._scroll_animation.start()
+    def update_position(self, ms: int):
+        if not self._lyrics or self._lyrics.is_empty():
+            return
+        _, idx = self._lyrics.get_line_at_time(ms)
+        if idx != self._current_idx and idx >= 0:
+            self._current_idx = idx
+            half = self._visible_lines // 2
+            target = max(0, (idx - half) * self._line_height)
+            self._anim.stop()
+            self._anim.setStartValue(self._scroll_offset)
+            self._anim.setEndValue(target)
+            self._anim.start()
     
     def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        
         if not self._lines:
-            painter.setPen(self._text_color)
-            font = QFont("HarmonyOS Sans SC", self._text_size)
-            painter.setFont(font)
-            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "暂无歌词")
+            p.setPen(QColor(255, 255, 255, 180))
+            p.setFont(QFont("HarmonyOS Sans SC", self._text_size))
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "暂无歌词")
             return
         
         font = QFont("HarmonyOS Sans SC", self._text_size)
-        painter.setFont(font)
-        rect_height = self.height()
-        painter.setClipRect(0, 0, self.width(), rect_height)
-        y_offset = rect_height // 2 - self._line_height // 2 - self._scroll_offset
+        p.setFont(font)
+        p.setClipRect(0, 0, self.width(), self.height())
+        
+        y_off = self.height() // 2 - self._line_height // 2 - self._scroll_offset
         for i, line in enumerate(self._lines):
-            y = y_offset + i * self._line_height + self._line_height - 5
-            if y < -self._line_height or y > rect_height + self._line_height:continue
-            
-            if i == self._current_index:
-                gradient = QLinearGradient(0, y - self._text_size, 0, y)
-                gradient.setColorAt(0, QColor(255, 255, 255, 255))
-                gradient.setColorAt(1, QColor(200, 200, 200, 255))
-                painter.setPen(QColor(255, 255, 255, 255))
-                font.setBold(True)
-                painter.setFont(font)
-                font.setBold(False)
+            y = y_off + i * self._line_height + self._line_height - 5
+            if y < -self._line_height or y > self.height() + self._line_height:
+                continue
+            if i == self._current_idx:
+                p.setPen(QColor(255, 255, 255, 255))
             else:
-                distance = abs(i - self._current_index) if self._current_index >= 0 else 10
-                alpha = max(80, 200 - distance * 30)
-                painter.setPen(QColor(255, 255, 255, alpha))
-            text_rect = self.width() - 20
-            painter.drawText(10, int(y), text_rect, self._line_height, 
-                           Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, 
-                           line.text)
+                dist = abs(i - self._current_idx) if self._current_idx >= 0 else 10
+                p.setPen(QColor(255, 255, 255, max(80, 200 - dist * 30)))
+            p.drawText(10, int(y), self.width() - 20, self._line_height, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, line.text)
     
     def clear(self):
         self._lines = []
         self._lyrics = None
-        self._current_index = -1
-        self._scroll_offset = 0.0
+        self._current_idx = -1
         self.update()
 
 
 class ProgressBar(QProgressBar):
-    """进度条"""
-    
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setTextVisible(False)
         self.setFixedHeight(4)
-        self._bg_color = QColor(255, 255, 255, 60)
-        self._progress_color = QColor(255, 255, 255, 200)
     
     def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(self._bg_color)
-        painter.drawRoundedRect(0, 0, self.width(), self.height(), 2, 2)
-        
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(255, 255, 255, 60))
+        p.drawRoundedRect(0, 0, self.width(), self.height(), 2, 2)
         if self.value() > 0:
-            progress_width = int(self.width() * self.value() / self.maximum()) if self.maximum() > 0 else 0
-            painter.setBrush(self._progress_color)
-            painter.drawRoundedRect(0, 0, progress_width, self.height(), 2, 2)
+            w = int(self.width() * self.value() / self.maximum()) if self.maximum() > 0 else 0
+            p.setBrush(QColor(255, 255, 255, 200))
+            p.drawRoundedRect(0, 0, w, self.height(), 2, 2)
 
 
 class MediaWidget(QWidget):
@@ -197,325 +155,219 @@ class MediaWidget(QWidget):
         self.setObjectName("mediaWidget")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self._current_media: Optional[MediaInfo] = None
-        self._current_lyrics: Optional[Lyrics] = None
-        self._last_title_artist = ""
-        self._cover_pixmap: Optional[QPixmap] = None
-        self._is_fetching_lyrics = False
-        self._lyrics_cache: dict = {}
-        self._song_duration_ms: int = 0
-        self._current_position_ms: int = 0
-        self._is_playing: bool = False
+        
+        self._media: Optional[MediaInfo] = None
+        self._lyrics: Optional[Lyrics] = None
+        self._last_ta = ""
+        self._cover: Optional[QPixmap] = None
+        self._fetching = False
+        self._cache = {}
+        self._duration = 0
+        self._position = 0
+        self._playing = False
+        
         self._init_ui()
-        self._setup_timer()
+        self._setup_timers()
         self._apply_config()
     
     def _init_ui(self):
-        self._main_layout = QHBoxLayout(self)
-        self._main_layout.setContentsMargins(15, 10, 15, 10)
-        self._main_layout.setSpacing(15)
-        self._cover_label = QLabel()
-        self._cover_label.setFixedSize(64, 64)
-        self._cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._cover_label.setObjectName("mediaCover")
-        self._set_default_cover()
-        self._main_layout.addWidget(self._cover_label)
-        self._info_layout = QVBoxLayout()
-        self._info_layout.setSpacing(6)
-        self._info_layout.setContentsMargins(0, 0, 0, 0)
-        self._title_label = QLabel("未在播放")
-        self._title_label.setObjectName("mediaTitle")
-        self._title_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        self._title_label.setWordWrap(False)
-        self._info_layout.addWidget(self._title_label)
-        self._artist_label = QLabel("")
-        self._artist_label.setObjectName("mediaArtist")
-        self._artist_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        self._artist_label.setWordWrap(False)
-        self._info_layout.addWidget(self._artist_label)
-        self._progress_container = QWidget()
-        self._progress_layout = QHBoxLayout(self._progress_container)
-        self._progress_layout.setContentsMargins(0, 0, 0, 0)
-        self._progress_layout.setSpacing(8)
-        self._time_label = QLabel("0:00")
-        self._time_label.setObjectName("mediaTime")
-        self._time_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        self._progress_layout.addWidget(self._time_label)
-        self._progress_bar = ProgressBar()
-        self._progress_bar.setRange(0, 100)
-        self._progress_bar.setValue(0)
-        self._progress_layout.addWidget(self._progress_bar, 1)
-        self._duration_label = QLabel("0:00")
-        self._duration_label.setObjectName("mediaTime")
-        self._duration_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self._progress_layout.addWidget(self._duration_label)
-        self._info_layout.addWidget(self._progress_container)
-        self._main_layout.addLayout(self._info_layout, 1)
-        self._lyrics_widget = LyricsDisplayWidget()
-        self._main_layout.addWidget(self._lyrics_widget, 1)
+        self.setStyleSheet(load_qss('media_widget.qss'))
+        
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(15, 10, 15, 10)
+        layout.setSpacing(15)
+        
+        self._cover_lbl = QLabel()
+        self._cover_lbl.setObjectName("mediaCoverLabel")
+        self._cover_lbl.setFixedSize(64, 64)
+        self._cover_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._default_cover()
+        layout.addWidget(self._cover_lbl)
+        
+        info = QVBoxLayout()
+        info.setSpacing(6)
+        info.setContentsMargins(0, 0, 0, 0)
+        
+        self._title = QLabel("未在播放")
+        self._title.setObjectName("mediaTitleLabel")
+        self._title.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        info.addWidget(self._title)
+        
+        self._artist = QLabel("")
+        self._artist.setObjectName("mediaArtistLabel")
+        self._artist.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        info.addWidget(self._artist)
+        
+        prog = QWidget()
+        pl = QHBoxLayout(prog)
+        pl.setContentsMargins(0, 0, 0, 0)
+        pl.setSpacing(8)
+        
+        self._time = QLabel("0:00")
+        self._time.setObjectName("mediaTimeLabel")
+        self._time.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        pl.addWidget(self._time)
+        
+        self._bar = ProgressBar()
+        self._bar.setRange(0, 100)
+        pl.addWidget(self._bar, 1)
+        
+        self._dur = QLabel("0:00")
+        self._dur.setObjectName("mediaDurationLabel")
+        self._dur.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        pl.addWidget(self._dur)
+        
+        info.addWidget(prog)
+        layout.addLayout(info, 1)
+        
+        self._lyrics_w = LyricsWidget()
+        self._lyrics_w.setObjectName("mediaLyricsWidget")
+        layout.addWidget(self._lyrics_w, 1)
+        
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setFixedHeight(90)
     
-    def _set_default_cover(self):
-        pixmap = QPixmap(64, 64)
-        pixmap.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(QColor(255, 255, 255, 100))
-        painter.setBrush(QColor(255, 255, 255, 30))
-        painter.drawRoundedRect(0, 0, 64, 64, 8, 8)
-        painter.drawPixmap(16, 16, QPixmap(32, 32))
-        painter.end()
-        self._cover_label.setPixmap(pixmap)
+    def _default_cover(self):
+        pm = QPixmap(64, 64)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(QColor(255, 255, 255, 100))
+        p.setBrush(QColor(255, 255, 255, 30))
+        p.drawRoundedRect(0, 0, 64, 64, 8, 8)
+        p.end()
+        self._cover_lbl.setPixmap(pm)
     
-    def _setup_timer(self):
-        self._update_timer = QTimer(self)
-        self._update_timer.timeout.connect(self._update_media_info)
-        
-        self._progress_timer = QTimer(self)
-        self._progress_timer.timeout.connect(self._update_progress)
+    def _setup_timers(self):
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._update)
+        self._prog_timer = QTimer(self)
+        self._prog_timer.timeout.connect(self._update_progress)
     
     def _apply_config(self):
-        self._update_style()
-        self._update_cover_size()
-        self._update_lyrics_settings()
-    
-    def _update_style(self):
-        text_size = cfg.mediaTextSize.value
-        color_str = "#FFFFFF"
-        
-        self._title_label.setStyleSheet(f"""
-            color: {color_str};
-            font-size: {text_size}px;
-            font-weight: bold;
-            font-family: "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
-            background: transparent;
-        """)
-        
-        self._artist_label.setStyleSheet(f"""
-            color: rgba(255, 255, 255, 180);
-            font-size: {text_size - 2}px;
-            font-family: "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
-            background: transparent;
-        """)
-        
-        self._time_label.setStyleSheet(f"""
-            color: rgba(255, 255, 255, 150);
-            font-size: 11px;
-            font-family: "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
-            background: transparent;
-        """)
-        
-        self._duration_label.setStyleSheet(f"""
-            color: rgba(255, 255, 255, 150);
-            font-size: 11px;
-            font-family: "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
-            background: transparent;
-        """)
-    
-    def _update_cover_size(self):
-        size = cfg.mediaCoverSize.value
-        self._cover_label.setFixedSize(size, size)
-        if self._cover_pixmap and not self._cover_pixmap.isNull():
-            scaled = self._cover_pixmap.scaled(
-                size, size, 
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                Qt.TransformationMode.SmoothTransformation
-            )
-            self._cover_label.setPixmap(scaled)
-    
-    def _update_lyrics_settings(self):
-        self._lyrics_widget.set_text_size(cfg.mediaLyricsSize.value)
-        self._lyrics_widget.set_visible_lines(cfg.mediaLyricsLines.value)
+        sz = cfg.mediaTextSize.value
+        self._title.setStyleSheet(f"font-size: {sz}px;")
+        self._artist.setStyleSheet(f"font-size: {sz - 2}px;")
+        self._cover_lbl.setFixedSize(cfg.mediaCoverSize.value, cfg.mediaCoverSize.value)
+        self._lyrics_w.set_text_size(cfg.mediaLyricsSize.value)
+        self._lyrics_w.set_visible_lines(cfg.mediaLyricsLines.value)
     
     def start(self):
-        logger.info("正在启动媒体控件...")
-        interval = cfg.mediaUpdateInterval.value * 1000
-        self._update_timer.start(interval)
-        self._progress_timer.start(1000)
-        self._update_media_info()
-        logger.info("媒体控件已启动")
+        self._timer.start(cfg.mediaUpdateInterval.value * 1000)
+        self._prog_timer.start(1000)
+        self._update()
     
     def stop(self):
-        self._update_timer.stop()
-        self._progress_timer.stop()
-        logger.info("媒体控件已停止")
+        self._timer.stop()
+        self._prog_timer.stop()
     
-    def _update_progress(self):
-        if not self._is_playing or self._song_duration_ms <= 0:
-            return
-        
-        media_info = get_media_info_sync()
-        if media_info and media_info.is_valid() and media_info.position_ms > 0:
-            self._current_position_ms = media_info.position_ms
-            self._is_playing = media_info.is_playing
-            
-            if cfg.showMediaProgress.value and self._song_duration_ms > 0:
-                progress = int((self._current_position_ms / self._song_duration_ms) * 100)
-                self._progress_bar.setValue(min(100, progress))
-                self._time_label.setText(self._format_time(self._current_position_ms))
-            
-            if self._current_lyrics and not self._current_lyrics.is_empty():
-                self._lyrics_widget.update_position(self._current_position_ms)
-    
-    def _update_media_info(self):
+    def _update(self):
         if not cfg.showMediaInfo.value:
             self.hide()
             return
-        
-        logger.debug("正在获取媒体信息...")
-        media_info = get_media_info_sync()
-        
-        if media_info is None:
-            logger.warning("get_media_info_sync 返回 None")
-            self._show_no_media()
+        m = get_media_info()
+        if not m or not m.is_valid():
+            self._no_media()
             return
-        
-        if not media_info.is_valid():
-            logger.info(f"媒体信息无效: title={media_info.title}, artist={media_info.artist}")
-            self._show_no_media()
-            return
-        
-        self._current_media = media_info
-        self._update_display(media_info)
+        self._media = m
+        self._display(m)
         self.show()
     
-    def _show_no_media(self):
-        self._title_label.setText("未在播放")
-        self._artist_label.setText("")
-        self._progress_bar.setValue(0)
-        self._time_label.setText("0:00")
-        self._duration_label.setText("0:00")
-        self._set_default_cover()
-        self._lyrics_widget.clear()
-        self._current_media = None
-        self._current_lyrics = None
-        self._last_title_artist = ""
-        self._is_playing = False
-        self._song_duration_ms = 0
-        if cfg.showMediaInfo.value:self.show()
+    def _no_media(self):
+        self._title.setText("未在播放")
+        self._artist.setText("")
+        self._bar.setValue(0)
+        self._time.setText("0:00")
+        self._dur.setText("0:00")
+        self._default_cover()
+        self._lyrics_w.clear()
+        self._media = None
+        self._lyrics = None
+        self._last_ta = ""
+        self._playing = False
+        self._duration = 0
+        if cfg.showMediaInfo.value:
+            self.show()
     
-    @staticmethod
-    def _format_time(ms: int) -> str:
-        seconds = max(0, ms // 1000)
-        minutes = seconds // 60
-        secs = seconds % 60
-        return f"{minutes}:{secs:02d}"
-    
-    def _update_display(self, media_info: MediaInfo):
-        title = media_info.title or "未知歌曲"
-        artist = media_info.artist or ""
+    def _display(self, m: MediaInfo):
+        title = m.title or "未知歌曲"
+        artist = m.artist or ""
         
-        is_new_song = (media_info.title_artist != self._last_title_artist)
+        if m.title_artist != self._last_ta:
+            self._last_ta = m.title_artist
+            self._position = m.position_ms
+            self._playing = m.is_playing
+            self._duration = m.duration_ms
+            self._title.setText(title)
+            self._artist.setText(artist)
+            self._fetch(title, artist)
         
-        if is_new_song:
-            self._last_title_artist = media_info.title_artist
-            self._current_position_ms = media_info.position_ms
-            self._is_playing = media_info.is_playing
-            
-            if media_info.duration_ms > 0:
-                self._song_duration_ms = media_info.duration_ms
-            else:
-                self._song_duration_ms = 0
-            
-            self._title_label.setText(title)
-            self._artist_label.setText(artist)
-            
-            self._fetch_all_info_async(title, artist)
-        
-        self._is_playing = media_info.is_playing
-        
-        if media_info.position_ms > 0:
-            self._current_position_ms = media_info.position_ms
+        self._playing = m.is_playing
+        if m.position_ms > 0:
+            self._position = m.position_ms
         
         if cfg.showMediaProgress.value:
-            self._progress_container.show()
-            
-            if self._song_duration_ms > 0:
-                progress = int((self._current_position_ms / self._song_duration_ms) * 100)
-                self._progress_bar.setValue(min(100, progress))
-                self._time_label.setText(self._format_time(self._current_position_ms))
-                self._duration_label.setText(self._format_time(self._song_duration_ms))
+            self._bar.parent().show()
+            if self._duration > 0:
+                self._bar.setValue(min(100, int(self._position / self._duration * 100)))
+                self._time.setText(self._fmt(self._position))
+                self._dur.setText(self._fmt(self._duration))
             else:
-                self._progress_bar.setValue(0)
-                self._time_label.setText(self._format_time(self._current_position_ms))
-                self._duration_label.setText("0:00")
+                self._bar.setValue(0)
+                self._time.setText(self._fmt(self._position))
         else:
-            self._progress_container.hide()
+            self._bar.parent().hide()
         
-        if cfg.showMediaCover.value:
-            self._cover_label.show()
-        else:
-            self._cover_label.hide()
-        
-        if cfg.showMediaLyrics.value:
-            self._lyrics_widget.show()
-        else:
-            self._lyrics_widget.hide()
+        self._cover_lbl.setVisible(cfg.showMediaCover.value)
+        self._lyrics_w.setVisible(cfg.showMediaLyrics.value)
+    
+    def _update_progress(self):
+        if not self._playing or self._duration <= 0:
+            return
+        m = get_media_info()
+        if m and m.is_valid() and m.position_ms > 0:
+            self._position = m.position_ms
+            self._playing = m.is_playing
+            if cfg.showMediaProgress.value and self._duration > 0:
+                self._bar.setValue(min(100, int(self._position / self._duration * 100)))
+                self._time.setText(self._fmt(self._position))
+            if self._lyrics and not self._lyrics.is_empty():
+                self._lyrics_w.update_position(self._position)
+    
+    @staticmethod
+    def _fmt(ms: int) -> str:
+        s = max(0, ms // 1000)
+        return f"{s // 60}:{s % 60:02d}"
     
     def _load_cover(self, data: bytes):
-        try:
-            pixmap = QPixmap()
-            pixmap.loadFromData(data)
-            if not pixmap.isNull():
-                self._cover_pixmap = pixmap
-                size = cfg.mediaCoverSize.value
-                scaled = pixmap.scaled(
-                    size, size,
-                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                    Qt.TransformationMode.SmoothTransformation
-                )
-                self._cover_label.setPixmap(scaled)
-            else:
-                self._set_default_cover()
-        except Exception as e:
-            logger.debug(f"加载封面失败: {e}")
-            self._set_default_cover()
+        pm = QPixmap()
+        pm.loadFromData(data)
+        if not pm.isNull():
+            self._cover = pm
+            sz = cfg.mediaCoverSize.value
+            self._cover_lbl.setPixmap(pm.scaled(sz, sz, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation))
     
-    def _fetch_all_info_async(self, title: str, artist: str):
-        """异步获取歌词和封面"""
-        if self._is_fetching_lyrics:
+    def _fetch(self, title: str, artist: str):
+        if self._fetching:
             return
-        
-        cache_key = f"{title}_{artist}".lower()
-        
-        self._is_fetching_lyrics = True
-        
+        self._fetching = True
         try:
-            service = get_netease_service()
-            
-            info = service.fetch_all_info(title, artist)
-            
+            info = fetch_all_info(title, artist)
             if info.get('detail'):
-                detail = info['detail']
-                if detail.duration > 0:
-                    self._song_duration_ms = detail.duration
-            
-            if info.get('cover_data') and cfg.showMediaCover.value:
-                self._load_cover(info['cover_data'])
-            
-            lyrics = info.get('lyrics')
-            if lyrics:
-                self._current_lyrics = lyrics
-                self._lyrics_cache[cache_key] = lyrics
-                self._lyrics_widget.set_lyrics(lyrics)
-            else:
-                self._current_lyrics = None
-                self._lyrics_widget.set_lyrics(None)
-                
+                self._duration = info['detail'].duration
+            if info.get('cover') and cfg.showMediaCover.value:
+                self._load_cover(info['cover'])
+            self._lyrics = info.get('lyrics')
+            self._lyrics_w.set_lyrics(self._lyrics)
         except Exception as e:
             logger.debug(f"获取歌曲信息失败: {e}")
-            self._current_lyrics = None
         finally:
-            self._is_fetching_lyrics = False
+            self._fetching = False
     
     def update_settings(self):
-        self._update_style()
-        self._update_cover_size()
-        self._update_lyrics_settings()
+        self._apply_config()
         self.update()
     
     def clear_cache(self):
-        self._lyrics_cache.clear()
-        service = get_netease_service()
-        service.clear_cache()
+        self._cache.clear()
+        close_media()
