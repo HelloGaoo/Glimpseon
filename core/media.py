@@ -658,5 +658,11 @@ def get_netease() -> NeteaseCloudMusic:
 def get_gstmtc() -> GSMTCReader:
     return _provider.get_source("GSMTC")
 
+def fetch_all_info(song_name: str, artist: str = "") -> Dict[str, Any]:
+    ncm = get_netease()
+    if ncm:
+        return ncm.fetch_all(song_name, artist)
+    return {'song_id': None, 'detail': None, 'lyrics': None, 'cover': None}
+
 def close():
     _provider.close()
