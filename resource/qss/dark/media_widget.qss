@@ -1,4 +1,4 @@
-/* 媒体组件样式 - 深色主题 */
+/* 媒体组件样式 - 深色主题 (Modern Redesign) */
 
 /* 媒体容器 */
 MainWindow #mediaContainer {
@@ -6,37 +6,44 @@ MainWindow #mediaContainer {
 }
 
 #mediaWidget {
-    background-color: rgba(0, 0, 0, 0.3);
-    border-radius: 12px;
+    background-color: rgba(18, 18, 22, 0.78);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 /* 标题标签 */
 #mediaTitleLabel {
-    color: #FFFFFF;
-    font-weight: bold;
+    color: #F5F5FA;
+    font-weight: 600;
+    font-size: 17px;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     background-color: transparent;
+    letter-spacing: 0.4px;
 }
 
 /* 艺术家标签 */
 #mediaArtistLabel {
-    color: rgba(255, 255, 255, 180);
+    color: rgba(230, 230, 235, 0.65);
+    font-size: 14px;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     background-color: transparent;
+    letter-spacing: 0.3px;
 }
 
 /* 时间标签 */
 #mediaTimeLabel {
-    color: rgba(255, 255, 255, 150);
+    color: rgba(220, 220, 225, 0.45);
     font-size: 11px;
+    font-weight: 500;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     background-color: transparent;
 }
 
 /* 总时长标签 */
 #mediaDurationLabel {
-    color: rgba(255, 255, 255, 150);
+    color: rgba(220, 220, 225, 0.45);
     font-size: 11px;
+    font-weight: 500;
     font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     background-color: transparent;
 }
@@ -44,7 +51,7 @@ MainWindow #mediaContainer {
 /* 封面标签 */
 #mediaCoverLabel {
     background-color: transparent;
-    border-radius: 8px;
+    border-radius: 10px;
 }
 
 /* 进度条容器 */

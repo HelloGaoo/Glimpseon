@@ -47,89 +47,69 @@ class LyricsWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._lines = []
-        self._current_idx = -1
-        self._lyrics: Optional[Lyrics] = None
-        self._line_height = 24
-        self._visible_lines = 3
+        self._current_text = ""
+        self._max_chars = 30
         self._text_size = 14
-        self._scroll_offset = 0.0
+        self._lyrics = None
 
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._update_height()
-
-        self._anim = QPropertyAnimation(self, QByteArray(b'scrollOffset'))
-        self._anim.setDuration(300)
-        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-
-    def get_scrollOffset(self): return self._scroll_offset
-    def set_scrollOffset(self, v): self._scroll_offset = v; self.update()
-    scrollOffset = pyqtProperty(float, fget=get_scrollOffset, fset=set_scrollOffset)
-
-    def _update_height(self):
-        self.setFixedHeight(self._visible_lines * self._line_height + 10)
+        self.setFixedHeight(self._text_size + 8)
 
     def set_text_size(self, size: int):
         self._text_size = size
-        self._line_height = size + 10
-        self._update_height()
+        self.setFixedHeight(size + 8)
+        self.update()
 
     def set_visible_lines(self, n: int):
-        self._visible_lines = n
-        self._update_height()
+        pass
 
-    def set_lyrics(self, lyrics: Optional[Lyrics]):
+    def set_lyrics(self, lyrics):
         self._lyrics = lyrics
-        self._current_idx = -1
-        self._scroll_offset = 0.0
-        self._lines = lyrics.lines if lyrics and not lyrics.is_empty() else []
-        self.update()
+        if lyrics and not lyrics.is_empty() and lyrics.lines:
+            line = lyrics.lines[0]
+            text = line.text if line else ""
+        else:
+            text = ""
+        self._update_text(text)
 
     def update_position(self, ms: int):
         if not self._lyrics or self._lyrics.is_empty():
             return
         adjusted_ms = ms + 500
         _, idx = self._lyrics.get_line_at_time(adjusted_ms)
-        if idx != self._current_idx and idx >= 0:
-            self._current_idx = idx
-            target = idx * self._line_height
-            self._anim.stop()
-            self._anim.setStartValue(self._scroll_offset)
-            self._anim.setEndValue(target)
-            self._anim.start()
+        if idx >= 0 and idx < len(self._lyrics.lines):
+            text = self._lyrics.lines[idx].text
+        else:
+            text = ""
+        self._update_text(text)
+
+    def _update_text(self, text):
+        if len(text) > self._max_chars:
+            text = text[:self._max_chars - 1] + "…"
+        self._current_text = text
+        self.update()
 
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         p.setRenderHint(QPainter.RenderHint.TextAntialiasing)
 
-        if not self._lines:
-            p.setPen(QColor(255, 255, 255, 180))
-            p.setFont(QFont("HarmonyOS Sans SC", self._text_size))
-            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "暂无歌词")
+        if not self._current_text:
             return
 
         font = QFont("HarmonyOS Sans SC", self._text_size)
+        font.setWeight(QFont.Weight.DemiBold)
         p.setFont(font)
-        p.setClipRect(0, 0, self.width(), self.height())
 
-        y_off = self.height() // 2 - self._line_height // 2 - self._scroll_offset
-        for i, line in enumerate(self._lines):
-            y = y_off + i * self._line_height + self._line_height - 5
-            if y < -self._line_height or y > self.height() + self._line_height:
-                continue
-            if i == self._current_idx:
-                p.setPen(QColor(255, 255, 255, 255))
-            else:
-                dist = abs(i - self._current_idx) if self._current_idx >= 0 else 10
-                p.setPen(QColor(255, 255, 255, max(80, 200 - dist * 30)))
-            p.drawText(10, int(y), self.width() - 20, self._line_height, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, line.text)
+        p.setPen(QColor(245, 245, 250, 255))
+        p.drawText(0, 0, self.width(), self.height(),
+                   Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                   self._current_text)
 
     def clear(self):
-        self._lines = []
+        self._current_text = ""
         self._lyrics = None
-        self._current_idx = -1
         self.update()
 
 
@@ -137,18 +117,22 @@ class ProgressBar(QProgressBar):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setTextVisible(False)
-        self.setFixedHeight(4)
+        self.setFixedHeight(5)
 
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor(255, 255, 255, 60))
-        p.drawRoundedRect(0, 0, self.width(), self.height(), 2, 2)
+
+        bg_color = QColor(255, 255, 255, 35)
+        p.setBrush(bg_color)
+        p.drawRoundedRect(0, 1, self.width(), self.height() - 2, 3, 3)
+
         if self.value() > 0:
             w = int(self.width() * self.value() / self.maximum()) if self.maximum() > 0 else 0
-            p.setBrush(QColor(255, 255, 255, 200))
-            p.drawRoundedRect(0, 0, w, self.height(), 2, 2)
+            gradient_color = QColor(220, 225, 240, 210)
+            p.setBrush(gradient_color)
+            p.drawRoundedRect(0, 1, w, self.height() - 2, 3, 3)
 
 
 class FetchWorker(QObject):
@@ -199,11 +183,11 @@ class MediaWidget(QWidget):
         self.setStyleSheet(load_qss('media_widget.qss'))
 
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(12, 10, 12, 8)
-        main_layout.setSpacing(8)
+        main_layout.setContentsMargins(16, 14, 16, 12)
+        main_layout.setSpacing(0)
 
         top_row = QHBoxLayout()
-        top_row.setSpacing(12)
+        top_row.setSpacing(18)
         top_row.setContentsMargins(0, 0, 0, 0)
 
         self._cover_lbl = QLabel()
@@ -213,8 +197,8 @@ class MediaWidget(QWidget):
         top_row.addWidget(self._cover_lbl, 0, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
 
         right_col = QVBoxLayout()
-        right_col.setSpacing(4)
-        right_col.setContentsMargins(0, 0, 0, 0)
+        right_col.setSpacing(6)
+        right_col.setContentsMargins(0, 2, 0, 0)
 
         self._title = QLabel("未在播放")
         self._title.setObjectName("mediaTitleLabel")
@@ -228,16 +212,14 @@ class MediaWidget(QWidget):
 
         self._lyrics_w = LyricsWidget()
         self._lyrics_w.setObjectName("mediaLyricsWidget")
-        right_col.addWidget(self._lyrics_w, 1)
-
-        top_row.addLayout(right_col, 1)
-        main_layout.addLayout(top_row, 1)
+        self._lyrics_w.set_visible_lines(1)
+        right_col.addWidget(self._lyrics_w)
 
         prog = QWidget()
         prog.setObjectName("mediaProgressContainer")
         pl = QHBoxLayout(prog)
         pl.setContentsMargins(0, 4, 0, 0)
-        pl.setSpacing(6)
+        pl.setSpacing(8)
 
         self._time = QLabel("0:00")
         self._time.setObjectName("mediaTimeLabel")
@@ -254,7 +236,10 @@ class MediaWidget(QWidget):
         pl.addWidget(self._dur)
 
         self._prog_container = prog
-        main_layout.addWidget(prog)
+        right_col.addWidget(self._prog_container)
+
+        top_row.addLayout(right_col, 1)
+        main_layout.addLayout(top_row)
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.setMinimumWidth(cfg.mediaWidth.value)
@@ -268,9 +253,16 @@ class MediaWidget(QWidget):
         pm.fill(Qt.GlobalColor.transparent)
         p = QPainter(pm)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setPen(QColor(255, 255, 255, 100))
-        p.setBrush(QColor(255, 255, 255, 30))
-        p.drawRoundedRect(0, 0, sz, sz, 8, 8)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(255, 255, 255, 25))
+        p.drawRoundedRect(0, 0, sz, sz, 10, 10)
+
+        shadow_color = QColor(0, 0, 0, 40)
+        for i in range(3):
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(0, 0, 0, 15 - i * 4))
+            offset = (i + 1) * 2
+            p.drawRoundedRect(offset, offset, sz, sz, 10, 10)
         p.end()
         self._cover_lbl.setPixmap(pm)
 
@@ -282,21 +274,51 @@ class MediaWidget(QWidget):
 
     def _apply_config(self):
         sz = cfg.mediaTextSize.value
-        self._title.setStyleSheet(f"font-size: {sz}px;")
-        self._artist.setStyleSheet(f"font-size: {sz - 2}px;")
+        self._title.setStyleSheet(f"font-size: {sz + 2}px; font-weight: 600;")
+        self._artist.setStyleSheet(f"font-size: {sz}px;")
 
         cover_sz = cfg.mediaCoverSize.value
         self._cover_lbl.setFixedSize(cover_sz, cover_sz)
         if self._cover and not self._cover.isNull():
-            self._cover_lbl.setPixmap(self._cover.scaled(cover_sz, cover_sz, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation))
+            cover_with_shadow = self._add_cover_shadow(self._cover, cover_sz)
+            self._cover_lbl.setPixmap(cover_with_shadow)
         else:
             self._default_cover()
 
         self._lyrics_w.set_text_size(cfg.mediaLyricsSize.value)
-        self._lyrics_w.set_visible_lines(cfg.mediaLyricsLines.value)
+        self._lyrics_w.set_visible_lines(1)
         self.setMinimumWidth(cfg.mediaWidth.value)
         self.setFixedHeight(cfg.mediaHeight.value)
         self.adjustSize()
+
+    def _add_cover_shadow(self, pixmap: QPixmap, size: int) -> QPixmap:
+        result = QPixmap(size + 8, size + 8)
+        result.fill(Qt.GlobalColor.transparent)
+
+        p = QPainter(result)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        shadow_color = QColor(0, 0, 0, 50)
+        for i in range(4):
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(0, 0, 0, 20 - i * 4))
+            offset = (i + 1) * 2
+            p.drawRoundedRect(offset, offset, size, size, 10, 10)
+
+        rounded = QPixmap(size, size)
+        rounded.fill(Qt.GlobalColor.transparent)
+        p2 = QPainter(rounded)
+        p2.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p2.setPen(Qt.PenStyle.NoPen)
+        p2.setBrush(Qt.BrushStyle.SolidPattern)
+        p2.drawRoundedRect(0, 0, size, size, 10, 10)
+        p2.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceAtop)
+        p2.drawPixmap(0, 0, pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation))
+        p2.end()
+
+        p.drawPixmap(4, 4, rounded)
+        p.end()
+        return result
 
     def _init_cover_animation(self):
         self._cover_opacity = QGraphicsOpacityEffect(self)
@@ -423,8 +445,9 @@ class MediaWidget(QWidget):
         if not pm.isNull():
             self._cover = pm
             sz = cfg.mediaCoverSize.value
-            self._cover_lbl.setPixmap(pm.scaled(sz, sz, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation))
-            
+            cover_with_shadow = self._add_cover_shadow(pm, sz)
+            self._cover_lbl.setPixmap(cover_with_shadow)
+
             self._cover_anim.stop()
             self._cover_opacity.setOpacity(0.0)
             self._cover_anim.setStartValue(0.0)
