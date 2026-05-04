@@ -885,7 +885,7 @@ class MainWindow(FluentWindow):
         self.mediaContainer = QWidget()
         self.mediaContainer.setObjectName("mediaContainer")
         self.mediaContainer.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.mediaContainer.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        self.mediaContainer.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         self.mediaContainerLayout = QVBoxLayout(self.mediaContainer)
         self.mediaContainerLayout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
         self.mediaContainerLayout.setContentsMargins(120, 0, 0, 100)
@@ -1822,6 +1822,8 @@ class MainWindow(FluentWindow):
             cfg.mediaCoverSize.valueChanged.connect(self.__onMediaSettingsChanged)
             cfg.mediaLyricsSize.valueChanged.connect(self.__onMediaSettingsChanged)
             cfg.mediaLyricsLines.valueChanged.connect(self.__onMediaSettingsChanged)
+            cfg.mediaWidth.valueChanged.connect(self.__onMediaSettingsChanged)
+            cfg.mediaHeight.valueChanged.connect(self.__onMediaSettingsChanged)
             cfg.mediaUpdateInterval.valueChanged.connect(self.__onMediaUpdateIntervalChanged)
             
             self.__updateMediaPosition()

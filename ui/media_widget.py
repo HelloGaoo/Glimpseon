@@ -93,8 +93,7 @@ class LyricsWidget(QWidget):
         _, idx = self._lyrics.get_line_at_time(adjusted_ms)
         if idx != self._current_idx and idx >= 0:
             self._current_idx = idx
-            half = self._visible_lines // 2
-            target = max(0, (idx - half) * self._line_height)
+            target = idx * self._line_height
             self._anim.stop()
             self._anim.setStartValue(self._scroll_offset)
             self._anim.setEndValue(target)
@@ -199,42 +198,45 @@ class MediaWidget(QWidget):
     def _init_ui(self):
         self.setStyleSheet(load_qss('media_widget.qss'))
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 8, 12, 8)
-        layout.setSpacing(12)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(12, 10, 12, 8)
+        main_layout.setSpacing(8)
+
+        top_row = QHBoxLayout()
+        top_row.setSpacing(12)
+        top_row.setContentsMargins(0, 0, 0, 0)
 
         self._cover_lbl = QLabel()
         self._cover_lbl.setObjectName("mediaCoverLabel")
         self._cover_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._default_cover()
-        layout.addWidget(self._cover_lbl, 0, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        top_row.addWidget(self._cover_lbl, 0, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
 
         right_col = QVBoxLayout()
         right_col.setSpacing(4)
         right_col.setContentsMargins(0, 0, 0, 0)
 
-        info_row = QHBoxLayout()
-        info_row.setSpacing(8)
-        info_row.setContentsMargins(0, 0, 0, 0)
-
-        info_col = QVBoxLayout()
-        info_col.setSpacing(2)
-        info_col.setContentsMargins(0, 0, 0, 0)
-
         self._title = QLabel("未在播放")
         self._title.setObjectName("mediaTitleLabel")
         self._title.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        info_col.addWidget(self._title)
+        right_col.addWidget(self._title)
 
         self._artist = QLabel("")
         self._artist.setObjectName("mediaArtistLabel")
         self._artist.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        info_col.addWidget(self._artist)
+        right_col.addWidget(self._artist)
+
+        self._lyrics_w = LyricsWidget()
+        self._lyrics_w.setObjectName("mediaLyricsWidget")
+        right_col.addWidget(self._lyrics_w, 1)
+
+        top_row.addLayout(right_col, 1)
+        main_layout.addLayout(top_row, 1)
 
         prog = QWidget()
         prog.setObjectName("mediaProgressContainer")
         pl = QHBoxLayout(prog)
-        pl.setContentsMargins(0, 0, 0, 0)
+        pl.setContentsMargins(0, 4, 0, 0)
         pl.setSpacing(6)
 
         self._time = QLabel("0:00")
@@ -251,22 +253,14 @@ class MediaWidget(QWidget):
         self._dur.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         pl.addWidget(self._dur)
 
-        info_col.addWidget(prog)
-        info_row.addLayout(info_col, 1)
-
-        self._lyrics_w = LyricsWidget()
-        self._lyrics_w.setObjectName("mediaLyricsWidget")
-
-        right_col.addLayout(info_row, 1)
-        right_col.addWidget(self._lyrics_w, 1)
-        layout.addLayout(right_col, 1)
+        self._prog_container = prog
+        main_layout.addWidget(prog)
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-
+        self.setMinimumWidth(cfg.mediaWidth.value)
+        
     def _get_content_height(self) -> int:
-        cover_sz = cfg.mediaCoverSize.value
-        lyric_h = self._lyrics_w.sizeHint().height() if self._lyrics_w.isVisible() else 0
-        return max(cover_sz, 52 + (24 if cfg.showMediaProgress.value else 0), lyric_h) + 16
+        return cfg.mediaHeight.value
 
     def _default_cover(self):
         sz = cfg.mediaCoverSize.value
@@ -300,6 +294,8 @@ class MediaWidget(QWidget):
 
         self._lyrics_w.set_text_size(cfg.mediaLyricsSize.value)
         self._lyrics_w.set_visible_lines(cfg.mediaLyricsLines.value)
+        self.setMinimumWidth(cfg.mediaWidth.value)
+        self.setFixedHeight(cfg.mediaHeight.value)
         self.adjustSize()
 
     def _init_cover_animation(self):
@@ -388,7 +384,7 @@ class MediaWidget(QWidget):
             self._position = m.position_ms
 
         if cfg.showMediaProgress.value:
-            self._bar.parent().show()
+            self._prog_container.show()
             if self._duration > 0:
                 self._bar.setValue(min(100, int(self._position / self._duration * 100)))
                 self._time.setText(self._fmt(self._position))
@@ -397,7 +393,7 @@ class MediaWidget(QWidget):
                 self._bar.setValue(0)
                 self._time.setText(self._fmt(self._position))
         else:
-            self._bar.parent().hide()
+            self._prog_container.hide()
 
         self._cover_lbl.setVisible(cfg.showMediaCover.value)
         self._lyrics_w.setVisible(cfg.showMediaLyrics.value)

@@ -344,6 +344,12 @@ class Config(QConfig):
     mediaLyricsLines = RangeConfigItem(
         "Media", "LyricsLines", 3, RangeValidator(1, 7)
     )
+    mediaWidth = RangeConfigItem(
+        "Media", "Width", 360, RangeValidator(200, 800)
+    )
+    mediaHeight = RangeConfigItem(
+        "Media", "Height", 130, RangeValidator(80, 300)
+    )
 
 
 cfg = Config()

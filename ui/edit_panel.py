@@ -221,6 +221,8 @@ class EditPanel(QWidget):
         self.mediaCoverSizeSpin.setEnabled(enabled)
         self.mediaLyricsSizeSpin.setEnabled(enabled)
         self.mediaLyricsLinesSpin.setEnabled(enabled)
+        self.mediaWidthSpin.setEnabled(enabled)
+        self.mediaHeightSpin.setEnabled(enabled)
         self.mediaUpdateIntervalSpin.setEnabled(enabled)
     
     def _connectConfigSignals(self):
@@ -278,6 +280,8 @@ class EditPanel(QWidget):
         cfg.mediaCoverSize.valueChanged.connect(self._updateMediaCoverSizeSpin)
         cfg.mediaLyricsSize.valueChanged.connect(self._updateMediaLyricsSizeSpin)
         cfg.mediaLyricsLines.valueChanged.connect(self._updateMediaLyricsLinesSpin)
+        cfg.mediaWidth.valueChanged.connect(self._updateMediaWidthSpin)
+        cfg.mediaHeight.valueChanged.connect(self._updateMediaHeightSpin)
         cfg.mediaUpdateInterval.valueChanged.connect(self._updateMediaUpdateIntervalSpin)
     
     def __connectSignalToSlot(self):
@@ -1394,6 +1398,8 @@ class EditPanel(QWidget):
         self.mediaCoverSizeSpin.setValue(cfg.mediaCoverSize.value)
         self.mediaLyricsSizeSpin.setValue(cfg.mediaLyricsSize.value)
         self.mediaLyricsLinesSpin.setValue(cfg.mediaLyricsLines.value)
+        self.mediaWidthSpin.setValue(cfg.mediaWidth.value)
+        self.mediaHeightSpin.setValue(cfg.mediaHeight.value)
         self.mediaUpdateIntervalSpin.setValue(cfg.mediaUpdateInterval.value)
     
     def _createSchoolInfoSettings(self, layout):
@@ -1650,6 +1656,30 @@ class EditPanel(QWidget):
         lyricsLinesLayout.addWidget(self.mediaLyricsLinesSpin)
         layout.addLayout(lyricsLinesLayout)
         
+        widthLayout = QHBoxLayout()
+        widthLabel = BodyLabel('组件宽度', self)
+        widthLabel.setFixedWidth(100)
+        widthLayout.addWidget(widthLabel)
+        self.mediaWidthSpin = SpinBox(self)
+        self.mediaWidthSpin.setRange(200, 800)
+        self.mediaWidthSpin.setValue(cfg.mediaWidth.value)
+        self.mediaWidthSpin.setFixedWidth(120)
+        self.mediaWidthSpin.valueChanged.connect(self._onMediaWidthChanged)
+        widthLayout.addWidget(self.mediaWidthSpin)
+        layout.addLayout(widthLayout)
+        
+        heightLayout = QHBoxLayout()
+        heightLabel = BodyLabel('组件高度', self)
+        heightLabel.setFixedWidth(100)
+        heightLayout.addWidget(heightLabel)
+        self.mediaHeightSpin = SpinBox(self)
+        self.mediaHeightSpin.setRange(80, 300)
+        self.mediaHeightSpin.setValue(cfg.mediaHeight.value)
+        self.mediaHeightSpin.setFixedWidth(120)
+        self.mediaHeightSpin.valueChanged.connect(self._onMediaHeightChanged)
+        heightLayout.addWidget(self.mediaHeightSpin)
+        layout.addLayout(heightLayout)
+        
         intervalLayout = QHBoxLayout()
         intervalLabel = BodyLabel('更新间隔(秒)', self)
         intervalLabel.setFixedWidth(100)
@@ -1695,6 +1725,12 @@ class EditPanel(QWidget):
     def _updateMediaLyricsLinesSpin(self, value):
         self.mediaLyricsLinesSpin.setValue(value)
     
+    def _updateMediaWidthSpin(self, value):
+        self.mediaWidthSpin.setValue(value)
+    
+    def _updateMediaHeightSpin(self, value):
+        self.mediaHeightSpin.setValue(value)
+    
     def _updateMediaUpdateIntervalSpin(self, value):
         self.mediaUpdateIntervalSpin.setValue(value)
     
@@ -1734,6 +1770,14 @@ class EditPanel(QWidget):
     def _onMediaLyricsLinesChanged(self, value: int):
         cfg.mediaLyricsLines.value = value
         logger.info(f"媒体设置：歌词行数={value}")
+    
+    def _onMediaWidthChanged(self, value: int):
+        cfg.mediaWidth.value = value
+        logger.info(f"媒体设置：组件宽度={value}px")
+    
+    def _onMediaHeightChanged(self, value: int):
+        cfg.mediaHeight.value = value
+        logger.info(f"媒体设置：组件高度={value}px")
     
     def _onMediaUpdateIntervalChanged(self, value: int):
         cfg.mediaUpdateInterval.value = value
