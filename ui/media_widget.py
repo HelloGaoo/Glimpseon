@@ -228,13 +228,14 @@ class MediaWidget(QWidget):
         self.setFixedHeight(90)
     
     def _default_cover(self):
-        pm = QPixmap(64, 64)
+        sz = cfg.mediaCoverSize.value
+        pm = QPixmap(sz, sz)
         pm.fill(Qt.GlobalColor.transparent)
         p = QPainter(pm)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         p.setPen(QColor(255, 255, 255, 100))
         p.setBrush(QColor(255, 255, 255, 30))
-        p.drawRoundedRect(0, 0, 64, 64, 8, 8)
+        p.drawRoundedRect(0, 0, sz, sz, 8, 8)
         p.end()
         self._cover_lbl.setPixmap(pm)
     
@@ -248,7 +249,14 @@ class MediaWidget(QWidget):
         sz = cfg.mediaTextSize.value
         self._title.setStyleSheet(f"font-size: {sz}px;")
         self._artist.setStyleSheet(f"font-size: {sz - 2}px;")
-        self._cover_lbl.setFixedSize(cfg.mediaCoverSize.value, cfg.mediaCoverSize.value)
+        
+        cover_sz = cfg.mediaCoverSize.value
+        self._cover_lbl.setFixedSize(cover_sz, cover_sz)
+        if self._cover and not self._cover.isNull():
+            self._cover_lbl.setPixmap(self._cover.scaled(cover_sz, cover_sz, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation))
+        else:
+            self._default_cover()
+        
         self._lyrics_w.set_text_size(cfg.mediaLyricsSize.value)
         self._lyrics_w.set_visible_lines(cfg.mediaLyricsLines.value)
     
