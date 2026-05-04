@@ -1852,16 +1852,8 @@ class MainWindow(FluentWindow):
             cfg.showMediaInfo.valueChanged.connect(self.__onShowMediaInfoChanged)
             cfg.mediaPosition.valueChanged.connect(self.__updateMediaPosition)
             cfg.showMediaCover.valueChanged.connect(self.__onMediaSettingsChanged)
-            cfg.showMediaProgress.valueChanged.connect(self.__onMediaSettingsChanged)
-            cfg.showMediaLyrics.valueChanged.connect(self.__onMediaSettingsChanged)
-            cfg.mediaTextSize.valueChanged.connect(self.__onMediaSettingsChanged)
-            cfg.mediaCoverSize.valueChanged.connect(self.__onMediaSettingsChanged)
-            cfg.mediaLyricsSize.valueChanged.connect(self.__onMediaSettingsChanged)
-            cfg.mediaLyricsLines.valueChanged.connect(self.__onMediaSettingsChanged)
-            cfg.mediaWidth.valueChanged.connect(self.__onMediaSettingsChanged)
-            cfg.mediaHeight.valueChanged.connect(self.__onMediaSettingsChanged)
             cfg.mediaUpdateInterval.valueChanged.connect(self.__onMediaUpdateIntervalChanged)
-            
+
             self.__updateMediaPosition()
             if cfg.showMediaInfo.value:
                 self.mediaWidget.start()

@@ -214,8 +214,6 @@ class EditPanel(QWidget):
     
     def _updateMediaSettingsEnabled(self, enabled):
         self.showMediaCoverSwitch.setEnabled(enabled)
-        self.showMediaProgressSwitch.setEnabled(enabled)
-        self.showMediaLyricsSwitch.setEnabled(enabled)
         self.mediaPositionCombo.setEnabled(enabled)
     
     def _connectConfigSignals(self):
@@ -266,8 +264,6 @@ class EditPanel(QWidget):
         # 媒体设置
         cfg.showMediaInfo.valueChanged.connect(self._updateShowMediaInfoSwitch)
         cfg.showMediaCover.valueChanged.connect(self._updateShowMediaCoverSwitch)
-        cfg.showMediaProgress.valueChanged.connect(self._updateShowMediaProgressSwitch)
-        cfg.showMediaLyrics.valueChanged.connect(self._updateShowMediaLyricsSwitch)
         cfg.mediaPosition.valueChanged.connect(self._updateMediaPositionCombo)
     
     def __connectSignalToSlot(self):
@@ -1377,8 +1373,6 @@ class EditPanel(QWidget):
     def refreshMediaSettings(self):
         self.showMediaInfoSwitch.setChecked(cfg.showMediaInfo.value)
         self.showMediaCoverSwitch.setChecked(cfg.showMediaCover.value)
-        self.showMediaProgressSwitch.setChecked(cfg.showMediaProgress.value)
-        self.showMediaLyricsSwitch.setChecked(cfg.showMediaLyrics.value)
         self.mediaPositionCombo.setCurrentText(cfg.mediaPosition.value)
     
     def _createSchoolInfoSettings(self, layout):
@@ -1554,27 +1548,7 @@ class EditPanel(QWidget):
         self.showMediaCoverSwitch.checkedChanged.connect(self._onShowMediaCoverChanged)
         coverLayout.addWidget(self.showMediaCoverSwitch)
         layout.addLayout(coverLayout)
-        
-        progressLayout = QHBoxLayout()
-        progressLabel = BodyLabel('显示进度', self)
-        progressLabel.setFixedWidth(100)
-        progressLayout.addWidget(progressLabel)
-        self.showMediaProgressSwitch = SwitchButton(self)
-        self.showMediaProgressSwitch.setChecked(cfg.showMediaProgress.value)
-        self.showMediaProgressSwitch.checkedChanged.connect(self._onShowMediaProgressChanged)
-        progressLayout.addWidget(self.showMediaProgressSwitch)
-        layout.addLayout(progressLayout)
-        
-        lyricsLayout = QHBoxLayout()
-        lyricsLabel = BodyLabel('显示歌词', self)
-        lyricsLabel.setFixedWidth(100)
-        lyricsLayout.addWidget(lyricsLabel)
-        self.showMediaLyricsSwitch = SwitchButton(self)
-        self.showMediaLyricsSwitch.setChecked(cfg.showMediaLyrics.value)
-        self.showMediaLyricsSwitch.checkedChanged.connect(self._onShowMediaLyricsChanged)
-        lyricsLayout.addWidget(self.showMediaLyricsSwitch)
-        layout.addLayout(lyricsLayout)
-        
+
         positionLayout = QHBoxLayout()
         positionLabel = BodyLabel('位置', self)
         positionLabel.setFixedWidth(100)
@@ -1593,13 +1567,7 @@ class EditPanel(QWidget):
     
     def _updateShowMediaCoverSwitch(self, value):
         self.showMediaCoverSwitch.setChecked(value)
-    
-    def _updateShowMediaProgressSwitch(self, value):
-        self.showMediaProgressSwitch.setChecked(value)
-    
-    def _updateShowMediaLyricsSwitch(self, value):
-        self.showMediaLyricsSwitch.setChecked(value)
-    
+
     def _updateMediaPositionCombo(self, value):
         try:
             self.mediaPositionCombo.currentTextChanged.disconnect(self._onMediaPositionChanged)
@@ -1616,15 +1584,7 @@ class EditPanel(QWidget):
     def _onShowMediaCoverChanged(self, checked: bool):
         cfg.showMediaCover.value = checked
         logger.info(f"媒体设置：显示封面={'开启' if checked else '关闭'}")
-    
-    def _onShowMediaProgressChanged(self, checked: bool):
-        cfg.showMediaProgress.value = checked
-        logger.info(f"媒体设置：显示进度={'开启' if checked else '关闭'}")
-    
-    def _onShowMediaLyricsChanged(self, checked: bool):
-        cfg.showMediaLyrics.value = checked
-        logger.info(f"媒体设置：显示歌词={'开启' if checked else '关闭'}")
-    
+
     def _onMediaPositionChanged(self, text: str):
         cfg.mediaPosition.value = text
         logger.info(f"媒体设置：位置={text}")

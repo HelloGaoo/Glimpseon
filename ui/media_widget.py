@@ -405,20 +405,17 @@ class MediaWidget(QWidget):
         if m.position_ms > 0:
             self._position = m.position_ms
 
-        if cfg.showMediaProgress.value:
-            self._prog_container.show()
-            if self._duration > 0:
-                self._bar.setValue(min(100, int(self._position / self._duration * 100)))
-                self._time.setText(self._fmt(self._position))
-                self._dur.setText(self._fmt(self._duration))
-            else:
-                self._bar.setValue(0)
-                self._time.setText(self._fmt(self._position))
+        self._prog_container.show()
+        if self._duration > 0:
+            self._bar.setValue(min(100, int(self._position / self._duration * 100)))
+            self._time.setText(self._fmt(self._position))
+            self._dur.setText(self._fmt(self._duration))
         else:
-            self._prog_container.hide()
+            self._bar.setValue(0)
+            self._time.setText(self._fmt(self._position))
 
         self._cover_lbl.setVisible(cfg.showMediaCover.value)
-        self._lyrics_w.setVisible(cfg.showMediaLyrics.value)
+        self._lyrics_w.show()
         self.adjustSize()
 
     def _update_progress(self):
@@ -428,7 +425,7 @@ class MediaWidget(QWidget):
         if m and m.is_valid() and m.position_ms > 0:
             self._position = m.position_ms
             self._playing = m.is_playing
-            if cfg.showMediaProgress.value and self._duration > 0:
+            if self._duration > 0:
                 self._bar.setValue(min(100, int(self._position / self._duration * 100)))
                 self._time.setText(self._fmt(self._position))
             if self._lyrics and not self._lyrics.is_empty():
