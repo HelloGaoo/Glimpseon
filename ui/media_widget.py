@@ -22,10 +22,11 @@ import logging
 import os
 import sys
 from typing import Optional
+from concurrent.futures import ThreadPoolExecutor
 
-from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QByteArray, pyqtProperty
+from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QByteArray, pyqtProperty, pyqtSignal, QObject, QThread
 from PyQt6.QtGui import QPixmap, QColor, QPainter, QFont
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar, QSizePolicy, QFrame
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar, QSizePolicy, QFrame, QGraphicsOpacityEffect
 
 if getattr(sys, 'frozen', False):
     _BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
@@ -150,6 +151,22 @@ class ProgressBar(QProgressBar):
             p.drawRoundedRect(0, 0, w, self.height(), 2, 2)
 
 
+class FetchWorker(QObject):
+    finished = pyqtSignal(dict)
+    def __init__(self, title: str, artist: str):
+        super().__init__()
+        self.title = title
+        self.artist = artist
+    
+    def run(self):
+        try:
+            info = fetch_all_info(self.title, self.artist)
+            self.finished.emit(info)
+        except Exception as e:
+            logger.debug(f"获取歌曲信息失败: {e}")
+            self.finished.emit({})
+
+
 class MediaWidget(QWidget):
     """媒体信息显示控件"""
 
@@ -167,10 +184,16 @@ class MediaWidget(QWidget):
         self._duration = 0
         self._position = 0
         self._playing = False
+        self._thread = None
+        self._worker = None
+        self._info_cache = {}
+        self._rapid_update_count = 0
+        self._normal_interval = cfg.mediaUpdateInterval.value * 1000
 
         self._init_ui()
         self._setup_timers()
         self._apply_config()
+        self._init_cover_animation()
 
     def _init_ui(self):
         self.setStyleSheet(load_qss('media_widget.qss'))
@@ -278,6 +301,15 @@ class MediaWidget(QWidget):
         self._lyrics_w.set_visible_lines(cfg.mediaLyricsLines.value)
         self.adjustSize()
 
+    def _init_cover_animation(self):
+        self._cover_opacity = QGraphicsOpacityEffect(self)
+        self._cover_opacity.setOpacity(1.0)
+        self._cover_lbl.setGraphicsEffect(self._cover_opacity)
+        
+        self._cover_anim = QPropertyAnimation(self._cover_opacity, QByteArray(b"opacity"))
+        self._cover_anim.setDuration(300)
+        self._cover_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+
     def start(self):
         self._timer.start(cfg.mediaUpdateInterval.value * 1000)
         self._prog_timer.start(1000)
@@ -295,9 +327,19 @@ class MediaWidget(QWidget):
         if not m or not m.is_valid():
             self._no_media()
             return
+        
+        is_new_song = m.title_artist != self._last_ta
         self._media = m
         self._display(m)
         self.show()
+        
+        if is_new_song and self._rapid_update_count == 0:
+            self._rapid_update_count = 5
+            self._timer.setInterval(500)
+        elif self._rapid_update_count > 0:
+            self._rapid_update_count -= 1
+            if self._rapid_update_count == 0:
+                self._timer.setInterval(self._normal_interval)
 
     def _no_media(self):
         self._title.setText("未在播放")
@@ -324,8 +366,20 @@ class MediaWidget(QWidget):
             self._position = m.position_ms
             self._playing = m.is_playing
             self._duration = m.duration_ms
+            
             self._title.setText(title)
             self._artist.setText(artist)
+            
+            self._cover_anim.stop()
+            self._default_cover()
+            self._lyrics_w.clear()
+            self._cover = None
+            self._lyrics = None
+            
+            self._cover_lbl.repaint()
+            self._lyrics_w.repaint()
+            self.adjustSize()
+            
             self._fetch(title, artist)
 
         self._playing = m.is_playing
@@ -373,13 +427,41 @@ class MediaWidget(QWidget):
             self._cover = pm
             sz = cfg.mediaCoverSize.value
             self._cover_lbl.setPixmap(pm.scaled(sz, sz, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation))
+            
+            self._cover_anim.stop()
+            self._cover_opacity.setOpacity(0.0)
+            self._cover_anim.setStartValue(0.0)
+            self._cover_anim.setEndValue(1.0)
+            self._cover_anim.start()
 
     def _fetch(self, title: str, artist: str):
+        cache_key = f"{title} - {artist}"
+        if cache_key in self._info_cache:
+            info = self._info_cache[cache_key]
+            self._apply_fetched_info(info)
+            return
+        
         if self._fetching:
             return
         self._fetching = True
+        
+        self._worker = FetchWorker(title, artist)
+        self._thread = QThread()
+        self._worker.moveToThread(self._thread)
+        self._thread.started.connect(self._worker.run)
+        self._worker.finished.connect(self._on_fetch_finished)
+        self._worker.finished.connect(self._thread.quit)
+        self._thread.finished.connect(self._cleanup_thread)
+        self._thread.start()
+    
+    def _on_fetch_finished(self, info: dict):
+        cache_key = f"{self._media.title} - {self._media.artist}" if self._media else ""
+        if cache_key:
+            self._info_cache[cache_key] = info
+        self._apply_fetched_info(info)
+    
+    def _apply_fetched_info(self, info: dict):
         try:
-            info = fetch_all_info(title, artist)
             if info.get('detail'):
                 self._duration = info['detail'].duration
             if info.get('cover') and cfg.showMediaCover.value:
@@ -388,9 +470,17 @@ class MediaWidget(QWidget):
             self._lyrics_w.set_lyrics(self._lyrics)
             self.adjustSize()
         except Exception as e:
-            logger.debug(f"获取歌曲信息失败: {e}")
+            logger.debug(f"应用歌曲信息失败: {e}")
         finally:
             self._fetching = False
+    
+    def _cleanup_thread(self):
+        if self._thread:
+            self._thread.deleteLater()
+            self._thread = None
+        if self._worker:
+            self._worker.deleteLater()
+            self._worker = None
 
     def update_settings(self):
         self._apply_config()
