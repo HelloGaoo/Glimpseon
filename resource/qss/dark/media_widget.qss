@@ -47,6 +47,11 @@ MainWindow #mediaContainer {
     border-radius: 8px;
 }
 
+/* 进度条容器 */
+#mediaProgressContainer {
+    background-color: transparent;
+}
+
 /* 歌词控件 */
 #mediaLyricsWidget {
     background-color: transparent;
