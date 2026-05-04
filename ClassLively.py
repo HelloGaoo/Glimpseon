@@ -1852,6 +1852,8 @@ class MainWindow(FluentWindow):
             cfg.showMediaInfo.valueChanged.connect(self.__onShowMediaInfoChanged)
             cfg.mediaPosition.valueChanged.connect(self.__updateMediaPosition)
             cfg.showMediaCover.valueChanged.connect(self.__onMediaSettingsChanged)
+            cfg.mediaWidth.valueChanged.connect(self.__onMediaSettingsChanged)
+            cfg.mediaLyricsAdvance.valueChanged.connect(self.__onMediaSettingsChanged)
             cfg.mediaUpdateInterval.valueChanged.connect(self.__onMediaUpdateIntervalChanged)
 
             self.__updateMediaPosition()

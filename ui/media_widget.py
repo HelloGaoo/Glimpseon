@@ -76,7 +76,8 @@ class LyricsWidget(QWidget):
     def update_position(self, ms: int):
         if not self._lyrics or self._lyrics.is_empty():
             return
-        adjusted_ms = ms + 500
+        advance = cfg.mediaLyricsAdvance.value
+        adjusted_ms = ms + advance
         _, idx = self._lyrics.get_line_at_time(adjusted_ms)
         if idx >= 0 and idx < len(self._lyrics.lines):
             text = self._lyrics.lines[idx].text

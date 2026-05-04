@@ -215,6 +215,8 @@ class EditPanel(QWidget):
     def _updateMediaSettingsEnabled(self, enabled):
         self.showMediaCoverSwitch.setEnabled(enabled)
         self.mediaPositionCombo.setEnabled(enabled)
+        self.mediaWidthSpin.setEnabled(enabled)
+        self.mediaLyricsAdvanceSpin.setEnabled(enabled)
     
     def _connectConfigSignals(self):
         """连接配置变化信到 UI 更新"""
@@ -265,6 +267,8 @@ class EditPanel(QWidget):
         cfg.showMediaInfo.valueChanged.connect(self._updateShowMediaInfoSwitch)
         cfg.showMediaCover.valueChanged.connect(self._updateShowMediaCoverSwitch)
         cfg.mediaPosition.valueChanged.connect(self._updateMediaPositionCombo)
+        cfg.mediaWidth.valueChanged.connect(self._updateMediaWidthSpin)
+        cfg.mediaLyricsAdvance.valueChanged.connect(self._updateMediaLyricsAdvanceSpin)
     
     def __connectSignalToSlot(self):
         cfg.themeChanged.connect(self._onThemeChanged)
@@ -1374,6 +1378,8 @@ class EditPanel(QWidget):
         self.showMediaInfoSwitch.setChecked(cfg.showMediaInfo.value)
         self.showMediaCoverSwitch.setChecked(cfg.showMediaCover.value)
         self.mediaPositionCombo.setCurrentText(cfg.mediaPosition.value)
+        self.mediaWidthSpin.setValue(cfg.mediaWidth.value)
+        self.mediaLyricsAdvanceSpin.setValue(cfg.mediaLyricsAdvance.value)
     
     def _createSchoolInfoSettings(self, layout):
         """创建学校信息设置"""
@@ -1560,6 +1566,30 @@ class EditPanel(QWidget):
         self.mediaPositionCombo.currentTextChanged.connect(self._onMediaPositionChanged)
         positionLayout.addWidget(self.mediaPositionCombo)
         layout.addLayout(positionLayout)
+
+        widthLayout = QHBoxLayout()
+        widthLabel = BodyLabel('组件宽度', self)
+        widthLabel.setFixedWidth(100)
+        widthLayout.addWidget(widthLabel)
+        self.mediaWidthSpin = SpinBox(self)
+        self.mediaWidthSpin.setRange(200, 800)
+        self.mediaWidthSpin.setValue(cfg.mediaWidth.value)
+        self.mediaWidthSpin.setFixedWidth(120)
+        self.mediaWidthSpin.valueChanged.connect(self._onMediaWidthChanged)
+        widthLayout.addWidget(self.mediaWidthSpin)
+        layout.addLayout(widthLayout)
+
+        lyricsAdvanceLayout = QHBoxLayout()
+        lyricsAdvanceLabel = BodyLabel('歌词提前(ms)', self)
+        lyricsAdvanceLabel.setFixedWidth(100)
+        lyricsAdvanceLayout.addWidget(lyricsAdvanceLabel)
+        self.mediaLyricsAdvanceSpin = SpinBox(self)
+        self.mediaLyricsAdvanceSpin.setRange(0, 2000)
+        self.mediaLyricsAdvanceSpin.setValue(cfg.mediaLyricsAdvance.value)
+        self.mediaLyricsAdvanceSpin.setFixedWidth(120)
+        self.mediaLyricsAdvanceSpin.valueChanged.connect(self._onMediaLyricsAdvanceChanged)
+        lyricsAdvanceLayout.addWidget(self.mediaLyricsAdvanceSpin)
+        layout.addLayout(lyricsAdvanceLayout)
     
     def _updateShowMediaInfoSwitch(self, value):
         self.showMediaInfoSwitch.setChecked(value)
@@ -1576,6 +1606,12 @@ class EditPanel(QWidget):
         self.mediaPositionCombo.setCurrentText(value)
         self.mediaPositionCombo.currentTextChanged.connect(self._onMediaPositionChanged)
 
+    def _updateMediaWidthSpin(self, value):
+        self.mediaWidthSpin.setValue(value)
+
+    def _updateMediaLyricsAdvanceSpin(self, value):
+        self.mediaLyricsAdvanceSpin.setValue(value)
+
     def _onShowMediaInfoChanged(self, checked: bool):
         cfg.showMediaInfo.value = checked
         self._updateMediaSettingsEnabled(checked)
@@ -1588,6 +1624,14 @@ class EditPanel(QWidget):
     def _onMediaPositionChanged(self, text: str):
         cfg.mediaPosition.value = text
         logger.info(f"媒体设置：位置={text}")
+
+    def _onMediaWidthChanged(self, value: int):
+        cfg.mediaWidth.value = value
+        logger.info(f"媒体设置：组件宽度={value}px")
+
+    def _onMediaLyricsAdvanceChanged(self, value: int):
+        cfg.mediaLyricsAdvance.value = value
+        logger.info(f"媒体设置：歌词提前时间={value}ms")
 
 
 class CountdownEditDialog(MessageBoxBase):

@@ -350,6 +350,9 @@ class Config(QConfig):
     mediaHeight = RangeConfigItem(
         "Media", "Height", 130, RangeValidator(80, 300)
     )
+    mediaLyricsAdvance = RangeConfigItem(
+        "Media", "LyricsAdvance", 500, RangeValidator(0, 2000)
+    )
 
 
 cfg = Config()
