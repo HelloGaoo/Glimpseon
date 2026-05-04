@@ -532,7 +532,6 @@ class GSMTCReader:
             import asyncio
             
             async def _read():
-                nonlocal self._manager
                 if not self._initialized:
                     self._manager = await MediaManager.request_async()
                     self._initialized = True
