@@ -89,7 +89,8 @@ class LyricsWidget(QWidget):
     def update_position(self, ms: int):
         if not self._lyrics or self._lyrics.is_empty():
             return
-        _, idx = self._lyrics.get_line_at_time(ms)
+        adjusted_ms = ms + 500
+        _, idx = self._lyrics.get_line_at_time(adjusted_ms)
         if idx != self._current_idx and idx >= 0:
             self._current_idx = idx
             half = self._visible_lines // 2
