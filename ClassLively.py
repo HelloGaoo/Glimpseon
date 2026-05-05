@@ -1753,6 +1753,15 @@ class MainWindow(FluentWindow):
         self.countdownConnectorColor = connector_color_str
         self.countdownConnectorSize = connector_size
         self.countdownDaysSize = text_size
+        
+        self.countdownLabel.setStyleSheet(f"""
+            color: {text_color_str};
+            font-size: {text_size}px;
+            font-weight: bold;
+            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            background-color: transparent;
+        """)
+        
         if hasattr(self, 'countdownContainer'):self.countdownContainer.updateSize()
     
     def _onCountdownStyleChanged(self):
