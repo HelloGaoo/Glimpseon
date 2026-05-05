@@ -214,14 +214,9 @@ class EditPanel(QWidget):
     
     def _updateMediaSettingsEnabled(self, enabled):
         self.showMediaCoverSwitch.setEnabled(enabled)
-        self.showMediaProgressSwitch.setEnabled(enabled)
-        self.showMediaLyricsSwitch.setEnabled(enabled)
         self.mediaPositionCombo.setEnabled(enabled)
-        self.mediaTextSizeSpin.setEnabled(enabled)
-        self.mediaCoverSizeSpin.setEnabled(enabled)
-        self.mediaLyricsSizeSpin.setEnabled(enabled)
-        self.mediaLyricsLinesSpin.setEnabled(enabled)
-        self.mediaUpdateIntervalSpin.setEnabled(enabled)
+        self.mediaWidthSpin.setEnabled(enabled)
+        self.mediaLyricsAdvanceSpin.setEnabled(enabled)
     
     def _connectConfigSignals(self):
         """连接配置变化信到 UI 更新"""
@@ -271,14 +266,9 @@ class EditPanel(QWidget):
         # 媒体设置
         cfg.showMediaInfo.valueChanged.connect(self._updateShowMediaInfoSwitch)
         cfg.showMediaCover.valueChanged.connect(self._updateShowMediaCoverSwitch)
-        cfg.showMediaProgress.valueChanged.connect(self._updateShowMediaProgressSwitch)
-        cfg.showMediaLyrics.valueChanged.connect(self._updateShowMediaLyricsSwitch)
         cfg.mediaPosition.valueChanged.connect(self._updateMediaPositionCombo)
-        cfg.mediaTextSize.valueChanged.connect(self._updateMediaTextSizeSpin)
-        cfg.mediaCoverSize.valueChanged.connect(self._updateMediaCoverSizeSpin)
-        cfg.mediaLyricsSize.valueChanged.connect(self._updateMediaLyricsSizeSpin)
-        cfg.mediaLyricsLines.valueChanged.connect(self._updateMediaLyricsLinesSpin)
-        cfg.mediaUpdateInterval.valueChanged.connect(self._updateMediaUpdateIntervalSpin)
+        cfg.mediaWidth.valueChanged.connect(self._updateMediaWidthSpin)
+        cfg.mediaLyricsAdvance.valueChanged.connect(self._updateMediaLyricsAdvanceSpin)
     
     def __connectSignalToSlot(self):
         cfg.themeChanged.connect(self._onThemeChanged)
@@ -1387,14 +1377,9 @@ class EditPanel(QWidget):
     def refreshMediaSettings(self):
         self.showMediaInfoSwitch.setChecked(cfg.showMediaInfo.value)
         self.showMediaCoverSwitch.setChecked(cfg.showMediaCover.value)
-        self.showMediaProgressSwitch.setChecked(cfg.showMediaProgress.value)
-        self.showMediaLyricsSwitch.setChecked(cfg.showMediaLyrics.value)
         self.mediaPositionCombo.setCurrentText(cfg.mediaPosition.value)
-        self.mediaTextSizeSpin.setValue(cfg.mediaTextSize.value)
-        self.mediaCoverSizeSpin.setValue(cfg.mediaCoverSize.value)
-        self.mediaLyricsSizeSpin.setValue(cfg.mediaLyricsSize.value)
-        self.mediaLyricsLinesSpin.setValue(cfg.mediaLyricsLines.value)
-        self.mediaUpdateIntervalSpin.setValue(cfg.mediaUpdateInterval.value)
+        self.mediaWidthSpin.setValue(cfg.mediaWidth.value)
+        self.mediaLyricsAdvanceSpin.setValue(cfg.mediaLyricsAdvance.value)
     
     def _createSchoolInfoSettings(self, layout):
         """创建学校信息设置"""
@@ -1569,27 +1554,7 @@ class EditPanel(QWidget):
         self.showMediaCoverSwitch.checkedChanged.connect(self._onShowMediaCoverChanged)
         coverLayout.addWidget(self.showMediaCoverSwitch)
         layout.addLayout(coverLayout)
-        
-        progressLayout = QHBoxLayout()
-        progressLabel = BodyLabel('显示进度', self)
-        progressLabel.setFixedWidth(100)
-        progressLayout.addWidget(progressLabel)
-        self.showMediaProgressSwitch = SwitchButton(self)
-        self.showMediaProgressSwitch.setChecked(cfg.showMediaProgress.value)
-        self.showMediaProgressSwitch.checkedChanged.connect(self._onShowMediaProgressChanged)
-        progressLayout.addWidget(self.showMediaProgressSwitch)
-        layout.addLayout(progressLayout)
-        
-        lyricsLayout = QHBoxLayout()
-        lyricsLabel = BodyLabel('显示歌词', self)
-        lyricsLabel.setFixedWidth(100)
-        lyricsLayout.addWidget(lyricsLabel)
-        self.showMediaLyricsSwitch = SwitchButton(self)
-        self.showMediaLyricsSwitch.setChecked(cfg.showMediaLyrics.value)
-        self.showMediaLyricsSwitch.checkedChanged.connect(self._onShowMediaLyricsChanged)
-        lyricsLayout.addWidget(self.showMediaLyricsSwitch)
-        layout.addLayout(lyricsLayout)
-        
+
         positionLayout = QHBoxLayout()
         positionLabel = BodyLabel('位置', self)
         positionLabel.setFixedWidth(100)
@@ -1601,66 +1566,30 @@ class EditPanel(QWidget):
         self.mediaPositionCombo.currentTextChanged.connect(self._onMediaPositionChanged)
         positionLayout.addWidget(self.mediaPositionCombo)
         layout.addLayout(positionLayout)
-        
-        textSizeLayout = QHBoxLayout()
-        textSizeLabel = BodyLabel('文字大小', self)
-        textSizeLabel.setFixedWidth(100)
-        textSizeLayout.addWidget(textSizeLabel)
-        self.mediaTextSizeSpin = SpinBox(self)
-        self.mediaTextSizeSpin.setRange(12, 32)
-        self.mediaTextSizeSpin.setValue(cfg.mediaTextSize.value)
-        self.mediaTextSizeSpin.setFixedWidth(120)
-        self.mediaTextSizeSpin.valueChanged.connect(self._onMediaTextSizeChanged)
-        textSizeLayout.addWidget(self.mediaTextSizeSpin)
-        layout.addLayout(textSizeLayout)
-        
-        coverSizeLayout = QHBoxLayout()
-        coverSizeLabel = BodyLabel('封面大小', self)
-        coverSizeLabel.setFixedWidth(100)
-        coverSizeLayout.addWidget(coverSizeLabel)
-        self.mediaCoverSizeSpin = SpinBox(self)
-        self.mediaCoverSizeSpin.setRange(32, 128)
-        self.mediaCoverSizeSpin.setValue(cfg.mediaCoverSize.value)
-        self.mediaCoverSizeSpin.setFixedWidth(120)
-        self.mediaCoverSizeSpin.valueChanged.connect(self._onMediaCoverSizeChanged)
-        coverSizeLayout.addWidget(self.mediaCoverSizeSpin)
-        layout.addLayout(coverSizeLayout)
-        
-        lyricsSizeLayout = QHBoxLayout()
-        lyricsSizeLabel = BodyLabel('歌词大小', self)
-        lyricsSizeLabel.setFixedWidth(100)
-        lyricsSizeLayout.addWidget(lyricsSizeLabel)
-        self.mediaLyricsSizeSpin = SpinBox(self)
-        self.mediaLyricsSizeSpin.setRange(10, 24)
-        self.mediaLyricsSizeSpin.setValue(cfg.mediaLyricsSize.value)
-        self.mediaLyricsSizeSpin.setFixedWidth(120)
-        self.mediaLyricsSizeSpin.valueChanged.connect(self._onMediaLyricsSizeChanged)
-        lyricsSizeLayout.addWidget(self.mediaLyricsSizeSpin)
-        layout.addLayout(lyricsSizeLayout)
-        
-        lyricsLinesLayout = QHBoxLayout()
-        lyricsLinesLabel = BodyLabel('歌词行数', self)
-        lyricsLinesLabel.setFixedWidth(100)
-        lyricsLinesLayout.addWidget(lyricsLinesLabel)
-        self.mediaLyricsLinesSpin = SpinBox(self)
-        self.mediaLyricsLinesSpin.setRange(1, 7)
-        self.mediaLyricsLinesSpin.setValue(cfg.mediaLyricsLines.value)
-        self.mediaLyricsLinesSpin.setFixedWidth(120)
-        self.mediaLyricsLinesSpin.valueChanged.connect(self._onMediaLyricsLinesChanged)
-        lyricsLinesLayout.addWidget(self.mediaLyricsLinesSpin)
-        layout.addLayout(lyricsLinesLayout)
-        
-        intervalLayout = QHBoxLayout()
-        intervalLabel = BodyLabel('更新间隔(秒)', self)
-        intervalLabel.setFixedWidth(100)
-        intervalLayout.addWidget(intervalLabel)
-        self.mediaUpdateIntervalSpin = SpinBox(self)
-        self.mediaUpdateIntervalSpin.setRange(1, 5)
-        self.mediaUpdateIntervalSpin.setValue(cfg.mediaUpdateInterval.value)
-        self.mediaUpdateIntervalSpin.setFixedWidth(120)
-        self.mediaUpdateIntervalSpin.valueChanged.connect(self._onMediaUpdateIntervalChanged)
-        intervalLayout.addWidget(self.mediaUpdateIntervalSpin)
-        layout.addLayout(intervalLayout)
+
+        widthLayout = QHBoxLayout()
+        widthLabel = BodyLabel('组件宽度', self)
+        widthLabel.setFixedWidth(100)
+        widthLayout.addWidget(widthLabel)
+        self.mediaWidthSpin = SpinBox(self)
+        self.mediaWidthSpin.setRange(200, 800)
+        self.mediaWidthSpin.setValue(cfg.mediaWidth.value)
+        self.mediaWidthSpin.setFixedWidth(120)
+        self.mediaWidthSpin.valueChanged.connect(self._onMediaWidthChanged)
+        widthLayout.addWidget(self.mediaWidthSpin)
+        layout.addLayout(widthLayout)
+
+        lyricsAdvanceLayout = QHBoxLayout()
+        lyricsAdvanceLabel = BodyLabel('歌词提前(ms)', self)
+        lyricsAdvanceLabel.setFixedWidth(100)
+        lyricsAdvanceLayout.addWidget(lyricsAdvanceLabel)
+        self.mediaLyricsAdvanceSpin = SpinBox(self)
+        self.mediaLyricsAdvanceSpin.setRange(0, 2000)
+        self.mediaLyricsAdvanceSpin.setValue(cfg.mediaLyricsAdvance.value)
+        self.mediaLyricsAdvanceSpin.setFixedWidth(120)
+        self.mediaLyricsAdvanceSpin.valueChanged.connect(self._onMediaLyricsAdvanceChanged)
+        lyricsAdvanceLayout.addWidget(self.mediaLyricsAdvanceSpin)
+        layout.addLayout(lyricsAdvanceLayout)
     
     def _updateShowMediaInfoSwitch(self, value):
         self.showMediaInfoSwitch.setChecked(value)
@@ -1668,13 +1597,7 @@ class EditPanel(QWidget):
     
     def _updateShowMediaCoverSwitch(self, value):
         self.showMediaCoverSwitch.setChecked(value)
-    
-    def _updateShowMediaProgressSwitch(self, value):
-        self.showMediaProgressSwitch.setChecked(value)
-    
-    def _updateShowMediaLyricsSwitch(self, value):
-        self.showMediaLyricsSwitch.setChecked(value)
-    
+
     def _updateMediaPositionCombo(self, value):
         try:
             self.mediaPositionCombo.currentTextChanged.disconnect(self._onMediaPositionChanged)
@@ -1682,22 +1605,13 @@ class EditPanel(QWidget):
             pass
         self.mediaPositionCombo.setCurrentText(value)
         self.mediaPositionCombo.currentTextChanged.connect(self._onMediaPositionChanged)
-    
-    def _updateMediaTextSizeSpin(self, value):
-        self.mediaTextSizeSpin.setValue(value)
-    
-    def _updateMediaCoverSizeSpin(self, value):
-        self.mediaCoverSizeSpin.setValue(value)
-    
-    def _updateMediaLyricsSizeSpin(self, value):
-        self.mediaLyricsSizeSpin.setValue(value)
-    
-    def _updateMediaLyricsLinesSpin(self, value):
-        self.mediaLyricsLinesSpin.setValue(value)
-    
-    def _updateMediaUpdateIntervalSpin(self, value):
-        self.mediaUpdateIntervalSpin.setValue(value)
-    
+
+    def _updateMediaWidthSpin(self, value):
+        self.mediaWidthSpin.setValue(value)
+
+    def _updateMediaLyricsAdvanceSpin(self, value):
+        self.mediaLyricsAdvanceSpin.setValue(value)
+
     def _onShowMediaInfoChanged(self, checked: bool):
         cfg.showMediaInfo.value = checked
         self._updateMediaSettingsEnabled(checked)
@@ -1706,38 +1620,18 @@ class EditPanel(QWidget):
     def _onShowMediaCoverChanged(self, checked: bool):
         cfg.showMediaCover.value = checked
         logger.info(f"媒体设置：显示封面={'开启' if checked else '关闭'}")
-    
-    def _onShowMediaProgressChanged(self, checked: bool):
-        cfg.showMediaProgress.value = checked
-        logger.info(f"媒体设置：显示进度={'开启' if checked else '关闭'}")
-    
-    def _onShowMediaLyricsChanged(self, checked: bool):
-        cfg.showMediaLyrics.value = checked
-        logger.info(f"媒体设置：显示歌词={'开启' if checked else '关闭'}")
-    
+
     def _onMediaPositionChanged(self, text: str):
         cfg.mediaPosition.value = text
         logger.info(f"媒体设置：位置={text}")
-    
-    def _onMediaTextSizeChanged(self, value: int):
-        cfg.mediaTextSize.value = value
-        logger.info(f"媒体设置：文字大小={value}px")
-    
-    def _onMediaCoverSizeChanged(self, value: int):
-        cfg.mediaCoverSize.value = value
-        logger.info(f"媒体设置：封面大小={value}px")
-    
-    def _onMediaLyricsSizeChanged(self, value: int):
-        cfg.mediaLyricsSize.value = value
-        logger.info(f"媒体设置：歌词大小={value}px")
-    
-    def _onMediaLyricsLinesChanged(self, value: int):
-        cfg.mediaLyricsLines.value = value
-        logger.info(f"媒体设置：歌词行数={value}")
-    
-    def _onMediaUpdateIntervalChanged(self, value: int):
-        cfg.mediaUpdateInterval.value = value
-        logger.info(f"媒体设置：更新间隔={value}秒")
+
+    def _onMediaWidthChanged(self, value: int):
+        cfg.mediaWidth.value = value
+        logger.info(f"媒体设置：组件宽度={value}px")
+
+    def _onMediaLyricsAdvanceChanged(self, value: int):
+        cfg.mediaLyricsAdvance.value = value
+        logger.info(f"媒体设置：歌词提前时间={value}ms")
 
 
 class CountdownEditDialog(MessageBoxBase):

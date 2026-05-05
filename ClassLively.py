@@ -303,8 +303,10 @@ class MainWindow(FluentWindow):
         
         self.setWindowTitle(APP_NAME)
         
-        self.resize(1100, 700)
-        self.setMinimumSize(1100, 700)
+        self._normal_size = (1050, 750)
+        self._is_maximized = False
+        self.resize(*self._normal_size)
+        self.setFixedSize(*self._normal_size)
         self.moveToCenter()
         
         # 系统托盘
@@ -430,6 +432,20 @@ class MainWindow(FluentWindow):
                     return True
         
         return super().eventFilter(obj, event)
+    
+    def changeEvent(self, event):
+        """窗口状态变化事件"""
+        if event.type() == QEvent.Type.WindowStateChange:
+            is_max = self.windowState() & Qt.WindowState.WindowMaximized
+            if is_max and not self._is_maximized:
+                self._is_maximized = True
+                self.setMinimumSize(0, 0)
+                self.setMaximumSize(16777215, 16777215)
+                self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            elif not is_max and self._is_maximized:
+                self._is_maximized = False
+                self.setFixedSize(*self._normal_size)
+        super().changeEvent(event)
     
     def __onThemeChanged(self):
         """主题变化时重新加载编辑面板样式"""
@@ -577,7 +593,11 @@ class MainWindow(FluentWindow):
         
         if cfg.autoOpenMaximize.value:
             logger.info("自动最大化窗口")
-            self.showMaximized()
+            self._is_maximized = True
+            self.setMinimumSize(0, 0)
+            self.setMaximumSize(16777215, 16777215)
+            self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            super().showMaximized()
     
     def __installGlobalHooks(self):
         try:
@@ -649,6 +669,20 @@ class MainWindow(FluentWindow):
         if cfg.autoOpenOnIdle.value:
             self.idleTimer.stop()
             logger.debug("窗口显示，已停止空闲检测")
+    
+    def showMaximized(self):
+        """最大化窗口"""
+        self._is_maximized = True
+        self.setMinimumSize(0, 0)
+        self.setMaximumSize(16777215, 16777215)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        super().showMaximized()
+    
+    def showNormal(self):
+        """恢复正常大小"""
+        self._is_maximized = False
+        self.setFixedSize(*self._normal_size)
+        super().showNormal()
     
     def hide(self):
         """隐藏窗口"""
@@ -881,12 +915,14 @@ class MainWindow(FluentWindow):
         self.editLayout.addWidget(self.editButton)
         self.editContainer.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         
-        # 媒体信息容器
+        # 媒体信息
         self.mediaContainer = QWidget()
         self.mediaContainer.setObjectName("mediaContainer")
+        self.mediaContainer.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.mediaContainer.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         self.mediaContainerLayout = QVBoxLayout(self.mediaContainer)
         self.mediaContainerLayout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-        self.mediaContainerLayout.setContentsMargins(20, 0, 0, 100)
+        self.mediaContainerLayout.setContentsMargins(120, 0, 0, 100)
         self.mediaContainerLayout.setSpacing(0)
         
         self.mediaWidget = MediaWidget(self.home)
@@ -905,7 +941,7 @@ class MainWindow(FluentWindow):
         self.gridLayout.addWidget(self.schoolInfoContainer, 0, 0, 1, 1)
         self.gridLayout.addWidget(self.quickLaunchDock, 0, 0, 1, 1, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter)
         self.gridLayout.addWidget(self.editContainer, 0, 0, 1, 1, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-        self.gridLayout.addWidget(self.mediaContainer, 0, 0, 1, 1)
+        self.gridLayout.addWidget(self.mediaContainer, 0, 0, 1, 1, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
         
         self.homeContent = QWidget()
         self.homeContent.setLayout(self.gridLayout)
@@ -949,6 +985,8 @@ class MainWindow(FluentWindow):
     def resizeEvent(self, event):
         """ 窗口大小变化时调整图片大小 """
         super().resizeEvent(event)
+        if not self._is_maximized and (self.width() != self._normal_size[0] or self.height() != self._normal_size[1]):
+            self.setFixedSize(*self._normal_size)
         if hasattr(self, 'homeBackgroundImage') and self.homeBackgroundImage:
             try:
                 available_width = self.width() - 50
@@ -1814,27 +1852,21 @@ class MainWindow(FluentWindow):
             cfg.showMediaInfo.valueChanged.connect(self.__onShowMediaInfoChanged)
             cfg.mediaPosition.valueChanged.connect(self.__updateMediaPosition)
             cfg.showMediaCover.valueChanged.connect(self.__onMediaSettingsChanged)
-            cfg.showMediaProgress.valueChanged.connect(self.__onMediaSettingsChanged)
-            cfg.showMediaLyrics.valueChanged.connect(self.__onMediaSettingsChanged)
-            cfg.mediaTextSize.valueChanged.connect(self.__onMediaSettingsChanged)
-            cfg.mediaCoverSize.valueChanged.connect(self.__onMediaSettingsChanged)
-            cfg.mediaLyricsSize.valueChanged.connect(self.__onMediaSettingsChanged)
-            cfg.mediaLyricsLines.valueChanged.connect(self.__onMediaSettingsChanged)
+            cfg.mediaWidth.valueChanged.connect(self.__onMediaSettingsChanged)
+            cfg.mediaLyricsAdvance.valueChanged.connect(self.__onMediaSettingsChanged)
             cfg.mediaUpdateInterval.valueChanged.connect(self.__onMediaUpdateIntervalChanged)
-            
+
             self.__updateMediaPosition()
-            
             if cfg.showMediaInfo.value:
                 self.mediaWidget.start()
             else:
                 self.mediaContainer.hide()
             
-            logger.info("媒体控件初始化完成")
         except Exception as e:
             logger.exception(f"初始化媒体控件失败: {e}")
     
     def __onShowMediaInfoChanged(self, value: bool):
-        """媒体控件显示状态变化"""
+        """媒体状态变化"""
         if value:
             self.mediaContainer.show()
             self.mediaWidget.start()
@@ -1844,40 +1876,39 @@ class MainWindow(FluentWindow):
         logger.info(f"媒体控件显示: {value}")
     
     def __onMediaSettingsChanged(self, value):
-        """媒体设置变化"""
-        if hasattr(self, 'mediaWidget'):
-            self.mediaWidget.update_settings()
+        if hasattr(self, 'mediaWidget'):self.mediaWidget.update_settings()
     
     def __onMediaUpdateIntervalChanged(self, value):
-        """媒体更新间隔变化"""
+        """媒体间隔变化"""
         if hasattr(self, 'mediaWidget') and cfg.showMediaInfo.value:
             self.mediaWidget.stop()
             self.mediaWidget.start()
     
     def __updateMediaPosition(self):
-        """更新媒体控件位置"""
+        """更新媒体位置"""
         try:
             position = cfg.mediaPosition.value
             margin = 20
             bottom_offset = 100
+            left_offset = 120
             
             layout = self.mediaContainerLayout
             
             if position == "左上预留":
                 layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-                layout.setContentsMargins(margin, margin, 0, 0)
+                layout.setContentsMargins(left_offset, margin, 0, 0)
             elif position == "右上预留":
                 layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
                 layout.setContentsMargins(0, margin, margin, 0)
             elif position == "左下预留":
                 layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-                layout.setContentsMargins(margin, 0, 0, bottom_offset)
+                layout.setContentsMargins(left_offset, 0, 0, bottom_offset)
             elif position == "右下预留":
                 layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
                 layout.setContentsMargins(0, 0, margin, bottom_offset)
             else:
                 layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-                layout.setContentsMargins(margin, 0, 0, bottom_offset)
+                layout.setContentsMargins(left_offset, 0, 0, bottom_offset)
             
             layout.update()
             self.mediaContainer.update()
