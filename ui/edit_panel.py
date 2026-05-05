@@ -639,7 +639,7 @@ class EditPanel(QWidget):
             pass
 
     def hidePanel(self):
-        """退出"""
+        """退出编辑模式"""
         parent = self.parent()
         if not parent:
             return
@@ -650,6 +650,8 @@ class EditPanel(QWidget):
         # 启用导航栏
         if hasattr(parent, 'navigationInterface'):
             parent.navigationInterface.setEnabled(True)
+        
+        if hasattr(parent, '_setDraggableEnabled'):parent._setDraggableEnabled(False)
         
         pr = parent.rect()
         if self.isLeftSide:
