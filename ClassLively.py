@@ -124,6 +124,7 @@ from ui.settings import SettingInterface
 from ui.wallpaper import WallpaperInterface
 from ui.splash_screen import SplashScreen
 from ui.media_widget import MediaWidget
+from ui.draggable_widget import DraggableContainer, DraggableWidget
 from version import BUILD_DATE, VERSION
 
 def verify_singleInst():
@@ -404,6 +405,9 @@ class MainWindow(FluentWindow):
         
         self._checkAndRefreshQuickLaunchIcons()
         
+        # 加载保存的组件位置
+        self.loadComponentPositions()
+        
         self.navigationInterface.installEventFilter(self)
         
         logger.info("主窗口初始化完成")
@@ -415,11 +419,27 @@ class MainWindow(FluentWindow):
             self.switchTo(self.home)
     
     def keyPressEvent(self, event):
-        """F12事件"""
+        """F12事件 和调试快捷键"""
         if event.key() == Qt.Key.Key_F12:
             if cfg.developerMode.value and hasattr(self, 'developerPanel'):
                 self.switchTo(self.developerPanel)
             return
+        
+        # Ctrl+E 切换编辑模式（方便测试）
+        if event.modifiers() == Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_E:
+            self.__enterEditMode()
+            return
+        
+        # Ctrl+D 显示所有可拖拽组件信息（调试用）
+        if event.modifiers() == Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_D:
+            if hasattr(self, '_draggable_widgets'):
+                for i, widget in enumerate(self._draggable_widgets):
+                    if widget:
+                        pos = widget.getPositionPercent()
+                        size = widget.size()
+                        logger.debug(f"组件 {widget.component_id}: 位置=({pos[0]:.3f}, {pos[1]:.3f}), 大小={size.width()}x{size.height()}")
+            return
+        
         super().keyPressEvent(event)
     
     def eventFilter(self, obj, event):
@@ -446,6 +466,27 @@ class MainWindow(FluentWindow):
                 self._is_maximized = False
                 self.setFixedSize(*self._normal_size)
         super().changeEvent(event)
+    
+    def showEvent(self, event):
+        """窗口显示事件 - 强制刷新所有组件大小"""
+        super().showEvent(event)
+        
+        # 使用 QTimer 延迟执行，确保窗口完全显示后再调整组件大小
+        QTimer.singleShot(100, self._refreshAllComponentSizes)
+    
+    def _refreshAllComponentSizes(self):
+        """强制刷新所有可拖拽组件的大小"""
+        if not hasattr(self, '_draggable_widgets'):
+            return
+        
+        for widget in self._draggable_widgets:
+            if widget and hasattr(widget, 'inner_layout') and widget.inner_layout:
+                # 激活内部布局
+                widget.inner_layout.activate()
+                # 调整大小以适应内容
+                widget.adjustSize()
+                # 更新位置（基于百分比）
+                widget._updatePositionFromPercent()
     
     def __onThemeChanged(self):
         """主题变化时重新加载编辑面板样式"""
@@ -697,6 +738,9 @@ class MainWindow(FluentWindow):
     
     def closeEvent(self, event):
         """关闭事件处理"""
+        # 保存组件位置
+        self.saveComponentPositions()
+        
         if cfg.developerMode.value:
             logger.info("调试模式：直接退出应用")
             event.accept()
@@ -749,11 +793,94 @@ class MainWindow(FluentWindow):
             self.editPanel.hidePanel()
             self.isEditMode = False
             self.navigationInterface.setEnabled(True)
+            # 禁用所有组件的拖拽
+            self._setDraggableEnabled(False)
         else:
             self.editPanel.showPanel()
             self.isEditMode = True
             self.navigationInterface.setEnabled(False)
+            # 启用所有组件的拖拽
+            self._setDraggableEnabled(True)
             self.__updateEditButtonPosition()
+    
+    def _setDraggableEnabled(self, enabled: bool):
+        """设置所有可拖拽组件的拖拽状态"""
+        if hasattr(self, '_draggable_widgets'):
+            for widget in self._draggable_widgets:
+                if widget and hasattr(widget, 'setDraggable'):
+                    widget.setDraggable(enabled)
+    
+    def _onClockPositionChanged(self, x: float, y: float):
+        """时钟位置变化回调"""
+        logger.debug(f"时钟位置更新: ({x:.3f}, {y:.3f})")
+        # 可以在这里保存到配置
+    
+    def _onWeatherPositionChanged(self, x: float, y: float):
+        """天气位置变化回调"""
+        logger.debug(f"天气位置更新: ({x:.3f}, {y:.3f})")
+    
+    def _onPoetryPositionChanged(self, x: float, y: float):
+        """一言位置变化回调"""
+        logger.debug(f"一言位置更新: ({x:.3f}, {y:.3f})")
+    
+    def _onCountdownPositionChanged(self, x: float, y: float):
+        """倒计时位置变化回调"""
+        logger.debug(f"倒计时位置更新: ({x:.3f}, {y:.3f})")
+    
+    def _onSchoolInfoPositionChanged(self, x: float, y: float):
+        """学校信息位置变化回调"""
+        logger.debug(f"学校信息位置更新: ({x:.3f}, {y:.3f})")
+    
+    def _onMediaPositionChanged(self, x: float, y: float):
+        """媒体位置变化回调"""
+        logger.debug(f"媒体位置更新: ({x:.3f}, {y:.3f})")
+    
+    def saveComponentPositions(self):
+        """保存所有组件的百分比位置到配置文件"""
+        if not hasattr(self, '_draggable_widgets'):
+            return
+        
+        positions = {}
+        for widget in self._draggable_widgets:
+            if widget and hasattr(widget, 'component_id') and hasattr(widget, 'getPositionPercent'):
+                comp_id = widget.component_id
+                x, y = widget.getPositionPercent()
+                positions[comp_id] = {"x": round(x, 4), "y": round(y, 4)}
+        
+        try:
+            config_path = os.path.join(BASE_DIR, 'config', 'component_positions.json')
+            os.makedirs(os.path.dirname(config_path), exist_ok=True)
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(positions, f, indent=2, ensure_ascii=False)
+            logger.info(f"组件位置已保存: {positions}")
+        except Exception as e:
+            logger.error(f"保存组件位置失败: {e}")
+    
+    def loadComponentPositions(self):
+        """从配置文件加载组件的百分比位置"""
+        if not hasattr(self, '_draggable_widgets'):
+            return
+        
+        try:
+            config_path = os.path.join(BASE_DIR, 'config', 'component_positions.json')
+            if not os.path.exists(config_path):
+                logger.info("组件位置配置文件不存在，使用默认位置")
+                return
+            
+            with open(config_path, 'r', encoding='utf-8') as f:
+                positions = json.load(f)
+            
+            for widget in self._draggable_widgets:
+                if widget and hasattr(widget, 'component_id') and hasattr(widget, 'setPositionPercent'):
+                    comp_id = widget.component_id
+                    if comp_id in positions:
+                        pos = positions[comp_id]
+                        widget.setPositionPercent(pos['x'], pos['y'])
+                        logger.info(f"已加载 {comp_id} 位置: ({pos['x']}, {pos['y']})")
+            
+            logger.info("所有组件位置已加载完成")
+        except Exception as e:
+            logger.error(f"加载组件位置失败: {e}")
     
     def __updateEditButtonPosition(self):
         """更新编辑按钮位置"""
@@ -768,11 +895,19 @@ class MainWindow(FluentWindow):
         if self.editPanel.isLeftSide:
             self.editLayout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
             self.editLayout.setContentsMargins(20, 0, 0, 20)
-            self.gridLayout.setAlignment(self.editContainer, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
+            # 使用绝对定位而不是 gridLayout
+            if hasattr(self, 'editContainer') and self.editContainer:
+                available_height = self.height() if hasattr(self, 'height') else 700
+                self.editContainer.move(20, available_height - 80)
         else:
             self.editLayout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
             self.editLayout.setContentsMargins(0, 0, 20, 20)
-            self.gridLayout.setAlignment(self.editContainer, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
+            # 使用绝对定位
+            if hasattr(self, 'editContainer') and self.editContainer:
+                available_width = (self.width() - 50) if hasattr(self, 'width') else 950
+                available_height = self.height() if hasattr(self, 'height') else 700
+                self.editContainer.move(available_width - 100, available_height - 80)
+        
         self.editLayout.addWidget(self.editButton)
         self.editContainer.updateGeometry()
 
@@ -836,32 +971,41 @@ class MainWindow(FluentWindow):
         self.poetryLabel.setWordWrap(False)
         self.updateClockStyle()
         
-        # 时钟容器
-        self.clockContainer = QWidget()
+        # ===== 使用可拖拽容器包装组件 =====
+        # 时钟容器（可拖拽）
+        self.clockContainer = DraggableContainer(self.home, component_id="clock", layout_direction="vertical")
         self.clockContainer.setObjectName("clockContainer")
-        self.clockLayout = QVBoxLayout(self.clockContainer)
+        self.clockLayout = self.clockContainer.inner_layout
         self.clockLayout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.clockLayout.setContentsMargins(0, 100, 0, 0)
+        self.clockLayout.setContentsMargins(0, 0, 0, 0)
         self.clockLayout.setSpacing(0)
         self.clockLayout.addWidget(self.clockLabel)
         self.clockLayout.addWidget(self.dateLabel)
+        # 设置初始位置百分比（顶部居中偏下）
+        self.clockContainer.setPositionPercent(0.5, 0.25)
+        self.clockContainer.positionChanged.connect(self._onClockPositionChanged)
+        self.clockContainer.adjustSize()
         
-        # 天气容器
-        self.weatherContainer = QWidget()
+        # 天气容器（可拖拽）
+        self.weatherContainer = DraggableContainer(self.home, component_id="weather", layout_direction="horizontal")
         self.weatherContainer.setObjectName("weatherContainer")
-        weatherLayout = QHBoxLayout(self.weatherContainer)
+        weatherLayout = self.weatherContainer.inner_layout
         weatherLayout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
-        weatherLayout.setContentsMargins(0, 20, 20, 0)
+        weatherLayout.setContentsMargins(0, 0, 0, 0)
         weatherLayout.setSpacing(10)
         self.weatherTempLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.weatherIconLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         weatherLayout.addWidget(self.weatherTempLabel)
         weatherLayout.addWidget(self.weatherIconLabel)
+        # 设置初始位置百分比（右上角）
+        self.weatherContainer.setPositionPercent(0.9, 0.08)
+        self.weatherContainer.positionChanged.connect(self._onWeatherPositionChanged)
+        self.weatherContainer.adjustSize()
         
-        # 学校信息容器
-        self.schoolInfoContainer = QWidget()
+        # 学校信息容器（可拖拽）
+        self.schoolInfoContainer = DraggableContainer(self.home, component_id="school_info", layout_direction="vertical")
         self.schoolInfoContainer.setObjectName("schoolInfoContainer")
-        self.schoolInfoLayout = QVBoxLayout(self.schoolInfoContainer)
+        self.schoolInfoLayout = self.schoolInfoContainer.inner_layout
         self.schoolInfoLayout.setSpacing(0)
         self.schoolClassLabel = QLabel("")
         self.schoolClassLabel.setObjectName("schoolClassLabel")
@@ -873,27 +1017,38 @@ class MainWindow(FluentWindow):
         self.schoolInfoLayout.addWidget(self.schoolNameLabel)
         self.updateSchoolInfo()
         self.updateSchoolInfoStyle()
-        self.__updateSchoolInfoPosition()
+        # 设置初始位置百分比（左上角）
+        self.schoolInfoContainer.setPositionPercent(0.08, 0.08)
+        self.schoolInfoContainer.positionChanged.connect(self._onSchoolInfoPositionChanged)
+        self.schoolInfoContainer.adjustSize()
         
-        # 一言容器
-        self.poetryContainer = QWidget()
+        # 一言容器（可拖拽）
+        self.poetryContainer = DraggableContainer(self.home, component_id="poetry", layout_direction="vertical")
         self.poetryContainer.setObjectName("poetryContainer")
-        poetryLayout = QVBoxLayout(self.poetryContainer)
+        poetryLayout = self.poetryContainer.inner_layout
         poetryLayout.setAlignment(Qt.AlignmentFlag.AlignBottom)
-        poetryLayout.setContentsMargins(0, 0, 0, 20)
+        poetryLayout.setContentsMargins(0, 0, 0, 0)
         poetryLayout.addWidget(self.poetryLabel)
+        # 设置初始位置百分比（底部居中）
+        self.poetryContainer.setPositionPercent(0.5, 0.88)
+        self.poetryContainer.positionChanged.connect(self._onPoetryPositionChanged)
+        self.poetryContainer.adjustSize()
         
         # 倒计时标签
         self.countdownLabel = QLabel("")
         self.countdownLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        # 倒计时容器
-        self.countdownContainer = QWidget()
+        # 倒计时容器（可拖拽）
+        self.countdownContainer = DraggableContainer(self.home, component_id="countdown", layout_direction="vertical")
         self.countdownContainer.setObjectName("countdownContainer")
-        countdownLayout = QVBoxLayout(self.countdownContainer)
+        countdownLayout = self.countdownContainer.inner_layout
         countdownLayout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         countdownLayout.setContentsMargins(0, 0, 0, 0)
         countdownLayout.addWidget(self.countdownLabel)
+        # 设置初始位置百分比（中部偏下）
+        self.countdownContainer.setPositionPercent(0.5, 0.55)
+        self.countdownContainer.positionChanged.connect(self._onCountdownPositionChanged)
+        self.countdownContainer.adjustSize()
         
         # 快捷启动栏
         self.quickLaunchDock = QuickLaunchDock(self.home)
@@ -915,36 +1070,74 @@ class MainWindow(FluentWindow):
         self.editLayout.addWidget(self.editButton)
         self.editContainer.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         
-        # 媒体信息
-        self.mediaContainer = QWidget()
+        # 媒体信息（可拖拽）
+        self.mediaContainer = DraggableContainer(self.home, component_id="media", layout_direction="vertical")
         self.mediaContainer.setObjectName("mediaContainer")
         self.mediaContainer.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.mediaContainer.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
-        self.mediaContainerLayout = QVBoxLayout(self.mediaContainer)
+        self.mediaContainerLayout = self.mediaContainer.inner_layout
         self.mediaContainerLayout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-        self.mediaContainerLayout.setContentsMargins(120, 0, 0, 100)
+        self.mediaContainerLayout.setContentsMargins(0, 0, 0, 0)
         self.mediaContainerLayout.setSpacing(0)
         
         self.mediaWidget = MediaWidget(self.home)
         self.mediaWidget.setObjectName("mediaWidget")
         self.mediaContainerLayout.addWidget(self.mediaWidget)
+        # 设置初始位置百分比（左下角）
+        self.mediaContainer.setPositionPercent(0.12, 0.85)
+        self.mediaContainer.positionChanged.connect(self._onMediaPositionChanged)
+        self.mediaContainer.adjustSize()
         
-        # 网格布局
-        self.gridLayout = QGridLayout()
+        # 存储所有可拖拽组件的引用
+        self._draggable_widgets = [
+            self.clockContainer,
+            self.weatherContainer,
+            self.poetryContainer,
+            self.countdownContainer,
+            self.schoolInfoContainer,
+            self.mediaContainer,
+        ]
+        
+        # ===== 混合布局方案 =====
+        # 1. 创建主内容容器（填充整个可用区域）
+        self.homeContent = QWidget(self.home)
+        self.homeContent.setObjectName("homeContent")
+        
+        # 2. 使用 QGridLayout 作为基础布局（只用于背景层）
+        self.gridLayout = QGridLayout(self.homeContent)
         self.gridLayout.setContentsMargins(0, 0, 0, 0)
+        self.gridLayout.setSpacing(0)
+        
+        # 3. 背景图片和遮罩层 - 通过 gridLayout 管理（会自动扩展填满）
         self.gridLayout.addWidget(self.homeBackgroundImage, 0, 0, 1, 1)
         self.gridLayout.addWidget(self.homeDimOverlay, 0, 0, 1, 1)
-        self.gridLayout.addWidget(self.clockContainer, 0, 0, 1, 1)
-        self.gridLayout.addWidget(self.weatherContainer, 0, 0, 1, 1)
-        self.gridLayout.addWidget(self.poetryContainer, 0, 0, 1, 1)
-        self.gridLayout.addWidget(self.countdownContainer, 0, 0, 1, 1)
-        self.gridLayout.addWidget(self.schoolInfoContainer, 0, 0, 1, 1)
-        self.gridLayout.addWidget(self.quickLaunchDock, 0, 0, 1, 1, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter)
-        self.gridLayout.addWidget(self.editContainer, 0, 0, 1, 1, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-        self.gridLayout.addWidget(self.mediaContainer, 0, 0, 1, 1, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
         
-        self.homeContent = QWidget()
-        self.homeContent.setLayout(self.gridLayout)
+        # 4. 可拖拽组件 - 设置为 homeContent 的子组件，但不加入 gridLayout
+        for widget in self._draggable_widgets:
+            if widget:
+                widget.setParent(self.homeContent)
+                widget.show()
+                # 强制激活内部布局以计算正确大小
+                if hasattr(widget, 'inner_layout') and widget.inner_layout:
+                    widget.inner_layout.activate()
+                    widget.adjustSize()
+                
+                # 立即设置初始位置（基于百分比）
+                widget._updatePositionFromPercent()
+        
+        # 5. 快捷启动栏 - 底部居中
+        self.quickLaunchDock.setParent(self.homeContent)
+        self.quickLaunchDock.show()
+        if self.quickLaunchDock.width() > 0 and self.quickLaunchDock.height() > 0:
+            self.quickLaunchDock.move(
+                (1000 - self.quickLaunchDock.width()) // 2,
+                700 - self.quickLaunchDock.height() - 30
+            )
+        
+        # 6. 编辑按钮 - 右下角（确保可见）
+        self.editContainer.setParent(self.homeContent)
+        self.editContainer.show()
+        self.editContainer.move(920, 670)  # 固定在右下角
         
         # 主界面布局
         homeLayout = QVBoxLayout(self.home)
@@ -983,31 +1176,61 @@ class MainWindow(FluentWindow):
             logger.exception('创建编辑面板失败')
 
     def resizeEvent(self, event):
-        """ 窗口大小变化时调整图片大小 """
+        """ 窗口大小变化时调整图片大小和组件位置 """
         super().resizeEvent(event)
         if not self._is_maximized and (self.width() != self._normal_size[0] or self.height() != self._normal_size[1]):
             self.setFixedSize(*self._normal_size)
+        
+        # 获取可用区域（减去左侧导航栏）
+        available_width = self.width() - 50
+        available_height = self.height()
+        
+        # 调整背景图片大小
         if hasattr(self, 'homeBackgroundImage') and self.homeBackgroundImage:
             try:
-                available_width = self.width() - 50
-                available_height = self.height()
-                
                 if hasattr(self, 'originalPixmap') and self.originalPixmap is not None and not self.originalPixmap.isNull():
                     scaled_pixmap = self.originalPixmap.scaled(available_width, available_height, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
                     
-                    # 应用模糊效果
                     blur_effect = QGraphicsBlurEffect()
                     blur_radius = cfg.backgroundBlurRadius.value
                     blur_effect.setBlurRadius(blur_radius)
                     self.homeBackgroundImage.setGraphicsEffect(blur_effect)
-                    
                     self.homeBackgroundImage.setPixmap(scaled_pixmap)
-                else:
-                    self.homeBackgroundImage.setMinimumSize(available_width, available_height)
-                
-                QApplication.processEvents()
             except Exception as e:
                 logger.error(f"resizeEvent 错误：{e}")
+        
+        # 调整 homeContent 大小（如果它没有通过布局自动调整）
+        if hasattr(self, 'homeContent') and self.homeContent:
+            # homeContent 应该通过主界面的布局自动填充
+            # 但我们需要确保可拖拽组件的位置正确
+            
+            # 调整快捷启动栏位置（底部居中）
+            if hasattr(self, 'quickLaunchDock') and self.quickLaunchDock:
+                dock_width = self.quickLaunchDock.width()
+                dock_height = self.quickLaunchDock.height()
+                if dock_width > 0 and dock_height > 0:
+                    self.quickLaunchDock.setGeometry(
+                        (available_width - dock_width) // 2,
+                        available_height - dock_height - 20,
+                        dock_width,
+                        dock_height
+                    )
+            
+            # 调整编辑按钮位置（右下角，确保始终可见）
+            if hasattr(self, 'editContainer') and self.editContainer:
+                edit_width = self.editContainer.width() if self.editContainer.width() > 0 else 80
+                edit_height = self.editContainer.height() if self.editContainer.height() > 0 else 32
+                self.editContainer.move(
+                    available_width - edit_width - 20,  # 右边距 20
+                    available_height - edit_height - 15   # 下边距 15
+                )
+        
+        # 自动调整所有可拖拽组件的位置（保持百分比比例）
+        if hasattr(self, '_draggable_widgets'):
+            for widget in self._draggable_widgets:
+                if widget and hasattr(widget, 'onParentResize'):
+                    widget.onParentResize()
+        
         if hasattr(self, 'editPanel') and self.editPanel:
             try:self.editPanel.updatePositionOnResize()
             except Exception:pass
@@ -1715,8 +1938,11 @@ class MainWindow(FluentWindow):
                     layout.addWidget(self.countdownLabel)
                     self.countdownLabel.show()
                 
-                if self.countdownContainer.parentWidget() is not self.homeContent:
-                    self.gridLayout.addWidget(self.countdownContainer, 0, 0, 1, 1)
+                # 使用绝对定位而不是 gridLayout
+                if hasattr(self, 'homeContent') and self.homeContent:
+                    if self.countdownContainer.parentWidget() is not self.homeContent:
+                        self.countdownContainer.setParent(self.homeContent)
+                        self.countdownContainer.show()
                 
                 if position == "左上预留":
                     layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
