@@ -898,6 +898,28 @@ class EditPanel(QWidget):
         self.countdownDisplayModeCombo.currentTextChanged.connect(self._onCountdownDisplayModeChanged)
     
     def _updateCountdownTextSizeSpin(self, value):
+        self.countdownTextSizeSpin.setValue(value)
+    
+    def _updateCountdownConnectorSizeSpin(self, value):
+        self.countdownConnectorSizeSpin.setValue(value)
+    
+    def _updateCountdownCarouselIntervalSpin(self, value):
+        self.countdownCarouselIntervalSpin.setValue(value)
+    
+    def _updateCountdownTextColorCombo(self, value):
+        self.countdownTextColorCombo.setCurrentText(self._getColorText(value, 'red'))
+    
+    def _updateCountdownConnectorColorCombo(self, value):
+        self.countdownConnectorColorCombo.setCurrentText(self._getColorText(value, 'white'))
+    
+    def _updateShowSchoolInfoSwitch(self, value):
+        self.schoolInfoSwitch.setChecked(value)
+        self._updateSchoolInfoSettingsEnabled(value)
+    
+    def _updateSchoolInfoTextColorCombo(self, value):
+        self.schoolInfoTextColorCombo.setCurrentText(self._getColorText(value, 'white'))
+    
+    def _updateSchoolInfoTextSizeSpin(self, value):
         self.schoolInfoTextSizeSpin.setValue(value)
     
     def _updateSchoolEdit(self, value):
