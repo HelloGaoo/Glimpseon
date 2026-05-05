@@ -18,6 +18,8 @@ from PyQt6.QtCore import Qt, QPoint, QSize, pyqtSignal
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QApplication, QSizePolicy
 from PyQt6.QtGui import QCursor, QPainter, QColor, QPen, QFont
 
+from core.config import cfg
+
 
 class DraggableWidget(QWidget):
     positionChanged = pyqtSignal(float, float)
@@ -36,7 +38,7 @@ class DraggableWidget(QWidget):
         self._anchor_mode = "topleft"
         
         self._show_border = False
-        self._border_color = QColor(100, 180, 255)
+        self._border_color = QColor(120, 120, 120)
         self._hovered = False
         
         self.setMouseTracking(True)
@@ -115,26 +117,45 @@ class DraggableWidget(QWidget):
         if self._show_border or self._dragging or self._hovered:
             painter = QPainter(self)
             painter.setRenderHint(painter.RenderHint.Antialiasing)
-            pen_width = 3 if self._dragging else (2 if self._hovered else 1)
-            border_color = QColor(255, 100, 100) if self._dragging else (
-                QColor(100, 200, 255) if self._hovered else self._border_color
+            theme_color = cfg.themeColor.value
+            if isinstance(theme_color, str):
+                primary_color = QColor(theme_color)
+            else:
+                primary_color = theme_color
+            
+            hover_color = QColor(
+                min(255, primary_color.red() + 60),
+                min(255, primary_color.green() + 60),
+                min(255, primary_color.blue() + 60)
             )
+            
+            if self._dragging:
+                pen_width = 2
+                border_color = primary_color
+                pen_style = Qt.PenStyle.SolidLine
+            elif self._hovered:
+                pen_width = 1
+                border_color = hover_color
+                pen_style = Qt.PenStyle.DashLine
+            else:
+                pen_width = 1
+                border_color = QColor(160, 160, 160)
+                pen_style = Qt.PenStyle.DashLine
             
             pen = QPen(border_color)
             pen.setWidth(pen_width)
-            pen.setStyle(Qt.PenStyle.DashLine if not self._dragging else Qt.PenStyle.SolidLine)
+            pen.setStyle(pen_style)
             painter.setPen(pen)
             rect = self.rect().adjusted(1, 1, -1, -1)
-            painter.drawRoundedRect(rect, 8, 8)
+            painter.drawRoundedRect(rect, 6, 6)
             
             if self._dragging or self._show_border:
-                painter.setPen(QColor(255, 255, 255))
+                painter.setPen(QColor(200, 200, 200))
                 font = QFont()
-                font.setPointSize(9)
-                font.setBold(True)
+                font.setPointSize(8)
                 painter.setFont(font)
                 label_text = f"☰ {self.component_id}"
-                painter.drawText(10, 20, label_text)
+                painter.drawText(8, 18, label_text)
             
             painter.end()
     
