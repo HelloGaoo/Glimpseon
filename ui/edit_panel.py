@@ -173,20 +173,17 @@ class EditPanel(QWidget):
         self.clockColorCombo.setEnabled(enabled)
         self.clockSizeSpin.setEnabled(enabled)
         self.dateSizeSpin.setEnabled(enabled)
-        self.clockPositionCombo.setEnabled(enabled)
     
     def _updatePoetrySettingsEnabled(self, enabled):
         self.poetryApiCombo.setEnabled(enabled)
         self.poetrySizeSpin.setEnabled(enabled)
         self.poetryUpdateIntervalCombo.setEnabled(enabled)
-        self.poetryPositionCombo.setEnabled(enabled)
     
     def _updateWeatherSettingsEnabled(self, enabled):
         self.cityButton.setEnabled(enabled)
         self.weatherSizeSpin.setEnabled(enabled)
         self.weatherIconSizeSpin.setEnabled(enabled)
         self.weatherUpdateIntervalCombo.setEnabled(enabled)
-        self.weatherPositionCombo.setEnabled(enabled)
     
     def _updateCountdownSettingsEnabled(self, enabled):
         self.countdownTextColorCombo.setEnabled(enabled)
@@ -199,12 +196,10 @@ class EditPanel(QWidget):
         self.countdownConnectorSizeSpin.setEnabled(enabled)
         self.countdownDisplayModeCombo.setEnabled(enabled)
         self.countdownCarouselIntervalSpin.setEnabled(enabled)
-        self.countdownPositionCombo.setEnabled(enabled)
     
     def _updateSchoolInfoSettingsEnabled(self, enabled):
         self.schoolEdit.setEnabled(enabled)
         self.schoolClassEdit.setEnabled(enabled)
-        self.schoolInfoPositionCombo.setEnabled(enabled)
         self.schoolInfoTextColorCombo.setEnabled(enabled)
         self.schoolInfoTextSizeSpin.setEnabled(enabled)
     
@@ -214,7 +209,6 @@ class EditPanel(QWidget):
     
     def _updateMediaSettingsEnabled(self, enabled):
         self.showMediaCoverSwitch.setEnabled(enabled)
-        self.mediaPositionCombo.setEnabled(enabled)
         self.mediaWidthSpin.setEnabled(enabled)
         self.mediaLyricsAdvanceSpin.setEnabled(enabled)
     
@@ -227,14 +221,12 @@ class EditPanel(QWidget):
         cfg.clockColor.valueChanged.connect(self._updateClockColorCombo)
         cfg.clockSize.valueChanged.connect(self._updateClockSizeSpin)
         cfg.dateSize.valueChanged.connect(self._updateDateSizeSpin)
-        cfg.clockPosition.valueChanged.connect(self._updateClockPositionCombo)
         
         # 一言设置
         cfg.showPoetry.valueChanged.connect(self._updateShowPoetrySwitch)
         cfg.poetryApiUrl.valueChanged.connect(self._updatePoetryApiEdit)
         cfg.poetrySize.valueChanged.connect(self._updatePoetrySizeSpin)
         cfg.poetryUpdateInterval.valueChanged.connect(self._updatePoetryUpdateIntervalCombo)
-        cfg.poetryPosition.valueChanged.connect(self._updatePoetryPositionCombo)
         
         # 天气设置
         cfg.showWeather.valueChanged.connect(self._updateShowWeatherSwitch)
@@ -242,12 +234,10 @@ class EditPanel(QWidget):
         cfg.weatherIconSize.valueChanged.connect(self._updateWeatherIconSizeSpin)
         cfg.weatherUpdateInterval.valueChanged.connect(self._updateWeatherUpdateIntervalCombo)
         cfg.city.valueChanged.connect(self._updateCityButton)
-        cfg.weatherPosition.valueChanged.connect(self._updateWeatherPositionCombo)
         
         # 倒计时设置
         cfg.showCountdown.valueChanged.connect(self._updateShowCountdownSwitch)
         cfg.countdownDisplayMode.valueChanged.connect(self._updateCountdownDisplayModeCombo)
-        cfg.countdownPosition.valueChanged.connect(self._updateCountdownPositionCombo)
         cfg.countdownTextSize.valueChanged.connect(self._updateCountdownTextSizeSpin)
         cfg.countdownConnectorSize.valueChanged.connect(self._updateCountdownConnectorSizeSpin)
         cfg.countdownCarouselInterval.valueChanged.connect(self._updateCountdownCarouselIntervalSpin)
@@ -257,7 +247,6 @@ class EditPanel(QWidget):
         
         # 学校信息设置
         cfg.showSchoolInfo.valueChanged.connect(self._updateShowSchoolInfoSwitch)
-        cfg.schoolInfoPosition.valueChanged.connect(self._updateSchoolInfoPositionCombo)
         cfg.schoolInfoTextColor.valueChanged.connect(self._updateSchoolInfoTextColorCombo)
         cfg.schoolInfoTextSize.valueChanged.connect(self._updateSchoolInfoTextSizeSpin)
         cfg.school.valueChanged.connect(self._updateSchoolEdit)
@@ -266,7 +255,6 @@ class EditPanel(QWidget):
         # 媒体设置
         cfg.showMediaInfo.valueChanged.connect(self._updateShowMediaInfoSwitch)
         cfg.showMediaCover.valueChanged.connect(self._updateShowMediaCoverSwitch)
-        cfg.mediaPosition.valueChanged.connect(self._updateMediaPositionCombo)
         cfg.mediaWidth.valueChanged.connect(self._updateMediaWidthSpin)
         cfg.mediaLyricsAdvance.valueChanged.connect(self._updateMediaLyricsAdvanceSpin)
     
@@ -366,33 +354,6 @@ class EditPanel(QWidget):
         """更新城市按钮"""
         self.cityButton.setText(value)
     
-    def _updateClockPositionCombo(self, value):
-        """更新时间位置下拉框"""
-        try:
-            self.clockPositionCombo.currentTextChanged.disconnect(self._onClockPositionChanged)
-        except TypeError:
-            pass
-        self.clockPositionCombo.setCurrentText(value)
-        self.clockPositionCombo.currentTextChanged.connect(self._onClockPositionChanged)
-    
-    def _updatePoetryPositionCombo(self, value):
-        """更新一言位置下拉框"""
-        try:
-            self.poetryPositionCombo.currentTextChanged.disconnect(self._onPoetryPositionChanged)
-        except TypeError:
-            pass
-        self.poetryPositionCombo.setCurrentText(value)
-        self.poetryPositionCombo.currentTextChanged.connect(self._onPoetryPositionChanged)
-    
-    def _updateWeatherPositionCombo(self, value):
-        """更新天气位置下拉框"""
-        try:
-            self.weatherPositionCombo.currentTextChanged.disconnect(self._onWeatherPositionChanged)
-        except TypeError:
-            pass
-        self.weatherPositionCombo.setCurrentText(value)
-        self.weatherPositionCombo.currentTextChanged.connect(self._onWeatherPositionChanged)
-    
     def _createTimeSettings(self, layout):
         titleLabel = StrongBodyLabel('时间设置', self)
         layout.addWidget(titleLabel)
@@ -456,17 +417,6 @@ class EditPanel(QWidget):
         self.dateSizeSpin.valueChanged.connect(self._onDateSizeChanged)
         dateSizeLayout.addWidget(self.dateSizeSpin)
         layout.addLayout(dateSizeLayout)
-        positionLayout = QHBoxLayout()
-        positionLabel = BodyLabel('时间位置', self)
-        positionLabel.setFixedWidth(100)
-        positionLayout.addWidget(positionLabel)
-        self.clockPositionCombo = ComboBox(self)
-        self.clockPositionCombo.addItems(['左上预留', '左上', '右上预留', '右上', '左下预留', '左下', '右下预留', '右下', '中部', '顶部', '顶部偏下', '底部偏上', '底部'])
-        self.clockPositionCombo.setCurrentText(cfg.clockPosition.value)
-        self.clockPositionCombo.setFixedWidth(120)
-        self.clockPositionCombo.currentTextChanged.connect(self._onClockPositionChanged)
-        positionLayout.addWidget(self.clockPositionCombo)
-        layout.addLayout(positionLayout)
 
     def _createPoetrySettings(self, layout):
         titleLabel = StrongBodyLabel('一言设置', self)
@@ -519,17 +469,6 @@ class EditPanel(QWidget):
         self.poetryUpdateIntervalCombo.currentTextChanged.connect(self._onPoetryUpdateIntervalChanged)
         poetryIntervalLayout.addWidget(self.poetryUpdateIntervalCombo)
         layout.addLayout(poetryIntervalLayout)
-        poetryPositionLayout = QHBoxLayout()
-        poetryPositionLabel = BodyLabel('一言位置', self)
-        poetryPositionLabel.setFixedWidth(100)
-        poetryPositionLayout.addWidget(poetryPositionLabel)
-        self.poetryPositionCombo = ComboBox(self)
-        self.poetryPositionCombo.addItems(['顶部预留', '底部预留'])
-        self.poetryPositionCombo.setCurrentText(cfg.poetryPosition.value)
-        self.poetryPositionCombo.setFixedWidth(120)
-        self.poetryPositionCombo.currentTextChanged.connect(self._onPoetryPositionChanged)
-        poetryPositionLayout.addWidget(self.poetryPositionCombo)
-        layout.addLayout(poetryPositionLayout)
     
     def _createWeatherSettings(self, layout):
         """创建天气设置部分"""
@@ -587,17 +526,6 @@ class EditPanel(QWidget):
         self.weatherUpdateIntervalCombo.currentTextChanged.connect(self._onWeatherUpdateIntervalChanged)
         weatherIntervalLayout.addWidget(self.weatherUpdateIntervalCombo)
         layout.addLayout(weatherIntervalLayout)
-        weatherPositionLayout = QHBoxLayout()
-        weatherPositionLabel = BodyLabel('天气位置', self)
-        weatherPositionLabel.setFixedWidth(100)
-        weatherPositionLayout.addWidget(weatherPositionLabel)
-        self.weatherPositionCombo = ComboBox(self)
-        self.weatherPositionCombo.addItems(['左上预留', '右上预留', '左下预留', '右下预留'])
-        self.weatherPositionCombo.setCurrentText(cfg.weatherPosition.value)
-        self.weatherPositionCombo.setFixedWidth(120)
-        self.weatherPositionCombo.currentTextChanged.connect(self._onWeatherPositionChanged)
-        weatherPositionLayout.addWidget(self.weatherPositionCombo)
-        layout.addLayout(weatherPositionLayout)
     
     def _updateTheme(self):
         """更新主题"""
@@ -804,21 +732,6 @@ class EditPanel(QWidget):
         if hasattr(self.mainWindow, '_MainWindow__updateWeatherInterval'):self.mainWindow._MainWindow__updateWeatherInterval()
         logger.info(f"天气设置：更新间隔={text}")
     
-    def _onClockPositionChanged(self, text: str):
-        """时间位置变化"""
-        cfg.clockPosition.value = text
-        logger.info(f"时间设置：位置={text}")
-    
-    def _onPoetryPositionChanged(self, text: str):
-        """一言位置变化"""
-        cfg.poetryPosition.value = text
-        logger.info(f"一言设置：位置={text}")
-    
-    def _onWeatherPositionChanged(self, text: str):
-        """天气位置变化"""
-        cfg.weatherPosition.value = text
-        logger.info(f"天气设置：位置={text}")
-    
     def _onCityButtonClicked(self):
         """城市选择按钮点击"""
         dialog = RegionSelectorDialog(self.mainWindow)
@@ -949,19 +862,6 @@ class EditPanel(QWidget):
         carouselIntervalLayout.addWidget(self.countdownCarouselIntervalSpin)
         layout.addLayout(carouselIntervalLayout)
         
-        # 倒计时位置
-        positionLayout = QHBoxLayout()
-        positionLabel = BodyLabel('倒计时位置', self)
-        positionLabel.setFixedWidth(100)
-        positionLayout.addWidget(positionLabel)
-        self.countdownPositionCombo = ComboBox(self)
-        self.countdownPositionCombo.addItems(['左上预留', '左上', '右上预留', '右上', '左下预留', '左下', '右下预留', '右下', '中部', '顶部', '顶部偏下', '底部偏上', '底部'])
-        self.countdownPositionCombo.setCurrentText(cfg.countdownPosition.value)
-        self.countdownPositionCombo.setFixedWidth(120)
-        self.countdownPositionCombo.currentTextChanged.connect(self._onCountdownPositionChanged)
-        positionLayout.addWidget(self.countdownPositionCombo)
-        layout.addLayout(positionLayout)
-        
         listLabel = BodyLabel('倒计时列表', self)
         layout.addWidget(listLabel)
         
@@ -997,60 +897,7 @@ class EditPanel(QWidget):
         self.countdownDisplayModeCombo.setCurrentText('同时显示' if value == 'simultaneous' else '轮播显示')
         self.countdownDisplayModeCombo.currentTextChanged.connect(self._onCountdownDisplayModeChanged)
     
-    def _updateCountdownPositionCombo(self, value):
-        try:
-            self.countdownPositionCombo.currentTextChanged.disconnect(self._onCountdownPositionChanged)
-        except TypeError:
-            pass
-        self.countdownPositionCombo.setCurrentText(value)
-        self.countdownPositionCombo.currentTextChanged.connect(self._onCountdownPositionChanged)
-    
     def _updateCountdownTextSizeSpin(self, value):
-        self.countdownTextSizeSpin.setValue(value)
-    
-    def _updateCountdownConnectorSizeSpin(self, value):
-        self.countdownConnectorSizeSpin.setValue(value)
-    
-    def _updateCountdownCarouselIntervalSpin(self, value):
-        self.countdownCarouselIntervalSpin.setValue(value)
-    
-    def _updateCountdownTextColorCombo(self, value):
-        try:
-            self.countdownTextColorCombo.currentTextChanged.disconnect(self._onCountdownTextColorChanged)
-        except TypeError:
-            pass
-        self.countdownTextColorCombo.setCurrentText(self._getColorText(value, 'red'))
-        self.countdownTextColorCombo.currentTextChanged.connect(self._onCountdownTextColorChanged)
-    
-    def _updateCountdownConnectorColorCombo(self, value):
-        try:
-            self.countdownConnectorColorCombo.currentTextChanged.disconnect(self._onCountdownConnectorColorChanged)
-        except TypeError:
-            pass
-        self.countdownConnectorColorCombo.setCurrentText(self._getColorText(value, 'white'))
-        self.countdownConnectorColorCombo.currentTextChanged.connect(self._onCountdownConnectorColorChanged)
-    
-    def _updateShowSchoolInfoSwitch(self, value):
-        self.schoolInfoSwitch.setChecked(value)
-        self._updateSchoolInfoSettingsEnabled(value)
-    
-    def _updateSchoolInfoPositionCombo(self, value):
-        try:
-            self.schoolInfoPositionCombo.currentTextChanged.disconnect(self._onSchoolInfoPositionChanged)
-        except TypeError:
-            pass
-        self.schoolInfoPositionCombo.setCurrentText(value)
-        self.schoolInfoPositionCombo.currentTextChanged.connect(self._onSchoolInfoPositionChanged)
-    
-    def _updateSchoolInfoTextColorCombo(self, value):
-        try:
-            self.schoolInfoTextColorCombo.currentTextChanged.disconnect(self._onSchoolInfoTextColorChanged)
-        except TypeError:
-            pass
-        self.schoolInfoTextColorCombo.setCurrentText(self._getColorText(value, 'white'))
-        self.schoolInfoTextColorCombo.currentTextChanged.connect(self._onSchoolInfoTextColorChanged)
-    
-    def _updateSchoolInfoTextSizeSpin(self, value):
         self.schoolInfoTextSizeSpin.setValue(value)
     
     def _updateSchoolEdit(self, value):
@@ -1133,10 +980,6 @@ class EditPanel(QWidget):
         if hasattr(self.mainWindow, '_MainWindow__updateCountdownCarouselInterval'):
             self.mainWindow._MainWindow__updateCountdownCarouselInterval()
         logger.info(f"倒计时设置：轮播间隔={value}秒")
-    
-    def _onCountdownPositionChanged(self, text: str):
-        cfg.countdownPosition.value = text
-        logger.info(f"倒计时设置：位置={text}")
     
     def _onCountdownAddClicked(self):
         dialog = CountdownEditDialog(self.mainWindow)
@@ -1248,10 +1091,6 @@ class EditPanel(QWidget):
             self.mainWindow.updateSchoolInfo()
         logger.info(f"学校信息：学校={text}")
     
-    def _onSchoolInfoPositionChanged(self, text: str):
-        cfg.schoolInfoPosition.value = text
-        logger.info(f"学校信息：位置={text}")
-    
     def _onSchoolInfoTextColorChanged(self, text: str):
         
         if text == '白色':
@@ -1323,7 +1162,6 @@ class EditPanel(QWidget):
         self.clockColorCombo.setCurrentText(self._getColorText(cfg.clockColor.value))
         self.clockSizeSpin.setValue(cfg.clockSize.value)
         self.dateSizeSpin.setValue(cfg.dateSize.value)
-        self.clockPositionCombo.setCurrentText(cfg.clockPosition.value)
         
         self.showPoetrySwitch.setChecked(cfg.showPoetry.value)
         if cfg.poetryApiUrl.value == 'https://www.ffapi.cn/int/v1/shici':
@@ -1332,18 +1170,15 @@ class EditPanel(QWidget):
             self.poetryApiCombo.setCurrentText('一言 API')
         self.poetrySizeSpin.setValue(cfg.poetrySize.value)
         self.poetryUpdateIntervalCombo.setCurrentText(cfg.poetryUpdateInterval.value)
-        self.poetryPositionCombo.setCurrentText(cfg.poetryPosition.value)
         
         self.showWeatherSwitch.setChecked(cfg.showWeather.value)
         self.cityButton.setText(cfg.city.value)
         self.weatherSizeSpin.setValue(cfg.weatherSize.value)
         self.weatherIconSizeSpin.setValue(cfg.weatherIconSize.value)
         self.weatherUpdateIntervalCombo.setCurrentText(cfg.weatherUpdateInterval.value)
-        self.weatherPositionCombo.setCurrentText(cfg.weatherPosition.value)
         
         self.showCountdownSwitch.setChecked(cfg.showCountdown.value)
         self.countdownDisplayModeCombo.setCurrentText('同时显示' if cfg.countdownDisplayMode.value == 'simultaneous' else '轮播显示')
-        self.countdownPositionCombo.setCurrentText(cfg.countdownPosition.value)
         self.countdownTextSizeSpin.setValue(cfg.countdownTextSize.value)
         self.countdownConnectorSizeSpin.setValue(cfg.countdownConnectorSize.value)
         self.countdownCarouselIntervalSpin.setValue(cfg.countdownCarouselInterval.value)
@@ -1354,7 +1189,6 @@ class EditPanel(QWidget):
         self.schoolInfoSwitch.setChecked(cfg.showSchoolInfo.value)
         self.schoolEdit.setText(cfg.school.value)
         self.schoolClassEdit.setText(cfg.schoolClass.value)
-        self.schoolInfoPositionCombo.setCurrentText(cfg.schoolInfoPosition.value)
         self.schoolInfoTextColorCombo.setCurrentText(self._getColorText(cfg.schoolInfoTextColor.value, 'white'))
         self.schoolInfoTextSizeSpin.setValue(cfg.schoolInfoTextSize.value)
         
@@ -1364,7 +1198,6 @@ class EditPanel(QWidget):
     def refreshMediaSettings(self):
         self.showMediaInfoSwitch.setChecked(cfg.showMediaInfo.value)
         self.showMediaCoverSwitch.setChecked(cfg.showMediaCover.value)
-        self.mediaPositionCombo.setCurrentText(cfg.mediaPosition.value)
         self.mediaWidthSpin.setValue(cfg.mediaWidth.value)
         self.mediaLyricsAdvanceSpin.setValue(cfg.mediaLyricsAdvance.value)
     
@@ -1406,18 +1239,6 @@ class EditPanel(QWidget):
         self.schoolEdit.textChanged.connect(self._onSchoolChanged)
         schoolLayout.addWidget(self.schoolEdit)
         layout.addLayout(schoolLayout)
-        
-        positionLayout = QHBoxLayout()
-        positionLabel = BodyLabel('位置', self)
-        positionLabel.setFixedWidth(100)
-        positionLayout.addWidget(positionLabel)
-        self.schoolInfoPositionCombo = ComboBox(self)
-        self.schoolInfoPositionCombo.addItems(['左上', '右上', '左下', '右下', '左上预留', '右上预留', '左下预留', '右下预留'])
-        self.schoolInfoPositionCombo.setCurrentText(cfg.schoolInfoPosition.value)
-        self.schoolInfoPositionCombo.setFixedWidth(120)
-        self.schoolInfoPositionCombo.currentTextChanged.connect(self._onSchoolInfoPositionChanged)
-        positionLayout.addWidget(self.schoolInfoPositionCombo)
-        layout.addLayout(positionLayout)
         
         textColorLayout = QHBoxLayout()
         textColorLabel = BodyLabel('文字颜色', self)
@@ -1542,18 +1363,6 @@ class EditPanel(QWidget):
         coverLayout.addWidget(self.showMediaCoverSwitch)
         layout.addLayout(coverLayout)
 
-        positionLayout = QHBoxLayout()
-        positionLabel = BodyLabel('位置', self)
-        positionLabel.setFixedWidth(100)
-        positionLayout.addWidget(positionLabel)
-        self.mediaPositionCombo = ComboBox(self)
-        self.mediaPositionCombo.addItems(['左上预留', '右上预留', '左下预留', '右下预留'])
-        self.mediaPositionCombo.setCurrentText(cfg.mediaPosition.value)
-        self.mediaPositionCombo.setFixedWidth(120)
-        self.mediaPositionCombo.currentTextChanged.connect(self._onMediaPositionChanged)
-        positionLayout.addWidget(self.mediaPositionCombo)
-        layout.addLayout(positionLayout)
-
         widthLayout = QHBoxLayout()
         widthLabel = BodyLabel('组件宽度', self)
         widthLabel.setFixedWidth(100)
@@ -1585,14 +1394,6 @@ class EditPanel(QWidget):
     def _updateShowMediaCoverSwitch(self, value):
         self.showMediaCoverSwitch.setChecked(value)
 
-    def _updateMediaPositionCombo(self, value):
-        try:
-            self.mediaPositionCombo.currentTextChanged.disconnect(self._onMediaPositionChanged)
-        except TypeError:
-            pass
-        self.mediaPositionCombo.setCurrentText(value)
-        self.mediaPositionCombo.currentTextChanged.connect(self._onMediaPositionChanged)
-
     def _updateMediaWidthSpin(self, value):
         self.mediaWidthSpin.setValue(value)
 
@@ -1607,10 +1408,6 @@ class EditPanel(QWidget):
     def _onShowMediaCoverChanged(self, checked: bool):
         cfg.showMediaCover.value = checked
         logger.info(f"媒体设置：显示封面={'开启' if checked else '关闭'}")
-
-    def _onMediaPositionChanged(self, text: str):
-        cfg.mediaPosition.value = text
-        logger.info(f"媒体设置：位置={text}")
 
     def _onMediaWidthChanged(self, value: int):
         cfg.mediaWidth.value = value
