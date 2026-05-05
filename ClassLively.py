@@ -1293,6 +1293,9 @@ class MainWindow(FluentWindow):
             font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
+        if hasattr(self, 'clockContainer'):self.clockContainer.updateSize()
+        if hasattr(self, 'poetryContainer'):self.poetryContainer.updateSize()
+        if hasattr(self, 'weatherContainer'):self.weatherContainer.updateSize()
     
     def __updateComponentPositions(self):
         """ 更新所有组件的位置 """
@@ -1784,6 +1787,7 @@ class MainWindow(FluentWindow):
                 logger.warning(f"天气图标文件不存在：{icon_file}")
         except Exception as e:
             logger.error(f"天气图标更新失败：{e}")
+        if hasattr(self, 'weatherContainer'):self.weatherContainer.updateSize()
     
     def __updateCountdownCarouselInterval(self):
         """轮播间隔 """
@@ -1884,11 +1888,13 @@ class MainWindow(FluentWindow):
         self.countdownConnectorColor = connector_color_str
         self.countdownConnectorSize = connector_size
         self.countdownDaysSize = text_size
+        if hasattr(self, 'countdownContainer'):self.countdownContainer.updateSize()
     
     def _onCountdownStyleChanged(self):
         """ 倒计时样式变化 """
         self.updateCountdownStyle()
         self.__updateCountdown()
+        if hasattr(self, 'countdownContainer'):self.countdownContainer.updateSize()
     
     def __updateCountdownPosition(self):
         """ 更新倒计时组件位置 """
@@ -1993,6 +1999,7 @@ class MainWindow(FluentWindow):
         self.schoolInfoTextSize = text_size
         self.schoolClassLabel.setStyleSheet(f"color: {text_color_str}; font-size: {text_size}px; font-weight: bold; font-family: \"HarmonyOS Sans SC\", \"HarmonyOS Sans\", \"Microsoft YaHei\", \"SimHei\", sans-serif;")
         self.schoolNameLabel.setStyleSheet(f"color: {text_color_str}; font-size: {text_size}px; font-weight: bold; font-family: \"HarmonyOS Sans SC\", \"HarmonyOS Sans\", \"Microsoft YaHei\", \"SimHei\", sans-serif;")
+        if hasattr(self, 'schoolInfoContainer'):self.schoolInfoContainer.updateSize()
     
     def __updateSchoolInfoPosition(self):
         """更新学校信息位置"""
@@ -2118,9 +2125,8 @@ class MainWindow(FluentWindow):
             
             layout.update()
             self.mediaContainer.update()
-            if hasattr(self, 'homeContent'):
-                self.homeContent.update()
-            
+            if hasattr(self, 'homeContent'):self.homeContent.update()
+            if hasattr(self, 'mediaContainer'):self.mediaContainer.updateSize()
             logger.info(f"媒体控件位置已更新为：{position}")
         except Exception as e:
             logger.exception(f"更新媒体控件位置失败：{e}")
