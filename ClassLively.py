@@ -803,6 +803,8 @@ class MainWindow(FluentWindow):
             for widget in self._draggable_widgets:
                 if widget and hasattr(widget, 'setDraggable'):
                     widget.setDraggable(enabled)
+                    if enabled and hasattr(widget, 'updateThemeColor'):
+                        widget.updateThemeColor()
     
     def _onClockPositionChanged(self, x: float, y: float):
         """时钟位置变化回调"""

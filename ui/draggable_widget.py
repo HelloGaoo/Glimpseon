@@ -40,6 +40,8 @@ class DraggableWidget(QWidget):
         self._show_border = False
         self._border_color = QColor(120, 120, 120)
         self._hovered = False
+        self._cached_primary_color = QColor(48, 195, 97)
+        self._cached_hover_color = QColor(108, 255, 157)
         
         self.setMouseTracking(True)
         self.setAutoFillBackground(False)
@@ -114,28 +116,13 @@ class DraggableWidget(QWidget):
     def paintEvent(self, event):
         super().paintEvent(event)
         
-        if self._show_border or self._dragging or self._hovered:
+        if self._dragging:return
+        if self._show_border or self._hovered:
             painter = QPainter(self)
             painter.setRenderHint(painter.RenderHint.Antialiasing)
-            theme_color = cfg.themeColor.value
-            if isinstance(theme_color, str):
-                primary_color = QColor(theme_color)
-            else:
-                primary_color = theme_color
-            
-            hover_color = QColor(
-                min(255, primary_color.red() + 60),
-                min(255, primary_color.green() + 60),
-                min(255, primary_color.blue() + 60)
-            )
-            
-            if self._dragging:
-                pen_width = 2
-                border_color = primary_color
-                pen_style = Qt.PenStyle.SolidLine
-            elif self._hovered:
+            if self._hovered:
                 pen_width = 1
-                border_color = hover_color
+                border_color = self._cached_hover_color
                 pen_style = Qt.PenStyle.DashLine
             else:
                 pen_width = 1
@@ -149,7 +136,7 @@ class DraggableWidget(QWidget):
             rect = self.rect().adjusted(1, 1, -1, -1)
             painter.drawRoundedRect(rect, 6, 6)
             
-            if self._dragging or self._show_border:
+            if self._show_border:
                 painter.setPen(QColor(200, 200, 200))
                 font = QFont()
                 font.setPointSize(8)
@@ -158,6 +145,20 @@ class DraggableWidget(QWidget):
                 painter.drawText(8, 18, label_text)
             
             painter.end()
+    
+    def updateThemeColor(self):
+        theme_color = cfg.themeColor.value
+        if isinstance(theme_color, str):
+            primary_color = QColor(theme_color)
+        else:
+            primary_color = theme_color
+        self._cached_primary_color = primary_color
+        self._cached_hover_color = QColor(
+            min(255, primary_color.red() + 60),
+            min(255, primary_color.green() + 60),
+            min(255, primary_color.blue() + 60)
+        )
+        self.update()
     
     def enterEvent(self, event):
         if self._draggable:
