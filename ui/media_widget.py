@@ -47,8 +47,7 @@ class LyricsWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._current_text = ""
-        self._max_chars = 30
+        self._original_text = ""
         self._text_size = 14
         self._lyrics = None
 
@@ -86,9 +85,7 @@ class LyricsWidget(QWidget):
         self._update_text(text)
 
     def _update_text(self, text):
-        if len(text) > self._max_chars:
-            text = text[:self._max_chars - 1] + "…"
-        self._current_text = text
+        self._original_text = text
         self.update()
 
     def paintEvent(self, event):
@@ -96,20 +93,24 @@ class LyricsWidget(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         p.setRenderHint(QPainter.RenderHint.TextAntialiasing)
 
-        if not self._current_text:
+        if not self._original_text:
             return
 
         font = QFont("HarmonyOS Sans SC", self._text_size)
         font.setWeight(QFont.Weight.DemiBold)
         p.setFont(font)
 
+        fm = p.fontMetrics()
+        available = max(self.width() - 4, 0)
+        elided = fm.elidedText(self._original_text, Qt.TextElideMode.ElideRight, available)
+
         p.setPen(QColor(245, 245, 250, 255))
         p.drawText(0, 0, self.width(), self.height(),
                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                   self._current_text)
+                   elided)
 
     def clear(self):
-        self._current_text = ""
+        self._original_text = ""
         self._lyrics = None
         self.update()
 
@@ -398,7 +399,6 @@ class MediaWidget(QWidget):
             
             self._cover_lbl.repaint()
             self._lyrics_w.repaint()
-            self.adjustSize()
             
             self._fetch(title, artist)
 
@@ -417,7 +417,6 @@ class MediaWidget(QWidget):
 
         self._cover_lbl.setVisible(cfg.showMediaCover.value)
         self._lyrics_w.show()
-        self.adjustSize()
 
     def _update_progress(self):
         if not self._playing or self._duration <= 0:
@@ -486,7 +485,6 @@ class MediaWidget(QWidget):
                 self._load_cover(info['cover'])
             self._lyrics = info.get('lyrics')
             self._lyrics_w.set_lyrics(self._lyrics)
-            self.adjustSize()
         except Exception as e:
             logger.debug(f"应用歌曲信息失败: {e}")
         finally:
