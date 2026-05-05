@@ -1,5 +1,5 @@
 # ClassLively
-# Copyright (C) 2026 HelloGaoo & WHYOS
+# Copyright (C) 2026 HelloGaoo
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -95,7 +95,7 @@ class AboutInterface(BaseScrollAreaInterface):
         self.versionInfo.setObjectName("versionInfo")
         self.versionInfo.setWordWrap(True)
         rightLayout.addWidget(self.versionInfo)
-        self.developerLabel = QLabel("开发作者：HelloGaoo & WHYOS", self.aboutCard)
+        self.developerLabel = QLabel("开发作者：HelloGaoo", self.aboutCard)
         self.developerLabel.setObjectName("developerLabel")
         rightLayout.addWidget(self.developerLabel)
         self.copyrightLabel = QLabel("© 2026 ClassLively. All rights reserved.", self.aboutCard)
