@@ -223,6 +223,11 @@ class DraggableContainer(DraggableWidget):
         self.adjustSize()
         self.updateGeometry()
     
+    def updateSize(self):
+        self.inner_layout.activate()
+        self.adjustSize()
+        self.updateGeometry()
+    
     def showEvent(self, event):
         super().showEvent(event)
         if self.inner_layout:

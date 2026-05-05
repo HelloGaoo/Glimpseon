@@ -968,8 +968,7 @@ class MainWindow(FluentWindow):
         self.poetryLabel.setWordWrap(False)
         self.updateClockStyle()
         
-        # ===== 使用可拖拽容器包装组件 =====
-        # 时钟容器（可拖拽）
+        # 时钟容器
         self.clockContainer = DraggableContainer(self.home, component_id="clock", layout_direction="vertical")
         self.clockContainer.setObjectName("clockContainer")
         self.clockLayout = self.clockContainer.inner_layout
@@ -978,12 +977,11 @@ class MainWindow(FluentWindow):
         self.clockLayout.setSpacing(0)
         self.clockLayout.addWidget(self.clockLabel)
         self.clockLayout.addWidget(self.dateLabel)
-        # 设置初始位置百分比（顶部居中偏下）
         self.clockContainer.setPositionPercent(0.5, 0.25)
         self.clockContainer.positionChanged.connect(self._onClockPositionChanged)
         self.clockContainer.adjustSize()
         
-        # 天气容器（可拖拽）
+        # 天气容器
         self.weatherContainer = DraggableContainer(self.home, component_id="weather", layout_direction="horizontal")
         self.weatherContainer.setObjectName("weatherContainer")
         weatherLayout = self.weatherContainer.inner_layout
@@ -994,12 +992,11 @@ class MainWindow(FluentWindow):
         self.weatherIconLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         weatherLayout.addWidget(self.weatherTempLabel)
         weatherLayout.addWidget(self.weatherIconLabel)
-        # 设置初始位置百分比（右上角）
         self.weatherContainer.setPositionPercent(0.9, 0.08)
         self.weatherContainer.positionChanged.connect(self._onWeatherPositionChanged)
         self.weatherContainer.adjustSize()
         
-        # 学校信息容器（可拖拽）
+        # 学校信息容器
         self.schoolInfoContainer = DraggableContainer(self.home, component_id="school_info", layout_direction="vertical")
         self.schoolInfoContainer.setObjectName("schoolInfoContainer")
         self.schoolInfoLayout = self.schoolInfoContainer.inner_layout
@@ -1014,19 +1011,18 @@ class MainWindow(FluentWindow):
         self.schoolInfoLayout.addWidget(self.schoolNameLabel)
         self.updateSchoolInfo()
         self.updateSchoolInfoStyle()
-        # 设置初始位置百分比（左上角）
+
         self.schoolInfoContainer.setPositionPercent(0.08, 0.08)
         self.schoolInfoContainer.positionChanged.connect(self._onSchoolInfoPositionChanged)
         self.schoolInfoContainer.adjustSize()
         
-        # 一言容器（可拖拽）
+        # 一言容器
         self.poetryContainer = DraggableContainer(self.home, component_id="poetry", layout_direction="vertical")
         self.poetryContainer.setObjectName("poetryContainer")
         poetryLayout = self.poetryContainer.inner_layout
         poetryLayout.setAlignment(Qt.AlignmentFlag.AlignBottom)
         poetryLayout.setContentsMargins(0, 0, 0, 0)
         poetryLayout.addWidget(self.poetryLabel)
-        # 设置初始位置百分比（底部居中）
         self.poetryContainer.setPositionPercent(0.5, 0.88)
         self.poetryContainer.positionChanged.connect(self._onPoetryPositionChanged)
         self.poetryContainer.adjustSize()
@@ -1035,14 +1031,13 @@ class MainWindow(FluentWindow):
         self.countdownLabel = QLabel("")
         self.countdownLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        # 倒计时容器（可拖拽）
+        # 倒计时容器
         self.countdownContainer = DraggableContainer(self.home, component_id="countdown", layout_direction="vertical")
         self.countdownContainer.setObjectName("countdownContainer")
         countdownLayout = self.countdownContainer.inner_layout
         countdownLayout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         countdownLayout.setContentsMargins(0, 0, 0, 0)
         countdownLayout.addWidget(self.countdownLabel)
-        # 设置初始位置百分比（中部偏下）
         self.countdownContainer.setPositionPercent(0.5, 0.55)
         self.countdownContainer.positionChanged.connect(self._onCountdownPositionChanged)
         self.countdownContainer.adjustSize()
@@ -1068,7 +1063,7 @@ class MainWindow(FluentWindow):
         self.editContainer.setFixedSize(80, 52)
         self.editContainer.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         
-        # 媒体信息（可拖拽）
+        # 媒体信息
         self.mediaContainer = DraggableContainer(self.home, component_id="media", layout_direction="vertical")
         self.mediaContainer.setObjectName("mediaContainer")
         self.mediaContainer.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -1077,16 +1072,14 @@ class MainWindow(FluentWindow):
         self.mediaContainerLayout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
         self.mediaContainerLayout.setContentsMargins(0, 0, 0, 0)
         self.mediaContainerLayout.setSpacing(0)
-        
         self.mediaWidget = MediaWidget(self.home)
         self.mediaWidget.setObjectName("mediaWidget")
         self.mediaContainerLayout.addWidget(self.mediaWidget)
-        # 设置初始位置百分比（左下角）
         self.mediaContainer.setPositionPercent(0.12, 0.85)
         self.mediaContainer.positionChanged.connect(self._onMediaPositionChanged)
         self.mediaContainer.adjustSize()
         
-        # 存储所有可拖拽组件的引用
+        # 存储所有组件的引用
         self._draggable_widgets = [
             self.clockContainer,
             self.weatherContainer,
@@ -1173,7 +1166,6 @@ class MainWindow(FluentWindow):
         if not self._is_maximized and (self.width() != self._normal_size[0] or self.height() != self._normal_size[1]):
             self.setFixedSize(*self._normal_size)
         
-        # 获取可用区域（减去左侧导航栏）
         available_width = self.width() - 50
         available_height = self.height()
         
@@ -1191,12 +1183,8 @@ class MainWindow(FluentWindow):
             except Exception as e:
                 logger.error(f"resizeEvent 错误：{e}")
         
-        # 调整 homeContent 大小（如果它没有通过布局自动调整）
+        # 调整 homeContent 大小
         if hasattr(self, 'homeContent') and self.homeContent:
-            # homeContent 应该通过主界面的布局自动填充
-            # 但我们需要确保可拖拽组件的位置正确
-            
-            # 调整快捷启动栏位置（底部居中）
             if hasattr(self, 'quickLaunchDock') and self.quickLaunchDock:
                 dock_width = self.quickLaunchDock.width()
                 dock_height = self.quickLaunchDock.height()
@@ -1209,7 +1197,6 @@ class MainWindow(FluentWindow):
                     )
             
         
-        # 自动调整所有可拖拽组件的位置（保持百分比比例）
         if hasattr(self, '_draggable_widgets'):
             for widget in self._draggable_widgets:
                 if widget and hasattr(widget, 'onParentResize'):
@@ -1265,6 +1252,8 @@ class MainWindow(FluentWindow):
             dateString = solarString
         
         self.dateLabel.setText(dateString)
+
+        if hasattr(self, 'clockContainer'):self.clockContainer.updateSize()
     
     def updateClockStyle(self):
         """ 更新时钟样式 """
@@ -1509,6 +1498,7 @@ class MainWindow(FluentWindow):
         if cached:
             self.poetryLabel.setText(cached)
             logger.info(f"使用缓存一言：{cached[:50]}")
+            if hasattr(self, 'poetryContainer'):self.poetryContainer.updateSize()
             return
         
         try:
@@ -1522,12 +1512,15 @@ class MainWindow(FluentWindow):
                 self.poetryLabel.setText(poetry_text)
                 save_cache("poetry", poetry_text, cfg.poetryUpdateInterval.value)
                 logger.info(f"已更新一言：{poetry_text[:50]}")
+                if hasattr(self, 'poetryContainer'):self.poetryContainer.updateSize()
             else:
                 logger.error(f"一言 API 请求失败，状态码：{response.status_code}")
                 self.poetryLabel.setText("他山之石，可以攻玉。——《诗经·小雅·鹤鸣》")
+                if hasattr(self, 'poetryContainer'):self.poetryContainer.updateSize()
         except Exception as e:
             logger.error(f"一言更新失败：{e}")
             self.poetryLabel.setText("他山之石，可以攻玉。——《诗经·小雅·鹤鸣》")
+            if hasattr(self, 'poetryContainer'):self.poetryContainer.updateSize()
     #笑死我了我就应该整个愿得一人心白首不分离
     def __updateWeather(self):
         """ 更新天气显示 """
@@ -1548,6 +1541,7 @@ class MainWindow(FluentWindow):
                 self.current_weather_code = cached.get('weather_code')
                 self.__updateWeatherIcon()
                 logger.info(f"使用缓存天气：{weather_text}")
+                if hasattr(self, 'weatherContainer'):self.weatherContainer.updateSize()
                 return
             except Exception as e:
                 logger.warning(f"读取缓存天气数据失败：{e}")
@@ -1673,6 +1667,7 @@ class MainWindow(FluentWindow):
                     weather_text = f"{current_temp}{temp_unit}"
                     self.weatherTempLabel.setText(weather_text)
                     logger.info(f"已更新天气标签：{weather_text}")
+                    if hasattr(self, 'weatherContainer'):self.weatherContainer.updateSize()
                     
                     self.current_weather_code = weather_code
                     
@@ -1698,6 +1693,7 @@ class MainWindow(FluentWindow):
             self.weatherTempLabel.setText("? °C")
             self.current_weather_code = None
             self.weatherIconLabel.clear()
+            if hasattr(self, 'weatherContainer'):self.weatherContainer.updateSize()
     
     def __updateWeatherIcon(self):
         """ 更新天气图标 """
