@@ -1,6 +1,6 @@
 WizardWindow {
     background-color: rgb(247, 247, 247);
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 WizardWindow QWidget {
@@ -9,7 +9,7 @@ WizardWindow QWidget {
 
 WizardWindow StrongBodyLabel {
     color: black;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     font-size: 28px;
     margin-top: 8px;
     margin-bottom: 8px;
@@ -18,7 +18,7 @@ WizardWindow StrongBodyLabel {
 
 WizardWindow BodyLabel {
     color: rgba(0, 0, 0, 0.8);
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     font-size: 20px;
     margin-top: 6px;
     margin-bottom: 6px;
@@ -26,7 +26,7 @@ WizardWindow BodyLabel {
 
 WizardWindow CheckBox {
     color: black;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     font-size: 18px;
     margin-top: 4px;
     margin-bottom: 4px;
@@ -38,7 +38,7 @@ WizardWindow a {
 
 WizardWindow QLabel#titleLabel {
     color: black;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     font-size: 16px;
     font-weight: bold;
 }

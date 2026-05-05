@@ -2,7 +2,7 @@
 #about {
     background-color: rgb(39, 39, 39);
     border: none;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 滚动区域 */
@@ -21,7 +21,7 @@ QLabel#settingLabel {
     font-size: 33px;
     background-color: transparent;
     color: white;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 卡片 */
@@ -29,7 +29,7 @@ CardWidget {
     background-color: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 CardWidget:hover {
@@ -75,7 +75,7 @@ QLabel#appNameLabel {
     color: white;
     font-weight: bold;
     background-color: transparent;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 描述标签 */
@@ -83,7 +83,7 @@ QLabel#descriptionLabel {
     font-size: 14px;
     color: #CCCCCC;
     background-color: transparent;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 版本信息 */
@@ -91,7 +91,7 @@ QLabel#versionInfo {
     font-size: 14px;
     color: #999999;
     background-color: transparent;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 调试和版权标签 */
@@ -100,7 +100,7 @@ QLabel#copyrightLabel {
     font-size: 13px;
     color: #999999;
     background-color: transparent;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 链接标签 */
@@ -108,7 +108,7 @@ QLabel#linkLabel {
     font-size: 14px;
     color: #CCCCCC;
     background-color: transparent;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 分组标签 */
@@ -118,7 +118,7 @@ QLabel#groupLabel {
     background-color: transparent;
     margin-top: 20px;
     margin-bottom: 8px;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 链接按钮 */

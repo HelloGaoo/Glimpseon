@@ -96,7 +96,7 @@ class LyricsWidget(QWidget):
         if not self._original_text:
             return
 
-        font = QFont("HarmonyOS Sans SC", self._text_size)
+        font = QFont("HarmonyOS Sans", self._text_size)
         font.setWeight(QFont.Weight.DemiBold)
         p.setFont(font)
 

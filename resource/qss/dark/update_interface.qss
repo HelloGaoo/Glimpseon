@@ -2,7 +2,7 @@
 #update {
     background-color: rgb(39, 39, 39);
     border: none;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 滚动区域 */
@@ -21,7 +21,7 @@ QLabel#settingLabel {
     font-size: 33px;
     background-color: transparent;
     color: white;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 卡片 */
@@ -29,7 +29,7 @@ CardWidget {
     background-color: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 CardWidget:hover {
@@ -46,7 +46,7 @@ SmoothScrollArea {
 QLabel#changelogTitle {
     font-size: 16px;
     color: white;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 更新日志内容 */
@@ -54,21 +54,21 @@ QLabel#changelogContent {
     color: #CCCCCC;
     line-height: 1.8;
     font-size: 13px;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 版本标题 */
 QLabel#versionTitle {
     font-size: 20px;
     color: white;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 构建日期 */
 QLabel#buildDate {
     color: #CCCCCC;
     font-size: 13px;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* SettingCard */

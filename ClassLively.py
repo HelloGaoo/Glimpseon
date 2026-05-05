@@ -1265,28 +1265,28 @@ class MainWindow(FluentWindow):
             color: {color_str}; 
             font-size: {clock_size}px; 
             font-weight: bold; 
-            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
         
         self.dateLabel.setStyleSheet(f"""
             color: {color_str}; 
             font-size: {date_size}px; 
-            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
         
         self.poetryLabel.setStyleSheet(f"""
             color: {color_str}; 
             font-size: {poetry_size}px; 
-            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
         
         self.weatherTempLabel.setStyleSheet(f"""
             color: {color_str}; 
             font-size: {weather_size}px; 
-            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
         if hasattr(self, 'clockContainer'):self.clockContainer.updateSize()
@@ -1710,12 +1710,12 @@ class MainWindow(FluentWindow):
         def fmt(text, connector=""):
             if hasattr(self, 'countdownTextColor'):
                 if connector:
-                    return (f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownTitleSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{title}</span>'
-                            f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{connector}</span>'
-                            f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownDaysSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{text}</span>')
+                    return (f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownTitleSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{title}</span>'
+                            f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{connector}</span>'
+                            f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownDaysSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{text}</span>')
                 else:
-                    return (f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownTitleSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{title}</span>'
-                            f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownDaysSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans SC&quot;, &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{text}</span>')
+                    return (f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownTitleSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{title}</span>'
+                            f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownDaysSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{text}</span>')
             else:
                 return f"{title}{connector}{text}"
         if target_date == now_date and total_seconds < 0:
@@ -1760,7 +1760,7 @@ class MainWindow(FluentWindow):
             color: {text_color_str};
             font-size: {text_size}px;
             font-weight: bold;
-            font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
         
@@ -1792,8 +1792,8 @@ class MainWindow(FluentWindow):
         text_size = cfg.schoolInfoTextSize.value
         self.schoolInfoTextColor = text_color_str
         self.schoolInfoTextSize = text_size
-        self.schoolClassLabel.setStyleSheet(f"color: {text_color_str}; font-size: {text_size}px; font-weight: bold; font-family: \"HarmonyOS Sans SC\", \"HarmonyOS Sans\", \"Microsoft YaHei\", \"SimHei\", sans-serif;")
-        self.schoolNameLabel.setStyleSheet(f"color: {text_color_str}; font-size: {text_size}px; font-weight: bold; font-family: \"HarmonyOS Sans SC\", \"HarmonyOS Sans\", \"Microsoft YaHei\", \"SimHei\", sans-serif;")
+        self.schoolClassLabel.setStyleSheet(f"color: {text_color_str}; font-size: {text_size}px; font-weight: bold; font-family: \"HarmonyOS Sans\", \"Microsoft YaHei\", \"SimHei\", sans-serif;")
+        self.schoolNameLabel.setStyleSheet(f"color: {text_color_str}; font-size: {text_size}px; font-weight: bold; font-family: \"HarmonyOS Sans\", \"Microsoft YaHei\", \"SimHei\", sans-serif;")
         if hasattr(self, 'schoolInfoContainer'):self.schoolInfoContainer.updateSize()
     
     def __initMediaWidget(self):

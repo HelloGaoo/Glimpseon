@@ -42,7 +42,7 @@ MainWindow #quickLaunchDock {
 #qlTooltipLabel {
     color: #FFFFFF;
     font-size: 12px;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     background-color: transparent;
 }
 
@@ -50,7 +50,7 @@ MainWindow #quickLaunchDock {
 MainWindow #weatherTempLabel {
     color: #FFFFFF;
     font-size: 14px;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     background-color: transparent;
 }
 
@@ -63,7 +63,7 @@ MainWindow #weatherIconLabel {
 MainWindow #poetryLabel {
     color: #FFFFFF;
     font-size: 16px;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     background-color: transparent;
 }
 
@@ -72,14 +72,14 @@ MainWindow #schoolClassLabel {
     color: #FFFFFF;
     font-size: 16px;
     font-weight: bold;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     background-color: transparent;
 }
 
 MainWindow #schoolNameLabel {
     color: #FFFFFF;
     font-size: 14px;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     background-color: transparent;
 }
 

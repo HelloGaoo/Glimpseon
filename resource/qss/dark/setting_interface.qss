@@ -2,7 +2,7 @@
 #setting, #scrollWidget {
     background-color: rgb(39, 39, 39);
     border: none;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 滚动区域 */
@@ -16,7 +16,7 @@ QLabel#settingLabel {
     font-size: 33px;
     background-color: transparent;
     color: white;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 卡片 */
@@ -24,7 +24,7 @@ CardWidget {
     background-color: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 CardWidget:hover {

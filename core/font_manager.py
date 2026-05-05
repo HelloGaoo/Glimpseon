@@ -43,7 +43,6 @@ HARMONYOS_FONT_FILES = [
     "HarmonyOS_Sans_Black.ttf"
 ]
 HARMONYOS_FONT_FAMILIES = [
-    "HarmonyOS Sans SC",
     "HarmonyOS Sans",
     "Microsoft YaHei",
     "SimHei",
@@ -126,8 +125,8 @@ def apply_fonts(app: QApplication, use_harmonyos: bool = True):
     """应用字体设置"""
     if use_harmonyos:
         setFontFamilies(HARMONYOS_FONT_FAMILIES, save=False)
-        app.setFont(QFont("HarmonyOS Sans SC", 10))
-        logger.info("字体已设置为：HarmonyOS Sans SC")
+        app.setFont(QFont("HarmonyOS Sans", 10))
+        logger.info("字体已设置为：HarmonyOS Sans")
     else:
         setFontFamilies(FALLBACK_FONT_FAMILIES, save=False)
         app.setFont(QFont("Microsoft YaHei", 10))

@@ -7,13 +7,13 @@
 #EditPanel QWidget {
     background-color: transparent;
     color: #000000;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 #EditPanel SmoothScrollArea {
     background-color: rgb(249, 249, 249);
     border: none;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 #EditPanel SmoothScrollArea QWidget {

@@ -3,7 +3,7 @@
 #developerPanel {
     background-color: rgb(249, 249, 249);
     border: none;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 滚动区域 */
@@ -15,7 +15,7 @@
 #developerPanel QLabel#settingLabel {
     font-size: 33px;
     background-color: transparent;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 卡片 */
@@ -23,7 +23,7 @@
     background-color: #ffffff;
     border-radius: 8px;
     border: 1px solid #d0d0d0;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 #developerPanel CardWidget:hover {

@@ -451,7 +451,7 @@ def default_cfg():
             "WeatherPosition": "右上预留"
         },
         "QFluentWidgets": {
-            "FontFamilies": ["HarmonyOS Sans SC"]
+            "FontFamilies": ["HarmonyOS Sans"]
         },
         "Download": {
             "Source": "hk"

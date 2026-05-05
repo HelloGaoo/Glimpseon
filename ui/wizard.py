@@ -93,7 +93,7 @@ class WizardWindow(QDialog):
         self.welcomeLabel = StrongBodyLabel("ClassLively", self.page1)
         self.welcomeLabel.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
         self.welcomeLabel.setTextFormat(Qt.TextFormat.RichText)
-        self.welcomeLabel.setText('<span style="font-family:\'HarmonyOS Sans SC\',\'HarmonyOS Sans\',\'Microsoft YaHei UI\',\'Microsoft YaHei\',\'SimHei\',sans-serif; font-weight:900; font-size:34px;">ClassLively</span>')
+        self.welcomeLabel.setText('<span style="font-family:\'HarmonyOS Sans\',\'Microsoft YaHei\',\'SimHei\',sans-serif; font-weight:900; font-size:34px;">ClassLively</span>')
         self.welcomeLabel.setObjectName("welcomeLabel")
 
         self.nextButton = PrimaryPushButton(FIF.RIGHT_ARROW, "继续", self.page1)
@@ -118,7 +118,7 @@ class WizardWindow(QDialog):
         self.agreementTitle = StrongBodyLabel("软件使用协议", self.page2)
         self.agreementTitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_font = self.agreementTitle.font()
-        title_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
+        title_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
         title_font.setPointSize(30)
         title_font.setBold(True)
         self.agreementTitle.setFont(title_font)
@@ -126,7 +126,7 @@ class WizardWindow(QDialog):
         self.agreementText = BodyLabel("在使用本软件前，请阅读并同意以下协议：", self.page2)
         self.agreementText.setAlignment(Qt.AlignmentFlag.AlignCenter)
         txt_font = self.agreementText.font()
-        txt_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
+        txt_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
         txt_font.setPointSize(14)
         self.agreementText.setFont(txt_font)
 
@@ -158,7 +158,7 @@ class WizardWindow(QDialog):
                 uri = ""
             theme_color = cfg.themeColor.value.name()
             link_style = f'color:{theme_color}; text-decoration:underline;'
-            lbl.setText(f'<span style="font-family:\'HarmonyOS Sans SC\',\'HarmonyOS Sans\',\'Microsoft YaHei UI\',\'Microsoft YaHei\',\'SimHei\',sans-serif; font-size:16px;">我已阅读并同意&nbsp;<a href="{uri}" style="{link_style}">{link_text}</a></span>')
+            lbl.setText(f'<span style="font-family:\'HarmonyOS Sans\',\'Microsoft YaHei\',\'SimHei\',sans-serif; font-size:16px;">我已阅读并同意&nbsp;<a href="{uri}" style="{link_style}">{link_text}</a></span>')
             lbl.setOpenExternalLinks(False)
             
             def _on_link_activated(url):
@@ -229,7 +229,7 @@ class WizardWindow(QDialog):
         self.settingsTitle = StrongBodyLabel("基本设置", self.page3)
         self.settingsTitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         settings_title_font = self.settingsTitle.font()
-        settings_title_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
+        settings_title_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
         settings_title_font.setPointSize(30)
         settings_title_font.setBold(True)
         self.settingsTitle.setFont(settings_title_font)
@@ -237,7 +237,7 @@ class WizardWindow(QDialog):
         self.settingsText = BodyLabel("请选择您需要的功能选项：", self.page3)
         self.settingsText.setAlignment(Qt.AlignmentFlag.AlignCenter)
         settings_txt_font = self.settingsText.font()
-        settings_txt_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
+        settings_txt_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
         settings_txt_font.setPointSize(14)
         self.settingsText.setFont(settings_txt_font)
 
@@ -302,7 +302,7 @@ class WizardWindow(QDialog):
         self.appearanceTitle = StrongBodyLabel("外观设置", self.page4)
         self.appearanceTitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         appearance_title_font = self.appearanceTitle.font()
-        appearance_title_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
+        appearance_title_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
         appearance_title_font.setPointSize(30)
         appearance_title_font.setBold(True)
         self.appearanceTitle.setFont(appearance_title_font)
@@ -310,7 +310,7 @@ class WizardWindow(QDialog):
         self.appearanceText = BodyLabel("选择适合您的主题和颜色：", self.page4)
         self.appearanceText.setAlignment(Qt.AlignmentFlag.AlignCenter)
         appearance_txt_font = self.appearanceText.font()
-        appearance_txt_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
+        appearance_txt_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
         appearance_txt_font.setPointSize(14)
         self.appearanceText.setFont(appearance_txt_font)
 
@@ -365,7 +365,7 @@ class WizardWindow(QDialog):
         self.schoolInfoTitle = StrongBodyLabel("学校信息设置", self.page5)
         self.schoolInfoTitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         school_info_title_font = self.schoolInfoTitle.font()
-        school_info_title_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
+        school_info_title_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
         school_info_title_font.setPointSize(30)
         school_info_title_font.setBold(True)
         self.schoolInfoTitle.setFont(school_info_title_font)
@@ -373,7 +373,7 @@ class WizardWindow(QDialog):
         self.schoolInfoText = BodyLabel("请输入您的学校和班级信息，以及选择天气城市：", self.page5)
         self.schoolInfoText.setAlignment(Qt.AlignmentFlag.AlignCenter)
         school_info_txt_font = self.schoolInfoText.font()
-        school_info_txt_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
+        school_info_txt_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
         school_info_txt_font.setPointSize(14)
         self.schoolInfoText.setFont(school_info_txt_font)
 
@@ -397,7 +397,7 @@ class WizardWindow(QDialog):
         
         city_label = BodyLabel("天气城市", self.page5)
         city_label_font = city_label.font()
-        city_label_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
+        city_label_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
         city_label.setFont(city_label_font)
         city_label.setFixedWidth(120)
         city_row_layout.addWidget(city_label)
@@ -419,7 +419,7 @@ class WizardWindow(QDialog):
         
         school_label = BodyLabel("学校名称", self.page5)
         school_label_font = school_label.font()
-        school_label_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
+        school_label_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
         school_label.setFont(school_label_font)
         school_label.setFixedWidth(120)
         school_row_layout.addWidget(school_label)
@@ -442,7 +442,7 @@ class WizardWindow(QDialog):
         
         class_label = BodyLabel("班级", self.page5)
         class_label_font = class_label.font()
-        class_label_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
+        class_label_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
         class_label.setFont(class_label_font)
         class_label.setFixedWidth(120)
         class_row_layout.addWidget(class_label)
@@ -465,7 +465,7 @@ class WizardWindow(QDialog):
         
         countdown_label = BodyLabel("倒计时配置", self.page5)
         countdown_label_font = countdown_label.font()
-        countdown_label_font.setFamily('HarmonyOS Sans SC, HarmonyOS Sans, Microsoft YaHei UI, Microsoft YaHei, SimHei, sans-serif')
+        countdown_label_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
         countdown_label.setFont(countdown_label_font)
         countdown_label.setFixedWidth(120)
         countdown_row_layout.addWidget(countdown_label)

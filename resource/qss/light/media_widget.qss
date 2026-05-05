@@ -16,7 +16,7 @@ MainWindow #mediaContainer {
     color: #2C2C2E;
     font-weight: 600;
     font-size: 17px;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     background-color: transparent;
     letter-spacing: 0.4px;
 }
@@ -25,7 +25,7 @@ MainWindow #mediaContainer {
 #mediaArtistLabel {
     color: rgba(44, 44, 46, 0.6);
     font-size: 14px;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     background-color: transparent;
     letter-spacing: 0.3px;
 }
@@ -35,7 +35,7 @@ MainWindow #mediaContainer {
     color: rgba(60, 60, 65, 0.45);
     font-size: 11px;
     font-weight: 500;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     background-color: transparent;
 }
 
@@ -44,7 +44,7 @@ MainWindow #mediaContainer {
     color: rgba(60, 60, 65, 0.45);
     font-size: 11px;
     font-weight: 500;
-    font-family: "HarmonyOS Sans SC", "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     background-color: transparent;
 }
 
