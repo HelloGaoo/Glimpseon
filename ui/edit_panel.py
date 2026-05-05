@@ -641,15 +641,12 @@ class EditPanel(QWidget):
     def hidePanel(self):
         """退出编辑模式"""
         parent = self.parent()
-        if not parent:
-            return
+        if not parent:return
         
-        if hasattr(parent, 'isEditMode'):
-            parent.isEditMode = False
+        if hasattr(parent, 'isEditMode'):parent.isEditMode = False
         
         # 启用导航栏
-        if hasattr(parent, 'navigationInterface'):
-            parent.navigationInterface.setEnabled(True)
+        if hasattr(parent, 'navigationInterface'):parent.navigationInterface.setEnabled(True)
         
         if hasattr(parent, '_setDraggableEnabled'):parent._setDraggableEnabled(False)
         
@@ -687,29 +684,25 @@ class EditPanel(QWidget):
 
     def _onDelete(self):
         """删除组件"""
-        if hasattr(self.mainWindow, 'deleteSelectedComponent'):
-            self.mainWindow.deleteSelectedComponent()
+        if hasattr(self.mainWindow, 'deleteSelectedComponent'):self.mainWindow.deleteSelectedComponent()
     
     def _onShowClockChanged(self, checked: bool):
         """启用时钟开关变化"""
         cfg.showClock.value = checked
         self._updateTimeSettingsEnabled(checked)
-        if hasattr(self.mainWindow, '_MainWindow__updateClock'):
-            self.mainWindow._MainWindow__updateClock()
+        if hasattr(self.mainWindow, '_MainWindow__updateClock'):self.mainWindow._MainWindow__updateClock()
         logger.info(f"时间设置：启用时钟={'开启' if checked else '关闭'}")
     
     def _onShowSecondsChanged(self, checked: bool):
         """显示秒针开关变化"""
         cfg.showClockSeconds.value = checked
-        if hasattr(self.mainWindow, '_MainWindow__updateClock'):
-            self.mainWindow._MainWindow__updateClock()
+        if hasattr(self.mainWindow, '_MainWindow__updateClock'):self.mainWindow._MainWindow__updateClock()
         logger.info(f"时间设置：显示秒针={'开启' if checked else '关闭'}")
     
     def _onShowLunarChanged(self, checked: bool):
         """显示农历开关变化"""
         cfg.showLunarCalendar.value = checked
-        if hasattr(self.mainWindow, '_MainWindow__updateClock'):
-            self.mainWindow._MainWindow__updateClock()
+        if hasattr(self.mainWindow, '_MainWindow__updateClock'):self.mainWindow._MainWindow__updateClock()
         logger.info(f"时间设置：显示农历={'开启' if checked else '关闭'}")
     
     def _getColorText(self, color, default='main'):
@@ -737,8 +730,7 @@ class EditPanel(QWidget):
         elif text == '黑色':cfg.clockColor.value = "#000000"
         else:cfg.clockColor.value = cfg.themeColor.value.name() if hasattr(cfg.themeColor.value, 'name') else str(cfg.themeColor.value)
         
-        if hasattr(self.mainWindow, 'updateClockStyle'):
-            self.mainWindow.updateClockStyle()
+        if hasattr(self.mainWindow, 'updateClockStyle'):self.mainWindow.updateClockStyle()
         logger.info(f"时间设置：时钟颜色={text}")
     
     def _onClockSizeChanged(self, value: int):
@@ -758,7 +750,6 @@ class EditPanel(QWidget):
         cfg.showPoetry.value = checked
         self._updatePoetrySettingsEnabled(checked)
         if hasattr(self.mainWindow, 'homeContent'):
-            # 更新所有一言组件的可见性
             for widget in self.mainWindow.homeContent.findChildren(QWidget):
                 if widget.objectName() == 'poetryWidget':
                     widget.setVisible(checked)
@@ -779,44 +770,38 @@ class EditPanel(QWidget):
     def _onPoetryUpdateIntervalChanged(self, text: str):
         """一言更新间隔变化"""
         cfg.poetryUpdateInterval.value = text
-        if hasattr(self.mainWindow, '_MainWindow__updatePoetryInterval'):
-            self.mainWindow._MainWindow__updatePoetryInterval()
+        if hasattr(self.mainWindow, '_MainWindow__updatePoetryInterval'):self.mainWindow._MainWindow__updatePoetryInterval()
         logger.info(f"一言设置：更新间隔={text}")
     
     def _onPoetrySizeChanged(self, value: int):
         """一言大小变化"""
         cfg.poetrySize.value = value
-        if hasattr(self.mainWindow, 'updateClockStyle'):
-            self.mainWindow.updateClockStyle()
+        if hasattr(self.mainWindow, 'updateClockStyle'):self.mainWindow.updateClockStyle()
         logger.info(f"一言设置：一言大小={value}px")
 
     def _onShowWeatherChanged(self, checked: bool):
         """启用天气开关变化"""
         cfg.showWeather.value = checked
         self._updateWeatherSettingsEnabled(checked)
-        if hasattr(self.mainWindow, '_MainWindow__updateWeather'):
-            self.mainWindow._MainWindow__updateWeather()
+        if hasattr(self.mainWindow, '_MainWindow__updateWeather'):self.mainWindow._MainWindow__updateWeather()
         logger.info(f"天气设置：启用天气={'开启' if checked else '关闭'}")
     
     def _onWeatherSizeChanged(self, value: int):
         """天气文字大小变化"""
         cfg.weatherSize.value = value
-        if hasattr(self.mainWindow, 'updateClockStyle'):
-            self.mainWindow.updateClockStyle()
+        if hasattr(self.mainWindow, 'updateClockStyle'):self.mainWindow.updateClockStyle()  
         logger.info(f"天气设置：天气文字大小={value}px")
     
     def _onWeatherIconSizeChanged(self, value: int):
         """天气图标大小变化"""
         cfg.weatherIconSize.value = value
-        if hasattr(self.mainWindow, '_MainWindow__updateWeatherIcon'):
-            self.mainWindow._MainWindow__updateWeatherIcon()
+        if hasattr(self.mainWindow, '_MainWindow__updateWeatherIcon'):self.mainWindow._MainWindow__updateWeatherIcon()
         logger.info(f"天气设置：天气图标大小={value}px")
     
     def _onWeatherUpdateIntervalChanged(self, text: str):
         """天气更新间隔变化"""
         cfg.weatherUpdateInterval.value = text
-        if hasattr(self.mainWindow, '_MainWindow__updateWeatherInterval'):
-            self.mainWindow._MainWindow__updateWeatherInterval()
+        if hasattr(self.mainWindow, '_MainWindow__updateWeatherInterval'):self.mainWindow._MainWindow__updateWeatherInterval()
         logger.info(f"天气设置：更新间隔={text}")
     
     def _onClockPositionChanged(self, text: str):

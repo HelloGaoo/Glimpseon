@@ -895,21 +895,18 @@ class MainWindow(FluentWindow):
         if self.editPanel.isLeftSide:
             self.editLayout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
             self.editLayout.setContentsMargins(20, 0, 0, 20)
-            # 使用绝对定位而不是 gridLayout
-            if hasattr(self, 'editContainer') and self.editContainer:
-                available_height = self.height() if hasattr(self, 'height') else 700
-                self.editContainer.move(20, available_height - 80)
+            if hasattr(self, 'gridLayout'):self.gridLayout.setAlignment(self.editContainer, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
         else:
             self.editLayout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
             self.editLayout.setContentsMargins(0, 0, 20, 20)
-            # 使用绝对定位
-            if hasattr(self, 'editContainer') and self.editContainer:
-                available_width = (self.width() - 50) if hasattr(self, 'width') else 950
-                available_height = self.height() if hasattr(self, 'height') else 700
-                self.editContainer.move(available_width - 100, available_height - 80)
+            if hasattr(self, 'gridLayout'):self.gridLayout.setAlignment(self.editContainer, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
         
         self.editLayout.addWidget(self.editButton)
-        self.editContainer.updateGeometry()
+    
+    def _updateEditButtonPositionDelayed(self):
+        if hasattr(self, 'editContainer') and self.editContainer:
+            self.editContainer.show()
+            self.editContainer.raise_()
 
     def __createEditPanel(self):
         if hasattr(self, 'editPanel') and self.editPanel is not None:
@@ -1062,13 +1059,14 @@ class MainWindow(FluentWindow):
         self.editLayout.setAlignment(Qt.AlignmentFlag.AlignBottom)
         self.editLayout.setContentsMargins(0, 0, 0, 20)
         
-        self.editButton = PushButton("编辑", parent=self.home)
+        self.editButton = PushButton("编辑", parent=self.editContainer)
         self.editButton.setObjectName("editButton")
         self.editButton.setFixedSize(80, 32)
         self.editButton.clicked.connect(self.__enterEditMode)
         
         self.editLayout.addWidget(self.editButton)
-        self.editContainer.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        self.editContainer.setFixedSize(80, 52)
+        self.editContainer.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         
         # 媒体信息（可拖拽）
         self.mediaContainer = DraggableContainer(self.home, component_id="media", layout_direction="vertical")
@@ -1098,34 +1096,33 @@ class MainWindow(FluentWindow):
             self.mediaContainer,
         ]
         
-        # ===== 混合布局方案 =====
-        # 1. 创建主内容容器（填充整个可用区域）
+        # 创建主内容容器
         self.homeContent = QWidget(self.home)
         self.homeContent.setObjectName("homeContent")
         
-        # 2. 使用 QGridLayout 作为基础布局（只用于背景层）
+        # QGridLayout基础布局
         self.gridLayout = QGridLayout(self.homeContent)
         self.gridLayout.setContentsMargins(0, 0, 0, 0)
         self.gridLayout.setSpacing(0)
         
-        # 3. 背景图片和遮罩层 - 通过 gridLayout 管理（会自动扩展填满）
+        # 背景图片和遮罩层
         self.gridLayout.addWidget(self.homeBackgroundImage, 0, 0, 1, 1)
         self.gridLayout.addWidget(self.homeDimOverlay, 0, 0, 1, 1)
         
-        # 4. 可拖拽组件 - 设置为 homeContent 的子组件，但不加入 gridLayout
+        # 编辑按钮
+        self.gridLayout.addWidget(self.editContainer, 0, 0, 1, 1, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
+        
+        # 组件
         for widget in self._draggable_widgets:
             if widget:
                 widget.setParent(self.homeContent)
                 widget.show()
-                # 强制激活内部布局以计算正确大小
                 if hasattr(widget, 'inner_layout') and widget.inner_layout:
                     widget.inner_layout.activate()
                     widget.adjustSize()
-                
-                # 立即设置初始位置（基于百分比）
                 widget._updatePositionFromPercent()
         
-        # 5. 快捷启动栏 - 底部居中
+        # 快捷启动栏
         self.quickLaunchDock.setParent(self.homeContent)
         self.quickLaunchDock.show()
         if self.quickLaunchDock.width() > 0 and self.quickLaunchDock.height() > 0:
@@ -1133,11 +1130,6 @@ class MainWindow(FluentWindow):
                 (1000 - self.quickLaunchDock.width()) // 2,
                 700 - self.quickLaunchDock.height() - 30
             )
-        
-        # 6. 编辑按钮 - 右下角（确保可见）
-        self.editContainer.setParent(self.homeContent)
-        self.editContainer.show()
-        self.editContainer.move(920, 670)  # 固定在右下角
         
         # 主界面布局
         homeLayout = QVBoxLayout(self.home)
@@ -1216,14 +1208,6 @@ class MainWindow(FluentWindow):
                         dock_height
                     )
             
-            # 调整编辑按钮位置（右下角，确保始终可见）
-            if hasattr(self, 'editContainer') and self.editContainer:
-                edit_width = self.editContainer.width() if self.editContainer.width() > 0 else 80
-                edit_height = self.editContainer.height() if self.editContainer.height() > 0 else 32
-                self.editContainer.move(
-                    available_width - edit_width - 20,  # 右边距 20
-                    available_height - edit_height - 15   # 下边距 15
-                )
         
         # 自动调整所有可拖拽组件的位置（保持百分比比例）
         if hasattr(self, '_draggable_widgets'):
