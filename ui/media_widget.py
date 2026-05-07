@@ -276,8 +276,8 @@ class MediaWidget(QWidget):
 
     def _apply_config(self):
         sz = cfg.mediaTextSize.value
-        self._title.setStyleSheet(f"font-size: {sz + 2}px; font-weight: 600;")
-        self._artist.setStyleSheet(f"font-size: {sz}px;")
+        self._title.setStyleSheet(f"font-size: {sz + 2}px; font-weight: 600; font-family: 'HarmonyOS Sans', 'Microsoft YaHei', 'SimHei', sans-serif;")
+        self._artist.setStyleSheet(f"font-size: {sz}px; font-family: 'HarmonyOS Sans', 'Microsoft YaHei', 'SimHei', sans-serif;")
 
         cover_sz = cfg.mediaCoverSize.value
         self._cover_lbl.setFixedSize(cover_sz, cover_sz)

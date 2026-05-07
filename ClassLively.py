@@ -306,8 +306,11 @@ class MainWindow(FluentWindow):
         
         self._normal_size = (1050, 750)
         self._is_maximized = False
+        self._resize_timer = QTimer(self)
+        self._resize_timer.setSingleShot(True)
+        self._resize_timer.timeout.connect(self._checkWindowSize)
         self.resize(*self._normal_size)
-        self.setFixedSize(*self._normal_size)
+        self.setMinimumSize(*self._normal_size)
         self.moveToCenter()
         
         # 系统托盘
@@ -447,6 +450,13 @@ class MainWindow(FluentWindow):
         
         return super().eventFilter(obj, event)
     
+    def _checkWindowSize(self):
+        if not hasattr(self, '_normal_size'):return
+        is_maximized = self.isMaximized() or (self.windowState() & Qt.WindowState.WindowMaximized)
+        if not is_maximized:
+            if self.width() != self._normal_size[0] or self.height() != self._normal_size[1]:
+                self.resize(*self._normal_size)
+    
     def changeEvent(self, event):
         """窗口状态变化事件"""
         if event.type() == QEvent.Type.WindowStateChange:
@@ -454,11 +464,11 @@ class MainWindow(FluentWindow):
             if is_max and not self._is_maximized:
                 self._is_maximized = True
                 self.setMinimumSize(0, 0)
-                self.setMaximumSize(16777215, 16777215)
                 self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
             elif not is_max and self._is_maximized:
                 self._is_maximized = False
-                self.setFixedSize(*self._normal_size)
+                self.setMinimumSize(*self._normal_size)
+                self.resize(*self._normal_size)
         super().changeEvent(event)
     
     def showEvent(self, event):
@@ -630,7 +640,6 @@ class MainWindow(FluentWindow):
             logger.info("自动最大化窗口")
             self._is_maximized = True
             self.setMinimumSize(0, 0)
-            self.setMaximumSize(16777215, 16777215)
             self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
             super().showMaximized()
     
@@ -709,14 +718,14 @@ class MainWindow(FluentWindow):
         """最大化窗口"""
         self._is_maximized = True
         self.setMinimumSize(0, 0)
-        self.setMaximumSize(16777215, 16777215)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         super().showMaximized()
     
     def showNormal(self):
         """恢复正常大小"""
         self._is_maximized = False
-        self.setFixedSize(*self._normal_size)
+        self.setMinimumSize(*self._normal_size)
+        self.resize(*self._normal_size)
         super().showNormal()
     
     def hide(self):
@@ -1159,8 +1168,8 @@ class MainWindow(FluentWindow):
     def resizeEvent(self, event):
         """ 窗口大小变化时调整图片大小和组件位置 """
         super().resizeEvent(event)
-        if not self._is_maximized and (self.width() != self._normal_size[0] or self.height() != self._normal_size[1]):
-            self.setFixedSize(*self._normal_size)
+        if hasattr(self, '_normal_size') and hasattr(self, '_resize_timer'):
+            self._resize_timer.start(50)
         
         available_width = self.width() - 50
         available_height = self.height()
