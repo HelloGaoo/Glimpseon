@@ -54,6 +54,7 @@ from PyQt6.QtGui import (
     QFont,
     QIcon,
     QPainter,
+    QPen,
     QPixmap,
 )
 from PyQt6.QtWidgets import (
@@ -268,6 +269,37 @@ def sync_autostartCfg():
         logger.error(f"同步自启动状态失败: {e}")
         return False
 
+class GuideLine(QWidget):
+    """辅助线"""
+    def __init__(self, parent=None, direction='h', color=None, thickness=1):
+        super().__init__(parent)
+        self._direction = direction
+        self._color = color if color else QColor(255, 255, 255, 100)
+        self._thickness = thickness
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+    
+    def setColor(self, color):
+        self._color = color
+        self.update()
+    
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(self._color)
+        pen.setWidth(self._thickness)
+        pen.setStyle(Qt.PenStyle.DashLine)
+        painter.setPen(pen)
+        
+        if self._direction == 'h':
+            y = self.height() // 2
+            painter.drawLine(0, y, self.width(), y)
+        else:
+            x = self.width() // 2
+            painter.drawLine(x, 0, x, self.height())
+        
+        painter.end()
+
 class MainWindow(FluentWindow):
     """ 主窗口 """
 
@@ -284,6 +316,8 @@ class MainWindow(FluentWindow):
         
         self.isEditMode = False
         self._guideLines = []
+        self._snapLines = []
+        self._snapThreshold = 10
         
         self.initMainNavigation()
         
@@ -818,27 +852,107 @@ class MainWindow(FluentWindow):
     
     def _showGuideLines(self):
         """显示辅助线"""
-        if not hasattr(self, 'homeContent') or not self.homeContent:
-            return
-        
+        if not hasattr(self, 'homeContent') or not self.homeContent:return
         self._hideGuideLines()
+        content_rect = self.homeContent.rect()
+        w, h = content_rect.width(), content_rect.height()
         
-        hLine = QLabel(self.homeContent)
-        hLine.setStyleSheet("background-color: rgba(255, 255, 255, 80);")
-        hLine.setFixedHeight(1)
-        hLine.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self._guideLines.append(hLine)
+        theme_color = cfg.themeColor.value
+        if isinstance(theme_color, str):
+            primary_color = QColor(theme_color)
+        else:
+            primary_color = theme_color
         
-        vLine = QLabel(self.homeContent)
-        vLine.setStyleSheet("background-color: rgba(255, 255, 255, 80);")
-        vLine.setFixedWidth(1)
-        vLine.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self._guideLines.append(vLine)
+        guide_positions = [
+            (0.5, 'h', 'center'),
+            (0.5, 'v', 'center'),
+            (1/3, 'h', 'third'),
+            (2/3, 'h', 'third'),
+            (1/3, 'v', 'third'),
+            (2/3, 'v', 'third'),
+            (0.25, 'h', 'quarter'),
+            (0.75, 'h', 'quarter'),
+            (0.25, 'v', 'quarter'),
+            (0.75, 'v', 'quarter'),
+        ]
         
-        self._updateGuideLinesPosition()
-        for line in self._guideLines:
+        self._snapLines = []
+        
+        for pos, direction, line_type in guide_positions:
+            if line_type == 'center':
+                center_color = QColor(primary_color)
+                center_color.setAlpha(255)
+                line = GuideLine(self.homeContent, direction, center_color, 3)
+            else:
+                opacity = 120 if line_type == 'third' else 80
+                line = GuideLine(self.homeContent, direction, QColor(255, 255, 255, opacity), 1)
+            
+            if direction == 'h':
+                y = int(h * pos)
+                thickness = 5 if line_type == 'center' else 3
+                line.setGeometry(0, y - thickness // 2, w, thickness)
+                self._snapLines.append(('h', y))
+            else:
+                x = int(w * pos)
+                thickness = 5 if line_type == 'center' else 3
+                line.setGeometry(x - thickness // 2, 0, thickness, h)
+                self._snapLines.append(('v', x))
+            
+            self._guideLines.append(line)
             line.show()
             line.raise_()
+        
+        self._showWidgetGuideLines()
+    
+    def _showWidgetGuideLines(self):
+        """延伸辅助线"""
+        if not hasattr(self, '_draggable_widgets') or not hasattr(self, 'homeContent'):
+            return
+        
+        content_rect = self.homeContent.rect()
+        w, h = content_rect.width(), content_rect.height()
+        
+        theme_color = cfg.themeColor.value
+        if isinstance(theme_color, str):
+            primary_color = QColor(theme_color)
+        else:
+            primary_color = theme_color
+        
+        for widget in self._draggable_widgets:
+            if not widget or not widget.isVisible():
+                continue
+            
+            geo = widget.geometry()
+            left = geo.left()
+            right = geo.right()
+            top = geo.top()
+            bottom = geo.bottom()
+            center_x = geo.center().x()
+            center_y = geo.center().y()
+            
+            for x_pos, is_center in [(left, False), (center_x, True), (right, False)]:
+                if is_center:
+                    line = GuideLine(self.homeContent, 'v', primary_color, 2)
+                    line.setGeometry(x_pos - 1, 0, 3, h)
+                else:
+                    line = GuideLine(self.homeContent, 'v', QColor(100, 200, 255, 100), 1)
+                    line.setGeometry(x_pos, 0, 1, h)
+                self._guideLines.append(line)
+                line.show()
+                line.raise_()
+                self._snapLines.append(('v', x_pos))
+            
+            for y_pos, is_center in [(top, False), (center_y, True), (bottom, False)]:
+                if is_center:
+                    line = GuideLine(self.homeContent, 'h', primary_color, 2)
+                    line.setGeometry(0, y_pos - 1, w, 3)
+                else:
+                    line = GuideLine(self.homeContent, 'h', QColor(100, 200, 255, 100), 1)
+                    line.setGeometry(0, y_pos, w, 1)
+                self._guideLines.append(line)
+                line.show()
+                line.raise_()
+                self._snapLines.append(('h', y_pos))
     
     def _hideGuideLines(self):
         """隐藏辅助线"""
@@ -847,20 +961,135 @@ class MainWindow(FluentWindow):
                 line.hide()
                 line.deleteLater()
         self._guideLines = []
+        self._snapLines = []
     
     def _updateGuideLinesPosition(self):
         """更新辅助线位置"""
-        if not self._guideLines or not hasattr(self, 'homeContent'):
+        if not self._guideLines or not hasattr(self, 'homeContent'):return
+        content_rect = self.homeContent.rect()
+        w, h = content_rect.width(), content_rect.height()
+        
+        self._snapLines = []
+        line_idx = 0
+        guide_positions = [0.5, 1/3, 2/3, 0.25, 0.75]
+        
+        for pos in guide_positions:
+            y = int(h * pos)
+            is_center = (pos == 0.5)
+            thickness = 5 if is_center else 3
+            offset = thickness // 2
+            if line_idx < len(self._guideLines):
+                self._guideLines[line_idx].setGeometry(0, y - offset, w, thickness)
+                self._snapLines.append(('h', y))
+            line_idx += 1
+            
+            x = int(w * pos)
+            if line_idx < len(self._guideLines):
+                self._guideLines[line_idx].setGeometry(x - offset, 0, thickness, h)
+                self._snapLines.append(('v', x))
+            line_idx += 1
+        
+        if hasattr(self, '_draggable_widgets'):
+            for widget in self._draggable_widgets:
+                if not widget or not widget.isVisible():
+                    continue
+                
+                geo = widget.geometry()
+                positions = [
+                    (geo.left(), 'v', False),
+                    (geo.center().x(), 'v', True),
+                    (geo.right(), 'v', False),
+                    (geo.top(), 'h', False),
+                    (geo.center().y(), 'h', True),
+                    (geo.bottom(), 'h', False),
+                ]
+                
+                for pos, direction, is_center in positions:
+                    if line_idx < len(self._guideLines):
+                        if direction == 'v':
+                            thickness = 3 if is_center else 1
+                            offset = 1 if is_center else 0
+                            self._guideLines[line_idx].setGeometry(pos - offset, 0, thickness, h)
+                            self._snapLines.append(('v', pos))
+                        else:
+                            thickness = 3 if is_center else 1
+                            offset = 1 if is_center else 0
+                            self._guideLines[line_idx].setGeometry(0, pos - offset, w, thickness)
+                            self._snapLines.append(('h', pos))
+                    line_idx += 1
+    
+    def updateWidgetGuideLines(self):
+        """更新组件辅助线"""
+        if not self.isEditMode or not hasattr(self, 'homeContent'):
             return
         
         content_rect = self.homeContent.rect()
-        center_x = content_rect.width() // 2
-        center_y = content_rect.height() // 2
+        w, h = content_rect.width(), content_rect.height()
         
-        if len(self._guideLines) >= 2:
-            hLine, vLine = self._guideLines[0], self._guideLines[1]
-            hLine.setGeometry(0, center_y, content_rect.width(), 1)
-            vLine.setGeometry(center_x, 0, 1, content_rect.height())
+        base_line_count = 10
+        widget_line_idx = base_line_count
+        
+        if hasattr(self, '_draggable_widgets'):
+            for widget in self._draggable_widgets:
+                if not widget or not widget.isVisible():
+                    continue
+                
+                geo = widget.geometry()
+                positions = [
+                    (geo.left(), 'v', h, False),
+                    (geo.center().x(), 'v', h, True),
+                    (geo.right(), 'v', h, False),
+                    (geo.top(), 'h', w, False),
+                    (geo.center().y(), 'h', w, True),
+                    (geo.bottom(), 'h', w, False),
+                ]
+                
+                for pos, direction, length, is_center in positions:
+                    if widget_line_idx < len(self._guideLines):
+                        thickness = 3 if is_center else 1
+                        offset = 1 if is_center else 0
+                        if direction == 'v':
+                            self._guideLines[widget_line_idx].setGeometry(pos - offset, 0, thickness, length)
+                        else:
+                            self._guideLines[widget_line_idx].setGeometry(0, pos - offset, length, thickness)
+                    widget_line_idx += 1
+    
+    def getSnapPosition(self, x: int, y: int, widget_width: int, widget_height: int) -> tuple:
+        """吸附后的位置"""
+        if not self._snapLines:
+            return x, y
+        
+        snapped_x = x
+        snapped_y = y
+        
+        center_x = x + widget_width // 2
+        center_y = y + widget_height // 2
+        right_x = x + widget_width
+        bottom_y = y + widget_height
+        
+        for direction, pos in self._snapLines:
+            if direction == 'v':
+                for check_x in [x, center_x, right_x]:
+                    if abs(check_x - pos) <= self._snapThreshold:
+                        if check_x == x:
+                            snapped_x = pos
+                        elif check_x == center_x:
+                            snapped_x = pos - widget_width // 2
+                        elif check_x == right_x:
+                            snapped_x = pos - widget_width
+                        break
+            else:
+                for check_y in [y, center_y, bottom_y]:
+                    if abs(check_y - pos) <= self._snapThreshold:
+                        if check_y == y:
+                            snapped_y = pos
+                        elif check_y == center_y:
+                            snapped_y = pos - widget_height // 2
+                        elif check_y == bottom_y:
+                            snapped_y = pos - widget_height
+                        break
+        
+        return snapped_x, snapped_y
     
     def _onClockPositionChanged(self, x: float, y: float):
         """时钟位置变化回调"""
