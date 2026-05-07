@@ -1094,27 +1094,32 @@ class MainWindow(FluentWindow):
     def _onClockPositionChanged(self, x: float, y: float):
         """时钟位置变化回调"""
         logger.debug(f"时钟位置更新: ({x:.3f}, {y:.3f})")
-        # 可以在这里保存到配置
+        self.updateWidgetGuideLines()
     
     def _onWeatherPositionChanged(self, x: float, y: float):
         """天气位置变化回调"""
         logger.debug(f"天气位置更新: ({x:.3f}, {y:.3f})")
+        self.updateWidgetGuideLines()
     
     def _onPoetryPositionChanged(self, x: float, y: float):
         """一言位置变化回调"""
         logger.debug(f"一言位置更新: ({x:.3f}, {y:.3f})")
+        self.updateWidgetGuideLines()
     
     def _onCountdownPositionChanged(self, x: float, y: float):
         """倒计时位置变化回调"""
         logger.debug(f"倒计时位置更新: ({x:.3f}, {y:.3f})")
+        self.updateWidgetGuideLines()
     
     def _onSchoolInfoPositionChanged(self, x: float, y: float):
         """学校信息位置变化回调"""
         logger.debug(f"学校信息位置更新: ({x:.3f}, {y:.3f})")
+        self.updateWidgetGuideLines()
     
     def _onMediaPositionChanged(self, x: float, y: float):
         """媒体位置变化回调"""
         logger.debug(f"媒体位置更新: ({x:.3f}, {y:.3f})")
+        self.updateWidgetGuideLines()
     
     def saveComponentPositions(self):
         """保存所有组件的百分比位置到配置文件"""
@@ -1623,9 +1628,6 @@ class MainWindow(FluentWindow):
         if hasattr(self, 'clockContainer'):self.clockContainer.updateSize()
         if hasattr(self, 'poetryContainer'):self.poetryContainer.updateSize()
         if hasattr(self, 'weatherContainer'):self.weatherContainer.updateSize()
-    
-    def _onClockPositionChanged(self, x: float, y: float):
-        logger.debug(f"时钟位置更新: ({x:.3f}, {y:.3f})")
     
     def __updatePoetryInterval(self):
         """ 更新一言更新间隔定时器 """
