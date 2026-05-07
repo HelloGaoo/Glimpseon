@@ -283,6 +283,7 @@ class MainWindow(FluentWindow):
             logger.warning("窗口图标文件不存在")
         
         self.isEditMode = False
+        self._guideLines = []
         
         self.initMainNavigation()
         
@@ -311,7 +312,7 @@ class MainWindow(FluentWindow):
         self._resize_timer.timeout.connect(self._checkWindowSize)
         self.resize(*self._normal_size)
         self.setMinimumSize(*self._normal_size)
-        self.moveToCenter()
+        if not self._loadWindowPosition():self.moveToCenter()
         
         # 系统托盘
         self.initSystemTray()
@@ -796,14 +797,14 @@ class MainWindow(FluentWindow):
             self.editPanel.hidePanel()
             self.isEditMode = False
             self.navigationInterface.setEnabled(True)
-            # 禁用所有组件的拖拽
             self._setDraggableEnabled(False)
+            self._hideGuideLines()
         else:
             self.editPanel.showPanel()
             self.isEditMode = True
             self.navigationInterface.setEnabled(False)
-            # 启用所有组件的拖拽
             self._setDraggableEnabled(True)
+            self._showGuideLines()
             self.__updateEditButtonPosition()
     
     def _setDraggableEnabled(self, enabled: bool):
@@ -814,6 +815,52 @@ class MainWindow(FluentWindow):
                     widget.setDraggable(enabled)
                     if enabled and hasattr(widget, 'updateThemeColor'):
                         widget.updateThemeColor()
+    
+    def _showGuideLines(self):
+        """显示辅助线"""
+        if not hasattr(self, 'homeContent') or not self.homeContent:
+            return
+        
+        self._hideGuideLines()
+        
+        hLine = QLabel(self.homeContent)
+        hLine.setStyleSheet("background-color: rgba(255, 255, 255, 80);")
+        hLine.setFixedHeight(1)
+        hLine.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self._guideLines.append(hLine)
+        
+        vLine = QLabel(self.homeContent)
+        vLine.setStyleSheet("background-color: rgba(255, 255, 255, 80);")
+        vLine.setFixedWidth(1)
+        vLine.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self._guideLines.append(vLine)
+        
+        self._updateGuideLinesPosition()
+        for line in self._guideLines:
+            line.show()
+            line.raise_()
+    
+    def _hideGuideLines(self):
+        """隐藏辅助线"""
+        for line in self._guideLines:
+            if line:
+                line.hide()
+                line.deleteLater()
+        self._guideLines = []
+    
+    def _updateGuideLinesPosition(self):
+        """更新辅助线位置"""
+        if not self._guideLines or not hasattr(self, 'homeContent'):
+            return
+        
+        content_rect = self.homeContent.rect()
+        center_x = content_rect.width() // 2
+        center_y = content_rect.height() // 2
+        
+        if len(self._guideLines) >= 2:
+            hLine, vLine = self._guideLines[0], self._guideLines[1]
+            hLine.setGeometry(0, center_y, content_rect.width(), 1)
+            vLine.setGeometry(center_x, 0, 1, content_rect.height())
     
     def _onClockPositionChanged(self, x: float, y: float):
         """时钟位置变化回调"""
@@ -852,6 +899,18 @@ class MainWindow(FluentWindow):
                 x, y = widget.getPositionPercent()
                 positions[comp_id] = {"x": round(x, 4), "y": round(y, 4)}
         
+        if not self._is_maximized:
+            screen = QApplication.primaryScreen()
+            if screen:
+                rect = screen.availableGeometry()
+                positions["window"] = {
+                    "x": round(self.x() / rect.width(), 4),
+                    "y": round(self.y() / rect.height(), 4),
+                    "maximized": False
+                }
+        else:
+            positions["window"] = {"maximized": True}
+        
         try:
             config_path = os.path.join(BASE_DIR, 'config', 'component_positions.json')
             os.makedirs(os.path.dirname(config_path), exist_ok=True)
@@ -860,6 +919,37 @@ class MainWindow(FluentWindow):
             logger.info(f"组件位置已保存: {positions}")
         except Exception as e:
             logger.error(f"保存组件位置失败: {e}")
+    
+    def _loadWindowPosition(self):
+        try:
+            config_path = os.path.join(BASE_DIR, 'config', 'component_positions.json')
+            if not os.path.exists(config_path):
+                return False
+            
+            with open(config_path, 'r', encoding='utf-8') as f:
+                positions = json.load(f)
+            
+            if "window" not in positions:return False
+            window_pos = positions["window"]
+            if window_pos.get("maximized", False):
+                self._is_maximized = True
+                self.setMinimumSize(0, 0)
+                self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+                QTimer.singleShot(100, self.showMaximized)
+                logger.info("已加载窗口位置：最大化")
+                return True
+            
+            screen = QApplication.primaryScreen()
+            if not screen:return False
+            rect = screen.availableGeometry()
+            x = int(window_pos["x"] * rect.width())
+            y = int(window_pos["y"] * rect.height())
+            self.move(x, y)
+            logger.info(f"已加载窗口位置: ({x}, {y})")
+            return True
+        except Exception as e:
+            logger.error(f"加载窗口位置失败: {e}")
+            return False
     
     def loadComponentPositions(self):
         """从配置文件加载组件的百分比位置"""
@@ -1210,6 +1300,9 @@ class MainWindow(FluentWindow):
         if hasattr(self, 'editPanel') and self.editPanel:
             try:self.editPanel.updatePositionOnResize()
             except Exception:pass
+        
+        if hasattr(self, '_guideLines') and self._guideLines:
+            self._updateGuideLinesPosition()
 
     def moveToCenter(self):
         """ 移动窗口到屏幕中央 """
