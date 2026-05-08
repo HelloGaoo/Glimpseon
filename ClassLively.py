@@ -269,34 +269,80 @@ def sync_autostartCfg():
         logger.error(f"同步自启动状态失败: {e}")
         return False
 
-class GuideLine(QWidget):
+class GuideLineOverlay(QWidget):
     """辅助线"""
-    def __init__(self, parent=None, direction='h', color=None, thickness=1):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self._direction = direction
-        self._color = color if color else QColor(255, 255, 255, 100)
-        self._thickness = thickness
+        self._snapLines = []
+        self._visible = False
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
     
-    def setColor(self, color):
-        self._color = color
+    def setSnapLines(self, lines):
+        self._snapLines = lines
+        if self._visible:
+            self.update()
+    
+    def showOverlay(self):
+        self._visible = True
+        self.show()
         self.update()
     
+    def hideOverlay(self):
+        self._visible = False
+        self._snapLines = []
+        self.hide()
+        self.repaint()
+    
+    def isVisible(self):
+        return self._visible and super().isVisible()
+    
     def paintEvent(self, event):
+        if not self._visible or not self._snapLines:
+            return
+        
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        pen = QPen(self._color)
-        pen.setWidth(self._thickness)
-        pen.setStyle(Qt.PenStyle.DashLine)
-        painter.setPen(pen)
         
-        if self._direction == 'h':
-            y = self.height() // 2
-            painter.drawLine(0, y, self.width(), y)
+        w, h = self.width(), self.height()
+        
+        theme_color = cfg.themeColor.value
+        if isinstance(theme_color, str):
+            primary_color = QColor(theme_color)
         else:
-            x = self.width() // 2
-            painter.drawLine(x, 0, x, self.height())
+            primary_color = theme_color
+        
+        for line_data in self._snapLines:
+            if len(line_data) == 2:
+                direction, pos = line_data
+                is_center = (direction in ('h', 'v') and pos == 0.5)
+            elif len(line_data) >= 3:
+                direction, pos = line_data[0], line_data[1]
+                is_center = line_data[2] if len(line_data) > 2 else False
+            else:
+                continue
+            
+            if is_center:
+                color = QColor(primary_color)
+                pen = QPen(color)
+                pen.setWidth(3)
+            elif direction.startswith('widget'):
+                pen = QPen(QColor(100, 200, 255, 80))
+                pen.setWidth(1)
+            else:
+                opacity = 120 if direction.endswith('third') else 80
+                pen = QPen(QColor(255, 255, 255, opacity))
+                pen.setWidth(1)
+            
+            pen.setStyle(Qt.PenStyle.DashLine)
+            painter.setPen(pen)
+            
+            if direction.endswith('h') or direction == 'h':
+                y = int(pos)
+                painter.drawLine(0, y, w, y)
+            else:
+                x = int(pos)
+                painter.drawLine(x, 0, x, h)
         
         painter.end()
 
@@ -315,7 +361,7 @@ class MainWindow(FluentWindow):
             logger.warning("窗口图标文件不存在")
         
         self.isEditMode = False
-        self._guideLines = []
+        self._guideOverlay = None
         self._snapLines = []
         self._snapThreshold = 10
         
@@ -849,19 +895,22 @@ class MainWindow(FluentWindow):
                     widget.setDraggable(enabled)
                     if enabled and hasattr(widget, 'updateThemeColor'):
                         widget.updateThemeColor()
+                    if not enabled:
+                        widget.repaint()
     
     def _showGuideLines(self):
         """显示辅助线"""
-        if not hasattr(self, 'homeContent') or not self.homeContent:return
-        self._hideGuideLines()
+        if not hasattr(self, 'homeContent') or not self.homeContent:
+            return
+        
+        if self._guideOverlay is None:
+            self._guideOverlay = GuideLineOverlay(self.homeContent)
+            self._guideOverlay.setGeometry(self.homeContent.rect())
+        
         content_rect = self.homeContent.rect()
         w, h = content_rect.width(), content_rect.height()
         
-        theme_color = cfg.themeColor.value
-        if isinstance(theme_color, str):
-            primary_color = QColor(theme_color)
-        else:
-            primary_color = theme_color
+        snap_lines = []
         
         guide_positions = [
             (0.5, 'h', 'center'),
@@ -876,183 +925,53 @@ class MainWindow(FluentWindow):
             (0.75, 'v', 'quarter'),
         ]
         
-        self._snapLines = []
-        
         for pos, direction, line_type in guide_positions:
-            if line_type == 'center':
-                center_color = QColor(primary_color)
-                center_color.setAlpha(255)
-                line = GuideLine(self.homeContent, direction, center_color, 3)
-            else:
-                opacity = 120 if line_type == 'third' else 80
-                line = GuideLine(self.homeContent, direction, QColor(255, 255, 255, opacity), 1)
-            
-            if direction == 'h':
-                y = int(h * pos)
-                thickness = 5 if line_type == 'center' else 3
-                line.setGeometry(0, y - thickness // 2, w, thickness)
-                self._snapLines.append(('h', y))
-            else:
-                x = int(w * pos)
-                thickness = 5 if line_type == 'center' else 3
-                line.setGeometry(x - thickness // 2, 0, thickness, h)
-                self._snapLines.append(('v', x))
-            
-            self._guideLines.append(line)
-            line.show()
-            line.raise_()
+            y_or_x = int(h * pos) if direction == 'h' else int(w * pos)
+            is_center = (line_type == 'center')
+            snap_lines.append((direction, y_or_x, is_center))
         
-        self._showWidgetGuideLines()
-    
-    def _showWidgetGuideLines(self):
-        """延伸辅助线"""
-        if not hasattr(self, '_draggable_widgets') or not hasattr(self, 'homeContent'):
-            return
+        if hasattr(self, '_draggable_widgets'):
+            for widget in self._draggable_widgets:
+                if not widget or not widget.isVisible():
+                    continue
+                
+                geo = widget.geometry()
+                positions = [
+                    ('widget_v', geo.left(), False),
+                    ('widget_v', geo.center().x(), True),
+                    ('widget_v', geo.right(), False),
+                    ('widget_h', geo.top(), False),
+                    ('widget_h', geo.center().y(), True),
+                    ('widget_h', geo.bottom(), False),
+                ]
+                snap_lines.extend(positions)
         
-        content_rect = self.homeContent.rect()
-        w, h = content_rect.width(), content_rect.height()
-        
-        theme_color = cfg.themeColor.value
-        if isinstance(theme_color, str):
-            primary_color = QColor(theme_color)
-        else:
-            primary_color = theme_color
-        
-        for widget in self._draggable_widgets:
-            if not widget or not widget.isVisible():
-                continue
-            
-            geo = widget.geometry()
-            left = geo.left()
-            right = geo.right()
-            top = geo.top()
-            bottom = geo.bottom()
-            center_x = geo.center().x()
-            center_y = geo.center().y()
-            
-            for x_pos, is_center in [(left, False), (center_x, True), (right, False)]:
-                if is_center:
-                    line = GuideLine(self.homeContent, 'v', primary_color, 2)
-                    line.setGeometry(x_pos - 1, 0, 3, h)
-                else:
-                    line = GuideLine(self.homeContent, 'v', QColor(100, 200, 255, 100), 1)
-                    line.setGeometry(x_pos, 0, 1, h)
-                self._guideLines.append(line)
-                line.show()
-                line.raise_()
-                self._snapLines.append(('v', x_pos))
-            
-            for y_pos, is_center in [(top, False), (center_y, True), (bottom, False)]:
-                if is_center:
-                    line = GuideLine(self.homeContent, 'h', primary_color, 2)
-                    line.setGeometry(0, y_pos - 1, w, 3)
-                else:
-                    line = GuideLine(self.homeContent, 'h', QColor(100, 200, 255, 100), 1)
-                    line.setGeometry(0, y_pos, w, 1)
-                self._guideLines.append(line)
-                line.show()
-                line.raise_()
-                self._snapLines.append(('h', y_pos))
+        self._snapLines = snap_lines
+        self._guideOverlay.setSnapLines(snap_lines)
+        self._guideOverlay.showOverlay()
+        self._guideOverlay.raise_()
     
     def _hideGuideLines(self):
         """隐藏辅助线"""
-        for line in self._guideLines:
-            if line:
-                line.hide()
-                line.deleteLater()
-        self._guideLines = []
         self._snapLines = []
+        if self._guideOverlay:
+            self._guideOverlay.hideOverlay()
     
     def _updateGuideLinesPosition(self):
         """更新辅助线位置"""
-        if not self._guideLines or not hasattr(self, 'homeContent'):return
-        content_rect = self.homeContent.rect()
-        w, h = content_rect.width(), content_rect.height()
-        
-        self._snapLines = []
-        line_idx = 0
-        guide_positions = [0.5, 1/3, 2/3, 0.25, 0.75]
-        
-        for pos in guide_positions:
-            y = int(h * pos)
-            is_center = (pos == 0.5)
-            thickness = 5 if is_center else 3
-            offset = thickness // 2
-            if line_idx < len(self._guideLines):
-                self._guideLines[line_idx].setGeometry(0, y - offset, w, thickness)
-                self._snapLines.append(('h', y))
-            line_idx += 1
-            
-            x = int(w * pos)
-            if line_idx < len(self._guideLines):
-                self._guideLines[line_idx].setGeometry(x - offset, 0, thickness, h)
-                self._snapLines.append(('v', x))
-            line_idx += 1
-        
-        if hasattr(self, '_draggable_widgets'):
-            for widget in self._draggable_widgets:
-                if not widget or not widget.isVisible():
-                    continue
-                
-                geo = widget.geometry()
-                positions = [
-                    (geo.left(), 'v', False),
-                    (geo.center().x(), 'v', True),
-                    (geo.right(), 'v', False),
-                    (geo.top(), 'h', False),
-                    (geo.center().y(), 'h', True),
-                    (geo.bottom(), 'h', False),
-                ]
-                
-                for pos, direction, is_center in positions:
-                    if line_idx < len(self._guideLines):
-                        if direction == 'v':
-                            thickness = 3 if is_center else 1
-                            offset = 1 if is_center else 0
-                            self._guideLines[line_idx].setGeometry(pos - offset, 0, thickness, h)
-                            self._snapLines.append(('v', pos))
-                        else:
-                            thickness = 3 if is_center else 1
-                            offset = 1 if is_center else 0
-                            self._guideLines[line_idx].setGeometry(0, pos - offset, w, thickness)
-                            self._snapLines.append(('h', pos))
-                    line_idx += 1
-    
-    def updateWidgetGuideLines(self):
-        """更新组件辅助线"""
-        if not self.isEditMode or not hasattr(self, 'homeContent'):
+        if not self._guideOverlay or not self._guideOverlay.isVisible():
+            return
+        if not hasattr(self, 'homeContent') or not self.homeContent:
             return
         
-        content_rect = self.homeContent.rect()
-        w, h = content_rect.width(), content_rect.height()
-        
-        base_line_count = 10
-        widget_line_idx = base_line_count
-        
-        if hasattr(self, '_draggable_widgets'):
-            for widget in self._draggable_widgets:
-                if not widget or not widget.isVisible():
-                    continue
-                
-                geo = widget.geometry()
-                positions = [
-                    (geo.left(), 'v', h, False),
-                    (geo.center().x(), 'v', h, True),
-                    (geo.right(), 'v', h, False),
-                    (geo.top(), 'h', w, False),
-                    (geo.center().y(), 'h', w, True),
-                    (geo.bottom(), 'h', w, False),
-                ]
-                
-                for pos, direction, length, is_center in positions:
-                    if widget_line_idx < len(self._guideLines):
-                        thickness = 3 if is_center else 1
-                        offset = 1 if is_center else 0
-                        if direction == 'v':
-                            self._guideLines[widget_line_idx].setGeometry(pos - offset, 0, thickness, length)
-                        else:
-                            self._guideLines[widget_line_idx].setGeometry(0, pos - offset, length, thickness)
-                    widget_line_idx += 1
+        self._guideOverlay.setGeometry(self.homeContent.rect())
+        self._showGuideLines()
+    
+    def updateWidgetGuideLines(self):
+        """更新组件辅助线（拖拽时调用）"""
+        if not self.isEditMode or not hasattr(self, 'homeContent'):
+            return
+        self._showGuideLines()
     
     def getSnapPosition(self, x: int, y: int, widget_width: int, widget_height: int) -> tuple:
         """吸附后的位置"""
@@ -1535,7 +1454,7 @@ class MainWindow(FluentWindow):
             try:self.editPanel.updatePositionOnResize()
             except Exception:pass
         
-        if hasattr(self, '_guideLines') and self._guideLines:
+        if hasattr(self, '_guideOverlay') and self._guideOverlay and self._guideOverlay.isVisible():
             self._updateGuideLinesPosition()
 
     def moveToCenter(self):

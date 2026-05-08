@@ -578,6 +578,8 @@ class EditPanel(QWidget):
         
         if hasattr(parent, '_setDraggableEnabled'):parent._setDraggableEnabled(False)
         
+        if hasattr(parent, '_hideGuideLines'):parent._hideGuideLines()
+        
         pr = parent.rect()
         if self.isLeftSide:
             start_rect = QRect(0, 0, self._width, pr.height())
