@@ -638,7 +638,8 @@ class DebugPanel(BaseScrollAreaInterface):
                     wallpaper._updateBackground()
                     wallpaper._updateMainWindowBackground()
                     wallpaper.historyManager.add(wallpaper_path, source, url)
-                    wallpaper.historyWidget.refresh()
+                    if hasattr(wallpaper, 'historyWidget'):
+                        wallpaper.historyWidget.refresh()
                 wallpaper.infoCard.updateInfo(wallpaper_path, source)
                 self._batchSuccess += 1
                 self.batchWallpaperLog.append(f"[{idx}/{total}] ✓ 成功 - {source}")
