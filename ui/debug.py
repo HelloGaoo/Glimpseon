@@ -510,16 +510,17 @@ class DebugPanel(BaseScrollAreaInterface):
         code = self.weatherCodeCombo.currentData()
         if code is None: return
         mw = self.mainWindow
-        self._savedWeatherCode = getattr(mw, 'current_weather_code', None)
-        self._savedWeatherTemp = mw.weatherTempLabel.text() if hasattr(mw, 'weatherTempLabel') else ""
-        mw.current_weather_code = code
+        home = mw.homeInterface
+        self._savedWeatherCode = getattr(home, 'current_weather_code', None)
+        self._savedWeatherTemp = home.weatherTempLabel.text() if hasattr(home, 'weatherTempLabel') else ""
+        home.current_weather_code = code
         temp_text = self.weatherTempInput.text().strip()
         if temp_text:
-            mw.weatherTempLabel.setText(temp_text)
-        elif hasattr(mw, 'weatherTempLabel'):
+            home.weatherTempLabel.setText(temp_text)
+        elif hasattr(home, 'weatherTempLabel'):
             name = self.weatherCodeMap.get(code, "")
-            mw.weatherTempLabel.setText(f"模拟: {name}")
-        mw._MainWindow__updateWeatherIcon()
+            home.weatherTempLabel.setText(f"模拟: {name}")
+        home._updateWeatherIcon()
         InfoBar.success(title="天气模拟", content=f"已应用天气代码 {code} ({self.weatherCodeMap.get(code, '')}) 到主界面", parent=self, duration=2500)
 
     def _resetWeatherDebug(self):
@@ -529,7 +530,7 @@ class DebugPanel(BaseScrollAreaInterface):
         if hasattr(self, '_savedWeatherCode'): del self._savedWeatherCode
         if hasattr(self, '_savedWeatherTemp'): del self._savedWeatherTemp
         mw = self.mainWindow
-        mw._MainWindow__updateWeather()
+        mw.homeInterface._updateWeather()
 
     def _createElementCheckCard(self):
         card = CardWidget()

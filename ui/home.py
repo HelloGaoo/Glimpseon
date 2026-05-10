@@ -1019,8 +1019,9 @@ class HomeInterface(QWidget):
                 InfoBar.error('编辑模式', '无法创建编辑面板', parent=self, duration=3000)
                 return
 
-        if self.editPanel.isVisible():
-            self.editPanel.hidePanel()
+        if self.editPanel is None or self.editPanel.isVisible():
+            if self.editPanel is not None:
+                self.editPanel.hidePanel()
             self.isEditMode = False
             self.mainWindow.navigationInterface.setEnabled(True)
             self._setDraggableEnabled(False)
