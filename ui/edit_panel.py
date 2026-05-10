@@ -69,7 +69,7 @@ from qfluentwidgets import (
 from core.config import cfg, save_cfg
 from core.constants import load_qss
 from data.software_list import get_software_icon_path
-from ui.city_selector import RegionSelectorDialog
+from services.weather import RegionSelectorDialog
 from ui.dock import QuickLaunchDock, resolve_app_from_path
 
 logger = logging.getLogger(__name__)

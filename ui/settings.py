@@ -56,9 +56,9 @@ from qfluentwidgets import (
 
 from core.config import cfg, default_cfg, ConfigItem, CONFIG_PATH
 from core.constants import BASE_DIR, get_resPath, load_qss
-from core.font_manager import _load_app_fonts, apply_fonts
+from core.utils import _load_app_fonts, apply_fonts
 from core.logger import log_dir
-from ui.city_selector import RegionSelectorDialog
+from services.weather import RegionSelectorDialog
 
 
 class LineEditSettingCard(SettingCard):

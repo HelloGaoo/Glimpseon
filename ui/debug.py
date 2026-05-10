@@ -28,7 +28,6 @@ if _BASE_DIR not in sys.path:sys.path.insert(0, _BASE_DIR)
 
 import socket
 import subprocess
-import sys
 import time
 import datetime
 import psutil
@@ -66,18 +65,17 @@ from qfluentwidgets import (
 from core.config import cfg
 from core.constants import BASE_DIR, get_resPath, load_qss
 from core.logger import logger
-from services.weather import WeatherService
-from ui.city_selector import RegionDatabase
-
+from services.weather import WeatherService, RegionDatabase
 
 from .base_scroll import BaseScrollAreaInterface
 
-class DeveloperPanel(BaseScrollAreaInterface):
+
+class DebugPanel(BaseScrollAreaInterface):
 
     def __init__(self, mainWindow):
         super().__init__("调试", parent=None)
         self.mainWindow = mainWindow
-        self.setObjectName('developerPanel')
+        self.setObjectName('debugPanel')
 
         self.frameCount = 0
         self.lastFpsTime = time.time()
@@ -838,7 +836,6 @@ class DeveloperPanel(BaseScrollAreaInterface):
 
     def _updateDebugInfo(self):
         if not self.debugUpdateToggle.isChecked(): return
-        currentTime = time.time()
         try:
             mem_info = self.process.memory_info()
             mem_mb = mem_info.rss / 1024 / 1024
@@ -1039,7 +1036,7 @@ class DeveloperPanel(BaseScrollAreaInterface):
                     event.accept()
 
             self._popOutWindow = _PopOutWindow(self)
-            self._popOutWindow.setObjectName('developerPanel')
+            self._popOutWindow.setObjectName('debugPanel')
             self._popOutWindow.setWindowTitle("调试面板 - ClassLively")
             self._popOutWindow.setFixedSize(850, 750)
 

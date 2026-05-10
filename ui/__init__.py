@@ -25,6 +25,8 @@ from .download import DownloadInterface
 from .wallpaper import WallpaperInterface
 from .base_scroll import BaseScrollAreaInterface
 from .wizard import WizardWindow, check_wizard_needed, create_wizard_file, complete_wizard
+from .home import HomeInterface
+from .debug import DebugPanel
 
 __all__ = [
     'BaseScrollAreaInterface',
@@ -36,5 +38,7 @@ __all__ = [
     'WizardWindow',
     'check_wizard_needed',
     'create_wizard_file',
-    'complete_wizard'
+    'complete_wizard',
+    'HomeInterface',
+    'DebugPanel',
 ]

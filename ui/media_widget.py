@@ -36,7 +36,7 @@ if _BASE_DIR not in sys.path:
     sys.path.insert(0, _BASE_DIR)
 
 from core.config import cfg
-from core.media import MediaInfo, Lyrics, get_media_info, fetch_all_info, close as close_media
+from services.media import MediaInfo, Lyrics, get_media_info, fetch_all_info, close as close_media
 from core.constants import load_qss
 
 logger = logging.getLogger(__name__)

@@ -35,7 +35,7 @@ from qfluentwidgets import (
 
 from core.config import cfg
 from core.constants import BASE_DIR, get_resPath, load_qss
-from ui.city_selector import RegionSelectorDialog
+from services.weather import RegionSelectorDialog
 from ui.common import show_text_file
 from ui.edit_panel import CountdownEditDialog
 

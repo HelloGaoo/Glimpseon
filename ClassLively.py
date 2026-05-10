@@ -16,98 +16,34 @@
 
 import atexit
 import ctypes
-import datetime
 import json
 import logging
 import os
 import platform
-import shutil
-import subprocess
 import sys
-import threading
 import time
-import webbrowser
-import winreg
 from concurrent.futures import ThreadPoolExecutor, wait
 
-import cnlunar
-import psutil
-import requests
-import win32gui
-import win32ui
-from PIL import Image
-from pycaw.pycaw import AudioUtilities
-from PyQt6.QtCore import (
-    QDate,
-    QEvent,
-    QLocale,
-    QPropertyAnimation,
-    QRect,
-    Qt,
-    QTime,
-    QTimer,
-    QTranslator,
-    QUrl,
-)
-from PyQt6.QtGui import (
-    QColor,
-    QFont,
-    QIcon,
-    QPainter,
-    QPen,
-    QPixmap,
-)
-from PyQt6.QtWidgets import (
-    QApplication,
-    QFileDialog,
-    QGraphicsBlurEffect,
-    QGridLayout,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QMenu,
-    QPushButton,
-    QSizePolicy,
-    QSystemTrayIcon,
-    QVBoxLayout,
-    QWidget,
-)
+from PyQt6.QtCore import QEvent, QLocale, Qt, QTime, QTimer, QTranslator
+from PyQt6.QtGui import QIcon, QPixmap
+from PyQt6.QtWidgets import QApplication, QMessageBox, QSizePolicy, QSystemTrayIcon, QWidget
 from qfluentwidgets import (
     Action,
-    BodyLabel,
-    CardWidget,
-    CheckBox,
     FluentIcon as FIF,
     FluentTranslator,
     FluentWindow,
-    ImageLabel,
     InfoBar,
-    isDarkTheme,
-    LineEdit,
-    ListWidget,
     MessageBox,
     NavigationItemPosition,
-    PrimaryPushButton,
-    PushButton,
-    qconfig,
-    RadioButton,
     RoundMenu,
-    ScrollArea,
     setTheme,
-    SmoothScrollArea,
-    StrongBodyLabel,
-    SwitchSettingCard,
-    Theme,
 )
+from pycaw.pycaw import AudioUtilities
 
-from data.url_dir import url_dir  # type: ignore
-from core.cache_manager import get_cached_content, save_cache, clear_cache
-from core.config import cfg, default_cfg, save_cfg, CONFIG_PATH
-from core.constants import APP_NAME, BASE_DIR, MEIPASS_DIR, get_resPath
-from core.downloader import Downloader, clean_tempdir
-from core.font_manager import initialize_fonts
+from core.config import cfg, save_cfg
+from core.constants import APP_NAME, BASE_DIR, get_resPath
+from core.downloader import clean_tempdir
 from core.logger import logger, init_exhook
-from core.process_manager import check_single_instance, release_single_instance
 from core.updater import (
     create_update_script,
     download_update,
@@ -115,276 +51,45 @@ from core.updater import (
     get_github_changelog,
     check_github_verison,
 )
+from core.utils import (
+    verify_single_instance,
+    release_single_instance,
+    initialize_fonts,
+    extract_files,
+    sync_autostart_cfg,
+    set_autostart,
+    auto_start_launch,
+)
 from data.software_list import SOFTWARE_CATEGORIES, get_software_icon_path
-from services.weather import WeatherService
-from ui import AboutInterface, DownloadInterface, EditPanel, UpdateInterface, WizardWindow, check_wizard_needed, create_wizard_file
-from ui.city_selector import RegionDatabase
-from ui.developer_panel import DeveloperPanel
-from ui.dock import QuickLaunchDock
+from ui import AboutInterface, DownloadInterface, UpdateInterface, WizardWindow, check_wizard_needed, create_wizard_file
+from ui.home import HomeInterface
+from ui.debug import DebugPanel
 from ui.settings import SettingInterface
 from ui.wallpaper import WallpaperInterface
 from ui.splash_screen import SplashScreen
-from ui.media_widget import MediaWidget
-from ui.draggable_widget import DraggableContainer, DraggableWidget
+from ui.edit_panel import EditPanel
 from version import BUILD_DATE, VERSION
+from data.url_dir import url_dir
 
-def verify_singleInst():
-    """检查是否已经有实例运行"""
-    allow_multiple = cfg.allowMultipleInstances.value
-    is_developer_mode = cfg.developerMode.value
-    if allow_multiple:return True
-    if is_developer_mode:return True
-    is_only_instance = check_single_instance()
-    if is_only_instance:return True
-    logger.info("检测到已有实例运行")
-    return False
-
-def extract_files():
-    if not getattr(sys, 'frozen', False) or not MEIPASS_DIR:
-        return
-    
-    bundled_folders = ['resource', 'font', 'data']
-    
-    for folder in bundled_folders:
-        src_folder = os.path.join(MEIPASS_DIR, folder)
-        dst_folder = os.path.join(BASE_DIR, folder)
-        
-        if not os.path.exists(src_folder):
-            continue
-        
-        if not os.path.exists(dst_folder):
-            try:
-                shutil.copytree(src_folder, dst_folder)
-                logger.info(f"已提取文件夹: {folder}")
-            except Exception as e:
-                logger.error(f"提取文件夹 {folder} 失败: {e}")
-        else:
-            for root, dirs, files in os.walk(src_folder):
-                rel_path = os.path.relpath(root, src_folder)
-                dst_root = os.path.join(dst_folder, rel_path) if rel_path != '.' else dst_folder
-                
-                if not os.path.exists(dst_root):
-                    os.makedirs(dst_root, exist_ok=True)
-                
-                for file in files:
-                    src_file = os.path.join(root, file)
-                    dst_file = os.path.join(dst_root, file)
-                    if not os.path.exists(dst_file):
-                        try:
-                            shutil.copy2(src_file, dst_file)
-                            logger.info(f"已提取文件: {os.path.join(folder, rel_path, file)}")
-                        except Exception as e:
-                            logger.error(f"提取文件 {os.path.join(folder, rel_path, file)} 失败：{e}")
-
-def checkAutostart():
-    try:
-        key_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_READ)
-        try:
-            value, _ = winreg.QueryValueEx(key, APP_NAME)
-            winreg.CloseKey(key)
-            return True, value
-        except FileNotFoundError:
-            winreg.CloseKey(key)
-            return False, None
-    except Exception as e:
-        logger.error(f"获取开机自启动状态失败: {e}")
-        return False, None
-
-
-def setAutostart(enabled, delay_seconds=5):
-    """设置开机自启动"""
-    try:
-        key_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
-        try:
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE)
-        except FileNotFoundError:
-            key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path)
-        
-        if enabled:
-            if getattr(sys, 'frozen', False):
-                # 打包为exe时
-                exe_path = sys.executable
-                if delay_seconds > 0:
-                    command = f'cmd /c "timeout /t {delay_seconds} /nobreak >nul && start \"\" \"{exe_path}\" --autostart"'
-                else:
-                    command = f'"{exe_path}" --autostart'
-            else:
-                # 直接运行py文件时
-                python_exe = sys.executable
-                script_path = os.path.abspath(__file__)
-                if delay_seconds > 0:
-                    command = f'cmd /c "timeout /t {delay_seconds} /nobreak >nul && start \"\" \"{python_exe}\" \"{script_path}\" --autostart"'
-                else:
-                    command = f'"{python_exe}" "{script_path}" --autostart'
-            winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, command)
-            success, stored_value = checkAutostart()
-            if success and stored_value == command:
-                return True
-            else:
-                logger.error("设置开机自启动失败")
-                return False    
-        else:
-            try:
-                winreg.DeleteValue(key, APP_NAME)
-            except FileNotFoundError:
-                logger.info("开机自启动项不存在")
-            winreg.CloseKey(key)
-            success, _ = checkAutostart()
-            if not success:
-                return True
-            else:
-                logger.error("删除开机自启动项失败")
-                return False
-                
-    except PermissionError as e:
-        logger.error(f"设置开机自启动失败 - 权限不足: {e}")
-        return False
-    except Exception as e:
-        logger.error(f"设置开机自启动失败: {e}")
-        return False
-
-
-def sync_autostartCfg():
-    try:
-        config_auto_start = cfg.autoStart.value
-        actual_auto_start, _ = checkAutostart()
-        
-        logger.info(f"同步自启动状态 - 配置: {config_auto_start}, 实际: {actual_auto_start}")
-        
-        if config_auto_start != actual_auto_start:
-            result = setAutostart(config_auto_start)
-            if result:
-                pass
-            else:
-                logger.error("自启动状态同步失败")
-                # 如果设置失败，更新配置匹配实际
-                if actual_auto_start != config_auto_start:
-                    cfg.autoStart.value = actual_auto_start
-            return result
-        else:
-            return True
-            
-    except Exception as e:
-        logger.error(f"同步自启动状态失败: {e}")
-        return False
-
-class GuideLineOverlay(QWidget):
-    """辅助线"""
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._snapLines = []
-        self._visible = False
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-    
-    def setSnapLines(self, lines):
-        self._snapLines = lines
-        if self._visible:
-            self.update()
-    
-    def showOverlay(self):
-        self._visible = True
-        self.show()
-        self.update()
-    
-    def hideOverlay(self):
-        self._visible = False
-        self._snapLines = []
-        self.hide()
-        self.repaint()
-    
-    def isVisible(self):
-        return self._visible and super().isVisible()
-    
-    def paintEvent(self, event):
-        if not self._visible or not self._snapLines:
-            return
-        
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
-        w, h = self.width(), self.height()
-        
-        theme_color = cfg.themeColor.value
-        if isinstance(theme_color, str):
-            primary_color = QColor(theme_color)
-        else:
-            primary_color = theme_color
-        
-        for line_data in self._snapLines:
-            if len(line_data) == 2:
-                direction, pos = line_data
-                is_center = (direction in ('h', 'v') and pos == 0.5)
-            elif len(line_data) >= 3:
-                direction, pos = line_data[0], line_data[1]
-                is_center = line_data[2] if len(line_data) > 2 else False
-            else:
-                continue
-            
-            if is_center:
-                color = QColor(primary_color)
-                pen = QPen(color)
-                pen.setWidth(3)
-            elif direction.startswith('widget'):
-                pen = QPen(QColor(100, 200, 255, 80))
-                pen.setWidth(1)
-            else:
-                opacity = 120 if direction.endswith('third') else 80
-                pen = QPen(QColor(255, 255, 255, opacity))
-                pen.setWidth(1)
-            
-            pen.setStyle(Qt.PenStyle.DashLine)
-            painter.setPen(pen)
-            
-            if direction.endswith('h') or direction == 'h':
-                y = int(pos)
-                painter.drawLine(0, y, w, y)
-            else:
-                x = int(pos)
-                painter.drawLine(x, 0, x, h)
-        
-        painter.end()
 
 class MainWindow(FluentWindow):
-    """ 主窗口 """
+    """主窗口"""
 
     def __init__(self):
         super().__init__()
-        
+
         setTheme(cfg.themeMode.value)
-        
+
         icon_path = get_resPath(os.path.join("resource", "icons", "CY.png"))
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         else:
             logger.warning("窗口图标文件不存在")
-        
+
         self.isEditMode = False
-        self._guideOverlay = None
-        self._snapLines = []
-        self._snapThreshold = 10
-        
-        self.initMainNavigation()
-        
-        self.settingInterface = SettingInterface(parent=self)
-        self.settingInterface.setObjectName("setting")
-        self.addSubInterface(self.settingInterface, FIF.SETTING, "设置", NavigationItemPosition.BOTTOM)
-        
-        self.updateInterface = UpdateInterface(parent=self)
-        self.addSubInterface(self.updateInterface, FIF.SYNC, "更新", NavigationItemPosition.BOTTOM)
-        
-        if cfg.autoCheckUpdate.value:
-            logger.info("自动检查更新已启用")
-            self.updateInterface._UpdateInterface__checkUpdate(auto_check=True)
-        
-        self.aboutInterface = AboutInterface(parent=self)
-        self.addSubInterface(self.aboutInterface, FIF.INFO, "关于", NavigationItemPosition.BOTTOM)
-        
-        self.initSettingsNavigation()
-        
-        self.setWindowTitle(APP_NAME)
-        
+
+        self._initNavigation()
+
         self._normal_size = (1050, 750)
         self._is_maximized = False
         self._resize_timer = QTimer(self)
@@ -392,154 +97,151 @@ class MainWindow(FluentWindow):
         self._resize_timer.timeout.connect(self._checkWindowSize)
         self.resize(*self._normal_size)
         self.setMinimumSize(*self._normal_size)
-        if not self._loadWindowPosition():self.moveToCenter()
-        
-        # 系统托盘
+        if not self._loadWindowPosition():
+            self.moveToCenter()
+
         self.initSystemTray()
-        
-        # 时钟更新定时
-        self.clockTimer = QTimer(self)
-        self.clockTimer.timeout.connect(self.__updateClock)
-        self.clockTimer.start(1000)
-        cfg.showClock.valueChanged.connect(self.__updateClock)
-        cfg.showClockSeconds.valueChanged.connect(self.__updateClock)
-        cfg.showLunarCalendar.valueChanged.connect(self.__updateClock)
-        cfg.clockColor.valueChanged.connect(self.updateClockStyle)
-        cfg.clockSize.valueChanged.connect(self.updateClockStyle)
-        cfg.dateSize.valueChanged.connect(self.updateClockStyle)
-        cfg.poetrySize.valueChanged.connect(self.updateClockStyle)
-        cfg.weatherSize.valueChanged.connect(self.updateClockStyle)
-        cfg.weatherIconSize.valueChanged.connect(self.__updateWeatherIcon)
-        self.__updateClock()
-        
-        # 一言更新定时
-        self.poetryTimer = QTimer(self)
-        self.poetryTimer.timeout.connect(self.__updatePoetry)
-        cfg.showPoetry.valueChanged.connect(self.__updatePoetry)
-        cfg.poetryApiUrl.valueChanged.connect(self.__updatePoetry)
-        cfg.poetryUpdateInterval.valueChanged.connect(self.__updatePoetryInterval)
-        self.__updatePoetryInterval()
-        
-        # 倒计时更新定时
-        self.countdownTimer = QTimer(self)
-        self.countdownTimer.timeout.connect(self.__updateCountdown)
-        self.countdownCarouselIndex = 0
-        cfg.showCountdown.valueChanged.connect(self.__updateCountdown)
-        cfg.countdownTextColor.valueChanged.connect(self._onCountdownStyleChanged)
-        cfg.countdownTextSize.valueChanged.connect(self._onCountdownStyleChanged)
-        cfg.countdownConnectorColor.valueChanged.connect(self._onCountdownStyleChanged)
-        cfg.countdownConnectorSize.valueChanged.connect(self._onCountdownStyleChanged)
-        cfg.countdownDisplayMode.valueChanged.connect(self.__updateCountdown)
-        cfg.countdownCarouselInterval.valueChanged.connect(self.__updateCountdownCarouselInterval)
-        cfg.countdownList.valueChanged.connect(self.__updateCountdown)
-        self.updateCountdownStyle()
-        
-        self.__updateCountdownCarouselInterval()
-        self.__updateCountdown()
-        self.countdownRefreshTimer = QTimer(self)
-        self.countdownRefreshTimer.timeout.connect(self.__updateCountdown)
-        self.countdownRefreshTimer.start(1000)
-        
-        # 天气更新定时
-        self.weatherTimer = QTimer(self)
-        self.weatherTimer.timeout.connect(self.__updateWeather)
-        cfg.weatherUpdateInterval.valueChanged.connect(self.__updateWeatherInterval)
-        cfg.showWeather.valueChanged.connect(self.__updateWeather)
-        
-        # 初始更新天气
-        self.__updateWeatherInterval()
-        
-        # 媒体信息更新
-        self.__initMediaWidget()
-        
-        sync_autostartCfg()
-        
-        cfg.autoStart.valueChanged.connect(lambda value: setAutostart(value))
-        
-        # 空闲检测定时
+
+        sync_autostart_cfg()
+        cfg.autoStart.valueChanged.connect(lambda value: set_autostart(value))
+
+        self._initIdleDetection()
+        self._initThemeConnections()
+
+        self.navigationInterface.installEventFilter(self)
+
+        logger.info("主窗口初始化完成")
+
+    def _initNavigation(self):
+        self.homeInterface = HomeInterface(self)
+        self.homeInterface.setObjectName("home")
+        self.addSubInterface(self.homeInterface, FIF.HOME, "主界面")
+
+        self.wallpaper = WallpaperInterface(mainWindow=self)
+        self.wallpaper.setObjectName("wallpaper")
+        self.addSubInterface(self.wallpaper, FIF.PHOTO, "壁纸")
+
+        self.downloadInterface = DownloadInterface(parent=self)
+        self.addSubInterface(self.downloadInterface, FIF.DOWNLOAD, "软件下载")
+
+        for category in SOFTWARE_CATEGORIES:
+            self.downloadInterface.addSection(category["name"])
+            for software in category["software"]:
+                icon_path = get_software_icon_path(software["icon"])
+                link = software.get("link")
+                self.downloadInterface.addSoftware(icon_path, software["name"], software["description"], link)
+
+        self.settingInterface = SettingInterface(parent=self)
+        self.settingInterface.setObjectName("setting")
+        self.addSubInterface(self.settingInterface, FIF.SETTING, "设置", NavigationItemPosition.BOTTOM)
+
+        self.updateInterface = UpdateInterface(parent=self)
+        self.addSubInterface(self.updateInterface, FIF.SYNC, "更新", NavigationItemPosition.BOTTOM)
+
+        if cfg.autoCheckUpdate.value:
+            logger.info("自动检查更新已启用")
+            self.updateInterface._UpdateInterface__checkUpdate(auto_check=True)
+
+        self.aboutInterface = AboutInterface(parent=self)
+        self.addSubInterface(self.aboutInterface, FIF.INFO, "关于", NavigationItemPosition.BOTTOM)
+
+        self.debugPanel = DebugPanel(self)
+        self.developerNavItem = self.addSubInterface(self.debugPanel, FIF.DEVELOPER_TOOLS, "调试", NavigationItemPosition.BOTTOM)
+        self.developerNavItem.setVisible(cfg.developerMode.value)
+        cfg.developerMode.valueChanged.connect(self._onDeveloperModeChanged)
+
+        self._initEditPanel()
+
+    def _initEditPanel(self):
+        try:
+            self.editPanel = EditPanel(self)
+            pr = self.rect()
+            if self.editPanel.isLeftSide:
+                self.editPanel.setGeometry(-self.editPanel._width, 0, self.editPanel._width, pr.height())
+            else:
+                self.editPanel.setGeometry(pr.width(), 0, self.editPanel._width, pr.height())
+            self.editPanel.hide()
+            self.editPanel.setVisible(False)
+        except Exception:
+            logger.exception('创建编辑面板失败')
+
+    def _initIdleDetection(self):
         self.idleTimer = QTimer(self)
-        self.idleTimer.timeout.connect(self.__checkIdle)
+        self.idleTimer.timeout.connect(self._checkIdle)
         self.lastMouseActivity = QTime.currentTime()
         self.lastKeyboardActivity = QTime.currentTime()
         self.lastPageOperation = QTime.currentTime()
         self.isMinimized = False
-        self.idleCheckInterval = 10000  # 10 秒
+        self.idleCheckInterval = 10000
         self.hasTriggeredAutoOpen = False
         self.isVideoPlaying = False
         self.maxMinimizeNotifications = 5
-        cfg.autoOpenOnIdle.valueChanged.connect(self.__updateIdleTimer)
-        cfg.idleMinutes.valueChanged.connect(self.__updateIdleTimer)
-        self.__updateIdleTimer()
-        self.__installGlobalHooks()
-        
-        cfg.themeMode.valueChanged.connect(self.__onThemeChanged)
-        
+        cfg.autoOpenOnIdle.valueChanged.connect(self._updateIdleTimer)
+        cfg.idleMinutes.valueChanged.connect(self._updateIdleTimer)
+        self._updateIdleTimer()
+        self._installGlobalHooks()
+
+    def _initThemeConnections(self):
+        cfg.themeMode.valueChanged.connect(self._onThemeChanged)
         cfg.themeChanged.connect(self.updateInterface._onThemeChanged)
         cfg.themeChanged.connect(self.downloadInterface._onThemeChanged)
         cfg.themeChanged.connect(self.wallpaper._onThemeChanged)
         cfg.themeChanged.connect(self.aboutInterface._onThemeChanged)
-        cfg.themeChanged.connect(self._onDeveloperPanelThemeChanged)
+        cfg.themeChanged.connect(self._onDebugPanelThemeChanged)
         cfg.themeChanged.connect(self._onEditPanelThemeChanged)
-        
-        self._checkAndRefreshQuickLaunchIcons()
-        
-        # 加载保存的组件位置
-        self.loadComponentPositions()
-        
-        self.navigationInterface.installEventFilter(self)
-        
-        logger.info("主窗口初始化完成")
-    
+
     def _onDeveloperModeChanged(self, value):
-        """调试模式切换"""
         self.developerNavItem.setVisible(value)
-        if not value and self.stackedWidget.currentWidget() == self.developerPanel:
-            self.switchTo(self.home)
-    
+        if not value and self.stackedWidget.currentWidget() == self.debugPanel:
+            self.switchTo(self.homeInterface)
+
+    def _onThemeChanged(self):
+        if hasattr(self, 'editPanel') and self.editPanel:
+            self.editPanel._updateTheme()
+
+    def _onDebugPanelThemeChanged(self):
+        if hasattr(self, 'debugPanel') and self.debugPanel:
+            self.debugPanel._updateTheme()
+
+    def _onEditPanelThemeChanged(self):
+        if hasattr(self, 'editPanel') and self.editPanel:
+            self.editPanel._updateTheme()
+
     def keyPressEvent(self, event):
-        """F12事件 和调试快捷键"""
         if event.key() == Qt.Key.Key_F12:
-            if cfg.developerMode.value and hasattr(self, 'developerPanel'):
-                self.switchTo(self.developerPanel)
+            if cfg.developerMode.value and hasattr(self, 'debugPanel'):
+                self.switchTo(self.debugPanel)
             return
-        
-        # Ctrl+E 切换编辑模式（方便测试）
         if event.modifiers() == Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_E:
-            self.__enterEditMode()
+            self.homeInterface._enterEditMode()
             return
-        
-        # Ctrl+D 显示所有可拖拽组件信息（调试用）
         if event.modifiers() == Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_D:
-            if hasattr(self, '_draggable_widgets'):
-                for i, widget in enumerate(self._draggable_widgets):
+            if hasattr(self.homeInterface, '_draggable_widgets'):
+                for i, widget in enumerate(self.homeInterface._draggable_widgets):
                     if widget:
                         pos = widget.getPositionPercent()
                         size = widget.size()
                         logger.debug(f"组件 {widget.component_id}: 位置=({pos[0]:.3f}, {pos[1]:.3f}), 大小={size.width()}x{size.height()}")
             return
-        
         super().keyPressEvent(event)
-    
+
     def eventFilter(self, obj, event):
-        """ 拦截导航切换"""
-        
         if hasattr(self, 'isEditMode') and self.isEditMode:
             if event.type() == QEvent.Type.MouseButtonRelease:
                 nav_interface = getattr(self, 'navigationInterface', None)
                 if nav_interface and obj == nav_interface:
                     return True
-        
         return super().eventFilter(obj, event)
-    
+
     def _checkWindowSize(self):
-        if not hasattr(self, '_normal_size'):return
+        if not hasattr(self, '_normal_size'):
+            return
         is_maximized = self.isMaximized() or (self.windowState() & Qt.WindowState.WindowMaximized)
         if not is_maximized:
             if self.width() != self._normal_size[0] or self.height() != self._normal_size[1]:
                 self.resize(*self._normal_size)
-    
+
     def changeEvent(self, event):
-        """窗口状态变化事件"""
         if event.type() == QEvent.Type.WindowStateChange:
             is_max = self.windowState() & Qt.WindowState.WindowMaximized
             if is_max and not self._is_maximized:
@@ -551,99 +253,64 @@ class MainWindow(FluentWindow):
                 self.setMinimumSize(*self._normal_size)
                 self.resize(*self._normal_size)
         super().changeEvent(event)
-    
-    def showEvent(self, event):
-        """窗口显示事件 - 强制刷新所有组件大小"""
-        super().showEvent(event)
-        
-        # 使用 QTimer 延迟执行，确保窗口完全显示后再调整组件大小
-        QTimer.singleShot(100, self._refreshAllComponentSizes)
-    
-    def _refreshAllComponentSizes(self):
-        """强制刷新所有可拖拽组件的大小"""
-        if not hasattr(self, '_draggable_widgets'):
-            return
-        
-        for widget in self._draggable_widgets:
-            if widget and hasattr(widget, 'inner_layout') and widget.inner_layout:
-                # 激活内部布局
-                widget.inner_layout.activate()
-                # 调整大小以适应内容
-                widget.adjustSize()
-                # 更新位置（基于百分比）
-                widget._updatePositionFromPercent()
-    
-    def __onThemeChanged(self):
-        """主题变化时重新加载编辑面板样式"""
-        if hasattr(self, 'editPanel') and self.editPanel:
-            self.editPanel._updateTheme()
-    
-    def _onDeveloperPanelThemeChanged(self):
-        """主题变化时重新加载调试面板样式"""
-        if hasattr(self, 'developerPanel') and self.developerPanel:
-            self.developerPanel._updateTheme()
-    
-    def _onEditPanelThemeChanged(self):
-        if hasattr(self, 'editPanel') and self.editPanel:
-            self.editPanel._updateTheme()
-    
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, '_normal_size') and hasattr(self, '_resize_timer'):
+            self._resize_timer.start(50)
+
+    def moveToCenter(self):
+        screen = QApplication.primaryScreen()
+        if screen:
+            rect = screen.availableGeometry()
+            w, h = rect.width(), rect.height()
+            self.move(w // 2 - self.width() // 2, h // 2 - self.height() // 2)
+
     def initSystemTray(self):
-        """ 初始化系统托盘 """
         icon_path = get_resPath(os.path.join("resource", "icons", "CY.png"))
         if os.path.exists(icon_path):
             self.tray_icon = QSystemTrayIcon(QIcon(icon_path), self)
         else:
             self.tray_icon = QSystemTrayIcon(self)
-        
+
         self.tray_menu = RoundMenu(APP_NAME, self)
-        
+
         show_action = Action(FIF.HOME, "显示主窗口", self)
         show_action.triggered.connect(self.show)
         self.tray_menu.addAction(show_action)
         if cfg.developerMode.value:
             dev_action = Action(FIF.DEVELOPER_TOOLS, "调试", self)
-            dev_action.triggered.connect(lambda: self.switchTo(self.developerPanel))
+            dev_action.triggered.connect(lambda: self.switchTo(self.debugPanel))
             self.tray_menu.addAction(dev_action)
-        
+
         exit_action = Action(FIF.CLOSE, "退出", self)
         exit_action.triggered.connect(lambda: (release_single_instance(), QApplication.quit()))
         self.tray_menu.addAction(exit_action)
-        
+
         self.tray_icon.setContextMenu(self.tray_menu)
-        
-        self.tray_icon.activated.connect(self.__onTrayIconActivated)
-        
+        self.tray_icon.activated.connect(self._onTrayIconActivated)
         self.tray_icon.show()
-    
-    def __onTrayIconActivated(self, reason):
-        """ 托盘图标激活槽函数 """
-        #脑子抽了闲的没事在这区分双击和单击 细节吧嗯对。。
+
+    def _onTrayIconActivated(self, reason):
         if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
             if self.isVisible():
-                logger.info("双击托盘图标，隐藏主窗口")
                 self.hide()
             else:
-                logger.info("双击托盘图标，显示主窗口")
                 self.show()
         elif reason == QSystemTrayIcon.ActivationReason.Trigger:
             if self.isVisible():
-                logger.info("单击托盘图标，隐藏主窗口")
                 self.hide()
             else:
-                logger.info("单击托盘图标，显示主窗口")
                 self.show()
-    
-    def __updateIdleTimer(self):
-        """ 更新空闲检测定时器 """
+
+    def _updateIdleTimer(self):
         self.idleTimer.stop()
-        
         if cfg.autoOpenOnIdle.value:
             self.idleTimer.start(self.idleCheckInterval)
         else:
             logger.info("空闲检测已禁用")
-    
-    def __isMediaPlaying(self):
-        """检测媒体"""
+
+    def _isMediaPlaying(self):
         try:
             sessions = AudioUtilities.GetAllSessions()
             for session in sessions:
@@ -652,35 +319,28 @@ class MainWindow(FluentWindow):
                     if proc:
                         proc_name = proc.name().lower()
                         if any(browser in proc_name for browser in [
-                            'chrome', 'msedge', 'firefox', 'brave', 'opera', 
+                            'chrome', 'msedge', 'firefox', 'brave', 'opera',
                             'vivaldi', 'iexplore', 'edge'
                         ]) or any(player in proc_name for player in [
                             'music', 'vlc', 'potplayer', 'spotify', 'netflix'
                         ]):
-                            logger.debug(f"检测到活跃媒体进程: {proc_name}")
                             return True
-            
             return False
-        except Exception as e:
-            logger.debug(f"媒体播放检测失败: {e}")
+        except Exception:
             return False
-    
-    def __checkIdle(self):
-        """ 检查电脑是否空闲 """
+
+    def _checkIdle(self):
         if not cfg.autoOpenOnIdle.value:
             self.hasTriggeredAutoOpen = False
             return
-        
         if self.isVisible():
             self.lastMouseActivity = QTime.currentTime()
             self.hasTriggeredAutoOpen = False
             return
-        
-        # Windows API
+
         class LASTINPUTINFO(ctypes.Structure):
-            _fields_ = [("cbSize", ctypes.c_uint),
-                       ("dwTime", ctypes.c_uint)]
-        
+            _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_uint)]
+
         try:
             if self.isVideoPlaying:
                 return
@@ -688,69 +348,54 @@ class MainWindow(FluentWindow):
             last_input.cbSize = ctypes.sizeof(LASTINPUTINFO)
             ctypes.windll.user32.GetLastInputInfo(ctypes.byref(last_input))
             ticks = ctypes.windll.kernel32.GetTickCount()
-            idle_time_ms = (ticks - last_input.dwTime)
-            
+            idle_time_ms = ticks - last_input.dwTime
+
             now = QTime.currentTime()
             page_operation_elapsed = self.lastPageOperation.msecsTo(now)
             is_recent_page_operation = page_operation_elapsed < 5000
-            
+
             idle_minutes = cfg.idleMinutes.value
             idle_threshold = idle_minutes * 60 * 1000
-            
+
             if idle_time_ms > idle_threshold and not self.hasTriggeredAutoOpen and not is_recent_page_operation:
-                if self.__isMediaPlaying():
-                    logger.debug("检测到媒体正在播放，跳过空闲触发")
+                if self._isMediaPlaying():
                     self.lastMouseActivity = QTime.currentTime()
                     return
-                
                 logger.info(f"检测到电脑空闲超过{idle_minutes}分钟，自动打开界面")
-                self.__autoOpenFromMinimized()
+                self._autoOpenFromMinimized()
                 self.lastMouseActivity = QTime.currentTime()
                 self.hasTriggeredAutoOpen = True
         except Exception as e:
             logger.error(f"检测空闲时间失败：{e}")
-    
-    def __autoOpenFromMinimized(self):
-        """ 自动打开主界面 """
-        logger.info("自动打开主界面")
+
+    def _autoOpenFromMinimized(self):
         self.stackedWidget.setCurrentIndex(0)
         self.show()
         self.activateWindow()
-        
         if cfg.autoOpenMaximize.value:
-            logger.info("自动最大化窗口")
             self._is_maximized = True
             self.setMinimumSize(0, 0)
             self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
             super().showMaximized()
-    
-    def __installGlobalHooks(self):
+
+    def _installGlobalHooks(self):
         try:
             HOOKPROC = ctypes.CFUNCTYPE(ctypes.c_long, ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong)
-            
-            self.keyboardProcWrapper = HOOKPROC(self.keyboardProc)
-            self.mouseProcWrapper = HOOKPROC(self.mouseProc)
+            self.keyboardProcWrapper = HOOKPROC(self._keyboardProc)
+            self.mouseProcWrapper = HOOKPROC(self._mouseProc)
             self.keyboardHook = ctypes.windll.user32.SetWindowsHookExW(
-                13,  # WH_KEYBOARD_LL
-                self.keyboardProcWrapper,
-                ctypes.windll.kernel32.GetModuleHandleW(None),
-                0
+                13, self.keyboardProcWrapper,
+                ctypes.windll.kernel32.GetModuleHandleW(None), 0
             )
-            
             self.mouseHook = ctypes.windll.user32.SetWindowsHookExW(
-                14,  # WH_MOUSE_LL
-                self.mouseProcWrapper,
-                ctypes.windll.kernel32.GetModuleHandleW(None),
-                0
+                14, self.mouseProcWrapper,
+                ctypes.windll.kernel32.GetModuleHandleW(None), 0
             )
-            
         except Exception as e:
             logger.error(f"全局钩子安装失败：{e}")
-            #其实我不明白为啥要叫钩子
-    def keyboardProc(self, nCode, wParam, lParam):
-        """ 键盘钩子回调函数 """
+
+    def _keyboardProc(self, nCode, wParam, lParam):
         if nCode >= 0:
-            # KBDLLHOOKSTRUCT结构体
             class KBDLLHOOKSTRUCT(ctypes.Structure):
                 _fields_ = [
                     ("vkCode", ctypes.c_uint),
@@ -759,1478 +404,118 @@ class MainWindow(FluentWindow):
                     ("time", ctypes.c_uint),
                     ("dwExtraInfo", ctypes.c_ulong)
                 ]
-            
-            # lParam
             kbd_struct = KBDLLHOOKSTRUCT.from_address(lParam)
             keyCode = kbd_struct.vkCode
-            if keyCode in [33, 34]:  # PageUp/PageDown
+            if keyCode in [33, 34]:
                 self.lastPageOperation = QTime.currentTime()
-                logger.debug("检测到翻页操作")
-        
         return ctypes.windll.user32.CallNextHookEx(self.keyboardHook, nCode, wParam, lParam)
-    
-    def mouseProc(self, nCode, wParam, lParam):
-        """ 鼠标钩子回调函数 """
+
+    def _mouseProc(self, nCode, wParam, lParam):
         if nCode >= 0:
-            if wParam == 0x020A:  # WM_MOUSEWHEEL
+            if wParam == 0x020A:
                 self.lastPageOperation = QTime.currentTime()
-                logger.debug("检测到鼠标滚轮操作")
-        
         return ctypes.windll.user32.CallNextHookEx(self.mouseHook, nCode, wParam, lParam)
-    
+
     def setVideoPlaying(self, playing):
-        """ 设置视频播放状态 """
         self.isVideoPlaying = playing
-        if playing:
-            logger.debug("视频播放，暂停空闲检测")
-        else:
-            logger.debug("视频结束，恢复空闲检测")
-        #这个没实践过 不确保能行
-    
+
     def show(self):
-        """ 显示窗口 """
         super().show()
-        
         if cfg.autoOpenOnIdle.value:
             self.idleTimer.stop()
-            logger.debug("窗口显示，已停止空闲检测")
-    
+
     def showMaximized(self):
-        """最大化窗口"""
         self._is_maximized = True
         self.setMinimumSize(0, 0)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         super().showMaximized()
-    
+
     def showNormal(self):
-        """恢复正常大小"""
         self._is_maximized = False
         self.setMinimumSize(*self._normal_size)
         self.resize(*self._normal_size)
         super().showNormal()
-    
+
     def hide(self):
-        """隐藏窗口"""
-        logger.info("隐藏主窗口")
         self.hasTriggeredAutoOpen = False
-        
         if cfg.autoOpenOnIdle.value:
             self.idleTimer.start(self.idleCheckInterval)
-            logger.debug("窗口隐藏，已启动空闲检测")
-        
         super().hide()
-    
+
     def closeEvent(self, event):
-        """关闭事件处理"""
-        # 保存组件位置
-        self.saveComponentPositions()
-        
+        if hasattr(self, 'homeInterface'):
+            self.homeInterface.saveComponentPositions()
+
         if cfg.developerMode.value:
-            logger.info("调试模式：直接退出应用")
             event.accept()
-            
             if hasattr(self, 'keyboardHook') and self.keyboardHook:
                 ctypes.windll.user32.UnhookWindowsHookEx(self.keyboardHook)
             if hasattr(self, 'mouseHook') and self.mouseHook:
                 ctypes.windll.user32.UnhookWindowsHookEx(self.mouseHook)
-            
             release_single_instance()
             QApplication.quit()
             return
-        
+
         if cfg.closeAction.value == "minimize":
-            logger.info("关闭行为：最小化到托盘")
             event.ignore()
-            
             if cfg.autoOpenOnIdle.value:
                 self.idleTimer.start(self.idleCheckInterval)
-                logger.debug("应用最小化，已启动空闲检测")
-            
             self.hide()
             if cfg.minimizeNotificationCount.value < self.maxMinimizeNotifications:
                 self.tray_icon.showMessage(APP_NAME, "应用已最小化到系统托盘", QSystemTrayIcon.MessageIcon.Information, 2000)
                 cfg.minimizeNotificationCount.value = cfg.minimizeNotificationCount.value + 1
                 save_cfg()
         else:
-            logger.info("关闭行为：退出应用")
-            
-            
             if hasattr(self, 'keyboardHook') and self.keyboardHook:
                 ctypes.windll.user32.UnhookWindowsHookEx(self.keyboardHook)
             if hasattr(self, 'mouseHook') and self.mouseHook:
                 ctypes.windll.user32.UnhookWindowsHookEx(self.mouseHook)
-            
             release_single_instance()
             QApplication.quit()
-    
-    def __enterEditMode(self):
-        """切换编辑模式（显示/隐藏右侧编辑面板）"""
-        if not hasattr(self, 'editPanel'):
-            try:
-                self.__createEditPanel()
-            except Exception:
-                logger.exception('创建编辑面板失败')
-                InfoBar.error('编辑模式', '无法创建编辑面板', parent=self, duration=3000)
-                return
 
-        if self.editPanel.isVisible():
-            self.editPanel.hidePanel()
-            self.isEditMode = False
-            self.navigationInterface.setEnabled(True)
-            self._setDraggableEnabled(False)
-            self._hideGuideLines()
-        else:
-            self.editPanel.showPanel()
-            self.isEditMode = True
-            self.navigationInterface.setEnabled(False)
-            self._setDraggableEnabled(True)
-            self._showGuideLines()
-            self.__updateEditButtonPosition()
-    
-    def _setDraggableEnabled(self, enabled: bool):
-        """设置所有可拖拽组件的拖拽状态"""
-        if hasattr(self, '_draggable_widgets'):
-            for widget in self._draggable_widgets:
-                if widget and hasattr(widget, 'setDraggable'):
-                    widget.setDraggable(enabled)
-                    if enabled and hasattr(widget, 'updateThemeColor'):
-                        widget.updateThemeColor()
-                    if not enabled:
-                        widget.repaint()
-    
-    def _showGuideLines(self):
-        """显示辅助线"""
-        if not hasattr(self, 'homeContent') or not self.homeContent:
-            return
-        
-        if self._guideOverlay is None:
-            self._guideOverlay = GuideLineOverlay(self.homeContent)
-            self._guideOverlay.setGeometry(self.homeContent.rect())
-        
-        content_rect = self.homeContent.rect()
-        w, h = content_rect.width(), content_rect.height()
-        
-        snap_lines = []
-        
-        guide_positions = [
-            (0.5, 'h', 'center'),
-            (0.5, 'v', 'center'),
-            (1/3, 'h', 'third'),
-            (2/3, 'h', 'third'),
-            (1/3, 'v', 'third'),
-            (2/3, 'v', 'third'),
-            (0.25, 'h', 'quarter'),
-            (0.75, 'h', 'quarter'),
-            (0.25, 'v', 'quarter'),
-            (0.75, 'v', 'quarter'),
-        ]
-        
-        for pos, direction, line_type in guide_positions:
-            y_or_x = int(h * pos) if direction == 'h' else int(w * pos)
-            is_center = (line_type == 'center')
-            snap_lines.append((direction, y_or_x, is_center))
-        
-        if hasattr(self, '_draggable_widgets'):
-            for widget in self._draggable_widgets:
-                if not widget or not widget.isVisible():
-                    continue
-                
-                geo = widget.geometry()
-                positions = [
-                    ('widget_v', geo.left(), False),
-                    ('widget_v', geo.center().x(), True),
-                    ('widget_v', geo.right(), False),
-                    ('widget_h', geo.top(), False),
-                    ('widget_h', geo.center().y(), True),
-                    ('widget_h', geo.bottom(), False),
-                ]
-                snap_lines.extend(positions)
-        
-        self._snapLines = snap_lines
-        self._guideOverlay.setSnapLines(snap_lines)
-        self._guideOverlay.showOverlay()
-        self._guideOverlay.raise_()
-    
-    def _hideGuideLines(self):
-        """隐藏辅助线"""
-        self._snapLines = []
-        if self._guideOverlay:
-            self._guideOverlay.hideOverlay()
-    
-    def _updateGuideLinesPosition(self):
-        """更新辅助线位置"""
-        if not self._guideOverlay or not self._guideOverlay.isVisible():
-            return
-        if not hasattr(self, 'homeContent') or not self.homeContent:
-            return
-        
-        self._guideOverlay.setGeometry(self.homeContent.rect())
-        self._showGuideLines()
-    
-    def updateWidgetGuideLines(self):
-        """更新组件辅助线（拖拽时调用）"""
-        if not self.isEditMode or not hasattr(self, 'homeContent'):
-            return
-        self._showGuideLines()
-    
-    def getSnapPosition(self, x: int, y: int, widget_width: int, widget_height: int) -> tuple:
-        """吸附后的位置"""
-        if not self._snapLines:
-            return x, y
-        
-        snapped_x = x
-        snapped_y = y
-        
-        center_x = x + widget_width // 2
-        center_y = y + widget_height // 2
-        right_x = x + widget_width
-        bottom_y = y + widget_height
-        
-        for direction, pos in self._snapLines:
-            if direction == 'v':
-                for check_x in [x, center_x, right_x]:
-                    if abs(check_x - pos) <= self._snapThreshold:
-                        if check_x == x:
-                            snapped_x = pos
-                        elif check_x == center_x:
-                            snapped_x = pos - widget_width // 2
-                        elif check_x == right_x:
-                            snapped_x = pos - widget_width
-                        break
-            else:
-                for check_y in [y, center_y, bottom_y]:
-                    if abs(check_y - pos) <= self._snapThreshold:
-                        if check_y == y:
-                            snapped_y = pos
-                        elif check_y == center_y:
-                            snapped_y = pos - widget_height // 2
-                        elif check_y == bottom_y:
-                            snapped_y = pos - widget_height
-                        break
-        
-        return snapped_x, snapped_y
-    
-    def _onClockPositionChanged(self, x: float, y: float):
-        """时钟位置变化回调"""
-        logger.debug(f"时钟位置更新: ({x:.3f}, {y:.3f})")
-        self.updateWidgetGuideLines()
-    
-    def _onWeatherPositionChanged(self, x: float, y: float):
-        """天气位置变化回调"""
-        logger.debug(f"天气位置更新: ({x:.3f}, {y:.3f})")
-        self.updateWidgetGuideLines()
-    
-    def _onPoetryPositionChanged(self, x: float, y: float):
-        """一言位置变化回调"""
-        logger.debug(f"一言位置更新: ({x:.3f}, {y:.3f})")
-        self.updateWidgetGuideLines()
-    
-    def _onCountdownPositionChanged(self, x: float, y: float):
-        """倒计时位置变化回调"""
-        logger.debug(f"倒计时位置更新: ({x:.3f}, {y:.3f})")
-        self.updateWidgetGuideLines()
-    
-    def _onSchoolInfoPositionChanged(self, x: float, y: float):
-        """学校信息位置变化回调"""
-        logger.debug(f"学校信息位置更新: ({x:.3f}, {y:.3f})")
-        self.updateWidgetGuideLines()
-    
-    def _onMediaPositionChanged(self, x: float, y: float):
-        """媒体位置变化回调"""
-        logger.debug(f"媒体位置更新: ({x:.3f}, {y:.3f})")
-        self.updateWidgetGuideLines()
-    
     def saveComponentPositions(self):
-        """保存所有组件的百分比位置到配置文件"""
-        if not hasattr(self, '_draggable_widgets'):
-            return
-        
-        positions = {}
-        for widget in self._draggable_widgets:
-            if widget and hasattr(widget, 'component_id') and hasattr(widget, 'getPositionPercent'):
-                comp_id = widget.component_id
-                x, y = widget.getPositionPercent()
-                positions[comp_id] = {"x": round(x, 4), "y": round(y, 4)}
-        
-        if not self._is_maximized:
-            screen = QApplication.primaryScreen()
-            if screen:
-                rect = screen.availableGeometry()
-                positions["window"] = {
-                    "x": round(self.x() / rect.width(), 4),
-                    "y": round(self.y() / rect.height(), 4),
-                    "maximized": False
-                }
-        else:
-            positions["window"] = {"maximized": True}
-        
-        try:
-            config_path = os.path.join(BASE_DIR, 'config', 'component_positions.json')
-            os.makedirs(os.path.dirname(config_path), exist_ok=True)
-            with open(config_path, 'w', encoding='utf-8') as f:
-                json.dump(positions, f, indent=2, ensure_ascii=False)
-            logger.info(f"组件位置已保存: {positions}")
-        except Exception as e:
-            logger.error(f"保存组件位置失败: {e}")
-    
+        if hasattr(self, 'homeInterface'):
+            self.homeInterface.saveComponentPositions()
+
     def _loadWindowPosition(self):
         try:
             config_path = os.path.join(BASE_DIR, 'config', 'component_positions.json')
             if not os.path.exists(config_path):
                 return False
-            
             with open(config_path, 'r', encoding='utf-8') as f:
                 positions = json.load(f)
-            
-            if "window" not in positions:return False
+            if "window" not in positions:
+                return False
             window_pos = positions["window"]
             if window_pos.get("maximized", False):
                 self._is_maximized = True
                 self.setMinimumSize(0, 0)
                 self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
                 QTimer.singleShot(100, self.showMaximized)
-                logger.info("已加载窗口位置：最大化")
                 return True
-            
             screen = QApplication.primaryScreen()
-            if not screen:return False
+            if not screen:
+                return False
             rect = screen.availableGeometry()
             x = int(window_pos["x"] * rect.width())
             y = int(window_pos["y"] * rect.height())
             self.move(x, y)
-            logger.info(f"已加载窗口位置: ({x}, {y})")
             return True
         except Exception as e:
             logger.error(f"加载窗口位置失败: {e}")
             return False
-    
-    def loadComponentPositions(self):
-        """从配置文件加载组件的百分比位置"""
-        if not hasattr(self, '_draggable_widgets'):
-            return
-        
-        try:
-            config_path = os.path.join(BASE_DIR, 'config', 'component_positions.json')
-            if not os.path.exists(config_path):
-                logger.info("组件位置配置文件不存在，使用默认位置")
-                return
-            
-            with open(config_path, 'r', encoding='utf-8') as f:
-                positions = json.load(f)
-            
-            for widget in self._draggable_widgets:
-                if widget and hasattr(widget, 'component_id') and hasattr(widget, 'setPositionPercent'):
-                    comp_id = widget.component_id
-                    if comp_id in positions:
-                        pos = positions[comp_id]
-                        widget.setPositionPercent(pos['x'], pos['y'])
-                        logger.info(f"已加载 {comp_id} 位置: ({pos['x']}, {pos['y']})")
-            
-            logger.info("所有组件位置已加载完成")
-        except Exception as e:
-            logger.error(f"加载组件位置失败: {e}")
-    
-    def __updateEditButtonPosition(self):
-        """更新编辑按钮位置"""
-        if not hasattr(self, 'editPanel') or not hasattr(self, 'editLayout'):
-            return
-        
-        while self.editLayout.count():
-            item = self.editLayout.takeAt(0)
-            if item.widget():
-                item.widget().setParent(None)
-        
-        if self.editPanel.isLeftSide:
-            self.editLayout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-            self.editLayout.setContentsMargins(20, 0, 0, 20)
-            if hasattr(self, 'gridLayout'):self.gridLayout.setAlignment(self.editContainer, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-        else:
-            self.editLayout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
-            self.editLayout.setContentsMargins(0, 0, 20, 20)
-            if hasattr(self, 'gridLayout'):self.gridLayout.setAlignment(self.editContainer, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
-        
-        self.editLayout.addWidget(self.editButton)
-    
-    def _updateEditButtonPositionDelayed(self):
-        if hasattr(self, 'editContainer') and self.editContainer:
-            self.editContainer.show()
-            self.editContainer.raise_()
-
-    def __createEditPanel(self):
-        if hasattr(self, 'editPanel') and self.editPanel is not None:
-            return
-        self.editPanel = EditPanel(self)
-        pr = self.rect()
-        
-        if self.editPanel.isLeftSide:
-            self.editPanel.setGeometry(-self.editPanel._width, 0, self.editPanel._width, pr.height())
-        else:
-            self.editPanel.setGeometry(pr.width(), 0, self.editPanel._width, pr.height())
-        self.editPanel.hide()
-        self.editPanel.setVisible(False)
-        self.selectedComponent = None
-        
-        if not self.editPanelCreated:
-            self.__updateEditButtonPosition()
-            self.editPanelCreated = True
-
-    def initMainNavigation(self):
-        """ 初始化主界面导航 """
-        self.home = QWidget()
-        self.home.setObjectName("home")
-        
-        # 照片显示控件
-        self.homeBackgroundImage = QLabel()
-        self.homeBackgroundImage.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.homeBackgroundImage.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.originalPixmap = QPixmap(1, 1)
-        self.originalPixmap.fill(Qt.GlobalColor.transparent)
-        self.homeBackgroundImage.setPixmap(self.originalPixmap)
-        self.homeBackgroundImage.setMinimumSize(100, 100)
-        
-        self.homeDimOverlay = QWidget()
-        self.homeDimOverlay.setObjectName("dimOverlay")
-        self.homeDimOverlay.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        
-        # 时钟和日期标签
-        self.clockLabel = QLabel("00:00:00")
-        self.clockLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        self.dateLabel = QLabel("")
-        self.dateLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        # 天气温度标签
-        self.weatherTempLabel = QLabel("")
-        self.weatherTempLabel.setObjectName("weatherTempLabel")
-        self.weatherTempLabel.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
-        
-        # 天气图标
-        self.weatherIconLabel = QLabel("")
-        self.weatherIconLabel.setObjectName("weatherIconLabel")
-        self.weatherIconLabel.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
-        
-        # 一言标签
-        self.poetryLabel = QLabel("")
-        self.poetryLabel.setObjectName("poetryLabel")
-        self.poetryLabel.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter)
-        self.poetryLabel.setWordWrap(False)
-        self.updateClockStyle()
-        
-        # 时钟容器
-        self.clockContainer = DraggableContainer(self.home, component_id="clock", layout_direction="vertical")
-        self.clockContainer.setObjectName("clockContainer")
-        self.clockLayout = self.clockContainer.inner_layout
-        self.clockLayout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.clockLayout.setContentsMargins(0, 0, 0, 0)
-        self.clockLayout.setSpacing(0)
-        self.clockLayout.addWidget(self.clockLabel)
-        self.clockLayout.addWidget(self.dateLabel)
-        self.clockContainer.setPositionPercent(0.5, 0.25)
-        self.clockContainer.positionChanged.connect(self._onClockPositionChanged)
-        self.clockContainer.adjustSize()
-        
-        # 天气容器
-        self.weatherContainer = DraggableContainer(self.home, component_id="weather", layout_direction="horizontal")
-        self.weatherContainer.setObjectName("weatherContainer")
-        weatherLayout = self.weatherContainer.inner_layout
-        weatherLayout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
-        weatherLayout.setContentsMargins(0, 0, 0, 0)
-        weatherLayout.setSpacing(10)
-        self.weatherTempLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.weatherIconLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        weatherLayout.addWidget(self.weatherTempLabel)
-        weatherLayout.addWidget(self.weatherIconLabel)
-        self.weatherContainer.setPositionPercent(0.9, 0.08)
-        self.weatherContainer.positionChanged.connect(self._onWeatherPositionChanged)
-        self.weatherContainer.adjustSize()
-        
-        # 学校信息容器
-        self.schoolInfoContainer = DraggableContainer(self.home, component_id="school_info", layout_direction="vertical")
-        self.schoolInfoContainer.setObjectName("schoolInfoContainer")
-        self.schoolInfoLayout = self.schoolInfoContainer.inner_layout
-        self.schoolInfoLayout.setSpacing(0)
-        self.schoolClassLabel = QLabel("")
-        self.schoolClassLabel.setObjectName("schoolClassLabel")
-        self.schoolClassLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.schoolNameLabel = QLabel("")
-        self.schoolNameLabel.setObjectName("schoolNameLabel")
-        self.schoolNameLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.schoolInfoLayout.addWidget(self.schoolClassLabel)
-        self.schoolInfoLayout.addWidget(self.schoolNameLabel)
-        self.updateSchoolInfo()
-        self.updateSchoolInfoStyle()
-
-        self.schoolInfoContainer.setPositionPercent(0.08, 0.08)
-        self.schoolInfoContainer.positionChanged.connect(self._onSchoolInfoPositionChanged)
-        self.schoolInfoContainer.adjustSize()
-        
-        # 一言容器
-        self.poetryContainer = DraggableContainer(self.home, component_id="poetry", layout_direction="vertical")
-        self.poetryContainer.setObjectName("poetryContainer")
-        poetryLayout = self.poetryContainer.inner_layout
-        poetryLayout.setAlignment(Qt.AlignmentFlag.AlignBottom)
-        poetryLayout.setContentsMargins(0, 0, 0, 0)
-        poetryLayout.addWidget(self.poetryLabel)
-        self.poetryContainer.setPositionPercent(0.5, 0.88)
-        self.poetryContainer.positionChanged.connect(self._onPoetryPositionChanged)
-        self.poetryContainer.adjustSize()
-        
-        # 倒计时标签
-        self.countdownLabel = QLabel("")
-        self.countdownLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        # 倒计时容器
-        self.countdownContainer = DraggableContainer(self.home, component_id="countdown", layout_direction="vertical")
-        self.countdownContainer.setObjectName("countdownContainer")
-        countdownLayout = self.countdownContainer.inner_layout
-        countdownLayout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        countdownLayout.setContentsMargins(0, 0, 0, 0)
-        countdownLayout.addWidget(self.countdownLabel)
-        self.countdownContainer.setPositionPercent(0.5, 0.55)
-        self.countdownContainer.positionChanged.connect(self._onCountdownPositionChanged)
-        self.countdownContainer.adjustSize()
-        
-        # 快捷启动栏
-        self.quickLaunchDock = QuickLaunchDock(self.home)
-        self.quickLaunchDock.setObjectName("quickLaunchDock")
-        self.__updateQuickLaunch()
-        
-        # 编辑按钮
-        self.editContainer = QWidget()
-        self.editContainer.setObjectName("editContainer")
-        self.editLayout = QVBoxLayout(self.editContainer)
-        self.editLayout.setAlignment(Qt.AlignmentFlag.AlignBottom)
-        self.editLayout.setContentsMargins(0, 0, 0, 20)
-        
-        self.editButton = PushButton("编辑", parent=self.editContainer)
-        self.editButton.setObjectName("editButton")
-        self.editButton.setFixedSize(80, 32)
-        self.editButton.clicked.connect(self.__enterEditMode)
-        
-        self.editLayout.addWidget(self.editButton)
-        self.editContainer.setFixedSize(80, 52)
-        self.editContainer.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        
-        # 媒体信息
-        self.mediaContainer = DraggableContainer(self.home, component_id="media", layout_direction="vertical")
-        self.mediaContainer.setObjectName("mediaContainer")
-        self.mediaContainer.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.mediaContainer.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
-        self.mediaContainerLayout = self.mediaContainer.inner_layout
-        self.mediaContainerLayout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-        self.mediaContainerLayout.setContentsMargins(0, 0, 0, 0)
-        self.mediaContainerLayout.setSpacing(0)
-        self.mediaWidget = MediaWidget(self.home)
-        self.mediaWidget.setObjectName("mediaWidget")
-        self.mediaContainerLayout.addWidget(self.mediaWidget)
-        self.mediaContainer.setPositionPercent(0.12, 0.85)
-        self.mediaContainer.positionChanged.connect(self._onMediaPositionChanged)
-        self.mediaContainer.adjustSize()
-        
-        # 存储所有组件的引用
-        self._draggable_widgets = [
-            self.clockContainer,
-            self.weatherContainer,
-            self.poetryContainer,
-            self.countdownContainer,
-            self.schoolInfoContainer,
-            self.mediaContainer,
-        ]
-        
-        # 创建主内容容器
-        self.homeContent = QWidget(self.home)
-        self.homeContent.setObjectName("homeContent")
-        
-        # QGridLayout基础布局
-        self.gridLayout = QGridLayout(self.homeContent)
-        self.gridLayout.setContentsMargins(0, 0, 0, 0)
-        self.gridLayout.setSpacing(0)
-        
-        # 背景图片和遮罩层
-        self.gridLayout.addWidget(self.homeBackgroundImage, 0, 0, 1, 1)
-        self.gridLayout.addWidget(self.homeDimOverlay, 0, 0, 1, 1)
-        
-        # 编辑按钮
-        self.gridLayout.addWidget(self.editContainer, 0, 0, 1, 1, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
-        
-        # 组件
-        for widget in self._draggable_widgets:
-            if widget:
-                widget.setParent(self.homeContent)
-                widget.show()
-                if hasattr(widget, 'inner_layout') and widget.inner_layout:
-                    widget.inner_layout.activate()
-                    widget.adjustSize()
-                widget._updatePositionFromPercent()
-        
-        # 快捷启动栏
-        self.quickLaunchDock.setParent(self.homeContent)
-        self.quickLaunchDock.show()
-        if self.quickLaunchDock.width() > 0 and self.quickLaunchDock.height() > 0:
-            self.quickLaunchDock.move(
-                (1000 - self.quickLaunchDock.width()) // 2,
-                700 - self.quickLaunchDock.height() - 30
-            )
-        
-        # 主界面布局
-        homeLayout = QVBoxLayout(self.home)
-        homeLayout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        homeLayout.setContentsMargins(0, 0, 0, 0)
-        homeLayout.addWidget(self.homeContent)
-        
-        self.addSubInterface(self.home, FIF.HOME, "主界面")
-        
-        self.editPanelCreated = False
-        
-        self.wallpaper = WallpaperInterface(mainWindow=self)
-        self.wallpaper.setObjectName("wallpaper")
-        self.addSubInterface(self.wallpaper, FIF.PHOTO, "壁纸")
-        
-        self.downloadInterface = DownloadInterface(parent=self)
-        self.addSubInterface(self.downloadInterface, FIF.DOWNLOAD, "软件下载")
-        
-        self.developerPanel = DeveloperPanel(self)
-        self.developerNavItem = self.addSubInterface(self.developerPanel, FIF.DEVELOPER_TOOLS, "调试", NavigationItemPosition.BOTTOM)
-        self.developerNavItem.setVisible(cfg.developerMode.value)
-        cfg.developerMode.valueChanged.connect(self._onDeveloperModeChanged)
-        
-        for category in SOFTWARE_CATEGORIES:
-            self.downloadInterface.addSection(category["name"])
-            for software in category["software"]:
-                icon_path = get_software_icon_path(software["icon"])
-                link = software.get("link")
-                self.downloadInterface.addSoftware(icon_path, software["name"], software["description"], link)
-    
-    def initSettingsNavigation(self):
-        # 创建编辑面板
-        try:
-            self.__createEditPanel()
-        except Exception:
-            logger.exception('创建编辑面板失败')
-
-    def resizeEvent(self, event):
-        """ 窗口大小变化时调整图片大小和组件位置 """
-        super().resizeEvent(event)
-        if hasattr(self, '_normal_size') and hasattr(self, '_resize_timer'):
-            self._resize_timer.start(50)
-        
-        available_width = self.width() - 50
-        available_height = self.height()
-        
-        # 调整背景图片大小
-        if hasattr(self, 'homeBackgroundImage') and self.homeBackgroundImage:
-            try:
-                if hasattr(self, 'originalPixmap') and self.originalPixmap is not None and not self.originalPixmap.isNull():
-                    scaled_pixmap = self.originalPixmap.scaled(available_width, available_height, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
-                    
-                    blur_effect = QGraphicsBlurEffect()
-                    blur_radius = cfg.backgroundBlurRadius.value
-                    blur_effect.setBlurRadius(blur_radius)
-                    self.homeBackgroundImage.setGraphicsEffect(blur_effect)
-                    self.homeBackgroundImage.setPixmap(scaled_pixmap)
-            except Exception as e:
-                logger.error(f"resizeEvent 错误：{e}")
-        
-        # 调整 homeContent 大小
-        if hasattr(self, 'homeContent') and self.homeContent:
-            if hasattr(self, 'quickLaunchDock') and self.quickLaunchDock:
-                dock_width = self.quickLaunchDock.width()
-                dock_height = self.quickLaunchDock.height()
-                if dock_width > 0 and dock_height > 0:
-                    self.quickLaunchDock.setGeometry(
-                        (available_width - dock_width) // 2,
-                        available_height - dock_height - 20,
-                        dock_width,
-                        dock_height
-                    )
-            
-        
-        if hasattr(self, '_draggable_widgets'):
-            for widget in self._draggable_widgets:
-                if widget and hasattr(widget, 'onParentResize'):
-                    widget.onParentResize()
-        
-        if hasattr(self, 'editPanel') and self.editPanel:
-            try:self.editPanel.updatePositionOnResize()
-            except Exception:pass
-        
-        if hasattr(self, '_guideOverlay') and self._guideOverlay and self._guideOverlay.isVisible():
-            self._updateGuideLinesPosition()
-
-    def moveToCenter(self):
-        """ 移动窗口到屏幕中央 """
-        screen = QApplication.primaryScreen()
-        if screen:
-            rect = screen.availableGeometry()
-            w, h = rect.width(), rect.height()
-            self.move(w//2 - self.width()//2, h//2 - self.height()//2)
-    
-    def __updateClock(self):
-        """ 更新时钟显示 """
-        if not cfg.showClock.value:
-            self.clockLabel.hide()
-            self.dateLabel.hide()
-            return
-        
-        self.clockLabel.show()
-        self.dateLabel.show()
-        
-        currentTime = QTime.currentTime()
-        currentDate = QDate.currentDate()
-        
-        if cfg.showClockSeconds.value:
-            timeString = currentTime.toString("HH:mm:ss")
-        else:
-            timeString = currentTime.toString("HH:mm")
-        self.clockLabel.setText(timeString)
-        
-        # 公历日期
-        solarString = currentDate.toString("yyyy 年 M 月 d 日 dddd")
-        
-        if cfg.showLunarCalendar.value:
-            try:
-                py_datetime = datetime.datetime(currentDate.year(), currentDate.month(), currentDate.day(), 0, 0, 0)
-                lunar = cnlunar.Lunar(py_datetime)
-                lunarMonthCn = lunar.lunarMonthCn
-                lunarDayCn = lunar.lunarDayCn
-                lunarMonthCn = lunarMonthCn.replace("大", "").replace("小", "")
-                lunarString = f"{lunarMonthCn}{lunarDayCn}"
-                dateString = f"{solarString} {lunarString}"
-            except Exception as e:
-                logger.error(f"农历显示错误：{e}")
-                dateString = solarString
-        else:
-            dateString = solarString
-        
-        self.dateLabel.setText(dateString)
-
-        if hasattr(self, 'clockContainer'):self.clockContainer.updateSize()
-    
-    def updateClockStyle(self):
-        """ 更新时钟样式 """
-        clock_color = cfg.clockColor.value
-        color_str = clock_color.name() if hasattr(clock_color, 'name') else str(clock_color)
-        
-        clock_size = cfg.clockSize.value
-        date_size = cfg.dateSize.value
-        poetry_size = cfg.poetrySize.value
-        weather_size = cfg.weatherSize.value
-        
-        self.clockLabel.setStyleSheet(f"""
-            color: {color_str}; 
-            font-size: {clock_size}px; 
-            font-weight: bold; 
-            font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
-            background-color: transparent;
-        """)
-        
-        self.dateLabel.setStyleSheet(f"""
-            color: {color_str}; 
-            font-size: {date_size}px; 
-            font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
-            background-color: transparent;
-        """)
-        
-        self.poetryLabel.setStyleSheet(f"""
-            color: {color_str}; 
-            font-size: {poetry_size}px; 
-            font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
-            background-color: transparent;
-        """)
-        
-        self.weatherTempLabel.setStyleSheet(f"""
-            color: {color_str}; 
-            font-size: {weather_size}px; 
-            font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
-            background-color: transparent;
-        """)
-        if hasattr(self, 'clockContainer'):self.clockContainer.updateSize()
-        if hasattr(self, 'poetryContainer'):self.poetryContainer.updateSize()
-        if hasattr(self, 'weatherContainer'):self.weatherContainer.updateSize()
-    
-    def __updatePoetryInterval(self):
-        """ 更新一言更新间隔定时器 """
-        self.poetryTimer.stop()
-        
-        interval_str = cfg.poetryUpdateInterval.value
-        if interval_str == "从不":
-            self.__updatePoetry()
-            return
-        elif interval_str == "10 分钟":
-            interval = 10 * 60 * 1000
-        elif interval_str == "30 分钟":
-            interval = 30 * 60 * 1000
-        elif interval_str == "1 小时":
-            interval = 60 * 60 * 1000
-        elif interval_str == "3 小时":
-            interval = 3 * 60 * 60 * 1000
-        elif interval_str == "6 小时":
-            interval = 6 * 60 * 60 * 1000
-        elif interval_str == "12 小时":
-            interval = 12 * 60 * 60 * 1000
-        elif interval_str == "1 天":
-            interval = 24 * 60 * 60 * 1000
-        else:
-            interval = 60 * 60 * 1000
-        
-        self.poetryTimer.start(interval)
-        self.__updatePoetry()
-    
-    def __updateWeatherInterval(self):
-        """ 更新天气更新间隔定时器 """
-        self.weatherTimer.stop()
-        
-        interval_str = cfg.weatherUpdateInterval.value
-        if interval_str == "从不":
-            self.__updateWeather()
-            return
-        elif interval_str == "15 分钟":
-            interval = 15 * 60 * 1000
-        elif interval_str == "30 分钟":
-            interval = 30 * 60 * 1000
-        elif interval_str == "1 小时":
-            interval = 60 * 60 * 1000
-        elif interval_str == "3 小时":
-            interval = 3 * 60 * 60 * 1000
-        elif interval_str == "6 小时":
-            interval = 6 * 60 * 60 * 1000
-        elif interval_str == "12 小时":
-            interval = 12 * 60 * 60 * 1000
-        elif interval_str == "24 小时":
-            interval = 24 * 60 * 60 * 1000
-        else:
-            interval = 60 * 60 * 1000
-        
-        self.weatherTimer.start(interval)
-        self.__updateWeather()
-    
-
-    
-    def __updatePoetry(self):
-        """ 更新一言显示 """
-        if not cfg.showPoetry.value:
-            self.poetryLabel.hide()
-            return
-        
-        self.poetryLabel.show()
-        
-        logger.debug("开始更新一言")
-        
-        cached = get_cached_content("poetry")
-        if cached:
-            self.poetryLabel.setText(cached)
-            logger.info(f"使用缓存一言：{cached[:50]}")
-            if hasattr(self, 'poetryContainer'):self.poetryContainer.updateSize()
-            return
-        
-        try:
-            api_url = cfg.poetryApiUrl.value
-            logger.debug(f"一言 API URL: {api_url}")
-            response = requests.get(api_url, timeout=10)
-            
-            if response.status_code == 200:
-                logger.debug(f"一言 API 请求成功，状态码：{response.status_code}")
-                poetry_text = response.text.strip()
-                self.poetryLabel.setText(poetry_text)
-                save_cache("poetry", poetry_text, cfg.poetryUpdateInterval.value)
-                logger.info(f"已更新一言：{poetry_text[:50]}")
-                if hasattr(self, 'poetryContainer'):self.poetryContainer.updateSize()
-            else:
-                logger.error(f"一言 API 请求失败，状态码：{response.status_code}")
-                self.poetryLabel.setText("他山之石，可以攻玉。——《诗经·小雅·鹤鸣》")
-                if hasattr(self, 'poetryContainer'):self.poetryContainer.updateSize()
-        except Exception as e:
-            logger.error(f"一言更新失败：{e}")
-            self.poetryLabel.setText("他山之石，可以攻玉。——《诗经·小雅·鹤鸣》")
-            if hasattr(self, 'poetryContainer'):self.poetryContainer.updateSize()
-    #笑死我了我就应该整个愿得一人心白首不分离
-    def __updateWeather(self):
-        """ 更新天气显示 """
-
-        if not cfg.showWeather.value:
-            self.weatherTempLabel.hide()
-            self.weatherIconLabel.hide()
-            return
-        
-        self.weatherTempLabel.show()
-        self.weatherIconLabel.show()
-        
-        cached = get_cached_content("weather")
-        if cached:
-            try:
-                weather_text = f"{cached.get('current_temp', '?')}{cached.get('temp_unit', '°C')}"
-                self.weatherTempLabel.setText(weather_text)
-                self.current_weather_code = cached.get('weather_code')
-                self.__updateWeatherIcon()
-                logger.info(f"使用缓存天气：{weather_text}")
-                if hasattr(self, 'weatherContainer'):self.weatherContainer.updateSize()
-                return
-            except Exception as e:
-                logger.warning(f"读取缓存天气数据失败：{e}")
-        
-        success = False
-        try:
-            city = cfg.city.value
-            logger.info(f"正在更新天气，使用城市：{city}")
-            
-            city_db = RegionDatabase()
-            city_code = city_db.get_code(city)
-            
-            if city_code:
-                location_key = f"weathercn:{city_code}"
-            else:
-                location_key = "weathercn:101010100" 
-                logger.warning(f"未找到城市 {city} 的代码，使用默认值")
-            
-            logger.info(f"城市 {city} 对应的 locationKey: {location_key}")
-            
-            api_url = f"https://weatherapi.market.xiaomi.com/wtr-v3/weather/all?locationKey={location_key}&latitude=39.9042&longitude=116.4074&appKey=weather20151024&sign=zUFJoAR2ZVrDy1vF3D07&isGlobal=false&locale=zh_cn"
-            logger.info(f"天气 API 请求 URL: {api_url}")
-            response = requests.get(api_url, timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                if 'current' in data:
-                    current = data['current']
-                    
-                    temperature = current.get('temperature', {})
-                    current_temp = temperature.get('value', 0)
-                    temp_unit = temperature.get('unit', '°C')
-                    
-                    weather_code = current.get('weather', 0)
-                    try:
-                        weather_code = int(weather_code)
-                    except (ValueError, TypeError):
-                        weather_code = 0
-                        logger.warning(f"天气代码为空或无效: {weather_code}")
-                    
-                    max_temp = 0
-                    min_temp = 0
-                    if 'forecastDaily' in data and data['forecastDaily']:
-                        temperature_data = data['forecastDaily'].get('temperature', {})
-                        if temperature_data.get('status') == 0 and 'value' in temperature_data:
-                            temp_values = temperature_data['value']
-                            if temp_values:
-                                first_day = temp_values[0]
-                                max_temp = first_day.get('from', 0)
-                                min_temp = first_day.get('to', 0)
-                    
-                    weather_map = {
-                        0: "晴",
-                        1: "多云",
-                        2: "阴",
-                        3: "阵雨",
-                        4: "雷阵雨",
-                        5: "雷阵雨并伴有冰雹",
-                        6: "雨夹雪",
-                        7: "小雨",
-                        8: "中雨",
-                        9: "大雨",
-                        10: "暴雨",
-                        11: "大暴雨",
-                        12: "特大暴雨",
-                        13: "阵雪",
-                        14: "小雪",
-                        15: "中雪",
-                        16: "大雪",
-                        17: "暴雪",
-                        18: "雾",
-                        19: "冻雨",
-                        20: "沙尘暴",
-                        21: "小雨 - 中雨",
-                        22: "中雨 - 大雨",
-                        23: "大雨 - 暴雨",
-                        24: "暴雨 - 大暴雨",
-                        25: "大暴雨 - 特大暴雨",
-                        26: "小雪 - 中雪",
-                        27: "中雪 - 大雪",
-                        28: "大雪 - 暴雪",
-                        29: "浮尘",
-                        30: "扬沙",
-                        31: "强沙尘暴",
-                        32: "飑",
-                        33: "龙卷风",
-                        34: "弱高吹雪",
-                        35: "轻雾",
-                        50: "晴",
-                        51: "多云",
-                        52: "阴",
-                        53: "霾",
-                        54: "小雨",
-                        55: "中雨",
-                        56: "大雨",
-                        57: "暴雨",
-                        58: "雷阵雨",
-                        59: "冰雹",
-                        60: "小雪",
-                        61: "中雪",
-                        62: "大雪",
-                        63: "雾",
-                        64: "霾",
-                        65: "沙尘",
-                        66: "大风",
-                        67: "台风",
-                        68: "暴雨",
-                        69: "暴雪",
-                        70: "雨夹雪",
-                        71: "冻雨",
-                        72: "雾凇",
-                        73: "霜冻",
-                        74: "沙尘暴",
-                        75: "扬沙",
-                        76: "浮尘",
-                        77: "强沙尘暴",
-                        99: "未知"
-                    }
-                    
-                    weather = weather_map.get(weather_code, "未知")
-                    logger.info(f"天气信息：{weather}，当前温度：{current_temp}{temp_unit}，最高温度：{max_temp}{temp_unit}，最低温度：{min_temp}{temp_unit}，天气代码：{weather_code}")
-                    
-                    weather_text = f"{current_temp}{temp_unit}"
-                    self.weatherTempLabel.setText(weather_text)
-                    logger.info(f"已更新天气标签：{weather_text}")
-                    if hasattr(self, 'weatherContainer'):self.weatherContainer.updateSize()
-                    
-                    self.current_weather_code = weather_code
-                    
-                    self.__updateWeatherIcon()
-                    logger.info(f"已更新天气图标：天气代码={weather_code}, 天气状况={weather}")
-                    
-                    cache_data = {
-                        "current_temp": current_temp,
-                        "temp_unit": temp_unit,
-                        "weather_code": weather_code,
-                        "weather": weather,
-                        "max_temp": max_temp,
-                        "min_temp": min_temp,
-                    }
-                    save_cache("weather", cache_data, cfg.weatherUpdateInterval.value)
-                    success = True
-            else:
-                logger.error(f"天气 API 请求失败，状态码：{response.status_code}，响应内容：{response.text}")
-        except Exception as e:
-            logger.error(f"天气更新失败：{e}")
-        
-        if not success:
-            self.weatherTempLabel.setText("? °C")
-            self.current_weather_code = None
-            self.weatherIconLabel.clear()
-            if hasattr(self, 'weatherContainer'):self.weatherContainer.updateSize()
-    
-    def __updateWeatherIcon(self):
-        """ 更新天气图标 """
-        try:
-            if not hasattr(self, 'current_weather_code') or self.current_weather_code is None:
-                return
-            
-            # 代码到图标文件的映射
-            icon_map = {
-                0: "0.svg",      # 晴
-                1: "1.svg",      # 多云
-                2: "2.svg",      # 阴
-                3: "7.svg",      # 阵雨
-                4: "4.svg",      # 雷阵雨
-                5: "5.svg",      # 雷阵雨并伴有冰雹
-                6: "19.svg",     # 雨夹雪
-                7: "7.svg",      # 小雨
-                8: "8.svg",      # 中雨
-                9: "9.svg",      # 大雨
-                10: "10.svg",    # 暴雨
-                11: "11.svg",    # 大暴雨
-                12: "11.svg",    # 特大暴雨
-                13: "14.svg",    # 阵雪
-                14: "14.svg",    # 小雪
-                15: "15.svg",    # 中雪
-                16: "16.svg",    # 大雪
-                17: "17.svg",    # 暴雪
-                18: "18.svg",    # 雾
-                19: "19.svg",    # 冻雨
-                20: "20.svg",    # 沙尘暴
-                21: "7.svg",     # 小雨 - 中雨
-                22: "8.svg",     # 中雨 - 大雨
-                23: "9.svg",     # 大雨 - 暴雨
-                24: "10.svg",    # 暴雨 - 大暴雨
-                25: "11.svg",    # 大暴雨 - 特大暴雨
-                26: "14.svg",    # 小雪 - 中雪
-                27: "15.svg",    # 中雪 - 大雪
-                28: "16.svg",    # 大雪 - 暴雪
-                29: "18.svg",    # 浮尘
-                30: "20.svg",    # 扬沙
-                31: "20.svg",    # 强沙尘暴
-                32: "3.svg",     # 飑
-                33: "3.svg",     # 龙卷风
-                34: "16.svg",    # 弱高吹雪
-                35: "18.svg",    # 轻雾
-                50: "0.svg",     # 晴
-                51: "1.svg",     # 多云
-                52: "2.svg",     # 阴
-                53: "18.svg",    # 霾
-                54: "7.svg",     # 小雨
-                55: "8.svg",     # 中雨
-                56: "9.svg",     # 大雨
-                57: "10.svg",    # 暴雨
-                58: "4.svg",     # 雷阵雨
-                59: "5.svg",     # 冰雹
-                60: "14.svg",    # 小雪
-                61: "15.svg",    # 中雪
-                62: "16.svg",    # 大雪
-                63: "18.svg",    # 雾
-                64: "18.svg",    # 霾
-                65: "18.svg",    # 沙尘
-                66: "3.svg",     # 大风
-                67: "3.svg",     # 台风
-                68: "11.svg",    # 暴雨
-                69: "17.svg",    # 暴雪
-                70: "19.svg",    # 雨夹雪
-                71: "19.svg",    # 冻雨
-                72: "18.svg",    # 雾凇
-                73: "18.svg",    # 霜冻
-                74: "20.svg",    # 沙尘暴
-                75: "20.svg",    # 扬沙
-                76: "18.svg",    # 浮尘
-                77: "20.svg"     # 强沙尘暴
-            }
-            
-            icon_file = icon_map.get(self.current_weather_code, "0.svg")
-            icon_path = get_resPath(os.path.join("resource", "icons", "weather", icon_file))
-            if os.path.exists(icon_path):
-                # QIcon 加载 SVG
-                icon = QIcon(icon_path)
-                icon_size = cfg.weatherIconSize.value
-                # 创建一个 pixmap
-                pixmap = icon.pixmap(icon_size, icon_size)
-                self.weatherIconLabel.setPixmap(pixmap)
-                logger.info(f"已设置天气图标：代码={self.current_weather_code}, 图标文件={icon_file}, 图标大小={icon_size}x{icon_size}")
-            else:
-                self.weatherIconLabel.setText("")
-                logger.warning(f"天气图标文件不存在：{icon_file}")
-        except Exception as e:
-            logger.error(f"天气图标更新失败：{e}")
-        if hasattr(self, 'weatherContainer'):self.weatherContainer.updateSize()
-    
-    def __updateCountdownCarouselInterval(self):
-        """轮播间隔 """
-        self.countdownTimer.stop()
-        interval = cfg.countdownCarouselInterval.value * 1000
-        self.countdownTimer.start(interval)
-        self.__updateCountdown()
-    
-    def __updateCountdown(self):
-        """倒计时显示"""
-        if not cfg.showCountdown.value:
-            self.countdownContainer.hide()
-            return
-        self.countdownContainer.show()
-        countdown_list = cfg.countdownList.value or []
-        if not countdown_list:
-            self.countdownLabel.setText("")
-            return
-        display_mode = cfg.countdownDisplayMode.value
-        if display_mode == "simultaneous":
-            texts = []
-            for cd in countdown_list:
-                text = self._formatCountdown(cd)
-                if text:
-                    texts.append(text)
-            self.countdownLabel.setText("<br>".join(texts))
-        else:
-            if not hasattr(self, 'countdownCarouselIndex'):
-                self.countdownCarouselIndex = 0
-            if self.countdownCarouselIndex >= len(countdown_list):
-                self.countdownCarouselIndex = 0
-            cd = countdown_list[self.countdownCarouselIndex]
-            text = self._formatCountdown(cd)
-            if text:
-                self.countdownLabel.setText(text)
-            self.countdownCarouselIndex += 1
-    
-    def _formatCountdown(self, countdown):
-        """单个倒计时"""
-        title = countdown.get('title', '')
-        target_time_str = countdown.get('target_time', '')
-        if not title or not target_time_str:
-            return ""
-        try:
-            target_time = datetime.datetime.strptime(target_time_str, '%Y-%m-%d %H:%M')
-        except ValueError:
-            return ""
-        now = datetime.datetime.now()
-        delta = target_time - now
-        total_seconds = int(delta.total_seconds())
-        target_date = target_time.date()
-        now_date = now.date()
-        def fmt(text, connector=""):
-            if hasattr(self, 'countdownTextColor'):
-                if connector:
-                    return (f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownTitleSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{title}</span>'
-                            f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{connector}</span>'
-                            f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownDaysSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{text}</span>')
-                else:
-                    return (f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownTitleSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{title}</span>'
-                            f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownDaysSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{text}</span>')
-            else:
-                return f"{title}{connector}{text}"
-        if target_date == now_date and total_seconds < 0:
-            return fmt("就在今天")
-        elif total_seconds > 0:
-            days = total_seconds // 86400
-            hours = (total_seconds % 86400) // 3600
-            minutes = (total_seconds % 3600) // 60
-            seconds = total_seconds % 60
-            if days >= 3:
-                time_text = f"{days}天"
-            elif days >= 1:
-                time_text = f"{days}天{hours}时"
-            elif hours >= 1:
-                time_text = f"{hours}时"
-            elif minutes >= 1:
-                time_text = f"{minutes}分{seconds}秒"
-            else:
-                time_text = f"{seconds}秒"
-            return fmt(time_text, "仅剩")
-        else:
-            past_days = abs(total_seconds) // 86400
-            return fmt(f"{past_days}天", "已过去")
-    
-    def updateCountdownStyle(self):
-        """ 更新倒计时样式 """
-        text_color = cfg.countdownTextColor.value
-        text_color_str = text_color.name() if hasattr(text_color, 'name') else str(text_color)
-        text_size = cfg.countdownTextSize.value
-        
-        connector_color = cfg.countdownConnectorColor.value
-        connector_color_str = connector_color.name() if hasattr(connector_color, 'name') else str(connector_color)
-        connector_size = cfg.countdownConnectorSize.value
-        
-        self.countdownTextColor = text_color_str
-        self.countdownTitleSize = text_size
-        self.countdownConnectorColor = connector_color_str
-        self.countdownConnectorSize = connector_size
-        self.countdownDaysSize = text_size
-        
-        self.countdownLabel.setStyleSheet(f"""
-            color: {text_color_str};
-            font-size: {text_size}px;
-            font-weight: bold;
-            font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
-            background-color: transparent;
-        """)
-        
-        if hasattr(self, 'countdownContainer'):self.countdownContainer.updateSize()
-    
-    def _onCountdownStyleChanged(self):
-        """ 倒计时样式变化 """
-        self.updateCountdownStyle()
-        self.__updateCountdown()
-        if hasattr(self, 'countdownContainer'):self.countdownContainer.updateSize()
-    
-    def updateSchoolInfo(self):
-        """更新学校信息显示"""
-        school = cfg.school.value
-        school_class = cfg.schoolClass.value
-        if cfg.showSchoolInfo.value and (school or school_class):
-            self.schoolClassLabel.setText(school_class if school_class else "")
-            self.schoolNameLabel.setText(school if school else "")
-            self.schoolInfoContainer.show()
-        else:
-            self.schoolClassLabel.setText("")
-            self.schoolNameLabel.setText("")
-            self.schoolInfoContainer.hide()
-    
-    def updateSchoolInfoStyle(self):
-        """更新学校信息样式"""
-        text_color = cfg.schoolInfoTextColor.value
-        text_color_str = text_color.name() if hasattr(text_color, 'name') else str(text_color)
-        text_size = cfg.schoolInfoTextSize.value
-        self.schoolInfoTextColor = text_color_str
-        self.schoolInfoTextSize = text_size
-        self.schoolClassLabel.setStyleSheet(f"color: {text_color_str}; font-size: {text_size}px; font-weight: bold; font-family: \"HarmonyOS Sans\", \"Microsoft YaHei\", \"SimHei\", sans-serif;")
-        self.schoolNameLabel.setStyleSheet(f"color: {text_color_str}; font-size: {text_size}px; font-weight: bold; font-family: \"HarmonyOS Sans\", \"Microsoft YaHei\", \"SimHei\", sans-serif;")
-        if hasattr(self, 'schoolInfoContainer'):self.schoolInfoContainer.updateSize()
-    
-    def __initMediaWidget(self):
-        """初始化媒体控件"""
-        try:
-            cfg.showMediaInfo.valueChanged.connect(self.__onShowMediaInfoChanged)
-            cfg.showMediaCover.valueChanged.connect(self.__onMediaSettingsChanged)
-            cfg.mediaWidth.valueChanged.connect(self.__onMediaSettingsChanged)
-            cfg.mediaLyricsAdvance.valueChanged.connect(self.__onMediaSettingsChanged)
-            cfg.mediaUpdateInterval.valueChanged.connect(self.__onMediaUpdateIntervalChanged)
-
-            if cfg.showMediaInfo.value:
-                self.mediaWidget.start()
-            else:
-                self.mediaContainer.hide()
-            
-        except Exception as e:
-            logger.exception(f"初始化媒体控件失败: {e}")
-    
-    def __onShowMediaInfoChanged(self, value: bool):
-        """媒体状态变化"""
-        if value:
-            self.mediaContainer.show()
-            self.mediaWidget.start()
-        else:
-            self.mediaWidget.stop()
-            self.mediaContainer.hide()
-        logger.info(f"媒体控件显示: {value}")
-    
-    def __onMediaSettingsChanged(self, value):
-        if hasattr(self, 'mediaWidget'):self.mediaWidget.update_settings()
-    
-    def __onMediaUpdateIntervalChanged(self, value):
-        """媒体间隔变化"""
-        if hasattr(self, 'mediaWidget') and cfg.showMediaInfo.value:
-            self.mediaWidget.stop()
-            self.mediaWidget.start()
-    
-    def _checkAndRefreshQuickLaunchIcons(self):
-        """刷新启动栏图标"""
-        apps = cfg.quickLaunchApps.value
-        if not apps:return
-        icon_dir = os.path.join(BASE_DIR, 'data', 'ql_icon')
-        os.makedirs(icon_dir, exist_ok=True)
-        for app in apps:
-            app_path = app.get('path', '')
-            icon_filename = app.get('icon', '')
-            if not app_path or not icon_filename:continue
-            icon_save_path = os.path.join(icon_dir, icon_filename)
-            if os.path.exists(icon_save_path):continue
-            if not os.path.exists(app_path):continue
-            logger.info(f"快捷启动栏图标不存在，重新提取: {app.get('name', '')} -> {icon_filename}")
-            try:
-                new_icon = self._extractIcon(app_path, icon_filename)
-                if new_icon and new_icon != 'exe.ico':
-                    app['icon'] = new_icon
-                    cfg.quickLaunchApps.value = apps
-                    save_cfg()
-                    logger.info(f"图标重新提取成功: {app.get('name', '')}")
-            except Exception as e:
-                logger.error(f"重新提取图标失败 {app.get('name', '')}: {e}")
-    
-    def _extractIcon(self, exe_path, icon_filename):
-        """提取图标"""
-        try:
-            hicon = None
-            try:
-                res = win32gui.PrivateExtractIcons(exe_path, 0, 256, 256, 1, 0)
-                if res and res[0]: hicon = res[0][0]
-            except Exception: pass
-            if not hicon:
-                large, small = win32gui.ExtractIconEx(exe_path, 0)
-                if large and large[0]: hicon = large[0]
-            if not hicon:return 'exe.ico'
-            ico_info = win32gui.GetIconInfo(hicon)
-            hbm_mask = ico_info[3]
-            hbm_color = ico_info[4]
-            hbm = hbm_color if hbm_color else hbm_mask
-            bmp_obj = win32gui.GetObject(hbm)
-            if not bmp_obj:
-                if hbm_color: win32gui.DeleteObject(hbm_color)
-                if hbm_mask: win32gui.DeleteObject(hbm_mask)
-                win32gui.DestroyIcon(hicon)
-                return 'exe.ico'
-            
-            width = bmp_obj.bmWidth
-            height = bmp_obj.bmHeight
-            hdc = win32gui.GetDC(0)
-            hdc_src = win32ui.CreateDCFromHandle(hdc)
-            hdc_dest = hdc_src.CreateCompatibleDC()
-            bitmap = win32ui.CreateBitmap()
-            bitmap.CreateCompatibleBitmap(hdc_src, width, height)
-            hdc_dest.SelectObject(bitmap)
-            win32gui.DrawIcon(hdc_dest.GetSafeHdc(), 0, 0, hicon)
-            bmpstr = bitmap.GetBitmapBits(True)
-            
-            if hbm_color:
-                img = Image.frombuffer('RGBA', (width, height), bmpstr, 'raw', 'BGRA', 0, 1)
-            else:
-                img = Image.frombuffer('L', (width, height), bmpstr, 'raw', 'L', 0, 1).convert('RGBA')
-            
-            icon_dir = os.path.join(BASE_DIR, 'data', 'ql_icon')
-            os.makedirs(icon_dir, exist_ok=True)
-            icon_save_path = os.path.join(icon_dir, icon_filename)
-            img.save(icon_save_path, format='PNG')
-            if hbm_color: win32gui.DeleteObject(hbm_color)
-            if hbm_mask: win32gui.DeleteObject(hbm_mask)
-            win32gui.DestroyIcon(hicon)
-            win32gui.ReleaseDC(0, hdc)
-            
-            return icon_filename
-        except Exception as e:
-            logger.error(f"提取图标失败: {e}")
-            return 'exe.ico'
-    
-    def __updateQuickLaunch(self):
-        """更新快捷启动栏显示"""
-        if not hasattr(self, 'quickLaunchDock'):
-            return
-        
-        if not cfg.showQuickLaunch.value:
-            self.quickLaunchDock.hide()
-            return
-
-        self.quickLaunchDock.show()
-        apps = cfg.quickLaunchApps.value
-        if not apps:
-            self.quickLaunchDock.hide()
-            return
-        
-        self.quickLaunchDock.update_icon_size(cfg.quickLaunchIconSize.value)
-        self.quickLaunchDock.set_apps(apps)
-    
-    def __launchApp(self, app_path, app_name):
-        """启动应用程序"""
-        try:
-            if not app_path:
-                InfoBar.warning(
-                    title="未配置路径",
-                    content=f"请在编辑面板中配置 {app_name} 的路径",
-                    parent=self,
-                    duration=3000
-                )
-                return
-            
-            if os.path.exists(app_path):
-                os.startfile(app_path)
-                logger.info(f"已启动应用：{app_name} ({app_path})")
-                InfoBar.success(
-                    title="启动成功",
-                    content=f"正在打开 {app_name}",
-                    parent=self,
-                    duration=2000
-                )
-            else:
-                logger.warning(f"应用路径不存在：{app_path}")
-                InfoBar.error(
-                    title="启动失败",
-                    content=f"找不到 {app_name}，请检查路径配置",
-                    parent=self,
-                    duration=3000
-                )
-        except Exception as e:
-            logger.error(f"启动应用失败：{app_name}, 错误：{e}")
-            InfoBar.error(
-                title="启动失败",
-                content=f"无法打开 {app_name}",
-                parent=self,
-                duration=3000
-            )
-
-def autoStart_launch():
-    """检查是否是通过开机自启动启动的"""
-    return '--autostart' in sys.argv or '/autostart' in sys.argv
 
 
 if __name__ == "__main__":
-    auto_start_launch = autoStart_launch()
+    _auto_start_launch = auto_start_launch()
 
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
-    
-    if cfg.enableGpuAcceleration.value:QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseOpenGLES)
-    
+
+    if cfg.enableGpuAcceleration.value:
+        QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseOpenGLES)
+
     extract_files()
-    
+
     app = QApplication(sys.argv)
 
     init_exhook()
@@ -2240,12 +525,13 @@ if __name__ == "__main__":
         create_wizard_file()
         wizard = WizardWindow()
         wizard.exec()
-    
+
     icon_path = get_resPath(os.path.join("resource", "icons", "CY.png"))
-    
+
     splash = SplashScreen(APP_NAME, VERSION, icon_path)
     splash.show()
     splash.setProgress(0)
+
     def allow_ui_update(duration=0.06):
         end = time.time() + duration
         while time.time() < end:
@@ -2257,39 +543,33 @@ if __name__ == "__main__":
 
     def _background_init():
         try:
-            # 使用信号从后台线程通知主线程更新 UI
             splash.status_signal.emit("正在清理临时文件")
             splash.progress_signal.emit(10)
             clean_tempdir(logger=logger)
-
             splash.status_signal.emit("正在加载资源")
             splash.progress_signal.emit(70)
         except Exception as e:
             logger.exception(f"后台初始化失败: {e}")
 
     future = executor.submit(_background_init)
-    
+
     splash.updateStatus("正在加载翻译")
-    logger.info("启动：正在加载翻译")
     splash.setProgress(15)
     allow_ui_update(0.06)
     locale = QLocale(QLocale.Language.Chinese, QLocale.Country.China)
     fluentTranslator = FluentTranslator(locale)
     app.installTranslator(fluentTranslator)
-    
-    if not verify_singleInst():
+
+    if not verify_single_instance():
         splash.close()
-        
         temp_widget = QWidget()
         temp_widget.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         temp_widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        
         screen = QApplication.primaryScreen()
         if screen:
             screen_rect = screen.availableGeometry()
             temp_widget.setGeometry(screen_rect)
         temp_widget.show()
-        
         title = f"{APP_NAME} 已有实例运行"
         content = f"检测到{APP_NAME} 已有一个实例在运行中，请勿重复启动。\n\n(您可在“设置”中启用“允许重复启动”，可能会有不可言喻的问题。)"
         w = MessageBox(title, content, temp_widget)
@@ -2297,15 +577,13 @@ if __name__ == "__main__":
         w.hideCancelButton()
         w.exec()
         sys.exit(0)
-    
+
     splash.updateStatus("正在初始化字体")
-    logger.info("启动：正在初始化字体")
     splash.setProgress(30)
     allow_ui_update(0.06)
     initialize_fonts(app, install_to_system=True)
 
     splash.updateStatus("正在配置日志")
-    logger.info("启动：正在配置日志")
     splash.setProgress(40)
     allow_ui_update(0.06)
 
@@ -2313,25 +591,25 @@ if __name__ == "__main__":
         log_level_str = cfg.logLevel.value.value
     else:
         log_level_str = str(cfg.logLevel.value)
-    
+
     if cfg.developerMode.value:
         log_max_count = 3
         log_max_days = 1
-        logger.info("调试模式：日志最多保留 3 个，最多保留 3 天")
     else:
         log_max_count = cfg.logMaxCount.value
         log_max_days = cfg.logMaxDays.value
-    
+
     logger.update_cfg(
         disable_log=cfg.disableLog.value,
         log_level=log_level_str,
         max_count=log_max_count,
         max_days=log_max_days
     )
+
     splash.updateStatus("正在加载配置")
-    logger.info("启动：正在加载配置")
     splash.setProgress(55)
     allow_ui_update(0.06)
+
     theme_mode_str = str(cfg.themeMode.value) if not hasattr(cfg.themeMode.value, 'name') else cfg.themeMode.value.name
     theme_color = cfg.themeColor.value
     theme_color_str = theme_color.name() if hasattr(theme_color, 'name') else str(theme_color)
@@ -2341,25 +619,21 @@ if __name__ == "__main__":
     language_str = str(language) if not hasattr(language, 'name') else language.name
     logger.info(f"主窗口配置：主题模式={theme_mode_str}, 主题颜色={theme_color_str}, DPI 缩放={dpi_scale_str}, 语言={language_str}")
     logger.info(f"日志配置：禁用日志={cfg.disableLog.value}, 日志级别={log_level_str}, 最大条目数={cfg.logMaxCount.value}, 最大保留天数={cfg.logMaxDays.value}")
-    logger.info(f"其他配置：关闭动作={cfg.closeAction.value}, 允许多实例={cfg.allowMultipleInstances.value}, 调试模式={cfg.developerMode.value}, 自动启动={cfg.autoStart.value}, 最小化通知计数={cfg.minimizeNotificationCount.value}")
+    logger.info(f"其他配置：关闭动作={cfg.closeAction.value}, 允许多实例={cfg.allowMultipleInstances.value}, 调试模式={cfg.developerMode.value}, 自动启动={cfg.autoStart.value}")
     logger.info(f"下载配置：下载源={cfg.downloadSource.value}")
     logger.info(f"壁纸配置：保存限制={cfg.wallpaperSaveLimit.value}, 获取间隔={cfg.autoGetInterval.value}, 自动同步桌面={cfg.autoSyncToDesktop.value}, API={cfg.wallpaperApi.value}")
     logger.info(f"外观配置：背景模糊半径={cfg.backgroundBlurRadius.value}")
-    logger.info(f"时间配置：显示秒={cfg.showClockSeconds.value}, 显示农历={cfg.showLunarCalendar.value}, 时钟颜色={cfg.clockColor.value.name() if hasattr(cfg.clockColor.value, 'name') else str(cfg.clockColor.value)}, 时钟大小={cfg.clockSize.value}, 日期大小={cfg.dateSize.value}")
-    logger.info(f"一言配置：显示一言={cfg.showPoetry.value}, API 地址={cfg.poetryApiUrl.value}, 更新间隔={cfg.poetryUpdateInterval.value}, 字体大小={cfg.poetrySize.value}")
-    logger.info(f"天气配置：字体大小={cfg.weatherSize.value}, 图标大小={cfg.weatherIconSize.value}, 更新间隔={cfg.weatherUpdateInterval.value}, 城市={cfg.city.value}, 经纬度=({cfg.latitude.value}, {cfg.longitude.value})")
-    logger.info(f"倒计时配置：启用={cfg.showCountdown.value}, 显示模式={cfg.countdownDisplayMode.value}, 文字颜色={cfg.countdownTextColor.value.name() if hasattr(cfg.countdownTextColor.value, 'name') else str(cfg.countdownTextColor.value)}, 文字大小={cfg.countdownTextSize.value}, 连接符颜色={cfg.countdownConnectorColor.value.name() if hasattr(cfg.countdownConnectorColor.value, 'name') else str(cfg.countdownConnectorColor.value)}, 连接符大小={cfg.countdownConnectorSize.value}, 轮播间隔={cfg.countdownCarouselInterval.value}秒, 倒计时数量={len(cfg.countdownList.value)}")
-    logger.info(f"学校信息配置：启用={cfg.showSchoolInfo.value}, 学校={cfg.school.value}, 班级={cfg.schoolClass.value}, 文字颜色={cfg.schoolInfoTextColor.value.name() if hasattr(cfg.schoolInfoTextColor.value, 'name') else str(cfg.schoolInfoTextColor.value)}, 文字大小={cfg.schoolInfoTextSize.value}")
-    logger.info(f"快捷启动栏配置：启用={cfg.showQuickLaunch.value}, 图标大小={cfg.quickLaunchIconSize.value}, 图标间距={cfg.quickLaunchIconSpacing.value}, 显示名称={cfg.quickLaunchShowLabels.value}, 向上偏移={cfg.quickLaunchOffsetY.value}px, 应用数量={len(cfg.quickLaunchApps.value)}")
-    logger.info(f"自动配置：空闲自动打开={cfg.autoOpenOnIdle.value}, 空闲分钟={cfg.idleMinutes.value}, 自动打开最大化={cfg.autoOpenMaximize.value}, 自动检查更新={cfg.autoCheckUpdate.value}, 自动更新={cfg.autoUpdate.value}")
-    logger.info(f"{APP_NAME}版本信息：")
+    logger.info(f"时间配置：显示秒={cfg.showClockSeconds.value}, 显示农历={cfg.showLunarCalendar.value}, 时钟大小={cfg.clockSize.value}, 日期大小={cfg.dateSize.value}")
+    logger.info(f"一言配置：显示一言={cfg.showPoetry.value}, API 地址={cfg.poetryApiUrl.value}, 更新间隔={cfg.poetryUpdateInterval.value}")
+    logger.info(f"天气配置：字体大小={cfg.weatherSize.value}, 图标大小={cfg.weatherIconSize.value}, 更新间隔={cfg.weatherUpdateInterval.value}, 城市={cfg.city.value}")
+    logger.info(f"倒计时配置：启用={cfg.showCountdown.value}, 显示模式={cfg.countdownDisplayMode.value}, 轮播间隔={cfg.countdownCarouselInterval.value}秒")
+    logger.info(f"学校信息配置：启用={cfg.showSchoolInfo.value}, 学校={cfg.school.value}, 班级={cfg.schoolClass.value}")
+    logger.info(f"快捷启动栏配置：启用={cfg.showQuickLaunch.value}, 图标大小={cfg.quickLaunchIconSize.value}, 应用数量={len(cfg.quickLaunchApps.value)}")
+    logger.info(f"自动配置：空闲自动打开={cfg.autoOpenOnIdle.value}, 空闲分钟={cfg.idleMinutes.value}, 自动检查更新={cfg.autoCheckUpdate.value}")
     logger.info(f"版本号：{VERSION} 构建日期：{BUILD_DATE}")
-    logger.info(f"{APP_NAME}环境信息：")
     logger.info(f"系统版本：Windows {platform.version()} Python 版本：{platform.python_version()}")
     logger.info(f"软件运行路径：{BASE_DIR}")
-    logger.debug(f"url_dir 内容：{url_dir}")
 
-    # 等待后台初始化完
     wait_start = time.time()
     while not future.done():
         allow_ui_update(0.02)
@@ -2368,35 +642,30 @@ if __name__ == "__main__":
             break
 
     splash.updateStatus("正在创建主窗口...")
-    logger.info("启动：正在创建主窗口...")
     splash.setProgress(70)
     splash.waitForProgress(70, timeout=1.0)
     allow_ui_update(0.12)
     window = MainWindow()
-    
+
     splash.updateStatus("正在完成启动")
-    logger.info("启动：正在完成启动")
     splash.setProgress(90)
     allow_ui_update(0.06)
 
     time.sleep(0.06)
-
     splash.setProgress(100)
-    # 等待进度条动画平滑到 100% 后再关闭 splash 并显示主窗口
     splash.waitForProgress(100, timeout=1.0)
     allow_ui_update(0.06)
     time.sleep(0.04)
     splash.close()
-    
-    if auto_start_launch:
+
+    if _auto_start_launch:
         logger.info("开机自启动模式：最大化窗口")
         window.show()
         window.showMaximized()
         if hasattr(window, 'tray_icon') and window.tray_icon:
             window.tray_icon.show()
-            logger.info("系统托盘图标已显示")
     else:
         window.show()
         logger.info("正常启动模式：显示主窗口")
-    
+
     sys.exit(app.exec())
