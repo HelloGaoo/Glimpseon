@@ -1,34 +1,38 @@
 /* 主界面容器 */
-MainWindow #homeBackgroundImage {
+#homeBackgroundImage {
     background-color: transparent;
 }
 
-MainWindow #clockContainer {
+#clockContainer {
     background-color: transparent;
 }
 
-MainWindow #weatherContainer {
+#weatherContainer {
     background-color: transparent;
 }
 
-MainWindow #schoolInfoContainer {
+#schoolInfoContainer {
     background-color: transparent;
 }
 
-MainWindow #poetryContainer {
+#poetryContainer {
     background-color: transparent;
 }
 
-MainWindow #countdownContainer {
+#countdownContainer {
     background-color: transparent;
 }
 
-MainWindow #editContainer {
+#mediaContainer {
+    background-color: transparent;
+}
+
+#editContainer {
     background-color: transparent;
 }
 
 /* 快捷启动栏 */
-MainWindow #quickLaunchDock {
+#quickLaunchDock {
     background-color: transparent;
 }
 
@@ -47,7 +51,7 @@ MainWindow #quickLaunchDock {
 }
 
 /* 天气温度标签 */
-MainWindow #weatherTempLabel {
+#weatherTempLabel {
     color: #333333;
     font-size: 14px;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
@@ -55,12 +59,12 @@ MainWindow #weatherTempLabel {
 }
 
 /* 天气图标标签 */
-MainWindow #weatherIconLabel {
+#weatherIconLabel {
     background-color: transparent;
 }
 
 /* 一言标签 */
-MainWindow #poetryLabel {
+#poetryLabel {
     color: #333333;
     font-size: 16px;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
@@ -68,7 +72,7 @@ MainWindow #poetryLabel {
 }
 
 /* 学校信息标签 */
-MainWindow #schoolClassLabel {
+#schoolClassLabel {
     color: #333333;
     font-size: 16px;
     font-weight: bold;
@@ -76,7 +80,7 @@ MainWindow #schoolClassLabel {
     background-color: transparent;
 }
 
-MainWindow #schoolNameLabel {
+#schoolNameLabel {
     color: #333333;
     font-size: 14px;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
@@ -84,7 +88,7 @@ MainWindow #schoolNameLabel {
 }
 
 /* 编辑按钮 */
-MainWindow #editButton {
+#editButton {
     background-color: rgba(255, 255, 255, 0.6);
     color: #333333;
     border: none;
@@ -92,7 +96,7 @@ MainWindow #editButton {
     font-size: 14px;
 }
 
-MainWindow #editButton:hover {
+#editButton:hover {
     background-color: rgba(255, 255, 255, 0.8);
     border: none;
 }

@@ -65,7 +65,7 @@ from qfluentwidgets import (
 )
 
 from core.config import cfg, save_cfg
-from core.constants import APP_NAME, BASE_DIR, get_resPath
+from core.constants import APP_NAME, BASE_DIR, get_resPath, load_qss
 from core.logger import logger
 from core.utils import get_cached_content, save_cache
 from services.weather import WeatherService, RegionDatabase
@@ -177,6 +177,9 @@ class HomeInterface(QWidget):
 
         self.editPanelCreated = False
         self.editPanel = None
+
+        self.setStyleSheet(load_qss('main_interface.qss'))
+        cfg.themeChanged.connect(self._updateTheme)
 
         logger.info("主界面初始化完成")
 
@@ -590,6 +593,9 @@ class HomeInterface(QWidget):
             self.poetryContainer.updateSize()
         if hasattr(self, 'weatherContainer'):
             self.weatherContainer.updateSize()
+
+    def _updateTheme(self):
+        self.setStyleSheet(load_qss('main_interface.qss'))
 
     def _updatePoetryInterval(self):
         self.poetryTimer.stop()
