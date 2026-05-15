@@ -75,7 +75,7 @@ class DebugPanel(BaseScrollAreaInterface):
     def __init__(self, mainWindow):
         super().__init__("调试", parent=None)
         self.mainWindow = mainWindow
-        self.setObjectName('debugPanel')
+        self.setObjectName('debug')
 
         self.frameCount = 0
         self.lastFpsTime = time.time()
@@ -774,7 +774,7 @@ class DebugPanel(BaseScrollAreaInterface):
         self.changeTimer.start(50)
 
     def _loadStyleSheet(self):
-        self.setStyleSheet(load_qss('developer_panel.qss'))
+        self.setStyleSheet(load_qss('debug.qss'))
 
     def _updateTheme(self):
         self._loadStyleSheet()
@@ -1042,7 +1042,7 @@ class DebugPanel(BaseScrollAreaInterface):
             self._popOutWindow.setWindowTitle("调试面板 - ClassLively")
             self._popOutWindow.setFixedSize(850, 750)
 
-            qss = load_qss('developer_panel.qss')
+            qss = load_qss('debug.qss')
             self._popOutWindow.setStyleSheet(qss)
 
             outer_layout = QVBoxLayout(self._popOutWindow)
@@ -1081,7 +1081,7 @@ class DebugPanel(BaseScrollAreaInterface):
             self.popOutButton.setText("恢复面板")
 
             mw = self.mainWindow
-            if hasattr(mw, 'developerNavItem'): mw.developerNavItem.setVisible(False)
+            if hasattr(mw, 'debugNavItem'): mw.debugNavItem.setVisible(False)
             if hasattr(mw, 'home'): mw.switchTo(mw.home)
 
             QTimer.singleShot(300, self._refreshComponentTree)
@@ -1099,7 +1099,7 @@ class DebugPanel(BaseScrollAreaInterface):
         if hasattr(self, '_savedViewportMargins'): self.setViewportMargins(self._savedViewportMargins)
         self.popOutButton.setText("弹出窗口")
         mw = self.mainWindow
-        if hasattr(mw, 'developerNavItem') and cfg.developerMode.value: mw.developerNavItem.setVisible(True)
+        if hasattr(mw, 'debugNavItem') and cfg.debugMode.value: mw.debugNavItem.setVisible(True)
         self._startTimers()
 
     def _safeCleanupPopOut(self):
@@ -1115,5 +1115,5 @@ class DebugPanel(BaseScrollAreaInterface):
         if hasattr(self, '_savedViewportMargins'): self.setViewportMargins(self._savedViewportMargins)
         self.popOutButton.setText("弹出窗口")
         mw = self.mainWindow
-        if hasattr(mw, 'developerNavItem') and cfg.developerMode.value: mw.developerNavItem.setVisible(True)
+        if hasattr(mw, 'debugNavItem') and cfg.debugMode.value: mw.debugNavItem.setVisible(True)
         self._startTimers()

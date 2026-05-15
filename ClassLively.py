@@ -146,9 +146,9 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.aboutInterface, FIF.INFO, "关于", NavigationItemPosition.BOTTOM)
 
         self.debugPanel = DebugPanel(self)
-        self.developerNavItem = self.addSubInterface(self.debugPanel, FIF.DEVELOPER_TOOLS, "调试", NavigationItemPosition.BOTTOM)
-        self.developerNavItem.setVisible(cfg.developerMode.value)
-        cfg.developerMode.valueChanged.connect(self._onDeveloperModeChanged)
+        self.debugNavItem = self.addSubInterface(self.debugPanel, FIF.DEVELOPER_TOOLS, "调试", NavigationItemPosition.BOTTOM)
+        self.debugNavItem.setVisible(cfg.debugMode.value)
+        cfg.debugMode.valueChanged.connect(self._onDebugModeChanged)
 
         self._initEditPanel()
 
@@ -190,8 +190,8 @@ class MainWindow(FluentWindow):
         cfg.themeChanged.connect(self._onDebugPanelThemeChanged)
         cfg.themeChanged.connect(self._onEditPanelThemeChanged)
 
-    def _onDeveloperModeChanged(self, value):
-        self.developerNavItem.setVisible(value)
+    def _onDebugModeChanged(self, value):
+        self.debugNavItem.setVisible(value)
         if not value and self.stackedWidget.currentWidget() == self.debugPanel:
             self.switchTo(self.homeInterface)
 
@@ -209,7 +209,7 @@ class MainWindow(FluentWindow):
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_F12:
-            if cfg.developerMode.value and hasattr(self, 'debugPanel'):
+            if cfg.debugMode.value and hasattr(self, 'debugPanel'):
                 self.switchTo(self.debugPanel)
             return
         if event.modifiers() == Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_E:
@@ -278,7 +278,7 @@ class MainWindow(FluentWindow):
         show_action = Action(FIF.HOME, "显示主窗口", self)
         show_action.triggered.connect(self.show)
         self.tray_menu.addAction(show_action)
-        if cfg.developerMode.value:
+        if cfg.debugMode.value:
             dev_action = Action(FIF.DEVELOPER_TOOLS, "调试", self)
             dev_action.triggered.connect(lambda: self.switchTo(self.debugPanel))
             self.tray_menu.addAction(dev_action)
@@ -446,7 +446,7 @@ class MainWindow(FluentWindow):
         if hasattr(self, 'homeInterface'):
             self.homeInterface.saveComponentPositions()
 
-        if cfg.developerMode.value:
+        if cfg.debugMode.value:
             event.accept()
             if hasattr(self, 'keyboardHook') and self.keyboardHook:
                 ctypes.windll.user32.UnhookWindowsHookEx(self.keyboardHook)
@@ -592,7 +592,7 @@ if __name__ == "__main__":
     else:
         log_level_str = str(cfg.logLevel.value)
 
-    if cfg.developerMode.value:
+    if cfg.debugMode.value:
         log_max_count = 3
         log_max_days = 1
     else:
@@ -619,7 +619,7 @@ if __name__ == "__main__":
     language_str = str(language) if not hasattr(language, 'name') else language.name
     logger.info(f"主窗口配置：主题模式={theme_mode_str}, 主题颜色={theme_color_str}, DPI 缩放={dpi_scale_str}, 语言={language_str}")
     logger.info(f"日志配置：禁用日志={cfg.disableLog.value}, 日志级别={log_level_str}, 最大条目数={cfg.logMaxCount.value}, 最大保留天数={cfg.logMaxDays.value}")
-    logger.info(f"其他配置：关闭动作={cfg.closeAction.value}, 允许多实例={cfg.allowMultipleInstances.value}, 调试模式={cfg.developerMode.value}, 自动启动={cfg.autoStart.value}")
+    logger.info(f"其他配置：关闭动作={cfg.closeAction.value}, 允许多实例={cfg.allowMultipleInstances.value}, 调试模式={cfg.debugMode.value}, 自动启动={cfg.autoStart.value}")
     logger.info(f"下载配置：下载源={cfg.downloadSource.value}")
     logger.info(f"壁纸配置：保存限制={cfg.wallpaperSaveLimit.value}, 获取间隔={cfg.autoGetInterval.value}, 自动同步桌面={cfg.autoSyncToDesktop.value}, API={cfg.wallpaperApi.value}")
     logger.info(f"外观配置：背景模糊半径={cfg.backgroundBlurRadius.value}")

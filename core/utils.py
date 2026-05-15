@@ -102,10 +102,10 @@ def release_single_instance():
 def verify_single_instance():
     """检查是否已经有实例运行"""
     allow_multiple = cfg.allowMultipleInstances.value
-    is_developer_mode = cfg.developerMode.value
+    is_debug_mode = cfg.debugMode.value
     if allow_multiple:
         return True
-    if is_developer_mode:
+    if is_debug_mode:
         return True
     is_only_instance = check_single_instance()
     if is_only_instance:

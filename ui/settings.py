@@ -299,14 +299,14 @@ class SettingInterface(ScrollArea):
         )
         self.otherGroup.addSettingCard(self.resetDefaultCard)
         self.resetDefaultCard.button.setText("恢复默认")
-        self.developerModeCard = SwitchSettingCard(
+        self.debugModeCard = SwitchSettingCard(
             FIF.CODE,
             "调试模式",
             "启用调试模式以进行测试和调试",
-            configItem=cfg.developerMode,
+            configItem=cfg.debugMode,
             parent=self.otherGroup
         )
-        self.otherGroup.addSettingCard(self.developerModeCard)
+        self.otherGroup.addSettingCard(self.debugModeCard)
         self.expandLayout.setSpacing(28)
         self.expandLayout.setContentsMargins(60, 10, 60, 0)
         self.expandLayout.addWidget(self.basicGroup)

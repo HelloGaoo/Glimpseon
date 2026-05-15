@@ -95,7 +95,7 @@ QLabel#versionInfo {
 }
 
 /* 调试和版权 */
-QLabel#developerLabel,
+QLabel#authorLabel,
 QLabel#copyrightLabel {
     font-size: 13px;
     color: #333333;
