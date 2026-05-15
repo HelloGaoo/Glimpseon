@@ -1,7 +1,42 @@
-# Common UI helpers for dialogs
+# Common UI helpers for dialogs and base classes
 import os
-from PyQt6.QtGui import QFont
-from qfluentwidgets import MessageBox, TextEdit
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon, QPixmap, QFont
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from qfluentwidgets import (
+    CardWidget,
+    ExpandLayout,
+    FluentIcon as FIF,
+    InfoBar,
+    MessageBox,
+    PrimaryPushButton,
+    PushButton,
+    ScrollArea,
+    SmoothScrollArea,
+    TextEdit,
+    isDarkTheme,
+)
+
+
+class BaseScrollAreaInterface(ScrollArea):
+    """ 基础滚动区域界面 """
+
+    def __init__(self, title: str, parent=None, width=1000, height=800,
+                 viewport_margins=(0, 120, 0, 20), title_position=(60, 63)):
+        super().__init__(parent=parent)
+        self.title = title
+        self.scrollWidget = QWidget()
+        self.titleLabel = QLabel(title, self)
+
+        self.resize(width, height)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setViewportMargins(*viewport_margins)
+        self.setWidget(self.scrollWidget)
+        self.setWidgetResizable(True)
+
+        self.titleLabel.setObjectName('settingLabel')
+        self.scrollWidget.setObjectName('scrollWidget')
+        self.titleLabel.move(*title_position)
 
 
 def show_text_file(title: str, intro: str, file_path: str, parent=None):

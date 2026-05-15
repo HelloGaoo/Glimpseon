@@ -67,7 +67,7 @@ from core.constants import BASE_DIR, get_resPath, load_qss
 from core.logger import logger
 from services.weather import WeatherService, RegionDatabase
 
-from .base_scroll import BaseScrollAreaInterface
+from .common import BaseScrollAreaInterface, show_text_file
 
 
 class DebugPanel(BaseScrollAreaInterface):

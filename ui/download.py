@@ -56,7 +56,7 @@ from core.constants import get_resPath, load_qss
 from core.downloader import DOWNLOAD_SOURCES, DEFAULT_SOURCE, Downloader, set_download_src
 from core.logger import logger
 
-from .base_scroll import BaseScrollAreaInterface
+from .common import BaseScrollAreaInterface, show_text_file
 
 _software_icon_cache = {}
 

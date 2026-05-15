@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-工具函数集合 - 单实例、自启动、字体初始化、缓存读写
+工具
 """
 
 import ctypes
@@ -58,11 +58,10 @@ class SingleInstanceManager:
             logger.error(f"创建互斥失败，句柄: {self._mutex_handle}")
             return True
         if last_error == ERROR_ALREADY_EXISTS:
-            logger.info("检测到已有实例运行")
+            logger.info("已有实例运行")
             self._is_owner = False
             return False
         self._is_owner = True
-        logger.info("互斥获取成功，当前为唯一实例")
         return True
 
     def release(self):
@@ -110,7 +109,7 @@ def verify_single_instance():
     is_only_instance = check_single_instance()
     if is_only_instance:
         return True
-    logger.info("检测到已有实例运行")
+    logger.info("已有实例运行")
     return False
 
 
@@ -214,7 +213,6 @@ def apply_fonts(app: QApplication, use_harmonyos: bool = True):
 
 
 def initialize_fonts(app: QApplication, install_to_system: bool = True):
-    logger.info("开始初始化字体...")
     if install_to_system:
         _install_system_fonts()
     font_loaded = _load_app_fonts()

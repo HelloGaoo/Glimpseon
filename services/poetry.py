@@ -41,12 +41,6 @@ class PoetryService:
     def get_poetry(api_url: Optional[str] = None) -> str:
         """
         获取一句一言
-
-        Args:
-            api_url: API地址，为None时从配置读取
-
-        Returns:
-            str: 一言文字内容
         """
         if api_url is None:
             api_url = cfg.poetryApiUrl.value

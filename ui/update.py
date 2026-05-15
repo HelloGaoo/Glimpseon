@@ -49,7 +49,7 @@ from core.constants import BASE_DIR, get_resPath, load_qss
 from core.updater import check_github_verison, get_github_changelog
 from version import BUILD_DATE, VERSION
 
-from .base_scroll import BaseScrollAreaInterface
+from .common import BaseScrollAreaInterface, show_text_file
 
 logger = logging.getLogger(__name__)
 

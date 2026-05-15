@@ -43,7 +43,7 @@ from core.constants import get_resPath, load_qss
 from version import BUILD_DATE, VERSION
 from .common import show_text_file
 
-from .base_scroll import BaseScrollAreaInterface
+from .common import BaseScrollAreaInterface, show_text_file
 
 
 class AboutInterface(BaseScrollAreaInterface):
