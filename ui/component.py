@@ -39,6 +39,7 @@ import webbrowser
 from PyQt6.QtCore import (
     QFileInfo,
     QPointF,
+    QPoint,
     QRectF,
     Qt,
     QThread,
