@@ -33,7 +33,9 @@ import win32ui
 from PIL import Image
 from pycaw.pycaw import AudioUtilities
 from PyQt6.QtCore import (
+    QByteArray,
     QDate,
+    QEasingCurve,
     QEvent,
     QPropertyAnimation,
     QRect,
@@ -50,6 +52,7 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import (
     QApplication,
+    QFrame,
     QGraphicsBlurEffect,
     QGridLayout,
     QHBoxLayout,
@@ -2155,6 +2158,8 @@ class EditPanel(QWidget):
             return ""
 
     def _updateCountdownList(self):
+        if not hasattr(self, 'countdownListWidget') or self.countdownListWidget is None:
+            return
         current_row = self.countdownListWidget.currentRow()
         self.countdownListWidget.clear()
         countdown_list = cfg.countdownList.value or []
