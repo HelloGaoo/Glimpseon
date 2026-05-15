@@ -1768,14 +1768,15 @@ class EditPanel(QWidget):
         parent = self.parent()
         if not parent:return
 
-        if hasattr(parent, 'isEditMode'):parent.isEditMode = False
+        home = self.mainWindow.homeInterface if hasattr(self.mainWindow, 'homeInterface') else None
 
-        # 启用导航栏
+        if home and hasattr(home, 'isEditMode'):home.isEditMode = False
+
         if hasattr(parent, 'navigationInterface'):parent.navigationInterface.setEnabled(True)
 
-        if hasattr(parent, '_setDraggableEnabled'):parent._setDraggableEnabled(False)
+        if home and hasattr(home, '_setDraggableEnabled'):home._setDraggableEnabled(False)
 
-        if hasattr(parent, '_hideGuideLines'):parent._hideGuideLines()
+        if home and hasattr(home, '_hideGuideLines'):home._hideGuideLines()
 
         pr = parent.rect()
         if self.isLeftSide:
