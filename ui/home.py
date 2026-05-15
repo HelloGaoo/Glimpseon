@@ -125,8 +125,8 @@ class GuideLineOverlay(QWidget):
         else:
             primary_color = theme_color
 
-        pen = QPen(QColor(primary_color.red(), primary_color.green(), primary_color.blue(), 160))
-        pen.setWidth(1)
+        pen = QPen(QColor(primary_color.red(), primary_color.green(), primary_color.blue(), 220))
+        pen.setWidth(2)
         pen.setStyle(Qt.PenStyle.DashLine)
         painter.setPen(pen)
         for direction, pos in self._alignLines:
