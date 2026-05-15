@@ -1038,7 +1038,7 @@ class DebugPanel(BaseScrollAreaInterface):
                     event.accept()
 
             self._popOutWindow = _PopOutWindow(self)
-            self._popOutWindow.setObjectName('debugPanel')
+            self._popOutWindow.setObjectName('debug')
             self._popOutWindow.setWindowTitle("调试面板 - ClassLively")
             self._popOutWindow.setFixedSize(850, 750)
 
@@ -1082,7 +1082,7 @@ class DebugPanel(BaseScrollAreaInterface):
 
             mw = self.mainWindow
             if hasattr(mw, 'debugNavItem'): mw.debugNavItem.setVisible(False)
-            if hasattr(mw, 'home'): mw.switchTo(mw.home)
+            if hasattr(mw, 'homeInterface'): mw.switchTo(mw.homeInterface)
 
             QTimer.singleShot(300, self._refreshComponentTree)
         except Exception as e:
