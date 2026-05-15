@@ -150,20 +150,7 @@ class MainWindow(FluentWindow):
         self.debugNavItem.setVisible(cfg.debugMode.value)
         cfg.debugMode.valueChanged.connect(self._onDebugModeChanged)
 
-        self._initEditPanel()
-
-    def _initEditPanel(self):
-        try:
-            self.editPanel = EditPanel(self)
-            pr = self.rect()
-            if self.editPanel.isLeftSide:
-                self.editPanel.setGeometry(-self.editPanel._width, 0, self.editPanel._width, pr.height())
-            else:
-                self.editPanel.setGeometry(pr.width(), 0, self.editPanel._width, pr.height())
-            self.editPanel.hide()
-            self.editPanel.setVisible(False)
-        except Exception:
-            logger.exception('创建编辑面板失败')
+        self.editPanel = None
 
     def _initIdleDetection(self):
         self.idleTimer = QTimer(self)

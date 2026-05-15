@@ -1017,22 +1017,27 @@ class HomeInterface(QWidget):
             return 'exe.ico'
 
     def _enterEditMode(self):
-        if not hasattr(self, 'editPanel'):
+        if not hasattr(self, 'editPanel') or self.editPanel is None:
             try:
                 self._createEditPanel()
-            except Exception:
-                logger.exception('创建编辑面板失败')
+                if self.editPanel is None:
+                    InfoBar.error('编辑模式', '无法创建编辑面板', parent=self, duration=3000)
+                    return
+            except Exception as e:
+                logger.exception(f'创建编辑面板失败: {e}')
                 InfoBar.error('编辑模式', '无法创建编辑面板', parent=self, duration=3000)
                 return
 
-        if self.editPanel is None or self.editPanel.isVisible():
-            if self.editPanel is not None:
-                self.editPanel.hidePanel()
+        logger.info(f'editPanel状态: exists={hasattr(self, "editPanel")}, isNone={self.editPanel is None}, isVisible={self.editPanel.isVisible() if self.editPanel else "N/A"}')
+        if self.editPanel.isVisible():
+            logger.info('隐藏编辑面板')
+            self.editPanel.hidePanel()
             self.isEditMode = False
             self.mainWindow.navigationInterface.setEnabled(True)
             self._setDraggableEnabled(False)
             self._hideGuideLines()
         else:
+            logger.info('显示编辑面板')
             self.editPanel.showPanel()
             self.isEditMode = True
             self.mainWindow.navigationInterface.setEnabled(False)
