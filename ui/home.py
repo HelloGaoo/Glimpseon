@@ -1082,10 +1082,6 @@ class HomeInterface(QWidget):
         align_lines = []
         threshold = self._snapThreshold
 
-        drag_left = x
-        drag_right = x + w
-        drag_top = y
-        drag_bottom = y + h
         drag_cx = x + w / 2
         drag_cy = y + h / 2
 
@@ -1099,52 +1095,27 @@ class HomeInterface(QWidget):
         if hasattr(self, 'homeContent') and self.homeContent:
             cw = self.homeContent.width()
             ch = self.homeContent.height()
-            center_x = cw / 2
-            center_y = ch / 2
 
-            dx = abs(drag_cx - center_x)
-            if dx <= threshold and dx < best_dx:
-                best_dx = dx
-                snap_x_val = center_x - w / 2
-                snap_x_line = ('v', center_x)
+            v_refs = [
+                ('v', cw / 2),
+            ]
+            h_refs = [
+                ('h', ch / 2),
+            ]
 
-            dy = abs(drag_cy - center_y)
-            if dy <= threshold and dy < best_dy:
-                best_dy = dy
-                snap_y_val = center_y - h / 2
-                snap_y_line = ('h', center_y)
+            for direction, ref_pos in v_refs:
+                dx = abs(drag_cx - ref_pos)
+                if dx <= threshold and dx < best_dx:
+                    best_dx = dx
+                    snap_x_val = ref_pos - w / 2
+                    snap_x_line = (direction, ref_pos)
 
-        if dragging_widget and hasattr(self, '_draggable_widgets'):
-            for widget in self._draggable_widgets:
-                if widget is dragging_widget or not widget or not widget.isVisible():
-                    continue
-                wg = widget.geometry()
-                refs = [
-                    ('v', drag_left, wg.left()),
-                    ('v', drag_right, wg.right()),
-                    ('v', drag_cx, wg.center().x()),
-                    ('v', drag_left, wg.right()),
-                    ('v', drag_right, wg.left()),
-                    ('h', drag_top, wg.top()),
-                    ('h', drag_bottom, wg.bottom()),
-                    ('h', drag_cy, wg.center().y()),
-                    ('h', drag_top, wg.bottom()),
-                    ('h', drag_bottom, wg.top()),
-                ]
-                for direction, drag_val, target_val in refs:
-                    diff = abs(drag_val - target_val)
-                    if diff > threshold:
-                        continue
-                    if direction == 'v' and diff < best_dx:
-                        best_dx = diff
-                        offset = drag_val - x
-                        snap_x_val = target_val - offset
-                        snap_x_line = ('v', target_val)
-                    elif direction == 'h' and diff < best_dy:
-                        best_dy = diff
-                        offset = drag_val - y
-                        snap_y_val = target_val - offset
-                        snap_y_line = ('h', target_val)
+            for direction, ref_pos in h_refs:
+                dy = abs(drag_cy - ref_pos)
+                if dy <= threshold and dy < best_dy:
+                    best_dy = dy
+                    snap_y_val = ref_pos - h / 2
+                    snap_y_line = (direction, ref_pos)
 
         if snap_x_val is not None:
             snapped_x = int(round(snap_x_val))
