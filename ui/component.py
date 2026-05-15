@@ -197,25 +197,6 @@ class DraggableWidget(QWidget):
                 painter.setFont(font)
                 label_text = f"☰ {self.component_id}"
                 painter.drawText(8, 18, label_text)
-                
-                w = self.width()
-                h = self.height()
-                
-                diagonal_pen = QPen(QColor(255, 255, 255, 100))
-                diagonal_pen.setWidth(1)
-                diagonal_pen.setStyle(Qt.PenStyle.DashLine)
-                painter.setPen(diagonal_pen)
-                painter.drawLine(0, 0, w, h)
-                painter.drawLine(w, 0, 0, h)
-                
-                center_x = w // 2
-                center_y = h // 2
-                center_pen = QPen(self._cached_primary_color)
-                center_pen.setWidth(2)
-                center_pen.setStyle(Qt.PenStyle.DashLine)
-                painter.setPen(center_pen)
-                painter.drawLine(center_x, 0, center_x, h)
-                painter.drawLine(0, center_y, w, center_y)
             
             painter.end()
     
@@ -272,8 +253,11 @@ class DraggableWidget(QWidget):
                 new_pos.setY(max(0, min(new_pos.y(), parent_rect.height() - self.height())))
             
             main_window = self._getMainWindow()
-            if main_window and hasattr(main_window, 'getSnapPosition'):
-                snapped_x, snapped_y = main_window.getSnapPosition(new_pos.x(), new_pos.y(), self.width(), self.height())
+            align_lines = []
+            if main_window and hasattr(main_window, '_computeSnap'):
+                snapped_x, snapped_y, align_lines = main_window._computeSnap(
+                    new_pos.x(), new_pos.y(), self.width(), self.height(), self
+                )
                 new_pos.setX(snapped_x)
                 new_pos.setY(snapped_y)
             
@@ -281,8 +265,8 @@ class DraggableWidget(QWidget):
             self._percent_x, self._percent_y = self._calculatePercentFromPosition()
             self.positionChanged.emit(self._percent_x, self._percent_y)
             
-            if main_window and hasattr(main_window, 'updateWidgetGuideLines'):
-                main_window.updateWidgetGuideLines()
+            if main_window and hasattr(main_window, '_guideOverlay') and main_window._guideOverlay:
+                main_window._guideOverlay.setAlignLines(align_lines)
             
             event.accept()
             return
@@ -290,10 +274,9 @@ class DraggableWidget(QWidget):
         super().mouseMoveEvent(event)
     
     def _getMainWindow(self):
-        """获取主窗口"""
         widget = self.parentWidget()
         while widget:
-            if hasattr(widget, 'getSnapPosition'):
+            if hasattr(widget, '_computeSnap'):
                 return widget
             widget = widget.parentWidget()
         return None
@@ -307,6 +290,10 @@ class DraggableWidget(QWidget):
                 self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
             
             self.update()
+
+            main_window = self._getMainWindow()
+            if main_window and hasattr(main_window, 'clearDragAlignLines'):
+                main_window.clearDragAlignLines()
             
             event.accept()
             return

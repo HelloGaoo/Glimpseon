@@ -94,32 +94,24 @@ class GuideLineOverlay(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._snapLines = []
-        self._visible = False
+        self._alignLines = []
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-    def setSnapLines(self, lines):
-        self._snapLines = lines
-        if self._visible:
-            self.update()
-
-    def showOverlay(self):
-        self._visible = True
-        self.show()
+    def setAlignLines(self, lines):
+        self._alignLines = lines
         self.update()
 
-    def hideOverlay(self):
-        self._visible = False
-        self._snapLines = []
-        self.hide()
-        self.repaint()
+    def showOverlay(self):
+        self.show()
+        self.raise_()
 
-    def isVisible(self):
-        return self._visible and super().isVisible()
+    def hideOverlay(self):
+        self._alignLines = []
+        self.hide()
 
     def paintEvent(self, event):
-        if not self._visible or not self._snapLines:
+        if not self._alignLines:
             return
 
         painter = QPainter(self)
@@ -133,37 +125,15 @@ class GuideLineOverlay(QWidget):
         else:
             primary_color = theme_color
 
-        for line_data in self._snapLines:
-            if len(line_data) == 2:
-                direction, pos = line_data
-                is_center = (direction in ('h', 'v') and pos == 0.5)
-            elif len(line_data) >= 3:
-                direction, pos = line_data[0], line_data[1]
-                is_center = line_data[2] if len(line_data) > 2 else False
+        pen = QPen(QColor(primary_color.red(), primary_color.green(), primary_color.blue(), 160))
+        pen.setWidth(1)
+        pen.setStyle(Qt.PenStyle.DashLine)
+        painter.setPen(pen)
+        for direction, pos in self._alignLines:
+            if direction == 'h':
+                painter.drawLine(0, int(pos), w, int(pos))
             else:
-                continue
-
-            if is_center:
-                color = QColor(primary_color)
-                pen = QPen(color)
-                pen.setWidth(3)
-            elif direction.startswith('widget'):
-                pen = QPen(QColor(100, 200, 255, 80))
-                pen.setWidth(1)
-            else:
-                opacity = 120 if direction.endswith('third') else 80
-                pen = QPen(QColor(255, 255, 255, opacity))
-                pen.setWidth(1)
-
-            pen.setStyle(Qt.PenStyle.DashLine)
-            painter.setPen(pen)
-
-            if direction.endswith('h') or direction == 'h':
-                y = int(pos)
-                painter.drawLine(0, y, w, y)
-            else:
-                x = int(pos)
-                painter.drawLine(x, 0, x, h)
+                painter.drawLine(int(pos), 0, int(pos), h)
 
         painter.end()
 
@@ -177,8 +147,7 @@ class HomeInterface(QWidget):
         self.setObjectName("home")
         self.isEditMode = False
         self._guideOverlay = None
-        self._snapLines = []
-        self._snapThreshold = 10
+        self._snapThreshold = 8
 
         self._initBackground()
         self._initLabels()
@@ -1094,46 +1063,10 @@ class HomeInterface(QWidget):
             self._guideOverlay = GuideLineOverlay(self.homeContent)
             self._guideOverlay.setGeometry(self.homeContent.rect())
 
-        content_rect = self.homeContent.rect()
-        w, h = content_rect.width(), content_rect.height()
-
-        snap_lines = []
-
-        guide_positions = [
-            (0.5, 'h', 'center'), (0.5, 'v', 'center'),
-            (1 / 3, 'h', 'third'), (2 / 3, 'h', 'third'),
-            (1 / 3, 'v', 'third'), (2 / 3, 'v', 'third'),
-            (0.25, 'h', 'quarter'), (0.75, 'h', 'quarter'),
-            (0.25, 'v', 'quarter'), (0.75, 'v', 'quarter'),
-        ]
-
-        for pos, direction, line_type in guide_positions:
-            y_or_x = int(h * pos) if direction == 'h' else int(w * pos)
-            is_center = (line_type == 'center')
-            snap_lines.append((direction, y_or_x, is_center))
-
-        if hasattr(self, '_draggable_widgets'):
-            for widget in self._draggable_widgets:
-                if not widget or not widget.isVisible():
-                    continue
-                geo = widget.geometry()
-                positions = [
-                    ('widget_v', geo.left(), False),
-                    ('widget_v', geo.center().x(), True),
-                    ('widget_v', geo.right(), False),
-                    ('widget_h', geo.top(), False),
-                    ('widget_h', geo.center().y(), True),
-                    ('widget_h', geo.bottom(), False),
-                ]
-                snap_lines.extend(positions)
-
-        self._snapLines = snap_lines
-        self._guideOverlay.setSnapLines(snap_lines)
+        self._guideOverlay.setAlignLines([])
         self._guideOverlay.showOverlay()
-        self._guideOverlay.raise_()
 
     def _hideGuideLines(self):
-        self._snapLines = []
         if self._guideOverlay:
             self._guideOverlay.hideOverlay()
 
@@ -1143,66 +1076,123 @@ class HomeInterface(QWidget):
         if not hasattr(self, 'homeContent') or not self.homeContent:
             return
         self._guideOverlay.setGeometry(self.homeContent.rect())
-        self._showGuideLines()
 
-    def updateWidgetGuideLines(self):
-        if not self.isEditMode or not hasattr(self, 'homeContent'):
+    def _computeSnap(self, x, y, w, h, dragging_widget=None):
+        snapped_x, snapped_y = x, y
+        align_lines = []
+        threshold = self._snapThreshold
+
+        drag_left = x
+        drag_right = x + w
+        drag_top = y
+        drag_bottom = y + h
+        drag_cx = x + w / 2
+        drag_cy = y + h / 2
+
+        best_dx = threshold + 1
+        best_dy = threshold + 1
+        snap_x_val = None
+        snap_y_val = None
+        snap_x_line = None
+        snap_y_line = None
+
+        if hasattr(self, 'homeContent') and self.homeContent:
+            cw = self.homeContent.width()
+            ch = self.homeContent.height()
+            center_x = cw / 2
+            center_y = ch / 2
+
+            dx = abs(drag_cx - center_x)
+            if dx <= threshold and dx < best_dx:
+                best_dx = dx
+                snap_x_val = center_x - w / 2
+                snap_x_line = ('v', center_x)
+
+            dy = abs(drag_cy - center_y)
+            if dy <= threshold and dy < best_dy:
+                best_dy = dy
+                snap_y_val = center_y - h / 2
+                snap_y_line = ('h', center_y)
+
+        if dragging_widget and hasattr(self, '_draggable_widgets'):
+            for widget in self._draggable_widgets:
+                if widget is dragging_widget or not widget or not widget.isVisible():
+                    continue
+                wg = widget.geometry()
+                refs = [
+                    ('v', drag_left, wg.left()),
+                    ('v', drag_right, wg.right()),
+                    ('v', drag_cx, wg.center().x()),
+                    ('v', drag_left, wg.right()),
+                    ('v', drag_right, wg.left()),
+                    ('h', drag_top, wg.top()),
+                    ('h', drag_bottom, wg.bottom()),
+                    ('h', drag_cy, wg.center().y()),
+                    ('h', drag_top, wg.bottom()),
+                    ('h', drag_bottom, wg.top()),
+                ]
+                for direction, drag_val, target_val in refs:
+                    diff = abs(drag_val - target_val)
+                    if diff > threshold:
+                        continue
+                    if direction == 'v' and diff < best_dx:
+                        best_dx = diff
+                        offset = drag_val - x
+                        snap_x_val = target_val - offset
+                        snap_x_line = ('v', target_val)
+                    elif direction == 'h' and diff < best_dy:
+                        best_dy = diff
+                        offset = drag_val - y
+                        snap_y_val = target_val - offset
+                        snap_y_line = ('h', target_val)
+
+        if snap_x_val is not None:
+            snapped_x = int(round(snap_x_val))
+            align_lines.append(snap_x_line)
+        if snap_y_val is not None:
+            snapped_y = int(round(snap_y_val))
+            align_lines.append(snap_y_line)
+
+        return snapped_x, snapped_y, align_lines
+
+    def getSnapPosition(self, x, y, widget_width, widget_height, dragging_widget=None):
+        sx, sy, _ = self._computeSnap(x, y, widget_width, widget_height, dragging_widget)
+        return sx, sy
+
+    def showDragAlignLines(self, dragging_widget):
+        if not self._guideOverlay or not self._guideOverlay.isVisible():
             return
-        self._showGuideLines()
+        if not dragging_widget:
+            self._guideOverlay.setAlignLines([])
+            return
 
-    def getSnapPosition(self, x: int, y: int, widget_width: int, widget_height: int) -> tuple:
-        if not self._snapLines:
-            return x, y
+        geo = dragging_widget.geometry()
+        _, _, align_lines = self._computeSnap(
+            geo.x(), geo.y(), geo.width(), geo.height(), dragging_widget
+        )
+        self._guideOverlay.setAlignLines(align_lines)
 
-        snapped_x = x
-        snapped_y = y
-
-        center_x = x + widget_width // 2
-        center_y = y + widget_height // 2
-        right_x = x + widget_width
-        bottom_y = y + widget_height
-
-        for direction, pos in self._snapLines:
-            if direction == 'v':
-                for check_x in [x, center_x, right_x]:
-                    if abs(check_x - pos) <= self._snapThreshold:
-                        if check_x == x:
-                            snapped_x = pos
-                        elif check_x == center_x:
-                            snapped_x = pos - widget_width // 2
-                        elif check_x == right_x:
-                            snapped_x = pos - widget_width
-                        break
-            else:
-                for check_y in [y, center_y, bottom_y]:
-                    if abs(check_y - pos) <= self._snapThreshold:
-                        if check_y == y:
-                            snapped_y = pos
-                        elif check_y == center_y:
-                            snapped_y = pos - widget_height // 2
-                        elif check_y == bottom_y:
-                            snapped_y = pos - widget_height
-                        break
-
-        return snapped_x, snapped_y
+    def clearDragAlignLines(self):
+        if self._guideOverlay:
+            self._guideOverlay.setAlignLines([])
 
     def _onClockPositionChanged(self, x: float, y: float):
-        self.updateWidgetGuideLines()
+        pass
 
     def _onWeatherPositionChanged(self, x: float, y: float):
-        self.updateWidgetGuideLines()
+        pass
 
     def _onPoetryPositionChanged(self, x: float, y: float):
-        self.updateWidgetGuideLines()
+        pass
 
     def _onCountdownPositionChanged(self, x: float, y: float):
-        self.updateWidgetGuideLines()
+        pass
 
     def _onSchoolInfoPositionChanged(self, x: float, y: float):
-        self.updateWidgetGuideLines()
+        pass
 
     def _onMediaPositionChanged(self, x: float, y: float):
-        self.updateWidgetGuideLines()
+        pass
 
     def _updateEditButtonPosition(self):
         if not hasattr(self, 'editPanel') or not hasattr(self, 'editLayout'):
