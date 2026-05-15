@@ -74,6 +74,7 @@ from qfluentwidgets import (
     StrongBodyLabel,
     BodyLabel,
     SubtitleLabel,
+    SmoothScrollArea,
 )
 
 from core.config import cfg, save_cfg
