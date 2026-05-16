@@ -377,8 +377,6 @@ class SettingInterface(ScrollArea):
                             attr.valueChanged.emit(attr.value)
                 
                 main_window = self.window()
-                if hasattr(main_window, 'editPanel') and main_window.editPanel:
-                    main_window.editPanel.refreshAllSettings()
                 
                 if hasattr(main_window, '_MainWindow__updateQuickLaunch'):
                     main_window._MainWindow__updateQuickLaunch()
@@ -548,7 +546,6 @@ class SettingInterface(ScrollArea):
                         attr.valueChanged.emit(attr.value)
             
             main_window = self.window()
-            if hasattr(main_window, 'editPanel'): main_window.editPanel.refreshAllSettings()
             if hasattr(main_window, '_MainWindow__updateQuickLaunch'): main_window._MainWindow__updateQuickLaunch()
             if hasattr(main_window, '_MainWindow__updateClock'): main_window._MainWindow__updateClock()
             if hasattr(main_window, '_MainWindow__updatePoetry'): main_window._MainWindow__updatePoetry()

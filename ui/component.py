@@ -77,6 +77,7 @@ logger = logging.getLogger(__name__)
 
 class DraggableWidget(QWidget):
     positionChanged = pyqtSignal(float, float)
+    settingRequested = pyqtSignal(str)
     def __init__(self, parent=None, component_id: str = ""):
         super().__init__(parent)
         self.component_id = component_id
@@ -84,6 +85,7 @@ class DraggableWidget(QWidget):
         self._dragging = False
         self._drag_start_pos = QPoint()
         self._widget_start_pos = QPoint()
+        self._click_start_pos = QPoint()
         
         self._percent_x = 0.5
         self._percent_y = 0.5
@@ -195,7 +197,7 @@ class DraggableWidget(QWidget):
                 font = QFont()
                 font.setPointSize(8)
                 painter.setFont(font)
-                label_text = f"☰ {self.component_id}"
+                label_text = f"⚙ {self.component_id}  点击设置"
                 painter.drawText(8, 18, label_text)
             
             painter.end()
@@ -233,6 +235,7 @@ class DraggableWidget(QWidget):
             self._dragging = True
             self._drag_start_pos = event.globalPosition().toPoint()
             self._widget_start_pos = self.pos()
+            self._click_start_pos = event.globalPosition().toPoint()
             self.setCursor(QCursor(Qt.CursorShape.ClosedHandCursor))
             self.update()
             self.raise_()
@@ -240,6 +243,15 @@ class DraggableWidget(QWidget):
             return
         
         super().mousePressEvent(event)
+    
+    def mouseDoubleClickEvent(self, event):
+        if self._draggable and event.button() == Qt.MouseButton.LeftButton:
+            self._dragging = False
+            self.setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
+            self.settingRequested.emit(self.component_id)
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)
     
     def mouseMoveEvent(self, event):
         if self._dragging and self._draggable:
@@ -294,6 +306,11 @@ class DraggableWidget(QWidget):
             main_window = self._getMainWindow()
             if main_window and hasattr(main_window, 'clearDragAlignLines'):
                 main_window.clearDragAlignLines()
+
+            if self._draggable and hasattr(self, '_click_start_pos'):
+                delta = event.globalPosition().toPoint() - self._click_start_pos
+                if abs(delta.x()) < 5 and abs(delta.y()) < 5:
+                    self.settingRequested.emit(self.component_id)
             
             event.accept()
             return
@@ -635,6 +652,7 @@ class MediaWidget(QWidget):
         self._cover_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
 
     def start(self):
+        logger.info(f"媒体组件启动: 更新间隔={cfg.mediaUpdateInterval.value}秒")
         self._timer.start(cfg.mediaUpdateInterval.value * 1000)
         self._prog_timer.start(1000)
         self._update()
@@ -649,6 +667,7 @@ class MediaWidget(QWidget):
             return
         m = get_media_info()
         if not m or not m.is_valid():
+            logger.warning(f"媒体更新: 无有效媒体信息 (m={m})")
             self._no_media()
             return
         

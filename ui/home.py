@@ -159,7 +159,7 @@ class HomeInterface(QWidget):
         self._initTimers()
 
         self.editPanelCreated = False
-        self.editPanel = None
+        self.editPanel = None  # deprecated
 
         self.setStyleSheet(load_qss('home.qss'))
         cfg.themeChanged.connect(self._updateTheme)
@@ -338,6 +338,8 @@ class HomeInterface(QWidget):
                     widget.inner_layout.activate()
                     widget.adjustSize()
                 widget._updatePositionFromPercent()
+                if hasattr(widget, 'settingRequested'):
+                    widget.settingRequested.connect(self._openComponentSetting)
 
         self.quickLaunchDock.setParent(self.homeContent)
         self.quickLaunchDock.show()
@@ -484,12 +486,6 @@ class HomeInterface(QWidget):
             for widget in self._draggable_widgets:
                 if widget and hasattr(widget, 'onParentResize'):
                     widget.onParentResize()
-
-        if hasattr(self, 'editPanel') and self.editPanel:
-            try:
-                self.editPanel.updatePositionOnResize()
-            except Exception:
-                pass
 
         if hasattr(self, '_guideOverlay') and self._guideOverlay and self._guideOverlay.isVisible():
             self._updateGuideLinesPosition()
@@ -1000,50 +996,23 @@ class HomeInterface(QWidget):
             return 'exe.ico'
 
     def _enterEditMode(self):
-        if not hasattr(self, 'editPanel') or self.editPanel is None:
-            try:
-                self._createEditPanel()
-                if self.editPanel is None:
-                    InfoBar.error('编辑模式', '无法创建编辑面板', parent=self, duration=3000)
-                    return
-            except Exception as e:
-                logger.exception(f'创建编辑面板失败: {e}')
-                InfoBar.error('编辑模式', '无法创建编辑面板', parent=self, duration=3000)
-                return
-
-        logger.info(f'editPanel状态: exists={hasattr(self, "editPanel")}, isNone={self.editPanel is None}, isVisible={self.editPanel.isVisible() if self.editPanel else "N/A"}')
-        if self.editPanel.isVisible():
-            logger.info('隐藏编辑面板')
-            self.editPanel.hidePanel()
+        if self.isEditMode:
             self.isEditMode = False
             self.mainWindow.navigationInterface.setEnabled(True)
             self._setDraggableEnabled(False)
             self._hideGuideLines()
         else:
-            logger.info('显示编辑面板')
-            self.editPanel.showPanel()
             self.isEditMode = True
             self.mainWindow.navigationInterface.setEnabled(False)
             self._setDraggableEnabled(True)
             self._showGuideLines()
             self._updateEditButtonPosition()
 
-    def _createEditPanel(self):
-        if hasattr(self, 'editPanel') and self.editPanel is not None:
-            return
-        self.editPanel = EditPanel(self.mainWindow)
-        pr = self.mainWindow.rect()
-
-        if self.editPanel.isLeftSide:
-            self.editPanel.setGeometry(-self.editPanel._width, 0, self.editPanel._width, pr.height())
-        else:
-            self.editPanel.setGeometry(pr.width(), 0, self.editPanel._width, pr.height())
-        self.editPanel.hide()
-        self.editPanel.setVisible(False)
-
-        if not self.editPanelCreated:
-            self._updateEditButtonPosition()
-            self.editPanelCreated = True
+    def _openComponentSetting(self, component_id: str):
+        from ui.component_settings import ComponentSettingDialog
+        dialog = ComponentSettingDialog.create(component_id, self)
+        if dialog:
+            dialog.exec()
 
     def _setDraggableEnabled(self, enabled: bool):
         if hasattr(self, '_draggable_widgets'):
@@ -1183,7 +1152,7 @@ class HomeInterface(QWidget):
         pass
 
     def _updateEditButtonPosition(self):
-        if not hasattr(self, 'editPanel') or not hasattr(self, 'editLayout'):
+        if not hasattr(self, 'editLayout'):
             return
 
         while self.editLayout.count():
@@ -1191,16 +1160,10 @@ class HomeInterface(QWidget):
             if item.widget():
                 item.widget().setParent(None)
 
-        if self.editPanel.isLeftSide:
-            self.editLayout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-            self.editLayout.setContentsMargins(20, 0, 0, 20)
-            if hasattr(self, 'gridLayout'):
-                self.gridLayout.setAlignment(self.editContainer, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-        else:
-            self.editLayout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
-            self.editLayout.setContentsMargins(0, 0, 20, 20)
-            if hasattr(self, 'gridLayout'):
-                self.gridLayout.setAlignment(self.editContainer, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
+        self.editLayout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
+        self.editLayout.setContentsMargins(0, 0, 20, 20)
+        if hasattr(self, 'gridLayout'):
+            self.gridLayout.setAlignment(self.editContainer, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
 
         self.editLayout.addWidget(self.editButton)
 
