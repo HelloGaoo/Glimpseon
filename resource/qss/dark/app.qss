@@ -1,3 +1,46 @@
+/* 启动窗口 */
+
+#contentWidget {
+    background-color: rgba(32, 32, 32, 230);
+    border-radius: 10px;
+}
+
+StrongBodyLabel {
+    color: #FFFFFF;
+    font-size: 24px;
+    font-weight: bold;
+    font-family: "HarmonyOS Sans";
+}
+
+BodyLabel {
+    color: #999999;
+    font-size: 14px;
+}
+
+#versionLabel {
+    color: #777777;
+    font-size: 12px;
+}
+
+#statusLabel {
+    color: #CCCCCC;
+    font-size: 13px;
+}
+
+ProgressBar {
+    background-color: #3A3A3A;
+    border-radius: 2px;
+    min-height: 4px;
+    max-height: 4px;
+}
+
+ProgressBar::chunk {
+    background-color: #0078D4;
+    border-radius: 2px;
+}
+
+/* 向导窗口 */
+
 WizardWindow {
     background-color: rgb(39, 39, 39);
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
@@ -6,6 +49,8 @@ WizardWindow {
 WizardWindow QWidget {
     background-color: rgb(39, 39, 39);
 }
+
+/* 标签 */
 
 WizardWindow StrongBodyLabel {
     color: white;
@@ -24,6 +69,20 @@ WizardWindow BodyLabel {
     margin-bottom: 6px;
 }
 
+WizardWindow QLabel#titleLabel {
+    color: white;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+WizardWindow QLabel#welcomeLabel {
+    margin: 0;
+    padding-left: 8px;
+}
+
+/* 控件 */
+
 WizardWindow CheckBox {
     color: white;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
@@ -34,13 +93,6 @@ WizardWindow CheckBox {
 
 WizardWindow a {
     color: #4fc08d;
-}
-
-WizardWindow QLabel#titleLabel {
-    color: white;
-    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
-    font-size: 16px;
-    font-weight: bold;
 }
 
 WizardWindow QPushButton#closeButton {
@@ -55,10 +107,4 @@ WizardWindow QPushButton#closeButton:hover {
     background-color: #E81123;
     color: white;
     border: none;
-}
-
-/* 欢迎标签 */
-WizardWindow QLabel#welcomeLabel {
-    margin: 0;
-    padding-left: 8px;
 }

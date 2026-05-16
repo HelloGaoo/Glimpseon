@@ -183,7 +183,7 @@ class AboutInterface(BaseScrollAreaInterface):
     def __setQss(self):
         """ 设置样式表 """
         self.scrollWidget.setObjectName('scrollWidget')
-        self.setStyleSheet(load_qss('about_interface.qss'))
+        self.setStyleSheet(load_qss('about.qss'))
     
     def __connectSignalToSlot(self):
         self.githubButton.clicked.connect(self.__openGithub)

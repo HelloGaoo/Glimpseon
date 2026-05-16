@@ -84,7 +84,7 @@ class UpdateInterface(BaseScrollAreaInterface):
         """ 设置样式表 """
         self.scrollWidget.setObjectName('scrollWidget')
         self.titleLabel.setObjectName('settingLabel')
-        self.setStyleSheet(load_qss('update_interface.qss'))
+        self.setStyleSheet(load_qss('update.qss'))
     
     def _onThemeChanged(self, theme: Theme):
         """ 主题变更槽函数 """

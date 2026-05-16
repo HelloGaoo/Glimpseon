@@ -6,12 +6,17 @@
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 滚动区域 */
 #debug #scrollWidget {
     background-color: rgb(39, 39, 39);
 }
 
+#debug QScrollArea {
+    background-color: transparent;
+    border: none;
+}
+
 /* 标题 */
+
 #debug QLabel#settingLabel {
     font-size: 33px;
     background-color: transparent;
@@ -19,19 +24,6 @@
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 卡片 */
-#debug CardWidget {
-    background-color: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 8px;
-    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
-}
-
-#debug CardWidget:hover {
-    background-color: rgba(255, 255, 255, 0.08);
-}
-
-/* 标题 */
 #debug SubtitleLabel {
     color: #ffffff;
     font-size: 18px;
@@ -49,7 +41,37 @@
     font-weight: 600;
 }
 
+#debug BodyLabel#debugValueLabel {
+    font-size: 18px;
+    font-weight: bold;
+    color: #0078d4;
+}
+
+#debug QLabel {
+    color: #d0d0d0;
+    background-color: transparent;
+}
+
+#debug QLabel#debugSeparator {
+    background-color: #3d3d3d;
+    max-height: 1px;
+}
+
+/* 卡片 */
+
+#debug CardWidget {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#debug CardWidget:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
 /* 按钮 */
+
 #debug PrimaryPushButton {
     background-color: #0078d4;
     color: #ffffff;
@@ -104,7 +126,8 @@
     border-color: #0078d4;
 }
 
-/* 文本编辑框 */
+/* 输入控件 */
+
 #debug QTextEdit {
     background-color: #1e1e1e;
     color: #d4d4d4;
@@ -125,92 +148,30 @@
     color: #888888;
 }
 
-/* 滚动区域 */
-#debug QScrollArea {
-    background-color: transparent;
-    border: none;
-}
-
-#debug QScrollBar:vertical {
-    background-color: #2b2b2b;
-    width: 10px;
-    border-radius: 5px;
-    margin: 2px;
-}
-
-#debug QScrollBar::handle:vertical {
-    background-color: #555555;
-    border-radius: 5px;
-    min-height: 20px;
-    margin: 2px;
-}
-
-#debug QScrollBar::handle:vertical:hover {
-    background-color: #666666;
-}
-
-#debug QScrollBar::handle:vertical:pressed {
-    background-color: #777777;
-}
-
-#debug QScrollBar::add-line:vertical,
-#debug QScrollBar::sub-line:vertical {
-    height: 0px;
-}
-
-#debug QScrollBar::add-page:vertical,
-#debug QScrollBar::sub-page:vertical {
-    background: none;
-}
-
-#debug QLabel#debugSeparator {
+#debug SpinBox {
     background-color: #3d3d3d;
-    max-height: 1px;
-}
-
-/* 布局 */
-#debug QVBoxLayout,
-#debug QHBoxLayout,
-#debug QGridLayout {
-    spacing: 10px;
-}
-
-/* 复选框 */
-#debug QCheckBox {
     color: #ffffff;
-    spacing: 8px;
-}
-
-#debug QCheckBox::indicator {
-    width: 18px;
-    height: 18px;
-    border-radius: 4px;
     border: 1px solid #555555;
-    background-color: #3d3d3d;
+    border-radius: 4px;
+    padding: 4px 8px;
 }
 
-#debug QCheckBox::indicator:checked {
-    background-color: #0078d4;
+#debug SpinBox:hover {
     border-color: #0078d4;
-    image: url(:/qfluentwidgets/images/icons/CheckBlack_16x16.png);
 }
 
-/* 进度条 */
-#debug QProgressBar {
-    background-color: #3d3d3d;
+#debug SpinBox::up-button,
+#debug SpinBox::down-button {
     border: none;
-    border-radius: 4px;
-    text-align: center;
-    color: #ffffff;
-    height: 8px;
+    width: 16px;
+    background-color: transparent;
 }
 
-#debug QProgressBar::chunk {
-    background-color: #0078d4;
-    border-radius: 4px;
+#debug SpinBox::up-button:hover,
+#debug SpinBox::down-button:hover {
+    background-color: #4d4d4d;
 }
 
-/* 下拉框 */
 #debug ComboBox {
     background-color: #3d3d3d;
     color: #ffffff;
@@ -258,38 +219,45 @@
     background-color: #0078d4;
 }
 
-/* 标签 */
-#debug QLabel {
-    color: #d0d0d0;
-    background-color: transparent;
-}
+/* 复选框 */
 
-/* 微调框 */
-#debug SpinBox {
-    background-color: #3d3d3d;
+#debug QCheckBox {
     color: #ffffff;
-    border: 1px solid #555555;
+    spacing: 8px;
+}
+
+#debug QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
     border-radius: 4px;
-    padding: 4px 8px;
+    border: 1px solid #555555;
+    background-color: #3d3d3d;
 }
 
-#debug SpinBox:hover {
+#debug QCheckBox::indicator:checked {
+    background-color: #0078d4;
     border-color: #0078d4;
+    image: url(:/qfluentwidgets/images/icons/CheckBlack_16x16.png);
 }
 
-#debug SpinBox::up-button,
-#debug SpinBox::down-button {
+/* 进度条 */
+
+#debug QProgressBar {
+    background-color: #3d3d3d;
     border: none;
-    width: 16px;
-    background-color: transparent;
+    border-radius: 4px;
+    text-align: center;
+    color: #ffffff;
+    height: 8px;
 }
 
-#debug SpinBox::up-button:hover,
-#debug SpinBox::down-button:hover {
-    background-color: #4d4d4d;
+#debug QProgressBar::chunk {
+    background-color: #0078d4;
+    border-radius: 4px;
 }
 
 /* 分组框 */
+
 #debug QGroupBox {
     background-color: #2b2b2b;
     border: 1px solid #3d3d3d;
@@ -308,14 +276,50 @@
     color: #0078d4;
 }
 
-/* 调试面板数值标签 */
-#debug BodyLabel#debugValueLabel {
-    font-size: 18px;
-    font-weight: bold;
-    color: #0078d4;
+/* 滚动条 */
+
+#debug QScrollBar:vertical {
+    background-color: #2b2b2b;
+    width: 10px;
+    border-radius: 5px;
+    margin: 2px;
+}
+
+#debug QScrollBar::handle:vertical {
+    background-color: #555555;
+    border-radius: 5px;
+    min-height: 20px;
+    margin: 2px;
+}
+
+#debug QScrollBar::handle:vertical:hover {
+    background-color: #666666;
+}
+
+#debug QScrollBar::handle:vertical:pressed {
+    background-color: #777777;
+}
+
+#debug QScrollBar::add-line:vertical,
+#debug QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+#debug QScrollBar::add-page:vertical,
+#debug QScrollBar::sub-page:vertical {
+    background: none;
+}
+
+/* 布局 */
+
+#debug QVBoxLayout,
+#debug QHBoxLayout,
+#debug QGridLayout {
+    spacing: 10px;
 }
 
 /* 天气图标网格 */
+
 #debug #weatherIconGrid {
     background-color: transparent;
 }

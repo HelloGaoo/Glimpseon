@@ -165,7 +165,7 @@ class SplashScreen(QWidget):
 
     def _loadQss(self):
         """加载 QSS"""
-        self.setStyleSheet(load_qss('splash_screen.qss'))
+        self.setStyleSheet(load_qss('app.qss'))
 
     def _updateBackgroundStyle(self):
         """更新背景"""
@@ -898,7 +898,7 @@ class WizardWindow(QDialog):
         setThemeColor(theme_color)
 
     def __setQss(self):
-        self.setStyleSheet(load_qss('wizard_interface.qss'))
+        self.setStyleSheet(load_qss('app.qss'))
 
 class MainWindow(FluentWindow):
     """主窗口"""

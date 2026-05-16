@@ -912,7 +912,7 @@ class WallpaperInterface(ScrollArea):
         if hasattr(self, 'scrollWidget'):
             self.scrollWidget.setObjectName('scrollWidget')
         self.wallpaperLabel.setObjectName('settingLabel')
-        self.setStyleSheet(load_qss('setting_interface.qss'))
+        self.setStyleSheet(load_qss('setting.qss'))
     
     def resizeEvent(self, event):
         super().resizeEvent(event)

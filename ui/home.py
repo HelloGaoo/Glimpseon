@@ -161,7 +161,7 @@ class HomeInterface(QWidget):
         self.editPanelCreated = False
         self.editPanel = None
 
-        self.setStyleSheet(load_qss('main_interface.qss'))
+        self.setStyleSheet(load_qss('home.qss'))
         cfg.themeChanged.connect(self._updateTheme)
 
         logger.info("主界面初始化完成")
@@ -578,7 +578,7 @@ class HomeInterface(QWidget):
             self.weatherContainer.updateSize()
 
     def _updateTheme(self):
-        self.setStyleSheet(load_qss('main_interface.qss'))
+        self.setStyleSheet(load_qss('home.qss'))
 
     def _updatePoetryInterval(self):
         self.poetryTimer.stop()
@@ -1704,7 +1704,7 @@ class EditPanel(QWidget):
 
     def _updateTheme(self):
         """更新主题"""
-        self.setStyleSheet(load_qss('edit_panel.qss'))
+        self.setStyleSheet(load_qss('home.qss'))
 
     def showPanel(self):
         """显示编辑面板"""

@@ -1,22 +1,22 @@
 /* 下载界面 */
+
 DownloadInterface {
     background-color: rgb(39, 39, 39);
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 滚动区域 */
 DownloadInterface #scrollWidget {
     background-color: rgb(39, 39, 39);
 }
 
-/* 滚动区域 */
-QScrollArea {
+DownloadInterface QScrollArea {
     border: none;
     background-color: rgb(39, 39, 39);
 }
 
 /* 标题 */
-QLabel#settingLabel {
+
+DownloadInterface QLabel#settingLabel {
     font-size: 33px;
     background-color: transparent;
     color: white;
@@ -24,33 +24,33 @@ QLabel#settingLabel {
 }
 
 /* 卡片 */
-CardWidget {
+
+DownloadInterface CardWidget {
     background-color: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-CardWidget:hover {
+DownloadInterface CardWidget:hover {
     background-color: rgba(255, 255, 255, 0.08);
 }
 
-/* 软件名称 */
-QLabel#softwareNameLabel {
+/* 标签 */
+
+DownloadInterface QLabel#softwareNameLabel {
     font-size: 18px;
     color: white;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 软件描述 */
-QLabel#softwareDescLabel {
+DownloadInterface QLabel#softwareDescLabel {
     font-size: 14px;
     color: #888888;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 分区标题 */
-QLabel#sectionTitleLabel {
+DownloadInterface QLabel#sectionTitleLabel {
     font-size: 20px;
     color: white;
     margin-top: 20px;
@@ -58,28 +58,51 @@ QLabel#sectionTitleLabel {
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 模式选择容器 */
+DownloadInterface QLabel#modeLabel,
+DownloadInterface QLabel#sourceLabel {
+    font-size: 18px;
+    color: white;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+DownloadInterface QLabel#softwareEmptyIconLabel {
+    font-size: 32px;
+    background-color: transparent;
+}
+
+/* 模式选择 */
+
 DownloadInterface #modeContainer {
     margin-top: 8px;
     margin-bottom: 8px;
 }
 
-/* 模式选择标签 */
-QLabel#modeLabel {
-    font-size: 18px;
+DownloadInterface QRadioButton {
+    font-size: 14px;
     color: white;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 下载源选择标签 */
-QLabel#sourceLabel {
-    font-size: 18px;
-    color: white;
-    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+DownloadInterface QRadioButton::indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    border: 2px solid #888888;
+    background-color: transparent;
 }
 
-/* 下载源选择下拉框 */
-ComboBox#sourceComboBox {
+DownloadInterface QRadioButton::indicator:checked {
+    border: 2px solid #ff6b9d;
+    background-color: #ff6b9d;
+}
+
+DownloadInterface QRadioButton::indicator:hover {
+    border: 2px solid #ff8fb3;
+}
+
+/* 下载源下拉框 */
+
+DownloadInterface ComboBox#sourceComboBox {
     font-size: 14px;
     color: white;
     background-color: rgba(255, 255, 255, 0.05);
@@ -89,17 +112,17 @@ ComboBox#sourceComboBox {
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-ComboBox#sourceComboBox:hover {
+DownloadInterface ComboBox#sourceComboBox:hover {
     background-color: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
-ComboBox#sourceComboBox::drop-down {
+DownloadInterface ComboBox#sourceComboBox::drop-down {
     border: none;
     width: 30px;
 }
 
-ComboBox#sourceComboBox::down-arrow {
+DownloadInterface ComboBox#sourceComboBox::down-arrow {
     image: none;
     border: none;
     width: 12px;
@@ -107,8 +130,9 @@ ComboBox#sourceComboBox::down-arrow {
     margin-right: 8px;
 }
 
-/* 开始下载按钮 */
-PushButton#startButton {
+/* 按钮 */
+
+DownloadInterface PushButton#startButton {
     font-size: 14px;
     color: white;
     background-color: #00c853;
@@ -118,63 +142,33 @@ PushButton#startButton {
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-PushButton#startButton:hover {
+DownloadInterface PushButton#startButton:hover {
     background-color: #00e676;
     border: none;
 }
 
-PushButton#startButton:pressed {
+DownloadInterface PushButton#startButton:pressed {
     background-color: #009624;
     border: none;
 }
 
-/* 模式选择单选按钮 */
-QRadioButton {
-    font-size: 14px;
-    color: white;
-    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
-}
-
-QRadioButton::indicator {
-    width: 16px;
-    height: 16px;
-    border-radius: 8px;
-    border: 2px solid #888888;
-    background-color: transparent;
-}
-
-QRadioButton::indicator:checked {
-    border: 2px solid #ff6b9d;
-    background-color: #ff6b9d;
-}
-
-QRadioButton::indicator:hover {
-    border: 2px solid #ff8fb3;
-}
-
-/* 进度环 */
-ProgressRing {
-    background-color: transparent;
-}
-
-ProgressRing::chunk {
-    background-color: #00e676;
-    border-radius: 30px;
-}
-
-/* 软件空图标占位 */
-QLabel#softwareEmptyIconLabel {
-    font-size: 32px;
-    background-color: transparent;
-}
-
-/* 软件官网链接按钮 */
-QToolButton#softwareLinkButton {
+DownloadInterface QToolButton#softwareLinkButton {
     border: none;
     background: transparent;
     border-radius: 4px;
 }
 
-QToolButton#softwareLinkButton:hover {
+DownloadInterface QToolButton#softwareLinkButton:hover {
     background: rgba(255, 255, 255, 0.1);
+}
+
+/* 进度环 */
+
+DownloadInterface ProgressRing {
+    background-color: transparent;
+}
+
+DownloadInterface ProgressRing::chunk {
+    background-color: #00e676;
+    border-radius: 30px;
 }

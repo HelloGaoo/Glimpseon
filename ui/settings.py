@@ -318,7 +318,7 @@ class SettingInterface(ScrollArea):
         """ 设置样式表 """
         self.scrollWidget.setObjectName('scrollWidget')
         self.settingLabel.setObjectName('settingLabel')
-        self.setStyleSheet(load_qss('setting_interface.qss'))
+        self.setStyleSheet(load_qss('setting.qss'))
 
     def __onThemeChanged(self, theme: Theme):
         """ 主题变更 """
@@ -377,7 +377,7 @@ class SettingInterface(ScrollArea):
                             attr.valueChanged.emit(attr.value)
                 
                 main_window = self.window()
-                if hasattr(main_window, 'editPanel'):
+                if hasattr(main_window, 'editPanel') and main_window.editPanel:
                     main_window.editPanel.refreshAllSettings()
                 
                 if hasattr(main_window, '_MainWindow__updateQuickLaunch'):

@@ -485,7 +485,7 @@ class MediaWidget(QWidget):
         self._init_cover_animation()
 
     def _init_ui(self):
-        self.setStyleSheet(load_qss('media_widget.qss'))
+        self.setStyleSheet(load_qss('home.qss'))
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(16, 14, 16, 12)
