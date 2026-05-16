@@ -28,7 +28,6 @@ if _BASE_DIR not in sys.path:sys.path.insert(0, _BASE_DIR)
 
 import socket
 import subprocess
-import sys
 import time
 import datetime
 import psutil
@@ -66,18 +65,17 @@ from qfluentwidgets import (
 from core.config import cfg
 from core.constants import BASE_DIR, get_resPath, load_qss
 from core.logger import logger
-from services.weather import WeatherService
-from ui.city_selector import RegionDatabase
+from services.weather import WeatherService, RegionDatabase
+
+from .common import BaseScrollAreaInterface, show_text_file
 
 
-from .base_scroll import BaseScrollAreaInterface
-
-class DeveloperPanel(BaseScrollAreaInterface):
+class DebugPanel(BaseScrollAreaInterface):
 
     def __init__(self, mainWindow):
         super().__init__("调试", parent=None)
         self.mainWindow = mainWindow
-        self.setObjectName('developerPanel')
+        self.setObjectName('debug')
 
         self.frameCount = 0
         self.lastFpsTime = time.time()
@@ -512,16 +510,17 @@ class DeveloperPanel(BaseScrollAreaInterface):
         code = self.weatherCodeCombo.currentData()
         if code is None: return
         mw = self.mainWindow
-        self._savedWeatherCode = getattr(mw, 'current_weather_code', None)
-        self._savedWeatherTemp = mw.weatherTempLabel.text() if hasattr(mw, 'weatherTempLabel') else ""
-        mw.current_weather_code = code
+        home = mw.homeInterface
+        self._savedWeatherCode = getattr(home, 'current_weather_code', None)
+        self._savedWeatherTemp = home.weatherTempLabel.text() if hasattr(home, 'weatherTempLabel') else ""
+        home.current_weather_code = code
         temp_text = self.weatherTempInput.text().strip()
         if temp_text:
-            mw.weatherTempLabel.setText(temp_text)
-        elif hasattr(mw, 'weatherTempLabel'):
+            home.weatherTempLabel.setText(temp_text)
+        elif hasattr(home, 'weatherTempLabel'):
             name = self.weatherCodeMap.get(code, "")
-            mw.weatherTempLabel.setText(f"模拟: {name}")
-        mw._MainWindow__updateWeatherIcon()
+            home.weatherTempLabel.setText(f"模拟: {name}")
+        home._updateWeatherIcon()
         InfoBar.success(title="天气模拟", content=f"已应用天气代码 {code} ({self.weatherCodeMap.get(code, '')}) 到主界面", parent=self, duration=2500)
 
     def _resetWeatherDebug(self):
@@ -531,7 +530,7 @@ class DeveloperPanel(BaseScrollAreaInterface):
         if hasattr(self, '_savedWeatherCode'): del self._savedWeatherCode
         if hasattr(self, '_savedWeatherTemp'): del self._savedWeatherTemp
         mw = self.mainWindow
-        mw._MainWindow__updateWeather()
+        mw.homeInterface._updateWeather()
 
     def _createElementCheckCard(self):
         card = CardWidget()
@@ -639,7 +638,8 @@ class DeveloperPanel(BaseScrollAreaInterface):
                     wallpaper._updateBackground()
                     wallpaper._updateMainWindowBackground()
                     wallpaper.historyManager.add(wallpaper_path, source, url)
-                    wallpaper.historyWidget.refresh()
+                    if hasattr(wallpaper, 'historyWidget'):
+                        wallpaper.historyWidget.refresh()
                 wallpaper.infoCard.updateInfo(wallpaper_path, source)
                 self._batchSuccess += 1
                 self.batchWallpaperLog.append(f"[{idx}/{total}] ✓ 成功 - {source}")
@@ -774,7 +774,7 @@ class DeveloperPanel(BaseScrollAreaInterface):
         self.changeTimer.start(50)
 
     def _loadStyleSheet(self):
-        self.setStyleSheet(load_qss('developer_panel.qss'))
+        self.setStyleSheet(load_qss('debug.qss'))
 
     def _updateTheme(self):
         self._loadStyleSheet()
@@ -838,7 +838,6 @@ class DeveloperPanel(BaseScrollAreaInterface):
 
     def _updateDebugInfo(self):
         if not self.debugUpdateToggle.isChecked(): return
-        currentTime = time.time()
         try:
             mem_info = self.process.memory_info()
             mem_mb = mem_info.rss / 1024 / 1024
@@ -1039,11 +1038,11 @@ class DeveloperPanel(BaseScrollAreaInterface):
                     event.accept()
 
             self._popOutWindow = _PopOutWindow(self)
-            self._popOutWindow.setObjectName('developerPanel')
+            self._popOutWindow.setObjectName('debug')
             self._popOutWindow.setWindowTitle("调试面板 - ClassLively")
             self._popOutWindow.setFixedSize(850, 750)
 
-            qss = load_qss('developer_panel.qss')
+            qss = load_qss('debug.qss')
             self._popOutWindow.setStyleSheet(qss)
 
             outer_layout = QVBoxLayout(self._popOutWindow)
@@ -1082,8 +1081,8 @@ class DeveloperPanel(BaseScrollAreaInterface):
             self.popOutButton.setText("恢复面板")
 
             mw = self.mainWindow
-            if hasattr(mw, 'developerNavItem'): mw.developerNavItem.setVisible(False)
-            if hasattr(mw, 'home'): mw.switchTo(mw.home)
+            if hasattr(mw, 'debugNavItem'): mw.debugNavItem.setVisible(False)
+            if hasattr(mw, 'homeInterface'): mw.switchTo(mw.homeInterface)
 
             QTimer.singleShot(300, self._refreshComponentTree)
         except Exception as e:
@@ -1100,7 +1099,7 @@ class DeveloperPanel(BaseScrollAreaInterface):
         if hasattr(self, '_savedViewportMargins'): self.setViewportMargins(self._savedViewportMargins)
         self.popOutButton.setText("弹出窗口")
         mw = self.mainWindow
-        if hasattr(mw, 'developerNavItem') and cfg.developerMode.value: mw.developerNavItem.setVisible(True)
+        if hasattr(mw, 'debugNavItem') and cfg.debugMode.value: mw.debugNavItem.setVisible(True)
         self._startTimers()
 
     def _safeCleanupPopOut(self):
@@ -1116,5 +1115,5 @@ class DeveloperPanel(BaseScrollAreaInterface):
         if hasattr(self, '_savedViewportMargins'): self.setViewportMargins(self._savedViewportMargins)
         self.popOutButton.setText("弹出窗口")
         mw = self.mainWindow
-        if hasattr(mw, 'developerNavItem') and cfg.developerMode.value: mw.developerNavItem.setVisible(True)
+        if hasattr(mw, 'debugNavItem') and cfg.debugMode.value: mw.debugNavItem.setVisible(True)
         self._startTimers()

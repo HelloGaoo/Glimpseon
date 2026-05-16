@@ -1,23 +1,23 @@
 /* 关于界面 */
+
 #about {
     background-color: rgb(39, 39, 39);
     border: none;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 滚动区域 */
 #about #scrollWidget {
     background-color: rgb(39, 39, 39);
 }
 
-QScrollArea {
+#about QScrollArea {
     border: none;
     background-color: rgb(39, 39, 39);
 }
 
-
 /* 标题 */
-QLabel#settingLabel {
+
+#about QLabel#settingLabel {
     font-size: 33px;
     background-color: transparent;
     color: white;
@@ -25,52 +25,34 @@ QLabel#settingLabel {
 }
 
 /* 卡片 */
-CardWidget {
+
+#about CardWidget,
+#about SettingCard,
+#about SwitchSettingCard {
     background-color: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
-    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-CardWidget:hover {
+#about CardWidget:hover,
+#about SettingCard:hover,
+#about SwitchSettingCard:hover {
     background-color: rgba(255, 255, 255, 0.08);
 }
 
-/* SmoothScrollArea */
-SmoothScrollArea {
+#about SmoothScrollArea {
     background-color: transparent;
     border: none;
 }
 
-/* SettingCard 样式 */
-SettingCard {
-    background-color: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 8px;
-}
+/* 标签 */
 
-SettingCard:hover {
-    background-color: rgba(255, 255, 255, 0.08);
-}
-
-SwitchSettingCard {
-    background-color: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 8px;
-}
-
-SwitchSettingCard:hover {
-    background-color: rgba(255, 255, 255, 0.08);
-}
-
-/* 应用图标 */
-QLabel#appIconLabel {
+#about QLabel#appIconLabel {
     font-size: 48px;
     background-color: transparent;
 }
 
-/* 应用名称 */
-QLabel#appNameLabel {
+#about QLabel#appNameLabel {
     font-size: 24px;
     color: white;
     font-weight: bold;
@@ -78,41 +60,36 @@ QLabel#appNameLabel {
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 描述标签 */
-QLabel#descriptionLabel {
+#about QLabel#descriptionLabel {
     font-size: 14px;
     color: #CCCCCC;
     background-color: transparent;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 版本信息 */
-QLabel#versionInfo {
+#about QLabel#versionInfo {
     font-size: 14px;
     color: #999999;
     background-color: transparent;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 调试和版权标签 */
-QLabel#developerLabel,
-QLabel#copyrightLabel {
+#about QLabel#authorLabel,
+#about QLabel#copyrightLabel {
     font-size: 13px;
     color: #999999;
     background-color: transparent;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 链接标签 */
-QLabel#linkLabel {
+#about QLabel#linkLabel {
     font-size: 14px;
     color: #CCCCCC;
     background-color: transparent;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 分组标签 */
-QLabel#groupLabel {
+#about QLabel#groupLabel {
     font-size: 16px;
     color: #FFFFFF;
     background-color: transparent;
@@ -121,15 +98,15 @@ QLabel#groupLabel {
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 链接按钮 */
-PushButton#linkButton {
-    min-width: 80px;
+#about QLabel#githubIcon,
+#about QLabel#authorIcon,
+#about QLabel#updateIcon,
+#about QLabel#licenseIcon {
+    background-color: transparent;
 }
 
-/* 图标标签 */
-QLabel#githubIcon,
-QLabel#authorIcon,
-QLabel#updateIcon,
-QLabel#licenseIcon {
-    background-color: transparent;
+/* 按钮 */
+
+#about PushButton#linkButton {
+    min-width: 80px;
 }

@@ -1,109 +1,88 @@
 /* 更新界面 */
+
 #update {
     background-color: rgb(249, 249, 249);
     border: none;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 滚动区域 */
 #update #scrollWidget {
     background-color: rgb(249, 249, 249);
 }
 
-/* 滚动区域 */
-QScrollArea {
+#update QScrollArea {
     background-color: rgb(249, 249, 249);
     border: none;
 }
 
 /* 标题 */
-QLabel#settingLabel {
+
+#update QLabel#settingLabel {
     font-size: 33px;
     background-color: transparent;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 卡片 */
-CardWidget {
+
+#update CardWidget,
+#update SettingCard,
+#update SwitchSettingCard {
     background-color: rgba(255, 255, 255, 0.8);
     border: 1px solid rgba(0, 0, 0, 0.06);
     border-radius: 8px;
-    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-CardWidget:hover {
+#update CardWidget:hover,
+#update SettingCard:hover,
+#update SwitchSettingCard:hover {
     background-color: rgba(255, 255, 255, 1);
 }
 
-/* 滚动区域 */
-SmoothScrollArea {
+#update SmoothScrollArea {
     background-color: transparent;
     border: none;
 }
 
-/* 更新日志标题 */
-QLabel#changelogTitle {
+/* 标签 */
+
+#update QLabel#changelogTitle {
     font-size: 16px;
     color: black;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 更新日志内容 */
-QLabel#changelogContent {
+#update QLabel#changelogContent {
     color: #666666;
     line-height: 1.8;
     font-size: 13px;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 版本标题 */
-QLabel#versionTitle {
+#update QLabel#versionTitle {
     font-size: 20px;
     color: black;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 构建日期 */
-QLabel#buildDate {
+#update QLabel#buildDate {
     color: #666666;
     font-size: 13px;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* SettingCard */
-SettingCard {
-    background-color: rgba(255, 255, 255, 0.8);
-    border: 1px solid rgba(0, 0, 0, 0.06);
-    border-radius: 8px;
-}
-
-SettingCard:hover {
-    background-color: rgba(255, 255, 255, 1);
-}
-
-/* SettingCard */
-SwitchSettingCard {
-    background-color: rgba(255, 255, 255, 0.8);
-    border: 1px solid rgba(0, 0, 0, 0.06);
-    border-radius: 8px;
-}
-
-SwitchSettingCard:hover {
-    background-color: rgba(255, 255, 255, 1);
-}
-
-/* 更新状态指示器 */
-QLabel#updateStatusIcon {
+#update QLabel#updateStatusIcon {
     border-radius: 8px;
     background-color: #999999;
 }
 
-QLabel#updateStatusLabel {
+#update QLabel#updateStatusLabel {
     color: #999999;
     font-size: 14px;
 }
 
-/* 检查更新按钮 */
+/* 按钮 */
+
 #update PrimaryPushButton {
     border-radius: 8px;
     font-weight: bold;

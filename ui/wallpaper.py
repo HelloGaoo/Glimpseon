@@ -35,7 +35,7 @@ from dataclasses import dataclass, asdict
 from typing import List, Optional
 
 import requests
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QSize
+from PyQt6.QtCore import Qt, QEvent, pyqtSignal, QTimer, QSize
 from PyQt6.QtGui import QPixmap, QImageReader, QColor
 from PyQt6.QtWidgets import (
     QApplication,
@@ -73,7 +73,7 @@ from qfluentwidgets import (
 
 from core.config import cfg
 from core.constants import BASE_DIR, get_resPath, load_qss
-from core.cache_manager import get_cached_content, save_cache, get_cache_info
+from core.utils import get_cached_content, save_cache, get_cache_info
 
 logger = logging.getLogger(__name__)
 
@@ -763,7 +763,7 @@ class WallpaperInterface(ScrollArea):
         self.autoGetTimer.timeout.connect(self._getWallpaper)
         self.autoSyncCheckTimer = QTimer(self)
         self.autoSyncCheckTimer.timeout.connect(self._checkAutoSync)
-        
+
         self.wallpaperLabel = QLabel("壁纸", self)
         
         self.backgroundImage = QLabel()
@@ -851,7 +851,12 @@ class WallpaperInterface(ScrollArea):
         
         self._initWidget()
         self._connectSignalToSlot()
-    
+
+    def _getHome(self):
+        if hasattr(self.mainWindow, 'homeInterface'):
+            return self.mainWindow.homeInterface
+        return None
+
     def _onThemeChanged(self, theme: Theme):
         if hasattr(self, 'scrollWidget'):self._setQss()
     
@@ -904,9 +909,10 @@ class WallpaperInterface(ScrollArea):
         self.scrollWidget.installEventFilter(self)
     
     def _setQss(self):
-        self.scrollWidget.setObjectName('scrollWidget')
+        if hasattr(self, 'scrollWidget'):
+            self.scrollWidget.setObjectName('scrollWidget')
         self.wallpaperLabel.setObjectName('settingLabel')
-        self.setStyleSheet(load_qss('setting_interface.qss'))
+        self.setStyleSheet(load_qss('setting.qss'))
     
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -915,7 +921,9 @@ class WallpaperInterface(ScrollArea):
             self._resizeTimer.start(100)
     
     def eventFilter(self, obj, event):
-        if obj is self.scrollWidget and event.type() == event.Type.Resize:
+        if not hasattr(self, 'scrollWidget'):
+            return super().eventFilter(obj, event)
+        if obj is self.scrollWidget and event.type() == QEvent.Type.Resize:
             if self.current_pixmap and not self.current_pixmap.isNull():
                 if not hasattr(self, '_resizeTimer'): self._resizeTimer = QTimer(self); self._resizeTimer.setSingleShot(True); self._resizeTimer.timeout.connect(self._updateBackground)
                 self._resizeTimer.start(100)
@@ -968,23 +976,25 @@ class WallpaperInterface(ScrollArea):
             self.autoSyncCheckTimer.start(5000)
     
     def _updateBackgroundBlur(self):
-        if hasattr(self, 'mainWindow') and self.mainWindow and hasattr(self.mainWindow, 'homeBackgroundImage'):
-            if self.mainWindow.originalPixmap is not None and not self.mainWindow.originalPixmap.isNull():
-                self.mainWindow.resizeEvent(None)
+        home = self._getHome()
+        if home and hasattr(home, 'homeBackgroundImage'):
+            if home.originalPixmap is not None and not home.originalPixmap.isNull():
+                home.mainWindow.resizeEvent(None)
         if hasattr(self, '_cachedBgSize'):self._cachedBgSize = None
         if self.current_pixmap and not self.current_pixmap.isNull():self._updateBackground()
-    
+
     def _onWallpaperSaveLimitChanged(self, new_limit: int):
         wallpaper_dir = os.path.join(BASE_DIR, 'wallpaper')
         self._manageWallpaperLimit(wallpaper_dir, new_limit)
-    
+
     def _applyEffects(self):
         """暗化效果（-100 最暗 ~ 0 正常）"""
         dim_value = cfg.wallpaperBrightness.value
         alpha = abs(dim_value) / 100.0
         style_str = f"#dimOverlay {{ background-color: rgba(0, 0, 0, {alpha:.2f}); }}"
         if hasattr(self, 'dimOverlay'):self.dimOverlay.setStyleSheet(style_str)
-        if self.mainWindow and hasattr(self.mainWindow, 'homeDimOverlay'):self.mainWindow.homeDimOverlay.setStyleSheet(style_str)
+        home = self._getHome()
+        if home and hasattr(home, 'homeDimOverlay'):home.homeDimOverlay.setStyleSheet(style_str)
     
     def _loadWallpaperFromCache(self) -> bool:
         cached = get_cached_content("wallpaper")
@@ -1123,14 +1133,15 @@ class WallpaperInterface(ScrollArea):
     def _setBlankBackground(self):
         self.backgroundImage.setPixmap(QPixmap(1, 1))
         self.backgroundImage.setMinimumSize(100, 100)
-        if self.mainWindow and hasattr(self.mainWindow, 'homeBackgroundImage'):
+        home = self._getHome()
+        if home and hasattr(home, 'homeBackgroundImage'):
             available_width = self.mainWindow.width() - 50
             available_height = self.mainWindow.height()
             blank_pixmap = QPixmap(available_width, available_height)
             blank_pixmap.fill(Qt.GlobalColor.transparent)
-            self.mainWindow.originalPixmap = blank_pixmap
-            self.mainWindow.homeBackgroundImage.setPixmap(blank_pixmap)
-            self.mainWindow.homeBackgroundImage.setMinimumSize(available_width, available_height)
+            home.originalPixmap = blank_pixmap
+            home.homeBackgroundImage.setPixmap(blank_pixmap)
+            home.homeBackgroundImage.setMinimumSize(available_width, available_height)
     
     def _updateBackground(self):
         if not self.current_pixmap or self.current_pixmap.isNull():
@@ -1138,7 +1149,7 @@ class WallpaperInterface(ScrollArea):
         
         self.originalPixmap = self.current_pixmap
         available_width = self.viewport().width()
-        available_height = max(self.viewport().height(), self.scrollWidget.height(), 600)
+        available_height = max(self.viewport().height(), self.scrollWidget.height() if hasattr(self, 'scrollWidget') else 600, 600)
         
         if hasattr(self, '_cachedBgSize') and self._cachedBgSize == (available_width, available_height) and hasattr(self, '_cachedBgPixmap') and self._cachedBgPixmap == self.current_pixmap:return
         self._cachedBgSize = (available_width, available_height)
@@ -1163,15 +1174,16 @@ class WallpaperInterface(ScrollArea):
         self.backgroundImage.lower()
     
     def _updateMainWindowBackground(self):
-        if self.mainWindow and hasattr(self.mainWindow, 'homeBackgroundImage') and self.current_pixmap:
-            self.mainWindow.originalPixmap = self.current_pixmap
+        home = self._getHome()
+        if home and hasattr(home, 'homeBackgroundImage') and self.current_pixmap:
+            home.originalPixmap = self.current_pixmap
             available_width = self.mainWindow.width() - 50
             available_height = self.mainWindow.height()
             scaled_pixmap = self.current_pixmap.scaled(
                 available_width, available_height,
                 Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation
             )
-            self.mainWindow.homeBackgroundImage.setPixmap(scaled_pixmap)
+            home.homeBackgroundImage.setPixmap(scaled_pixmap)
     
     def _saveWallpaper(self):
         logger.info("开始另存壁纸")

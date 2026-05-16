@@ -56,9 +56,9 @@ from qfluentwidgets import (
 
 from core.config import cfg, default_cfg, ConfigItem, CONFIG_PATH
 from core.constants import BASE_DIR, get_resPath, load_qss
-from core.font_manager import _load_app_fonts, apply_fonts
+from core.utils import _load_app_fonts, apply_fonts
 from core.logger import log_dir
-from ui.city_selector import RegionSelectorDialog
+from services.weather import RegionSelectorDialog
 
 
 class LineEditSettingCard(SettingCard):
@@ -299,14 +299,14 @@ class SettingInterface(ScrollArea):
         )
         self.otherGroup.addSettingCard(self.resetDefaultCard)
         self.resetDefaultCard.button.setText("恢复默认")
-        self.developerModeCard = SwitchSettingCard(
+        self.debugModeCard = SwitchSettingCard(
             FIF.CODE,
             "调试模式",
             "启用调试模式以进行测试和调试",
-            configItem=cfg.developerMode,
+            configItem=cfg.debugMode,
             parent=self.otherGroup
         )
-        self.otherGroup.addSettingCard(self.developerModeCard)
+        self.otherGroup.addSettingCard(self.debugModeCard)
         self.expandLayout.setSpacing(28)
         self.expandLayout.setContentsMargins(60, 10, 60, 0)
         self.expandLayout.addWidget(self.basicGroup)
@@ -318,7 +318,7 @@ class SettingInterface(ScrollArea):
         """ 设置样式表 """
         self.scrollWidget.setObjectName('scrollWidget')
         self.settingLabel.setObjectName('settingLabel')
-        self.setStyleSheet(load_qss('setting_interface.qss'))
+        self.setStyleSheet(load_qss('setting.qss'))
 
     def __onThemeChanged(self, theme: Theme):
         """ 主题变更 """
@@ -377,7 +377,7 @@ class SettingInterface(ScrollArea):
                             attr.valueChanged.emit(attr.value)
                 
                 main_window = self.window()
-                if hasattr(main_window, 'editPanel'):
+                if hasattr(main_window, 'editPanel') and main_window.editPanel:
                     main_window.editPanel.refreshAllSettings()
                 
                 if hasattr(main_window, '_MainWindow__updateQuickLaunch'):

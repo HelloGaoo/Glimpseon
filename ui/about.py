@@ -43,7 +43,7 @@ from core.constants import get_resPath, load_qss
 from version import BUILD_DATE, VERSION
 from .common import show_text_file
 
-from .base_scroll import BaseScrollAreaInterface
+from .common import BaseScrollAreaInterface, show_text_file
 
 
 class AboutInterface(BaseScrollAreaInterface):
@@ -95,9 +95,9 @@ class AboutInterface(BaseScrollAreaInterface):
         self.versionInfo.setObjectName("versionInfo")
         self.versionInfo.setWordWrap(True)
         rightLayout.addWidget(self.versionInfo)
-        self.developerLabel = QLabel("开发作者：HelloGaoo", self.aboutCard)
-        self.developerLabel.setObjectName("developerLabel")
-        rightLayout.addWidget(self.developerLabel)
+        self.authorLabel = QLabel("开发作者：HelloGaoo", self.aboutCard)
+        self.authorLabel.setObjectName("authorLabel")
+        rightLayout.addWidget(self.authorLabel)
         self.copyrightLabel = QLabel("© 2026 ClassLively. All rights reserved.", self.aboutCard)
         self.copyrightLabel.setObjectName("copyrightLabel")
         rightLayout.addWidget(self.copyrightLabel)
@@ -183,7 +183,7 @@ class AboutInterface(BaseScrollAreaInterface):
     def __setQss(self):
         """ 设置样式表 """
         self.scrollWidget.setObjectName('scrollWidget')
-        self.setStyleSheet(load_qss('about_interface.qss'))
+        self.setStyleSheet(load_qss('about.qss'))
     
     def __connectSignalToSlot(self):
         self.githubButton.clicked.connect(self.__openGithub)

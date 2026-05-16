@@ -221,8 +221,8 @@ class Config(QConfig):
     longitude = ConfigItem(
         "Weather", "Longitude", 116.4074
     )
-    developerMode = ConfigItem(
-        "Other", "DeveloperMode", False, BoolValidator()
+    debugMode = ConfigItem(
+        "Other", "DebugMode", False, BoolValidator()
     )
     enableGpuAcceleration = ConfigItem(
         "Other", "EnableGpuAcceleration", True, BoolValidator(), restart=True
@@ -404,7 +404,7 @@ def default_cfg():
         "Other": {
             "CloseAction": "minimize",
             "AllowMultipleInstances": False,
-            "DeveloperMode": False,
+            "DebugMode": False,
             "EnableGpuAcceleration": True,
             "AutoStart": False,
             "AutoOpenOnIdle": False,

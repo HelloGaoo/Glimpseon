@@ -18,23 +18,21 @@
 UI 模块
 """
 
-from .edit_panel import EditPanel
 from .update import UpdateInterface
 from .about import AboutInterface
 from .download import DownloadInterface
 from .wallpaper import WallpaperInterface
-from .base_scroll import BaseScrollAreaInterface
-from .wizard import WizardWindow, check_wizard_needed, create_wizard_file, complete_wizard
+from .common import BaseScrollAreaInterface, show_text_file
+from .home import HomeInterface
+from .debug import DebugPanel
 
 __all__ = [
     'BaseScrollAreaInterface',
+    'show_text_file',
     'UpdateInterface',
     'AboutInterface',
     'DownloadInterface',
     'WallpaperInterface',
-    'EditPanel',
-    'WizardWindow',
-    'check_wizard_needed',
-    'create_wizard_file',
-    'complete_wizard'
+    'HomeInterface',
+    'DebugPanel',
 ]

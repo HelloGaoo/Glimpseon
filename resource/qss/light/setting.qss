@@ -1,187 +1,176 @@
-/* 界面 */
+/* 设置界面 */
+
 #setting, #scrollWidget {
     background-color: rgb(249, 249, 249);
     border: none;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-/* 滚动区域 */
-QScrollArea {
+#setting QScrollArea {
     background-color: rgb(249, 249, 249);
     border: none;
 }
 
 /* 标题 */
-QLabel#settingLabel {
+
+#setting QLabel#settingLabel {
     font-size: 33px;
     background-color: transparent;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 /* 卡片 */
-CardWidget {
+
+#setting CardWidget {
     background-color: rgba(255, 255, 255, 0.8);
     border: 1px solid rgba(0, 0, 0, 0.06);
     border-radius: 8px;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
-CardWidget:hover {
+#setting CardWidget:hover {
     background-color: rgba(255, 255, 255, 1);
 }
 
-/* SettingCard */
-SettingCard,
-LineEditSettingCard,
-SpinBoxSettingCard,
-ButtonSettingCard {
+#setting SettingCard,
+#setting LineEditSettingCard,
+#setting SpinBoxSettingCard,
+#setting ButtonSettingCard {
     background-color: transparent;
     border-radius: 8px;
 }
 
-SettingCard:hover,
-LineEditSettingCard:hover,
-SpinBoxSettingCard:hover,
-ButtonSettingCard:hover {
+#setting SettingCard:hover,
+#setting LineEditSettingCard:hover,
+#setting SpinBoxSettingCard:hover,
+#setting ButtonSettingCard:hover {
     background-color: rgba(0, 0, 0, 0.03);
     border-radius: 8px;
 }
 
-/* PushButton */
-PushButton,
-PushButton:hover {
+#setting OptionsSettingCard:hover,
+#setting RangeSettingCard:hover,
+#setting SwitchSettingCard:hover,
+#setting CustomColorSettingCard:hover,
+#setting ComboBoxSettingCard:hover {
+    background-color: rgba(0, 0, 0, 0.03);
+}
+
+/* 控件 */
+
+#setting PushButton {
     background-color: transparent;
     border: 1px solid rgba(0, 0, 0, 0.06);
     border-radius: 5px;
 }
 
-PushButton:hover {
+#setting PushButton:hover {
     background-color: rgba(0, 0, 0, 0.05);
     border-color: rgba(0, 0, 0, 0.2);
 }
 
-/* SwitchButton */
-SwitchButton:hover {
+#setting SwitchButton:hover {
     background-color: rgba(0, 0, 0, 0.03);
 }
 
-/* ComboBox */
-ComboBox,
-ComboBox:hover {
+#setting ComboBox {
     background-color: rgba(255, 255, 255, 0.8);
     border: 1px solid rgba(0, 0, 0, 0.06);
     border-radius: 5px;
 }
 
-ComboBox:hover {
+#setting ComboBox:hover {
     border: 1px solid rgba(0, 0, 0, 0.3);
     background-color: rgba(255, 255, 255, 1);
 }
 
-/* LineEdit */
-LineEdit,
-LineEdit:hover {
+#setting LineEdit {
     background-color: rgba(255, 255, 255, 0.8);
     border: 1px solid rgba(0, 0, 0, 0.06);
     border-radius: 5px;
     padding: 4px 8px;
 }
 
-LineEdit:hover {
+#setting LineEdit:hover {
     border: 1px solid rgba(0, 0, 0, 0.3);
     background-color: rgba(255, 255, 255, 1);
 }
 
-/* SpinBox */
-SpinBox,
-SpinBox:hover {
+#setting SpinBox {
     background-color: rgba(255, 255, 255, 0.8);
     border: 1px solid rgba(0, 0, 0, 0.06);
     border-radius: 5px;
     padding: 4px 8px;
 }
 
-SpinBox:hover {
+#setting SpinBox:hover {
     border: 1px solid rgba(0, 0, 0, 0.3);
     background-color: rgba(255, 255, 255, 1);
 }
 
-/* 选项卡 */
-OptionsSettingCard:hover,
-RangeSettingCard:hover,
-SwitchSettingCard:hover,
-CustomColorSettingCard:hover,
-ComboBoxSettingCard:hover {
-    background-color: rgba(0, 0, 0, 0.03);
-}
+/* 壁纸 */
 
-/* 壁纸页面暗色遮罩 */
-#dimOverlay {
+#setting #dimOverlay {
     background-color: rgba(0, 0, 0, 100);
 }
 
-/* 壁纸页面内容层 */
-#wallpaperContent {
+#setting #wallpaperContent {
     background-color: transparent;
 }
 
-/* 壁纸信息卡片 */
-#wallpaperInfoCard {
+#setting #wallpaperInfoCard {
     background-color: rgba(255, 255, 255, 0.8);
     border: 1px solid rgba(0, 0, 0, 0.06);
     border-radius: 8px;
 }
 
-/* 历史壁纸区域 */
-#historyWidget {
+#setting #historyWidget {
     background-color: transparent;
 }
 
-#historyWidget QLabel#historyTitle {
+#setting #historyWidget QLabel#historyTitle {
     color: #333333;
     font-size: 16px;
     font-weight: bold;
 }
 
-#historyWidget QLabel#historyCount {
+#setting #historyWidget QLabel#historyCount {
     color: #999999;
     font-size: 13px;
 }
 
-#historyWidget QLabel#emptyLabel {
+#setting #historyWidget QLabel#emptyLabel {
     color: #999999;
 }
 
-/* 历史缩略图卡片 */
-#thumbnailCard {
+#setting #thumbnailCard {
     background-color: rgba(255, 255, 255, 0.9);
     border: 1px solid rgba(0, 0, 0, 0.08);
     border-radius: 6px;
 }
 
-#thumbnailCard:hover {
+#setting #thumbnailCard:hover {
     background-color: rgba(255, 255, 255, 1);
     border-color: rgba(0, 0, 0, 0.15);
 }
 
-#thumbnailCard QLabel#thumbImage {
+#setting #thumbnailCard QLabel#thumbImage {
     background-color: rgba(128, 128, 128, 20);
     border-radius: 4px;
 }
 
-#thumbnailCard QLabel#thumbInfo {
+#setting #thumbnailCard QLabel#thumbInfo {
     color: #666666;
     font-size: 11px;
 }
 
-/* 加载更多按钮 */
-#historyWidget PushButton#loadMoreBtn {
+#setting #historyWidget PushButton#loadMoreBtn {
     background-color: rgba(0, 0, 0, 0.03);
     border: 1px solid rgba(0, 0, 0, 0.08);
     border-radius: 6px;
 }
 
-#historyWidget PushButton#loadMoreBtn:hover {
+#setting #historyWidget PushButton#loadMoreBtn:hover {
     background-color: rgba(0, 0, 0, 0.06);
     border-color: rgba(0, 0, 0, 0.2);
 }

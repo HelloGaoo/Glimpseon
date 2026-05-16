@@ -56,7 +56,7 @@ from core.constants import get_resPath, load_qss
 from core.downloader import DOWNLOAD_SOURCES, DEFAULT_SOURCE, Downloader, set_download_src
 from core.logger import logger
 
-from .base_scroll import BaseScrollAreaInterface
+from .common import BaseScrollAreaInterface, show_text_file
 
 _software_icon_cache = {}
 
@@ -136,7 +136,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         """ 设置样式表 """
         self.scrollWidget.setObjectName('scrollWidget')
         self.titleLabel.setObjectName('settingLabel')
-        self.setStyleSheet(load_qss('download_interface.qss'))
+        self.setStyleSheet(load_qss('download.qss'))
     
     def _onThemeChanged(self, theme: Theme):
         """ 主题变更槽函数 """
