@@ -25,10 +25,14 @@ import re
 import struct
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Optional, List, Tuple, Dict, Any
+from functools import lru_cache
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 if getattr(sys, 'frozen', False):
     _BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
@@ -168,8 +172,13 @@ class NeteaseCloudMusic:
         self._last_id = ''
         self._last_time = 0.0
         self._api_cache = {}
-        self._api_last_time = 0
+        self._api_last_time = 0.0
         self._available = self._check_deps()
+
+        self._session = self._create_session()
+        self._executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix='media_api')
+        self._cache_max_size = 50
+        self._cache_order = []
 
     def _check_deps(self) -> bool:
         try:
@@ -187,6 +196,27 @@ class NeteaseCloudMusic:
     @property
     def name(self) -> str:
         return "NeteaseCloudMusic"
+
+    def _create_session(self) -> requests.Session:
+        session = requests.Session()
+        adapter = HTTPAdapter(
+            pool_connections=10,
+            pool_maxsize=10,
+            max_retries=Retry(total=3, backoff_factor=0.1)
+        )
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+        session.headers.update(self.API_HEADERS)
+        return session
+
+    def _set_cache(self, key: str, value):
+        if len(self._api_cache) >= self._cache_max_size and key not in self._api_cache:
+            oldest = self._cache_order.pop(0)
+            self._api_cache.pop(oldest, None)
+        self._api_cache[key] = value
+        if key in self._cache_order:
+            self._cache_order.remove(key)
+        self._cache_order.append(key)
 
     def get_info(self) -> Optional[MediaInfo]:
         data = self._read_memory()
@@ -223,7 +253,7 @@ class NeteaseCloudMusic:
                     album_name=al.get('name', ''), cover_url=al.get('picUrl', ''),
                     duration=s.get('dt', 0)
                 )
-                self._api_cache[key] = detail
+                self._set_cache(key, detail)
                 return detail
         return None
 
@@ -238,7 +268,7 @@ class NeteaseCloudMusic:
                 lines = self._parse_lrc(lrc)
                 if lines:
                     lyrics = Lyrics(lines=lines, raw_lrc=lrc, song_id=song_id)
-                    self._api_cache[key] = lyrics
+                    self._set_cache(key, lyrics)
                     return lyrics
         return None
 
@@ -247,29 +277,48 @@ class NeteaseCloudMusic:
         if key in self._api_cache:
             return self._api_cache[key]
         try:
-            self._api_wait()
-            resp = requests.get(url, headers=self.API_HEADERS, timeout=15)
+            resp = self._session.get(url, timeout=8)
             if resp.status_code == 200 and 'image' in resp.headers.get('Content-Type', ''):
                 data = resp.content
                 if 1024 < len(data) < 10 * 1024 * 1024:
-                    self._api_cache[key] = data
+                    self._set_cache(key, data)
                     return data
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"获取封面失败: {e}")
         return None
 
     def fetch_all(self, song_name: str, artist: str = "") -> Dict[str, Any]:
         result = {'song_id': None, 'detail': None, 'lyrics': None, 'cover': None}
+        start_time = time.time()
+
         song_id = self._search_song(f"{song_name} {artist}".strip())
         if not song_id:
             return result
         result['song_id'] = song_id
+
         detail = self.get_detail(song_id)
         if detail:
             result['detail'] = detail
-            if detail.cover_url:
-                result['cover'] = self.get_cover(detail.cover_url)
-        result['lyrics'] = self.get_lyrics(song_id)
+
+        futures = {}
+        if detail and detail.cover_url:
+            futures['cover'] = self._executor.submit(self.get_cover, detail.cover_url)
+        futures['lyrics'] = self._executor.submit(self.get_lyrics, song_id)
+
+        for future in as_completed(futures.values()):
+            try:
+                future.result(timeout=10)
+            except Exception as e:
+                logger.debug(f"并行请求失败: {e}")
+
+        if 'cover' in futures and detail and detail.cover_url:
+            result['cover'] = self.get_cover(detail.cover_url)
+        if 'lyrics' in futures:
+            result['lyrics'] = self.get_lyrics(song_id)
+
+        elapsed = time.time() - start_time
+        logger.debug(f"fetch_all耗时: {elapsed:.2f}秒 (歌曲ID: {song_id})")
+
         return result
 
     def close(self):
@@ -279,7 +328,20 @@ class NeteaseCloudMusic:
             except Exception:
                 pass
             self._pm = None
+        if self._session:
+            try:
+                self._session.close()
+            except Exception:
+                pass
+            self._session = None
+        if self._executor:
+            try:
+                self._executor.shutdown(wait=False)
+            except Exception:
+                pass
+            self._executor = None
         self._api_cache.clear()
+        self._cache_order.clear()
 
     def _read_memory(self) -> Optional[Dict[str, Any]]:
         if not self._available:
@@ -467,20 +529,20 @@ class NeteaseCloudMusic:
 
     def _api_wait(self):
         elapsed = time.time() - self._api_last_time
-        if elapsed < 0.3:
-            time.sleep(0.3 - elapsed)
+        if elapsed < 0.1:
+            time.sleep(0.1 - elapsed)
         self._api_last_time = time.time()
 
     def _api_get(self, endpoint: str, params: dict = None) -> Optional[dict]:
         try:
             self._api_wait()
-            resp = requests.get(f"{self.API_BASE}{endpoint}", params=params, headers=self.API_HEADERS, timeout=15)
+            resp = self._session.get(f"{self.API_BASE}{endpoint}", params=params, timeout=10)
             if resp.status_code == 200:
                 data = resp.json()
                 if data.get('code') == 200 or data.get('code') is None:
                     return data
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"API请求失败: {endpoint} - {e}")
         return None
 
     def _search_song(self, keyword: str) -> Optional[int]:
