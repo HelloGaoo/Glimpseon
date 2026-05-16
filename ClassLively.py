@@ -978,7 +978,7 @@ class MainWindow(FluentWindow):
         self.debugNavItem.setVisible(cfg.debugMode.value)
         cfg.debugMode.valueChanged.connect(self._onDebugModeChanged)
 
-        self.editPanel = None
+        self.editPanel = None  # deprecated, kept for compatibility
 
     def _initIdleDetection(self):
         self.idleTimer = QTimer(self)
@@ -1011,16 +1011,14 @@ class MainWindow(FluentWindow):
             self.switchTo(self.homeInterface)
 
     def _onThemeChanged(self):
-        if hasattr(self, 'editPanel') and self.editPanel:
-            self.editPanel._updateTheme()
+        pass
 
     def _onDebugPanelThemeChanged(self):
         if hasattr(self, 'debugPanel') and self.debugPanel:
             self.debugPanel._updateTheme()
 
     def _onEditPanelThemeChanged(self):
-        if hasattr(self, 'editPanel') and self.editPanel:
-            self.editPanel._updateTheme()
+        pass
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_F12:

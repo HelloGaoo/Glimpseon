@@ -39,6 +39,30 @@ if _BASE_DIR not in sys.path:
 
 logger = logging.getLogger(__name__)
 
+def _check_and_install_deps():
+    missing = []
+    try:
+        import pymem
+    except ImportError:
+        missing.append('pymem')
+    try:
+        import psutil
+    except ImportError:
+        missing.append('psutil')
+    try:
+        from win32api import GetFileVersionInfo
+    except ImportError:
+        missing.append('pywin32')
+    try:
+        from winsdk.windows.media.control import GlobalSystemMediaTransportControlsSessionManager
+    except ImportError:
+        missing.append('winsdk')
+
+    if missing:
+        logger.warning(f"媒体服务缺少依赖库: {', '.join(missing)}")
+        return False
+    return True
+
 
 @dataclass
 class MediaInfo:
@@ -167,8 +191,13 @@ class NeteaseCloudMusic:
     def get_info(self) -> Optional[MediaInfo]:
         data = self._read_memory()
         if not data:
+            logger.debug("网易云音乐: 内存读取失败或无数据")
             return None
         title, artist = self._parse_window_title()
+        if not title and not artist:
+            logger.debug(f"网易云音乐: 窗口标题解析失败")
+        else:
+            logger.debug(f"网易云音乐: 窗口标题解析成功 - {title} - {artist}")
         return MediaInfo(
             title=title, artist=artist,
             title_artist=f"{title} - {artist}" if artist else title,
@@ -281,6 +310,7 @@ class NeteaseCloudMusic:
 
             self._is_v3 = self._version.startswith('3.')
             if not self._is_v3 and self._version not in self.V2_OFFSETS:
+                logger.warning(f"网易云音乐: 不支持的版本 {self._version}")
                 return None
 
             if self._pm is None:
@@ -293,6 +323,7 @@ class NeteaseCloudMusic:
                     self._dll_data = self._read_bytes(self._dll_base, self._dll_size)
                     self._schedule_ptr, self._player_ptr = self._scan_v3()
                     if not self._schedule_ptr:
+                        logger.warning(f"网易云音乐: V3 AOB扫描失败 (版本 {self._version})")
                         return None
                 elif not self._dll_base:
                     return None
@@ -485,6 +516,7 @@ class GSMTCReader:
         self._manager = None
         self._initialized = False
         self._available = self._check_deps()
+        self._loop = None
         if self._available:
             try:
                 from winsdk.windows.media.control import GlobalSystemMediaTransportControlsSessionPlaybackStatus as PlaybackStatus
@@ -493,8 +525,9 @@ class GSMTCReader:
                     PlaybackStatus.CHANGING: "changing", PlaybackStatus.STOPPED: "stopped",
                     PlaybackStatus.PLAYING: "playing", PlaybackStatus.PAUSED: "paused",
                 }
-            except Exception:
-                pass
+                logger.info("GSMTC: 初始化成功")
+            except Exception as e:
+                logger.warning(f"GSMTC: 初始化失败 {e}")
 
     def _check_deps(self) -> bool:
         try:
@@ -513,74 +546,95 @@ class GSMTCReader:
 
     def get_info(self) -> Optional[MediaInfo]:
         if not self._available:
+            logger.warning("GSMTC: 依赖库 winsdk 未安装")
             return None
         try:
             from winsdk.windows.media.control import GlobalSystemMediaTransportControlsSessionManager as MediaManager
             import asyncio
 
             async def _read():
-                if not self._initialized:
-                    self._manager = await MediaManager.request_async()
-                    self._initialized = True
+                try:
+                    if not self._initialized or self._manager is None:
+                        logger.debug("GSMTC: 请求媒体会话管理")
+                        self._manager = await MediaManager.request_async()
+                        self._initialized = True
 
-                session = self._manager.get_current_session()
-                if not session:
+                    session = self._manager.get_current_session()
+                    if not session:
+                        logger.info("GSMTC: 无活跃媒体会话")
+                        return None
+
+                    info = MediaInfo()
+
+                    try:
+                        app = session.source_app_user_model_id
+                        info.app_name = app.split('.')[-1] if app and '.' in app else app or ""
+                        logger.debug(f"GSMTC: 应用名称={info.app_name}")
+                    except Exception as e:
+                        logger.warning(f"GSMTC: 获取应用名失败 {e}")
+
+                    try:
+                        pb = session.get_playback_info()
+                        if pb:
+                            info.playback_status = self.STATUS_MAP.get(pb.playback_status, "unknown")
+                            info.is_playing = pb.playback_status.value == 4
+                            logger.debug(f"GSMTC: 播放状态={info.playback_status}, 正在播放={info.is_playing}")
+                    except Exception as e:
+                        logger.warning(f"GSMTC: 获取播放状态失败 {e}")
+
+                    try:
+                        tl = session.get_timeline_properties()
+                        if tl:
+                            info.position_ms = max(0, int(tl.position.total_seconds() * 1000))
+                            info.duration_ms = max(0, int(tl.end_time.total_seconds() * 1000))
+                    except Exception as e:
+                        logger.warning(f"GSMTC: 获取时间线失败 {e}")
+
+                    try:
+                        props = await session.try_get_media_properties_async()
+                        if props:
+                            info.title = props.title or ""
+                            info.artist = props.artist or ""
+                            info.album = props.album_title or ""
+                            info.title_artist = f"{info.title} - {info.artist}" if info.artist else info.title
+                            logger.info(f"GSMTC: 获取到媒体信息 - 标题={info.title}, 歌手={info.artist}")
+                            if props.thumbnail:
+                                try:
+                                    stream = await props.thumbnail.open_read_async()
+                                    if stream and 0 < stream.size < 10 * 1024 * 1024:
+                                        buf = bytes(stream.size)
+                                        await stream.input_stream.read_async(buf, stream.size, 0)
+                                        info.thumbnail_data = buf
+                                except Exception as e:
+                                    logger.debug(f"GSMTC: 获取封面失败 {e}")
+                    except Exception as e:
+                        logger.warning(f"GSMTC: 获取媒体属性失败 {e}")
+
+                    return info
+
+                except Exception as e:
+                    logger.error(f"GSMTC: 读取过程出错 {e}")
                     return None
 
-                info = MediaInfo()
-
-                try:
-                    app = session.source_app_user_model_id
-                    info.app_name = app.split('.')[-1] if app and '.' in app else app or ""
-                except Exception:
-                    pass
-
-                try:
-                    pb = session.get_playback_info()
-                    if pb:
-                        info.playback_status = self.STATUS_MAP.get(pb.playback_status, "unknown")
-                        info.is_playing = pb.playback_status.value == 4
-                except Exception:
-                    pass
-
-                try:
-                    tl = session.get_timeline_properties()
-                    if tl:
-                        info.position_ms = max(0, int(tl.position.total_seconds() * 1000))
-                        info.duration_ms = max(0, int(tl.end_time.total_seconds() * 1000))
-                except Exception:
-                    pass
-
-                try:
-                    props = await session.try_get_media_properties_async()
-                    if props:
-                        info.title = props.title or ""
-                        info.artist = props.artist or ""
-                        info.album = props.album_title or ""
-                        info.title_artist = f"{info.title} - {info.artist}" if info.artist else info.title
-                        if props.thumbnail:
-                            try:
-                                stream = await props.thumbnail.open_read_async()
-                                if stream and 0 < stream.size < 10 * 1024 * 1024:
-                                    buf = bytes(stream.size)
-                                    await stream.input_stream.read_async(buf, stream.size, 0)
-                                    info.thumbnail_data = buf
-                            except Exception:
-                                pass
-                except Exception:
-                    pass
-
-                return info
-
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
             try:
-                return loop.run_until_complete(_read())
-            finally:
-                loop.close()
+                if self._loop is None or self._loop.is_closed():
+                    self._loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(self._loop)
+
+                result = self._loop.run_until_complete(_read())
+                return result
+            except RuntimeError as e:
+                logger.warning(f"GSMTC: 事件循环错误: {e}")
+                self._loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(self._loop)
+                result = self._loop.run_until_complete(_read())
+                return result
+            except Exception as e:
+                logger.error(f"GSMTC: 执行失败 {e}")
+                return None
 
         except Exception as e:
-            logger.debug(f"GSMTC读取失败: {e}")
+            logger.error(f"GSMTC读取失败: {e}")
             return None
 
     def get_detail(self, song_id: int) -> Optional[SongDetail]:
@@ -603,17 +657,28 @@ class MediaProvider:
     """调度器"""
 
     def __init__(self):
+        _check_and_install_deps()
         self._sources = [
             NeteaseCloudMusic(),
             GSMTCReader(),
         ]
 
     def get_info(self) -> Optional[MediaInfo]:
-        for source in self._sources:
+        for i, source in enumerate(self._sources):
+            logger.debug(f"媒体源 [{i}] {source.name}: available={source.available}")
             if source.available:
-                info = source.get_info()
-                if info and info.is_valid():
-                    return info
+                try:
+                    info = source.get_info()
+                    if info and info.is_valid():
+                        logger.info(f"媒体源 [{i}] {source.name}: 成功获取媒体信息 - {info.title} - {info.artist}")
+                        return info
+                    else:
+                        logger.warning(f"媒体源 [{i}] {source.name}: 返回无效或空 (info={info})")
+                except Exception as e:
+                    logger.error(f"媒体源 [{i}] {source.name}: 执行异常 {e}")
+            else:
+                logger.info(f"媒体源 [{i}] {source.name}: 不可用")
+        logger.warning("所有媒体源均无法获取有效信息")
         return None
 
     def get_source(self, name: str):
