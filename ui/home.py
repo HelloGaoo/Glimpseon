@@ -1094,8 +1094,9 @@ class HomeInterface(QWidget):
             cw = self.homeContent.width()
             ch = self.homeContent.height()
 
-            v_refs = [0, cw / 4, cw / 3, cw / 2, cw * 2 / 3, cw * 3 / 4, cw]
-            h_refs = [0, ch / 4, ch / 3, ch / 2, ch * 2 / 3, ch * 3 / 4, ch]
+            margin = 20
+            v_refs = [0, margin, cw / 4, cw / 3, cw / 2, cw * 2 / 3, cw * 3 / 4, cw - margin, cw]
+            h_refs = [0, margin, ch / 4, ch / 3, ch / 2, ch * 2 / 3, ch * 3 / 4, ch - margin, ch]
 
             for ref_pos in v_refs:
                 for i, dp in enumerate(drag_points_x):
@@ -1121,8 +1122,9 @@ class HomeInterface(QWidget):
         if hasattr(self, 'homeContent') and self.homeContent:
             cw = self.homeContent.width()
             ch = self.homeContent.height()
-            v_refs = [0, cw / 4, cw / 3, cw / 2, cw * 2 / 3, cw * 3 / 4, cw]
-            h_refs = [0, ch / 4, ch / 3, ch / 2, ch * 2 / 3, ch * 3 / 4, ch]
+            margin = 20
+            v_refs = [0, margin, cw / 4, cw / 3, cw / 2, cw * 2 / 3, cw * 3 / 4, cw - margin, cw]
+            h_refs = [0, margin, ch / 4, ch / 3, ch / 2, ch * 2 / 3, ch * 3 / 4, ch - margin, ch]
 
             final_points_x = [snapped_x, snapped_x + w / 2, snapped_x + w]
             final_points_y = [snapped_y, snapped_y + h / 2, snapped_y + h]
