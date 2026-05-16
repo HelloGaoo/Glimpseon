@@ -1089,8 +1089,6 @@ class HomeInterface(QWidget):
         best_dy = threshold + 1
         snap_x_val = None
         snap_y_val = None
-        snap_x_line = None
-        snap_y_line = None
 
         if hasattr(self, 'homeContent') and self.homeContent:
             cw = self.homeContent.width()
@@ -1106,7 +1104,6 @@ class HomeInterface(QWidget):
                         best_dx = dx
                         offsets = [0, w / 2, w]
                         snap_x_val = ref_pos - offsets[i]
-                        snap_x_line = ('v', ref_pos)
 
             for ref_pos in h_refs:
                 for i, dp in enumerate(drag_points_y):
@@ -1115,14 +1112,32 @@ class HomeInterface(QWidget):
                         best_dy = dy
                         offsets = [0, h / 2, h]
                         snap_y_val = ref_pos - offsets[i]
-                        snap_y_line = ('h', ref_pos)
 
         if snap_x_val is not None:
             snapped_x = int(round(snap_x_val))
-            align_lines.append(snap_x_line)
         if snap_y_val is not None:
             snapped_y = int(round(snap_y_val))
-            align_lines.append(snap_y_line)
+
+        if hasattr(self, 'homeContent') and self.homeContent:
+            cw = self.homeContent.width()
+            ch = self.homeContent.height()
+            v_refs = [0, cw / 4, cw / 3, cw / 2, cw * 2 / 3, cw * 3 / 4, cw]
+            h_refs = [0, ch / 4, ch / 3, ch / 2, ch * 2 / 3, ch * 3 / 4, ch]
+
+            final_points_x = [snapped_x, snapped_x + w / 2, snapped_x + w]
+            final_points_y = [snapped_y, snapped_y + h / 2, snapped_y + h]
+
+            for ref_pos in v_refs:
+                for dp in final_points_x:
+                    if abs(dp - ref_pos) <= 1:
+                        align_lines.append(('v', ref_pos))
+                        break
+
+            for ref_pos in h_refs:
+                for dp in final_points_y:
+                    if abs(dp - ref_pos) <= 1:
+                        align_lines.append(('h', ref_pos))
+                        break
 
         return snapped_x, snapped_y, align_lines
 
