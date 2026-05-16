@@ -1082,8 +1082,8 @@ class HomeInterface(QWidget):
         align_lines = []
         threshold = self._snapThreshold
 
-        drag_cx = x + w / 2
-        drag_cy = y + h / 2
+        drag_points_x = [x, x + w / 2, x + w]
+        drag_points_y = [y, y + h / 2, y + h]
 
         best_dx = threshold + 1
         best_dy = threshold + 1
@@ -1096,26 +1096,26 @@ class HomeInterface(QWidget):
             cw = self.homeContent.width()
             ch = self.homeContent.height()
 
-            v_refs = [
-                ('v', cw / 2),
-            ]
-            h_refs = [
-                ('h', ch / 2),
-            ]
+            v_refs = [0, cw / 4, cw / 3, cw / 2, cw * 2 / 3, cw * 3 / 4, cw]
+            h_refs = [0, ch / 4, ch / 3, ch / 2, ch * 2 / 3, ch * 3 / 4, ch]
 
-            for direction, ref_pos in v_refs:
-                dx = abs(drag_cx - ref_pos)
-                if dx <= threshold and dx < best_dx:
-                    best_dx = dx
-                    snap_x_val = ref_pos - w / 2
-                    snap_x_line = (direction, ref_pos)
+            for ref_pos in v_refs:
+                for i, dp in enumerate(drag_points_x):
+                    dx = abs(dp - ref_pos)
+                    if dx <= threshold and dx < best_dx:
+                        best_dx = dx
+                        offsets = [0, w / 2, w]
+                        snap_x_val = ref_pos - offsets[i]
+                        snap_x_line = ('v', ref_pos)
 
-            for direction, ref_pos in h_refs:
-                dy = abs(drag_cy - ref_pos)
-                if dy <= threshold and dy < best_dy:
-                    best_dy = dy
-                    snap_y_val = ref_pos - h / 2
-                    snap_y_line = (direction, ref_pos)
+            for ref_pos in h_refs:
+                for i, dp in enumerate(drag_points_y):
+                    dy = abs(dp - ref_pos)
+                    if dy <= threshold and dy < best_dy:
+                        best_dy = dy
+                        offsets = [0, h / 2, h]
+                        snap_y_val = ref_pos - offsets[i]
+                        snap_y_line = ('h', ref_pos)
 
         if snap_x_val is not None:
             snapped_x = int(round(snap_x_val))
