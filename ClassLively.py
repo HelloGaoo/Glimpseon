@@ -39,6 +39,7 @@ from qfluentwidgets import (
     ProgressBar,
     RoundMenu,
     setTheme,
+    setThemeColor,
     StrongBodyLabel,
     isDarkTheme,
 )
@@ -894,8 +895,14 @@ class WizardWindow(QDialog):
 
     def _onColorChanged(self, color):
         """颜色变更"""
-        theme_color = cfg.themeColor.value
-        setThemeColor(theme_color)
+        try:
+            setThemeColor(color)
+        except Exception:
+            theme_color = cfg.themeColor.value
+            try:
+                setThemeColor(theme_color)
+            except Exception:
+                pass
 
     def __setQss(self):
         self.setStyleSheet(load_qss('app.qss'))

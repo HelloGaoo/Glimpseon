@@ -26,9 +26,9 @@ from PyQt6.QtWidgets import (
 from qfluentwidgets import (
     BodyLabel, SwitchButton, SpinBox,
     ComboBox, PushButton, LineEdit, ListWidget,
-    Theme, isDarkTheme,
+    ScrollArea, Theme, isDarkTheme,
     FluentIcon as FIF, ColorDialog,
-    Pivot,
+    Pivot, StrongBodyLabel,
 )
 
 from core.config import cfg
@@ -66,6 +66,7 @@ class ComponentSettingDialog(QDialog):
             | Qt.WindowType.WindowStaysOnTopHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setObjectName('settingDialog')
         self._basic_layout = None
         self._advanced_layout = None
         self._group_count = 0
@@ -96,7 +97,11 @@ class ComponentSettingDialog(QDialog):
         self._advanced_layout.setSpacing(8)
         self._stack.addWidget(self._advanced_page)
 
-        root.addWidget(self._stack, 1)
+        self._scroll_area = ScrollArea(self)
+        self._scroll_area.setWidgetResizable(True)
+        self._scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll_area.setWidget(self._stack)
+        root.addWidget(self._scroll_area, 1)
 
         self._pivot.addItem('basic', '组件设置')
         self._pivot.addItem('advanced', '高级设置')
@@ -116,6 +121,9 @@ class ComponentSettingDialog(QDialog):
         pass
 
     def _beginGroup(self, group: str):
+        if group == 'basic':
+            self._addSectionTitle('基本', is_advanced=False)
+            return False
         return group == 'advanced'
 
     def _endGroup(self):
@@ -127,29 +135,15 @@ class ComponentSettingDialog(QDialog):
         return self._basic_layout
 
     def _applyStyle(self):
-        dark = isDarkTheme()
-        bg = 'rgb(32, 32, 32)' if dark else 'rgb(255, 255, 255)'
-        fg = '#FFFFFF' if dark else '#000000'
-        self.setStyleSheet(f"""
-            ComponentSettingDialog {{
-                background-color: {bg};
-                color: {fg};
-            }}
-            QStackedWidget {{
-                background-color: {bg};
-            }}
-            #basic, #advanced {{
-                background-color: {bg};
-            }}
-        """)
+        self.setStyleSheet(load_qss('setting_dialog.qss'))
 
     def _addRow(self, label_text: str, widget: QWidget, is_advanced=False):
         row = QHBoxLayout()
         row.setSpacing(12)
         label = BodyLabel(label_text)
-        label.setFixedWidth(100)
+        label.setMinimumWidth(90)
         row.addWidget(label)
-        widget.setFixedWidth(160)
+        widget.setMinimumWidth(120)
         row.addWidget(widget)
         row.addStretch()
         target = self._targetLayout(is_advanced)
@@ -184,10 +178,32 @@ class ComponentSettingDialog(QDialog):
         return self._addRow(label_text, edit, is_advanced), edit
 
     def _addSectionTitle(self, text: str, is_advanced=False):
-        pass
+        from PyQt6.QtWidgets import QFrame as _QF
+        target = self._targetLayout(is_advanced)
+        spacer = _QF()
+        spacer.setFixedHeight(12)
+        spacer.setFrameShape(_QF.Shape.NoFrame)
+        target.addWidget(spacer)
+        title = StrongBodyLabel(text)
+        title.setObjectName('settingSectionTitle')
+        title.setStyleSheet("font-size: 16px; font-weight: bold; padding: 2px 0 4px 0; font-family: 'HarmonyOS Sans', 'Microsoft YaHei', 'SimHei', sans-serif;")
+        target.addWidget(title)
+        self._addSeparator(is_advanced)
+        spacer2 = _QF()
+        spacer2.setFixedHeight(4)
+        spacer2.setFrameShape(_QF.Shape.NoFrame)
+        target.addWidget(spacer2)
 
     def _addSeparator(self, is_advanced=False):
-        pass
+        from PyQt6.QtWidgets import QFrame
+        target = self._targetLayout(is_advanced)
+        line = QFrame()
+        line.setFixedHeight(1)
+        line.setFrameShape(QFrame.Shape.HLine)
+        dark = isDarkTheme()
+        bg = 'rgba(255,255,255,0.06)' if dark else 'rgba(0,0,0,0.06)'
+        line.setStyleSheet(f"QFrame {{ background: {bg}; }}")
+        target.addWidget(line)
 
     def _addColorCombo(self, label_text: str, config_item, default='main', is_advanced=False):
         combo = ComboBox()
@@ -221,7 +237,7 @@ class ComponentSettingDialog(QDialog):
         row_layout.setContentsMargins(0, 4, 0, 4)
 
         label = BodyLabel(label_text)
-        label.setFixedWidth(90)
+        label.setMinimumWidth(90)
         row_layout.addWidget(label)
 
         for color in presets:
@@ -301,7 +317,7 @@ class ComponentSettingDialog(QDialog):
             current = current.name()
         initial = QColor(current)
         top_parent = self.window()
-        dialog = ColorDialog(initial, "选择颜色", top_parent, enableAlpha=True)
+        dialog = ColorDialog(initial, "选择颜色", top_parent, enableAlpha=False)
         dialog.colorChanged.connect(lambda c: self._updateCustomBtnStyle(btn, c.name()))
         if dialog.exec():
             config_item.value = dialog.color.name()
@@ -320,6 +336,7 @@ class ClockSettingDialog(ComponentSettingDialog):
         (self._lunarRow, self._lunarSwitch) = self._addSwitch('显示农历', cfg.showLunarCalendar, is_advanced=basic)
 
         advanced = self._beginGroup('advanced')
+        self._addSectionTitle('外观', is_advanced=advanced)
         (self._colorRow, self._colorBtn) = self._addColorPicker('时钟颜色', cfg.clockColor, is_advanced=advanced)
         (self._clockSizeRow, self._clockSizeSpin) = self._addSpinBox('时钟大小', cfg.clockSize, 80, 200, is_advanced=advanced)
         (self._dateSizeRow, self._dateSizeSpin) = self._addSpinBox('日期大小', cfg.dateSize, 12, 50, is_advanced=advanced)
@@ -347,9 +364,11 @@ class WeatherSettingDialog(ComponentSettingDialog):
         self._cityButton.clicked.connect(self._onCityClicked)
 
         advanced = self._beginGroup('advanced')
+        self._addSectionTitle('样式', is_advanced=advanced)
         (self._sizeRow, self._sizeSpin) = self._addSpinBox('文字大小', cfg.weatherSize, 5, 50, is_advanced=advanced)
         (self._textColorRow, self._textColorBtn) = self._addColorPicker('文字颜色', cfg.weatherTextColor, is_advanced=advanced)
         (self._iconSizeRow, self._iconSizeSpin) = self._addSpinBox('图标大小', cfg.weatherIconSize, 32, 128, is_advanced=advanced)
+        self._addSectionTitle('数据', is_advanced=advanced)
         (self._intervalRow, self._intervalCombo) = self._addComboBox(
             '更新间隔',
             ['从不', '5 分钟', '15 分钟', '30 分钟', '1 小时', '3 小时', '6 小时', '12 小时', '24 小时'],
@@ -402,8 +421,10 @@ class PoetrySettingDialog(ComponentSettingDialog):
         self._apiCombo.currentTextChanged.connect(self._onApiChanged)
 
         advanced = self._beginGroup('advanced')
+        self._addSectionTitle('样式', is_advanced=advanced)
         (self._sizeRow, self._sizeSpin) = self._addSpinBox('文字大小', cfg.poetrySize, 12, 50, is_advanced=advanced)
         (self._textColorRow, self._textColorBtn) = self._addColorPicker('文字颜色', cfg.poetryTextColor, is_advanced=advanced)
+        self._addSectionTitle('数据', is_advanced=advanced)
         (self._intervalRow, self._intervalCombo) = self._addComboBox(
             '更新间隔',
             ['从不', '5 分钟', '10 分钟', '30 分钟', '1 小时', '3 小时', '6 小时', '12 小时', '1 天'],
@@ -445,10 +466,12 @@ class CountdownSettingDialog(ComponentSettingDialog):
         (self._carouselRow, self._carouselSpin) = self._addSpinBox('轮播间隔(秒)', cfg.countdownCarouselInterval, 1, 60, is_advanced=basic)
 
         advanced = self._beginGroup('advanced')
+        self._addSectionTitle('样式', is_advanced=advanced)
         (self._textColorRow, self._textColorBtn) = self._addColorPicker('文字颜色', cfg.countdownTextColor, is_advanced=advanced)
         (self._connectorColorRow, self._connectorColorBtn) = self._addColorPicker('连接词颜色', cfg.countdownConnectorColor, is_advanced=advanced)
         (self._textSizeRow, self._textSizeSpin) = self._addSpinBox('文字大小', cfg.countdownTextSize, 12, 120, is_advanced=advanced)
         (self._connectorSizeRow, self._connectorSizeSpin) = self._addSpinBox('连接词大小', cfg.countdownConnectorSize, 12, 60, is_advanced=advanced)
+        self._addSectionTitle('倒计时列表', is_advanced=advanced)
         self._listWidget = ListWidget()
         self._listWidget.setFixedHeight(140)
         self._advanced_layout.addWidget(self._listWidget)
@@ -526,8 +549,8 @@ class SchoolInfoSettingDialog(ComponentSettingDialog):
     def _createSettings(self):
         basic = self._beginGroup('basic')
         (self._enableRow, self._enableSwitch) = self._addSwitch('启用学校信息', cfg.showSchoolInfo, is_advanced=basic)
-        (self._classRow, self._classEdit) = self._addLineEdit('班级', cfg.schoolClass, '例如：高三 (1) 班', is_advanced=basic)
-        (self._schoolRow, self._schoolEdit) = self._addLineEdit('学校', cfg.school, '例如：XX 中学', is_advanced=basic)
+        (self._classRow, self._classEdit) = self._addLineEdit('班级', cfg.schoolClass, '例：2516班', is_advanced=basic)
+        (self._schoolRow, self._schoolEdit) = self._addLineEdit('学校', cfg.school, '例：第二实验中学', is_advanced=basic)
 
         advanced = self._beginGroup('advanced')
         (self._colorRow, self._colorBtn) = self._addColorPicker('文字颜色', cfg.schoolInfoTextColor, is_advanced=advanced)
@@ -561,6 +584,7 @@ class MediaSettingDialog(ComponentSettingDialog):
         self._all_widgets.append(self._lyricsShowSwitch)
 
         advanced = self._beginGroup('advanced')
+        self._addSectionTitle('尺寸', is_advanced=advanced)
         (self._widthRow, self._widthSpin) = self._addSpinBox('组件宽度', cfg.mediaWidth, 200, 800, is_advanced=advanced)
         self._all_widgets.append(self._widthSpin)
         (self._heightRow, self._heightSpin) = self._addSpinBox('组件高度', cfg.mediaHeight, 80, 300, is_advanced=advanced)
@@ -569,6 +593,8 @@ class MediaSettingDialog(ComponentSettingDialog):
         self._all_widgets.append(self._textSizeSpin)
         (self._coverSizeRow, self._coverSizeSpin) = self._addSpinBox('封面大小', cfg.mediaCoverSize, 32, 128, is_advanced=advanced)
         self._all_widgets.append(self._coverSizeSpin)
+
+        self._addSectionTitle('背景', is_advanced=advanced)
         (self._bgColorRow, self._bgColorBtn) = self._addColorPicker('背景颜色', cfg.mediaBgColor, is_advanced=advanced)
         self._all_widgets.append(self._bgColorBtn)
         (self._bgOpacityRow, self._bgOpacitySpin) = self._addSpinBox('背景透明度', cfg.mediaBgOpacity, 0, 100, is_advanced=advanced)
@@ -579,28 +605,36 @@ class MediaSettingDialog(ComponentSettingDialog):
         self._all_widgets.append(self._borderWidthSpin)
         (self._borderColorRow, self._borderColorBtn) = self._addColorPicker('边框颜色', cfg.mediaBorderColor, is_advanced=advanced)
         self._all_widgets.append(self._borderColorBtn)
+
+        self._addSectionTitle('文字', is_advanced=advanced)
         (self._titleColorRow, self._titleColorBtn) = self._addColorPicker('标题颜色', cfg.mediaTitleColor, is_advanced=advanced)
         self._all_widgets.append(self._titleColorBtn)
         (self._artistColorRow, self._artistColorBtn) = self._addColorPicker('艺术家颜色', cfg.mediaArtistColor, is_advanced=advanced)
         self._all_widgets.append(self._artistColorBtn)
         (self._timeColorRow, self._timeColorBtn) = self._addColorPicker('时间颜色', cfg.mediaTimeColor, is_advanced=advanced)
         self._all_widgets.append(self._timeColorBtn)
+
+        self._addSectionTitle('歌词', is_advanced=advanced)
         (self._lyricsColorRow, self._lyricsColorBtn) = self._addColorPicker('歌词颜色', cfg.mediaLyricsColor, is_advanced=advanced)
         self._all_widgets.append(self._lyricsColorBtn)
+        (self._lyricsSizeRow, self._lyricsSizeSpin) = self._addSpinBox('歌词字号', cfg.mediaLyricsSize, 10, 24, is_advanced=advanced)
+        self._all_widgets.append(self._lyricsSizeSpin)
+        (self._lyricsAdvanceRow, self._lyricsAdvanceSpin) = self._addSpinBox('歌词提前(ms)', cfg.mediaLyricsAdvance, 0, 2000, is_advanced=advanced)
+        self._all_widgets.append(self._lyricsAdvanceSpin)
+
+        self._addSectionTitle('进度条', is_advanced=advanced)
         (self._progressColorRow, self._progressColorBtn) = self._addColorPicker('进度条颜色', cfg.mediaProgressColor, is_advanced=advanced)
         self._all_widgets.append(self._progressColorBtn)
         (self._progressTrackRow, self._progressTrackBtn) = self._addColorPicker('轨道颜色', cfg.mediaProgressTrackColor, is_advanced=advanced)
         self._all_widgets.append(self._progressTrackBtn)
         (self._progressHeightRow, self._progressHeightSpin) = self._addSpinBox('进度条高度', cfg.mediaProgressHeight, 2, 8, is_advanced=advanced)
         self._all_widgets.append(self._progressHeightSpin)
+
+        self._addSectionTitle('封面', is_advanced=advanced)
         (self._coverRadiusRow, self._coverRadiusSpin) = self._addSpinBox('封面圆角', cfg.mediaCoverBorderRadius, 0, 20, is_advanced=advanced)
         self._all_widgets.append(self._coverRadiusSpin)
         (self._coverBorderColorRow, self._coverBorderColorBtn) = self._addColorPicker('封面边框色', cfg.mediaCoverBorderColor, is_advanced=advanced)
         self._all_widgets.append(self._coverBorderColorBtn)
-        (self._lyricsSizeRow, self._lyricsSizeSpin) = self._addSpinBox('歌词字号', cfg.mediaLyricsSize, 10, 24, is_advanced=advanced)
-        self._all_widgets.append(self._lyricsSizeSpin)
-        (self._lyricsAdvanceRow, self._lyricsAdvanceSpin) = self._addSpinBox('歌词提前(ms)', cfg.mediaLyricsAdvance, 0, 2000, is_advanced=advanced)
-        self._all_widgets.append(self._lyricsAdvanceSpin)
 
         self._enableSwitch.checkedChanged.connect(self._updateEnabled)
         self._updateEnabled(cfg.showMediaInfo.value)
@@ -623,8 +657,10 @@ class QuickLaunchSettingDialog(ComponentSettingDialog):
         self._addRow('应用列表', edit_btn, is_advanced=basic)
 
         advanced = self._beginGroup('advanced')
+        self._addSectionTitle('图标', is_advanced=advanced)
         (self._iconSizeRow, self._iconSizeSpin) = self._addSpinBox('图标大小', cfg.quickLaunchIconSize, 32, 96, is_advanced=advanced)
         (self._spacingRow, self._spacingSpin) = self._addSpinBox('图标间距', cfg.quickLaunchIconSpacing, 4, 40, is_advanced=advanced)
+        self._addSectionTitle('布局', is_advanced=advanced)
         (self._labelsRow, self._labelsSwitch) = self._addSwitch('显示名称', cfg.quickLaunchShowLabels, is_advanced=advanced)
         (self._offsetRow, self._offsetSpin) = self._addSpinBox('向上偏移', cfg.quickLaunchOffsetY, 0, 120, is_advanced=advanced)
 

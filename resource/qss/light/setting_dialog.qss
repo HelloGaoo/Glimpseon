@@ -1,0 +1,38 @@
+/* 组件设置对话框 */
+
+#settingDialog {
+    background-color: rgb(255, 255, 255);
+    border: none;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#settingDialog QStackedWidget {
+    background-color: rgb(255, 255, 255);
+}
+
+#settingDialog #basic,
+#settingDialog #advanced {
+    background-color: rgb(255, 255, 255);
+}
+
+#settingDialog BodyLabel {
+    color: #333333;
+    font-size: 14px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#settingDialog StrongBodyLabel {
+    color: #000000;
+    font-size: 14px;
+    font-weight: bold;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#settingDialog StrongBodyLabel#settingSectionTitle {
+    color: #111111;
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0;
+    padding: 0;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
