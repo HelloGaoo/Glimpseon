@@ -370,14 +370,15 @@ class LyricsWidget(QWidget):
         self._original_text = ""
         self._text_size = 14
         self._lyrics = None
+        self._lyrics_color = "#FFFFFFB3"
 
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setFixedHeight(self._text_size + 8)
 
     def set_text_size(self, size: int):
-        self._text_size = size
-        self.setFixedHeight(size + 8)
+        self._text_size = max(size, 10)
+        self.setFixedHeight(self._text_size + 8)
         self.update()
 
     def set_visible_lines(self, n: int):
@@ -391,6 +392,10 @@ class LyricsWidget(QWidget):
         else:
             text = ""
         self._update_text(text)
+
+    def set_lyrics_color(self, color: str):
+        self._lyrics_color = color
+        self.update()
 
     def update_position(self, ms: int):
         if not self._lyrics or self._lyrics.is_empty():
@@ -424,7 +429,8 @@ class LyricsWidget(QWidget):
         available = max(self.width() - 4, 0)
         elided = fm.elidedText(self._original_text, Qt.TextElideMode.ElideRight, available)
 
-        p.setPen(QColor(245, 245, 250, 255))
+        lyrics_color = QColor(self._lyrics_color)
+        p.setPen(lyrics_color)
         p.drawText(0, 0, self.width(), self.height(),
                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                    elided)
@@ -439,22 +445,27 @@ class MediaProgressBar(QProgressBar):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setTextVisible(False)
-        self.setFixedHeight(5)
+        self.apply_style()
+
+    def apply_style(self):
+        height = cfg.mediaProgressHeight.value
+        self.setFixedHeight(height)
 
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         p.setPen(Qt.PenStyle.NoPen)
 
-        bg_color = QColor(255, 255, 255, 35)
-        p.setBrush(bg_color)
-        p.drawRoundedRect(0, 1, self.width(), self.height() - 2, 3, 3)
+        track_color = QColor(cfg.mediaProgressTrackColor.value)
+        p.setBrush(track_color)
+        h = self.height()
+        p.drawRoundedRect(0, 1, self.width(), h - 2, 3, 3)
 
         if self.value() > 0:
             w = int(self.width() * self.value() / self.maximum()) if self.maximum() > 0 else 0
-            gradient_color = QColor(220, 225, 240, 210)
-            p.setBrush(gradient_color)
-            p.drawRoundedRect(0, 1, w, self.height() - 2, 3, 3)
+            progress_color = QColor(cfg.mediaProgressColor.value)
+            p.setBrush(progress_color)
+            p.drawRoundedRect(0, 1, w, h - 2, 3, 3)
 
 
 class FetchWorker(QObject):
@@ -500,6 +511,19 @@ class MediaWidget(QWidget):
         self._setup_timers()
         self._apply_config()
         self._init_cover_animation()
+
+    @staticmethod
+    def _qss_color(color_val):
+        if isinstance(color_val, QColor):
+            c = color_val
+        elif color_val == "primary":
+            from qfluentwidgets import Theme, isDarkTheme
+            c = QColor(0, 0, 0) if not isDarkTheme() else QColor(255, 255, 255)
+        else:
+            if hasattr(color_val, 'name'):
+                color_val = color_val.name()
+            c = QColor(color_val)
+        return f"rgba({c.red()}, {c.green()}, {c.blue()}, {round(c.alpha() / 255 * 100) / 100})"
 
     def _init_ui(self):
         self.setStyleSheet(load_qss('home.qss'))
@@ -563,28 +587,34 @@ class MediaWidget(QWidget):
         top_row.addLayout(right_col, 1)
         main_layout.addLayout(top_row)
 
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        self.setMinimumWidth(cfg.mediaWidth.value)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         
     def _get_content_height(self) -> int:
         return cfg.mediaHeight.value
 
     def _default_cover(self):
         sz = cfg.mediaCoverSize.value
+        radius = cfg.mediaCoverBorderRadius.value
         pm = QPixmap(sz, sz)
         pm.fill(Qt.GlobalColor.transparent)
         p = QPainter(pm)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor(255, 255, 255, 25))
-        p.drawRoundedRect(0, 0, sz, sz, 10, 10)
+
+        border_color = QColor(cfg.mediaCoverBorderColor.value)
+        p.setBrush(border_color)
+        p.drawRoundedRect(0, 0, sz, sz, radius, radius)
+
+        inner_color = QColor(255, 255, 255, 25)
+        p.setBrush(inner_color)
+        p.drawRoundedRect(2, 2, sz - 4, sz - 4, max(radius - 2, 2), max(radius - 2, 2))
 
         shadow_color = QColor(0, 0, 0, 40)
         for i in range(3):
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(QColor(0, 0, 0, 15 - i * 4))
             offset = (i + 1) * 2
-            p.drawRoundedRect(offset, offset, sz, sz, 10, 10)
+            p.drawRoundedRect(offset, offset, sz, sz, radius, radius)
         p.end()
         self._cover_lbl.setPixmap(pm)
 
@@ -595,9 +625,27 @@ class MediaWidget(QWidget):
         self._prog_timer.timeout.connect(self._update_progress)
 
     def _apply_config(self):
-        sz = cfg.mediaTextSize.value
-        self._title.setStyleSheet(f"font-size: {sz + 2}px; font-weight: 600; font-family: 'HarmonyOS Sans', 'Microsoft YaHei', 'SimHei', sans-serif;")
-        self._artist.setStyleSheet(f"font-size: {sz}px; font-family: 'HarmonyOS Sans', 'Microsoft YaHei', 'SimHei', sans-serif;")
+        sz = max(cfg.mediaTextSize.value, 10)
+        title_color = self._qss_color(cfg.mediaTitleColor.value)
+        artist_color = self._qss_color(cfg.mediaArtistColor.value)
+        time_color = self._qss_color(cfg.mediaTimeColor.value)
+        lyrics_color = cfg.mediaLyricsColor.value
+
+        self._title.setStyleSheet(
+            f"font-size: {sz + 2}px; font-weight: 600;"
+            f"color: {title_color};"
+            f"font-family: 'HarmonyOS Sans', 'Microsoft YaHei', 'SimHei', sans-serif;"
+        )
+        self._artist.setStyleSheet(
+            f"font-size: {sz}px;"
+            f"color: {artist_color};"
+            f"font-family: 'HarmonyOS Sans', 'Microsoft YaHei', 'SimHei', sans-serif;"
+        )
+        self._time.setStyleSheet(f"color: {time_color};")
+        self._dur.setStyleSheet(f"color: {time_color};")
+        self._lyrics_w.set_text_size(cfg.mediaLyricsSize.value)
+        self._lyrics_w.set_visible_lines(1)
+        self._lyrics_w.set_lyrics_color(lyrics_color)
 
         cover_sz = cfg.mediaCoverSize.value
         self._cover_lbl.setFixedSize(cover_sz, cover_sz)
@@ -607,13 +655,39 @@ class MediaWidget(QWidget):
         else:
             self._default_cover()
 
-        self._lyrics_w.set_text_size(cfg.mediaLyricsSize.value)
-        self._lyrics_w.set_visible_lines(1)
-        self.setMinimumWidth(cfg.mediaWidth.value)
-        self.setFixedHeight(cfg.mediaHeight.value)
-        self.adjustSize()
+        self._bar.apply_style()
+        self.setFixedSize(cfg.mediaWidth.value, cfg.mediaHeight.value)
+        self._apply_background_style()
+
+    def _apply_background_style(self):
+        bg_color = cfg.mediaBgColor.value
+        bg_opacity = cfg.mediaBgOpacity.value
+        border_radius = cfg.mediaBorderRadius.value
+        border_width = cfg.mediaBorderWidth.value
+        border_color = cfg.mediaBorderColor.value
+
+        c = QColor(bg_color)
+        c.setAlpha(int(255 * bg_opacity / 100))
+        if c.alpha() == 0:
+            bg_css = "background-color: transparent;"
+        else:
+            bg_css = f"background-color: {self._qss_color(c)};"
+
+        if border_width > 0:
+            border_css = f"border: {border_width}px solid {self._qss_color(border_color)};"
+        else:
+            border_css = ""
+
+        self.setStyleSheet(
+            f"#mediaWidget {{"
+            f"{bg_css}"
+            f"border-radius: {border_radius}px;"
+            f"{border_css}"
+            f"}}"
+        )
 
     def _add_cover_shadow(self, pixmap: QPixmap, size: int) -> QPixmap:
+        radius = cfg.mediaCoverBorderRadius.value
         result = QPixmap(size + 8, size + 8)
         result.fill(Qt.GlobalColor.transparent)
 
@@ -625,7 +699,7 @@ class MediaWidget(QWidget):
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(QColor(0, 0, 0, 20 - i * 4))
             offset = (i + 1) * 2
-            p.drawRoundedRect(offset, offset, size, size, 10, 10)
+            p.drawRoundedRect(offset, offset, size, size, radius, radius)
 
         rounded = QPixmap(size, size)
         rounded.fill(Qt.GlobalColor.transparent)
@@ -633,7 +707,7 @@ class MediaWidget(QWidget):
         p2.setRenderHint(QPainter.RenderHint.Antialiasing)
         p2.setPen(Qt.PenStyle.NoPen)
         p2.setBrush(Qt.BrushStyle.SolidPattern)
-        p2.drawRoundedRect(0, 0, size, size, 10, 10)
+        p2.drawRoundedRect(0, 0, size, size, radius, radius)
         p2.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceAtop)
         p2.drawPixmap(0, 0, pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation))
         p2.end()

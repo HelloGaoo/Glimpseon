@@ -412,8 +412,26 @@ class HomeInterface(QWidget):
             cfg.showMediaInfo.valueChanged.connect(self._onShowMediaInfoChanged)
             cfg.showMediaCover.valueChanged.connect(self._onMediaSettingsChanged)
             cfg.mediaWidth.valueChanged.connect(self._onMediaSettingsChanged)
+            cfg.mediaHeight.valueChanged.connect(self._onMediaSettingsChanged)
+            cfg.mediaTextSize.valueChanged.connect(self._onMediaSettingsChanged)
+            cfg.mediaCoverSize.valueChanged.connect(self._onMediaSettingsChanged)
+            cfg.mediaLyricsSize.valueChanged.connect(self._onMediaSettingsChanged)
             cfg.mediaLyricsAdvance.valueChanged.connect(self._onMediaSettingsChanged)
             cfg.mediaUpdateInterval.valueChanged.connect(self._onMediaUpdateIntervalChanged)
+            cfg.mediaBgColor.valueChanged.connect(self._onMediaSettingsChanged)
+            cfg.mediaBgOpacity.valueChanged.connect(self._onMediaSettingsChanged)
+            cfg.mediaBorderRadius.valueChanged.connect(self._onMediaSettingsChanged)
+            cfg.mediaBorderWidth.valueChanged.connect(self._onMediaSettingsChanged)
+            cfg.mediaBorderColor.valueChanged.connect(self._onMediaSettingsChanged)
+            cfg.mediaTitleColor.valueChanged.connect(self._onMediaSettingsChanged)
+            cfg.mediaArtistColor.valueChanged.connect(self._onMediaSettingsChanged)
+            cfg.mediaTimeColor.valueChanged.connect(self._onMediaSettingsChanged)
+            cfg.mediaLyricsColor.valueChanged.connect(self._onMediaSettingsChanged)
+            cfg.mediaProgressColor.valueChanged.connect(self._onMediaSettingsChanged)
+            cfg.mediaProgressTrackColor.valueChanged.connect(self._onMediaSettingsChanged)
+            cfg.mediaProgressHeight.valueChanged.connect(self._onMediaSettingsChanged)
+            cfg.mediaCoverBorderRadius.valueChanged.connect(self._onMediaSettingsChanged)
+            cfg.mediaCoverBorderColor.valueChanged.connect(self._onMediaSettingsChanged)
 
             if cfg.showMediaInfo.value:
                 self.mediaWidget.start()
@@ -434,6 +452,8 @@ class HomeInterface(QWidget):
     def _onMediaSettingsChanged(self, value):
         if hasattr(self, 'mediaWidget'):
             self.mediaWidget.update_settings()
+        if hasattr(self, 'mediaContainer'):
+            self.mediaContainer.adjustSize()
 
     def _onMediaUpdateIntervalChanged(self, value):
         if hasattr(self, 'mediaWidget') and cfg.showMediaInfo.value:

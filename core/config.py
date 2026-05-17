@@ -353,6 +353,30 @@ class Config(QConfig):
     mediaLyricsAdvance = RangeConfigItem(
         "Media", "LyricsAdvance", 300, RangeValidator(0, 2000)
     )
+    mediaBgColor = ColorConfigItem("Media", "BgColor", "#000000")
+    mediaBgOpacity = RangeConfigItem(
+        "Media", "BgOpacity", 60, RangeValidator(0, 100)
+    )
+    mediaBorderRadius = RangeConfigItem(
+        "Media", "BorderRadius", 12, RangeValidator(0, 30)
+    )
+    mediaBorderWidth = RangeConfigItem(
+        "Media", "BorderWidth", 0, RangeValidator(0, 5)
+    )
+    mediaBorderColor = ColorConfigItem("Media", "BorderColor", "#FFFFFF40")
+    mediaTitleColor = ColorConfigItem("Media", "TitleColor", "#FFFFFF")
+    mediaArtistColor = ColorConfigItem("Media", "ArtistColor", "#FFFFFF99")
+    mediaTimeColor = ColorConfigItem("Media", "TimeColor", "#FFFFFF80")
+    mediaLyricsColor = ColorConfigItem("Media", "LyricsColor", "#FFFFFFB3")
+    mediaProgressColor = ColorConfigItem("Media", "ProgressColor", "#30c361")
+    mediaProgressTrackColor = ColorConfigItem("Media", "ProgressTrackColor", "#FFFFFF1A")
+    mediaProgressHeight = RangeConfigItem(
+        "Media", "ProgressHeight", 4, RangeValidator(2, 8)
+    )
+    mediaCoverBorderRadius = RangeConfigItem(
+        "Media", "CoverBorderRadius", 10, RangeValidator(0, 20)
+    )
+    mediaCoverBorderColor = ColorConfigItem("Media", "CoverBorderColor", "#FFFFFF20")
 
 
 cfg = Config()
@@ -493,7 +517,24 @@ def default_cfg():
             "TextSize": 16,
             "CoverSize": 64,
             "LyricsSize": 14,
-            "LyricsLines": 3
+            "LyricsLines": 3,
+            "LyricsAdvance": 300,
+            "Width": 360,
+            "Height": 130,
+            "BgColor": "#000000",
+            "BgOpacity": 60,
+            "BorderRadius": 12,
+            "BorderWidth": 0,
+            "BorderColor": "#FFFFFF40",
+            "TitleColor": "#FFFFFF",
+            "ArtistColor": "#FFFFFF99",
+            "TimeColor": "#FFFFFF80",
+            "LyricsColor": "#FFFFFFB3",
+            "ProgressColor": "#30c361",
+            "ProgressTrackColor": "#FFFFFF1A",
+            "ProgressHeight": 4,
+            "CoverBorderRadius": 10,
+            "CoverBorderColor": "#FFFFFF20"
         }
     }
 

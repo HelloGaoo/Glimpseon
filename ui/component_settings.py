@@ -18,6 +18,7 @@ if _BASE_DIR not in sys.path:
     sys.path.insert(0, _BASE_DIR)
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QDialog,
     QFrame, QSizePolicy, QApplication,
@@ -26,7 +27,7 @@ from qfluentwidgets import (
     StrongBodyLabel, BodyLabel, SwitchButton, SpinBox,
     ComboBox, PushButton, LineEdit, ListWidget,
     SmoothScrollArea, IconWidget, Theme, isDarkTheme,
-    setFont, FluentIcon as FIF,
+    setFont, FluentIcon as FIF, ColorDialog,
 )
 
 from core.config import cfg
@@ -56,8 +57,8 @@ class ComponentSettingDialog(QDialog):
         super().__init__(parent)
         self._title = title
         self._icon = icon
-        self.setMinimumWidth(380)
-        self.setMaximumWidth(480)
+        self.setMinimumSize(490, 800)
+        self.setMaximumSize(490, 800)
         self.setWindowTitle(title)
         self.setWindowFlags(
             Qt.WindowType.Dialog
@@ -217,6 +218,101 @@ class ComponentSettingDialog(QDialog):
             '黑色': '#000000', '红色': '#FF0000',
         }
         config_item.value = mapping.get(text, 'primary')
+
+    def _addColorPicker(self, label_text: str, config_item, presets=None, layout=None):
+        if presets is None:
+            presets = ["#FFFFFF", "#000000", "#30c361"]
+
+        row_layout = QHBoxLayout()
+        row_layout.setContentsMargins(0, 4, 0, 4)
+
+        label = BodyLabel(label_text)
+        label.setFixedWidth(90)
+        row_layout.addWidget(label)
+
+        for color in presets:
+            btn = PushButton()
+            btn.setFixedSize(24, 24)
+            btn.setToolTip(color)
+            c = QColor(color)
+            brightness = (c.red() * 299 + c.green() * 587 + c.blue() * 114) / 1000
+            border_c = "rgba(128,128,128,0.4)" if brightness > 128 else "rgba(255,255,255,0.2)"
+            btn.setStyleSheet(
+                f"PushButton {{ background-color: {color}; border: 1px solid {border_c}; border-radius: 4px; padding: 0; }}"
+                f"PushButton:hover {{ border: 2px solid #30c361; }}"
+            )
+            btn.clicked.connect(lambda checked, co=color, ci=config_item: self._selectPresetColor(co, ci, custom_btn))
+            row_layout.addWidget(btn)
+
+        theme_btn = PushButton()
+        theme_btn.setFixedSize(32, 24)
+        theme_btn.setToolTip("跟随主题")
+        text_c = "#333333" if not isDarkTheme() else "#FFFFFF"
+        theme_btn.setText("Aa")
+        theme_btn.setStyleSheet(
+            f"PushButton {{"
+            f"background: qlineargradient(x1:0, y1:0, x2:1, y2:0,"
+            f"stop:0 #FFFFFF, stop:1 #000000);"
+            f"border: 1px solid rgba(128,128,128,0.3);"
+            f"border-radius: 4px; color: {text_c}; font-size: 10px; font-weight: bold;"
+            f"}}"
+            f"PushButton:hover {{ border: 2px solid #30c361; }}"
+        )
+        row_layout.addWidget(theme_btn)
+
+        custom_btn = PushButton("自定义")
+        custom_btn.setFixedSize(56, 24)
+        custom_btn.setToolTip("自定义颜色")
+        self._updateCustomBtnStyle(custom_btn, config_item.value)
+        custom_btn.clicked.connect(lambda: self._onPickColor(custom_btn, config_item))
+        row_layout.addWidget(custom_btn)
+
+        theme_btn.clicked.connect(lambda checked, ci=config_item, cb=custom_btn: self._selectPresetColor("primary", ci, cb))
+
+        row_layout.addStretch()
+
+        if layout is None:
+            layout = self._layout
+        layout.addLayout(row_layout)
+        return row_layout, custom_btn
+
+    def _selectPresetColor(self, color, config_item, custom_btn):
+        config_item.value = color
+        self._updateCustomBtnStyle(custom_btn, color)
+
+    def _updateCustomBtnStyle(self, btn, color_val):
+        if hasattr(color_val, 'name'):
+            color_val = color_val.name()
+        if color_val == "primary":
+            text_c = "#333333" if not isDarkTheme() else "#FFFFFF"
+            btn.setStyleSheet(
+                f"PushButton {{"
+                f"background: qlineargradient(x1:0, y1:0, x2:1, y2:0,"
+                f"stop:0 #FFFFFF, stop:1 #000000);"
+                f"border: 1px solid rgba(128,128,128,0.3);"
+                f"border-radius: 4px; color: {text_c}; font-size: 10px; font-weight: bold;"
+                f"}}"
+            )
+            return
+        c = QColor(color_val)
+        brightness = (c.red() * 299 + c.green() * 587 + c.blue() * 114) / 1000
+        text_c = "#333333" if brightness > 128 else "#FFFFFF"
+        btn.setStyleSheet(
+            f"PushButton {{ background-color: {color_val}; border: 1px solid rgba(128,128,128,0.3); "
+            f"border-radius: 4px; color: {text_c}; font-size: 11px; padding: 0; }}"
+        )
+
+    def _onPickColor(self, btn, config_item):
+        current = config_item.value
+        if hasattr(current, 'name'):
+            current = current.name()
+        initial = QColor(current)
+        top_parent = self.window()
+        dialog = ColorDialog(initial, "选择颜色", top_parent, enableAlpha=True)
+        dialog.colorChanged.connect(lambda c: self._updateCustomBtnStyle(btn, c.name()))
+        if dialog.exec():
+            config_item.value = dialog.color.name()
+            self._updateCustomBtnStyle(btn, config_item.value)
 
 
 @ComponentSettingDialog.register('clock')
@@ -478,28 +574,84 @@ class SchoolInfoSettingDialog(ComponentSettingDialog):
 @ComponentSettingDialog.register('media')
 class MediaSettingDialog(ComponentSettingDialog):
     def __init__(self, parent=None):
+        self._all_widgets = []
         super().__init__('媒体信息设置', FIF.MUSIC, parent)
 
     def _createSettings(self):
         self._addSectionTitle('功能开关')
         (self._enableRow, self._enableSwitch) = self._addSwitch('启用媒体信息', cfg.showMediaInfo)
+        self._all_widgets.append(self._enableSwitch)
         (self._coverRow, self._coverSwitch) = self._addSwitch('显示封面', cfg.showMediaCover)
+        self._all_widgets.append(self._coverSwitch)
+        (self._progressRow, self._progressSwitch) = self._addSwitch('显示进度条', cfg.showMediaProgress)
+        self._all_widgets.append(self._progressSwitch)
+        (self._lyricsShowRow, self._lyricsShowSwitch) = self._addSwitch('显示歌词', cfg.showMediaLyrics)
+        self._all_widgets.append(self._lyricsShowSwitch)
 
         self._addSeparator()
         self._addSectionTitle('尺寸')
         (self._widthRow, self._widthSpin) = self._addSpinBox('组件宽度', cfg.mediaWidth, 200, 800)
+        self._all_widgets.append(self._widthSpin)
+        (self._heightRow, self._heightSpin) = self._addSpinBox('组件高度', cfg.mediaHeight, 80, 300)
+        self._all_widgets.append(self._heightSpin)
+        (self._textSizeRow, self._textSizeSpin) = self._addSpinBox('文字大小', cfg.mediaTextSize, 12, 32)
+        self._all_widgets.append(self._textSizeSpin)
+        (self._coverSizeRow, self._coverSizeSpin) = self._addSpinBox('封面大小', cfg.mediaCoverSize, 32, 128)
+        self._all_widgets.append(self._coverSizeSpin)
 
         self._addSeparator()
-        self._addSectionTitle('歌词')
-        (self._lyricsRow, self._lyricsSpin) = self._addSpinBox('歌词提前(ms)', cfg.mediaLyricsAdvance, 0, 2000)
+        self._addSectionTitle('背景与外观')
+        (self._bgColorRow, self._bgColorBtn) = self._addColorPicker('背景颜色', cfg.mediaBgColor)
+        self._all_widgets.append(self._bgColorBtn)
+        (self._bgOpacityRow, self._bgOpacitySpin) = self._addSpinBox('背景透明度', cfg.mediaBgOpacity, 0, 100)
+        self._all_widgets.append(self._bgOpacitySpin)
+        (self._borderRadiusRow, self._borderRadiusSpin) = self._addSpinBox('圆角半径', cfg.mediaBorderRadius, 0, 30)
+        self._all_widgets.append(self._borderRadiusSpin)
+        (self._borderWidthRow, self._borderWidthSpin) = self._addSpinBox('边框宽度', cfg.mediaBorderWidth, 0, 5)
+        self._all_widgets.append(self._borderWidthSpin)
+        (self._borderColorRow, self._borderColorBtn) = self._addColorPicker('边框颜色', cfg.mediaBorderColor)
+        self._all_widgets.append(self._borderColorBtn)
+
+        self._addSeparator()
+        self._addSectionTitle('文字颜色')
+        (self._titleColorRow, self._titleColorBtn) = self._addColorPicker('标题颜色', cfg.mediaTitleColor)
+        self._all_widgets.append(self._titleColorBtn)
+        (self._artistColorRow, self._artistColorBtn) = self._addColorPicker('艺术家颜色', cfg.mediaArtistColor)
+        self._all_widgets.append(self._artistColorBtn)
+        (self._timeColorRow, self._timeColorBtn) = self._addColorPicker('时间颜色', cfg.mediaTimeColor)
+        self._all_widgets.append(self._timeColorBtn)
+        (self._lyricsColorRow, self._lyricsColorBtn) = self._addColorPicker('歌词颜色', cfg.mediaLyricsColor)
+        self._all_widgets.append(self._lyricsColorBtn)
+
+        self._addSeparator()
+        self._addSectionTitle('进度条样式')
+        (self._progressColorRow, self._progressColorBtn) = self._addColorPicker('进度条颜色', cfg.mediaProgressColor)
+        self._all_widgets.append(self._progressColorBtn)
+        (self._progressTrackRow, self._progressTrackBtn) = self._addColorPicker('轨道颜色', cfg.mediaProgressTrackColor)
+        self._all_widgets.append(self._progressTrackBtn)
+        (self._progressHeightRow, self._progressHeightSpin) = self._addSpinBox('进度条高度', cfg.mediaProgressHeight, 2, 8)
+        self._all_widgets.append(self._progressHeightSpin)
+
+        self._addSeparator()
+        self._addSectionTitle('封面样式')
+        (self._coverRadiusRow, self._coverRadiusSpin) = self._addSpinBox('封面圆角', cfg.mediaCoverBorderRadius, 0, 20)
+        self._all_widgets.append(self._coverRadiusSpin)
+        (self._coverBorderColorRow, self._coverBorderColorBtn) = self._addColorPicker('封面边框色', cfg.mediaCoverBorderColor)
+        self._all_widgets.append(self._coverBorderColorBtn)
+
+        self._addSeparator()
+        self._addSectionTitle('歌词设置')
+        (self._lyricsSizeRow, self._lyricsSizeSpin) = self._addSpinBox('歌词字号', cfg.mediaLyricsSize, 10, 24)
+        self._all_widgets.append(self._lyricsSizeSpin)
+        (self._lyricsAdvanceRow, self._lyricsAdvanceSpin) = self._addSpinBox('歌词提前(ms)', cfg.mediaLyricsAdvance, 0, 2000)
+        self._all_widgets.append(self._lyricsAdvanceSpin)
 
         self._enableSwitch.checkedChanged.connect(self._updateEnabled)
         self._updateEnabled(cfg.showMediaInfo.value)
 
     def _updateEnabled(self, enabled):
-        self._coverSwitch.setEnabled(enabled)
-        self._widthSpin.setEnabled(enabled)
-        self._lyricsSpin.setEnabled(enabled)
+        for w in self._all_widgets:
+            w.setEnabled(enabled)
 
 
 @ComponentSettingDialog.register('quick_launch')
