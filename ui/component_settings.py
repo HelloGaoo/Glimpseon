@@ -348,6 +348,7 @@ class WeatherSettingDialog(ComponentSettingDialog):
 
         advanced = self._beginGroup('advanced')
         (self._sizeRow, self._sizeSpin) = self._addSpinBox('文字大小', cfg.weatherSize, 5, 50, is_advanced=advanced)
+        (self._textColorRow, self._textColorCombo) = self._addColorCombo('文字颜色', cfg.weatherTextColor, is_advanced=advanced)
         (self._iconSizeRow, self._iconSizeSpin) = self._addSpinBox('图标大小', cfg.weatherIconSize, 32, 128, is_advanced=advanced)
         (self._intervalRow, self._intervalCombo) = self._addComboBox(
             '更新间隔',
@@ -379,6 +380,7 @@ class WeatherSettingDialog(ComponentSettingDialog):
     def _updateEnabled(self, enabled):
         self._cityButton.setEnabled(enabled)
         self._sizeSpin.setEnabled(enabled)
+        self._textColorCombo.setEnabled(enabled)
         self._iconSizeSpin.setEnabled(enabled)
         self._intervalCombo.setEnabled(enabled)
 
@@ -401,6 +403,7 @@ class PoetrySettingDialog(ComponentSettingDialog):
 
         advanced = self._beginGroup('advanced')
         (self._sizeRow, self._sizeSpin) = self._addSpinBox('文字大小', cfg.poetrySize, 12, 50, is_advanced=advanced)
+        (self._textColorRow, self._textColorCombo) = self._addColorCombo('文字颜色', cfg.poetryTextColor, is_advanced=advanced)
         (self._intervalRow, self._intervalCombo) = self._addComboBox(
             '更新间隔',
             ['从不', '5 分钟', '10 分钟', '30 分钟', '1 小时', '3 小时', '6 小时', '12 小时', '1 天'],
@@ -420,6 +423,7 @@ class PoetrySettingDialog(ComponentSettingDialog):
     def _updateEnabled(self, enabled):
         self._apiCombo.setEnabled(enabled)
         self._sizeSpin.setEnabled(enabled)
+        self._textColorCombo.setEnabled(enabled)
         self._intervalCombo.setEnabled(enabled)
 
 

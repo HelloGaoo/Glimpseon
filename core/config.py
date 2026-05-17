@@ -197,12 +197,14 @@ class Config(QConfig):
     poetrySize = RangeConfigItem(
         "Poetry", "PoetrySize", 16, RangeValidator(12, 50)
     )
+    poetryTextColor = ColorConfigItem("Poetry", "PoetryTextColor", "#FFFFFF")
     poetryPosition = OptionsConfigItem(
         "Poetry", "PoetryPosition", "底部预留", OptionsValidator(["顶部预留", "底部预留"])
     )
     weatherSize = RangeConfigItem(
         "Weather", "WeatherSize", 24, RangeValidator(5, 50)
     )
+    weatherTextColor = ColorConfigItem("Weather", "WeatherTextColor", "#FFFFFF")
     weatherIconSize = RangeConfigItem(
         "Weather", "WeatherIconSize", 64, RangeValidator(32, 200)
     )
@@ -462,11 +464,13 @@ def default_cfg():
             "PoetryApiUrl": "https://www.ffapi.cn/int/v1/shici",
             "PoetryUpdateInterval": "10 分钟",
             "PoetrySize": 16,
+            "PoetryTextColor": "#FFFFFF",
             "PoetryPosition": "底部预留"
         },
         "Weather": {
             "ShowWeather": True,
             "WeatherSize": 24,
+            "WeatherTextColor": "#FFFFFF",
             "WeatherIconSize": 64,
             "UpdateInterval": "5 分钟",
             "City": "北京",
