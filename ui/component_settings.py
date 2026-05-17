@@ -320,7 +320,7 @@ class ClockSettingDialog(ComponentSettingDialog):
         (self._lunarRow, self._lunarSwitch) = self._addSwitch('显示农历', cfg.showLunarCalendar, is_advanced=basic)
 
         advanced = self._beginGroup('advanced')
-        (self._colorRow, self._colorCombo) = self._addColorCombo('时钟颜色', cfg.clockColor, is_advanced=advanced)
+        (self._colorRow, self._colorBtn) = self._addColorPicker('时钟颜色', cfg.clockColor, is_advanced=advanced)
         (self._clockSizeRow, self._clockSizeSpin) = self._addSpinBox('时钟大小', cfg.clockSize, 80, 200, is_advanced=advanced)
         (self._dateSizeRow, self._dateSizeSpin) = self._addSpinBox('日期大小', cfg.dateSize, 12, 50, is_advanced=advanced)
 
@@ -330,7 +330,7 @@ class ClockSettingDialog(ComponentSettingDialog):
     def _updateEnabled(self, enabled):
         self._secondsSwitch.setEnabled(enabled)
         self._lunarSwitch.setEnabled(enabled)
-        self._colorCombo.setEnabled(enabled)
+        self._colorBtn.setEnabled(enabled)
         self._clockSizeSpin.setEnabled(enabled)
         self._dateSizeSpin.setEnabled(enabled)
 
@@ -348,7 +348,7 @@ class WeatherSettingDialog(ComponentSettingDialog):
 
         advanced = self._beginGroup('advanced')
         (self._sizeRow, self._sizeSpin) = self._addSpinBox('文字大小', cfg.weatherSize, 5, 50, is_advanced=advanced)
-        (self._textColorRow, self._textColorCombo) = self._addColorCombo('文字颜色', cfg.weatherTextColor, is_advanced=advanced)
+        (self._textColorRow, self._textColorBtn) = self._addColorPicker('文字颜色', cfg.weatherTextColor, is_advanced=advanced)
         (self._iconSizeRow, self._iconSizeSpin) = self._addSpinBox('图标大小', cfg.weatherIconSize, 32, 128, is_advanced=advanced)
         (self._intervalRow, self._intervalCombo) = self._addComboBox(
             '更新间隔',
@@ -380,7 +380,7 @@ class WeatherSettingDialog(ComponentSettingDialog):
     def _updateEnabled(self, enabled):
         self._cityButton.setEnabled(enabled)
         self._sizeSpin.setEnabled(enabled)
-        self._textColorCombo.setEnabled(enabled)
+        self._textColorBtn.setEnabled(enabled)
         self._iconSizeSpin.setEnabled(enabled)
         self._intervalCombo.setEnabled(enabled)
 
@@ -403,7 +403,7 @@ class PoetrySettingDialog(ComponentSettingDialog):
 
         advanced = self._beginGroup('advanced')
         (self._sizeRow, self._sizeSpin) = self._addSpinBox('文字大小', cfg.poetrySize, 12, 50, is_advanced=advanced)
-        (self._textColorRow, self._textColorCombo) = self._addColorCombo('文字颜色', cfg.poetryTextColor, is_advanced=advanced)
+        (self._textColorRow, self._textColorBtn) = self._addColorPicker('文字颜色', cfg.poetryTextColor, is_advanced=advanced)
         (self._intervalRow, self._intervalCombo) = self._addComboBox(
             '更新间隔',
             ['从不', '5 分钟', '10 分钟', '30 分钟', '1 小时', '3 小时', '6 小时', '12 小时', '1 天'],
@@ -423,7 +423,7 @@ class PoetrySettingDialog(ComponentSettingDialog):
     def _updateEnabled(self, enabled):
         self._apiCombo.setEnabled(enabled)
         self._sizeSpin.setEnabled(enabled)
-        self._textColorCombo.setEnabled(enabled)
+        self._textColorBtn.setEnabled(enabled)
         self._intervalCombo.setEnabled(enabled)
 
 
@@ -445,8 +445,8 @@ class CountdownSettingDialog(ComponentSettingDialog):
         (self._carouselRow, self._carouselSpin) = self._addSpinBox('轮播间隔(秒)', cfg.countdownCarouselInterval, 1, 60, is_advanced=basic)
 
         advanced = self._beginGroup('advanced')
-        (self._textColorRow, self._textColorCombo) = self._addColorCombo('文字颜色', cfg.countdownTextColor, 'red', is_advanced=advanced)
-        (self._connectorColorRow, self._connectorColorCombo) = self._addColorCombo('连接词颜色', cfg.countdownConnectorColor, 'white', is_advanced=advanced)
+        (self._textColorRow, self._textColorBtn) = self._addColorPicker('文字颜色', cfg.countdownTextColor, is_advanced=advanced)
+        (self._connectorColorRow, self._connectorColorBtn) = self._addColorPicker('连接词颜色', cfg.countdownConnectorColor, is_advanced=advanced)
         (self._textSizeRow, self._textSizeSpin) = self._addSpinBox('文字大小', cfg.countdownTextSize, 12, 120, is_advanced=advanced)
         (self._connectorSizeRow, self._connectorSizeSpin) = self._addSpinBox('连接词大小', cfg.countdownConnectorSize, 12, 60, is_advanced=advanced)
         self._listWidget = ListWidget()
@@ -469,8 +469,8 @@ class CountdownSettingDialog(ComponentSettingDialog):
         self._updateEnabled(cfg.showCountdown.value)
 
     def _updateEnabled(self, enabled):
-        self._textColorCombo.setEnabled(enabled)
-        self._connectorColorCombo.setEnabled(enabled)
+        self._textColorBtn.setEnabled(enabled)
+        self._connectorColorBtn.setEnabled(enabled)
         self._textSizeSpin.setEnabled(enabled)
         self._connectorSizeSpin.setEnabled(enabled)
         self._carouselSpin.setEnabled(enabled)
@@ -530,7 +530,7 @@ class SchoolInfoSettingDialog(ComponentSettingDialog):
         (self._schoolRow, self._schoolEdit) = self._addLineEdit('学校', cfg.school, '例如：XX 中学', is_advanced=basic)
 
         advanced = self._beginGroup('advanced')
-        (self._colorRow, self._colorCombo) = self._addColorCombo('文字颜色', cfg.schoolInfoTextColor, 'white', is_advanced=advanced)
+        (self._colorRow, self._colorBtn) = self._addColorPicker('文字颜色', cfg.schoolInfoTextColor, is_advanced=advanced)
         (self._sizeRow, self._sizeSpin) = self._addSpinBox('文字大小', cfg.schoolInfoTextSize, 12, 60, is_advanced=advanced)
 
         self._enableSwitch.checkedChanged.connect(self._updateEnabled)
@@ -539,7 +539,7 @@ class SchoolInfoSettingDialog(ComponentSettingDialog):
     def _updateEnabled(self, enabled):
         self._classEdit.setEnabled(enabled)
         self._schoolEdit.setEnabled(enabled)
-        self._colorCombo.setEnabled(enabled)
+        self._colorBtn.setEnabled(enabled)
         self._sizeSpin.setEnabled(enabled)
 
 
