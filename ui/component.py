@@ -741,7 +741,6 @@ class MediaWidget(QWidget):
             return
         m = get_media_info()
         if not m or not m.is_valid():
-            logger.warning(f"媒体更新: 无有效媒体信息 (m={m})")
             self._no_media()
             return
         

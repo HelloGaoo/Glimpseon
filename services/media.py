@@ -735,12 +735,11 @@ class MediaProvider:
                         logger.info(f"媒体源 [{i}] {source.name}: 成功获取媒体信息 - {info.title} - {info.artist}")
                         return info
                     else:
-                        logger.warning(f"媒体源 [{i}] {source.name}: 返回无效或空 (info={info})")
+                        pass
                 except Exception as e:
                     logger.error(f"媒体源 [{i}] {source.name}: 执行异常 {e}")
             else:
                 logger.info(f"媒体源 [{i}] {source.name}: 不可用")
-        logger.warning("所有媒体源均无法获取有效信息")
         return None
 
     def get_source(self, name: str):
