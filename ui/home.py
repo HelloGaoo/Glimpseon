@@ -428,10 +428,16 @@ class HomeInterface(QWidget):
             cfg.mediaTimeColor.valueChanged.connect(self._onMediaSettingsChanged)
             cfg.mediaLyricsColor.valueChanged.connect(self._onMediaSettingsChanged)
             cfg.mediaProgressColor.valueChanged.connect(self._onMediaSettingsChanged)
+            cfg.mediaProgressColorMode.valueChanged.connect(self._onMediaSettingsChanged)
             cfg.mediaProgressTrackColor.valueChanged.connect(self._onMediaSettingsChanged)
             cfg.mediaProgressHeight.valueChanged.connect(self._onMediaSettingsChanged)
             cfg.mediaCoverBorderRadius.valueChanged.connect(self._onMediaSettingsChanged)
             cfg.mediaCoverBorderColor.valueChanged.connect(self._onMediaSettingsChanged)
+
+            try:
+                self.mainWindow.wallpaper.wallpaperChanged.connect(self._onMediaSettingsChanged)
+            except Exception:
+                pass
 
             if cfg.showMediaInfo.value:
                 self.mediaWidget.start()

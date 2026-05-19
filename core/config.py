@@ -371,6 +371,9 @@ class Config(QConfig):
     mediaTimeColor = ColorConfigItem("Media", "TimeColor", "#FFFFFF80")
     mediaLyricsColor = ColorConfigItem("Media", "LyricsColor", "#FFFFFFB3")
     mediaProgressColor = ColorConfigItem("Media", "ProgressColor", "#30c361")
+    mediaProgressColorMode = OptionsConfigItem(
+        "Media", "ProgressColorMode", "custom", OptionsValidator(["custom", "wallpaper"])
+    )
     mediaProgressTrackColor = ColorConfigItem("Media", "ProgressTrackColor", "#FFFFFF1A")
     mediaProgressHeight = RangeConfigItem(
         "Media", "ProgressHeight", 4, RangeValidator(2, 8)
@@ -379,6 +382,7 @@ class Config(QConfig):
         "Media", "CoverBorderRadius", 10, RangeValidator(0, 20)
     )
     mediaCoverBorderColor = ColorConfigItem("Media", "CoverBorderColor", "#FFFFFF20")
+    
 
 
 cfg = Config()

@@ -36,7 +36,7 @@ from typing import List, Optional
 
 import requests
 from PyQt6.QtCore import Qt, QEvent, pyqtSignal, QTimer, QSize
-from PyQt6.QtGui import QPixmap, QImageReader, QColor
+from PyQt6.QtGui import QPixmap, QImage, QImageReader, QColor
 from PyQt6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -746,6 +746,8 @@ class _ShrinkableWidget(QWidget):
 class WallpaperInterface(ScrollArea):
     """壁纸界面"""
 
+    wallpaperChanged = pyqtSignal()
+
     def __init__(self, mainWindow=None, parent=None):
         super().__init__(parent=parent)
         self.setObjectName("wallpaper")
@@ -1024,6 +1026,7 @@ class WallpaperInterface(ScrollArea):
         self._updateMainWindowBackground()
         self._applyEffects()
         self.infoCard.updateInfo(wallpaper_path, cached.get("source", "缓存"))
+        self.wallpaperChanged.emit()
         return True
     
     def _getApiUrl(self) -> tuple:
@@ -1086,6 +1089,7 @@ class WallpaperInterface(ScrollArea):
                 
                 InfoBar.success("成功", f"壁纸已下载", duration=3000, parent=self)
                 success = True
+                self.wallpaperChanged.emit()
                 
                 if cfg.autoSyncToDesktop.value:
                     self._setWallpaper(show_notification=True)
@@ -1124,6 +1128,7 @@ class WallpaperInterface(ScrollArea):
                 self._updateMainWindowBackground()
                 self._applyEffects()
                 self._applyEffects()
+                self.wallpaperChanged.emit()
             
             self.infoCard.updateInfo(default_wallpaper_path, "默认")
         else:
@@ -1184,6 +1189,39 @@ class WallpaperInterface(ScrollArea):
                 Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation
             )
             home.homeBackgroundImage.setPixmap(scaled_pixmap)
+
+    def get_dominant_color(self, sample_size: int = 32) -> QColor:
+        """从当前壁纸提取一个主色（简单平均采样）。"""
+        try:
+            if not self.current_pixmap or self.current_pixmap.isNull():
+                return QColor(cfg.themeColor.value if hasattr(cfg.themeColor, 'name') else cfg.themeColor.value)
+
+            img = self.current_pixmap.toImage().convertToFormat(QImage.Format.Format_RGB32)
+            w = img.width()
+            h = img.height()
+            if w <= 0 or h <= 0:
+                return QColor(cfg.themeColor.value)
+
+            # 缩放到较小尺寸以加快计算
+            sw = min(sample_size, w)
+            sh = min(sample_size, h)
+            small = img.scaled(sw, sh, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
+
+            r_total = g_total = b_total = count = 0
+            for x in range(small.width()):
+                for y in range(small.height()):
+                    c = QColor(small.pixel(x, y))
+                    r_total += c.red()
+                    g_total += c.green()
+                    b_total += c.blue()
+                    count += 1
+
+            if count == 0:
+                return QColor(cfg.themeColor.value)
+
+            return QColor(int(r_total / count), int(g_total / count), int(b_total / count))
+        except Exception:
+            return QColor(cfg.themeColor.value if hasattr(cfg.themeColor, 'name') else cfg.themeColor.value)
     
     def _saveWallpaper(self):
         logger.info("开始另存壁纸")
@@ -1240,6 +1278,7 @@ class WallpaperInterface(ScrollArea):
                 
                 InfoBar.success("成功", "已应用壁纸", duration=2000, parent=self)
                 logger.info(f"已应用壁纸: {path}")
+                self.wallpaperChanged.emit()
                 
         except Exception as e:
             logger.error(f"应用壁纸失败: {str(e)}")

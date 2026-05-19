@@ -463,7 +463,15 @@ class MediaProgressBar(QProgressBar):
 
         if self.value() > 0:
             w = int(self.width() * self.value() / self.maximum()) if self.maximum() > 0 else 0
+            # allow parent widget to override progress color (e.g. follow wallpaper)
             progress_color = QColor(cfg.mediaProgressColor.value)
+            parent = getattr(self, 'parent', None)
+            try:
+                parent_widget = self.parent()
+            except Exception:
+                parent_widget = None
+            if parent_widget and hasattr(parent_widget, '_override_progress_color') and parent_widget._override_progress_color:
+                progress_color = parent_widget._override_progress_color
             p.setBrush(progress_color)
             p.drawRoundedRect(0, 1, w, h - 2, 3, 3)
 
@@ -659,15 +667,48 @@ class MediaWidget(QWidget):
         self.setFixedSize(cfg.mediaWidth.value, cfg.mediaHeight.value)
         self._apply_background_style()
 
+    def _get_wallpaper_color(self):
+        """提取当前壁纸主色，失败返回None"""
+        try:
+            home = self.parent()
+            mw = getattr(home, 'mainWindow', None) if home is not None else None
+            if mw and hasattr(mw, 'wallpaper') and mw.wallpaper:
+                return mw.wallpaper.get_dominant_color()
+        except Exception:
+            pass
+        return None
+
     def _apply_background_style(self):
         bg_color = cfg.mediaBgColor.value
         bg_opacity = cfg.mediaBgOpacity.value
         border_radius = cfg.mediaBorderRadius.value
         border_width = cfg.mediaBorderWidth.value
         border_color = cfg.mediaBorderColor.value
+        # 支持将背景颜色设为特殊值 'wallpaper' 来跟随主界面壁纸颜色
+        override_color = None
+        actual_bg_value = bg_color.name() if hasattr(bg_color, 'name') else bg_color
+        if actual_bg_value == 'wallpaper':
+            override_color = self._get_wallpaper_color()
 
-        c = QColor(bg_color)
-        c.setAlpha(int(255 * bg_opacity / 100))
+        if override_color:
+            c = QColor(override_color)
+            c.setAlpha(int(255 * bg_opacity / 100))
+        else:
+            c = QColor(actual_bg_value if isinstance(actual_bg_value, str) else bg_color)
+            c.setAlpha(int(255 * bg_opacity / 100))
+
+        # 独立处理进度条颜色：支持通过 mediaProgressColorMode 跟随壁纸取色
+        if cfg.mediaProgressColorMode.value == "wallpaper":
+            wp_color = self._get_wallpaper_color()
+            self._override_progress_color = wp_color
+        else:
+            progress_color_val = cfg.mediaProgressColor.value
+            actual_progress_value = progress_color_val.name() if hasattr(progress_color_val, 'name') else progress_color_val
+            if actual_progress_value != 'primary':
+                self._override_progress_color = QColor(actual_progress_value)
+            else:
+                self._override_progress_color = None
+
         if c.alpha() == 0:
             bg_css = "background-color: transparent;"
         else:
@@ -685,6 +726,34 @@ class MediaWidget(QWidget):
             f"{border_css}"
             f"}}"
         )
+
+        # 根据背景色调整文字颜色，保证对比度
+        try:
+            if override_color:
+                text_bg = override_color
+            else:
+                text_bg = QColor(actual_bg_value if isinstance(actual_bg_value, str) else bg_color)
+            bright = (text_bg.red() * 299 + text_bg.green() * 587 + text_bg.blue() * 114) / 1000
+            text_color = '#000000' if bright > 160 else '#FFFFFF'
+            title_color_hex = text_color
+            artist_color_hex = text_color + '66'
+            time_color_hex = text_color + 'CC'
+            # 只更新颜色部分
+            try:
+                base_title = self._title.styleSheet().split('color:')[0]
+            except Exception:
+                base_title = ''
+            try:
+                base_artist = self._artist.styleSheet().split('color:')[0]
+            except Exception:
+                base_artist = ''
+            self._title.setStyleSheet(base_title + f"color: {title_color_hex};")
+            self._artist.setStyleSheet(base_artist + f"color: {artist_color_hex};")
+            self._time.setStyleSheet(f"color: {time_color_hex};")
+            self._dur.setStyleSheet(f"color: {time_color_hex};")
+            self._lyrics_w.set_lyrics_color(cfg.mediaLyricsColor.value if not override_color else time_color_hex)
+        except Exception:
+            pass
 
     def _add_cover_shadow(self, pixmap: QPixmap, size: int) -> QPixmap:
         radius = cfg.mediaCoverBorderRadius.value

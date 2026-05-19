@@ -229,7 +229,7 @@ class ComponentSettingDialog(QDialog):
         }
         config_item.value = mapping.get(text, 'primary')
 
-    def _addColorPicker(self, label_text: str, config_item, presets=None, is_advanced=False):
+    def _addColorPicker(self, label_text: str, config_item, presets=None, is_advanced=False, mode_config_item=None):
         if presets is None:
             presets = ["#FFFFFF", "#000000", "#30c361"]
 
@@ -239,6 +239,22 @@ class ComponentSettingDialog(QDialog):
         label = BodyLabel(label_text)
         label.setMinimumWidth(90)
         row_layout.addWidget(label)
+
+        custom_btn = PushButton("自定义")
+        custom_btn.setFixedSize(56, 24)
+        custom_btn.setToolTip("自定义颜色")
+        self._updateCustomBtnStyle(custom_btn, config_item.value)
+
+        def _set_color_and_reset_mode(color):
+            config_item.value = color
+            if mode_config_item is not None:
+                mode_config_item.value = "custom"
+            self._updateCustomBtnStyle(custom_btn, color)
+
+        def _set_wallpaper_mode():
+            if mode_config_item is not None:
+                mode_config_item.value = "wallpaper"
+            self._updateCustomBtnStyle(custom_btn, 'wallpaper')
 
         for color in presets:
             btn = PushButton()
@@ -251,8 +267,19 @@ class ComponentSettingDialog(QDialog):
                 f"PushButton {{ background-color: {color}; border: 1px solid {border_c}; border-radius: 4px; padding: 0; }}"
                 f"PushButton:hover {{ border: 2px solid #30c361; }}"
             )
-            btn.clicked.connect(lambda checked, co=color, ci=config_item: self._selectPresetColor(co, ci, custom_btn))
+            btn.clicked.connect(lambda checked, co=color: _set_color_and_reset_mode(co))
             row_layout.addWidget(btn)
+
+        wall_btn = PushButton()
+        wall_btn.setFixedSize(24, 24)
+        wall_btn.setToolTip('跟随壁纸')
+        wall_btn.setText('壁')
+        wall_btn.setStyleSheet(
+            f"PushButton {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #FFFFFF, stop:1 #000000);"
+            f"border: 1px solid rgba(128,128,128,0.3); border-radius: 4px; color: #333; font-size: 10px; font-weight: bold; }}"
+        )
+        wall_btn.clicked.connect(lambda checked: _set_wallpaper_mode())
+        row_layout.addWidget(wall_btn)
 
         theme_btn = PushButton()
         theme_btn.setFixedSize(32, 24)
@@ -270,14 +297,10 @@ class ComponentSettingDialog(QDialog):
         )
         row_layout.addWidget(theme_btn)
 
-        custom_btn = PushButton("自定义")
-        custom_btn.setFixedSize(56, 24)
-        custom_btn.setToolTip("自定义颜色")
-        self._updateCustomBtnStyle(custom_btn, config_item.value)
-        custom_btn.clicked.connect(lambda: self._onPickColor(custom_btn, config_item))
         row_layout.addWidget(custom_btn)
+        custom_btn.clicked.connect(lambda: (self._onPickColor(custom_btn, config_item), _set_color_and_reset_mode(config_item.value)))
 
-        theme_btn.clicked.connect(lambda checked, ci=config_item, cb=custom_btn: self._selectPresetColor("primary", ci, cb))
+        theme_btn.clicked.connect(lambda checked: _set_color_and_reset_mode("primary"))
 
         row_layout.addStretch()
 
@@ -301,6 +324,13 @@ class ComponentSettingDialog(QDialog):
                 f"border: 1px solid rgba(128,128,128,0.3);"
                 f"border-radius: 4px; color: {text_c}; font-size: 10px; font-weight: bold;"
                 f"}}"
+            )
+            return
+        if color_val == 'wallpaper':
+            text_c = "#333333" if not isDarkTheme() else "#FFFFFF"
+            btn.setStyleSheet(
+                f"PushButton {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #FFFFFF, stop:1 #000000);"
+                f"border: 1px solid rgba(128,128,128,0.3); border-radius: 4px; color: {text_c}; font-size: 10px; font-weight: bold; }}"
             )
             return
         c = QColor(color_val)
@@ -623,7 +653,7 @@ class MediaSettingDialog(ComponentSettingDialog):
         self._all_widgets.append(self._lyricsAdvanceSpin)
 
         self._addSectionTitle('进度条', is_advanced=advanced)
-        (self._progressColorRow, self._progressColorBtn) = self._addColorPicker('进度条颜色', cfg.mediaProgressColor, is_advanced=advanced)
+        (self._progressColorRow, self._progressColorBtn) = self._addColorPicker('进度条颜色', cfg.mediaProgressColor, is_advanced=advanced, mode_config_item=cfg.mediaProgressColorMode)
         self._all_widgets.append(self._progressColorBtn)
         (self._progressTrackRow, self._progressTrackBtn) = self._addColorPicker('轨道颜色', cfg.mediaProgressTrackColor, is_advanced=advanced)
         self._all_widgets.append(self._progressTrackBtn)
