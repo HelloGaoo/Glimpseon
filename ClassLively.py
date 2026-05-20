@@ -973,10 +973,6 @@ class MainWindow(FluentWindow):
         self.updateInterface = UpdateInterface(parent=self)
         self.addSubInterface(self.updateInterface, FIF.SYNC, "更新", NavigationItemPosition.BOTTOM)
 
-        if cfg.autoCheckUpdate.value:
-            logger.info("自动检查更新已启用")
-            self.updateInterface._UpdateInterface__checkUpdate(auto_check=True)
-
         self.aboutInterface = AboutInterface(parent=self)
         self.addSubInterface(self.aboutInterface, FIF.INFO, "关于", NavigationItemPosition.BOTTOM)
 
@@ -1487,6 +1483,9 @@ if __name__ == "__main__":
     else:
         window.show()
         logger.info("正常启动模式：显示主窗口")
+
+    if cfg.autoCheckUpdate.value:
+        QTimer.singleShot(1000, lambda: window.updateInterface._UpdateInterface__checkUpdate(auto_check=True))
 
     sys.exit(app.exec())
 

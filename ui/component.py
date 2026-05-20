@@ -668,12 +668,28 @@ class MediaWidget(QWidget):
         self._apply_background_style()
 
     def _get_wallpaper_color(self):
-        """提取当前壁纸主色，失败返回None"""
+        """提取壁纸主色 失败返回None"""
         try:
             home = self.parent()
             mw = getattr(home, 'mainWindow', None) if home is not None else None
             if mw and hasattr(mw, 'wallpaper') and mw.wallpaper:
                 return mw.wallpaper.get_dominant_color()
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _get_system_accent_color():
+        """AccentPalette[2]读取系统主题色 失败none"""
+        import winreg
+        try:
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                r'Software\Microsoft\Windows\CurrentVersion\Explorer\Accent')
+            palette = winreg.QueryValueEx(key, 'AccentPalette')[0]
+            winreg.CloseKey(key)
+            if len(palette) >= 12:
+                b, g, r = palette[8], palette[9], palette[10]
+                return QColor(r, g, b)
         except Exception:
             pass
         return None
@@ -697,17 +713,17 @@ class MediaWidget(QWidget):
             c = QColor(actual_bg_value if isinstance(actual_bg_value, str) else bg_color)
             c.setAlpha(int(255 * bg_opacity / 100))
 
-        # 独立处理进度条颜色：支持通过 mediaProgressColorMode 跟随壁纸取色
-        if cfg.mediaProgressColorMode.value == "wallpaper":
-            wp_color = self._get_wallpaper_color()
-            self._override_progress_color = wp_color
+        # 独立处理进度条颜色：支持 'wallpaper' / 'system' / 具体颜色值
+        progress_color_val = cfg.mediaProgressColor.value
+        actual_progress_value = progress_color_val.name() if hasattr(progress_color_val, 'name') else progress_color_val
+        if actual_progress_value == 'wallpaper':
+            self._override_progress_color = self._get_wallpaper_color()
+        elif actual_progress_value == 'system':
+            self._override_progress_color = self._get_system_accent_color()
+        elif actual_progress_value != 'primary':
+            self._override_progress_color = QColor(actual_progress_value)
         else:
-            progress_color_val = cfg.mediaProgressColor.value
-            actual_progress_value = progress_color_val.name() if hasattr(progress_color_val, 'name') else progress_color_val
-            if actual_progress_value != 'primary':
-                self._override_progress_color = QColor(actual_progress_value)
-            else:
-                self._override_progress_color = None
+            self._override_progress_color = None
 
         if c.alpha() == 0:
             bg_css = "background-color: transparent;"
@@ -798,33 +814,57 @@ class MediaWidget(QWidget):
         logger.info(f"媒体组件启动: 更新间隔={cfg.mediaUpdateInterval.value}秒")
         self._timer.start(cfg.mediaUpdateInterval.value * 1000)
         self._prog_timer.start(1000)
-        self._update()
+        self._fetch_in_thread(full=True)
+
+    def _fetch_in_thread(self, full=True):
+        if self._fetching:
+            return
+        import threading
+        self._fetching = True
+        t = threading.Thread(target=self._do_fetch, args=(full,), daemon=True)
+        t.start()
+
+    def _do_fetch(self, full):
+        try:
+            m = get_media_info()
+        except Exception as e:
+            logger.error(f"媒体信息获取异常: {e}")
+            m = None
+        QTimer.singleShot(0, lambda: self._on_fetched(m, full))
+
+    def _on_fetched(self, m, full):
+        self._fetching = False
+        if not cfg.showMediaInfo.value:
+            self.hide()
+            return
+        if not m or not m.is_valid():
+            self._no_media()
+            return
+        is_new_song = m.title_artist != self._last_ta
+        self._media = m
+        if full:
+            self._display(m)
+            self.show()
+            if is_new_song and self._rapid_update_count == 0:
+                self._rapid_update_count = 5
+                self._timer.setInterval(500)
+            elif self._rapid_update_count > 0:
+                self._rapid_update_count -= 1
+                if self._rapid_update_count == 0:
+                    self._timer.setInterval(self._normal_interval)
+        else:
+            if m.position_ms > 0:
+                self._position = m.position_ms
+                self._playing = m.is_playing
+                if self._duration > 0:
+                    self._bar.setValue(min(100, int(self._position / self._duration * 100)))
 
     def stop(self):
         self._timer.stop()
         self._prog_timer.stop()
 
     def _update(self):
-        if not cfg.showMediaInfo.value:
-            self.hide()
-            return
-        m = get_media_info()
-        if not m or not m.is_valid():
-            self._no_media()
-            return
-        
-        is_new_song = m.title_artist != self._last_ta
-        self._media = m
-        self._display(m)
-        self.show()
-        
-        if is_new_song and self._rapid_update_count == 0:
-            self._rapid_update_count = 5
-            self._timer.setInterval(500)
-        elif self._rapid_update_count > 0:
-            self._rapid_update_count -= 1
-            if self._rapid_update_count == 0:
-                self._timer.setInterval(self._normal_interval)
+        self._fetch_in_thread(full=True)
 
     def _no_media(self):
         self._title.setText("未在播放")
@@ -885,15 +925,7 @@ class MediaWidget(QWidget):
     def _update_progress(self):
         if not self._playing or self._duration <= 0:
             return
-        m = get_media_info()
-        if m and m.is_valid() and m.position_ms > 0:
-            self._position = m.position_ms
-            self._playing = m.is_playing
-            if self._duration > 0:
-                self._bar.setValue(min(100, int(self._position / self._duration * 100)))
-                self._time.setText(self._fmt(self._position))
-            if self._lyrics and not self._lyrics.is_empty():
-                self._lyrics_w.update_position(self._position)
+        self._fetch_in_thread(full=False)
 
     @staticmethod
     def _fmt(ms: int) -> str:

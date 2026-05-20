@@ -428,7 +428,6 @@ class HomeInterface(QWidget):
             cfg.mediaTimeColor.valueChanged.connect(self._onMediaSettingsChanged)
             cfg.mediaLyricsColor.valueChanged.connect(self._onMediaSettingsChanged)
             cfg.mediaProgressColor.valueChanged.connect(self._onMediaSettingsChanged)
-            cfg.mediaProgressColorMode.valueChanged.connect(self._onMediaSettingsChanged)
             cfg.mediaProgressTrackColor.valueChanged.connect(self._onMediaSettingsChanged)
             cfg.mediaProgressHeight.valueChanged.connect(self._onMediaSettingsChanged)
             cfg.mediaCoverBorderRadius.valueChanged.connect(self._onMediaSettingsChanged)
