@@ -1470,11 +1470,9 @@ if __name__ == "__main__":
     splash.setProgress(90)
     allow_ui_update(0.06)
 
-    time.sleep(0.06)
     splash.setProgress(100)
     splash.waitForProgress(100, timeout=1.0)
     allow_ui_update(0.06)
-    time.sleep(0.04)
     splash.close()
 
     if _auto_start_launch:
