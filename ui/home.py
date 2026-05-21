@@ -403,9 +403,9 @@ class HomeInterface(QWidget):
 
         self._initMediaWidgetTimers()
 
-        self._checkAndRefreshQuickLaunchIcons()
-
         self.loadComponentPositions()
+
+        QTimer.singleShot(0, self._checkAndRefreshQuickLaunchIcons)
 
     def _initMediaWidgetTimers(self):
         try:
@@ -605,7 +605,7 @@ class HomeInterface(QWidget):
         self.poetryTimer.stop()
         interval_str = cfg.poetryUpdateInterval.value
         if interval_str == "从不":
-            self._updatePoetry()
+            self._updatePoetry(cache_only=True)
             return
         elif interval_str == "10 分钟":
             interval = 10 * 60 * 1000
@@ -624,15 +624,19 @@ class HomeInterface(QWidget):
         else:
             interval = 60 * 60 * 1000
         self.poetryTimer.start(interval)
-        self._updatePoetry()
+        self._updatePoetry(cache_only=True)
 
-    def _updatePoetry(self):
+    def _updatePoetry(self, cache_only=False):
         if not cfg.showPoetry.value:
             self.poetryLabel.hide()
             return
         self.poetryLabel.show()
 
-        text = PoetryService.get_poetry_with_cache()
+        if cache_only:
+            cached = get_cached_content("poetry")
+            text = cached if cached else ""
+        else:
+            text = PoetryService.get_poetry_with_cache()
         self.poetryLabel.setText(text)
         if hasattr(self, 'poetryContainer'):
             self.poetryContainer.updateSize()
@@ -641,7 +645,7 @@ class HomeInterface(QWidget):
         self.weatherTimer.stop()
         interval_str = cfg.weatherUpdateInterval.value
         if interval_str == "从不":
-            self._updateWeather()
+            self._updateWeather(cache_only=True)
             return
         elif interval_str == "15 分钟":
             interval = 15 * 60 * 1000
@@ -660,9 +664,9 @@ class HomeInterface(QWidget):
         else:
             interval = 60 * 60 * 1000
         self.weatherTimer.start(interval)
-        self._updateWeather()
+        self._updateWeather(cache_only=True)
 
-    def _updateWeather(self):
+    def _updateWeather(self, cache_only=False):
         if not cfg.showWeather.value:
             self.weatherTempLabel.hide()
             self.weatherIconLabel.hide()
@@ -681,9 +685,18 @@ class HomeInterface(QWidget):
                 logger.info(f"使用缓存天气：{weather_text}")
                 if hasattr(self, 'weatherContainer'):
                     self.weatherContainer.updateSize()
-                return
+                if cache_only:
+                    return
             except Exception as e:
                 logger.warning(f"读取缓存天气数据失败：{e}")
+
+        if cache_only:
+            self.weatherTempLabel.setText("")
+            self.current_weather_code = None
+            self.weatherIconLabel.clear()
+            if hasattr(self, 'weatherContainer'):
+                self.weatherContainer.updateSize()
+            return
 
         success = False
         try:

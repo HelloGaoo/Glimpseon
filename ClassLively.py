@@ -1463,6 +1463,9 @@ if __name__ == "__main__":
     allow_ui_update(0.12)
     window = MainWindow()
 
+    if cfg.autoCheckUpdate.value:
+        window.updateInterface._UpdateInterface__checkUpdate(auto_check=True)
+
     splash.updateStatus("正在完成启动")
     splash.setProgress(90)
     allow_ui_update(0.06)
@@ -1483,9 +1486,6 @@ if __name__ == "__main__":
     else:
         window.show()
         logger.info("正常启动模式：显示主窗口")
-
-    if cfg.autoCheckUpdate.value:
-        QTimer.singleShot(1000, lambda: window.updateInterface._UpdateInterface__checkUpdate(auto_check=True))
 
     sys.exit(app.exec())
 
