@@ -440,17 +440,25 @@ class HomeInterface(QWidget):
             if cfg.showMediaInfo.value:
                 self.mediaWidget.start()
             else:
-                self.mediaContainer.hide()
+                if self.isEditMode:
+                    self.mediaContainer.setContentVisible(False)
+                    self.mediaContainer.show()
+                else:
+                    self.mediaContainer.hide()
         except Exception as e:
             logger.exception(f"初始化媒体控件失败: {e}")
 
     def _onShowMediaInfoChanged(self, value: bool):
         if value:
-            self.mediaContainer.show()
+            self.mediaContainer.setContentVisible(True)
             self.mediaWidget.start()
         else:
             self.mediaWidget.stop()
-            self.mediaContainer.hide()
+            if self.isEditMode:
+                self.mediaContainer.setContentVisible(False)
+                self.mediaContainer.show()
+            else:
+                self.mediaContainer.hide()
         logger.info(f"媒体控件显示: {value}")
 
     def _onMediaSettingsChanged(self, value):
@@ -518,8 +526,16 @@ class HomeInterface(QWidget):
         if not cfg.showClock.value:
             self.clockLabel.hide()
             self.dateLabel.hide()
+            if hasattr(self, 'clockContainer'):
+                if self.isEditMode:
+                    self.clockContainer.setContentVisible(False)
+                    self.clockContainer.show()
+                else:
+                    self.clockContainer.hide()
             return
 
+        if hasattr(self, 'clockContainer'):
+            self.clockContainer.setContentVisible(True)
         self.clockLabel.show()
         self.dateLabel.show()
 
@@ -628,7 +644,15 @@ class HomeInterface(QWidget):
     def _updatePoetry(self, cache_only=False):
         if not cfg.showPoetry.value:
             self.poetryLabel.hide()
+            if hasattr(self, 'poetryContainer'):
+                if self.isEditMode:
+                    self.poetryContainer.setContentVisible(False)
+                    self.poetryContainer.show()
+                else:
+                    self.poetryContainer.hide()
             return
+        if hasattr(self, 'poetryContainer'):
+            self.poetryContainer.setContentVisible(True)
         self.poetryLabel.show()
 
         if cache_only:
@@ -669,8 +693,16 @@ class HomeInterface(QWidget):
         if not cfg.showWeather.value:
             self.weatherTempLabel.hide()
             self.weatherIconLabel.hide()
+            if hasattr(self, 'weatherContainer'):
+                if self.isEditMode:
+                    self.weatherContainer.setContentVisible(False)
+                    self.weatherContainer.show()
+                else:
+                    self.weatherContainer.hide()
             return
 
+        if hasattr(self, 'weatherContainer'):
+            self.weatherContainer.setContentVisible(True)
         self.weatherTempLabel.show()
         self.weatherIconLabel.show()
 
@@ -803,8 +835,13 @@ class HomeInterface(QWidget):
 
     def _updateCountdown(self):
         if not cfg.showCountdown.value:
-            self.countdownContainer.hide()
+            if self.isEditMode:
+                self.countdownContainer.setContentVisible(False)
+                self.countdownContainer.show()
+            else:
+                self.countdownContainer.hide()
             return
+        self.countdownContainer.setContentVisible(True)
         self.countdownContainer.show()
         countdown_list = cfg.countdownList.value or []
         if not countdown_list:
@@ -916,11 +953,15 @@ class HomeInterface(QWidget):
         if cfg.showSchoolInfo.value and (school or school_class):
             self.schoolClassLabel.setText(school_class if school_class else "")
             self.schoolNameLabel.setText(school if school else "")
-            self.schoolInfoContainer.show()
+            self.schoolInfoContainer.setContentVisible(True)
         else:
             self.schoolClassLabel.setText("")
             self.schoolNameLabel.setText("")
-            self.schoolInfoContainer.hide()
+            if self.isEditMode:
+                self.schoolInfoContainer.setContentVisible(False)
+                self.schoolInfoContainer.show()
+            else:
+                self.schoolInfoContainer.hide()
 
     def updateSchoolInfoStyle(self):
         text_color = cfg.schoolInfoTextColor.value
@@ -1044,6 +1085,14 @@ class HomeInterface(QWidget):
             self._setDraggableEnabled(True)
             self._showGuideLines()
             self._updateEditButtonPosition()
+        self._refreshDisabledComponents()
+
+    def _refreshDisabledComponents(self):
+        self._updateClock()
+        self._updatePoetry(cache_only=True)
+        self._updateWeather(cache_only=True)
+        self._updateCountdown()
+        self.updateSchoolInfo()
 
     def _openComponentSetting(self, component_id: str):
         from ui.component_settings import ComponentSettingDialog

@@ -334,6 +334,26 @@ class DraggableContainer(DraggableWidget):
         self.inner_layout.setContentsMargins(10, 10, 10, 10)
         self.inner_layout.setSpacing(5)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        self._content_visible = True
+    
+    def setContentVisible(self, visible: bool):
+        """隐藏/显示内容"""
+        self._content_visible = visible
+        for i in range(self.inner_layout.count()):
+            item = self.inner_layout.itemAt(i)
+            if item and item.widget():
+                item.widget().setVisible(visible)
+        if visible:
+            self.inner_layout.setContentsMargins(10, 10, 10, 10)
+            self.setMinimumSize(80, 40)
+            self.setMaximumSize(16777215, 16777215)
+            self.inner_layout.activate()
+            self.adjustSize()
+        else:
+            self.inner_layout.setContentsMargins(16, 10, 16, 10)
+            self.setFixedSize(120, 36)
+        self.updateGeometry()
+        self.update()
     
     def addWidget(self, widget):
         self.inner_layout.addWidget(widget)
@@ -355,10 +375,41 @@ class DraggableContainer(DraggableWidget):
     def sizeHint(self) -> QSize:
         if self.inner_layout:self.inner_layout.activate()
         base_size = super().sizeHint()
+        if not self._content_visible:
+            return QSize(120, 36)
         return base_size
     
     def minimumSizeHint(self) -> QSize:
+        if not self._content_visible:
+            return QSize(120, 36)
         return QSize(80, 40)
+    
+    def paintEvent(self, event):
+        if not self._content_visible:
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            dark = isDarkTheme()
+            bg_color = QColor(255, 255, 255, 25) if dark else QColor(0, 0, 0, 18)
+            border_color = QColor(255, 255, 255, 40) if dark else QColor(0, 0, 0, 35)
+            painter.setPen(QPen(border_color, 1, Qt.PenStyle.DashLine))
+            painter.setBrush(bg_color)
+            painter.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 6, 6)
+            text_color = QColor(180, 180, 180) if not dark else QColor(140, 140, 140)
+            painter.setPen(text_color)
+            font = painter.font()
+            font.setFamily("HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif")
+            font.setPointSize(10)
+            painter.setFont(font)
+            name_map = {
+                "clock": "时钟", "weather": "天气", "poetry": "一言",
+                "countdown": "倒计时", "school_info": "学校信息",
+                "media": "媒体信息", "quick_launch": "快捷启动",
+            }
+            display_name = name_map.get(self.component_id, self.component_id)
+            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, f"⚙ {display_name}")
+            painter.end()
+            return
+        super().paintEvent(event)
 
 
 
@@ -835,7 +886,6 @@ class MediaWidget(QWidget):
     def _on_fetched(self, m, full):
         self._fetching = False
         if not cfg.showMediaInfo.value:
-            self.hide()
             return
         if not m or not m.is_valid():
             self._no_media()
