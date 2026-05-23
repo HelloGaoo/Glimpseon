@@ -351,7 +351,18 @@ class DraggableContainer(DraggableWidget):
             self.adjustSize()
         else:
             self.inner_layout.setContentsMargins(16, 10, 16, 10)
-            self.setFixedSize(120, 36)
+            name_map = {
+                "clock": "时钟", "weather": "天气", "poetry": "一言",
+                "countdown": "倒计时", "school_info": "学校信息",
+                "media": "媒体信息", "quick_launch": "快捷启动",
+            }
+            display_name = name_map.get(self.component_id, self.component_id)
+            text = f"⚙ {display_name}"
+            font = QFont("HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif")
+            font.setPointSize(10)
+            fm = QFontMetrics(font)
+            text_width = fm.horizontalAdvance(text) + 32
+            self.setFixedSize(max(text_width, 100), 36)
         self.updateGeometry()
         self.update()
     
@@ -376,12 +387,22 @@ class DraggableContainer(DraggableWidget):
         if self.inner_layout:self.inner_layout.activate()
         base_size = super().sizeHint()
         if not self._content_visible:
-            return QSize(120, 36)
+            name_map = {
+                "clock": "时钟", "weather": "天气", "poetry": "一言",
+                "countdown": "倒计时", "school_info": "学校信息",
+                "media": "媒体信息", "quick_launch": "快捷启动",
+            }
+            display_name = name_map.get(self.component_id, self.component_id)
+            text = f"⚙ {display_name}"
+            font = QFont("HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif")
+            font.setPointSize(10)
+            fm = QFontMetrics(font)
+            return QSize(max(fm.horizontalAdvance(text) + 32, 100), 36)
         return base_size
     
     def minimumSizeHint(self) -> QSize:
         if not self._content_visible:
-            return QSize(120, 36)
+            return self.sizeHint()
         return QSize(80, 40)
     
     def paintEvent(self, event):
