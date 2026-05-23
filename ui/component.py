@@ -357,11 +357,11 @@ class DraggableContainer(DraggableWidget):
                 "media": "媒体信息", "quick_launch": "快捷启动",
             }
             display_name = name_map.get(self.component_id, self.component_id)
-            text = f"⚙ {display_name}"
-            font = QFont("HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif")
-            font.setPointSize(10)
+            text = f"⚙ {display_name} 点击设置"
+            font = QFont()
+            font.setPointSize(8)
             fm = QFontMetrics(font)
-            text_width = fm.horizontalAdvance(text) + 32
+            text_width = fm.horizontalAdvance(text) + 24
             self.setFixedSize(max(text_width, 100), 36)
         self.updateGeometry()
         self.update()
@@ -393,11 +393,11 @@ class DraggableContainer(DraggableWidget):
                 "media": "媒体信息", "quick_launch": "快捷启动",
             }
             display_name = name_map.get(self.component_id, self.component_id)
-            text = f"⚙ {display_name}"
-            font = QFont("HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif")
-            font.setPointSize(10)
+            text = f"⚙ {display_name} 点击设置"
+            font = QFont()
+            font.setPointSize(8)
             fm = QFontMetrics(font)
-            return QSize(max(fm.horizontalAdvance(text) + 32, 100), 36)
+            return QSize(max(fm.horizontalAdvance(text) + 24, 100), 36)
         return base_size
     
     def minimumSizeHint(self) -> QSize:
@@ -409,17 +409,15 @@ class DraggableContainer(DraggableWidget):
         if not self._content_visible:
             painter = QPainter(self)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            dark = isDarkTheme()
-            bg_color = QColor(255, 255, 255, 25) if dark else QColor(0, 0, 0, 18)
-            border_color = QColor(255, 255, 255, 40) if dark else QColor(0, 0, 0, 35)
-            painter.setPen(QPen(border_color, 1, Qt.PenStyle.DashLine))
-            painter.setBrush(bg_color)
-            painter.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 6, 6)
-            text_color = QColor(180, 180, 180) if not dark else QColor(140, 140, 140)
-            painter.setPen(text_color)
-            font = painter.font()
-            font.setFamily("HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif")
-            font.setPointSize(10)
+            pen = QPen(QColor(160, 160, 160))
+            pen.setWidth(1)
+            pen.setStyle(Qt.PenStyle.DashLine)
+            painter.setPen(pen)
+            rect = self.rect().adjusted(1, 1, -1, -1)
+            painter.drawRoundedRect(rect, 6, 6)
+            painter.setPen(QColor(200, 200, 200))
+            font = QFont()
+            font.setPointSize(8)
             painter.setFont(font)
             name_map = {
                 "clock": "时钟", "weather": "天气", "poetry": "一言",
@@ -427,7 +425,8 @@ class DraggableContainer(DraggableWidget):
                 "media": "媒体信息", "quick_launch": "快捷启动",
             }
             display_name = name_map.get(self.component_id, self.component_id)
-            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, f"⚙ {display_name}")
+            label_text = f"⚙ {display_name} 点击设置"
+            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, label_text)
             painter.end()
             return
         super().paintEvent(event)
