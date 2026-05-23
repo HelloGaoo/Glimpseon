@@ -48,7 +48,7 @@ if BASE_DIR not in sys.path:
 
 from data.url_dir import url_dir
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ClassLively.core.config")
 
 
 class ThemeSerializer(ConfigSerializer):

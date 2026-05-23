@@ -72,7 +72,7 @@ from services.media import MediaInfo, Lyrics, get_media_info, fetch_all_info, cl
 from core.constants import load_qss
 from data.software_list import get_software_icon_path
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ClassLively.ui.component")
 
 
 class DraggableWidget(QWidget):
@@ -566,6 +566,8 @@ class FetchWorker(QObject):
 class MediaWidget(QWidget):
     """媒体信息显示控件"""
 
+    _fetch_done = pyqtSignal(object, bool)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("mediaWidget")
@@ -576,6 +578,7 @@ class MediaWidget(QWidget):
         self._last_ta = ""
         self._cover: Optional[QPixmap] = None
         self._fetching = False
+        self._pending_full = False
         self._cache = {}
         self._duration = 0
         self._position = 0
@@ -590,6 +593,7 @@ class MediaWidget(QWidget):
         self._setup_timers()
         self._apply_config()
         self._init_cover_animation()
+        self._fetch_done.connect(self._on_fetched)
 
     @staticmethod
     def _qss_color(color_val):
@@ -882,26 +886,30 @@ class MediaWidget(QWidget):
         self._cover_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
 
     def start(self):
-        logger.info(f"媒体组件启动: 更新间隔={cfg.mediaUpdateInterval.value}秒")
         self._timer.start(cfg.mediaUpdateInterval.value * 1000)
-        self._prog_timer.start(1000)
+        self._prog_timer.start(2000)
         self._fetch_in_thread(full=True)
 
     def _fetch_in_thread(self, full=True):
         if self._fetching:
+            if full:
+                self._pending_full = True
             return
         import threading
         self._fetching = True
+        self._pending_full = False
         t = threading.Thread(target=self._do_fetch, args=(full,), daemon=True)
         t.start()
 
     def _do_fetch(self, full):
         try:
             m = get_media_info()
+            if not m or not m.is_valid():
+                logger.debug(f"媒体组件: 无效信息")
         except Exception as e:
             logger.error(f"媒体信息获取异常: {e}")
             m = None
-        QTimer.singleShot(0, lambda: self._on_fetched(m, full))
+        self._fetch_done.emit(m, full)
 
     def _on_fetched(self, m, full):
         self._fetching = False
@@ -909,8 +917,12 @@ class MediaWidget(QWidget):
             return
         if not m or not m.is_valid():
             self._no_media()
+            if self._pending_full:
+                QTimer.singleShot(100, lambda: self._fetch_in_thread(full=True))
             return
         is_new_song = m.title_artist != self._last_ta
+        if is_new_song:
+            logger.info(f"媒体组件: 新歌曲 {m.title} - {m.artist}")
         self._media = m
         if full:
             self._display(m)
@@ -922,12 +934,19 @@ class MediaWidget(QWidget):
                 self._rapid_update_count -= 1
                 if self._rapid_update_count == 0:
                     self._timer.setInterval(self._normal_interval)
+            if self._pending_full:
+                QTimer.singleShot(100, lambda: self._fetch_in_thread(full=True))
         else:
             if m.position_ms > 0:
                 self._position = m.position_ms
-                self._playing = m.is_playing
+            self._playing = m.is_playing
+            if self._duration > 0:
+                self._bar.setValue(min(100, int(self._position / self._duration * 100)))
+                self._time.setText(self._fmt(self._position))
                 if self._duration > 0:
-                    self._bar.setValue(min(100, int(self._position / self._duration * 100)))
+                    self._dur.setText(self._fmt(self._duration))
+            if self._playing and self._lyrics and not self._lyrics.is_empty():
+                self._lyrics_w.update_position(self._position)
 
     def stop(self):
         self._timer.stop()
@@ -993,7 +1012,7 @@ class MediaWidget(QWidget):
         self._lyrics_w.show()
 
     def _update_progress(self):
-        if not self._playing or self._duration <= 0:
+        if not self._playing:
             return
         self._fetch_in_thread(full=False)
 

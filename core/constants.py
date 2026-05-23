@@ -24,7 +24,7 @@ import sys
 
 from qfluentwidgets import isDarkTheme
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ClassLively.core.constants")
 
 APP_NAME = "ClassLively"
 if getattr(sys, 'frozen', False):

@@ -41,7 +41,7 @@ else:
 if _BASE_DIR not in sys.path:
     sys.path.insert(0, _BASE_DIR)
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ClassLively.services.media")
 
 def _check_and_install_deps():
     missing = []
@@ -727,7 +727,6 @@ class MediaProvider:
 
     def get_info(self) -> Optional[MediaInfo]:
         for i, source in enumerate(self._sources):
-            logger.debug(f"媒体源 [{i}] {source.name}: available={source.available}")
             if source.available:
                 try:
                     info = source.get_info()
@@ -735,11 +734,9 @@ class MediaProvider:
                         logger.info(f"媒体源 [{i}] {source.name}: 成功获取媒体信息 - {info.title} - {info.artist}")
                         return info
                     else:
-                        pass
+                        logger.debug(f"媒体源 [{i}] {source.name}: 获取到无效信息")
                 except Exception as e:
                     logger.error(f"媒体源 [{i}] {source.name}: 执行异常 {e}")
-            else:
-                logger.info(f"媒体源 [{i}] {source.name}: 不可用")
         return None
 
     def get_source(self, name: str):

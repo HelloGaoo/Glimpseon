@@ -51,7 +51,7 @@ from version import BUILD_DATE, VERSION
 
 from .common import BaseScrollAreaInterface, show_text_file
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ClassLively.ui.update")
 
 
 class UpdateInterface(BaseScrollAreaInterface):

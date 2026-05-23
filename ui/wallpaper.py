@@ -75,7 +75,7 @@ from core.config import cfg
 from core.constants import BASE_DIR, get_resPath, load_qss
 from core.utils import get_cached_content, save_cache, get_cache_info
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ClassLively.ui.wallpaper")
 
 HISTORY_FILE_NAME = "history.json"
 HISTORY_VERSION = 1

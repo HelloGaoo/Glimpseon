@@ -34,7 +34,7 @@ from core.config import cfg
 from core.constants import BASE_DIR, get_resPath
 from core.logger import logger
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ClassLively.services.weather")
 
 
 class WeatherService:

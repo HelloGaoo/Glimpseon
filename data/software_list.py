@@ -29,7 +29,7 @@ if _BASE_DIR not in sys.path:sys.path.insert(0, _BASE_DIR)
 
 from core.constants import get_resPath
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ClassLively.data.software_list")
 
 SOFTWARE_CATEGORIES = [
     {

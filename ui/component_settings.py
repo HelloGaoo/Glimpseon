@@ -35,7 +35,7 @@ from qfluentwidgets import (
 from core.config import cfg
 from core.constants import load_qss
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ClassLively.ui.component_settings")
 
 import winreg
 
