@@ -923,8 +923,11 @@ class MainWindow(FluentWindow):
 
         self.isEditMode = False
 
+        _t_nav = time.time()
         self._initNavigation()
+        logger.info(f"[MW] _initNavigation 总耗时{time.time()-_t_nav:.2f}s")
 
+        _t = time.time()
         self._normal_size = (1050, 750)
         self._is_maximized = False
         self._resize_timer = QTimer(self)
@@ -937,7 +940,9 @@ class MainWindow(FluentWindow):
 
         self.initSystemTray()
 
+        _t = time.time()
         sync_autostart_cfg()
+        logger.info(f"[MW] sync_autostart_cfg 耗时{time.time()-_t:.2f}s")
         cfg.autoStart.valueChanged.connect(lambda value: set_autostart(value))
 
         self._initIdleDetection()
@@ -948,38 +953,53 @@ class MainWindow(FluentWindow):
         logger.info("主窗口初始化完成")
 
     def _initNavigation(self):
+        _t = time.time()
         self.homeInterface = HomeInterface(self)
         self.homeInterface.setObjectName("home")
         self.addSubInterface(self.homeInterface, FIF.HOME, "主界面")
+        logger.info(f"[MW] HomeInterface 耗时{time.time()-_t:.2f}s")
 
+        _t = time.time()
         self.wallpaper = WallpaperInterface(mainWindow=self)
         self.wallpaper.setObjectName("wallpaper")
         self.addSubInterface(self.wallpaper, FIF.PHOTO, "壁纸")
+        logger.info(f"[MW] WallpaperInterface 耗时{time.time()-_t:.2f}s")
 
         self.downloadInterface = DownloadInterface(parent=self)
         self.addSubInterface(self.downloadInterface, FIF.DOWNLOAD, "软件下载")
 
-        for category in SOFTWARE_CATEGORIES:
-            self.downloadInterface.addSection(category["name"])
-            for software in category["software"]:
-                icon_path = get_software_icon_path(software["icon"])
-                link = software.get("link")
-                self.downloadInterface.addSoftware(icon_path, software["name"], software["description"], link)
+        def _populateDownload():
+            for category in SOFTWARE_CATEGORIES:
+                self.downloadInterface.addSection(category["name"])
+                for software in category["software"]:
+                    icon_path = get_software_icon_path(software["icon"])
+                    link = software.get("link")
+                    self.downloadInterface.addSoftware(icon_path, software["name"], software["description"], link)
+        QTimer.singleShot(0, _populateDownload)
 
+        _t = time.time()
         self.settingInterface = SettingInterface(parent=self)
         self.settingInterface.setObjectName("setting")
         self.addSubInterface(self.settingInterface, FIF.SETTING, "设置", NavigationItemPosition.BOTTOM)
+        logger.info(f"[MW] SettingInterface 耗时{time.time()-_t:.2f}s")
 
+        _t = time.time()
         self.updateInterface = UpdateInterface(parent=self)
         self.addSubInterface(self.updateInterface, FIF.SYNC, "更新", NavigationItemPosition.BOTTOM)
+        logger.info(f"[MW] UpdateInterface 耗时{time.time()-_t:.2f}s")
 
+        _t = time.time()
         self.aboutInterface = AboutInterface(parent=self)
         self.addSubInterface(self.aboutInterface, FIF.INFO, "关于", NavigationItemPosition.BOTTOM)
+        logger.info(f"[MW] AboutInterface 耗时{time.time()-_t:.2f}s")
 
+        _t = time.time()
         self.debugPanel = DebugPanel(self)
         self.debugNavItem = self.addSubInterface(self.debugPanel, FIF.DEVELOPER_TOOLS, "调试", NavigationItemPosition.BOTTOM)
         self.debugNavItem.setVisible(cfg.debugMode.value)
         cfg.debugMode.valueChanged.connect(self._onDebugModeChanged)
+
+        logger.info(f"[MW] DebugPanel 耗时{time.time()-_t:.2f}s")
 
         self.editPanel = None  # deprecated, kept for compatibility
 
@@ -1344,9 +1364,12 @@ if __name__ == "__main__":
 
     icon_path = get_resPath(os.path.join("resource", "icons", "CY.png"))
 
+    _boot_t0 = time.time()
+
     splash = SplashScreen(APP_NAME, VERSION, icon_path)
     splash.show()
     splash.setProgress(0)
+    logger.info(f"[BOOT] Splash显示 耗时{time.time()-_boot_t0:.2f}s")
 
     def allow_ui_update(duration=0.06):
         end = time.time() + duration
@@ -1372,9 +1395,11 @@ if __name__ == "__main__":
     splash.updateStatus("正在加载翻译")
     splash.setProgress(15)
     allow_ui_update(0.06)
+    _t = time.time()
     locale = QLocale(QLocale.Language.Chinese, QLocale.Country.China)
     fluentTranslator = FluentTranslator(locale)
     app.installTranslator(fluentTranslator)
+    logger.info(f"[BOOT] 翻译加载 耗时{time.time()-_t:.2f}s")
 
     if not verify_single_instance():
         splash.close()
@@ -1397,7 +1422,9 @@ if __name__ == "__main__":
     splash.updateStatus("正在初始化字体")
     splash.setProgress(30)
     allow_ui_update(0.06)
+    _t = time.time()
     initialize_fonts(app, install_to_system=True)
+    logger.info(f"[BOOT] 字体初始化 耗时{time.time()-_t:.2f}s")
 
     splash.updateStatus("正在配置日志")
     splash.setProgress(40)
@@ -1450,18 +1477,21 @@ if __name__ == "__main__":
     logger.info(f"系统版本：Windows {platform.version()} Python 版本：{platform.python_version()}")
     logger.info(f"软件运行路径：{BASE_DIR}")
 
+    _t = time.time()
     wait_start = time.time()
     while not future.done():
         allow_ui_update(0.02)
         if time.time() - wait_start > 5.0:
             logger.warning("后台初始化超时，继续启动主窗口")
             break
+    logger.info(f"[BOOT] 后台等待 耗时{time.time()-_t:.2f}s")
 
     splash.updateStatus("正在创建主窗口...")
     splash.setProgress(70)
-    splash.waitForProgress(70, timeout=1.0)
-    allow_ui_update(0.12)
+    splash.waitForProgress(70, timeout=0.5)
+    _t = time.time()
     window = MainWindow()
+    logger.info(f"[BOOT] 创建主窗口 耗时{time.time()-_t:.2f}s")
 
     if cfg.autoCheckUpdate.value:
         window.updateInterface._UpdateInterface__checkUpdate(auto_check=True)
@@ -1471,9 +1501,12 @@ if __name__ == "__main__":
     allow_ui_update(0.06)
 
     splash.setProgress(100)
+    _t2 = time.time()
     splash.waitForProgress(100, timeout=1.0)
     allow_ui_update(0.06)
+    logger.info(f"[BOOT] 进度条100%等待 耗时{time.time()-_t2:.2f}s")
     splash.close()
+    logger.info(f"[BOOT] 总启动耗时{time.time()-_boot_t0:.2f}s")
 
     if _auto_start_launch:
         logger.info("开机自启动模式：最大化窗口")

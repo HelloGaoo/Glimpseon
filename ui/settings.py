@@ -58,7 +58,6 @@ from core.config import cfg, default_cfg, ConfigItem, CONFIG_PATH
 from core.constants import BASE_DIR, get_resPath, load_qss
 from core.utils import _load_app_fonts, apply_fonts
 from core.logger import log_dir
-from services.weather import RegionSelectorDialog
 
 
 class LineEditSettingCard(SettingCard):

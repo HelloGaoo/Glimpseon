@@ -71,7 +71,7 @@ class AboutInterface(BaseScrollAreaInterface):
             icon_path = get_resPath(os.path.join('resource', 'icons', 'CY.png'))
             if os.path.exists(icon_path):
                 pixmap = QPixmap(icon_path)
-                self.appIconLabel.setPixmap(pixmap.scaled(64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+                self.appIconLabel.setPixmap(pixmap.scaled(64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.FastTransformation))
             else:
                 self.appIconLabel.setText("📱")
                 self.appIconLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)

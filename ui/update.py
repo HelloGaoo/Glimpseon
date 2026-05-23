@@ -118,7 +118,7 @@ class UpdateInterface(BaseScrollAreaInterface):
         self.versionIcon = QLabel(self.versionCard)
         self.versionIcon.setFixedSize(48, 48)
         self.versionIcon.setPixmap(QPixmap(get_resPath(os.path.join("resource", "icons", "CY.png"))).scaled(
-            48, 48, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+            48, 48, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.FastTransformation
         ))
         
         self.versionInfoLayout = QVBoxLayout()

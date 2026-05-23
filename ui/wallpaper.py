@@ -871,8 +871,10 @@ class WallpaperInterface(ScrollArea):
         self._initLayout()
         self._setQss()
         
+        QTimer.singleShot(0, self.__deferredInit)
+    
+    def __deferredInit(self):
         self.historyManager.sync_cleanup()
-        
         self._loadDefaultWallpaper()
     
     def _initLayout(self):

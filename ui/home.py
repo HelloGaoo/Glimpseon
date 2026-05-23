@@ -403,8 +403,7 @@ class HomeInterface(QWidget):
 
         self._initMediaWidgetTimers()
 
-        self.loadComponentPositions()
-
+        QTimer.singleShot(0, self.loadComponentPositions)
         QTimer.singleShot(0, self._checkAndRefreshQuickLaunchIcons)
 
     def _initMediaWidgetTimers(self):
@@ -434,7 +433,7 @@ class HomeInterface(QWidget):
             cfg.mediaCoverBorderColor.valueChanged.connect(self._onMediaSettingsChanged)
 
             try:
-                self.mainWindow.wallpaper.wallpaperChanged.connect(self._onMediaSettingsChanged)
+                self.mainWindow.wallpaper.wallpaperChanged.connect(lambda: self._onMediaSettingsChanged(None))
             except Exception:
                 pass
 

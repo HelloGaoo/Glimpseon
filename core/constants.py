@@ -46,15 +46,22 @@ def get_resPath(relative_path):
     return base_path
 
 
+_qss_cache = {}
+
 def load_qss(qss_filename):
     theme = 'dark' if isDarkTheme() else 'light'
+    cache_key = (theme, qss_filename)
+    if cache_key in _qss_cache:
+        return _qss_cache[cache_key]
     qss_path = get_resPath(os.path.join('resource', 'qss', theme, qss_filename))
     if not os.path.exists(qss_path):
         logger.warning(f"QSS 文件不存在：{qss_path}")
         return ''
     try:
         with open(qss_path, 'r', encoding='utf-8') as f:
-            return f.read()
+            content = f.read()
+        _qss_cache[cache_key] = content
+        return content
     except Exception as e:
         logger.error(f"加载 QSS 失败 [{qss_path}]：{e}")
         return ''

@@ -99,6 +99,12 @@ class DebugPanel(BaseScrollAreaInterface):
         self._initUI()
         self._setupTimers()
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not self._weatherGridCreated:
+            self._weatherGridCreated = True
+            self._populateWeatherIconGrid()
+
     def _initUI(self):
         scrollLayout = QVBoxLayout(self.scrollWidget)
         scrollLayout.setSpacing(15)
@@ -107,7 +113,9 @@ class DebugPanel(BaseScrollAreaInterface):
         scrollLayout.addWidget(self._createQuickActionsCard())
         scrollLayout.addWidget(self._createNetworkDiagCard())
         scrollLayout.addWidget(self._createAPITestCard())
-        scrollLayout.addWidget(self._createWeatherDebugCard())
+        self._weatherGridCreated = False
+        scrollLayout.addWidget(self._createWeatherDebugCardShell())
+
         scrollLayout.addWidget(self._createElementCheckCard())
         scrollLayout.addWidget(self._createBatchWallpaperCard())
         self._loadStyleSheet()
@@ -326,7 +334,7 @@ class DebugPanel(BaseScrollAreaInterface):
 
         return card
 
-    def _createWeatherDebugCard(self):
+    def _createWeatherDebugCardShell(self):
         card = CardWidget()
         layout = QVBoxLayout(card)
         layout.setSpacing(12)
@@ -406,6 +414,20 @@ class DebugPanel(BaseScrollAreaInterface):
         self.weatherIconGridLayout.setSpacing(8)
         self.weatherIconGrid.setObjectName("weatherIconGrid")
 
+        self._weatherGridScroll = ScrollArea(card)
+        self._weatherGridScroll.setWidget(self.weatherIconGrid)
+        self._weatherGridScroll.setWidgetResizable(True)
+        self._weatherGridScroll.setMinimumHeight(200)
+        self._weatherGridScroll.setMaximumHeight(280)
+        layout.addWidget(self._weatherGridScroll)
+
+        self.weatherCodeCombo.setCurrentIndex(0)
+        self._onWeatherCodeChanged(0)
+
+        self._weatherDebugCard = card
+        return card
+
+    def _populateWeatherIconGrid(self):
         icon_map = {
             0: "0.svg", 1: "1.svg", 2: "2.svg", 3: "7.svg", 4: "4.svg",
             5: "5.svg", 6: "19.svg", 7: "7.svg", 8: "8.svg", 9: "9.svg",
@@ -421,6 +443,7 @@ class DebugPanel(BaseScrollAreaInterface):
             69: "17.svg", 70: "19.svg", 71: "19.svg", 72: "18.svg", 73: "18.svg",
             74: "20.svg", 75: "20.svg", 76: "18.svg", 77: "20.svg", 99: "0.svg",
         }
+        card = self._weatherDebugCard
         col = 0
         row = 0
         for code, name in sorted(self.weatherCodeMap.items()):
@@ -430,18 +453,6 @@ class DebugPanel(BaseScrollAreaInterface):
             if col >= 6:
                 col = 0
                 row += 1
-
-        gridScroll = ScrollArea(card)
-        gridScroll.setWidget(self.weatherIconGrid)
-        gridScroll.setWidgetResizable(True)
-        gridScroll.setMinimumHeight(200)
-        gridScroll.setMaximumHeight(280)
-        layout.addWidget(gridScroll)
-
-        self.weatherCodeCombo.setCurrentIndex(0)
-        self._onWeatherCodeChanged(0)
-
-        return card
 
     def _createWeatherIconItem(self, code, name, icon_file, parent_card):
         item = CardWidget()
@@ -456,7 +467,7 @@ class DebugPanel(BaseScrollAreaInterface):
         imgLabel.setFixedSize(32, 32)
         icon_path = get_resPath(os.path.join("resource", "icons", "weather", icon_file))
         if os.path.exists(icon_path):
-            pixmap = QPixmap(icon_path).scaled(28, 28, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            pixmap = QPixmap(icon_path).scaled(28, 28, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.FastTransformation)
             imgLabel.setImage(pixmap)
         else:
             imgLabel.setImage(QPixmap(28, 28))
@@ -503,7 +514,7 @@ class DebugPanel(BaseScrollAreaInterface):
         icon_file = icon_map.get(code, "0.svg")
         icon_path = get_resPath(os.path.join("resource", "icons", "weather", icon_file))
         if os.path.exists(icon_path):
-            pixmap = QPixmap(icon_path).scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            pixmap = QPixmap(icon_path).scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.FastTransformation)
             self.weatherIconPreviewLabel.setImage(pixmap)
 
     def _applyWeatherToMain(self):
