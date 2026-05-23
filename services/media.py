@@ -579,6 +579,7 @@ class GSMTCReader:
         self._initialized = False
         self._available = self._check_deps()
         self._loop = None
+        self._had_session = False
         if self._available:
             try:
                 from winsdk.windows.media.control import GlobalSystemMediaTransportControlsSessionPlaybackStatus as PlaybackStatus
@@ -623,8 +624,13 @@ class GSMTCReader:
 
                     session = self._manager.get_current_session()
                     if not session:
-                        logger.info("GSMTC: 无活跃媒体会话")
+                        if self._had_session:
+                            logger.info("GSMTC: 无活跃媒体会话")
+                            self._had_session = False
                         return None
+                    if not self._had_session:
+                        logger.info("GSMTC: 检测到活跃媒体会话")
+                        self._had_session = True
 
                     info = MediaInfo()
 
