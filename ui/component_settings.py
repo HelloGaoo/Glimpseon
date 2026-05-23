@@ -656,7 +656,6 @@ class MediaSettingDialog(ComponentSettingDialog):
     def _createSettings(self):
         basic = self._beginGroup('basic')
         (self._enableCard, self._enableSwitch) = self._addSwitch('启用媒体信息', cfg.showMediaInfo, is_advanced=basic)
-        self._all_cards.append(self._enableCard)
         (self._coverCard, self._coverSwitch) = self._addSwitch('显示封面', cfg.showMediaCover, is_advanced=basic)
         self._all_cards.append(self._coverCard)
         (self._progressCard, self._progressSwitch) = self._addSwitch('显示进度条', cfg.showMediaProgress, is_advanced=basic)
