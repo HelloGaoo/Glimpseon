@@ -1493,11 +1493,41 @@ if __name__ == "__main__":
     window = MainWindow()
     logger.info(f"[BOOT] 创建主窗口 耗时{time.time()-_t:.2f}s")
 
+    def _preload_data():
+        try:
+            splash.status_signal.emit("正在预加载...")
+            splash.progress_signal.emit(75)
+            if hasattr(window, 'wallpaper') and window.wallpaper:
+                if not window.wallpaper.current_pixmap or window.wallpaper.current_pixmap.isNull():
+                    logger.info("[PRELOAD] 预加载壁纸")
+                    window.wallpaper._getWallpaper()
+            allow_ui_update(0.02)
+            splash.progress_signal.emit(82)
+            if hasattr(window, 'homeInterface') and window.homeInterface:
+                logger.info("[PRELOAD] 预加载天气")
+                window.homeInterface._updateWeather(cache_only=False)
+                allow_ui_update(0.02)
+                splash.progress_signal.emit(88)
+                logger.info("[PRELOAD] 预加载一言")
+                window.homeInterface._updatePoetry(cache_only=False)
+            splash.progress_signal.emit(92)
+        except Exception as e:
+            logger.warning(f"[PRELOAD] 预加载失败: {e}")
+
+    preload_future = executor.submit(_preload_data)
+
     if cfg.autoCheckUpdate.value:
         window.updateInterface._UpdateInterface__checkUpdate(auto_check=True)
 
     splash.updateStatus("正在完成启动")
-    splash.setProgress(90)
+    _t_preload = time.time()
+    while not preload_future.done():
+        allow_ui_update(0.02)
+        if time.time() - _t_preload > 8.0:
+            logger.warning("预加载超时，继续启动")
+            break
+    logger.info(f"[BOOT] 预加载 耗时{time.time()-_t_preload:.2f}s")
+    splash.setProgress(95)
     allow_ui_update(0.06)
 
     splash.setProgress(100)
