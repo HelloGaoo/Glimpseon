@@ -19,6 +19,7 @@
 """
 
 import ctypes
+import ctypes.wintypes as wintypes
 import logging
 import os
 import re
@@ -718,6 +719,257 @@ class GSMTCReader:
         return {'song_id': None, 'detail': None, 'lyrics': None, 'cover': None}
 
     def close(self):
+        try:
+            if self._pm:
+                self._pm.close_process()
+                self._pm = None
+        except Exception:
+            pass
+        self._mem_ready = False
+
+
+class KugouMemoryReader:
+    """酷狗音乐 - 窗口标题 + 时间模拟"""
+
+    def __init__(self):
+        self._available = True
+        self._song_start_time = 0.0
+        self._last_title_artist = ""
+        self._paused_time = 0.0
+        self._pause_start = 0.0
+        self._was_playing = True
+        self._duration_cache = {}
+        import ctypes
+        self._user32 = ctypes.windll.user32
+
+    @property
+    def available(self) -> bool:
+        return self._available
+
+    @property
+    def name(self) -> str:
+        return "KugouMemory"
+
+    def get_info(self) -> Optional[MediaInfo]:
+        try:
+            title, artist = self._parse_window_title()
+            if not title:
+                return None
+
+            ta = f"{title} - {artist}" if artist else title
+            now = time.time()
+
+            if ta != self._last_title_artist:
+                self._last_title_artist = ta
+                self._song_start_time = now
+                self._paused_time = 0.0
+                self._pause_start = 0.0
+                self._was_playing = True
+
+            is_playing = True
+            if is_playing and not self._was_playing:
+                if self._pause_start > 0:
+                    self._paused_time += now - self._pause_start
+                    self._pause_start = 0.0
+            elif not is_playing and self._was_playing:
+                self._pause_start = now
+            self._was_playing = is_playing
+
+            dur_ms = self._get_duration(title, artist)
+
+            if is_playing:
+                elapsed = now - self._song_start_time - self._paused_time
+                position_ms = int(max(0, elapsed) * 1000)
+            else:
+                position_ms = int(max(0, now - self._pause_start - self._paused_time) * 1000)
+
+            if dur_ms > 0 and position_ms > dur_ms:
+                position_ms = dur_ms
+
+            return MediaInfo(
+                title=title, artist=artist,
+                title_artist=ta,
+                position_ms=position_ms,
+                duration_ms=dur_ms,
+                is_playing=is_playing,
+                playback_status="playing" if is_playing else "paused",
+                app_name="Kugou",
+            )
+        except Exception as e:
+            logger.debug(f"酷狗读取失败: {e}")
+            return None
+
+    def _parse_window_title(self) -> Tuple[str, str]:
+        try:
+            results = []
+            WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
+            def cb(h, _):
+                cls_buf = ctypes.create_unicode_buffer(256)
+                self._user32.GetClassNameW(h, cls_buf, 256)
+                ln = self._user32.GetWindowTextLengthW(h)
+                if 0 < ln < 300:
+                    b = ctypes.create_unicode_buffer(ln + 1)
+                    self._user32.GetWindowTextW(h, b, ln + 1)
+                    t = b.value.strip()
+                    if t and ' - 酷狗音乐' in t and '桌面歌词' not in t:
+                        results.append(t)
+                return True
+            self._user32.EnumWindows(WNDENUMPROC(cb), 0)
+            if results:
+                return self._fix_kugou_title(results[0])
+            return "", ""
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _fix_kugou_title(raw: str) -> Tuple[str, str]:
+        if ' - 酷狗音乐' in raw:
+            raw = raw.replace(' - 酷狗音乐', '')
+        if not raw or '-' not in raw:
+            return raw or "", ""
+        parts = raw.split('-', 1)
+        right = parts[1].strip() if len(parts) > 1 else ""
+        left = parts[0].strip()
+        if '酷狗' in left:
+            idx = left.find('酷狗')
+            left = left[idx + 2:].strip() + left[:idx]
+        if ' - ' in left:
+            sub_parts = left.rsplit(' - ', 1)
+            if len(sub_parts) == 2:
+                return sub_parts[1].strip(), sub_parts[0].strip()
+        return left, right
+
+    def _get_duration(self, title: str, artist: str) -> int:
+        cache_key = f"{title} - {artist}"
+        if cache_key in self._duration_cache:
+            return self._duration_cache[cache_key]
+        try:
+            keyword = f"{title} {artist}"
+            url = f"http://songsearch.kugou.com/song_search_v2?keyword={keyword}&platform=WebFilter&format=json&page=1&pagesize=1"
+            resp = requests.get(url, timeout=5,
+                                headers={'User-Agent': 'Mozilla/5.0'})
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get('error_code') == 0:
+                    lists = data.get('data', {}).get('lists', [])
+                    if lists:
+                        dur = lists[0].get('Duration', 0)
+                        dur_ms = int(dur) * 1000
+                        self._duration_cache[cache_key] = dur_ms
+                        return dur_ms
+        except Exception:
+            pass
+        return 0
+
+    def get_lyrics(self, title: str, artist: str, duration_ms: int = 0):
+        import base64
+        cache_key = f"kg_lyric_{title} - {artist}"
+        if cache_key in self._duration_cache and isinstance(self._duration_cache.get(cache_key), Lyrics):
+            return self._duration_cache[cache_key]
+        try:
+            keyword = f"{artist} - {title}"
+            search_url = (f"http://lyrics.kugou.com/search?"
+                          f"ver=1&man=yes&client=pc&keyword={keyword}"
+                          f"&duration={duration_ms}&hash=")
+            resp = requests.get(search_url, timeout=5,
+                                headers={'User-Agent': 'Mozilla/5.0'})
+            if resp.status_code != 200:
+                return None
+            data = resp.json()
+            candidates = data.get('candidates', [])
+            if not candidates:
+                return None
+            c = candidates[0]
+            lyric_id = c.get('id')
+            accesskey = c.get('accesskey')
+            if not lyric_id or not accesskey:
+                return None
+            dl_url = (f"http://lyrics.kugou.com/download?"
+                     f"ver=1&client=pc&id={lyric_id}&accesskey={accesskey}&fmt=lrc&charset=utf8")
+            dl_resp = requests.get(dl_url, timeout=5,
+                                   headers={'User-Agent': 'Mozilla/5.0'})
+            if dl_resp.status_code != 200:
+                return None
+            dl_data = dl_resp.json()
+            content_b64 = dl_data.get('content', '')
+            if not content_b64:
+                return None
+            lrc_text = base64.b64decode(content_b64).decode('utf-8', errors='ignore').strip()
+            if not lrc_text or len(lrc_text) < 10:
+                return None
+            lines = self._parse_lrc(lrc_text)
+            if not lines:
+                return None
+            lyrics = Lyrics(lines=lines, raw_lrc=lrc_text, song_id=0)
+            self._duration_cache[cache_key] = lyrics
+            return lyrics
+        except Exception as e:
+            logger.debug(f"酷狗歌词获取失败: {e}")
+            return None
+
+    def get_cover(self, title: str, artist: str):
+        cache_key = f"kg_cover_{title} - {artist}"
+        if cache_key in self._duration_cache and isinstance(self._duration_cache.get(cache_key), bytes):
+            return self._duration_cache[cache_key]
+        try:
+            keyword = f"{title} {artist}"
+            url = f"http://songsearch.kugou.com/song_search_v2?keyword={keyword}&platform=WebFilter&format=json&page=1&pagesize=1"
+            resp = requests.get(url, timeout=5,
+                                headers={'User-Agent': 'Mozilla/5.0'})
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get('error_code') == 0:
+                    lists = data.get('data', {}).get('lists', [])
+                    if lists:
+                        cover_url = lists[0].get('Image', '').replace('/{size}', '')
+                        if cover_url:
+                            cr = requests.get(cover_url, timeout=8,
+                                             headers={'User-Agent': 'Mozilla/5.0',
+                                                      'Referer': 'http://www.kugou.com/'})
+                            if cr.status_code == 200 and 1024 < len(cr.content) < 10 * 1024 * 1024:
+                                self._duration_cache[cache_key] = cr.content
+                                return cr.content
+        except Exception as e:
+            logger.debug(f"酷狗封面获取失败: {e}")
+        return None
+
+    @staticmethod
+    def _parse_lrc(lrc: str):
+        import re
+        lines = []
+        pat = re.compile(r'\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\]')
+        for line in lrc.split('\n'):
+            text = pat.sub('', line).strip()
+            if not text:
+                continue
+            for m in pat.findall(line):
+                try:
+                    mins, secs, ms = int(m[0]), int(m[1]), int(m[2]) if m[2] else 0
+                    if len(m[2]) == 2: ms *= 10
+                    elif len(m[2]) == 1: ms *= 100
+                    lines.append(LyricLine(time_ms=mins * 60000 + secs * 1000 + ms, text=text))
+                except ValueError:
+                    continue
+        lines.sort()
+        return lines
+
+    def get_detail(self, song_id): return None
+    def get_cover_legacy(self, url): return None
+
+    def fetch_all(self, song_name, artist=""):
+        result = {'song_id': None, 'detail': None, 'lyrics': None, 'cover': None}
+        dur = self._get_duration(song_name, artist)
+        if dur > 0:
+            result['detail'] = type('obj', (object,), {'duration': dur})()
+        lyrics = self.get_lyrics(song_name, artist, dur)
+        if lyrics:
+            result['lyrics'] = lyrics
+        cover = self.get_cover(song_name, artist)
+        if cover:
+            result['cover'] = cover
+        return result
+
+    def close(self):
         pass
 
 
@@ -728,6 +980,7 @@ class MediaProvider:
         _check_and_install_deps()
         self._sources = [
             NeteaseCloudMusic(),
+            KugouMemoryReader(),
             GSMTCReader(),
         ]
 
@@ -772,6 +1025,11 @@ def get_gstmtc() -> GSMTCReader:
     return _provider.get_source("GSMTC")
 
 def fetch_all_info(song_name: str, artist: str = "") -> Dict[str, Any]:
+    kg = _provider.get_source("KugouMemory")
+    if kg and kg.available:
+        result = kg.fetch_all(song_name, artist)
+        if result.get('lyrics') or result.get('cover'):
+            return result
     ncm = get_netease()
     if ncm:
         return ncm.fetch_all(song_name, artist)

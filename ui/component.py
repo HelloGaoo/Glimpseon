@@ -940,6 +940,8 @@ class MediaWidget(QWidget):
             if m.position_ms > 0:
                 self._position = m.position_ms
             self._playing = m.is_playing
+            if getattr(m, 'thumbnail_data', None):
+                self._load_cover(m.thumbnail_data)
             if self._duration > 0:
                 self._bar.setValue(min(100, int(self._position / self._duration * 100)))
                 self._time.setText(self._fmt(self._position))
@@ -989,10 +991,15 @@ class MediaWidget(QWidget):
             self._lyrics_w.clear()
             self._cover = None
             self._lyrics = None
-            
+
             self._cover_lbl.repaint()
             self._lyrics_w.repaint()
-            
+
+            if getattr(m, 'thumbnail_data', None):
+                self._load_cover(m.thumbnail_data)
+            elif getattr(m, 'app_name', '') == 'Kugou':
+                self._fetch_kugou_thumbnail()
+
             self._fetch(title, artist)
 
         self._playing = m.is_playing
@@ -1082,6 +1089,21 @@ class MediaWidget(QWidget):
         if self._worker:
             self._worker.deleteLater()
             self._worker = None
+
+    def _fetch_kugou_thumbnail(self):
+        import threading
+        def _do():
+            try:
+                from services.media import get_gstmtc
+                gsmtc = get_gstmtc()
+                if gsmtc and gsmtc.available:
+                    info = gsmtc.get_info()
+                    if info and getattr(info, 'thumbnail_data', None):
+                        self._fetch_done.emit(info, False)
+            except Exception:
+                pass
+        t = threading.Thread(target=_do, daemon=True)
+        t.start()
 
     def update_settings(self):
         self._apply_config()
