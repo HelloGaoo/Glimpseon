@@ -581,6 +581,7 @@ class GSMTCReader:
         self._available = self._check_deps()
         self._loop = None
         self._had_session = False
+        self._last_media_key: str = ""
         if self._available:
             try:
                 from winsdk.windows.media.control import GlobalSystemMediaTransportControlsSessionPlaybackStatus as PlaybackStatus
@@ -666,7 +667,10 @@ class GSMTCReader:
                             info.artist = props.artist or ""
                             info.album = props.album_title or ""
                             info.title_artist = f"{info.title} - {info.artist}" if info.artist else info.title
-                            logger.info(f"GSMTC: 获取到媒体信息 - 标题={info.title}, 歌手={info.artist}")
+                            media_key = f"{info.title}|{info.artist}"
+                            if media_key != self._last_media_key:
+                                self._last_media_key = media_key
+                                logger.info(f"GSMTC: 获取到媒体信息 - 标题={info.title}, 歌手={info.artist}")
                             if props.thumbnail:
                                 try:
                                     stream = await props.thumbnail.open_read_async()
@@ -1273,6 +1277,7 @@ class MediaProvider:
             KugouMemoryReader(),
             GSMTCReader(),
         ]
+        self._last_media_key: str = ""
 
     def get_info(self) -> Optional[MediaInfo]:
         for i, source in enumerate(self._sources):
@@ -1280,7 +1285,10 @@ class MediaProvider:
                 try:
                     info = source.get_info()
                     if info and info.is_valid():
-                        logger.info(f"媒体源 [{i}] {source.name}: 成功获取媒体信息 - {info.title} - {info.artist}")
+                        media_key = f"{info.title}|{info.artist}"
+                        if media_key != self._last_media_key:
+                            self._last_media_key = media_key
+                            logger.info(f"媒体源 [{i}] {source.name}: 成功获取媒体信息 - {info.title} - {info.artist}")
                         return info
                     else:
                         logger.debug(f"媒体源 [{i}] {source.name}: 获取到无效信息")
