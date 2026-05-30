@@ -961,12 +961,15 @@ class MediaWidget(QWidget):
 
     def _no_media(self):
         self._title.setText("未在播放")
+        self._title.setWordWrap(False)
         self._artist.setText("")
+        self._artist.show()
+        self._lyrics_w.clear()
+        self._lyrics_w.show()
         self._bar.setValue(0)
         self._time.setText("0:00")
         self._dur.setText("0:00")
         self._default_cover()
-        self._lyrics_w.clear()
         self._media = None
         self._lyrics = None
         self._last_ta = ""
@@ -988,21 +991,28 @@ class MediaWidget(QWidget):
             self._has_gstmtc_cover = False
             
             app_name = getattr(m, 'app_name', '') or ''
-            
-            self._title.setText(title)
-            self._artist.setText(artist)
+            is_web_browser = any(browser in app_name.lower() for browser in ['chrome', 'edge', 'firefox', 'msedge'])
             
             self._cover_anim.stop()
             self._default_cover()
-            self._lyrics_w.clear()
             self._cover = None
             self._lyrics = None
-
+            self._lyrics_w.clear()
             self._cover_lbl.repaint()
             self._lyrics_w.repaint()
 
-            is_web_browser = any(browser in app_name.lower() for browser in ['chrome', 'edge', 'firefox', 'msedge'])
-            
+            if is_web_browser and not artist:
+                self._title.setText(title)
+                self._title.setWordWrap(True)
+                self._artist.hide()
+                self._lyrics_w.hide()
+            else:
+                self._title.setText(title)
+                self._title.setWordWrap(False)
+                self._artist.setText(artist)
+                self._artist.show()
+                self._lyrics_w.show()
+
             if getattr(m, 'thumbnail_data', None):
                 self._has_gstmtc_cover = True
                 self._load_cover(m.thumbnail_data)
@@ -1028,7 +1038,6 @@ class MediaWidget(QWidget):
             self._time.setText(self._fmt(self._position))
 
         self._cover_lbl.setVisible(cfg.showMediaCover.value)
-        self._lyrics_w.show()
 
     def _update_progress(self):
         if not self._playing:

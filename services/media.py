@@ -674,21 +674,16 @@ class GSMTCReader:
                             
                             if hasattr(props, 'thumbnail') and props.thumbnail:
                                 try:
-                                    thumb = props.thumbnail
-                                    from winsdk.windows.storage.streams import DataReader, InputStreamOptions
+                                    from winsdk.windows.storage.streams import Buffer, InputStreamOptions
                                     
+                                    thumb = props.thumbnail
                                     stream = await thumb.open_read_async()
-                                    if stream:
-                                        size = stream.size
-                                        logger.debug(f"GSMTC: 缩略图流大小={size} bytes")
-                                        if 0 < size < 10 * 1024 * 1024:
-                                            reader = DataReader(stream)
-                                            await reader.load_async(size)
-                                            buf_data = reader.read_buffer(size)
-                                            info.thumbnail_data = bytes(buf_data)
-                                            reader.close()
-                                        else:
-                                            logger.warning(f"GSMTC: 缩略图大小异常: {size} bytes")
+                                    if stream and 0 < stream.size < 10 * 1024 * 1024:
+                                        buf = Buffer(stream.size)
+                                        await stream.read_async(buf, buf.capacity, InputStreamOptions.READ_AHEAD)
+                                        info.thumbnail_data = bytes(buf)
+                                    elif stream:
+                                        logger.warning(f"GSMTC: 缩略图大小异常: {stream.size} bytes")
                                     else:
                                         logger.warning("GSMTC: 无法打开缩略图流")
                                 except Exception as e:
@@ -1175,14 +1170,12 @@ class QQMusicReader:
 
                     if props.thumbnail:
                         try:
-                            from winsdk.windows.storage.streams import DataReader
+                            from winsdk.windows.storage.streams import Buffer, InputStreamOptions
                             stream = await props.thumbnail.open_read_async()
                             if stream and 0 < stream.size < 10 * 1024 * 1024:
-                                reader = DataReader(stream)
-                                await reader.load_async(stream.size)
-                                buf_data = reader.read_buffer(stream.size)
-                                info.thumbnail_data = bytes(buf_data)
-                                reader.close()
+                                buf = Buffer(stream.size)
+                                await stream.read_async(buf, buf.capacity, InputStreamOptions.READ_AHEAD)
+                                info.thumbnail_data = bytes(buf)
                         except Exception as e:
                             logger.debug(f"QQMusic: 获取封面失败: {e}")
 
