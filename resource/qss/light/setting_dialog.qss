@@ -9,7 +9,3 @@
 #settingDialog Pivot {
     background-color: transparent;
 }
-
-#settingDialog --pivot-indicator {
-    background-color: #30c361;
-}
