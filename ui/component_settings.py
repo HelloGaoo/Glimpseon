@@ -88,8 +88,8 @@ class ComponentSettingDialog(QDialog):
         super().__init__(parent)
         self._title = title
         self._icon = icon
-        self.setMinimumSize(520, 500)
-        self.resize(540, 600)
+        self.setMinimumSize(520, 540)
+        self.resize(540, 640)
         self.setWindowTitle(title)
         self.setWindowFlags(
             Qt.WindowType.Dialog
