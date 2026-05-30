@@ -280,8 +280,18 @@ class HomeInterface(QWidget):
         ]
 
     def _initQuickLaunch(self):
+        self.quickLaunchContainer = DraggableContainer(self, component_id="quick_launch", layout_direction="vertical")
+        self.quickLaunchContainer.setObjectName("quickLaunchContainer")
+        quickLaunchLayout = self.quickLaunchContainer.inner_layout
+        quickLaunchLayout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        quickLaunchLayout.setContentsMargins(0, 0, 0, 0)
         self.quickLaunchDock = QuickLaunchDock(self)
         self.quickLaunchDock.setObjectName("quickLaunchDock")
+        quickLaunchLayout.addWidget(self.quickLaunchDock)
+        self.quickLaunchContainer.setPositionPercent(0.5, 0.92)
+        self.quickLaunchContainer.positionChanged.connect(self._onQuickLaunchPositionChanged)
+        self.quickLaunchContainer.adjustSize()
+        self._draggable_widgets.append(self.quickLaunchContainer)
         self._updateQuickLaunch()
 
     def _initEditButton(self):
@@ -341,14 +351,6 @@ class HomeInterface(QWidget):
                 if hasattr(widget, 'settingRequested'):
                     widget.settingRequested.connect(self._openComponentSetting)
 
-        self.quickLaunchDock.setParent(self.homeContent)
-        self.quickLaunchDock.show()
-        if self.quickLaunchDock.width() > 0 and self.quickLaunchDock.height() > 0:
-            self.quickLaunchDock.move(
-                (1000 - self.quickLaunchDock.width()) // 2,
-                700 - self.quickLaunchDock.height() - 30
-            )
-
         homeLayout = QVBoxLayout(self)
         homeLayout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         homeLayout.setContentsMargins(0, 0, 0, 0)
@@ -402,6 +404,13 @@ class HomeInterface(QWidget):
         self._updateWeatherInterval()
 
         self._initMediaWidgetTimers()
+
+        cfg.showQuickLaunch.valueChanged.connect(self._updateQuickLaunch)
+        cfg.quickLaunchIconSize.valueChanged.connect(self._updateQuickLaunch)
+        cfg.quickLaunchIconSpacing.valueChanged.connect(self._updateQuickLaunch)
+        cfg.quickLaunchShowLabels.valueChanged.connect(self._updateQuickLaunch)
+        cfg.quickLaunchOffsetY.valueChanged.connect(self._updateQuickLaunch)
+        cfg.quickLaunchApps.valueChanged.connect(self._updateQuickLaunch)
 
         QTimer.singleShot(0, self.loadComponentPositions)
         QTimer.singleShot(0, self._checkAndRefreshQuickLaunchIcons)
@@ -501,18 +510,6 @@ class HomeInterface(QWidget):
                     self.homeBackgroundImage.setPixmap(scaled_pixmap)
             except Exception as e:
                 logger.error(f"resizeEvent 错误：{e}")
-
-        if hasattr(self, 'homeContent') and self.homeContent:
-            if hasattr(self, 'quickLaunchDock') and self.quickLaunchDock:
-                dock_width = self.quickLaunchDock.width()
-                dock_height = self.quickLaunchDock.height()
-                if dock_width > 0 and dock_height > 0:
-                    self.quickLaunchDock.setGeometry(
-                        (available_width - dock_width) // 2,
-                        available_height - dock_height - 20,
-                        dock_width,
-                        dock_height
-                    )
 
         if hasattr(self, '_draggable_widgets'):
             for widget in self._draggable_widgets:
@@ -975,18 +972,21 @@ class HomeInterface(QWidget):
             self.schoolInfoContainer.updateSize()
 
     def _updateQuickLaunch(self):
-        if not hasattr(self, 'quickLaunchDock'):
+        if not hasattr(self, 'quickLaunchContainer'):
             return
         if not cfg.showQuickLaunch.value:
-            self.quickLaunchDock.hide()
+            if self.isEditMode:
+                self.quickLaunchContainer.setContentVisible(False)
+                self.quickLaunchContainer.show()
+            else:
+                self.quickLaunchContainer.hide()
             return
-        self.quickLaunchDock.show()
-        apps = cfg.quickLaunchApps.value
-        if not apps:
-            self.quickLaunchDock.hide()
-            return
+        self.quickLaunchContainer.setContentVisible(True)
+        self.quickLaunchContainer.show()
+        apps = cfg.quickLaunchApps.value or []
         self.quickLaunchDock.update_icon_size(cfg.quickLaunchIconSize.value)
         self.quickLaunchDock.set_apps(apps)
+        self.quickLaunchContainer.updateSize()
 
     def _checkAndRefreshQuickLaunchIcons(self):
         apps = cfg.quickLaunchApps.value
@@ -1093,6 +1093,7 @@ class HomeInterface(QWidget):
         self._updateWeather(cache_only=True)
         self._updateCountdown()
         self.updateSchoolInfo()
+        self._updateQuickLaunch()
 
     def _openComponentSetting(self, component_id: str):
         from ui.component_settings import ComponentSettingDialog
@@ -1235,6 +1236,9 @@ class HomeInterface(QWidget):
         pass
 
     def _onMediaPositionChanged(self, x: float, y: float):
+        pass
+
+    def _onQuickLaunchPositionChanged(self, x: float, y: float):
         pass
 
     def _updateEditButtonPosition(self):
