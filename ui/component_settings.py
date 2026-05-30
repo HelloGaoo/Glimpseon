@@ -450,7 +450,7 @@ class WeatherSettingDialog(ComponentSettingDialog):
             main_window = self.parent()
             while main_window and not hasattr(main_window, 'homeInterface'):
                 main_window = main_window.parent()
-            dialog = RegionSelectorDialog(main_window)
+            dialog = RegionSelectorDialog(self)
             if dialog.exec():
                 selected_region = dialog.get_selected_region()
                 if selected_region:
