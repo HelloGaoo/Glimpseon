@@ -1350,7 +1350,6 @@ class Preloader(QThread):
     sig_wp = pyqtSignal(str, str, str)
     sig_wt = pyqtSignal(dict)
     sig_po = pyqtSignal(str)
-    sig_done = pyqtSignal()
 
     def __init__(self, win):
         super().__init__()
@@ -1365,7 +1364,6 @@ class Preloader(QThread):
             self._load_wp()
             if not self._stop: self._load_wt()
             if not self._stop: self._load_po()
-            if not self._stop: self.sig_done.emit()
         except Exception as e:
             logger.error(f"[PRELOAD] {e}")
 
@@ -1377,7 +1375,8 @@ class Preloader(QThread):
             if wp.current_pixmap and not wp.current_pixmap.isNull(): return
         except: return
 
-        from core.cache import get_cached_content
+        from core.utils import get_cached_content, save_cache
+
         cached = get_cached_content("wallpaper")
         if cached and os.path.exists(cached.get('path', '')):
             self.sig_wp.emit(cached['path'], cached.get('source', ''), cached.get('url', ''))
@@ -1392,15 +1391,43 @@ class Preloader(QThread):
             os.makedirs(d, exist_ok=True)
             p = os.path.join(d, f"wp_{datetime.datetime.now().strftime('%H%M%S')}.jpg")
             with open(p, 'wb') as f: f.write(resp.content)
+            wp._manageWallpaperLimit(d, cfg.wallpaperSaveLimit.value)
+            save_cache("wallpaper", {"path": p, "source": src, "url": url}, cfg.autoGetInterval.value)
             if not self._stop: self.sig_wp.emit(p, src, url)
+            return
+
+        default = get_resPath(os.path.join('resource', 'wallpaper', 'default.jpg'))
+        if os.path.exists(default):
+            if not self._stop: self.sig_wp.emit(default, "默认", "")
+            return
+
+        wd = os.path.join(BASE_DIR, 'wallpaper')
+        if os.path.exists(wd):
+            olds = sorted(
+                [f for f in os.listdir(wd) if f.endswith('.jpg') and f.startswith('wallpaper_')],
+                key=lambda f: os.path.getmtime(os.path.join(wd, f)),
+                reverse=True
+            )
+            if olds:
+                p = os.path.join(wd, olds[0])
+                if not self._stop: self.sig_wp.emit(p, "缓存", "")
 
     def _load_wt(self):
         if self._stop: return
         hi = getattr(self.win, 'homeInterface', None)
-        if not hi: return
+        if not hi or not cfg.showWeather.value: return
 
+        from core.utils import get_cached_content, save_cache
         import requests
-        from data.region_database import RegionDatabase
+        from services.weather import RegionDatabase
+
+        cached = get_cached_content("weather")
+        if cached:
+            if not self._stop:
+                self.sig_wt.emit({'temp': cached.get('current_temp', '?'), 'unit': cached.get('temp_unit', '°C'), 'code': cached.get('weather_code')})
+            return
+
+        if self._stop: return
         code = RegionDatabase().get_code(cfg.city.value) or "101010100"
         resp = requests.get(
             f"https://weatherapi.market.xiaomi.com/wtr-v3/weather/all?locationKey=weathercn:{code}&latitude=39.9042&longitude=116.4074&appKey=weather20151024&sign=zUFJoAR2ZVrDy1vF3D07&isGlobal=false&locale=zh_cn",
@@ -1409,21 +1436,26 @@ class Preloader(QThread):
         if resp.status_code == 200:
             c = resp.json().get('current', {})
             t = c.get('temperature', {})
-            if not self._stop:
-                self.sig_wt.emit({'temp': t.get('value', 0), 'unit': t.get('unit', '°C'), 'code': c.get('weather', 0)})
+            data = {'temp': t.get('value', 0), 'unit': t.get('unit', '°C'), 'code': c.get('weather', 0)}
+            save_cache("weather", data, cfg.weatherUpdateInterval.value)
+            if not self._stop: self.sig_wt.emit(data)
 
     def _load_po(self):
         if self._stop: return
         hi = getattr(self.win, 'homeInterface', None)
-        if not hi: return
+        if not hi or not cfg.showPoetry.value: return
 
-        from core.cache import get_cached_content
+        from core.utils import get_cached_content, save_cache
         from services.poetry import PoetryService
+
         cached = get_cached_content("poetry")
         if cached:
             if not self._stop: self.sig_po.emit(cached)
             return
+
+        if self._stop: return
         text = PoetryService.get_poetry()
+        save_cache("poetry", text, cfg.poetryUpdateInterval.value)
         if not self._stop: self.sig_po.emit(text)
 
 
@@ -1602,6 +1634,8 @@ if __name__ == "__main__":
                 wp._updateMainWindowBackground()
                 wp._applyEffects()
                 wp.infoCard.updateInfo(path, src)
+                wp.historyManager.add(path, src, url)
+                wp.wallpaperChanged.emit()
         except Exception as e:
             logger.error(f"[PRELOAD-UI] wp: {e}")
 
