@@ -888,7 +888,7 @@ class MediaWidget(QWidget):
 
     def start(self):
         self._timer.start(cfg.mediaUpdateInterval.value * 1000)
-        self._prog_timer.start(2000)
+        self._prog_timer.start(1000)
         self._fetch_in_thread(full=True)
 
     def _fetch_in_thread(self, full=True):
@@ -938,17 +938,17 @@ class MediaWidget(QWidget):
             if self._pending_full:
                 QTimer.singleShot(100, lambda: self._fetch_in_thread(full=True))
         else:
-            if m.position_ms > 0:
+            if m.position_ms > self._position:
                 self._position = m.position_ms
             self._playing = m.is_playing
+            self._duration = m.duration_ms
             if getattr(m, 'thumbnail_data', None) and not self._has_gstmtc_cover:
                 self._has_gstmtc_cover = True
                 self._load_cover(m.thumbnail_data)
             if self._duration > 0:
                 self._bar.setValue(min(100, int(self._position / self._duration * 100)))
                 self._time.setText(self._fmt(self._position))
-                if self._duration > 0:
-                    self._dur.setText(self._fmt(self._duration))
+                self._dur.setText(self._fmt(self._duration))
             if self._playing and self._lyrics and not self._lyrics.is_empty():
                 self._lyrics_w.update_position(self._position)
 
@@ -1025,8 +1025,10 @@ class MediaWidget(QWidget):
                 self._fetch(title, artist)
 
         self._playing = m.is_playing
-        if m.position_ms > 0:
+        if m.position_ms > self._position and m.position_ms > 0:
             self._position = m.position_ms
+        if m.duration_ms > 0:
+            self._duration = m.duration_ms
 
         self._prog_container.show()
         if self._duration > 0:
@@ -1040,8 +1042,11 @@ class MediaWidget(QWidget):
         self._cover_lbl.setVisible(cfg.showMediaCover.value)
 
     def _update_progress(self):
-        if not self._playing:
-            return
+        if self._playing and self._duration > 0:
+            self._position = min(self._position + self._prog_timer.interval(), self._duration)
+            pct = min(100, int(self._position / self._duration * 100))
+            self._bar.setValue(pct)
+            self._time.setText(self._fmt(self._position))
         self._fetch_in_thread(full=False)
 
     @staticmethod
