@@ -761,7 +761,6 @@ class QuickLaunchSettingDialog(ComponentSettingDialog):
 
         g_layout = self._addGroup('布局', is_advanced=True)
         (self._labelsCard, self._labelsSwitch) = self._addSwitch('显示名称', cfg.quickLaunchShowLabels, group=g_layout)
-        (self._offsetCard, self._offsetSpin) = self._addSpinBox('向上偏移', cfg.quickLaunchOffsetY, 0, 120, group=g_layout)
 
         self._enableSwitch.checkedChanged.connect(self._updateEnabled)
         self._updateEnabled(cfg.showQuickLaunch.value)
@@ -770,7 +769,6 @@ class QuickLaunchSettingDialog(ComponentSettingDialog):
         self._iconSizeCard.setEnabled(enabled)
         self._spacingCard.setEnabled(enabled)
         self._labelsCard.setEnabled(enabled)
-        self._offsetCard.setEnabled(enabled)
 
     def _onEditApps(self):
         try:

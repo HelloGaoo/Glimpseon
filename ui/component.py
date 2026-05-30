@@ -1355,7 +1355,7 @@ class QuickLaunchDock(QWidget):
         w = n * sz + (n - 1) * self._icon_gap + self.PAD_X * 2
         h = sz + self.PAD_Y_TOP + self.PAD_Y_BOTTOM
         x = (self.width() - w) / 2
-        y = self.height() - h - cfg.quickLaunchOffsetY.value
+        y = self.height() - h
         return QRectF(x, y, w, h)
 
     def _fix_size(self):
@@ -1370,10 +1370,9 @@ class QuickLaunchDock(QWidget):
         bounce_overflow = self.BOUNCE_H + 10
         side_overflow = int(sz * (self.MAX_SCALE - self.BASE_SCALE) * 0.3)
         label_overflow = 28 if self._show_labels else 0
-        offset_y = cfg.quickLaunchOffsetY.value
         drag_extra = int(sz * 0.5)
         w = w_icons + side_overflow * 2 + drag_extra
-        h = h_icons + scale_overflow + bounce_overflow + label_overflow + offset_y + drag_extra
+        h = h_icons + scale_overflow + bounce_overflow + label_overflow + drag_extra
         self.setFixedSize(w, h)
 
     def _icon_positions(self):

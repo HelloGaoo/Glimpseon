@@ -409,7 +409,6 @@ class HomeInterface(QWidget):
         cfg.quickLaunchIconSize.valueChanged.connect(self._updateQuickLaunch)
         cfg.quickLaunchIconSpacing.valueChanged.connect(self._updateQuickLaunch)
         cfg.quickLaunchShowLabels.valueChanged.connect(self._updateQuickLaunch)
-        cfg.quickLaunchOffsetY.valueChanged.connect(self._updateQuickLaunch)
         cfg.quickLaunchApps.valueChanged.connect(self._updateQuickLaunch)
 
         QTimer.singleShot(0, self.loadComponentPositions)
@@ -2397,18 +2396,11 @@ class EditPanel(QWidget):
         if hasattr(self.mainWindow, '_MainWindow__updateQuickLaunch'):
             self.mainWindow._MainWindow__updateQuickLaunch()
 
-    def _onQuickLaunchOffsetYChanged(self, value: int):
-        cfg.quickLaunchOffsetY.value = value
-        save_cfg()
-        if hasattr(self.mainWindow, '_MainWindow__updateQuickLaunch'):
-            self.mainWindow._MainWindow__updateQuickLaunch()
-
     def refreshQuickLaunchSettings(self):
         self.showQuickLaunchSwitch.setChecked(cfg.showQuickLaunch.value)
         self.quickLaunchIconSizeSpin.setValue(cfg.quickLaunchIconSize.value)
         self.quickLaunchIconSpacingSpin.setValue(cfg.quickLaunchIconSpacing.value)
         self.quickLaunchShowLabelsSwitch.setChecked(cfg.quickLaunchShowLabels.value)
-        self.quickLaunchOffsetYSpin.setValue(cfg.quickLaunchOffsetY.value)
 
     def refreshAllSettings(self):
         self.showClockSwitch.setChecked(cfg.showClock.value)
@@ -2569,18 +2561,6 @@ class EditPanel(QWidget):
         self.quickLaunchShowLabelsSwitch.checkedChanged.connect(lambda v: self._onQuickLaunchShowLabelsChanged(v))
         showLabelsLayout.addWidget(self.quickLaunchShowLabelsSwitch)
         layout.addLayout(showLabelsLayout)
-
-        offsetYLayout = QHBoxLayout()
-        offsetYLabel = BodyLabel('向上偏移', self)
-        offsetYLabel.setFixedWidth(100)
-        offsetYLayout.addWidget(offsetYLabel)
-        self.quickLaunchOffsetYSpin = SpinBox(self)
-        self.quickLaunchOffsetYSpin.setRange(0, 120)
-        self.quickLaunchOffsetYSpin.setValue(cfg.quickLaunchOffsetY.value)
-        self.quickLaunchOffsetYSpin.setFixedWidth(120)
-        self.quickLaunchOffsetYSpin.valueChanged.connect(lambda v: self._onQuickLaunchOffsetYChanged(v))
-        offsetYLayout.addWidget(self.quickLaunchOffsetYSpin)
-        layout.addLayout(offsetYLayout)
 
         appsLayout = QHBoxLayout()
         appsLabel = BodyLabel('应用管理', self)
