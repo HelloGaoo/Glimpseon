@@ -112,6 +112,9 @@ class SplashScreen(QWidget):
         self.status_signal.connect(self.updateStatus)
         self.progress_signal.connect(self.setProgress)
         self._initUI()
+        QTimer.singleShot(50, self._loadResourcesAsync)
+
+    def _loadResourcesAsync(self):
         self._loadIcon()
         self._loadQss()
 
@@ -1350,12 +1353,21 @@ if __name__ == "__main__":
     if cfg.enableGpuAcceleration.value:
         QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseOpenGLES)
 
-    extract_files()
-
     app = QApplication(sys.argv)
 
     init_exhook()
     atexit.register(release_single_instance)
+
+    _extract_future = None
+    executor = ThreadPoolExecutor(max_workers=2)
+    
+    def _background_extract():
+        try:
+            extract_files()
+        except Exception as e:
+            logger.exception(f"资源提取失败: {e}")
+    
+    _extract_future = executor.submit(_background_extract)
 
     if check_wizard_needed():
         create_wizard_file()
@@ -1378,7 +1390,6 @@ if __name__ == "__main__":
             time.sleep(0.005)
 
     app.processEvents()
-    executor = ThreadPoolExecutor(max_workers=1)
 
     def _background_init():
         try:
@@ -1422,6 +1433,10 @@ if __name__ == "__main__":
     splash.updateStatus("正在初始化字体")
     splash.setProgress(30)
     allow_ui_update(0.06)
+    
+    if _extract_future:
+         _extract_future.result(timeout=10)
+    
     _t = time.time()
     initialize_fonts(app, install_to_system=True)
     logger.info(f"[BOOT] 字体初始化 耗时{time.time()-_t:.2f}s")
