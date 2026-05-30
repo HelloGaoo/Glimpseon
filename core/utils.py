@@ -155,47 +155,85 @@ def _install_system_fonts() -> bool:
     if not os.path.exists(local_font_dir):
         logger.warning(f"字体目录不存在：{local_font_dir}")
         return False
+    
+    installed_any = False
     try:
         for font_file in HARMONYOS_FONT_FILES:
             local_font_path = os.path.join(local_font_dir, font_file)
             system_font_path = os.path.join(system_font_dir, font_file)
             if os.path.exists(local_font_path) and not os.path.exists(system_font_path):
-                shutil.copy2(local_font_path, system_font_path)
-                ctypes.windll.gdi32.AddFontResourceW(system_font_path)
-                logger.debug(f"已安装字体：{font_file}")
-        HWND_BROADCAST = 0xFFFF
-        WM_FONTCHANGE = 0x001D
-        SMTO_ABORTIFHUNG = 0x0002
-        ctypes.windll.user32.SendMessageTimeoutW(
-            HWND_BROADCAST, WM_FONTCHANGE, 0, 0, SMTO_ABORTIFHUNG, 1000, None
-        )
+                try:
+                    shutil.copy2(local_font_path, system_font_path)
+                    result = ctypes.windll.gdi32.AddFontResourceW(system_font_path)
+                    if result > 0:
+                        installed_any = True
+                        logger.debug(f"已安装字体：{font_file}")
+                    else:
+                        logger.warning(f"AddFontResourceW：{font_file}")
+                except Exception as e:
+                    logger.warning(f"安装单个字体失败 {font_file}：{e}")
+                    continue
+        if installed_any:
+            try:
+                HWND_BROADCAST = 0xFFFF
+                WM_FONTCHANGE = 0x001D
+                SMTO_ABORTIFHUNG = 0x0002
+                
+                result = ctypes.wintypes.DWORD()
+                send_result = ctypes.windll.user32.SendMessageTimeoutW(
+                    HWND_BROADCAST, WM_FONTCHANGE, 0, 0, 
+                    SMTO_ABORTIFHUNG, 500, ctypes.byref(result)
+                )
+            except Exception as e:
+                logger.warning(f"广播字体变更消息失败：{e}")
+        
         return True
     except Exception as e:
         logger.warning(f"安装字体到系统失败：{e}")
         return False
 
 
-def _load_app_fonts() -> bool:
+def _load_app_fonts(max_retries: int = 3, retry_delay: float = 0.1) -> bool:
     font_dir = _get_fontdir()
     if not os.path.exists(font_dir):
         logger.warning(f"字体目录不存在：{font_dir}")
         return False
+    
     font_loaded = False
+    failed_fonts = []
+    
     for font_file in HARMONYOS_FONT_FILES:
-        try:
-            font_path = os.path.join(font_dir, font_file)
-            if os.path.exists(font_path):
+        font_path = os.path.join(font_dir, font_file)
+        if not os.path.exists(font_path):
+            logger.warning(f"字体文件不存在：{font_path}")
+            failed_fonts.append(font_file)
+            continue
+        
+        loaded = False
+        for attempt in range(max_retries):
+            try:
                 font_id = QFontDatabase.addApplicationFont(font_path)
                 if font_id != -1:
+                    loaded = True
                     font_loaded = True
-                    logger.debug(f"成功加载字体：{font_file}")
+                    logger.debug(f"成功加载字体：{font_file} (尝试 {attempt + 1})")
+                    break
                 else:
-                    logger.warning(f"字体加载失败：{font_file}")
-        except Exception as e:
-            logger.warning(f"加载字体 {font_file} 时发生错误：{e}")
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+            except Exception as e:
+                logger.warning(f"加载字体 {font_file} 时发生错误 (尝试 {attempt + 1})：{e}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+        
+        if not loaded:
+            failed_fonts.append(font_file)
+            logger.warning(f"字体加载失败（已重试{max_retries}次）：{font_file}")
 
     if font_loaded:
-        logger.info("字体已加载到应用程序")
+        logger.info(f"字体已加载到应用程序 ({len(HARMONYOS_FONT_FILES) - len(failed_fonts)}/{len(HARMONYOS_FONT_FILES)} 成功)")
+        if failed_fonts:
+            logger.warning(f"以下字体加载失败：{', '.join(failed_fonts)}")
     else:
         logger.warning("未成功加载任何字体")
     return font_loaded
@@ -215,7 +253,8 @@ def apply_fonts(app: QApplication, use_harmonyos: bool = True):
 def initialize_fonts(app: QApplication, install_to_system: bool = True):
     if install_to_system:
         _install_system_fonts()
-    font_loaded = _load_app_fonts()
+    
+    font_loaded = _load_app_fonts(max_retries=3, retry_delay=0.1)
     apply_fonts(app, use_harmonyos=font_loaded)
     logger.info("字体初始化完成")
 
