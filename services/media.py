@@ -671,15 +671,30 @@ class GSMTCReader:
                             if media_key != self._last_media_key:
                                 self._last_media_key = media_key
                                 logger.info(f"GSMTC: 获取到媒体信息 - 标题={info.title}, 歌手={info.artist}")
-                            if props.thumbnail:
+                            
+                            if hasattr(props, 'thumbnail') and props.thumbnail:
                                 try:
-                                    stream = await props.thumbnail.open_read_async()
-                                    if stream and 0 < stream.size < 10 * 1024 * 1024:
-                                        buf = bytes(stream.size)
-                                        await stream.input_stream.read_async(buf, stream.size, 0)
-                                        info.thumbnail_data = buf
+                                    thumb = props.thumbnail
+                                    from winsdk.windows.storage.streams import DataReader, InputStreamOptions
+                                    
+                                    stream = await thumb.open_read_async()
+                                    if stream:
+                                        size = stream.size
+                                        logger.debug(f"GSMTC: 缩略图流大小={size} bytes")
+                                        if 0 < size < 10 * 1024 * 1024:
+                                            reader = DataReader(stream)
+                                            await reader.load_async(size)
+                                            buf_data = reader.read_buffer(size)
+                                            info.thumbnail_data = bytes(buf_data)
+                                            reader.close()
+                                        else:
+                                            logger.warning(f"GSMTC: 缩略图大小异常: {size} bytes")
+                                    else:
+                                        logger.warning("GSMTC: 无法打开缩略图流")
                                 except Exception as e:
-                                    logger.debug(f"GSMTC: 获取封面失败 {e}")
+                                    logger.warning(f"GSMTC: 读取缩略图失败: {type(e).__name__}: {e}")
+                            else:
+                                logger.debug("GSMTC: 媒体源未提供缩略图")
                     except Exception as e:
                         logger.warning(f"GSMTC: 获取媒体属性失败 {e}")
 
@@ -1160,13 +1175,16 @@ class QQMusicReader:
 
                     if props.thumbnail:
                         try:
+                            from winsdk.windows.storage.streams import DataReader
                             stream = await props.thumbnail.open_read_async()
                             if stream and 0 < stream.size < 10 * 1024 * 1024:
-                                buf = bytes(stream.size)
-                                await stream.input_stream.read_async(buf, stream.size, 0)
-                                info.thumbnail_data = buf
-                        except Exception:
-                            pass
+                                reader = DataReader(stream)
+                                await reader.load_async(stream.size)
+                                buf_data = reader.read_buffer(stream.size)
+                                info.thumbnail_data = bytes(buf_data)
+                                reader.close()
+                        except Exception as e:
+                            logger.debug(f"QQMusic: 获取封面失败: {e}")
 
                     return info
 

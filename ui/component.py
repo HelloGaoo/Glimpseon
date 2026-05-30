@@ -577,6 +577,7 @@ class MediaWidget(QWidget):
         self._lyrics: Optional[Lyrics] = None
         self._last_ta = ""
         self._cover: Optional[QPixmap] = None
+        self._has_gstmtc_cover: bool = False
         self._fetching = False
         self._pending_full = False
         self._cache = {}
@@ -940,7 +941,8 @@ class MediaWidget(QWidget):
             if m.position_ms > 0:
                 self._position = m.position_ms
             self._playing = m.is_playing
-            if getattr(m, 'thumbnail_data', None):
+            if getattr(m, 'thumbnail_data', None) and not self._has_gstmtc_cover:
+                self._has_gstmtc_cover = True
                 self._load_cover(m.thumbnail_data)
             if self._duration > 0:
                 self._bar.setValue(min(100, int(self._position / self._duration * 100)))
@@ -968,6 +970,7 @@ class MediaWidget(QWidget):
         self._media = None
         self._lyrics = None
         self._last_ta = ""
+        self._has_gstmtc_cover = False
         self._playing = False
         self._duration = 0
         if cfg.showMediaInfo.value:
@@ -982,6 +985,9 @@ class MediaWidget(QWidget):
             self._position = m.position_ms
             self._playing = m.is_playing
             self._duration = m.duration_ms
+            self._has_gstmtc_cover = False
+            
+            app_name = getattr(m, 'app_name', '') or ''
             
             self._title.setText(title)
             self._artist.setText(artist)
@@ -995,12 +1001,18 @@ class MediaWidget(QWidget):
             self._cover_lbl.repaint()
             self._lyrics_w.repaint()
 
+            is_web_browser = any(browser in app_name.lower() for browser in ['chrome', 'edge', 'firefox', 'msedge'])
+            
             if getattr(m, 'thumbnail_data', None):
+                self._has_gstmtc_cover = True
                 self._load_cover(m.thumbnail_data)
-            elif getattr(m, 'app_name', '') == 'Kugou':
+            elif app_name == 'Kugou':
                 self._fetch_kugou_thumbnail()
+            elif is_web_browser:
+                self._has_gstmtc_cover = True
 
-            self._fetch(title, artist)
+            if not is_web_browser:
+                self._fetch(title, artist)
 
         self._playing = m.is_playing
         if m.position_ms > 0:
@@ -1073,7 +1085,7 @@ class MediaWidget(QWidget):
         try:
             if info.get('detail'):
                 self._duration = info['detail'].duration
-            if info.get('cover') and cfg.showMediaCover.value:
+            if info.get('cover') and cfg.showMediaCover.value and not self._has_gstmtc_cover:
                 self._load_cover(info['cover'])
             self._lyrics = info.get('lyrics')
             self._lyrics_w.set_lyrics(self._lyrics)
