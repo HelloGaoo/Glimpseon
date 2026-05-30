@@ -729,7 +729,7 @@ class GSMTCReader:
 
 
 class KugouMemoryReader:
-    """酷狗音乐 - 窗口标题 + 时间模拟"""
+    """酷狗音乐 - 窗口标题 时间模拟"""
 
     def __init__(self):
         self._available = True
@@ -973,6 +973,295 @@ class KugouMemoryReader:
         pass
 
 
+class QQMusicReader:
+    """QQ音乐"""
+
+    def __init__(self):
+        self._available = self._check_deps()
+        self._manager = None
+        self._initialized = False
+        self._last_title_artist = ""
+        self._duration_cache = {}
+        self._qq_hwnd = None
+        self._uia_ready = False
+        self._uia_attempted = False
+        import ctypes
+        self._user32 = ctypes.windll.user32
+
+    def _find_qq_hwnd(self):
+        WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+        best = [None, 0]
+        def cb(h, _):
+            cls_buf = ctypes.create_unicode_buffer(256)
+            title_buf = ctypes.create_unicode_buffer(512)
+            self._user32.GetClassNameW(h, cls_buf, 256)
+            self._user32.GetWindowTextW(h, title_buf, 512)
+            t = title_buf.value.strip()
+            cn = cls_buf.value.lower()
+            if 'qq' in t.lower() or ('txgui' in cn and 'qq' in t.lower()):
+                rc = wintypes.RECT()
+                self._user32.GetWindowRect(h, ctypes.byref(rc))
+                area = (rc.right - rc.left) * (rc.bottom - rc.top)
+                if area > best[1]:
+                    best = [h, area]
+            return True
+        self._user32.EnumWindows(WNDENUMPROC(cb), 0)
+        hwnd = best[0]
+        if hwnd:
+            rc = wintypes.RECT()
+            self._user32.GetWindowRect(hwnd, ctypes.byref(rc))
+            if (rc.right - rc.left) > 500 and (rc.bottom - rc.top) > 300:
+                return hwnd
+        return None
+
+    def _read_uia_progress(self):
+        import re
+        time_re = re.compile(r'^(\d{1,2}):(\d{2})$')
+        
+        if not self._uia_attempted:
+            self._uia_attempted = True
+            try:
+                import uiautomation as auto
+                self._uia_lib = auto
+            except ImportError:
+                return -1, 0
+        
+        if not self._uia_ready or not self._qq_hwnd:
+            hwnd = self._find_qq_hwnd()
+            if not hwnd:
+                return -1, 0
+            try:
+                win = self._uia_lib.ControlFromHandle(hwnd)
+                self._qq_win = win
+                self._qq_hwnd = hwnd
+                self._uia_ready = True
+            except Exception:
+                return -1, 0
+        
+        try:
+            results = []
+            def scan(ctrl, depth=0):
+                try:
+                    n = ctrl.Name or ""
+                    if time_re.match(n.strip()) and getattr(ctrl, 'ControlTypeName', '') == "TextControl":
+                        r = ctrl.BoundingRectangle
+                        results.append((n.strip(), r.left))
+                    for child in ctrl.GetChildren():
+                        scan(child, depth + 1)
+                except Exception:
+                    pass
+            
+            scan(self._qq_win, 0)
+            
+            if len(results) >= 2:
+                results.sort(key=lambda x: x[1])
+                pos_str = results[0][0]
+                dur_str = results[1][0]
+                
+                m1 = time_re.match(pos_str)
+                m2 = time_re.match(dur_str)
+                if m1 and m2:
+                    pos_s = int(m1.group(1)) * 60 + int(m1.group(2))
+                    dur_s = int(m2.group(1)) * 60 + int(m2.group(2))
+                    return pos_s * 1000, dur_s * 1000
+            elif len(results) == 1:
+                m = time_re.match(results[0][0])
+                if m:
+                    pos_s = int(m.group(1)) * 60 + int(m.group(2))
+                    return pos_s * 1000, 0
+            
+            return -1, 0
+        except Exception:
+            self._uia_ready = False
+            return -1, 0
+
+    def _check_deps(self) -> bool:
+        try:
+            from winsdk.windows.media.control import GlobalSystemMediaTransportControlsSessionManager
+            return True
+        except ImportError:
+            return False
+
+    @property
+    def available(self) -> bool:
+        return self._available
+
+    @property
+    def name(self) -> str:
+        return "QQMusic"
+
+    def get_info(self) -> Optional[MediaInfo]:
+        if not self._available:
+            return None
+        try:
+            from winsdk.windows.media.control import (
+                GlobalSystemMediaTransportControlsSessionManager as MediaManager,
+                GlobalSystemMediaTransportControlsSessionPlaybackStatus as PlaybackStatus
+            )
+            import asyncio
+
+            async def _read():
+                if not self._initialized or self._manager is None:
+                    self._manager = await MediaManager.request_async()
+                    self._initialized = True
+
+                for i in range(self._manager.get_sessions().size):
+                    sess = self._manager.get_sessions().get_at(i)
+                    app_id = sess.source_app_user_model_id or ""
+                    if 'qqmusic' not in app_id.lower():
+                        continue
+
+                    props = await sess.try_get_media_properties_async()
+                    if not props:
+                        continue
+                    title = props.title or ""
+                    artist = props.artist or ""
+                    album = props.album_title or ""
+
+                    pb = sess.get_playback_info()
+                    status_val = pb.playback_status.value if pb and pb.playback_status else 3
+                    is_playing = (status_val in (1, 4))
+
+                    ta = f"{title} - {artist}" if artist else title
+
+                    uia_pos_ms, uia_dur_ms = self._read_uia_progress()
+
+                    tl = sess.get_timeline_properties()
+                    dur_ms = 0
+                    if uia_dur_ms > 0:
+                        dur_ms = uia_dur_ms
+                    elif tl and tl.end_time and tl.end_time.total_seconds() > 0:
+                        dur_ms = int(tl.end_time.total_seconds() * 1000)
+                    if dur_ms <= 0:
+                        dur_ms = self._get_duration(title, artist)
+
+                    if uia_pos_ms >= 0:
+                        position_ms = uia_pos_ms
+                    else:
+                        position_ms = 0
+
+                    if dur_ms > 0 and position_ms > dur_ms:
+                        position_ms = dur_ms
+
+                    info = MediaInfo(
+                        title=title, artist=artist,
+                        album=album,
+                        title_artist=ta,
+                        position_ms=position_ms,
+                        duration_ms=dur_ms,
+                        is_playing=is_playing,
+                        playback_status="playing" if is_playing else "paused",
+                        app_name="QQMusic",
+                    )
+
+                    if props.thumbnail:
+                        try:
+                            stream = await props.thumbnail.open_read_async()
+                            if stream and 0 < stream.size < 10 * 1024 * 1024:
+                                buf = bytes(stream.size)
+                                await stream.input_stream.read_async(buf, stream.size, 0)
+                                info.thumbnail_data = buf
+                        except Exception:
+                            pass
+
+                    return info
+
+                return None
+
+            try:
+                if self._loop is None or self._loop.is_closed():
+                    self._loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(self._loop)
+
+                result = self._loop.run_until_complete(_read())
+                return result
+            except RuntimeError:
+                self._loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(self._loop)
+                return self._loop.run_until_complete(_read())
+
+        except Exception as e:
+            logger.debug(f"QQ音乐读取失败: {e}")
+            return None
+
+    def get_lyrics(self, title: str, artist: str, duration_ms: int = 0):
+        cache_key = f"qq_lyric_{title} - {artist}"
+        if cache_key in {}:
+            pass
+        try:
+            keyword = f"{artist} - {title}"
+            url = (f"https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_y.fcg?"
+                   f"songmid=&g_tk=5381&format=json&incharset=utf8&outcharset=utf-8"
+                   f"&nobase64=0&keyword={keyword}")
+            resp = requests.get(url, timeout=5,
+                                headers={'User-Agent': 'Mozilla/5.0',
+                                         'Referer': 'https://y.qq.com/'})
+            if resp.status_code != 200:
+                return None
+            data = resp.json()
+            lyric_str = data.get('lyric', '')
+            if not lyric_str:
+                return None
+            lines = []
+            import re
+            pat = re.compile(r'\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\]')
+            for line in lyric_str.split('\n'):
+                text = pat.sub('', line).strip()
+                if not text:
+                    continue
+                for m in pat.findall(line):
+                    mins, secs, ms = int(m[0]), int(m[1]), int(m[2]) if m[2] else 0
+                    if len(ms) == 2: ms *= 10
+                    elif len(ms) == 1: ms *= 100
+                    lines.append(LyricLine(time_ms=mins * 60000 + secs * 1000 + ms, text=text))
+            lines.sort()
+            if lines:
+                return Lyrics(lines=lines, raw_lrc=lyric_str, song_id=0)
+        except Exception:
+            pass
+        return None
+
+    def _get_duration(self, title: str, artist: str) -> int:
+        cache_key = f"{title} - {artist}"
+        if cache_key in self._duration_cache:
+            return self._duration_cache[cache_key]
+        try:
+            keyword = f"{artist} {title}"
+            url = (f"https://c.y.qq.com/soso/fcgi-bin/client_search_cp?"
+                   f"cr=1&new_json=1&format=json&aggr=1&lossless=0"
+                   f"&n=1&w={keyword}")
+            resp = requests.get(url, timeout=5,
+                                headers={'User-Agent': 'Mozilla/5.0',
+                                         'Referer': 'https://y.qq.com/'})
+            if resp.status_code != 200:
+                return 0
+            data = resp.json()
+            song_list = data.get('data', {}).get('song', {}).get('list', [])
+            if song_list:
+                dur = int(song_list[0].get('interval', 0))
+                dur_ms = dur * 1000
+                self._duration_cache[cache_key] = dur_ms
+                return dur_ms
+        except Exception:
+            pass
+        return 0
+
+    def get_cover(self, title: str, artist: str):
+        return None
+
+    def get_detail(self, song_id): return None
+    def get_cover_legacy(self, url): return None
+    def fetch_all(self, song_name, artist=""):
+        result = {'song_id': None, 'detail': None, 'lyrics': None, 'cover': None}
+        lyrics = self.get_lyrics(song_name, artist)
+        if lyrics:
+            result['lyrics'] = lyrics
+        return result
+
+    def close(self):
+        pass
+
+
 class MediaProvider:
     """调度器"""
 
@@ -980,6 +1269,7 @@ class MediaProvider:
         _check_and_install_deps()
         self._sources = [
             NeteaseCloudMusic(),
+            QQMusicReader(),
             KugouMemoryReader(),
             GSMTCReader(),
         ]
