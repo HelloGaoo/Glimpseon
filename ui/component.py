@@ -176,29 +176,31 @@ class DraggableWidget(QWidget):
         if self._show_border or self._hovered:
             painter = QPainter(self)
             painter.setRenderHint(painter.RenderHint.Antialiasing)
+            
             if self._hovered:
-                pen_width = 1
-                border_color = self._cached_hover_color
-                pen_style = Qt.PenStyle.DashLine
+                border_color = QColor(self._cached_primary_color)
+                border_color.setAlpha(160)
             else:
-                pen_width = 1
-                border_color = QColor(160, 160, 160)
-                pen_style = Qt.PenStyle.DashLine
+                border_color = QColor(0, 0, 0, 30) if not isDarkTheme() else QColor(255, 255, 255, 30)
             
             pen = QPen(border_color)
-            pen.setWidth(pen_width)
-            pen.setStyle(pen_style)
+            pen.setWidthF(1)
+            pen.setStyle(Qt.PenStyle.DashLine)
             painter.setPen(pen)
-            rect = self.rect().adjusted(1, 1, -1, -1)
-            painter.drawRoundedRect(rect, 6, 6)
+            painter.drawRoundedRect(QRectF(self.rect()).adjusted(1, 1, -1, -1), 4, 4)
             
             if self._show_border:
-                painter.setPen(QColor(200, 200, 200))
-                font = QFont()
-                font.setPointSize(8)
+                name_map = {
+                    "clock": "时钟", "weather": "天气", "poetry": "一言",
+                    "countdown": "倒计时", "school_info": "学校信息",
+                    "media": "媒体信息", "quick_launch": "快捷启动",
+                }
+                display_name = name_map.get(self.component_id, self.component_id)
+                font = QFont("HarmonyOS Sans,Microsoft YaHei,sans-serif")
+                font.setPixelSize(14)
                 painter.setFont(font)
-                label_text = f"⚙ {self.component_id}  点击设置"
-                painter.drawText(8, 18, label_text)
+                painter.setPen(QColor(0, 0, 0, 100) if not isDarkTheme() else QColor(255, 255, 255, 100))
+                painter.drawText(8, 16, display_name)
             
             painter.end()
     
@@ -409,24 +411,25 @@ class DraggableContainer(DraggableWidget):
         if not self._content_visible:
             painter = QPainter(self)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            pen = QPen(QColor(160, 160, 160))
-            pen.setWidth(1)
+            
+            border_color = QColor(0, 0, 0, 30) if not isDarkTheme() else QColor(255, 255, 255, 30)
+            pen = QPen(border_color)
+            pen.setWidthF(1)
             pen.setStyle(Qt.PenStyle.DashLine)
             painter.setPen(pen)
-            rect = self.rect().adjusted(1, 1, -1, -1)
-            painter.drawRoundedRect(rect, 6, 6)
-            painter.setPen(QColor(200, 200, 200))
-            font = QFont()
-            font.setPointSize(8)
-            painter.setFont(font)
+            painter.drawRoundedRect(QRectF(self.rect()).adjusted(1, 1, -1, -1), 4, 4)
+            
             name_map = {
                 "clock": "时钟", "weather": "天气", "poetry": "一言",
                 "countdown": "倒计时", "school_info": "学校信息",
                 "media": "媒体信息", "quick_launch": "快捷启动",
             }
             display_name = name_map.get(self.component_id, self.component_id)
-            label_text = f"⚙ {display_name} 点击设置"
-            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, label_text)
+            font = QFont("HarmonyOS Sans,Microsoft YaHei,sans-serif")
+            font.setPixelSize(14)
+            painter.setFont(font)
+            painter.setPen(QColor(0, 0, 0, 100) if not isDarkTheme() else QColor(255, 255, 255, 100))
+            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, display_name)
             painter.end()
             return
         super().paintEvent(event)
