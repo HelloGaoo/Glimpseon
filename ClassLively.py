@@ -16,6 +16,7 @@
 
 import atexit
 import ctypes
+import datetime
 import json
 import logging
 import os
@@ -24,7 +25,7 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, wait
 
-from PyQt6.QtCore import QEvent, QLocale, Qt, QTime, QTimer, QTranslator, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QEvent, QLocale, Qt, QThread, QTime, QTimer, QTranslator, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QIcon, QPixmap
 from PyQt6.QtWidgets import QApplication, QHBoxLayout, QLabel, QMessageBox, QSizePolicy, QSystemTrayIcon, QVBoxLayout, QWidget
 from qfluentwidgets import (
@@ -1345,6 +1346,87 @@ class MainWindow(FluentWindow):
             return False
 
 
+class Preloader(QThread):
+    sig_wp = pyqtSignal(str, str, str)
+    sig_wt = pyqtSignal(dict)
+    sig_po = pyqtSignal(str)
+    sig_done = pyqtSignal()
+
+    def __init__(self, win):
+        super().__init__()
+        self.win = win
+        self._stop = False
+
+    def cancel(self):
+        self._stop = True
+
+    def run(self):
+        try:
+            self._load_wp()
+            if not self._stop: self._load_wt()
+            if not self._stop: self._load_po()
+            if not self._stop: self.sig_done.emit()
+        except Exception as e:
+            logger.error(f"[PRELOAD] {e}")
+
+    def _load_wp(self):
+        if self._stop: return
+        wp = getattr(self.win, 'wallpaper', None)
+        if not wp: return
+        try:
+            if wp.current_pixmap and not wp.current_pixmap.isNull(): return
+        except: return
+
+        from core.cache import get_cached_content
+        cached = get_cached_content("wallpaper")
+        if cached and os.path.exists(cached.get('path', '')):
+            self.sig_wp.emit(cached['path'], cached.get('source', ''), cached.get('url', ''))
+            return
+
+        if self._stop: return
+        import requests
+        url, src = wp._getApiUrl()
+        resp = requests.get(url, stream=True, timeout=15)
+        if resp.status_code == 200:
+            d = os.path.join(BASE_DIR, 'wallpaper')
+            os.makedirs(d, exist_ok=True)
+            p = os.path.join(d, f"wp_{datetime.datetime.now().strftime('%H%M%S')}.jpg")
+            with open(p, 'wb') as f: f.write(resp.content)
+            if not self._stop: self.sig_wp.emit(p, src, url)
+
+    def _load_wt(self):
+        if self._stop: return
+        hi = getattr(self.win, 'homeInterface', None)
+        if not hi: return
+
+        import requests
+        from data.region_database import RegionDatabase
+        code = RegionDatabase().get_code(cfg.city.value) or "101010100"
+        resp = requests.get(
+            f"https://weatherapi.market.xiaomi.com/wtr-v3/weather/all?locationKey=weathercn:{code}&latitude=39.9042&longitude=116.4074&appKey=weather20151024&sign=zUFJoAR2ZVrDy1vF3D07&isGlobal=false&locale=zh_cn",
+            timeout=10
+        )
+        if resp.status_code == 200:
+            c = resp.json().get('current', {})
+            t = c.get('temperature', {})
+            if not self._stop:
+                self.sig_wt.emit({'temp': t.get('value', 0), 'unit': t.get('unit', '°C'), 'code': c.get('weather', 0)})
+
+    def _load_po(self):
+        if self._stop: return
+        hi = getattr(self.win, 'homeInterface', None)
+        if not hi: return
+
+        from core.cache import get_cached_content
+        from services.poetry import PoetryService
+        cached = get_cached_content("poetry")
+        if cached:
+            if not self._stop: self.sig_po.emit(cached)
+            return
+        text = PoetryService.get_poetry()
+        if not self._stop: self.sig_po.emit(text)
+
+
 if __name__ == "__main__":
     _auto_start_launch = auto_start_launch()
 
@@ -1508,40 +1590,67 @@ if __name__ == "__main__":
     window = MainWindow()
     logger.info(f"[BOOT] 创建主窗口 耗时{time.time()-_t:.2f}s")
 
-    def _preload_data():
+    def _upd_wp(path, src, url):
         try:
-            splash.status_signal.emit("正在预加载...")
-            splash.progress_signal.emit(75)
-            if hasattr(window, 'wallpaper') and window.wallpaper:
-                if not window.wallpaper.current_pixmap or window.wallpaper.current_pixmap.isNull():
-                    logger.info("[PRELOAD] 预加载壁纸")
-                    window.wallpaper._getWallpaper()
-            allow_ui_update(0.02)
-            splash.progress_signal.emit(82)
-            if hasattr(window, 'homeInterface') and window.homeInterface:
-                logger.info("[PRELOAD] 预加载天气")
-                window.homeInterface._updateWeather(cache_only=False)
-                allow_ui_update(0.02)
-                splash.progress_signal.emit(88)
-                logger.info("[PRELOAD] 预加载一言")
-                window.homeInterface._updatePoetry(cache_only=False)
-            splash.progress_signal.emit(92)
+            wp = getattr(window, 'wallpaper', None)
+            if not wp: return
+            wp.current_pixmap = QPixmap(path)
+            wp.current_wallpaper_path = path
+            wp.current_wallpaper_source = src
+            if not wp.current_pixmap.isNull():
+                wp._updateBackground()
+                wp._updateMainWindowBackground()
+                wp._applyEffects()
+                wp.infoCard.updateInfo(path, src)
         except Exception as e:
-            logger.warning(f"[PRELOAD] 预加载失败: {e}")
+            logger.error(f"[PRELOAD-UI] wp: {e}")
 
-    preload_future = executor.submit(_preload_data)
+    def _upd_wt(d):
+        try:
+            hi = getattr(window, 'homeInterface', None)
+            if not hi: return
+            hi.weatherTempLabel.setText(f"{d['temp']}{d['unit']}")
+            hi.current_weather_code = d.get('code')
+            hi._updateWeatherIcon()
+            if hasattr(hi, 'weatherContainer'): hi.weatherContainer.updateSize()
+        except Exception as e:
+            logger.error(f"[PRELOAD-UI] wt: {e}")
+
+    def _upd_po(text):
+        try:
+            hi = getattr(window, 'homeInterface', None)
+            if not hi: return
+            hi.poetryLabel.setText(text)
+            if hasattr(hi, 'poetryContainer'): hi.poetryContainer.updateSize()
+        except Exception as e:
+            logger.error(f"[PRELOAD-UI] po: {e}")
+
+    splash.status_signal.emit("正在预加载...")
+    splash.progress_signal.emit(75)
+
+    loader = Preloader(window)
+    loader.sig_wp.connect(_upd_wp)
+    loader.sig_wt.connect(_upd_wt)
+    loader.sig_po.connect(_upd_po)
+    loader.start()
 
     if cfg.autoCheckUpdate.value:
         window.updateInterface._UpdateInterface__checkUpdate(auto_check=True)
 
     splash.updateStatus("正在完成启动")
-    _t_preload = time.time()
-    while not preload_future.done():
+    t0 = time.time()
+
+    while loader.isRunning():
         allow_ui_update(0.02)
-        if time.time() - _t_preload > 8.0:
-            logger.warning("预加载超时，继续启动")
+        if time.time() - t0 > 12:
+            loader.cancel()
+            loader.wait(3000)
+            if loader.isRunning():
+                loader.terminate()
+                loader.wait(1000)
             break
-    logger.info(f"[BOOT] 预加载 耗时{time.time()-_t_preload:.2f}s")
+
+    logger.info(f"[BOOT] 预加载 {time.time()-t0:.2f}s")
     splash.setProgress(95)
     allow_ui_update(0.06)
 
