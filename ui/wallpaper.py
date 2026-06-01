@@ -1090,7 +1090,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
                 
                 self.infoCard.updateInfo(wallpaper_path, source)
                 
-                InfoBar.success("成功", f"壁纸已下载", duration=3000, parent=self)
+                InfoBar.success(tr("wizard.success_title"), tr("wallpaper.downloaded"), duration=3000, parent=self)
                 success = True
                 self.wallpaperChanged.emit()
                 
@@ -1099,11 +1099,11 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
                     self.last_sync_path = wallpaper_path
             else:
                 logger.error(f"获取壁纸失败，状态码: {response.status_code}")
-                InfoBar.error("错误", f"获取壁纸失败：HTTP {response.status_code}", duration=5000, parent=self)
+                InfoBar.error(tr("dialog.error"), tr("wallpaper.fetch_failed_http").format(status=response.status_code), duration=5000, parent=self)
                 
         except Exception as e:
             logger.error(f"获取壁纸失败：{str(e)}")
-            InfoBar.error("错误", f"获取壁纸失败：{str(e)}", duration=5000, parent=self)
+            InfoBar.error(tr("dialog.error"), tr("wallpaper.fetch_failed").format(error=str(e)), duration=5000, parent=self)
         
         if not success:
             self._loadDefaultWallpaper()
@@ -1229,7 +1229,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
     def _saveWallpaper(self):
         logger.info("开始另存壁纸")
         if self.current_pixmap is None:
-            InfoBar.warning("提示", "请先获取壁纸", duration=3000, parent=self)
+            InfoBar.warning(tr("common.tip"), tr("wallpaper.fetch_first"), duration=3000, parent=self)
             return
         
         file_path, _ = QFileDialog.getSaveFileName(
@@ -1242,10 +1242,10 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
             try:
                 self.current_pixmap.save(file_path)
                 logger.info(f"壁纸已保存到: {file_path}")
-                InfoBar.success("成功", f"壁纸已保存", duration=3000, parent=self)
+                InfoBar.success(tr("wizard.success_title"), tr("wallpaper.saved"), duration=3000, parent=self)
             except Exception as e:
                 logger.error(f"保存壁纸失败: {str(e)}")
-                InfoBar.error("错误", f"保存失败：{str(e)}", duration=5000, parent=self)
+                InfoBar.error(tr("dialog.error"), tr("wallpaper.save_failed").format(error=str(e)), duration=5000, parent=self)
     
     def _selectWallpaper(self):
         logger.info("开始手动选择壁纸")
@@ -1260,7 +1260,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
     
     def _useWallpaper(self, path: str, source: str):
         if not os.path.exists(path):
-            InfoBar.error("错误", "壁纸文件不存在", duration=3000, parent=self)
+            InfoBar.error(tr("dialog.error"), tr("wallpaper.file_not_exist"), duration=3000, parent=self)
             return
         
         try:
@@ -1279,13 +1279,13 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
                 
                 self.infoCard.updateInfo(path, source)
                 
-                InfoBar.success("成功", "已应用壁纸", duration=2000, parent=self)
+                InfoBar.success(tr("wizard.success_title"), tr("wallpaper.applied"), duration=2000, parent=self)
                 logger.info(f"已应用壁纸: {path}")
                 self.wallpaperChanged.emit()
                 
         except Exception as e:
             logger.error(f"应用壁纸失败: {str(e)}")
-            InfoBar.error("错误", f"应用失败：{str(e)}", duration=5000, parent=self)
+            InfoBar.error(tr("dialog.error"), tr("wallpaper.apply_failed").format(error=str(e)), duration=5000, parent=self)
     
     def _manageWallpaperLimit(self, wallpaper_dir, save_limit):
         self.historyManager.sync_cleanup(save_limit)
@@ -1293,7 +1293,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
     def _setWallpaper(self, show_notification=True):
         if self.current_wallpaper_path is None:
             if show_notification:
-                InfoBar.warning("提示", "请先获取或选择壁纸", duration=3000, parent=self)
+                InfoBar.warning(tr("common.tip"), tr("wallpaper.fetch_or_select_first"), duration=3000, parent=self)
             return
         
         logger.info(f"设置壁纸路径: {self.current_wallpaper_path}")
@@ -1313,7 +1313,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
             logger.info("壁纸已成功设置为桌面背景")
             
             if show_notification:
-                InfoBar.success("成功", "壁纸已设置为桌面背景", duration=3000, parent=self)
+                InfoBar.success(tr("wizard.success_title"), tr("wallpaper.set_as_desktop"), duration=3000, parent=self)
                 
         except Exception as e:
             logger.error(f"设置壁纸失败: {str(e)}")

@@ -1923,9 +1923,12 @@ class EditPanel(QWidget):
     def _onClockColorChanged(self, text: str):
         """时钟颜色变化"""
 
-        if text == tr("color.white"):cfg.clockColor.value = "#FFFFFF"  # 白色
-        elif text == tr("color.black"):  # 黑色  # 黑色  # 黑色cfg.clockColor.value = "#000000"  # 黑色
-        else:cfg.clockColor.value = cfg.themeColor.value.name() if hasattr(cfg.themeColor.value, 'name') else str(cfg.themeColor.value)
+        if text == tr("color.white"):
+            cfg.clockColor.value = "#FFFFFF"  # 白色
+        elif text == tr("color.black"):
+            cfg.clockColor.value = "#000000"  # 黑色
+        else:
+            cfg.clockColor.value = cfg.themeColor.value.name() if hasattr(cfg.themeColor.value, 'name') else str(cfg.themeColor.value)
 
         if hasattr(self.mainWindow, 'updateClockStyle'):self.mainWindow.updateClockStyle()
         logger.info(f"时间设置：时钟颜色={text}")
@@ -3117,11 +3120,11 @@ class AppEditDialog(MessageBoxBase):
     def _on_extract_icon(self):
         path_text = self.pathEdit.text().strip()
         if not path_text:
-            InfoBar.warning('提示', '请先选择应用程序路径', parent=self, duration=2000)
+            InfoBar.warning(tr("common.tip"), tr("home.select_app_first"), parent=self, duration=2000)
             return
 
         if not os.path.exists(path_text):
-            InfoBar.error('错误', '文件路径不存在', parent=self, duration=2000)
+            InfoBar.error(tr("dialog.error"), tr("home.path_not_exist"), parent=self, duration=2000)
             return
 
         self._do_extract_icon(path_text)
@@ -3158,7 +3161,7 @@ class AppEditDialog(MessageBoxBase):
     def _on_ok(self):
         name_text = self.nameEdit.text().strip()
         if not name_text:
-            InfoBar.error('错误', '请输入应用名称', parent=self, duration=2000)
+            InfoBar.error(tr("dialog.error"), tr("home.enter_target_name"), parent=self, duration=2000)
             return
 
         path_text = self.pathEdit.text().strip()

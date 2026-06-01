@@ -344,23 +344,23 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout.addLayout(self._cardTitle(FIF.CLOUD, tr("debug.title_weather_sim"), card))  # 天气模拟
 
         self.weatherCodeMap = {
-            0: "晴", 1: "多云", 2: "阴", 3: "阵雨", 4: "雷阵雨",
-            5: "雷阵雨并伴有冰雹", 6: "雨夹雪", 7: "小雨", 8: "中雨",
-            9: "大雨", 10: "暴雨", 11: "大暴雨", 12: "特大暴雨",
-            13: "阵雪", 14: "小雪", 15: "中雪", 16: "大雪", 17: "暴雪",
-            18: "雾", 19: "冻雨", 20: "沙尘暴", 21: "小雨 - 中雨",
-            22: "中雨 - 大雨", 23: "大雨 - 暴雨", 24: "暴雨 - 大暴雨",
-            25: "大暴雨 - 特大暴雨", 26: "小雪 - 中雪", 27: "中雪 - 大雪",
-            28: "大雪 - 暴雪", 29: "浮尘", 30: "扬沙", 31: "强沙尘暴",
-            32: "飑", 33: "龙卷风", 34: "弱高吹雪", 35: "轻雾",
-            50: "晴(夜)", 51: "多云(夜)", 52: "阴(夜)", 53: "霾",
-            54: "小雨(夜)", 55: "中雨(夜)", 56: "大雨(夜)", 57: "暴雨(夜)",
-            58: "雷阵雨(夜)", 59: "冰雹(夜)", 60: "小雪(夜)", 61: "中雪(夜)",
-            62: "大雪(夜)", 63: "雾(夜)", 64: "霾(夜)", 65: "沙尘(夜)",
-            66: "大风(夜)", 67: "台风(夜)", 68: "暴雨(夜)", 69: "暴雪(夜)",
-            70: "雨夹雪(夜)", 71: "冻雨(夜)", 72: "雾凇(夜)", 73: "霜冻(夜)",
-            74: "沙尘暴(夜)", 75: "扬沙(夜)", 76: "浮尘(夜)", 77: "强沙尘暴(夜)",
-            99: "未知",
+            0: tr("weather.sunny"), 1: tr("weather.cloudy"), 2: tr("weather.overcast"), 3: tr("weather.shower"), 4: tr("weather.thundershower"),
+            5: tr("weather.thundershower_with_hail"), 6: tr("weather.sleet"), 7: tr("weather.light_rain"), 8: tr("weather.moderate_rain"),
+            9: tr("weather.heavy_rain"), 10: tr("weather.rainstorm"), 11: tr("weather.heavy_rainstorm"), 12: tr("weather.extreme_rainstorm"),
+            13: tr("weather.snow_flurry"), 14: tr("weather.light_snow"), 15: tr("weather.moderate_snow"), 16: tr("weather.heavy_snow"), 17: tr("weather.snowstorm"),
+            18: tr("weather.fog"), 19: tr("weather.freezing_rain"), 20: tr("weather.sandstorm"), 21: f"{tr('weather.light_rain')} - {tr('weather.moderate_rain')}",
+            22: f"{tr('weather.moderate_rain')} - {tr('weather.heavy_rain')}", 23: f"{tr('weather.heavy_rain')} - {tr('weather.rainstorm')}", 24: f"{tr('weather.rainstorm')} - {tr('weather.heavy_rainstorm')}",
+            25: f"{tr('weather.heavy_rainstorm')} - {tr('weather.extreme_rainstorm')}", 26: f"{tr('weather.light_snow')} - {tr('weather.moderate_snow')}", 27: f"{tr('weather.moderate_snow')} - {tr('weather.heavy_snow')}",
+            28: f"{tr('weather.heavy_snow')} - {tr('weather.snowstorm')}", 29: tr("weather.dust"), 30: tr("weather.sand"), 31: tr("weather.strong_sandstorm"),
+            32: tr("weather.squall"), 33: tr("weather.tornado"), 34: tr("weather.weak_blowing_snow"), 35: tr("weather.light_fog"),
+            50: f"{tr('weather.sunny')}({tr('weather.night')})", 51: f"{tr('weather.cloudy')}({tr('weather.night')})", 52: f"{tr('weather.overcast')}({tr('weather.night')})", 53: tr("weather.haze"),
+            54: f"{tr('weather.light_rain')}({tr('weather.night')})", 55: f"{tr('weather.moderate_rain')}({tr('weather.night')})", 56: f"{tr('weather.heavy_rain')}({tr('weather.night')})", 57: f"{tr('weather.rainstorm')}({tr('weather.night')})",
+            58: f"{tr('weather.thundershower')}({tr('weather.night')})", 59: f"{tr('weather.hail')}({tr('weather.night')})", 60: f"{tr('weather.light_snow')}({tr('weather.night')})", 61: f"{tr('weather.moderate_snow')}({tr('weather.night')})",
+            62: f"{tr('weather.heavy_snow')}({tr('weather.night')})", 63: f"{tr('weather.fog')}({tr('weather.night')})", 64: f"{tr('weather.haze')}({tr('weather.night')})", 65: f"{tr('weather.sand_dust')}({tr('weather.night')})",
+            66: f"{tr('weather.strong_wind')}({tr('weather.night')})", 67: f"{tr('weather.typhoon')}({tr('weather.night')})", 68: f"{tr('weather.rainstorm')}({tr('weather.night')})", 69: f"{tr('weather.snowstorm')}({tr('weather.night')})",
+            70: f"{tr('weather.sleet')}({tr('weather.night')})", 71: f"{tr('weather.freezing_rain')}({tr('weather.night')})", 72: f"{tr('weather.rime')}({tr('weather.night')})", 73: f"{tr('weather.frost')}({tr('weather.night')})",
+            74: f"{tr('weather.sandstorm')}({tr('weather.night')})", 75: f"{tr('weather.sand')}({tr('weather.night')})", 76: f"{tr('weather.dust')}({tr('weather.night')})", 77: f"{tr('weather.strong_sandstorm')}({tr('weather.night')})",
+            99: tr("weather.unknown"),
         }
 
         selectRow = QHBoxLayout()
@@ -493,7 +493,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
 
     def _onWeatherCodeChanged(self, index):
         code = self.weatherCodeCombo.currentData()
-        name = self.weatherCodeMap.get(code, "未知")
+        name = self.weatherCodeMap.get(code, tr("weather.unknown"))  # 未知
         self.weatherNamePreviewLabel.setText(name)
         self._previewWeatherIcon(code)
 
@@ -534,7 +534,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             name = self.weatherCodeMap.get(code, "")
             home.weatherTempLabel.setText(f"模拟: {name}")
         home._updateWeatherIcon()
-        InfoBar.success(title="天气模拟", content=f"已应用天气代码 {code} ({self.weatherCodeMap.get(code, '')}) 到主界面", parent=self, duration=2500)
+        InfoBar.success(title=tr("debug.title_weather_sim"), content=tr("debug.weather_sim_applied").format(code=code, name=self.weatherCodeMap.get(code, '')), parent=self, duration=2500)
 
     def _resetWeatherDebug(self):
         self.weatherCodeCombo.setCurrentIndex(0)
@@ -673,7 +673,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
 
     def _stopBatchWallpaper(self):
         self._batchRunning = False
-        self.batchWallpaperLog.append("已停止")
+        self.batchWallpaperLog.append(tr("debug.stopped"))  # 已停止
         self._finishBatchWallpaper()
 
     def _finishBatchWallpaper(self):
@@ -689,13 +689,13 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         try:
             setTheme(cfg.themeMode.value)
             self._loadStyleSheet()
-            InfoBar.success(title="主题刷新", content="样式表已重新加载", parent=self, duration=2000)
+            InfoBar.success(title=tr("debug.theme_refresh"), content=tr("debug.stylesheet_reloaded"), parent=self, duration=2000)
         except Exception as e:
             logger.error(f"刷新主题失败: {e}")
-            InfoBar.error(title="主题刷新", content=f"失败: {e}", parent=self, duration=3000)
+            InfoBar.error(title=tr("debug.theme_refresh"), content=tr("debug.refresh_failed").format(error=e), parent=self, duration=3000)
 
     def _restartApp(self):
-        InfoBar.info(title="重启应用", content="正在重启...", parent=self, duration=2000)
+        InfoBar.info(title=tr("debug.btn_restart_app"), content=tr("debug.restarting"), parent=self, duration=2000)
         QTimer.singleShot(800, lambda: subprocess.Popen([sys.executable] + sys.argv))
 
     def _runNetworkDiag(self):
@@ -909,12 +909,12 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             elapsed = (time.time() - start_time) * 1000
             self.poetryResultLabel.setText(f"✓ 成功 ({elapsed:.0f}ms): {response.text[:50]}")
             self.rawDataEdit.setText(response.text)
-            InfoBar.success(title="API 测试", content="一言 API 测试成功", parent=self, duration=2000)
+            InfoBar.success(title=tr("debug.api_test"), content=tr("debug.poetry_api_success"), parent=self, duration=2000)
         except Exception as e:
             elapsed = (time.time() - start_time) * 1000
             self.poetryResultLabel.setText(f"✗ 失败 ({elapsed:.0f}ms): {str(e)}")
             logger.error(f"一言 API 测试失败：{e}")
-            InfoBar.error(title="API 测试", content=f"一言 API 测试失败：{str(e)}", parent=self, duration=3000)
+            InfoBar.error(title=tr("debug.api_test"), content=tr("debug.poetry_api_failed").format(error=str(e)), parent=self, duration=3000)
 
     def _testWeatherAPI(self):
         start_time = time.time()
@@ -929,16 +929,16 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             if weather_data:
                 self.weatherResultLabel.setText(f"✓ 成功 ({elapsed:.0f}ms): {weather_data['weather_text']} {weather_data['temperature']}")
                 self.rawDataEdit.setText(f"温度：{weather_data['temperature']}\n天气：{weather_data['weather_text']}\n代码：{weather_data['weather_code']}\n图标：{weather_data['weather_icon']}")
-                InfoBar.success(title="API 测试", content=f"天气 API 测试成功 - {weather_data['weather_text']} {weather_data['temperature']}", parent=self, duration=2000)
+                InfoBar.success(title=tr("debug.api_test"), content=tr("debug.weather_api_success").format(weather=weather_data['weather_text'], temp=weather_data['temperature']), parent=self, duration=2000)
             else:
                 self.weatherResultLabel.setText(f"✗ 失败 ({elapsed:.0f}ms): 未获取到数据")
                 self.rawDataEdit.setText(tr("debug.status_empty_data"))  # 暂无数据
-                InfoBar.warning(title="API 测试", content="未获取到天气数据", parent=self, duration=3000)
+                InfoBar.warning(title=tr("debug.api_test"), content=tr("debug.weather_no_data"), parent=self, duration=3000)
         except Exception as e:
             elapsed = (time.time() - start_time) * 1000
             self.weatherResultLabel.setText(f"✗ 失败 ({elapsed:.0f}ms): {str(e)}")
             logger.error(f"天气 API 测试失败：{e}")
-            InfoBar.error(title="API 测试", content=f"天气 API 测试失败：{str(e)}", parent=self, duration=3000)
+            InfoBar.error(title=tr("debug.api_test"), content=tr("debug.weather_api_failed").format(error=str(e)), parent=self, duration=3000)
 
     def _clearCache(self):
         try:
@@ -956,12 +956,12 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
                         except Exception as e:
                             logger.warning(f"删除壁纸文件失败：{fp}, {e}")
                 self._updateResourceMonitor()
-                InfoBar.success(title="清理完成", content=f"已清理 {deleted_count} 个文件，释放 {deleted_size / 1024:.1f} KB", parent=self, duration=3000)
+                InfoBar.success(title=tr("debug.clear_complete"), content=tr("debug.clear_cache_result").format(count=deleted_count, size=deleted_size / 1024:.1f), parent=self, duration=3000)
             else:
-                InfoBar.info(title="清理缓存", content="壁纸文件夹不存在", parent=self, duration=2000)
+                InfoBar.info(title=tr("debug.btn_clear_cache"), content=tr("debug.wallpaper_folder_not_exist"), parent=self, duration=2000)
         except Exception as e:
             logger.error(f"清理缓存失败：{e}")
-            InfoBar.error(title="清理失败", content=str(e), parent=self, duration=3000)
+            InfoBar.error(title=tr("debug.clear_failed"), content=str(e), parent=self, duration=3000)
 
     def _clearLogs(self):
         try:
@@ -975,29 +975,29 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
                                 os.remove(fp)
                             except Exception:
                                 pass
-                InfoBar.success(title="清理日志", content="日志已清理", parent=self, duration=2000)
+                InfoBar.success(title=tr("debug.btn_clear_logs"), content=tr("debug.logs_cleared"), parent=self, duration=2000)
                 self._updateResourceMonitor()
         except Exception as e:
             logger.error(f"清理日志失败：{e}")
-            InfoBar.error(title="清理失败", content=str(e), parent=self, duration=3000)
-
+            InfoBar.error(title=tr("debug.clear_failed"), content=str(e), parent=self, duration=3000)
+    
     def _forceRepaint(self):
         try:
             self.mainWindow.update()
             self.mainWindow.repaint()
-            InfoBar.success(title="重绘", content="界面已强制重绘", parent=self, duration=1500)
+            InfoBar.success(title=tr("debug.repaint"), content=tr("debug.repaint_success"), parent=self, duration=1500)
         except Exception as e:
             logger.error(f"强制重绘失败：{e}")
-            InfoBar.error(title="重绘失败", content=str(e), parent=self, duration=3000)
+            InfoBar.error(title=tr("debug.repaint_failed"), content=str(e), parent=self, duration=3000)
 
     def _toggleElementCheck(self, enabled):
         self.elementCheckEnabled = enabled
         if enabled:
             QApplication.instance().installEventFilter(self)
-            InfoBar.success(title="元素检查", content="鼠标悬停查看组件信息", parent=self, duration=3000)
+            InfoBar.success(title=tr("debug.title_element_check"), content=tr("debug.element_check_enabled"), parent=self, duration=3000)
         else:
             QApplication.instance().removeEventFilter(self)
-            InfoBar.info(title="元素检查", content="已禁用", parent=self, duration=2000)
+            InfoBar.info(title=tr("debug.title_element_check"), content=tr("debug.element_check_disabled"), parent=self, duration=2000)
 
     def _refreshComponentTree(self):
         pass

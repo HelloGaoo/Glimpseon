@@ -510,11 +510,11 @@ class SettingInterface(ScrollArea, TranslatableWidget):
             if os.path.exists(CONFIG_PATH):
                 import shutil
                 shutil.copy2(CONFIG_PATH, file_path)
-                InfoBar.success("成功", f"配置已导出到：{file_path}", duration=5000, parent=self)
+                InfoBar.success(tr("wizard.success_title"), tr("settings.export_success").format(path=file_path), duration=5000, parent=self)
             else:
-                InfoBar.warning("提示", "配置文件不存在，无法导出", duration=5000, parent=self)
+                InfoBar.warning(tr("common.tip"), tr("settings.config_not_exist_export"), duration=5000, parent=self)
         except Exception as e:
-            InfoBar.error("错误", f"导出配置失败: {str(e)}", duration=5000, parent=self)
+            InfoBar.error(tr("dialog.error"), tr("settings.export_failed").format(error=str(e)), duration=5000, parent=self)
     
     def __importConfig(self):
         """导入配置"""
@@ -524,7 +524,7 @@ class SettingInterface(ScrollArea, TranslatableWidget):
             )
             if not file_path: return
             if not os.path.exists(file_path):
-                InfoBar.warning("提示", "选择的文件不存在", duration=5000, parent=self)
+                InfoBar.warning(tr("common.tip"), tr("settings.selected_file_not_exist"), duration=5000, parent=self)
                 return
             
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -578,11 +578,11 @@ class SettingInterface(ScrollArea, TranslatableWidget):
             current_theme = cfg.themeMode.value
             setTheme(current_theme)
             cfg.themeChanged.emit(current_theme)
-            InfoBar.success("成功", f"配置已导入：{file_path}", duration=5000, parent=self)
+            InfoBar.success(tr("wizard.success_title"), tr("settings.import_success").format(path=file_path), duration=5000, parent=self)
         except json.JSONDecodeError:
-            InfoBar.error("错误", "配置文件格式错误，无法解析 JSON", duration=5000, parent=self)
+            InfoBar.error(tr("dialog.error"), tr("settings.config_json_parse_error"), duration=5000, parent=self)
         except Exception as e:
-            InfoBar.error("错误", f"导入配置失败: {str(e)}", duration=5000, parent=self)
+            InfoBar.error(tr("dialog.error"), tr("settings.import_failed").format(error=str(e)), duration=5000, parent=self)
 
     def retranslateUi(self):
         try:
