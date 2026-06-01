@@ -956,7 +956,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
                         except Exception as e:
                             logger.warning(f"删除壁纸文件失败：{fp}, {e}")
                 self._updateResourceMonitor()
-                InfoBar.success(title=tr("debug.clear_complete"), content=tr("debug.clear_cache_result").format(count=deleted_count, size=deleted_size / 1024:.1f), parent=self, duration=3000)
+                InfoBar.success(title=tr("debug.clear_complete"), content=tr("debug.clear_cache_result").format(count=deleted_count, size=f"{deleted_size / 1024:.1f}"), parent=self, duration=3000)
             else:
                 InfoBar.info(title=tr("debug.btn_clear_cache"), content=tr("debug.wallpaper_folder_not_exist"), parent=self, duration=2000)
         except Exception as e:

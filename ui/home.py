@@ -21,8 +21,8 @@
 import ctypes
 import datetime
 import json
-import logging
 import os
+import re
 import sys
 import time
 
@@ -37,6 +37,7 @@ from PyQt6.QtCore import (
     QDate,
     QEasingCurve,
     QEvent,
+    QFileInfo,
     QPropertyAnimation,
     QRect,
     Qt,
@@ -89,9 +90,9 @@ from core.constants import APP_NAME, BASE_DIR, get_resPath, load_qss
 from core.logger import logger
 from core.utils import get_cached_content, save_cache, tr, get_translation_manager, TranslatableWidget
 from data.software_list import get_software_icon_path
-from services.weather import WeatherService, RegionDatabase
+from services.weather import WeatherService, RegionDatabase, RegionSelectorDialog
 from services.poetry import PoetryService
-from ui.component import DraggableContainer, DraggableWidget, MediaWidget, QuickLaunchDock
+from ui.component import DraggableContainer, DraggableWidget, MediaWidget, QuickLaunchDock, resolve_app_from_path
 
 
 class GuideLineOverlay(QWidget):
