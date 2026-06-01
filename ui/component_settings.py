@@ -17,7 +17,7 @@ else:
 if _BASE_DIR not in sys.path:
     sys.path.insert(0, _BASE_DIR)
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QDialog,
@@ -55,7 +55,7 @@ def _get_system_accent_color_hex() -> str:
 
 
 class _SettingRow(SettingCard):
-    """通用设置行：左侧标签 + 右侧控件"""
+    """通用设置行：左侧标签 右侧控件"""
 
     def __init__(self, title: str, widget: QWidget, parent=None):
         super().__init__(FIF.SETTING, title, '', parent)
@@ -63,8 +63,22 @@ class _SettingRow(SettingCard):
         self.contentLabel.deleteLater()
         self.contentLabel = None
         self._widget = widget
-        self.hBoxLayout.addWidget(widget, 0, Qt.AlignmentFlag.AlignRight)
+        self.hBoxLayout.addWidget(widget, 1)
         self.hBoxLayout.addSpacing(16)
+
+    def sizeHint(self) -> QSize:
+        if hasattr(self, '_widget') and self._widget:
+            w = super().sizeHint().width()
+            h = max(self._widget.sizeHint().height() + 24, 80)
+            return QSize(w, h)
+        return super().sizeHint()
+
+    def minimumSizeHint(self) -> QSize:
+        if hasattr(self, '_widget') and self._widget:
+            w = super().minimumSizeHint().width()
+            h = 80
+            return QSize(w, h)
+        return super().minimumSizeHint()
 
 
 class ComponentSettingDialog(QDialog):
@@ -548,9 +562,10 @@ class CountdownSettingDialog(ComponentSettingDialog):
 
         g_list = self._addGroup('倒计时列表', is_advanced=True)
         self._listWidget = ListWidget()
-        self._listWidget.setFixedHeight(140)
-        list_card = _SettingRow('', self._listWidget)
-        g_list.addSettingCard(list_card)
+        self._listWidget.setMinimumHeight(80)
+        self._listWidget.setMaximumHeight(180)
+        self._listCard = self._listWidget
+        g_list.addSettingCard(self._listWidget)
 
         btn_container = QWidget()
         btn_row = QHBoxLayout(btn_container)
@@ -566,11 +581,12 @@ class CountdownSettingDialog(ComponentSettingDialog):
         btn_row.addWidget(edit_btn)
         btn_row.addWidget(del_btn)
         btn_row.addStretch()
-        btn_card = _SettingRow('', btn_container)
-        g_list.addSettingCard(btn_card)
+        self._btnCard = _SettingRow('倒计时操作', btn_container)
+        g_list.addSettingCard(self._btnCard)
 
         self._enableSwitch.checkedChanged.connect(self._updateEnabled)
         self._updateEnabled(cfg.showCountdown.value)
+        self._refreshList()
 
     def _updateEnabled(self, enabled):
         self._textColorCard.setEnabled(enabled)
@@ -579,39 +595,33 @@ class CountdownSettingDialog(ComponentSettingDialog):
         self._connectorSizeCard.setEnabled(enabled)
         self._carouselCard.setEnabled(enabled)
         self._listWidget.setEnabled(enabled)
+        self._listCard.setEnabled(enabled)
+        self._btnCard.setEnabled(enabled)
 
     def _onAdd(self):
-        from PyQt6.QtWidgets import QInputDialog
-        title, ok1 = QInputDialog.getText(self, '添加倒计时', '名称：')
-        if not ok1 or not title:
-            return
-        target, ok2 = QInputDialog.getText(self, '添加倒计时', '目标时间 (YYYY-MM-DD HH:MM)：')
-        if not ok2 or not target:
-            return
-        try:
-            import datetime
-            datetime.datetime.strptime(target, '%Y-%m-%d %H:%M')
-        except ValueError:
-            return
-        items = cfg.countdownList.value or []
-        items.append({'title': title, 'target_time': target})
-        cfg.countdownList.value = items
+        from ui.home import CountdownEditDialog
+        dialog = CountdownEditDialog(self)
+        if dialog.exec():
+            data = dialog.get_countdown()
+            if data:
+                items = cfg.countdownList.value or []
+                items.append(data)
+                cfg.countdownList.value = items
+                self._refreshList()
 
     def _onEdit(self):
         row = self._listWidget.currentRow()
         items = cfg.countdownList.value or []
         if row < 0 or row >= len(items):
             return
-        from PyQt6.QtWidgets import QInputDialog
-        item = items[row]
-        title, ok1 = QInputDialog.getText(self, '编辑倒计时', '名称：', text=item.get('title', ''))
-        if not ok1:
-            return
-        target, ok2 = QInputDialog.getText(self, '编辑倒计时', '目标时间 (YYYY-MM-DD HH:MM)：', text=item.get('target_time', ''))
-        if not ok2:
-            return
-        items[row] = {'title': title, 'target_time': target}
-        cfg.countdownList.value = items
+        from ui.home import CountdownEditDialog
+        dialog = CountdownEditDialog(self, items[row])
+        if dialog.exec():
+            data = dialog.get_countdown()
+            if data:
+                items[row] = data
+                cfg.countdownList.value = items
+                self._refreshList()
 
     def _onDelete(self):
         row = self._listWidget.currentRow()
@@ -620,6 +630,14 @@ class CountdownSettingDialog(ComponentSettingDialog):
             return
         items.pop(row)
         cfg.countdownList.value = items
+        self._refreshList()
+
+    def _refreshList(self):
+        self._listWidget.clear()
+        for item in (cfg.countdownList.value or []):
+            title = item.get('title', '')
+            target = item.get('target_time', '')
+            self._listWidget.addItem(f'{title}  ({target})')
 
 
 @ComponentSettingDialog.register('school_info')
@@ -773,17 +791,13 @@ class QuickLaunchSettingDialog(ComponentSettingDialog):
     def _onEditApps(self):
         try:
             from ui.home import QuickLaunchEditDialog
-            main_window = self.parent()
-            while main_window:
-                if hasattr(main_window, 'quickLaunchDock'):
-                    break
-                main_window = main_window.parent()
-            if main_window and hasattr(main_window, 'quickLaunchDock'):
-                dock = main_window.quickLaunchDock
-                apps = dock.apps if hasattr(dock, 'apps') else []
-                dialog = QuickLaunchEditDialog(apps, self)
-                if dialog.exec() == 1:
-                    dock.apps = dialog.getApps()
-                    dock._refreshIcons()
+            dialog = QuickLaunchEditDialog(self)
+            if dialog.exec() == 1:
+                self._refreshQuickLaunch()
         except Exception:
             logger.exception('打开应用编辑失败')
+
+    def _refreshQuickLaunch(self):
+        from core.config import cfg as _cfg
+        from core.config import save_cfg
+        _cfg.quickLaunchApps.valueChanged.emit(_cfg.quickLaunchApps.value)

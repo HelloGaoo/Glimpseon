@@ -60,6 +60,9 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QVBoxLayout,
     QWidget,
+    QAbstractItemView,
+    QFileDialog,
+    QFileIconProvider,
 )
 from qfluentwidgets import (
     FluentIcon as FIF,
@@ -78,12 +81,14 @@ from qfluentwidgets import (
     BodyLabel,
     SubtitleLabel,
     SmoothScrollArea,
+    CardWidget,
 )
 
 from core.config import cfg, save_cfg
 from core.constants import APP_NAME, BASE_DIR, get_resPath, load_qss
 from core.logger import logger
 from core.utils import get_cached_content, save_cache
+from data.software_list import get_software_icon_path
 from services.weather import WeatherService, RegionDatabase
 from services.poetry import PoetryService
 from ui.component import DraggableContainer, DraggableWidget, MediaWidget, QuickLaunchDock
@@ -862,6 +867,9 @@ class HomeInterface(QWidget):
                 self.countdownLabel.setText(text)
             self.countdownCarouselIndex += 1
 
+        if hasattr(self, 'countdownContainer'):
+            self.countdownContainer.updateSize()
+
     def _formatCountdown(self, countdown):
         title = countdown.get('title', '')
         target_time_str = countdown.get('target_time', '')
@@ -1221,24 +1229,31 @@ class HomeInterface(QWidget):
 
     def _onClockPositionChanged(self, x: float, y: float):
         pass
+    # 这几段是干啥的我忘了 为啥还要传入xy坐标 _initContainers函数有引用 
 
     def _onWeatherPositionChanged(self, x: float, y: float):
         pass
+    # 这几段是干啥的我忘了 为啥还要传入xy坐标 _initContainers函数有引用 
 
     def _onPoetryPositionChanged(self, x: float, y: float):
         pass
+    # 这几段是干啥的我忘了 为啥还要传入xy坐标 _initContainers函数有引用 
 
     def _onCountdownPositionChanged(self, x: float, y: float):
         pass
+    # 这几段是干啥的我忘了 为啥还要传入xy坐标 _initContainers函数有引用 
 
     def _onSchoolInfoPositionChanged(self, x: float, y: float):
         pass
+    # 这几段是干啥的我忘了 为啥还要传入xy坐标 _initContainers函数有引用 
 
     def _onMediaPositionChanged(self, x: float, y: float):
         pass
+    # 这几段是干啥的我忘了 为啥还要传入xy坐标 _initContainers函数有引用 
 
     def _onQuickLaunchPositionChanged(self, x: float, y: float):
         pass
+    # 这几段是干啥的我忘了 为啥还要传入xy坐标 _initContainers函数有引用 
 
     def _updateEditButtonPosition(self):
         if not hasattr(self, 'editLayout'):
@@ -1353,6 +1368,8 @@ class EditPanel(QWidget):
         self._addSeparator(v)
         self._createWeatherSettings(v)
         self._updateWeatherSettingsEnabled(cfg.showWeather.value)
+        self._addSeparator(v)
+        self._createCountdownListCard(v)
         self._addSeparator(v)
         self._createCountdownSettings(v)
         self._updateCountdownSettingsEnabled(cfg.showCountdown.value)
@@ -2092,28 +2109,37 @@ class EditPanel(QWidget):
         carouselIntervalLayout.addWidget(self.countdownCarouselIntervalSpin)
         layout.addLayout(carouselIntervalLayout)
 
-        listLabel = BodyLabel('倒计时列表', self)
-        layout.addWidget(listLabel)
-
-        self.countdownListWidget = ListWidget(self)
-        self.countdownListWidget.setFixedHeight(120)
-        self._updateCountdownList()
-        layout.addWidget(self.countdownListWidget)
-
-        buttonLayout = QHBoxLayout()
-        self.countdownAddButton = PushButton('添加', self)
-        self.countdownAddButton.setFixedHeight(36)
+        actionLayout = QHBoxLayout()
+        actionLabel = BodyLabel('倒计时操作', self)
+        actionLabel.setFixedWidth(100)
+        actionLayout.addWidget(actionLabel)
+        self.countdownAddButton = PushButton(FIF.ADD, '添加', self)
         self.countdownAddButton.clicked.connect(self._onCountdownAddClicked)
-        buttonLayout.addWidget(self.countdownAddButton)
-        self.countdownEditButton = PushButton('编辑', self)
-        self.countdownEditButton.setFixedHeight(36)
+        actionLayout.addWidget(self.countdownAddButton)
+        self.countdownEditButton = PushButton(FIF.EDIT, '编辑', self)
         self.countdownEditButton.clicked.connect(self._onCountdownEditClicked)
-        buttonLayout.addWidget(self.countdownEditButton)
-        self.countdownDeleteButton = PushButton('删除', self)
-        self.countdownDeleteButton.setFixedHeight(36)
+        actionLayout.addWidget(self.countdownEditButton)
+        self.countdownDeleteButton = PushButton(FIF.DELETE, '删除', self)
         self.countdownDeleteButton.clicked.connect(self._onCountdownDeleteClicked)
-        buttonLayout.addWidget(self.countdownDeleteButton)
-        layout.addLayout(buttonLayout)
+        actionLayout.addWidget(self.countdownDeleteButton)
+        actionLayout.addStretch()
+        layout.addLayout(actionLayout)
+
+    def _createCountdownListCard(self, layout):
+        self.countdownListCard = CardWidget(self)
+        cardLayout = QVBoxLayout(self.countdownListCard)
+        cardLayout.setContentsMargins(16, 12, 16, 12)
+        cardLayout.setSpacing(10)
+
+        listLabel = StrongBodyLabel('倒计时列表', self)
+        cardLayout.addWidget(listLabel)
+
+        self.countdownListWidget = ListWidget(self.countdownListCard)
+        self.countdownListWidget.setMinimumHeight(120)
+        self._updateCountdownList()
+        cardLayout.addWidget(self.countdownListWidget)
+
+        layout.addWidget(self.countdownListCard)
 
     def _updateShowCountdownSwitch(self, value):
         self.showCountdownSwitch.setChecked(value)
