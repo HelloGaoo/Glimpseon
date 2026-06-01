@@ -62,7 +62,7 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
     _changelog_loaded_signal = pyqtSignal(str)
     
     def __init__(self, parent=None):
-        super().__init__(tr("navigation.update"), parent)
+        super().__init__(tr("navigation.update"), parent)  # 更新
         self.setObjectName("update")
         
         self.mainLayout = QVBoxLayout(self.scrollWidget)
@@ -141,13 +141,13 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
         self.updateStatusIcon = QLabel(self.versionCard)
         self.updateStatusIcon.setFixedSize(16, 16)
         self.updateStatusIcon.setObjectName('updateStatusIcon')
-        self.updateStatusLabel = QLabel(tr("update.status_ready"), self.versionCard)
+        self.updateStatusLabel = QLabel(tr("update.status_ready"), self.versionCard)  # 已就绪
         self.updateStatusLabel.setObjectName('updateStatusLabel')
         self.updateStatusLayout.addWidget(self.updateStatusIcon)
         self.updateStatusLayout.addWidget(self.updateStatusLabel)
         
         # 检查更新按钮
-        self.checkUpdateButton = PrimaryPushButton(FIF.SYNC, tr("update.check_update"), self.versionCard)
+        self.checkUpdateButton = PrimaryPushButton(FIF.SYNC, tr("update.check_update"), self.versionCard)  # 检查更新
         self.checkUpdateButton.setFixedHeight(36)
         self.checkUpdateButton.clicked.connect(self.__checkUpdate)
         
@@ -162,30 +162,30 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
         self.changelogLayout.setContentsMargins(24, 24, 24, 24)
         self.changelogLayout.setSpacing(16)
         
-        self.changelogTitle = QLabel(tr("update.changelog"), self.changelogCard)
+        self.changelogTitle = QLabel(tr("update.changelog"), self.changelogCard)  # 更新日志
         self.changelogTitle.setObjectName("changelogTitle")
         
         # 使用 Fluent Widgets 的 TextEdit 组件
         self.changelogContent = TextEdit(self.changelogCard)
         self.changelogContent.setReadOnly(True)
-        self.changelogContent.setPlaceholderText(tr("update.loading_changelog"))
+        self.changelogContent.setPlaceholderText(tr("update.loading_changelog"))  # 正在加载更新日志...
         self.changelogContent.setFixedHeight(200)
         
         self.changelogLayout.addWidget(self.changelogTitle)
         self.changelogLayout.addWidget(self.changelogContent)
         
-        self.changelogContent.setPlaceholderText(tr("update.changelog_auto_load"))
+        self.changelogContent.setPlaceholderText(tr("update.changelog_auto_load"))  # 更新日志将在自动检查更新时加载
         self.autoCheckUpdateCard = SwitchSettingCard(
             FIF.UPDATE,
-            tr("update.auto_check"),
-            tr("update.auto_check_desc"),
+            tr("update.auto_check"),  # 自动检查
+            tr("update.auto_check_desc"),  # 启用后，应用启动时会自动检查新版本
             configItem=cfg.autoCheckUpdate,
             parent=self.scrollWidget
         )
         self.autoUpdateCard = SwitchSettingCard(
             FIF.DOWNLOAD,
-            tr("update.auto_update"),
-            tr("update.auto_update_desc"),
+            tr("update.auto_update"),  # 自动更新
+            tr("update.auto_update_desc"),  # 发现新版本时自动下载并安装
             configItem=cfg.autoUpdate,
             parent=self.scrollWidget
         )
@@ -244,12 +244,12 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
             self.__downloadUpdate()
             return
         
-        check_type = tr("update.auto_check") if auto_check else tr("update.manual_check")
+        check_type = tr("update.auto_check") if auto_check else tr("update.manual_check")  # 自动检查 / 手动检查
         logger.info(f"{check_type}：开始检查版本")
         
         if not auto_check:
             self.checkUpdateButton.setEnabled(False)
-            self.updateStatusLabel.setText(tr("update.checking"))
+            self.updateStatusLabel.setText(tr("update.checking"))  # 正在检查更新
             self.__setUpdateStatus('checking')
         
         def do_check():
@@ -265,7 +265,7 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
                         logger.warning(f"{check_type}：检查版本失败 - {result.get('error', '未知错误')}")
                         if not auto_check:
                             self.checkUpdateButton.setEnabled(True)
-                            self.updateStatusLabel.setText(tr("update.check_failed").format(error=result.get('error', tr("update.unknown_error"))))
+                            self.updateStatusLabel.setText(tr("update.check_failed").format(error=result.get('error', tr("update.unknown_error"))))  # 检查失败：{error} / 未知错误  # 检查失败：{error} / 未知错误
                             self.__setUpdateStatus('error')
                         return
 
@@ -284,11 +284,11 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
                         self.build_date = github_build_date
                         self.update_url = result.get('update_url')
 
-                        self.updateStatusLabel.setText(tr("update.new_version_found").format(version=github_version))
+                        self.updateStatusLabel.setText(tr("update.new_version_found").format(version=github_version))  # 发现新版本：{version}  # 发现新版本：{version}
                         self.__setUpdateStatus('update_available')
 
                         if not auto_check:
-                            self.checkUpdateButton.setText(tr("update.download"))
+                            self.checkUpdateButton.setText(tr("update.download"))  # 下载更新  # 下载更新
                             self.checkUpdateButton.setIcon(FIF.DOWNLOAD)
                             self.checkUpdateButton.setEnabled(True)
 
@@ -301,7 +301,7 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
 
                     else:
                         logger.info(f"{check_type}：已是最新版本")
-                        self.updateStatusLabel.setText(tr("update.latest"))
+                        self.updateStatusLabel.setText(tr("update.latest"))  # 已是最新版本  # 已是最新版本
                         self.__setUpdateStatus('latest')
                         if not auto_check:
                             self.checkUpdateButton.setEnabled(True)
@@ -373,7 +373,7 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
     def __downloadUpdate(self, auto_update=False):
         """下载并安装更新"""
         self.checkUpdateButton.setEnabled(False)
-        self.updateStatusLabel.setText(tr("update.downloading"))
+        self.updateStatusLabel.setText(tr("update.downloading"))  # 正在下载更新
         self.__setUpdateStatus('downloading')
         
         update_folder = os.path.join(BASE_DIR, 'update_temp')
@@ -390,7 +390,7 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
                 # 下载进度回调
                 def progress_callback(current, total):
                     percent = (current / total) * 100
-                    QTimer.singleShot(0, lambda p=percent: self.updateStatusLabel.setText(tr("update.downloading_progress").format(percent=f"{p:.1f}")))
+                    QTimer.singleShot(0, lambda p=percent: self.updateStatusLabel.setText(tr("update.downloading_progress").format(percent=f"{p:.1f}")))  # 正在下载更新：{percent}%
                 
                 logger.info(f"正在从 {self.update_url} 下载更新")
                 download_success = False
@@ -400,7 +400,7 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
                     try:
                         if retry > 0:
                             logger.info(f"下载更新重试 {retry}/{max_download_retries}")
-                            QTimer.singleShot(0, lambda r=retry, m=max_download_retries: self.updateStatusLabel.setText(tr("update.download_retry").format(retry=r, max_retries=m)))
+                            QTimer.singleShot(0, lambda r=retry, m=max_download_retries: self.updateStatusLabel.setText(tr("update.download_retry").format(retry=r, max_retries=m)))  # 下载失败，重试 {retry}/{max_retries}...
                         
                         if download_update(download_path, progress_callback):
                             download_success = True
@@ -416,7 +416,7 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
                 if not download_success:
                     raise Exception("下载更新失败，已达到最大重试次数")
 
-                QTimer.singleShot(0, lambda: self.updateStatusLabel.setText(tr("update.extracting")))
+                QTimer.singleShot(0, lambda: self.updateStatusLabel.setText(tr("update.extracting")))  # 正在解压更新
                 
                 extract_folder = os.path.join(update_folder, 'extracted')
                 if not extract_update(download_path, extract_folder):
@@ -428,7 +428,7 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
                 
                 # 创建备份
                 if auto_update:
-                    QTimer.singleShot(0, lambda: self.updateStatusLabel.setText(tr("update.backing_up")))
+                    QTimer.singleShot(0, lambda: self.updateStatusLabel.setText(tr("update.backing_up")))  # 正在备份当前版本
                     
                     try:
                         if os.path.exists(backup_folder):
@@ -442,7 +442,7 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
                 script_path = create_update_script(BASE_DIR, extract_folder)
                 if not script_path:
                     raise Exception("创建更新脚本失败")
-                QTimer.singleShot(0, lambda: self.updateStatusLabel.setText(tr("update.preparing")))
+                QTimer.singleShot(0, lambda: self.updateStatusLabel.setText(tr("update.preparing")))  # 正在准备更新，程序即将重启
                 
                 subprocess.Popen(
                     f'cmd /c start "ClassLively Update" /MIN "{script_path}"',
@@ -452,7 +452,7 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
                 
                 logger.info("更新脚本已启动，准备退出应用")
                 
-                QTimer.singleShot(0, lambda: self.updateStatusLabel.setText(tr("update.complete")))
+                QTimer.singleShot(0, lambda: self.updateStatusLabel.setText(tr("update.complete")))  # 更新完成，正在重启应用
                 
                 QApplication.instance().quit()
                 
@@ -463,10 +463,10 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
                         shutil.rmtree(update_folder)
                     except Exception:
                         pass
-                QTimer.singleShot(0, lambda: self.checkUpdateButton.setText(tr("update.retry")))
+                QTimer.singleShot(0, lambda: self.checkUpdateButton.setText(tr("update.retry")))  # 重试更新
                 QTimer.singleShot(0, lambda: self.checkUpdateButton.setIcon(FIF.SYNC))
                 QTimer.singleShot(0, lambda: self.checkUpdateButton.setEnabled(True))
-                QTimer.singleShot(0, lambda msg=str(e): self.updateStatusLabel.setText(tr("update.failed").format(error=msg)))
+                QTimer.singleShot(0, lambda msg=str(e): self.updateStatusLabel.setText(tr("update.failed").format(error=msg)))  # 更新失败：{error}
                 QTimer.singleShot(0, lambda: self.updateStatusLabel.setStyleSheet("color: #FF0000;"))
                 QTimer.singleShot(0, lambda: self.updateStatusIcon.setStyleSheet("background-color: #FF0000; border-radius: 8px;"))
                 
@@ -476,15 +476,15 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
         thread.start()
 
     def retranslateUi(self):
-        self.titleLabel.setText(tr("navigation.update"))
-        self.buildDate.setText(f"{tr('update.build_date')}: {BUILD_DATE}")
-        self.updateStatusLabel.setText(tr("update.status_ready"))
-        self.checkUpdateButton.setText(tr("update.check_update"))
-        self.changelogTitle.setText(tr("update.changelog"))
-        self.changelogContent.setPlaceholderText(tr("update.loading_changelog"))
-        self.autoCheckUpdateCard.setTitle(tr("update.auto_check"))
-        self.autoCheckUpdateCard.setContent(tr("update.auto_check_desc"))
-        self.autoUpdateCard.setTitle(tr("update.auto_update"))
-        self.autoUpdateCard.setContent(tr("update.auto_update_desc"))
+        self.titleLabel.setText(tr("navigation.update"))  # 更新
+        self.buildDate.setText(f"{tr('update.build_date')}: {BUILD_DATE}")  # 构建日期
+        self.updateStatusLabel.setText(tr("update.status_ready"))  # 已就绪
+        self.checkUpdateButton.setText(tr("update.check_update"))  # 检查更新
+        self.changelogTitle.setText(tr("update.changelog"))  # 更新日志
+        self.changelogContent.setPlaceholderText(tr("update.loading_changelog"))  # 正在加载更新日志...
+        self.autoCheckUpdateCard.setTitle(tr("update.auto_check"))  # 自动检查
+        self.autoCheckUpdateCard.setContent(tr("update.auto_check_desc"))  # 启用后，应用启动时会自动检查新版本
+        self.autoUpdateCard.setTitle(tr("update.auto_update"))  # 自动更新
+        self.autoUpdateCard.setContent(tr("update.auto_update_desc"))  # 发现新版本时自动下载并安装
 
 

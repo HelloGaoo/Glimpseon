@@ -221,10 +221,10 @@ class RegionSelectorDialog(MessageBoxBase):
 
     def _init_ui(self):
         title = SubtitleLabel()
-        title.setText(tr("weather.select_region"))
+        title.setText(tr("weather.select_region"))  # 选择地区
 
         self._search_input = SearchLineEdit()
-        self._search_input.setPlaceholderText(tr("weather.region_placeholder"))
+        self._search_input.setPlaceholderText(tr("weather.region_placeholder"))  # 搜索地区
         self._search_input.setClearButtonEnabled(True)
         self._search_input.textChanged.connect(self._on_search)
 
@@ -236,8 +236,8 @@ class RegionSelectorDialog(MessageBoxBase):
         self.viewLayout.addWidget(self._search_input)
         self.viewLayout.addWidget(self._region_list)
 
-        self.yesButton.setText(tr("common.confirm"))
-        self.cancelButton.setText(tr("common.cancel"))
+        self.yesButton.setText(tr("common.confirm"))  # 确定
+        self.cancelButton.setText(tr("common.cancel"))  # 取消
 
         self.widget.setMinimumWidth(520)
         self.widget.setMinimumHeight(620)

@@ -74,7 +74,7 @@ from .common import BaseScrollAreaInterface, show_text_file
 class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
 
     def __init__(self, mainWindow):
-        super().__init__(tr("debug.title"), parent=None)
+        super().__init__(tr("debug.title"), parent=None)  # 调试
         self.mainWindow = mainWindow
         self.setObjectName('debug')
 
@@ -142,36 +142,36 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout = QVBoxLayout(card)
         layout.setSpacing(14)
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.addLayout(self._cardTitle(FIF.APPLICATION, tr("debug.system_monitor"), card))
+        layout.addLayout(self._cardTitle(FIF.APPLICATION, tr("debug.system_monitor"), card))  # 系统监控
 
         grid = QGridLayout()
         grid.setSpacing(12)
         grid.setHorizontalSpacing(20)
 
-        grid.addWidget(StrongBodyLabel(tr("debug.label_fps"), card), 0, 0)
+        grid.addWidget(StrongBodyLabel(tr("debug.label_fps"), card), 0, 0)  # 帧率
         self.fpsLabel = BodyLabel("0", card)
         self.fpsLabel.setObjectName("debugValueLabel")
         grid.addWidget(self.fpsLabel, 0, 1)
 
-        grid.addWidget(StrongBodyLabel(tr("debug.label_memory"), card), 0, 2)
+        grid.addWidget(StrongBodyLabel(tr("debug.label_memory"), card), 0, 2)  # 内存
         self.memoryLabel = BodyLabel("0 MB", card)
         self.memoryLabel.setObjectName("debugValueLabel")
         grid.addWidget(self.memoryLabel, 0, 3)
 
-        grid.addWidget(StrongBodyLabel(tr("debug.label_cpu"), card), 1, 0)
+        grid.addWidget(StrongBodyLabel(tr("debug.label_cpu"), card), 1, 0)  # CPU
         self.cpuLabel = BodyLabel("0%", card)
         self.cpuLabel.setObjectName("debugValueLabel")
         grid.addWidget(self.cpuLabel, 1, 1)
 
-        grid.addWidget(StrongBodyLabel(tr("debug.label_window_state"), card), 1, 2)
-        self.windowStateLabel = BodyLabel(tr("debug.status_normal"), card)
+        grid.addWidget(StrongBodyLabel(tr("debug.label_window_state"), card), 1, 2)  # 窗口状态
+        self.windowStateLabel = BodyLabel(tr("debug.status_normal"), card)  # 正常
         grid.addWidget(self.windowStateLabel, 1, 3)
 
-        grid.addWidget(StrongBodyLabel(tr("debug.label_wallpaper_folder"), card), 2, 0)
+        grid.addWidget(StrongBodyLabel(tr("debug.label_wallpaper_folder"), card), 2, 0)  # 壁纸文件夹
         self.wallpaperSizeLabel = StrongBodyLabel("-", card)
         grid.addWidget(self.wallpaperSizeLabel, 2, 1)
 
-        grid.addWidget(StrongBodyLabel(tr("debug.label_wallpaper_count"), card), 2, 2)
+        grid.addWidget(StrongBodyLabel(tr("debug.label_wallpaper_count"), card), 2, 2)  # 壁纸数量
         self.wallpaperCountLabel = StrongBodyLabel("0", card)
         grid.addWidget(self.wallpaperCountLabel, 2, 3)
 
@@ -183,11 +183,11 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout.addWidget(line)
 
         btnRow = QHBoxLayout()
-        self.debugUpdateToggle = ToggleButton(tr("debug.btn_enable_monitoring"), card)
+        self.debugUpdateToggle = ToggleButton(tr("debug.btn_enable_monitoring"), card)  # 启用监控
         self.debugUpdateToggle.setChecked(True)
         self.debugUpdateToggle.setIcon(FIF.SYNC)
         btnRow.addWidget(self.debugUpdateToggle)
-        self.popOutButton = PushButton(FIF.FULL_SCREEN, tr("debug.btn_popout"), card)
+        self.popOutButton = PushButton(FIF.FULL_SCREEN, tr("debug.btn_popout"), card)  # 弹出面板
         self.popOutButton.clicked.connect(self._togglePopOut)
         btnRow.addWidget(self.popOutButton)
         btnRow.addStretch()
@@ -200,37 +200,37 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout = QVBoxLayout(card)
         layout.setSpacing(14)
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.addLayout(self._cardTitle(FIF.MENU, tr("debug.quick_actions"), card))
+        layout.addLayout(self._cardTitle(FIF.MENU, tr("debug.quick_actions"), card))  # 快捷操作
 
         row1 = QHBoxLayout()
-        self.reloadThemeBtn = PrimaryPushButton(FIF.PALETTE, tr("debug.btn_refresh_theme"), card)
+        self.reloadThemeBtn = PrimaryPushButton(FIF.PALETTE, tr("debug.btn_refresh_theme"), card)  # 刷新主题
         self.reloadThemeBtn.clicked.connect(self._reloadTheme)
         row1.addWidget(self.reloadThemeBtn)
-        self.clearCacheBtn = PushButton(FIF.DELETE, tr("debug.btn_clear_cache"), card)
+        self.clearCacheBtn = PushButton(FIF.DELETE, tr("debug.btn_clear_cache"), card)  # 清除缓存
         self.clearCacheBtn.clicked.connect(self._clearCache)
         row1.addWidget(self.clearCacheBtn)
-        self.clearLogsBtn = PushButton(FIF.BROOM, tr("debug.btn_clear_logs"), card)
+        self.clearLogsBtn = PushButton(FIF.BROOM, tr("debug.btn_clear_logs"), card)  # 清空日志
         self.clearLogsBtn.clicked.connect(self._clearLogs)
         row1.addWidget(self.clearLogsBtn)
         layout.addLayout(row1)
 
         row2 = QHBoxLayout()
-        self.openLogDirBtn = PushButton(FIF.FOLDER, tr("debug.btn_open_log_dir"), card)
+        self.openLogDirBtn = PushButton(FIF.FOLDER, tr("debug.btn_open_log_dir"), card)  # 打开日志目录
         self.openLogDirBtn.clicked.connect(lambda: os.startfile(os.path.join(BASE_DIR, 'logs')))
         row2.addWidget(self.openLogDirBtn)
-        self.openWallpaperDirBtn = PushButton(FIF.FOLDER_ADD, tr("debug.btn_open_wallpaper_dir"), card)
+        self.openWallpaperDirBtn = PushButton(FIF.FOLDER_ADD, tr("debug.btn_open_wallpaper_dir"), card)  # 打开壁纸目录
         self.openWallpaperDirBtn.clicked.connect(lambda: os.startfile(os.path.join(BASE_DIR, 'wallpaper')))
         row2.addWidget(self.openWallpaperDirBtn)
-        self.openConfigDirBtn = PushButton(FIF.SETTING, tr("debug.btn_open_config_dir"), card)
+        self.openConfigDirBtn = PushButton(FIF.SETTING, tr("debug.btn_open_config_dir"), card)  # 打开配置目录
         self.openConfigDirBtn.clicked.connect(lambda: os.startfile(os.path.join(BASE_DIR, 'config')))
         row2.addWidget(self.openConfigDirBtn)
         layout.addLayout(row2)
 
         row3 = QHBoxLayout()
-        self.forceRepaintBtn = PushButton(FIF.SYNC, tr("debug.btn_force_repaint"), card)
+        self.forceRepaintBtn = PushButton(FIF.SYNC, tr("debug.btn_force_repaint"), card)  # 强制重绘
         self.forceRepaintBtn.clicked.connect(self._forceRepaint)
         row3.addWidget(self.forceRepaintBtn)
-        self.restartAppBtn = PushButton(FIF.UPDATE, tr("debug.btn_restart_app"), card)
+        self.restartAppBtn = PushButton(FIF.UPDATE, tr("debug.btn_restart_app"), card)  # 重启应用
         self.restartAppBtn.clicked.connect(self._restartApp)
         row3.addWidget(self.restartAppBtn)
         row3.addStretch()
@@ -243,10 +243,10 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout = QVBoxLayout(card)
         layout.setSpacing(14)
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.addLayout(self._cardTitle(FIF.GLOBE, tr("debug.title_network_diag"), card))
+        layout.addLayout(self._cardTitle(FIF.GLOBE, tr("debug.title_network_diag"), card))  # 网络诊断
 
         targetRow = QHBoxLayout()
-        targetRow.addWidget(BodyLabel(tr("debug.label_test_target") + ":", card))
+        targetRow.addWidget(BodyLabel(tr("debug.label_test_target") + ":", card))  # 测试目标
         self.networkTargetCombo = ComboBox(card)
         self.networkTargetCombo.addItems(["www.baidu.com", "www.qq.com", "www.aliyun.com", "www.bilibili.com"])
         self.networkTargetCombo.setMinimumWidth(200)
@@ -257,36 +257,36 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         resultGrid = QGridLayout()
         resultGrid.setSpacing(8)
 
-        resultGrid.addWidget(BodyLabel(tr("debug.label_connectivity") + ":", card), 0, 0)
+        resultGrid.addWidget(BodyLabel(tr("debug.label_connectivity") + ":", card), 0, 0)  # 连通性
         self.networkConnectLabel = StrongBodyLabel("-", card)
         resultGrid.addWidget(self.networkConnectLabel, 0, 1)
 
-        resultGrid.addWidget(BodyLabel(tr("debug.label_latency") + ":", card), 0, 2)
+        resultGrid.addWidget(BodyLabel(tr("debug.label_latency") + ":", card), 0, 2)  # 延迟
         self.networkLatencyLabel = StrongBodyLabel("-", card)
         resultGrid.addWidget(self.networkLatencyLabel, 0, 3)
 
-        resultGrid.addWidget(BodyLabel(tr("debug.label_dns") + ":", card), 1, 0)
+        resultGrid.addWidget(BodyLabel(tr("debug.label_dns") + ":", card), 1, 0)  # DNS
         self.networkDnsLabel = StrongBodyLabel("-", card)
         resultGrid.addWidget(self.networkDnsLabel, 1, 1)
 
-        resultGrid.addWidget(BodyLabel(tr("debug.label_poetry_api") + ":", card), 1, 2)
+        resultGrid.addWidget(BodyLabel(tr("debug.label_poetry_api") + ":", card), 1, 2)  # 诗词API
         self.networkPoetryLabel = StrongBodyLabel("-", card)
         resultGrid.addWidget(self.networkPoetryLabel, 1, 3)
 
         layout.addLayout(resultGrid)
 
         btnRow = QHBoxLayout()
-        self.networkTestBtn = PrimaryPushButton(FIF.PLAY, tr("debug.btn_start_diag"), card)
+        self.networkTestBtn = PrimaryPushButton(FIF.PLAY, tr("debug.btn_start_diag"), card)  # 开始诊断
         self.networkTestBtn.clicked.connect(self._runNetworkDiag)
         btnRow.addWidget(self.networkTestBtn)
-        self.networkTestAllBtn = PushButton(tr("debug.btn_test_all"), card)
+        self.networkTestAllBtn = PushButton(tr("debug.btn_test_all"), card)  # 测试全部
         self.networkTestAllBtn.clicked.connect(self._runNetworkDiagAll)
         btnRow.addWidget(self.networkTestAllBtn)
         btnRow.addStretch()
         layout.addLayout(btnRow)
 
         self.networkLogEdit = QTextEdit(card)
-        self.networkLogEdit.setPlaceholderText(tr("debug.label_placeholder_log"))
+        self.networkLogEdit.setPlaceholderText(tr("debug.label_placeholder_log"))  # 诊断日志将显示在此处...
         self.networkLogEdit.setMaximumHeight(100)
         self.networkLogEdit.setReadOnly(True)
         layout.addWidget(self.networkLogEdit)
@@ -298,29 +298,29 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout = QVBoxLayout(card)
         layout.setSpacing(14)
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.addLayout(self._cardTitle(FIF.CODE, tr("debug.title_api_test"), card))
+        layout.addLayout(self._cardTitle(FIF.CODE, tr("debug.title_api_test"), card))  # API测试
 
         poetryRow = QHBoxLayout()
-        poetryRow.addWidget(StrongBodyLabel(tr("debug.label_poetry_api"), card))
+        poetryRow.addWidget(StrongBodyLabel(tr("debug.label_poetry_api"), card))  # 诗词API
         poetryRow.addStretch()
-        self.testPoetryButton = PrimaryPushButton(FIF.PLAY, tr("debug.btn_test"), card)
+        self.testPoetryButton = PrimaryPushButton(FIF.PLAY, tr("debug.btn_test"), card)  # 测试
         self.testPoetryButton.setFixedWidth(100)
         self.testPoetryButton.clicked.connect(self._testPoetryAPI)
         poetryRow.addWidget(self.testPoetryButton)
         layout.addLayout(poetryRow)
-        self.poetryResultLabel = BodyLabel(tr("debug.label_result") + "-", card)
+        self.poetryResultLabel = BodyLabel(tr("debug.label_result") + "-", card)  # 结果
         self.poetryResultLabel.setWordWrap(True)
         layout.addWidget(self.poetryResultLabel)
 
         weatherRow = QHBoxLayout()
-        weatherRow.addWidget(StrongBodyLabel(tr("debug.label_weather_api"), card))
+        weatherRow.addWidget(StrongBodyLabel(tr("debug.label_weather_api"), card))  # 天气API
         weatherRow.addStretch()
-        self.testWeatherButton = PrimaryPushButton(FIF.PLAY, tr("debug.btn_test"), card)
+        self.testWeatherButton = PrimaryPushButton(FIF.PLAY, tr("debug.btn_test"), card)  # 测试
         self.testWeatherButton.setFixedWidth(100)
         self.testWeatherButton.clicked.connect(self._testWeatherAPI)
         weatherRow.addWidget(self.testWeatherButton)
         layout.addLayout(weatherRow)
-        self.weatherResultLabel = BodyLabel(tr("debug.label_result") + "-", card)
+        self.weatherResultLabel = BodyLabel(tr("debug.label_result") + "-", card)  # 结果
         self.weatherResultLabel.setWordWrap(True)
         layout.addWidget(self.weatherResultLabel)
 
@@ -330,7 +330,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout.addWidget(line)
 
         self.rawDataEdit = QTextEdit(card)
-        self.rawDataEdit.setPlaceholderText(tr("debug.label_api_raw_data"))
+        self.rawDataEdit.setPlaceholderText(tr("debug.label_api_raw_data"))  # API原始数据将显示在此处...
         self.rawDataEdit.setMaximumHeight(120)
         layout.addWidget(self.rawDataEdit)
 
@@ -341,7 +341,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout = QVBoxLayout(card)
         layout.setSpacing(12)
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.addLayout(self._cardTitle(FIF.CLOUD, tr("debug.title_weather_sim"), card))
+        layout.addLayout(self._cardTitle(FIF.CLOUD, tr("debug.title_weather_sim"), card))  # 天气模拟
 
         self.weatherCodeMap = {
             0: "晴", 1: "多云", 2: "阴", 3: "阵雨", 4: "雷阵雨",
@@ -364,7 +364,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         }
 
         selectRow = QHBoxLayout()
-        selectRow.addWidget(BodyLabel(tr("debug.label_select_weather") + ":", card))
+        selectRow.addWidget(BodyLabel(tr("debug.label_select_weather") + ":", card))  # 选择天气
         self.weatherCodeCombo = ComboBox(card)
         for code, name in sorted(self.weatherCodeMap.items()):
             self.weatherCodeCombo.addItem(f"{code} - {name}", userData=code)
@@ -375,7 +375,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout.addLayout(selectRow)
 
         previewRow = QHBoxLayout()
-        previewRow.addWidget(BodyLabel(tr("debug.label_icon_preview") + ":", card))
+        previewRow.addWidget(BodyLabel(tr("debug.label_icon_preview") + ":", card))  # 图标预览
         self.weatherIconPreviewLabel = ImageLabel(card)
         self.weatherIconPreviewLabel.setFixedSize(48, 48)
         previewRow.addWidget(self.weatherIconPreviewLabel)
@@ -385,19 +385,19 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout.addLayout(previewRow)
 
         tempRow = QHBoxLayout()
-        tempRow.addWidget(BodyLabel(tr("debug.label_temp_display") + ":", card))
+        tempRow.addWidget(BodyLabel(tr("debug.label_temp_display") + ":", card))  # 温度显示
         self.weatherTempInput = LineEdit(card)
-        self.weatherTempInput.setPlaceholderText(tr("debug.placeholder_temp_example"))
+        self.weatherTempInput.setPlaceholderText(tr("debug.placeholder_temp_example"))  # 例如: 25
         self.weatherTempInput.setMaximumWidth(150)
         tempRow.addWidget(self.weatherTempInput)
         tempRow.addStretch()
         layout.addLayout(tempRow)
 
         buttonRow = QHBoxLayout()
-        self.applyWeatherButton = PrimaryPushButton(FIF.PLAY, tr("debug.btn_apply_weather"), card)
+        self.applyWeatherButton = PrimaryPushButton(FIF.PLAY, tr("debug.btn_apply_weather"), card)  # 应用天气
         self.applyWeatherButton.clicked.connect(self._applyWeatherToMain)
         buttonRow.addWidget(self.applyWeatherButton)
-        self.resetWeatherButton = PushButton(tr("debug.btn_reset"), card)
+        self.resetWeatherButton = PushButton(tr("debug.btn_reset"), card)  # 重置
         self.resetWeatherButton.clicked.connect(self._resetWeatherDebug)
         buttonRow.addWidget(self.resetWeatherButton)
         buttonRow.addStretch()
@@ -408,7 +408,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         line.setFixedHeight(1)
         layout.addWidget(line)
 
-        iconGridLabel = BodyLabel(tr("debug.label_icon_list") + ":", card)
+        iconGridLabel = BodyLabel(tr("debug.label_icon_list") + ":", card)  # 图标列表
         layout.addWidget(iconGridLabel)
 
         self.weatherIconGrid = QWidget(card)
@@ -550,18 +550,18 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout = QVBoxLayout(card)
         layout.setSpacing(12)
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.addLayout(self._cardTitle(FIF.SEARCH, tr("debug.title_element_check"), card))
+        layout.addLayout(self._cardTitle(FIF.SEARCH, tr("debug.title_element_check"), card))  # 元素检查
 
         enableRow = QHBoxLayout()
-        enableRow.addWidget(BodyLabel(tr("debug.label_enable_hover") + ":", card))
-        self.elementCheckToggle = ToggleButton(tr("debug.btn_enable"), card)
+        enableRow.addWidget(BodyLabel(tr("debug.label_enable_hover") + ":", card))  # 启用悬停检查
+        self.elementCheckToggle = ToggleButton(tr("debug.btn_enable"), card)  # 启用
         self.elementCheckToggle.toggled.connect(self._toggleElementCheck)
         enableRow.addWidget(self.elementCheckToggle)
         enableRow.addStretch()
         layout.addLayout(enableRow)
 
         self.elementInfoEdit = QTextEdit(card)
-        self.elementInfoEdit.setPlaceholderText(tr("debug.placeholder_element_info"))
+        self.elementInfoEdit.setPlaceholderText(tr("debug.placeholder_element_info"))  # 悬停在界面元素上查看信息...
         self.elementInfoEdit.setMaximumHeight(130)
         self.elementInfoEdit.setReadOnly(True)
         layout.addWidget(self.elementInfoEdit)
@@ -573,21 +573,21 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout = QVBoxLayout(card)
         layout.setSpacing(12)
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.addLayout(self._cardTitle(FIF.DOWNLOAD, tr("debug.title_batch_wallpaper"), card))
+        layout.addLayout(self._cardTitle(FIF.DOWNLOAD, tr("debug.title_batch_wallpaper"), card))  # 批量壁纸获取
 
         row = QHBoxLayout()
-        row.addWidget(BodyLabel(tr("debug.label_fetch_count") + ":", card))
+        row.addWidget(BodyLabel(tr("debug.label_fetch_count") + ":", card))  # 获取数量
         self.batchWallpaperSpin = SpinBox(card)
         self.batchWallpaperSpin.setRange(1, 100)
         self.batchWallpaperSpin.setValue(5)
         self.batchWallpaperSpin.setFixedWidth(120)
         row.addWidget(self.batchWallpaperSpin)
         row.addSpacing(16)
-        self.batchWallpaperBtn = PrimaryPushButton(FIF.DOWNLOAD, tr("debug.btn_start_fetch"), card)
+        self.batchWallpaperBtn = PrimaryPushButton(FIF.DOWNLOAD, tr("debug.btn_start_fetch"), card)  # 开始获取
         self.batchWallpaperBtn.setFixedSize(110, 32)
         self.batchWallpaperBtn.clicked.connect(self._batchGetWallpaper)
         row.addWidget(self.batchWallpaperBtn)
-        self.batchWallpaperStopBtn = PushButton(tr("debug.btn_stop"), card)
+        self.batchWallpaperStopBtn = PushButton(tr("debug.btn_stop"), card)  # 停止
         self.batchWallpaperStopBtn.setFixedSize(70, 32)
         self.batchWallpaperStopBtn.clicked.connect(self._stopBatchWallpaper)
         self.batchWallpaperStopBtn.setEnabled(False)
@@ -603,7 +603,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout.addWidget(self.batchWallpaperProgress)
 
         self.batchWallpaperLog = QTextEdit(card)
-        self.batchWallpaperLog.setPlaceholderText(tr("debug.placeholder_fetch_log"))
+        self.batchWallpaperLog.setPlaceholderText(tr("debug.placeholder_fetch_log"))  # 获取日志将显示在此处...
         self.batchWallpaperLog.setMaximumHeight(120)
         self.batchWallpaperLog.setReadOnly(True)
         layout.addWidget(self.batchWallpaperLog)
@@ -751,7 +751,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
                 self.networkPoetryLabel.setText(f"HTTP {resp.status_code}")
                 self.networkLogEdit.append(f"  一言 API: HTTP {resp.status_code}")
         except Exception as e:
-            self.networkPoetryLabel.setText(tr("debug.status_failed"))
+            self.networkPoetryLabel.setText(tr("debug.status_failed"))  # 失败
             self.networkLogEdit.append(f"  一言 API: {e}")
 
         self.networkLogEdit.append("--- 诊断完成 ---")
@@ -874,7 +874,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             self.last_cpu_usage = process_cpu
         except Exception:
             self.cpuLabel.setText("N/A")
-        self.windowStateLabel.setText(tr("debug.status_visible") if self.mainWindow.isVisible() else tr("debug.status_hidden"))
+        self.windowStateLabel.setText(tr("debug.status_visible") if self.mainWindow.isVisible() else tr("debug.status_hidden"))  # 可见 / 隐藏
 
     def _updateResourceMonitor(self):
         try:
@@ -932,7 +932,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
                 InfoBar.success(title="API 测试", content=f"天气 API 测试成功 - {weather_data['weather_text']} {weather_data['temperature']}", parent=self, duration=2000)
             else:
                 self.weatherResultLabel.setText(f"✗ 失败 ({elapsed:.0f}ms): 未获取到数据")
-                self.rawDataEdit.setText(tr("debug.status_empty_data"))
+                self.rawDataEdit.setText(tr("debug.status_empty_data"))  # 暂无数据
                 InfoBar.warning(title="API 测试", content="未获取到天气数据", parent=self, duration=3000)
         except Exception as e:
             elapsed = (time.time() - start_time) * 1000
@@ -1091,7 +1091,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             self._popOutWindow.move(x, y)
 
             self._popOutWindow.show()
-            self.popOutButton.setText(tr("debug.btn_restore_panel"))
+            self.popOutButton.setText(tr("debug.btn_restore_panel"))  # 还原面板
 
             mw = self.mainWindow
             if hasattr(mw, 'debugNavItem'): mw.debugNavItem.setVisible(False)
@@ -1110,7 +1110,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         self._popOutContentContainer = None
         self._restoreWidgetRefs()
         if hasattr(self, '_savedViewportMargins'): self.setViewportMargins(self._savedViewportMargins)
-        self.popOutButton.setText(tr("debug.btn_popout"))
+        self.popOutButton.setText(tr("debug.btn_popout"))  # 弹出面板
         mw = self.mainWindow
         if hasattr(mw, 'debugNavItem') and cfg.debugMode.value: mw.debugNavItem.setVisible(True)
         self._startTimers()
@@ -1118,7 +1118,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
     def retranslateUi(self):
         try:
             if hasattr(self, 'mainWindow'):
-                self.setWindowTitle(tr("debug.title"))
+                self.setWindowTitle(tr("debug.title"))  # 调试
 
             if hasattr(self, 'fpsLabel'):
                 pass
@@ -1130,7 +1130,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
                 pass
 
             if hasattr(self, 'windowStateLabel'):
-                self.windowStateLabel.setText(tr("debug.status_visible") if self.mainWindow.isVisible() else tr("debug.status_hidden"))
+                self.windowStateLabel.setText(tr("debug.status_visible") if self.mainWindow.isVisible() else tr("debug.status_hidden"))  # 可见 / 隐藏
 
             if hasattr(self, 'wallpaperSizeLabel'):
                 pass
@@ -1139,82 +1139,82 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
                 pass
 
             if hasattr(self, 'debugUpdateToggle'):
-                self.debugUpdateToggle.setText(tr("debug.btn_enable_monitoring"))
+                self.debugUpdateToggle.setText(tr("debug.btn_enable_monitoring"))  # 启用监控
 
             if hasattr(self, 'popOutButton'):
                 if hasattr(self, '_popOutWindow') and self._popOutWindow is not None:
-                    self.popOutButton.setText(tr("debug.btn_restore_panel"))
+                    self.popOutButton.setText(tr("debug.btn_restore_panel"))  # 还原面板
                 else:
-                    self.popOutButton.setText(tr("debug.btn_popout"))
+                    self.popOutButton.setText(tr("debug.btn_popout"))  # 弹出面板
 
             if hasattr(self, 'reloadThemeBtn'):
-                self.reloadThemeBtn.setText(tr("debug.btn_refresh_theme"))
+                self.reloadThemeBtn.setText(tr("debug.btn_refresh_theme"))  # 刷新主题
 
             if hasattr(self, 'clearCacheBtn'):
-                self.clearCacheBtn.setText(tr("debug.btn_clear_cache"))
+                self.clearCacheBtn.setText(tr("debug.btn_clear_cache"))  # 清除缓存
 
             if hasattr(self, 'clearLogsBtn'):
-                self.clearLogsBtn.setText(tr("debug.btn_clear_logs"))
+                self.clearLogsBtn.setText(tr("debug.btn_clear_logs"))  # 清空日志
 
             if hasattr(self, 'openLogDirBtn'):
-                self.openLogDirBtn.setText(tr("debug.btn_open_log_dir"))
+                self.openLogDirBtn.setText(tr("debug.btn_open_log_dir"))  # 打开日志目录
 
             if hasattr(self, 'openWallpaperDirBtn'):
-                self.openWallpaperDirBtn.setText(tr("debug.btn_open_wallpaper_dir"))
+                self.openWallpaperDirBtn.setText(tr("debug.btn_open_wallpaper_dir"))  # 打开壁纸目录
 
             if hasattr(self, 'openConfigDirBtn'):
-                self.openConfigDirBtn.setText(tr("debug.btn_open_config_dir"))
+                self.openConfigDirBtn.setText(tr("debug.btn_open_config_dir"))  # 打开配置目录
 
             if hasattr(self, 'forceRepaintBtn'):
-                self.forceRepaintBtn.setText(tr("debug.btn_force_repaint"))
+                self.forceRepaintBtn.setText(tr("debug.btn_force_repaint"))  # 强制重绘
 
             if hasattr(self, 'restartAppBtn'):
-                self.restartAppBtn.setText(tr("debug.btn_restart_app"))
+                self.restartAppBtn.setText(tr("debug.btn_restart_app"))  # 重启应用
 
             if hasattr(self, 'networkTestBtn'):
-                self.networkTestBtn.setText(tr("debug.btn_start_diag"))
+                self.networkTestBtn.setText(tr("debug.btn_start_diag"))  # 开始诊断
 
             if hasattr(self, 'networkTestAllBtn'):
-                self.networkTestAllBtn.setText(tr("debug.btn_test_all"))
+                self.networkTestAllBtn.setText(tr("debug.btn_test_all"))  # 测试全部
 
             if hasattr(self, 'networkLogEdit'):
-                self.networkLogEdit.setPlaceholderText(tr("debug.label_placeholder_log"))
+                self.networkLogEdit.setPlaceholderText(tr("debug.label_placeholder_log"))  # 诊断日志将显示在此处...
 
             if hasattr(self, 'testPoetryButton'):
-                self.testPoetryButton.setText(tr("debug.btn_test"))
+                self.testPoetryButton.setText(tr("debug.btn_test"))  # 测试
 
             if hasattr(self, 'poetryResultLabel'):
-                self.poetryResultLabel.setText(tr("debug.label_result") + "-")
+                self.poetryResultLabel.setText(tr("debug.label_result") + "-")  # 结果
 
             if hasattr(self, 'testWeatherButton'):
-                self.testWeatherButton.setText(tr("debug.btn_test"))
+                self.testWeatherButton.setText(tr("debug.btn_test"))  # 测试
 
             if hasattr(self, 'weatherResultLabel'):
-                self.weatherResultLabel.setText(tr("debug.label_result") + "-")
+                self.weatherResultLabel.setText(tr("debug.label_result") + "-")  # 结果
 
             if hasattr(self, 'rawDataEdit'):
-                self.rawDataEdit.setPlaceholderText(tr("debug.label_api_raw_data"))
+                self.rawDataEdit.setPlaceholderText(tr("debug.label_api_raw_data"))  # API原始数据将显示在此处...
 
             if hasattr(self, 'applyWeatherButton'):
-                self.applyWeatherButton.setText(tr("debug.btn_apply_weather"))
+                self.applyWeatherButton.setText(tr("debug.btn_apply_weather"))  # 应用天气
 
             if hasattr(self, 'resetWeatherButton'):
-                self.resetWeatherButton.setText(tr("debug.btn_reset"))
+                self.resetWeatherButton.setText(tr("debug.btn_reset"))  # 重置
 
             if hasattr(self, 'elementCheckToggle'):
-                self.elementCheckToggle.setText(tr("debug.btn_enable"))
+                self.elementCheckToggle.setText(tr("debug.btn_enable"))  # 启用
 
             if hasattr(self, 'elementInfoEdit'):
-                self.elementInfoEdit.setPlaceholderText(tr("debug.placeholder_element_info"))
+                self.elementInfoEdit.setPlaceholderText(tr("debug.placeholder_element_info"))  # 悬停在界面元素上查看信息...
 
             if hasattr(self, 'batchWallpaperBtn'):
-                self.batchWallpaperBtn.setText(tr("debug.btn_start_fetch"))
+                self.batchWallpaperBtn.setText(tr("debug.btn_start_fetch"))  # 开始获取
 
             if hasattr(self, 'batchWallpaperStopBtn'):
-                self.batchWallpaperStopBtn.setText(tr("debug.btn_stop"))
+                self.batchWallpaperStopBtn.setText(tr("debug.btn_stop"))  # 停止
 
             if hasattr(self, 'batchWallpaperLog'):
-                self.batchWallpaperLog.setPlaceholderText(tr("debug.placeholder_fetch_log"))
+                self.batchWallpaperLog.setPlaceholderText(tr("debug.placeholder_fetch_log"))  # 获取日志将显示在此处...
 
         except Exception as e:
             from core.logger import logger

@@ -171,7 +171,7 @@ class HomeInterface(QWidget, TranslatableWidget):
 
         self.setup_translatable_ui()
 
-        logger.info(tr("home.init_complete"))
+        logger.info(tr("home.init_complete"))  # 主界面初始化完成
 
     def _initBackground(self):
         self.homeBackgroundImage = QLabel()
@@ -308,7 +308,7 @@ class HomeInterface(QWidget, TranslatableWidget):
         self.editLayout.setAlignment(Qt.AlignmentFlag.AlignBottom)
         self.editLayout.setContentsMargins(0, 0, 0, 20)
 
-        self.editButton = PushButton(tr("home.edit"), parent=self.editContainer)
+        self.editButton = PushButton(tr("home.edit"), parent=self.editContainer)  # 编辑
         self.editButton.setObjectName("editButton")
         self.editButton.setFixedSize(80, 32)
         self.editButton.clicked.connect(self._enterEditMode)
@@ -425,20 +425,20 @@ class HomeInterface(QWidget, TranslatableWidget):
         """重新翻译主界面"""
         try:
             if hasattr(self, 'editButton'):
-                self.editButton.setText(tr("home.edit"))
+                self.editButton.setText(tr("home.edit"))  # 编辑
             if hasattr(self, 'countdownAddButton'):
-                self.countdownAddButton.setText(tr("home.add"))
+                self.countdownAddButton.setText(tr("home.add"))  # 添加
             if hasattr(self, 'countdownEditButton'):
-                self.countdownEditButton.setText(tr("home.edit"))
+                self.countdownEditButton.setText(tr("home.edit"))  # 编辑
             if hasattr(self, 'countdownDeleteButton'):
-                self.countdownDeleteButton.setText(tr("home.delete"))
+                self.countdownDeleteButton.setText(tr("home.delete"))  # 删除
             if hasattr(self, 'quickLaunchEditButton'):
-                self.quickLaunchEditButton.setText(tr("home.edit_apps"))
+                self.quickLaunchEditButton.setText(tr("home.edit_apps"))  # 编辑应用
             if hasattr(self, 'quickLaunchShowLabelsSwitch'):
-                self.quickLaunchShowLabelsSwitch.setOffText(tr("common.off"))
-                self.quickLaunchShowLabelsSwitch.setOnText(tr("common.on"))
+                self.quickLaunchShowLabelsSwitch.setOffText(tr("common.off"))  # 关
+                self.quickLaunchShowLabelsSwitch.setOnText(tr("common.on"))  # 开
 
-            logger.info(tr("home.retranslate_complete"))
+            logger.info(tr("home.retranslate_complete"))  # 主界面翻译更新完成
         except Exception as e:
             logger.error(f"更新主界面翻译失败: {e}")
 
@@ -920,7 +920,7 @@ class HomeInterface(QWidget, TranslatableWidget):
                 return f"{title}{connector}{text}"
 
         if target_date == now_date and total_seconds < 0:
-            return fmt(tr("time.today"))
+            return fmt(tr("time.today"))  # 就在今天
         elif total_seconds > 0:
             days = total_seconds // 86400
             hours = (total_seconds % 86400) // 3600
@@ -936,7 +936,7 @@ class HomeInterface(QWidget, TranslatableWidget):
                 time_text = tr("time.minutes_seconds", m=minutes, s=seconds)
             else:
                 time_text = tr("time.seconds", s=seconds)
-            return fmt(time_text, tr("time.remaining"))
+            return fmt(time_text, tr("time.remaining"))  # 仅剩{text}
         else:
             past_days = abs(total_seconds) // 86400
             return fmt(tr("time.elapsed", n=past_days))
@@ -1369,13 +1369,13 @@ class EditPanel(QWidget):
         v.setContentsMargins(16, 16, 16, 16)
         v.setSpacing(12)
         titleLayout = QHBoxLayout()
-        titleLabel = StrongBodyLabel(tr("home.edit_panel"), self)
+        titleLabel = StrongBodyLabel(tr("home.edit_panel"), self)  # 编辑面板
         titleLayout.addWidget(titleLabel)
         titleLayout.addStretch()
 
         self.positionButton = ToolButton(parent=self)
         self.positionButton.setFixedSize(32, 32)
-        self.positionButton.setToolTip(tr("home.switch_to_left"))
+        self.positionButton.setToolTip(tr("home.switch_to_left"))  # 切换到左侧
         self.positionButton.setIcon(FIF.CARE_LEFT_SOLID)
         self.positionButton.clicked.connect(self._togglePosition)
         titleLayout.addWidget(self.positionButton)
@@ -1409,7 +1409,7 @@ class EditPanel(QWidget):
 
         v.addStretch()
 
-        self.closeButton = PushButton(tr("common.close"), self, icon=FIF.CLOSE)
+        self.closeButton = PushButton(tr("common.close"), self, icon=FIF.CLOSE)  # 关闭
         self.closeButton.setFixedHeight(36)
         v.addWidget(self.closeButton)
         self.closeButton.clicked.connect(self.hidePanel)
@@ -1575,9 +1575,9 @@ class EditPanel(QWidget):
         except TypeError:
             pass
         if value == 'https://api.imlcd.cn/yy/api.php':
-            self.poetryApiCombo.setCurrentText(tr("home.yiyan_api"))
+            self.poetryApiCombo.setCurrentText(tr("home.yiyan_api"))  # 一言 API  # 一言 API  # 一言 API  # 一言 API  # 一言 API  # 一言 API
         elif value == 'https://www.ffapi.cn/int/v1/shici':
-            self.poetryApiCombo.setCurrentText(tr("home.poetry_api"))
+            self.poetryApiCombo.setCurrentText(tr("home.poetry_api"))  # 诗词 API  # 诗词 API  # 诗词 API  # 诗词 API  # 诗词 API
         else:
             self.poetryApiCombo.setCurrentText(tr("home.yiyan_api"))
         self.poetryApiCombo.currentTextChanged.connect(self._onPoetryApiChanged)
@@ -1621,10 +1621,10 @@ class EditPanel(QWidget):
         self.cityButton.setText(value)
 
     def _createTimeSettings(self, layout):
-        titleLabel = StrongBodyLabel(tr("home.time_settings"), self)
+        titleLabel = StrongBodyLabel(tr("home.time_settings"), self)  # 时间设置
         layout.addWidget(titleLabel)
         enableLayout = QHBoxLayout()
-        enableLabel = BodyLabel(tr("home.enable_clock"), self)
+        enableLabel = BodyLabel(tr("home.enable_clock"), self)  # 启用时钟
         enableLabel.setFixedWidth(100)
         enableLayout.addWidget(enableLabel)
         self.showClockSwitch = SwitchButton(self)
@@ -1633,7 +1633,7 @@ class EditPanel(QWidget):
         enableLayout.addWidget(self.showClockSwitch)
         layout.addLayout(enableLayout)
         secondsLayout = QHBoxLayout()
-        secondsLabel = BodyLabel(tr("home.show_seconds"), self)
+        secondsLabel = BodyLabel(tr("home.show_seconds"), self)  # 显示秒针
         secondsLabel.setFixedWidth(100)
         secondsLayout.addWidget(secondsLabel)
         self.showSecondsSwitch = SwitchButton(self)
@@ -1642,7 +1642,7 @@ class EditPanel(QWidget):
         secondsLayout.addWidget(self.showSecondsSwitch)
         layout.addLayout(secondsLayout)
         lunarLayout = QHBoxLayout()
-        lunarLabel = BodyLabel(tr("home.show_lunar"), self)
+        lunarLabel = BodyLabel(tr("home.show_lunar"), self)  # 显示农历
         lunarLabel.setFixedWidth(100)
         lunarLayout.addWidget(lunarLabel)
         self.showLunarSwitch = SwitchButton(self)
@@ -1651,18 +1651,18 @@ class EditPanel(QWidget):
         lunarLayout.addWidget(self.showLunarSwitch)
         layout.addLayout(lunarLayout)
         colorLayout = QHBoxLayout()
-        colorLabel = BodyLabel(tr("home.clock_color"), self)
+        colorLabel = BodyLabel(tr("home.clock_color"), self)  # 时钟颜色
         colorLabel.setFixedWidth(100)
         colorLayout.addWidget(colorLabel)
         self.clockColorCombo = ComboBox(self)
-        self.clockColorCombo.addItems([tr("home.primary_color"), tr("color.white"), tr("color.black")])
+        self.clockColorCombo.addItems([tr("home.primary_color"), tr("color.white"), tr("color.black")])  # 主要颜色 / 白色 / 黑色
         self.clockColorCombo.setCurrentText(self._getColorText(cfg.clockColor.value))
         self.clockColorCombo.setFixedWidth(120)
         self.clockColorCombo.currentTextChanged.connect(self._onClockColorChanged)
         colorLayout.addWidget(self.clockColorCombo)
         layout.addLayout(colorLayout)
         clockSizeLayout = QHBoxLayout()
-        clockSizeLabel = BodyLabel(tr("home.clock_size"), self)
+        clockSizeLabel = BodyLabel(tr("home.clock_size"), self)  # 时钟大小
         clockSizeLabel.setFixedWidth(100)
         clockSizeLayout.addWidget(clockSizeLabel)
         self.clockSizeSpin = SpinBox(self)
@@ -1673,7 +1673,7 @@ class EditPanel(QWidget):
         clockSizeLayout.addWidget(self.clockSizeSpin)
         layout.addLayout(clockSizeLayout)
         dateSizeLayout = QHBoxLayout()
-        dateSizeLabel = BodyLabel(tr("home.date_size"), self)
+        dateSizeLabel = BodyLabel(tr("home.date_size"), self)  # 日期大小
         dateSizeLabel.setFixedWidth(100)
         dateSizeLayout.addWidget(dateSizeLabel)
         self.dateSizeSpin = SpinBox(self)
@@ -1685,10 +1685,10 @@ class EditPanel(QWidget):
         layout.addLayout(dateSizeLayout)
 
     def _createPoetrySettings(self, layout):
-        titleLabel = StrongBodyLabel(tr("home.poetry_settings"), self)
+        titleLabel = StrongBodyLabel(tr("home.poetry_settings"), self)  # 一言设置
         layout.addWidget(titleLabel)
         enableLayout = QHBoxLayout()
-        enableLabel = BodyLabel(tr("home.enable_poetry"), self)
+        enableLabel = BodyLabel(tr("home.enable_poetry"), self)  # 启用一言
         enableLabel.setFixedWidth(100)
         enableLayout.addWidget(enableLabel)
         self.showPoetrySwitch = SwitchButton(self)
@@ -1697,13 +1697,13 @@ class EditPanel(QWidget):
         enableLayout.addWidget(self.showPoetrySwitch)
         layout.addLayout(enableLayout)
         apiLayout = QHBoxLayout()
-        apiLabel = BodyLabel(tr("home.poetry_api_url"), self)
+        apiLabel = BodyLabel(tr("home.poetry_api_url"), self)  # 一言 API 地址
         apiLabel.setFixedWidth(100)
         apiLayout.addWidget(apiLabel)
         self.poetryApiCombo = ComboBox(self)
         self.poetryApiCombo.addItems([
-            tr("home.yiyan_api"),
-            tr("home.poetry_api")
+            tr("home.yiyan_api"),  # 一言 API
+            tr("home.poetry_api")  # 诗词 API
         ])
         if cfg.poetryApiUrl.value == 'https://www.ffapi.cn/int/v1/shici':
             self.poetryApiCombo.setCurrentText(tr("home.poetry_api"))
@@ -1714,7 +1714,7 @@ class EditPanel(QWidget):
         apiLayout.addWidget(self.poetryApiCombo)
         layout.addLayout(apiLayout)
         poetrySizeLayout = QHBoxLayout()
-        poetrySizeLabel = BodyLabel(tr("home.poetry_size"), self)
+        poetrySizeLabel = BodyLabel(tr("home.poetry_size"), self)  # 一言大小
         poetrySizeLabel.setFixedWidth(100)
         poetrySizeLayout.addWidget(poetrySizeLabel)
         self.poetrySizeSpin = SpinBox(self)
@@ -1725,11 +1725,11 @@ class EditPanel(QWidget):
         poetrySizeLayout.addWidget(self.poetrySizeSpin)
         layout.addLayout(poetrySizeLayout)
         poetryIntervalLayout = QHBoxLayout()
-        poetryIntervalLabel = BodyLabel(tr("home.poetry_update_interval"), self)
+        poetryIntervalLabel = BodyLabel(tr("home.poetry_update_interval"), self)  # 一言更新间隔
         poetryIntervalLabel.setFixedWidth(100)
         poetryIntervalLayout.addWidget(poetryIntervalLabel)
         self.poetryUpdateIntervalCombo = ComboBox(self)
-        self.poetryUpdateIntervalCombo.addItems([tr("time.never"), tr("time.minutes_5"), tr("time.minutes_10"), tr("time.minutes_30"), tr("time.hour_1"), tr("time.hours_3"), tr("time.hours_6"), tr("time.hours_12"), tr("time.day_1")])
+        self.poetryUpdateIntervalCombo.addItems([tr("time.never"), tr("time.minutes_5"), tr("time.minutes_10"), tr("time.minutes_30"), tr("time.hour_1"), tr("time.hours_3"), tr("time.hours_6"), tr("time.hours_12"), tr("time.day_1")])  # 从不 / 5 分钟 / 10 分钟 / 30 分钟 / 1 小时 / 3 小时 / 6 小时 / 12 小时 / 1 天
         self.poetryUpdateIntervalCombo.setCurrentText(cfg.poetryUpdateInterval.value)
         self.poetryUpdateIntervalCombo.setFixedWidth(120)
         self.poetryUpdateIntervalCombo.currentTextChanged.connect(self._onPoetryUpdateIntervalChanged)
@@ -1738,10 +1738,10 @@ class EditPanel(QWidget):
 
     def _createWeatherSettings(self, layout):
         """创建天气设置部分"""
-        titleLabel = StrongBodyLabel(tr("home.weather_settings"), self)
+        titleLabel = StrongBodyLabel(tr("home.weather_settings"), self)  # 天气设置
         layout.addWidget(titleLabel)
         enableLayout = QHBoxLayout()
-        enableLabel = BodyLabel(tr("home.enable_weather"), self)
+        enableLabel = BodyLabel(tr("home.enable_weather"), self)  # 启用天气
         enableLabel.setFixedWidth(100)
         enableLayout.addWidget(enableLabel)
         self.showWeatherSwitch = SwitchButton(self)
@@ -1750,7 +1750,7 @@ class EditPanel(QWidget):
         enableLayout.addWidget(self.showWeatherSwitch)
         layout.addLayout(enableLayout)
         cityLayout = QHBoxLayout()
-        cityLabel = BodyLabel(tr("home.city"), self)
+        cityLabel = BodyLabel(tr("home.city"), self)  # 城市
         cityLabel.setFixedWidth(100)
         cityLayout.addWidget(cityLabel)
         self.cityButton = PushButton(cfg.city.value, self)
@@ -1760,7 +1760,7 @@ class EditPanel(QWidget):
         cityLayout.addWidget(self.cityButton)
         layout.addLayout(cityLayout)
         weatherSizeLayout = QHBoxLayout()
-        weatherSizeLabel = BodyLabel(tr("home.weather_text_size"), self)
+        weatherSizeLabel = BodyLabel(tr("home.weather_text_size"), self)  # 天气文字大小
         weatherSizeLabel.setFixedWidth(100)
         weatherSizeLayout.addWidget(weatherSizeLabel)
         self.weatherSizeSpin = SpinBox(self)
@@ -1771,7 +1771,7 @@ class EditPanel(QWidget):
         weatherSizeLayout.addWidget(self.weatherSizeSpin)
         layout.addLayout(weatherSizeLayout)
         iconSizeLayout = QHBoxLayout()
-        iconSizeLabel = BodyLabel(tr("home.weather_icon_size"), self)
+        iconSizeLabel = BodyLabel(tr("home.weather_icon_size"), self)  # 天气图标大小
         iconSizeLabel.setFixedWidth(100)
         iconSizeLayout.addWidget(iconSizeLabel)
         self.weatherIconSizeSpin = SpinBox(self)
@@ -1782,11 +1782,11 @@ class EditPanel(QWidget):
         iconSizeLayout.addWidget(self.weatherIconSizeSpin)
         layout.addLayout(iconSizeLayout)
         weatherIntervalLayout = QHBoxLayout()
-        weatherIntervalLabel = BodyLabel(tr("home.weather_update_interval"), self)
+        weatherIntervalLabel = BodyLabel(tr("home.weather_update_interval"), self)  # 天气更新间隔
         weatherIntervalLabel.setFixedWidth(100)
         weatherIntervalLayout.addWidget(weatherIntervalLabel)
         self.weatherUpdateIntervalCombo = ComboBox(self)
-        self.weatherUpdateIntervalCombo.addItems([tr("time.never"), tr("time.minutes_5"), tr("time.minutes_15"), tr("time.minutes_30"), tr("time.hour_1"), tr("time.hours_3"), tr("time.hours_6"), tr("time.hours_12"), tr("time.hours_24")])
+        self.weatherUpdateIntervalCombo.addItems([tr("time.never"), tr("time.minutes_5"), tr("time.minutes_15"), tr("time.minutes_30"), tr("time.hour_1"), tr("time.hours_3"), tr("time.hours_6"), tr("time.hours_12"), tr("time.hours_24")])  # 从不 / 5 分钟 / 15 分钟 / 30 分钟 / 1 小时 / 3 小时 / 6 小时 / 12 小时 / 24 小时
         self.weatherUpdateIntervalCombo.setCurrentText(cfg.weatherUpdateInterval.value)
         self.weatherUpdateIntervalCombo.setFixedWidth(120)
         self.weatherUpdateIntervalCombo.currentTextChanged.connect(self._onWeatherUpdateIntervalChanged)
@@ -1905,26 +1905,26 @@ class EditPanel(QWidget):
     def _getColorText(self, color, default='main'):
         """获取颜色文本表示"""
         if not hasattr(color, 'name'):
-            if default == 'red':return tr("color.red")
-            elif default == 'white':return tr("color.white")
-            return tr("home.primary_color")
+            if default == 'red':return tr("color.red")  # 红色
+            elif default == 'white':return tr("color.white")  # 白色
+            return tr("home.primary_color")  # 主要颜色
         color_hex = color.name().upper()
         try:
             theme_color = cfg.themeColor.value
             if hasattr(theme_color, 'name'):
                 theme_hex = theme_color.name().upper()
-                if theme_hex == color_hex:return tr("home.primary_color")
+                if theme_hex == color_hex:return tr("home.primary_color")  # 主要颜色
         except Exception:pass
-        if color_hex == '#FF0000':return tr("color.red")
-        elif color_hex == '#FFFFFF':return tr("color.white")
-        elif color_hex == '#000000':return tr("color.black")
-        return tr("home.primary_color")
+        if color_hex == '#FF0000':return tr("color.red")  # 红色
+        elif color_hex == '#FFFFFF':return tr("color.white")  # 白色
+        elif color_hex == '#000000':return tr("color.black")  # 黑色
+        return tr("home.primary_color")  # 主要颜色
 
     def _onClockColorChanged(self, text: str):
         """时钟颜色变化"""
 
-        if text == tr("color.white"):cfg.clockColor.value = "#FFFFFF"
-        elif text == tr("color.black"):cfg.clockColor.value = "#000000"
+        if text == tr("color.white"):cfg.clockColor.value = "#FFFFFF"  # 白色
+        elif text == tr("color.black"):  # 黑色  # 黑色  # 黑色cfg.clockColor.value = "#000000"  # 黑色
         else:cfg.clockColor.value = cfg.themeColor.value.name() if hasattr(cfg.themeColor.value, 'name') else str(cfg.themeColor.value)
 
         if hasattr(self.mainWindow, 'updateClockStyle'):self.mainWindow.updateClockStyle()
@@ -1954,9 +1954,9 @@ class EditPanel(QWidget):
 
     def _onPoetryApiChanged(self, text: str):
         """一言 API 地址变化"""
-        if text == tr("home.yiyan_api"):
+        if text == tr("home.yiyan_api"):  # 一言 API
             cfg.poetryApiUrl.value = 'https://api.imlcd.cn/yy/api.php'
-        elif text == tr("home.poetry_api"):
+        elif text == tr("home.poetry_api"):  # 诗词 API
             cfg.poetryApiUrl.value = 'https://www.ffapi.cn/int/v1/shici'
         else:
             cfg.poetryApiUrl.value = 'https://api.imlcd.cn/yy/api.php'
@@ -2017,10 +2017,10 @@ class EditPanel(QWidget):
         self.isLeftSide = not self.isLeftSide
         if self.isLeftSide:
             self.positionButton.setIcon(FIF.CARE_RIGHT_SOLID)
-            self.positionButton.setToolTip(tr("home.switch_to_right"))
+            self.positionButton.setToolTip(tr("home.switch_to_right"))  # 切换到右侧
         else:
             self.positionButton.setIcon(FIF.CARE_LEFT_SOLID)
-            self.positionButton.setToolTip(tr("home.switch_to_left"))
+            self.positionButton.setToolTip(tr("home.switch_to_left"))  # 切换到左侧
         if hasattr(self.mainWindow, '_MainWindow__updateEditButtonPosition'):
             self.mainWindow._MainWindow__updateEditButtonPosition()
 
@@ -2040,11 +2040,11 @@ class EditPanel(QWidget):
         """创建倒计时设置"""
         layout.setSpacing(8)
 
-        titleLabel = StrongBodyLabel(tr("home.countdown_settings"), self)
+        titleLabel = StrongBodyLabel(tr("home.countdown_settings"), self)  # 倒计时设置
         layout.addWidget(titleLabel)
 
         enableLayout = QHBoxLayout()
-        enableLabel = BodyLabel(tr("home.enable_countdown"), self)
+        enableLabel = BodyLabel(tr("home.enable_countdown"), self)  # 启用倒计时
         enableLabel.setFixedWidth(100)
         enableLayout.addWidget(enableLabel)
         self.showCountdownSwitch = SwitchButton(self)
@@ -2055,11 +2055,11 @@ class EditPanel(QWidget):
 
         # 文字颜色
         textColorLayout = QHBoxLayout()
-        textColorLabel = BodyLabel(tr("home.text_color"), self)
+        textColorLabel = BodyLabel(tr("home.text_color"), self)  # 文字颜色  # 文字颜色
         textColorLabel.setFixedWidth(100)
         textColorLayout.addWidget(textColorLabel)
         self.countdownTextColorCombo = ComboBox(self)
-        self.countdownTextColorCombo.addItems([tr("color.red"), tr("color.white"), tr("color.black"), tr("home.primary_color")])
+        self.countdownTextColorCombo.addItems([tr("color.red"), tr("color.white"), tr("color.black"), tr("home.primary_color")])  # 红色 / 白色 / 黑色 / 主要颜色
         self.countdownTextColorCombo.setCurrentText(self._getColorText(cfg.countdownTextColor.value, 'red'))
         self.countdownTextColorCombo.setFixedWidth(120)
         self.countdownTextColorCombo.currentTextChanged.connect(self._onCountdownTextColorChanged)
@@ -2068,11 +2068,11 @@ class EditPanel(QWidget):
 
         # 连接词颜色
         connectorColorLayout = QHBoxLayout()
-        connectorColorLabel = BodyLabel(tr("home.connector_color"), self)
+        connectorColorLabel = BodyLabel(tr("home.connector_color"), self)  # 连接符颜色
         connectorColorLabel.setFixedWidth(100)
         connectorColorLayout.addWidget(connectorColorLabel)
         self.countdownConnectorColorCombo = ComboBox(self)
-        self.countdownConnectorColorCombo.addItems([tr("color.red"), tr("color.white"), tr("color.black"), tr("home.primary_color")])
+        self.countdownConnectorColorCombo.addItems([tr("color.red"), tr("color.white"), tr("color.black"), tr("home.primary_color")])  # 红色 / 白色 / 黑色 / 主要颜色
         self.countdownConnectorColorCombo.setCurrentText(self._getColorText(cfg.countdownConnectorColor.value, 'white'))
         self.countdownConnectorColorCombo.setFixedWidth(120)
         self.countdownConnectorColorCombo.currentTextChanged.connect(self._onCountdownConnectorColorChanged)
@@ -2081,7 +2081,7 @@ class EditPanel(QWidget):
 
         # 文字大小
         textSizeLayout = QHBoxLayout()
-        textSizeLabel = BodyLabel(tr("home.text_size"), self)
+        textSizeLabel = BodyLabel(tr("home.text_size"), self)  # 文字大小  # 文字大小
         textSizeLabel.setFixedWidth(100)
         textSizeLayout.addWidget(textSizeLabel)
         self.countdownTextSizeSpin = SpinBox(self)
@@ -2094,7 +2094,7 @@ class EditPanel(QWidget):
 
         # 连接词大小
         connectorSizeLayout = QHBoxLayout()
-        connectorSizeLabel = BodyLabel(tr("home.connector_size"), self)
+        connectorSizeLabel = BodyLabel(tr("home.connector_size"), self)  # 连接符大小
         connectorSizeLabel.setFixedWidth(100)
         connectorSizeLayout.addWidget(connectorSizeLabel)
         self.countdownConnectorSizeSpin = SpinBox(self)
@@ -2107,12 +2107,12 @@ class EditPanel(QWidget):
 
         # 显示模式
         displayModeLayout = QHBoxLayout()
-        displayModeLabel = BodyLabel(tr("home.display_mode"), self)
+        displayModeLabel = BodyLabel(tr("home.display_mode"), self)  # 显示模式
         displayModeLabel.setFixedWidth(100)
         displayModeLayout.addWidget(displayModeLabel)
         self.countdownDisplayModeCombo = ComboBox(self)
-        self.countdownDisplayModeCombo.addItems([tr("home.simultaneous"), tr("home.carousel")])
-        self.countdownDisplayModeCombo.setCurrentText(tr("home.simultaneous") if cfg.countdownDisplayMode.value == 'simultaneous' else tr("home.carousel"))
+        self.countdownDisplayModeCombo.addItems([tr("home.simultaneous"), tr("home.carousel")])  # 同时显示 / 轮播显示
+        self.countdownDisplayModeCombo.setCurrentText(tr("home.simultaneous") if cfg.countdownDisplayMode.value == 'simultaneous' else tr("home.carousel"))  # 同时显示 / 轮播显示  # 同时显示 / 轮播显示
         self.countdownDisplayModeCombo.setFixedWidth(120)
         self.countdownDisplayModeCombo.currentTextChanged.connect(self._onCountdownDisplayModeChanged)
         displayModeLayout.addWidget(self.countdownDisplayModeCombo)
@@ -2120,7 +2120,7 @@ class EditPanel(QWidget):
 
         # 轮播间隔
         carouselIntervalLayout = QHBoxLayout()
-        carouselIntervalLabel = BodyLabel(tr("home.carousel_interval"), self)
+        carouselIntervalLabel = BodyLabel(tr("home.carousel_interval"), self)  # 轮播间隔
         carouselIntervalLabel.setFixedWidth(100)
         carouselIntervalLayout.addWidget(carouselIntervalLabel)
         self.countdownCarouselIntervalSpin = SpinBox(self)
@@ -2132,16 +2132,16 @@ class EditPanel(QWidget):
         layout.addLayout(carouselIntervalLayout)
 
         actionLayout = QHBoxLayout()
-        actionLabel = BodyLabel(tr("home.countdown_actions"), self)
+        actionLabel = BodyLabel(tr("home.countdown_actions"), self)  # 倒计时操作
         actionLabel.setFixedWidth(100)
         actionLayout.addWidget(actionLabel)
-        self.countdownAddButton = PushButton(FIF.ADD, tr("home.add"), self)
+        self.countdownAddButton = PushButton(FIF.ADD, tr("home.add"), self)  # 添加
         self.countdownAddButton.clicked.connect(self._onCountdownAddClicked)
         actionLayout.addWidget(self.countdownAddButton)
-        self.countdownEditButton = PushButton(FIF.EDIT, tr("home.edit"), self)
+        self.countdownEditButton = PushButton(FIF.EDIT, tr("home.edit"), self)  # 编辑
         self.countdownEditButton.clicked.connect(self._onCountdownEditClicked)
         actionLayout.addWidget(self.countdownEditButton)
-        self.countdownDeleteButton = PushButton(FIF.DELETE, tr("home.delete"), self)
+        self.countdownDeleteButton = PushButton(FIF.DELETE, tr("home.delete"), self)  # 删除
         self.countdownDeleteButton.clicked.connect(self._onCountdownDeleteClicked)
         actionLayout.addWidget(self.countdownDeleteButton)
         actionLayout.addStretch()
@@ -2153,7 +2153,7 @@ class EditPanel(QWidget):
         cardLayout.setContentsMargins(16, 12, 16, 12)
         cardLayout.setSpacing(10)
 
-        listLabel = StrongBodyLabel(tr("home.countdown_list"), self)
+        listLabel = StrongBodyLabel(tr("home.countdown_list"), self)  # 倒计时列表
         cardLayout.addWidget(listLabel)
 
         self.countdownListWidget = ListWidget(self.countdownListCard)
@@ -2172,7 +2172,7 @@ class EditPanel(QWidget):
             self.countdownDisplayModeCombo.currentTextChanged.disconnect(self._onCountdownDisplayModeChanged)
         except TypeError:
             pass
-        self.countdownDisplayModeCombo.setCurrentText(tr("home.simultaneous") if value == 'simultaneous' else tr("home.carousel"))
+        self.countdownDisplayModeCombo.setCurrentText(tr("home.simultaneous") if value == 'simultaneous' else tr("home.carousel"))  # 同时显示 / 轮播显示
         self.countdownDisplayModeCombo.currentTextChanged.connect(self._onCountdownDisplayModeChanged)
 
     def _updateCountdownTextSizeSpin(self, value):
@@ -2260,7 +2260,7 @@ class EditPanel(QWidget):
         logger.info(f"倒计时设置：启用倒计时={'开启' if checked else '关闭'}")
 
     def _onCountdownDisplayModeChanged(self, text: str):
-        cfg.countdownDisplayMode.value = 'simultaneous' if text == tr("home.simultaneous") else 'carousel'
+        cfg.countdownDisplayMode.value = 'simultaneous' if text == tr("home.simultaneous") else 'carousel'  # 同时显示 / 轮播显示
         if hasattr(self.mainWindow, '_MainWindow__updateCountdown'):
             self.mainWindow._MainWindow__updateCountdown()
         logger.info(f"倒计时设置：显示模式={text}")
@@ -2303,7 +2303,7 @@ class EditPanel(QWidget):
     def _onCountdownEditClicked(self):
         current_row = self.countdownListWidget.currentRow()
         if current_row < 0:
-            InfoBar.warning(tr("home.edit_countdown"), tr("home.select_countdown_first"), parent=self, duration=3000)
+            InfoBar.warning(tr("home.edit_countdown"), tr("home.select_countdown_first"), parent=self, duration=3000)  # 编辑倒计时 / 请先选择一个倒计时
             return
         countdown_list = cfg.countdownList.value or []
         if current_row >= len(countdown_list):
@@ -2326,7 +2326,7 @@ class EditPanel(QWidget):
     def _onCountdownDeleteClicked(self):
         current_row = self.countdownListWidget.currentRow()
         if current_row < 0:
-            InfoBar.warning(tr("home.delete_countdown"), tr("home.select_countdown_first"), parent=self, duration=3000)
+            InfoBar.warning(tr("home.delete_countdown"), tr("home.select_countdown_first"), parent=self, duration=3000)  # 删除倒计时 / 请先选择一个倒计时
             return
         countdown_list = cfg.countdownList.value or []
         if current_row >= len(countdown_list):
@@ -2345,9 +2345,9 @@ class EditPanel(QWidget):
     def _onCountdownTextColorChanged(self, text: str):
         """倒计时文字颜色变化"""
 
-        if text == tr("color.red"):
+        if text == tr("color.red"):  # 红色  # 红色
             cfg.countdownTextColor.value = "#FF0000"
-        elif text == tr("color.white"):
+        elif text == tr("color.white"):  # 白色
             cfg.countdownTextColor.value = "#FFFFFF"
         elif text == tr("color.black"):
             cfg.countdownTextColor.value = "#000000"
@@ -2399,7 +2399,7 @@ class EditPanel(QWidget):
             cfg.schoolInfoTextColor.value = "#FFFFFF"
         elif text == tr("color.black"):
             cfg.schoolInfoTextColor.value = "#000000"
-        elif text == tr("color.red"):
+        elif text == tr("color.red"):  # 红色
             cfg.schoolInfoTextColor.value = "#FF0000"
         else:
             cfg.schoolInfoTextColor.value = cfg.themeColor.value.name() if hasattr(cfg.themeColor.value, 'name') else str(cfg.themeColor.value)
@@ -2498,11 +2498,11 @@ class EditPanel(QWidget):
 
     def _createSchoolInfoSettings(self, layout):
         """创建学校信息设置"""
-        titleLabel = StrongBodyLabel(tr("home.school_info"), self)
+        titleLabel = StrongBodyLabel(tr("home.school_info"), self)  # 学校信息
         layout.addWidget(titleLabel)
 
         enableLayout = QHBoxLayout()
-        enableLabel = BodyLabel(tr("home.enable_school_info"), self)
+        enableLabel = BodyLabel(tr("home.enable_school_info"), self)  # 启用学校信息
         enableLabel.setFixedWidth(100)
         enableLayout.addWidget(enableLabel)
         self.schoolInfoSwitch = SwitchButton(self)
@@ -2512,24 +2512,24 @@ class EditPanel(QWidget):
         layout.addLayout(enableLayout)
 
         schoolClassLayout = QHBoxLayout()
-        schoolClassLabel = BodyLabel(tr("home.class_name"), self)
+        schoolClassLabel = BodyLabel(tr("home.class_name"), self)  # 班级名称
         schoolClassLabel.setFixedWidth(100)
         schoolClassLayout.addWidget(schoolClassLabel)
         self.schoolClassEdit = LineEdit(self)
         self.schoolClassEdit.setText(cfg.schoolClass.value)
-        self.schoolClassEdit.setPlaceholderText(tr("home.class_name_example"))
+        self.schoolClassEdit.setPlaceholderText(tr("home.class_name_example"))  # 例如：高三(1)班
         self.schoolClassEdit.setFixedWidth(120)
         self.schoolClassEdit.textChanged.connect(self._onSchoolClassChanged)
         schoolClassLayout.addWidget(self.schoolClassEdit)
         layout.addLayout(schoolClassLayout)
 
         schoolLayout = QHBoxLayout()
-        schoolLabel = BodyLabel(tr("home.school_name"), self)
+        schoolLabel = BodyLabel(tr("home.school_name"), self)  # 学校名称
         schoolLabel.setFixedWidth(100)
         schoolLayout.addWidget(schoolLabel)
         self.schoolEdit = LineEdit(self)
         self.schoolEdit.setText(cfg.school.value)
-        self.schoolEdit.setPlaceholderText(tr("home.school_name_example"))
+        self.schoolEdit.setPlaceholderText(tr("home.school_name_example"))  # 例如：XX中学
         self.schoolEdit.setFixedWidth(120)
         self.schoolEdit.textChanged.connect(self._onSchoolChanged)
         schoolLayout.addWidget(self.schoolEdit)
@@ -2540,7 +2540,7 @@ class EditPanel(QWidget):
         textColorLabel.setFixedWidth(100)
         textColorLayout.addWidget(textColorLabel)
         self.schoolInfoTextColorCombo = ComboBox(self)
-        self.schoolInfoTextColorCombo.addItems([tr("color.white"), tr("color.black"), tr("color.red"), tr("color.primary")])
+        self.schoolInfoTextColorCombo.addItems([tr("color.white"), tr("color.black"), tr("color.red"), tr("color.primary")])  # 白色 / 黑色 / 红色 / 主要颜色
         self.schoolInfoTextColorCombo.setCurrentText(self._getColorText(cfg.schoolInfoTextColor.value, 'white'))
         self.schoolInfoTextColorCombo.setFixedWidth(120)
         self.schoolInfoTextColorCombo.currentTextChanged.connect(self._onSchoolInfoTextColorChanged)
@@ -2561,7 +2561,7 @@ class EditPanel(QWidget):
 
     def _createQuickLaunchSettings(self, layout):
         """创建快捷启动栏设置"""
-        titleLabel = StrongBodyLabel(tr("home.quick_launch_bar"), self)
+        titleLabel = StrongBodyLabel(tr("home.quick_launch_bar"), self)  # 快捷启动栏
         layout.addWidget(titleLabel)
 
         enableLayout = QHBoxLayout()

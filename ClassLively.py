@@ -158,7 +158,7 @@ class SplashScreen(QWidget, TranslatableWidget):
         header_layout.addLayout(title_layout)
         header_layout.addStretch()
         content_layout.addLayout(header_layout)
-        self.status_label = BodyLabel(tr("splash.initializing"))
+        self.status_label = BodyLabel(tr("splash.initializing"))  # 正在初始化...
         self.status_label.setObjectName("statusLabel")
         content_layout.addWidget(self.status_label)
         content_layout.addStretch(1)
@@ -254,7 +254,7 @@ class SplashScreen(QWidget, TranslatableWidget):
 
     def retranslateUi(self):
         if hasattr(self, 'status_label'):
-            self.status_label.setText(tr("splash.initializing"))
+            self.status_label.setText(tr("splash.initializing"))  # 正在初始化...
 
 
 # ==================== WizardWindow 向导窗口 ====================
@@ -282,7 +282,7 @@ from ui.common import show_text_file
 class WizardWindow(QDialog, TranslatableWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(tr("wizard.title"))
+        self.setWindowTitle(tr("wizard.title"))  # ClassLively 向导
         self.setFixedSize(840, 650)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
 
@@ -329,13 +329,13 @@ class WizardWindow(QDialog, TranslatableWidget):
             pixmap = QPixmap(icon_path)
             self.iconLabel.setPixmap(pixmap.scaled(112, 112, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
 
-        self.welcomeLabel = StrongBodyLabel(tr("wizard.welcome"), self.page1)
+        self.welcomeLabel = StrongBodyLabel(tr("wizard.welcome"), self.page1)  # ClassLively
         self.welcomeLabel.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
         self.welcomeLabel.setTextFormat(Qt.TextFormat.RichText)
         self.welcomeLabel.setText('<span style="font-family:\'HarmonyOS Sans\',\'Microsoft YaHei\',\'SimHei\',sans-serif; font-weight:900; font-size:34px;">ClassLively</span>')
         self.welcomeLabel.setObjectName("welcomeLabel")
 
-        self.nextButton = PrimaryPushButton(FIF.RIGHT_ARROW, tr("wizard.next"), self.page1)
+        self.nextButton = PrimaryPushButton(FIF.RIGHT_ARROW, tr("wizard.next"), self.page1)  # 继续
         self.nextButton.setFixedHeight(36)
 
         self.headerLayout = QHBoxLayout()
@@ -354,7 +354,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         self.page2Layout.setSpacing(16)
         self.page2Layout.addSpacing(50)
 
-        self.agreementTitle = StrongBodyLabel(tr("wizard.agreement_title"), self.page2)
+        self.agreementTitle = StrongBodyLabel(tr("wizard.agreement_title"), self.page2)  # 软件使用协议
         self.agreementTitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_font = self.agreementTitle.font()
         title_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
@@ -362,7 +362,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         title_font.setBold(True)
         self.agreementTitle.setFont(title_font)
 
-        self.agreementText = BodyLabel(tr("wizard.agreement_text"), self.page2)
+        self.agreementText = BodyLabel(tr("wizard.agreement_text"), self.page2)  # 在使用本软件前，请阅读并同意以下协议：
         self.agreementText.setAlignment(Qt.AlignmentFlag.AlignCenter)
         txt_font = self.agreementText.font()
         txt_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
@@ -397,7 +397,7 @@ class WizardWindow(QDialog, TranslatableWidget):
                 uri = ""
             theme_color = cfg.themeColor.value.name()
             link_style = f'color:{theme_color}; text-decoration:underline;'
-            lbl.setText(f'<span style="font-family:\'HarmonyOS Sans\',\'Microsoft YaHei\',\'SimHei\',sans-serif; font-size:16px;">{tr("wizard.agreement_check")}&nbsp;<a href="{uri}" style="{link_style}">{link_text}</a></span>')
+            lbl.setText(f'<span style="font-family:\'HarmonyOS Sans\',\'Microsoft YaHei\',\'SimHei\',sans-serif; font-size:16px;">{tr("wizard.agreement_check")}&nbsp;<a href="{uri}" style="{link_style}">{link_text}</a></span>')  # 我已阅读并同意
             lbl.setOpenExternalLinks(False)
 
             def _on_link_activated(url):
@@ -412,7 +412,7 @@ class WizardWindow(QDialog, TranslatableWidget):
                         except Exception:
                             pass
 
-                msg = MessageBox(title=tr("wizard.exit_confirm_title"), content=tr("wizard.file_open_error", file=link_text), parent=self)
+                msg = MessageBox(title=tr("wizard.exit_confirm_title"), content=tr("wizard.file_open_error", file=link_text), parent=self)  # 提示 / 无法打开协议文件：{file}
                 msg.exec()
 
             lbl.linkActivated.connect(_on_link_activated)
@@ -432,13 +432,13 @@ class WizardWindow(QDialog, TranslatableWidget):
         readme_path = os.path.join(BASE_DIR, "README.md")
 
         self.openSourceCheckBox, open_source_widget = _make_check_with_link(
-            "", tr("wizard.open_source_license"), license_path)
+            "", tr("wizard.open_source_license"), license_path)  # 项目开源协议 (GPL-3.0)
         self.userAgreementCheckBox, user_agree_widget = _make_check_with_link(
-            "", tr("wizard.user_agreement"), readme_path)
+            "", tr("wizard.user_agreement"), readme_path)  # 用户协议
         self.privacyCheckBox, privacy_widget = _make_check_with_link(
-            "", tr("wizard.privacy_policy"), "")
+            "", tr("wizard.privacy_policy"), "")  # 隐私政策
 
-        self.agreeButton = PrimaryPushButton(FIF.ACCEPT, tr("wizard.agree"), self.page2)
+        self.agreeButton = PrimaryPushButton(FIF.ACCEPT, tr("wizard.agree"), self.page2)  # 完成
         self.agreeButton.setFixedHeight(36)
         self.agreeButton.setEnabled(False)
 
@@ -465,7 +465,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         self.page3Layout.setSpacing(16)
         self.page3Layout.addSpacing(50)
 
-        self.settingsTitle = StrongBodyLabel(tr("wizard.settings_title"), self.page3)
+        self.settingsTitle = StrongBodyLabel(tr("wizard.settings_title"), self.page3)  # 基本设置
         self.settingsTitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         settings_title_font = self.settingsTitle.font()
         settings_title_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
@@ -473,7 +473,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         settings_title_font.setBold(True)
         self.settingsTitle.setFont(settings_title_font)
 
-        self.settingsText = BodyLabel(tr("wizard.settings_text"), self.page3)
+        self.settingsText = BodyLabel(tr("wizard.settings_text"), self.page3)  # 请选择您需要的功能选项：
         self.settingsText.setAlignment(Qt.AlignmentFlag.AlignCenter)
         settings_txt_font = self.settingsText.font()
         settings_txt_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
@@ -496,7 +496,7 @@ class WizardWindow(QDialog, TranslatableWidget):
             tr("wizard.auto_start"),
             tr("wizard.auto_start_desc"),
             cfg.autoStart.value
-        )
+        )  # 开机自启动 / 设置应用在系统启动时自动运行
         settings_layout.addWidget(self.autoStartSwitch)
 
         self.autoOpenOnIdleSwitch = self._createSwitchCard(
@@ -504,7 +504,7 @@ class WizardWindow(QDialog, TranslatableWidget):
             tr("wizard.auto_open_idle"),
             tr("wizard.auto_open_idle_desc"),
             cfg.autoOpenOnIdle.value
-        )
+        )  # 空闲时自动打开 / 电脑空闲时自动从最小化打开界面
         settings_layout.addWidget(self.autoOpenOnIdleSwitch)
 
         self.autoOpenMaximizeSwitch = self._createSwitchCard(
@@ -512,7 +512,7 @@ class WizardWindow(QDialog, TranslatableWidget):
             tr("wizard.auto_open_maximize"),
             tr("wizard.auto_open_maximize_desc"),
             cfg.autoOpenMaximize.value
-        )
+        )  # 自动打开时最大化 / 空闲自动打开界面时是否最大化窗口
         settings_layout.addWidget(self.autoOpenMaximizeSwitch)
 
         self.desktopShortcutSwitch = self._createSwitchCard(
@@ -520,13 +520,13 @@ class WizardWindow(QDialog, TranslatableWidget):
             tr("wizard.desktop_shortcut"),
             tr("wizard.desktop_shortcut_desc"),
             False
-        )
+        )  # 创建桌面快捷方式 / 在桌面创建应用程序快捷方式
         settings_layout.addWidget(self.desktopShortcutSwitch)
 
         self.page3Layout.addWidget(settings_container, 0, Qt.AlignmentFlag.AlignCenter)
         self.page3Layout.addSpacing(20)
 
-        self.finishButton = PrimaryPushButton(FIF.ACCEPT, tr("wizard.finish"), self.page3)
+        self.finishButton = PrimaryPushButton(FIF.ACCEPT, tr("wizard.finish"), self.page3)  # 完成
         self.finishButton.setFixedHeight(36)
         self.page3Layout.addWidget(self.finishButton, 0, Qt.AlignmentFlag.AlignCenter)
 
@@ -539,7 +539,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         self.page4Layout.setSpacing(16)
         self.page4Layout.addSpacing(50)
 
-        self.appearanceTitle = StrongBodyLabel(tr("wizard.appearance_title"), self.page4)
+        self.appearanceTitle = StrongBodyLabel(tr("wizard.appearance_title"), self.page4)  # 外观设置
         self.appearanceTitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         appearance_title_font = self.appearanceTitle.font()
         appearance_title_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
@@ -547,7 +547,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         appearance_title_font.setBold(True)
         self.appearanceTitle.setFont(appearance_title_font)
 
-        self.appearanceText = BodyLabel(tr("wizard.appearance_text"), self.page4)
+        self.appearanceText = BodyLabel(tr("wizard.appearance_text"), self.page4)  # 选择适合您的主题和颜色：
         self.appearanceText.setAlignment(Qt.AlignmentFlag.AlignCenter)
         appearance_txt_font = self.appearanceText.font()
         appearance_txt_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
@@ -572,7 +572,7 @@ class WizardWindow(QDialog, TranslatableWidget):
             tr("wizard.theme_mode_desc"),
             texts=[tr("wizard.theme_light"), tr("wizard.theme_dark"), tr("wizard.theme_system")],
             parent=self.page4
-        )
+        )  # 应用颜色主题 / 更改应用程序的颜色外观 / 浅色 / 深色 / 使用系统设置
         self.themeCard.setFixedWidth(600)
         appearance_layout.addWidget(self.themeCard)
 
@@ -582,14 +582,14 @@ class WizardWindow(QDialog, TranslatableWidget):
             tr("wizard.primary_color"),
             tr("wizard.primary_color_desc"),
             parent=self.page4
-        )
+        )  # 主要颜色 / 更改应用程序的主要颜色
         self.themeColorCard.setFixedWidth(600)
         appearance_layout.addWidget(self.themeColorCard)
 
         self.page4Layout.addWidget(appearance_container, 0, Qt.AlignmentFlag.AlignCenter)
         self.page4Layout.addSpacing(20)
 
-        self.finishButton2 = PrimaryPushButton(FIF.ACCEPT, tr("wizard.finish"), self.page4)
+        self.finishButton2 = PrimaryPushButton(FIF.ACCEPT, tr("wizard.finish"), self.page4)  # 完成
         self.finishButton2.setFixedHeight(36)
         self.page4Layout.addWidget(self.finishButton2, 0, Qt.AlignmentFlag.AlignCenter)
 
@@ -602,7 +602,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         self.page5Layout.setSpacing(16)
         self.page5Layout.addSpacing(50)
 
-        self.schoolInfoTitle = StrongBodyLabel(tr("wizard.school_info_title"), self.page5)
+        self.schoolInfoTitle = StrongBodyLabel(tr("wizard.school_info_title"), self.page5)  # 学校信息设置
         self.schoolInfoTitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         school_info_title_font = self.schoolInfoTitle.font()
         school_info_title_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
@@ -610,7 +610,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         school_info_title_font.setBold(True)
         self.schoolInfoTitle.setFont(school_info_title_font)
 
-        self.schoolInfoText = BodyLabel(tr("wizard.school_info_text"), self.page5)
+        self.schoolInfoText = BodyLabel(tr("wizard.school_info_text"), self.page5)  # 请输入您的学校和班级信息，以及选择天气城市：
         self.schoolInfoText.setAlignment(Qt.AlignmentFlag.AlignCenter)
         school_info_txt_font = self.schoolInfoText.font()
         school_info_txt_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
@@ -635,7 +635,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         city_row_layout.setContentsMargins(16, 8, 16, 8)
         city_row_layout.setSpacing(12)
 
-        city_label = BodyLabel(tr("wizard.weather_city"), self.page5)
+        city_label = BodyLabel(tr("wizard.weather_city"), self.page5)  # 天气城市
         city_label_font = city_label.font()
         city_label_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
         city_label.setFont(city_label_font)
@@ -657,7 +657,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         school_row_layout.setContentsMargins(16, 8, 16, 8)
         school_row_layout.setSpacing(12)
 
-        school_label = BodyLabel(tr("wizard.school_name"), self.page5)
+        school_label = BodyLabel(tr("wizard.school_name"), self.page5)  # 学校名称
         school_label_font = school_label.font()
         school_label_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
         school_label.setFont(school_label_font)
@@ -666,7 +666,7 @@ class WizardWindow(QDialog, TranslatableWidget):
 
         self.schoolLineEdit = LineEdit(self.page5)
         self.schoolLineEdit.setFixedWidth(400)
-        self.schoolLineEdit.setPlaceholderText(tr("wizard.school_name_placeholder"))
+        self.schoolLineEdit.setPlaceholderText(tr("wizard.school_name_placeholder"))  # 请输入学校名称
         self.schoolLineEdit.setText(cfg.school.value)
         school_row_layout.addWidget(self.schoolLineEdit)
         school_row_layout.addStretch()
@@ -680,7 +680,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         class_row_layout.setContentsMargins(16, 8, 16, 8)
         class_row_layout.setSpacing(12)
 
-        class_label = BodyLabel(tr("wizard.class_name"), self.page5)
+        class_label = BodyLabel(tr("wizard.class_name"), self.page5)  # 班级
         class_label_font = class_label.font()
         class_label_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
         class_label.setFont(class_label_font)
@@ -689,7 +689,7 @@ class WizardWindow(QDialog, TranslatableWidget):
 
         self.classLineEdit = LineEdit(self.page5)
         self.classLineEdit.setFixedWidth(400)
-        self.classLineEdit.setPlaceholderText(tr("wizard.class_name_placeholder"))
+        self.classLineEdit.setPlaceholderText(tr("wizard.class_name_placeholder"))  # 请输入班级（如：1班、高二3班）
         self.classLineEdit.setText(cfg.schoolClass.value)
         class_row_layout.addWidget(self.classLineEdit)
         class_row_layout.addStretch()
@@ -703,7 +703,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         countdown_row_layout.setContentsMargins(16, 8, 16, 8)
         countdown_row_layout.setSpacing(12)
 
-        countdown_label = BodyLabel(tr("wizard.countdown_config"), self.page5)
+        countdown_label = BodyLabel(tr("wizard.countdown_config"), self.page5)  # 倒计时配置
         countdown_label_font = countdown_label.font()
         countdown_label_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
         countdown_label.setFont(countdown_label_font)
@@ -712,7 +712,7 @@ class WizardWindow(QDialog, TranslatableWidget):
 
         self.countdownConfigButton = ToolButton(FIF.ADD, self.page5)
         self.countdownConfigButton.setFixedSize(36, 36)
-        self.countdownConfigButton.setToolTip(tr("wizard.add_countdown"))
+        self.countdownConfigButton.setToolTip(tr("wizard.add_countdown"))  # 添加倒计时
         self.countdownConfigButton.clicked.connect(self._onCountdownConfigClicked)
         countdown_row_layout.addWidget(self.countdownConfigButton)
         countdown_row_layout.addStretch()
@@ -722,7 +722,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         self.page5Layout.addWidget(school_info_container, 0, Qt.AlignmentFlag.AlignCenter)
         self.page5Layout.addSpacing(20)
 
-        self.finishButton3 = PrimaryPushButton(FIF.ACCEPT, tr("wizard.finish"), self.page5)
+        self.finishButton3 = PrimaryPushButton(FIF.ACCEPT, tr("wizard.finish"), self.page5)  # 完成
         self.finishButton3.setFixedHeight(36)
         self.page5Layout.addWidget(self.finishButton3, 0, Qt.AlignmentFlag.AlignCenter)
 
@@ -749,7 +749,7 @@ class WizardWindow(QDialog, TranslatableWidget):
             title=tr("wizard.exit_confirm_title"),
             content=tr("wizard.exit_confirm_content"),
             parent=self
-        )
+        )  # 提示 / 向导未完成，确定要退出吗？
         if msg_box.exec():
             event.accept()
         else:
@@ -839,14 +839,14 @@ class WizardWindow(QDialog, TranslatableWidget):
                         content=tr("wizard.countdown_added", title=countdown_data.get('title', '')),
                         parent=self,
                         duration=3000
-                    )
+                    )  # 成功 / 已添加倒计时：{title}
         except Exception as e:
             InfoBar.warning(
                 title=tr("wizard.exit_confirm_title"),
                 content=tr("wizard.countdown_add_failed", error=str(e)),
                 parent=self,
                 duration=5000
-            )
+            )  # 提示 / 添加倒计时失败：{error}
 
     def _createSwitchCard(self, icon, title, content, default_value):
         """开关设置卡片"""
@@ -882,14 +882,14 @@ class WizardWindow(QDialog, TranslatableWidget):
                 content=tr("wizard.shortcut_created"),
                 parent=self,
                 duration=3000
-            )
+            )  # 成功 / 已创建桌面快捷方式
         except Exception as e:
             InfoBar.warning(
                 title=tr("wizard.exit_confirm_title"),
                 content=tr("wizard.shortcut_failed", error=str(e)),
                 parent=self,
                 duration=5000
-            )
+            )  # 提示 / 创建快捷方式失败：{error}
 
     def _onThemeChanged(self, index):
         """主题变更"""
@@ -923,34 +923,34 @@ class WizardWindow(QDialog, TranslatableWidget):
     def retranslateUi(self):
         """重新翻译向导界面"""
         try:
-            self.setWindowTitle(tr("wizard.title"))
+            self.setWindowTitle(tr("wizard.title"))  # ClassLively 向导
 
             if hasattr(self, 'welcomeLabel'):
-                self.welcomeLabel.setText(tr("wizard.welcome"))
+                self.welcomeLabel.setText(tr("wizard.welcome"))  # ClassLively
             if hasattr(self, 'nextButton'):
-                self.nextButton.setText(tr("wizard.next"))
+                self.nextButton.setText(tr("wizard.next"))  # 继续
 
             if hasattr(self, 'agreementTitle'):
-                self.agreementTitle.setText(tr("wizard.agreement_title"))
+                self.agreementTitle.setText(tr("wizard.agreement_title"))  # 软件使用协议
             if hasattr(self, 'agreementText'):
-                self.agreementText.setText(tr("wizard.agreement_text"))
+                self.agreementText.setText(tr("wizard.agreement_text"))  # 在使用本软件前，请阅读并同意以下协议：
             if hasattr(self, 'agreeButton'):
-                self.agreeButton.setText(tr("wizard.agree"))
+                self.agreeButton.setText(tr("wizard.agree"))  # 完成
 
             if hasattr(self, 'settingsTitle'):
-                self.settingsTitle.setText(tr("wizard.settings_title"))
+                self.settingsTitle.setText(tr("wizard.settings_title"))  # 基本设置
             if hasattr(self, 'settingsText'):
-                self.settingsText.setText(tr("wizard.settings_text"))
+                self.settingsText.setText(tr("wizard.settings_text"))  # 请选择您需要的功能选项：
 
             if hasattr(self, 'appearanceTitle'):
-                self.appearanceTitle.setText(tr("wizard.appearance_title"))
+                self.appearanceTitle.setText(tr("wizard.appearance_title"))  # 外观设置
             if hasattr(self, 'appearanceText'):
-                self.appearanceText.setText(tr("wizard.appearance_text"))
+                self.appearanceText.setText(tr("wizard.appearance_text"))  # 选择适合您的主题和颜色：
 
             if hasattr(self, 'schoolInfoTitle'):
-                self.schoolInfoTitle.setText(tr("wizard.school_info_title"))
+                self.schoolInfoTitle.setText(tr("wizard.school_info_title"))  # 学校信息设置
             if hasattr(self, 'schoolInfoText'):
-                self.schoolInfoText.setText(tr("wizard.school_info_text"))
+                self.schoolInfoText.setText(tr("wizard.school_info_text"))  # 请输入您的学校和班级信息，以及选择天气城市：
 
             logger.info("向导界面翻译已更新")
         except Exception as e:
@@ -1009,17 +1009,17 @@ class MainWindow(FluentWindow):
         _t = time.time()
         self.homeInterface = HomeInterface(self)
         self.homeInterface.setObjectName("home")
-        self.addSubInterface(self.homeInterface, FIF.HOME, tr("navigation.home"))
+        self.addSubInterface(self.homeInterface, FIF.HOME, tr("navigation.home"))  # 主界面
         logger.info(f"[MW] HomeInterface 耗时{time.time()-_t:.2f}s")
 
         _t = time.time()
         self.wallpaper = WallpaperInterface(mainWindow=self)
         self.wallpaper.setObjectName("wallpaper")
-        self.addSubInterface(self.wallpaper, FIF.PHOTO, tr("navigation.wallpaper"))
+        self.addSubInterface(self.wallpaper, FIF.PHOTO, tr("navigation.wallpaper"))  # 壁纸
         logger.info(f"[MW] WallpaperInterface 耗时{time.time()-_t:.2f}s")
 
         self.downloadInterface = DownloadInterface(parent=self)
-        self.addSubInterface(self.downloadInterface, FIF.DOWNLOAD, tr("navigation.download"))
+        self.addSubInterface(self.downloadInterface, FIF.DOWNLOAD, tr("navigation.download"))  # 软件下载
 
         def _populateDownload():
             for category in SOFTWARE_CATEGORIES:
@@ -1033,22 +1033,22 @@ class MainWindow(FluentWindow):
         _t = time.time()
         self.settingInterface = SettingInterface(parent=self)
         self.settingInterface.setObjectName("setting")
-        self.addSubInterface(self.settingInterface, FIF.SETTING, tr("navigation.settings"), NavigationItemPosition.BOTTOM)
+        self.addSubInterface(self.settingInterface, FIF.SETTING, tr("navigation.settings"), NavigationItemPosition.BOTTOM)  # 设置
         logger.info(f"[MW] SettingInterface 耗时{time.time()-_t:.2f}s")
 
         _t = time.time()
         self.updateInterface = UpdateInterface(parent=self)
-        self.addSubInterface(self.updateInterface, FIF.SYNC, tr("navigation.update"), NavigationItemPosition.BOTTOM)
+        self.addSubInterface(self.updateInterface, FIF.SYNC, tr("navigation.update"), NavigationItemPosition.BOTTOM)  # 更新
         logger.info(f"[MW] UpdateInterface 耗时{time.time()-_t:.2f}s")
 
         _t = time.time()
         self.aboutInterface = AboutInterface(parent=self)
-        self.addSubInterface(self.aboutInterface, FIF.INFO, tr("navigation.about"), NavigationItemPosition.BOTTOM)
+        self.addSubInterface(self.aboutInterface, FIF.INFO, tr("navigation.about"), NavigationItemPosition.BOTTOM)  # 关于
         logger.info(f"[MW] AboutInterface 耗时{time.time()-_t:.2f}s")
 
         _t = time.time()
         self.debugPanel = DebugPanel(self)
-        self.debugNavItem = self.addSubInterface(self.debugPanel, FIF.DEVELOPER_TOOLS, tr("navigation.debug"), NavigationItemPosition.BOTTOM)
+        self.debugNavItem = self.addSubInterface(self.debugPanel, FIF.DEVELOPER_TOOLS, tr("navigation.debug"), NavigationItemPosition.BOTTOM)  # 调试
         self.debugNavItem.setVisible(cfg.debugMode.value)
         cfg.debugMode.valueChanged.connect(self._onDebugModeChanged)
 
@@ -1161,13 +1161,13 @@ class MainWindow(FluentWindow):
         """更新导航栏文本"""
         try:
             nav_items = {
-                'home': tr("navigation.home"),
-                'wallpaper': tr("navigation.wallpaper"),
-                'download': tr("navigation.download"),
-                'setting': tr("navigation.settings"),
-                'update': tr("navigation.update"),
-                'about': tr("navigation.about"),
-                'debug': tr("navigation.debug"),
+                'home': tr("navigation.home"),  # 主界面
+                'wallpaper': tr("navigation.wallpaper"),  # 壁纸
+                'download': tr("navigation.download"),  # 软件下载
+                'setting': tr("navigation.settings"),  # 设置
+                'update': tr("navigation.update"),  # 更新
+                'about': tr("navigation.about"),  # 关于
+                'debug': tr("navigation.debug"),  # 调试
             }
 
             for route_key, text in nav_items.items():
@@ -1200,13 +1200,13 @@ class MainWindow(FluentWindow):
             for action in actions:
                 if action.text() in [tr("tray.show_window", _no_translate=True),
                                     "显示主窗口", "Show Main Window"]:
-                    action.setText(tr("tray.show_window"))
+                    action.setText(tr("tray.show_window"))  # 显示主窗口
                 elif action.text() in [tr("navigation.debug", _no_translate=True),
                                       "调试", "Debug"]:
-                    action.setText(tr("navigation.debug"))
+                    action.setText(tr("navigation.debug"))  # 调试
                 elif action.text() in [tr("tray.exit", _no_translate=True),
                                       "退出", "Exit"]:
-                    action.setText(tr("tray.exit"))
+                    action.setText(tr("tray.exit"))  # 退出
         except Exception as e:
             logger.warning(f"更新任务栏失败: {e}")
 
@@ -1278,15 +1278,15 @@ class MainWindow(FluentWindow):
 
         self.tray_menu = RoundMenu(APP_NAME, self)
 
-        show_action = Action(FIF.HOME, tr("tray.show_window"), self)
+        show_action = Action(FIF.HOME, tr("tray.show_window"), self)  # 显示主窗口
         show_action.triggered.connect(self.show)
         self.tray_menu.addAction(show_action)
         if cfg.debugMode.value:
-            dev_action = Action(FIF.DEVELOPER_TOOLS, tr("navigation.debug"), self)
+            dev_action = Action(FIF.DEVELOPER_TOOLS, tr("navigation.debug"), self)  # 调试
             dev_action.triggered.connect(lambda: self.switchTo(self.debugPanel))
             self.tray_menu.addAction(dev_action)
 
-        exit_action = Action(FIF.CLOSE, tr("tray.exit"), self)
+        exit_action = Action(FIF.CLOSE, tr("tray.exit"), self)  # 退出
         exit_action.triggered.connect(lambda: (release_single_instance(), QApplication.quit()))
         self.tray_menu.addAction(exit_action)
 
@@ -1465,7 +1465,7 @@ class MainWindow(FluentWindow):
                 self.idleTimer.start(self.idleCheckInterval)
             self.hide()
             if cfg.minimizeNotificationCount.value < self.maxMinimizeNotifications:
-                self.tray_icon.showMessage(APP_NAME, tr("tray.minimize_message"), QSystemTrayIcon.MessageIcon.Information, 2000)
+                self.tray_icon.showMessage(APP_NAME, tr("tray.minimize_message"), QSystemTrayIcon.MessageIcon.Information, 2000)  # 应用已最小化到系统托盘
                 cfg.minimizeNotificationCount.value = cfg.minimizeNotificationCount.value + 1
                 save_cfg()
         else:
@@ -1670,17 +1670,17 @@ if __name__ == "__main__":
 
     def _background_init():
         try:
-            splash.status_signal.emit(tr("splash.cleaning_temp"))
+            splash.status_signal.emit(tr("splash.cleaning_temp"))  # 正在清理临时文件...
             splash.progress_signal.emit(10)
             clean_tempdir(logger=logger)
-            splash.status_signal.emit(tr("splash.loading_resources"))
+            splash.status_signal.emit(tr("splash.loading_resources"))  # 正在加载资源...
             splash.progress_signal.emit(70)
         except Exception as e:
             logger.exception(f"后台初始化失败: {e}")
 
     future = executor.submit(_background_init)
 
-    splash.updateStatus(tr("splash.loading_translation"))
+    splash.updateStatus(tr("splash.loading_translation"))  # 正在加载翻译
     splash.setProgress(15)
     allow_ui_update(0.06)
     _t = time.time()
@@ -1699,15 +1699,15 @@ if __name__ == "__main__":
             screen_rect = screen.availableGeometry()
             temp_widget.setGeometry(screen_rect)
         temp_widget.show()
-        title = tr("dialog.instance_running", app=APP_NAME)
-        content = tr("dialog.instance_running_detail", app=APP_NAME)
+        title = tr("dialog.instance_running", app=APP_NAME)  # {app} 已有实例运行
+        content = tr("dialog.instance_running_detail", app=APP_NAME)  # 检测到{app} 已有一个实例在运行中，请勿重复启动。\n\n(您可在【设置】中启用【允许重复启动】，可能会有不可言喻的问题。)
         w = MessageBox(title, content, temp_widget)
-        w.yesButton.setText(tr("common.cancel"))
+        w.yesButton.setText(tr("common.cancel"))  # 取消
         w.hideCancelButton()
         w.exec()
         sys.exit(0)
 
-    splash.updateStatus(tr("splash.initializing_fonts"))
+    splash.updateStatus(tr("splash.initializing_fonts"))  # 正在初始化字体
     splash.setProgress(30)
     allow_ui_update(0.06)
     
@@ -1718,7 +1718,7 @@ if __name__ == "__main__":
     initialize_fonts(app, install_to_system=True)
     logger.info(f"[BOOT] 字体初始化 耗时{time.time()-_t:.2f}s")
 
-    splash.updateStatus(tr("splash.configuring_log"))
+    splash.updateStatus(tr("splash.configuring_log"))  # 正在配置日志
     splash.setProgress(40)
     allow_ui_update(0.06)
 
@@ -1741,7 +1741,7 @@ if __name__ == "__main__":
         max_days=log_max_days
     )
 
-    splash.updateStatus(tr("splash.loading_config"))
+    splash.updateStatus(tr("splash.loading_config"))  # 正在加载配置
     splash.setProgress(55)
     allow_ui_update(0.06)
 
@@ -1778,7 +1778,7 @@ if __name__ == "__main__":
             break
     logger.info(f"[BOOT] 后台等待 耗时{time.time()-_t:.2f}s")
 
-    splash.updateStatus(tr("splash.creating_main_window"))
+    splash.updateStatus(tr("splash.creating_main_window"))  # 正在创建主窗口...
     splash.setProgress(70)
     splash.waitForProgress(70, timeout=0.5)
     _t = time.time()
@@ -1822,7 +1822,7 @@ if __name__ == "__main__":
         except Exception as e:
             logger.error(f"[PRELOAD-UI] po: {e}")
 
-    splash.status_signal.emit(tr("splash.preloading"))
+    splash.status_signal.emit(tr("splash.preloading"))  # 正在预加载...
     splash.progress_signal.emit(75)
 
     loader = Preloader(window)
@@ -1834,7 +1834,7 @@ if __name__ == "__main__":
     if cfg.autoCheckUpdate.value:
         window.updateInterface._UpdateInterface__checkUpdate(auto_check=True)
 
-    splash.updateStatus(tr("splash.completing_startup"))
+    splash.updateStatus(tr("splash.completing_startup"))  # 正在完成启动
     t0 = time.time()
 
     while loader.isRunning():
