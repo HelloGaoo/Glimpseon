@@ -27,10 +27,12 @@ import sys
 import time
 import winreg
 from ctypes import wintypes
-from typing import Any, Optional
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
+from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QFont, QFontDatabase
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QWidget
 from qfluentwidgets import setFontFamilies
 
 from core.config import cfg, save_cfg
@@ -537,3 +539,135 @@ def sync_autostart_cfg():
 
 def auto_start_launch():
     return '--autostart' in sys.argv or '/autostart' in sys.argv
+
+
+
+
+
+
+
+
+
+
+_i18n_logger = logging.getLogger("ClassLively.core.i18n")
+class LanguageCode(Enum):
+    ZH_CN = "zh_CN"
+    EN_US = "en_US"
+
+
+class TranslationManager(QObject):
+    language_changed = pyqtSignal(str)
+
+    def __init__(self):
+        super().__init__()
+        self._current_language = LanguageCode.ZH_CN.value
+        self._translations: Dict[str, Dict[str, str]] = {}
+        self._load_translations()
+
+    def _load_translations(self):
+        locales_dir = os.path.join(BASE_DIR, "locales")
+        if not os.path.exists(locales_dir):
+            _i18n_logger.warning(f"Locales directory not found: {locales_dir}")
+            return
+        for lang_code in LanguageCode:
+            file_path = os.path.join(locales_dir, f"{lang_code.value}.json")
+            if os.path.exists(file_path):
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        self._translations[lang_code.value] = json.load(f)
+                    _i18n_logger.debug(f"Loaded translation: {lang_code.value}")
+                except Exception as e:
+                    _i18n_logger.error(f"Failed to load translation {lang_code.value}: {e}")
+            else:
+                _i18n_logger.warning(f"Translation file not found: {file_path}")
+
+    def get_available_languages(self) -> List[str]:
+        return [lang.value for lang in LanguageCode]
+
+    def set_language(self, language_code: str) -> bool:
+        if language_code not in [lang.value for lang in LanguageCode]:
+            _i18n_logger.warning(f"Invalid language code: {language_code}")
+            return False
+        old_language = self._current_language
+        self._current_language = language_code
+        if old_language != language_code:
+            self.language_changed.emit(language_code)
+            _i18n_logger.info(f"Language changed: {old_language} -> {language_code}")
+        return True
+
+    def get_current_language(self) -> str:
+        return self._current_language
+
+    def tr(self, key: str, **kwargs) -> str:
+        lang_translations = self._translations.get(self._current_language, {})
+        text = lang_translations.get(key, key)
+        if kwargs:
+            try:
+                text = text.format(**kwargs)
+            except (KeyError, ValueError) as e:
+                _i18n_logger.debug(f"Translation format error for key '{key}': {e}")
+        return text
+
+
+_translation_manager: Optional[TranslationManager] = None
+
+
+def get_translation_manager() -> TranslationManager:
+    global _translation_manager
+    if _translation_manager is None:
+        _translation_manager = TranslationManager()
+    return _translation_manager
+
+
+def tr(key: str, **kwargs) -> str:
+    return get_translation_manager().tr(key, **kwargs)
+
+
+def switch_language(language_code: str) -> bool:
+    return get_translation_manager().set_language(language_code)
+
+
+def get_current_language() -> str:
+    return get_translation_manager().get_current_language()
+
+
+
+
+
+
+
+
+
+# Mixin
+
+class TranslatableWidget:
+    def setup_translatable_ui(self):
+        pass
+
+    def retranslateUi(self):
+        pass
+
+    def _on_language_changed(self, language_code: str):
+        self.retranslateUi()
+
+
+class DynamicTranslator:
+    def __init__(self):
+        self._translation_bindings: List[Callable] = []
+
+    def bind_translation(self, callback: Callable):
+        self._translation_bindings.append(callback)
+        return callback
+
+    def update_translations(self):
+        for callback in self._translation_bindings:
+            try:
+                callback()
+            except Exception as e:
+                logger.error(f"Translation callback error: {e}")
+
+
+def bind_translation(widget: QWidget, callback: Callable):
+    if not hasattr(widget, '_dynamic_translator'):
+        widget._dynamic_translator = DynamicTranslator()
+    return widget._dynamic_translator.bind_translation(callback)

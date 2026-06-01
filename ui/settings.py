@@ -56,8 +56,8 @@ from qfluentwidgets import (
 
 from core.config import cfg, default_cfg, ConfigItem, CONFIG_PATH
 from core.constants import BASE_DIR, get_resPath, load_qss
-from core.utils import _load_app_fonts, apply_fonts
-from core.logger import log_dir
+from core.utils import _load_app_fonts, apply_fonts, tr, get_translation_manager, LanguageCode, switch_language, TranslatableWidget
+from core.logger import log_dir, logger
 
 
 class LineEditSettingCard(SettingCard):
@@ -134,82 +134,93 @@ class DualButtonSettingCard(SettingCard):
         self.hBoxLayout.addSpacing(16)
 
 
-class SettingInterface(ScrollArea):
+class SettingInterface(ScrollArea, TranslatableWidget):
     """ 设置界面 """
     def __init__(self, parent=None):
         super().__init__(parent=parent)
         self.setObjectName("setting")
         self.scrollWidget = QWidget()
         self.expandLayout = ExpandLayout(self.scrollWidget)
-        self.settingLabel = QLabel("设置", self)
-        self.basicGroup = SettingCardGroup("基本", self.scrollWidget)
+        self.settingLabel = QLabel(tr("settings.title"), self)
+        self.basicGroup = SettingCardGroup(tr("settings.general"), self.scrollWidget)
         self.autoStartCard = SwitchSettingCard(
-            FIF.PLAY, 
-            "开机自启动",
-            "设置应用在系统启动时自动运行",
+            FIF.PLAY,
+            tr("wizard.auto_start"),
+            tr("wizard.auto_start_desc"),
             configItem=cfg.autoStart,
             parent=self.basicGroup
         )
         self.autoOpenOnIdleCard = SwitchSettingCard(
             FIF.VIEW,
-            "空闲时自动打开",
-            "电脑空闲时自动从最小化打开界面",
+            tr("wizard.auto_open_idle"),
+            tr("wizard.auto_open_idle_desc"),
             configItem=cfg.autoOpenOnIdle,
             parent=self.basicGroup
         )
         self.idleMinutesCard = SpinBoxSettingCard(
             cfg.idleMinutes,
             FIF.HISTORY,
-            "空闲检测时间",
-            "设置电脑空闲多少分钟后触发自动打开（1-60 分钟）",
+            tr("settings.idle_minutes"),
+            tr("settings.idle_minutes_desc"),
             parent=self.basicGroup,
             min_value=1,
             max_value=60
         )
         self.autoOpenMaximizeCard = SwitchSettingCard(
             FIF.FULL_SCREEN,
-            "自动打开时最大化",
-            "空闲自动打开界面时是否最大化窗口",
+            tr("wizard.auto_open_maximize"),
+            tr("wizard.auto_open_maximize_desc"),
             configItem=cfg.autoOpenMaximize,
             parent=self.basicGroup
         )
-        self.appearanceGroup = SettingCardGroup("外观", self.scrollWidget)
+        self.appearanceGroup = SettingCardGroup(tr("settings.appearance"), self.scrollWidget)
         self.themeCard = ComboBoxSettingCard(
             cfg.themeMode,
             FIF.BRUSH,
-            "应用颜色主题",
-            "更改应用程序的颜色外观",
-            texts=["浅色", "深色", "使用系统设置"],
+            tr("wizard.theme_mode"),
+            tr("wizard.theme_mode_desc"),
+            texts=[tr("wizard.theme_light"), tr("wizard.theme_dark"), tr("wizard.theme_system")],
             parent=self.appearanceGroup
         )
         self.themeColorCard = CustomColorSettingCard(
             cfg.themeColor,
             FIF.PALETTE,
-            "主要颜色",
-            "更改应用程序的主要颜色",
+            tr("wizard.primary_color"),
+            tr("wizard.primary_color_desc"),
             parent=self.appearanceGroup
         )
-        self.logGroup = SettingCardGroup("日志", self.scrollWidget)
+        self.languageCard = ComboBoxSettingCard(
+            cfg.language,
+            FIF.LANGUAGE,
+            tr("settings.language"),
+            tr("settings.language_desc"),
+            texts=["简体中文", "繁體中文", "English", "Auto"],
+            parent=self.appearanceGroup
+        )
+        self.appearanceGroup.addSettingCard(self.themeCard)
+        self.appearanceGroup.addSettingCard(self.themeColorCard)
+        self.appearanceGroup.addSettingCard(self.languageCard)
+        self.logGroup = SettingCardGroup(tr("settings.advanced"), self.scrollWidget)
         self.disableLogCard = SwitchSettingCard(
-            FIF.CLOSE, 
-            "禁用日志",
-            "完全禁用日志输出",
+            FIF.CLOSE,
+            tr("settings.disable_log"),
+            tr("settings.disable_log_desc"),
             configItem=cfg.disableLog,
             parent=self.logGroup
         )
         self.logLevelCard = ComboBoxSettingCard(
             cfg.logLevel,
             FIF.INFO,
-            "日志级别",
-            "设置日志的输出级别",
+            tr("settings.log_level"),
+            tr("settings.log_level_desc"),
             texts=["Debug", "Info", "Warning", "Error"],
             parent=self.logGroup
         )
         self.logMaxCountCard = SpinBoxSettingCard(
             cfg.logMaxCount,
             FIF.INFO,
-            "日志数量上限",
-            "设置日志文件的最大条目数",
+            tr("settings.log_max_count"),
+            tr("settings.log_max_count_desc"),
             parent=self.logGroup,
             min_value=10,
             max_value=500
@@ -217,20 +228,20 @@ class SettingInterface(ScrollArea):
         self.logMaxDaysCard = SpinBoxSettingCard(
             cfg.logMaxDays,
             FIF.INFO,
-            "日志时间上限",
-            "设置日志文件的最大保存天数",
+            tr("settings.log_max_days"),
+            tr("settings.log_max_days_desc"),
             parent=self.logGroup,
             min_value=30,
             max_value=365
         )
         self.clearLogCard = ButtonSettingCard(
             FIF.DELETE,
-            "清空日志",
-            "清空所有日志文件",
+            tr("settings.clear_log"),
+            tr("settings.clear_log_desc"),
             parent=self.logGroup
         )
         self.logGroup.addSettingCard(self.clearLogCard)
-        self.clearLogCard.button.setText("清空日志")
+        self.clearLogCard.button.setText(tr("settings.clear_log_button"))
         self.__initWidget()
 
     def __initWidget(self):
@@ -243,6 +254,7 @@ class SettingInterface(ScrollArea):
         self.__setQss()
         self.__initLayout()
         self.__connectSignalToSlot()
+        self.setup_translatable_ui()
 
     def __initLayout(self):
         """ 初始化布局 """
@@ -257,51 +269,51 @@ class SettingInterface(ScrollArea):
         self.logGroup.addSettingCard(self.logLevelCard)
         self.logGroup.addSettingCard(self.logMaxCountCard)
         self.logGroup.addSettingCard(self.logMaxDaysCard)
-        self.otherGroup = SettingCardGroup("其他", self.scrollWidget)
+        self.otherGroup = SettingCardGroup(tr("settings.data_management"), self.scrollWidget)
         self.closeActionCard = ComboBoxSettingCard(
             cfg.closeAction,
             FIF.SETTING,
-            "关闭事件行为",
-            "设置点击关闭按钮时的行为",
-            texts=["最小化到任务栏", "直接关闭"],
+            tr("settings.close_action"),
+            tr("settings.close_action_desc"),
+            texts=[tr("settings.minimize_to_tray"), tr("settings.close_directly")],
             parent=self.otherGroup
         )
         self.otherGroup.addSettingCard(self.closeActionCard)
         self.allowMultipleInstancesCard = SwitchSettingCard(
             FIF.SYNC,
-            "允许重复启动",
-            "允许同时运行多个应用实例",
+            tr("settings.allow_multiple_instances"),
+            tr("settings.allow_multiple_instances_desc"),
             configItem=cfg.allowMultipleInstances,
             parent=self.otherGroup
         )
         self.otherGroup.addSettingCard(self.allowMultipleInstancesCard)
         self.enableGpuAccelerationCard = SwitchSettingCard(
             FIF.VIDEO,
-            "GPU 加速",
-            "使用 OpenGL ES 作为图形渲染后端（重启生效）",
+            tr("settings.gpu_acceleration"),
+            tr("settings.gpu_acceleration_desc"),
             configItem=cfg.enableGpuAcceleration,
             parent=self.otherGroup
         )
         self.otherGroup.addSettingCard(self.enableGpuAccelerationCard)
         self.configIOCard = DualButtonSettingCard(
             FIF.SYNC,
-            "配置导入/导出",
-            "导出或导入配置文件（JSON）",
+            tr("settings.config_import_export"),
+            tr("settings.config_import_export_desc"),
             parent=self.otherGroup
         )
         self.otherGroup.addSettingCard(self.configIOCard)
         self.resetDefaultCard = ButtonSettingCard(
             FIF.SETTING,
-            "恢复默认设置",
-            "将所有设置恢复到默认值",
+            tr("settings.reset_default"),
+            tr("settings.reset_default_desc"),
             parent=self.otherGroup
         )
         self.otherGroup.addSettingCard(self.resetDefaultCard)
-        self.resetDefaultCard.button.setText("恢复默认")
+        self.resetDefaultCard.button.setText(tr("settings.reset_default_button"))
         self.debugModeCard = SwitchSettingCard(
             FIF.CODE,
-            "调试模式",
-            "启用调试模式以进行测试和调试",
+            tr("settings.debug_mode"),
+            tr("settings.debug_mode_desc"),
             configItem=cfg.debugMode,
             parent=self.otherGroup
         )
@@ -327,7 +339,7 @@ class SettingInterface(ScrollArea):
     def __showRestartTooltip(self):
         InfoBar.warning(
             '',
-            "配置需要重启应用程序才能生效",
+            tr("settings.restart_required"),
             duration=5000,
             parent=self.window()
         )
@@ -352,12 +364,12 @@ class SettingInterface(ScrollArea):
     def __resetDefaultSettings(self):
         """ 恢复默认设置 """
         msgBox = MessageBox(
-            "恢复默认设置",
-            "确定要将所有设置恢复到默认值吗？",
+            tr("settings.reset_default"),
+            tr("settings.reset_default_confirm"),
             self.window()
         )
-        msgBox.yesButton.setText("确定")
-        msgBox.cancelButton.setText("取消")
+        msgBox.yesButton.setText(tr("dialog.confirm"))
+        msgBox.cancelButton.setText(tr("dialog.cancel"))
         if msgBox.exec(): 
             try:
                 config_path = CONFIG_PATH
@@ -428,12 +440,12 @@ class SettingInterface(ScrollArea):
     def __clearLog(self):
         """ 清空日志 """
         msgBox = MessageBox(
-            "清空日志",
-            "确定要清空所有日志文件吗？",
+            tr("settings.clear_log"),
+            tr("settings.clear_log_confirm"),
             self.window()
         )
-        msgBox.yesButton.setText("确定")
-        msgBox.cancelButton.setText("取消")
+        msgBox.yesButton.setText(tr("dialog.confirm"))
+        msgBox.cancelButton.setText(tr("dialog.cancel"))
         
         if msgBox.exec():
             try:
@@ -518,12 +530,12 @@ class SettingInterface(ScrollArea):
             with open(file_path, 'r', encoding='utf-8') as f:
                 imported_config = json.load(f)
             if not isinstance(imported_config, dict):
-                InfoBar.error("错误", "配置文件格式不正确", duration=5000, parent=self)
+                InfoBar.error(tr("dialog.error"), tr("settings.config_format_error"), duration=5000, parent=self)
                 return
             
-            msgBox = MessageBox("导入配置", "确定要导入配置吗？这将覆盖当前的所有设置。", self.window())
-            msgBox.yesButton.setText("确定")
-            msgBox.cancelButton.setText("取消")
+            msgBox = MessageBox(tr("settings.import_config"), tr("settings.import_config_confirm"), self.window())
+            msgBox.yesButton.setText(tr("dialog.confirm"))
+            msgBox.cancelButton.setText(tr("dialog.cancel"))
             if not msgBox.exec(): return
             
             config_dir = os.path.join(BASE_DIR, 'config')
@@ -571,5 +583,67 @@ class SettingInterface(ScrollArea):
             InfoBar.error("错误", "配置文件格式错误，无法解析 JSON", duration=5000, parent=self)
         except Exception as e:
             InfoBar.error("错误", f"导入配置失败: {str(e)}", duration=5000, parent=self)
-    
+
+    def retranslateUi(self):
+        try:
+            if hasattr(self, 'settingLabel'):
+                self.settingLabel.setText(tr("settings.title"))
+
+            if hasattr(self, 'basicGroup') and hasattr(self.basicGroup, 'titleLabel'):
+                self.basicGroup.titleLabel.setText(tr("settings.general"))
+
+            if hasattr(self, 'appearanceGroup') and hasattr(self.appearanceGroup, 'titleLabel'):
+                self.appearanceGroup.titleLabel.setText(tr("settings.appearance"))
+
+            if hasattr(self, 'logGroup') and hasattr(self.logGroup, 'titleLabel'):
+                self.logGroup.titleLabel.setText(tr("settings.advanced"))
+
+            if hasattr(self, 'otherGroup') and hasattr(self.otherGroup, 'titleLabel'):
+                self.otherGroup.titleLabel.setText(tr("settings.data_management"))
+
+            card_translations = [
+                # 通用设置
+                (self.autoStartCard, tr("wizard.auto_start"), tr("wizard.auto_start_desc")),
+                (self.autoOpenOnIdleCard, tr("wizard.auto_open_idle"), tr("wizard.auto_open_idle_desc")),
+                (self.idleMinutesCard, tr("settings.idle_minutes"), tr("settings.idle_minutes_desc")),
+                (self.autoOpenMaximizeCard, tr("wizard.auto_open_maximize"), tr("wizard.auto_open_maximize_desc")),
+                # 外观设置
+                (self.themeCard, tr("wizard.theme_mode"), tr("wizard.theme_mode_desc")),
+                (self.themeColorCard, tr("wizard.primary_color"), tr("wizard.primary_color_desc")),
+                (self.languageCard, tr("settings.language"), tr("settings.language_desc")),
+                # 高级设置
+                (self.disableLogCard, tr("settings.disable_log"), tr("settings.disable_log_desc")),
+                (self.logLevelCard, tr("settings.log_level"), tr("settings.log_level_desc")),
+                (self.logMaxCountCard, tr("settings.log_max_count"), tr("settings.log_max_count_desc")),
+                (self.logMaxDaysCard, tr("settings.log_max_days"), tr("settings.log_max_days_desc")),
+                (self.clearLogCard, tr("settings.clear_log"), tr("settings.clear_log_desc")),
+                # 数据管理
+                (self.closeActionCard, tr("settings.close_action"), tr("settings.close_action_desc")),
+                (self.allowMultipleInstancesCard, tr("settings.allow_multiple_instances"), tr("settings.allow_multiple_instances_desc")),
+                (self.enableGpuAccelerationCard, tr("settings.gpu_acceleration"), tr("settings.gpu_acceleration_desc")),
+                (self.configIOCard, tr("settings.config_import_export"), tr("settings.config_import_export_desc")),
+                (self.resetDefaultCard, tr("settings.reset_default"), tr("settings.reset_default_desc")),
+                (self.debugModeCard, tr("settings.debug_mode"), tr("settings.debug_mode_desc")),
+            ]
+
+            for card, title, content in card_translations:
+                if card:
+                    # CustomColorSettingCard 没有 setTitle/setContent 方法
+                    if hasattr(card, 'setTitle'):
+                        card.setTitle(title)
+                        card.setContent(content)
+                    elif hasattr(card, 'titleLabel'):
+                        # 对于 CustomColorSettingCard 更新标题
+                        card.titleLabel.setText(title)
+
+            if hasattr(self, 'clearLogCard'):
+                self.clearLogCard.button.setText(tr("settings.clear_log_button"))
+
+            if hasattr(self, 'resetDefaultCard'):
+                self.resetDefaultCard.button.setText(tr("settings.reset_default_button"))
+
+            logger.info("设置界面翻译已更新")
+        except Exception as e:
+            logger.error(f"更新设置界面翻译失败: {e}")
+
 

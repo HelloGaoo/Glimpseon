@@ -74,10 +74,29 @@ class LanguageSerializer(ConfigSerializer):
     """ 语言序列化器 """
 
     def serialize(self, language):
-        return language.value.name() if language != Language.AUTO else "Auto"
+        """ Language 枚举序列化 to 字符串"""
+        mapping = {
+            Language.CHINESE_SIMPLIFIED: "zh_CN",
+            Language.CHINESE_TRADITIONAL: "zh_TW",
+            Language.ENGLISH: "en_US",
+            Language.AUTO: "Auto"
+        }
+        return mapping.get(language, "Auto")
 
     def deserialize(self, value: str):
-        return Language(QLocale(value)) if value != "Auto" else Language.AUTO
+        """字符串反序列化 to Language 枚举"""
+        mapping = {
+            "zh_CN": Language.CHINESE_SIMPLIFIED,
+            "zh_TW": Language.CHINESE_TRADITIONAL,
+            "en_US": Language.ENGLISH,
+            "Auto": Language.AUTO
+        }
+        result = mapping.get(value)
+        if result is None:
+            logger.warning(f"未知的语言值: {value}")
+            return Language.AUTO
+
+        return result
 
 
 class LogLevel(Enum):

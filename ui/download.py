@@ -51,9 +51,9 @@ from qfluentwidgets import (
 )
 
 from core.config import cfg
-from data.url_dir import url_dir
 from core.constants import get_resPath, load_qss
 from core.downloader import DOWNLOAD_SOURCES, DEFAULT_SOURCE, Downloader, set_download_src
+from core.utils import tr, TranslatableWidget
 from core.logger import logger
 
 from .common import BaseScrollAreaInterface, show_text_file
@@ -73,11 +73,11 @@ def get_cached_icon(icon_path: str, size: tuple = (64, 64)) -> Optional[QPixmap]
         return None
 
 
-class DownloadInterface(BaseScrollAreaInterface):
+class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
     """ 软件下载界面 """
     
     def __init__(self, parent=None):
-        super().__init__("软件下载", parent)
+        super().__init__(tr("navigation.download"), parent)
         self.setObjectName("download")
         
         self.mainLayout = QVBoxLayout(self.scrollWidget)
@@ -94,6 +94,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         self.__initLayout()
         self.__setQss()
         self.__connectSignalToSlot()
+        self.setup_translatable_ui()
     
     def __connectSignalToSlot(self):
         """ 连接信号与槽 """
@@ -145,8 +146,8 @@ class DownloadInterface(BaseScrollAreaInterface):
     def __handleDownload(self, software_name):
         """ 处理下载按钮点击事件 """
         msg_box = MessageBox(
-            "确认下载",
-            f"确定要下载并安装 {software_name} 吗？",
+            tr("download.confirm_download"),
+            tr("download.confirm_download_single").format(name=software_name),
             self
         )
         
@@ -170,8 +171,8 @@ class DownloadInterface(BaseScrollAreaInterface):
                 pass
         
         info_bar = InfoBar.success(
-            "开始下载",
-            f"正在下载 {software_name}，请稍候...",
+            tr("download.starting_download"),
+            tr("downloading_single").format(name=software_name),
             parent=self,
             duration=3000
         )
@@ -196,7 +197,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                             '_show_download_error',
                             Qt.ConnectionType.QueuedConnection,
                             Q_ARG(str, software_name),
-                            Q_ARG(str, "未找到对应的下载链接")
+                            Q_ARG(str, tr("download.error_no_url"))
                         )
                         return
 
@@ -207,7 +208,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                             '_show_download_error',
                             Qt.ConnectionType.QueuedConnection,
                             Q_ARG(str, software_name),
-                            Q_ARG(str, "无法获取下载链接")
+                            Q_ARG(str, tr("download.error_cannot_get_url"))
                         )
                         return
                     
@@ -277,7 +278,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                         '_show_download_error',
                         Qt.ConnectionType.QueuedConnection,
                         Q_ARG(str, software_name),
-                        Q_ARG(str, "未找到对应的安装方法")
+                        Q_ARG(str, tr("download.error_no_install_method"))
                     )
             except Exception as e:
                 QMetaObject.invokeMethod(
@@ -311,8 +312,8 @@ class DownloadInterface(BaseScrollAreaInterface):
                 pass
         
         InfoBar.success(
-            "安装完成",
-            f"{software_name} 已成功安装！",
+            tr("download.install_complete"),
+            tr("download.install_success").format(name=software_name),
             parent=self,
             duration=3000
         )
@@ -332,8 +333,8 @@ class DownloadInterface(BaseScrollAreaInterface):
                 pass
         
         InfoBar.error(
-            "安装失败",
-            f"{software_name} 安装失败：{error_msg}",
+            tr("download.install_failed"),
+            tr("download.install_error").format(name=software_name, error=error_msg),
             parent=self,
             duration=5000
         )
@@ -386,19 +387,19 @@ class DownloadInterface(BaseScrollAreaInterface):
         modeGroupLayout.setSpacing(16)
         modeGroupLayout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         
-        self.modeLabel = QLabel("选择模式:", modeGroup)
+        self.modeLabel = QLabel(tr("download.select_mode") + ":", modeGroup)
         self.modeLabel.setObjectName("modeLabel")
         
-        self.singleModeButton = RadioButton("单选", modeGroup)
+        self.singleModeButton = RadioButton(tr("download.single_mode"), modeGroup)
         self.singleModeButton.setChecked(True)
         
-        self.multiModeButton = RadioButton("多选", modeGroup)
+        self.multiModeButton = RadioButton(tr("download.multi_mode"), modeGroup)
         
         modeGroupLayout.addWidget(self.modeLabel)
         modeGroupLayout.addWidget(self.singleModeButton)
         modeGroupLayout.addWidget(self.multiModeButton)
 
-        self.selectAllButton = PushButton("全选", modeGroup)
+        self.selectAllButton = PushButton(tr("download.select_all"), modeGroup)
         self.selectAllButton.setObjectName("selectAllButton")
         self.selectAllButton.setFixedHeight(36)
         self.selectAllButton.setFixedWidth(80)
@@ -413,8 +414,8 @@ class DownloadInterface(BaseScrollAreaInterface):
         sourceGroupLayout.setSpacing(8)
         sourceGroupLayout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         
-        self.sourceLabel = QLabel("下载源:", sourceGroup)
-        self.sourceLabel.setObjectName("sourceLabel")   
+        self.sourceLabel = QLabel(tr("download.download_source") + ":", sourceGroup)
+        self.sourceLabel.setObjectName("sourceLabel")  
         self.sourceComboBox = ComboBox(sourceGroup)
         self.sourceComboBox.setObjectName("sourceComboBox")
         self.sourceComboBox.setFixedWidth(200)
@@ -429,7 +430,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         sourceGroupLayout.addWidget(self.sourceLabel)
         sourceGroupLayout.addWidget(self.sourceComboBox)
         
-        self.startButton = PrimaryPushButton(FIF.PLAY, "开始下载", self.modeContainer)
+        self.startButton = PrimaryPushButton(FIF.PLAY, tr("download.start_download"), self.modeContainer)
         self.startButton.setObjectName("startButton")
         self.startButton.setFixedHeight(36)
         self.startButton.hide()
@@ -459,6 +460,8 @@ class DownloadInterface(BaseScrollAreaInterface):
     
     def addSection(self, title):
         """ 添加分区标题 """
+        if not title:
+            title = tr("download.common_software")
         sectionLabel = QLabel(title, self.softwareContainer)
         sectionLabel.setObjectName("sectionTitleLabel")
         self.softwareLayout.addWidget(sectionLabel)
@@ -475,7 +478,7 @@ class DownloadInterface(BaseScrollAreaInterface):
     def addSoftware(self, icon_path, name, description, link=None):
         """ 添加一个软件到列表 """
         if self.currentGridLayout is None:
-            self.addSection("常用软件")
+            self.addSection(tr("download.common_software"))
 
         softwareCard = CardWidget(self.softwareContainer)
         softwareCard.setMinimumHeight(100)
@@ -514,7 +517,7 @@ class DownloadInterface(BaseScrollAreaInterface):
             linkButton.setIcon(FIF.LINK.icon())
             linkButton.setFixedSize(20, 20)
             linkButton.setObjectName("softwareLinkButton")
-            linkButton.setToolTip("打开官网")
+            linkButton.setToolTip(tr("download.open_official_website"))
             linkButton.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(link)))
             nameLayout.addWidget(linkButton)
         
@@ -537,7 +540,7 @@ class DownloadInterface(BaseScrollAreaInterface):
         progressBar.hide()
         
         # 创建下载按钮或复选框
-        downloadButton = PrimaryPushButton(FIF.DOWNLOAD, "下载", softwareCard)
+        downloadButton = PrimaryPushButton(FIF.DOWNLOAD, tr("download.download_btn"), softwareCard)
         downloadButton.setFixedHeight(36)
         downloadButton.setFixedWidth(100)
         
@@ -597,26 +600,26 @@ class DownloadInterface(BaseScrollAreaInterface):
                 continue
             software['checkbox'].setChecked(should_check_all)
         if should_check_all:
-            self.selectAllButton.setText("取消全选")
+            self.selectAllButton.setText(tr("download.deselect_all"))
         else:
-            self.selectAllButton.setText("全选")
+            self.selectAllButton.setText(tr("download.select_all"))
     
     def __updateSelectAllButton(self):
         if not self.softwareList:
-            self.selectAllButton.setText("全选")
+            self.selectAllButton.setText(tr("download.select_all"))
             return
         available_software = [
             software for software in self.softwareList
             if not (software.get('progressBar') is not None and software['progressBar'].isVisible())
         ]
         if not available_software:
-            self.selectAllButton.setText("全选")
+            self.selectAllButton.setText(tr("download.select_all"))
             return
         all_checked = all(software['checkbox'].isChecked() for software in available_software)
         if all_checked:
-            self.selectAllButton.setText("取消全选")
+            self.selectAllButton.setText(tr("download.deselect_all"))
         else:
-            self.selectAllButton.setText("全选")
+            self.selectAllButton.setText(tr("download.select_all"))
     
     def __handleModeChange(self):
         """ 处理模式切换 """
@@ -652,8 +655,8 @@ class DownloadInterface(BaseScrollAreaInterface):
         """ 处理开始下载按钮点击 """
         if not self.selectedSoftware:
             InfoBar.warning(
-                "未选择软件",
-                "请先选择要下载的软件",
+                tr("download.no_selection"),
+                tr("download.please_select_first"),
                 parent=self,
                 duration=3000
             )
@@ -662,8 +665,8 @@ class DownloadInterface(BaseScrollAreaInterface):
         # 显示确认对话框
         software_list = "\n".join(self.selectedSoftware)
         msg_box = MessageBox(
-            "确认下载",
-            f"确定要下载并安装以下软件吗？\n{software_list}",
+            tr("download.confirm_download"),
+            tr("download.confirm_batch").format(list=software_list),
             self
         )
         
@@ -673,8 +676,8 @@ class DownloadInterface(BaseScrollAreaInterface):
         
         # 显示下载中提示
         info_bar = InfoBar.success(
-            "开始下载",
-            f"正在下载 {len(self.selectedSoftware)} 个软件，请稍候...",
+            tr("download.starting_download"),
+            tr("downloading_batch").format(count=len(self.selectedSoftware)),
             parent=self,
             duration=3000
         )
@@ -754,7 +757,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                     '_show_download_error',
                     Qt.ConnectionType.QueuedConnection,
                     Q_ARG(str, software_name),
-                    Q_ARG(str, '未找到对应的下载链接')
+                    Q_ARG(str, tr("download.error_no_url"))
                 )
                 return
 
@@ -765,10 +768,10 @@ class DownloadInterface(BaseScrollAreaInterface):
                     '_show_download_error',
                     Qt.ConnectionType.QueuedConnection,
                     Q_ARG(str, software_name),
-                    Q_ARG(str, '无法获取下载链接')
+                    Q_ARG(str, tr("download.error_cannot_get_url"))
                 )
                 return
-
+            
             # 更新 cache_file 的 url
             cache_file['url'] = download_url
 
@@ -823,7 +826,7 @@ class DownloadInterface(BaseScrollAreaInterface):
                         '_show_download_error',
                         Qt.ConnectionType.QueuedConnection,
                         Q_ARG(str, software_name),
-                        Q_ARG(str, '未找到对应的安装方法')
+                        Q_ARG(str, tr("download.error_no_install_method"))
                     )
             except Exception as e:
                 logger.error(f"{software_name}: 安装函数异常 - {e}", exc_info=True)
@@ -858,5 +861,17 @@ class DownloadInterface(BaseScrollAreaInterface):
             )
 
         threading.Thread(target=_wait_tasks, daemon=True).start()
+
+    def retranslateUi(self):
+        self.titleLabel.setText(tr("navigation.download"))
+        self.modeLabel.setText(tr("download.select_mode") + ":")
+        self.singleModeButton.setText(tr("download.single_mode"))
+        self.multiModeButton.setText(tr("download.multi_mode"))
+        self.selectAllButton.setText(tr("download.select_all"))
+        self.sourceLabel.setText(tr("download.download_source") + ":")
+        self.startButton.setText(tr("download.start_download"))
+        for item in self.softwareList:
+            if item.get('button'):
+                item['button'].setText(tr("download.download_btn"))
 
 

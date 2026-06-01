@@ -68,11 +68,25 @@ from qfluentwidgets import InfoBar, isDarkTheme, RoundMenu, Action, FluentIcon a
 from win32com.shell import shell, shellcon
 
 from core.config import cfg, save_cfg
+from core.utils import tr
 from services.media import MediaInfo, Lyrics, get_media_info, fetch_all_info, close as close_media
 from core.constants import load_qss
 from data.software_list import get_software_icon_path
 
 logger = logging.getLogger("ClassLively.ui.component")
+
+
+def get_component_display_name(component_id: str) -> str:
+    name_map = {
+        "clock": tr("component.clock"),
+        "weather": tr("component.weather"),
+        "poetry": tr("component.poetry"),
+        "countdown": tr("component.countdown"),
+        "school_info": tr("component.school_info"),
+        "media": tr("component.media"),
+        "quick_launch": tr("component.quick_launch"),
+    }
+    return name_map.get(component_id, component_id)
 
 
 class DraggableWidget(QWidget):
@@ -190,12 +204,7 @@ class DraggableWidget(QWidget):
             painter.drawRoundedRect(QRectF(self.rect()).adjusted(1, 1, -1, -1), 4, 4)
             
             if self._show_border:
-                name_map = {
-                    "clock": "时钟", "weather": "天气", "poetry": "一言",
-                    "countdown": "倒计时", "school_info": "学校信息",
-                    "media": "媒体信息", "quick_launch": "快捷启动",
-                }
-                display_name = name_map.get(self.component_id, self.component_id)
+                display_name = get_component_display_name(self.component_id)
                 font = QFont("HarmonyOS Sans,Microsoft YaHei,sans-serif")
                 font.setPixelSize(14)
                 painter.setFont(font)
@@ -353,13 +362,8 @@ class DraggableContainer(DraggableWidget):
             self.adjustSize()
         else:
             self.inner_layout.setContentsMargins(16, 10, 16, 10)
-            name_map = {
-                "clock": "时钟", "weather": "天气", "poetry": "一言",
-                "countdown": "倒计时", "school_info": "学校信息",
-                "media": "媒体信息", "quick_launch": "快捷启动",
-            }
-            display_name = name_map.get(self.component_id, self.component_id)
-            text = f"⚙ {display_name} 点击设置"
+            display_name = get_component_display_name(self.component_id)
+            text = f"⚙ {display_name} {tr('component.click_to_settings')}"
             font = QFont()
             font.setPointSize(8)
             fm = QFontMetrics(font)
@@ -389,13 +393,8 @@ class DraggableContainer(DraggableWidget):
         if self.inner_layout:self.inner_layout.activate()
         base_size = super().sizeHint()
         if not self._content_visible:
-            name_map = {
-                "clock": "时钟", "weather": "天气", "poetry": "一言",
-                "countdown": "倒计时", "school_info": "学校信息",
-                "media": "媒体信息", "quick_launch": "快捷启动",
-            }
-            display_name = name_map.get(self.component_id, self.component_id)
-            text = f"⚙ {display_name} 点击设置"
+            display_name = get_component_display_name(self.component_id)
+            text = f"⚙ {display_name} {tr('component.click_to_settings')}"
             font = QFont()
             font.setPointSize(8)
             fm = QFontMetrics(font)
@@ -418,13 +417,8 @@ class DraggableContainer(DraggableWidget):
             pen.setStyle(Qt.PenStyle.DashLine)
             painter.setPen(pen)
             painter.drawRoundedRect(QRectF(self.rect()).adjusted(1, 1, -1, -1), 4, 4)
-            
-            name_map = {
-                "clock": "时钟", "weather": "天气", "poetry": "一言",
-                "countdown": "倒计时", "school_info": "学校信息",
-                "media": "媒体信息", "quick_launch": "快捷启动",
-            }
-            display_name = name_map.get(self.component_id, self.component_id)
+
+            display_name = get_component_display_name(self.component_id)
             font = QFont("HarmonyOS Sans,Microsoft YaHei,sans-serif")
             font.setPixelSize(14)
             painter.setFont(font)
@@ -633,7 +627,7 @@ class MediaWidget(QWidget):
         right_col.setSpacing(6)
         right_col.setContentsMargins(0, 2, 0, 0)
 
-        self._title = QLabel("未在播放")
+        self._title = QLabel(tr("media.not_playing"))
         self._title.setObjectName("mediaTitleLabel")
         self._title.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         right_col.addWidget(self._title)
@@ -963,7 +957,7 @@ class MediaWidget(QWidget):
         self._fetch_in_thread(full=True)
 
     def _no_media(self):
-        self._title.setText("未在播放")
+        self._title.setText(tr("media.not_playing"))
         self._title.setWordWrap(False)
         self._artist.setText("")
         self._artist.show()
@@ -983,7 +977,7 @@ class MediaWidget(QWidget):
             self.show()
 
     def _display(self, m: MediaInfo):
-        title = m.title or "未知歌曲"
+        title = m.title or tr("media.unknown_song")
         artist = m.artist or ""
 
         if m.title_artist != self._last_ta:
@@ -1531,19 +1525,19 @@ class QuickLaunchDock(QWidget):
             return
         
         app = self._apps[idx]
-        menu = RoundMenu(app.get("name", "应用"), self)
-        
-        open_action = Action(FIF.PLAY, "打开", self)
+        menu = RoundMenu(app.get("name", tr("quick_launch.app")), self)
+
+        open_action = Action(FIF.PLAY, tr("quick_launch.open"), self)
         open_action.triggered.connect(lambda: self._click(idx))
         menu.addAction(open_action)
-        
+
         menu.addSeparator()
-        
-        edit_action = Action(FIF.EDIT, "编辑", self)
+
+        edit_action = Action(FIF.EDIT, tr("quick_launch.edit"), self)
         edit_action.triggered.connect(lambda: self._edit_app(idx))
         menu.addAction(edit_action)
-        
-        delete_action = Action(FIF.DELETE, "删除", self)
+
+        delete_action = Action(FIF.DELETE, tr("quick_launch.delete"), self)
         delete_action.triggered.connect(lambda: self._delete_app(idx))
         menu.addAction(delete_action)
         
@@ -1575,13 +1569,13 @@ class QuickLaunchDock(QWidget):
                 cfg.quickLaunchApps.value = self._apps
                 save_cfg()
                 self.set_apps(self._apps)
-                InfoBar.success("保存成功", "快捷方式已更新", parent=self.window(), duration=2000)
+                InfoBar.success(tr("quick_launch.save_success"), tr("quick_launch.shortcut_updated"), parent=self.window(), duration=2000)
 
     def _delete_app(self, idx):
         if idx < 0 or idx >= len(self._apps):
             return
         
-        app_name = self._apps[idx].get("name", "此应用")
+        app_name = self._apps[idx].get("name", tr("quick_launch.this_app"))
         
         mw = self.window()
         mask = QWidget(mw)
@@ -1592,16 +1586,16 @@ class QuickLaunchDock(QWidget):
         mask.show()
         
         from qfluentwidgets import MessageBox
-        box = MessageBox("确认删除", f"确定要从快捷启动栏删除 \"{app_name}\" 吗？", mask)
-        box.yesButton.setText("删除")
-        box.cancelButton.setText("取消")
+        box = MessageBox(tr("quick_launch.confirm_delete"), tr("quick_launch.confirm_delete_msg", name=app_name), mask)
+        box.yesButton.setText(tr("quick_launch.delete"))
+        box.cancelButton.setText(tr("common.cancel"))
         
         if box.exec():
             self._apps.pop(idx)
             cfg.quickLaunchApps.value = self._apps
             save_cfg()
             self.set_apps(self._apps)
-            InfoBar.success("删除成功", f"已删除 {app_name}", parent=self.window(), duration=2000)
+            InfoBar.success(tr("quick_launch.delete_success"), tr("quick_launch.deleted", name=app_name), parent=self.window(), duration=2000)
         
         mask.close()
         mask.deleteLater()
@@ -1751,8 +1745,8 @@ class QuickLaunchDock(QWidget):
         apps = list(cfg.quickLaunchApps.value)
         if len(apps) >= self.MAX_APPS:
             InfoBar.warning(
-                title="数量限制",
-                content=f"快捷启动栏最多只能添加 {self.MAX_APPS} 个应用",
+                title=tr("quick_launch.limit_reached"),
+                content=tr("quick_launch.max_apps", max=self.MAX_APPS),
                 parent=self.window(),
                 duration=3000
             )
@@ -1761,7 +1755,7 @@ class QuickLaunchDock(QWidget):
         cfg.quickLaunchApps.value = apps
         save_cfg()
         self.set_apps(apps, animate_idx=len(apps) - 1)
-        InfoBar.success("添加成功", f"已添加 {new_app['name']}", parent=self.window(), duration=2000)
+        InfoBar.success(tr("quick_launch.add_success"), tr("quick_launch.added", name=new_app['name']), parent=self.window(), duration=2000)
 
     def _add_folder_from_path(self, folder_path):
         name = os.path.basename(folder_path)
@@ -1774,8 +1768,8 @@ class QuickLaunchDock(QWidget):
         apps = list(cfg.quickLaunchApps.value)
         if len(apps) >= self.MAX_APPS:
             InfoBar.warning(
-                title="数量限制",
-                content=f"快捷启动栏最多只能添加 {self.MAX_APPS} 个项目",
+                title=tr("quick_launch.limit_reached"),
+                content=tr("quick_launch.max_items", max=self.MAX_APPS),
                 parent=self.window(),
                 duration=3000
             )
@@ -1784,15 +1778,15 @@ class QuickLaunchDock(QWidget):
         cfg.quickLaunchApps.value = apps
         save_cfg()
         self.set_apps(apps, animate_idx=len(apps) - 1)
-        InfoBar.success("添加成功", f"已添加文件夹 {name}", parent=self.window(), duration=2000)
+        InfoBar.success(tr("quick_launch.add_success"), tr("quick_launch.added_folder", name=name), parent=self.window(), duration=2000)
 
     def _add_url(self, url):
         new_item = resolve_url_from_string(url)
         apps = list(cfg.quickLaunchApps.value)
         if len(apps) >= self.MAX_APPS:
             InfoBar.warning(
-                title="数量限制",
-                content=f"快捷启动栏最多只能添加 {self.MAX_APPS} 个项目",
+                title=tr("quick_launch.limit_reached"),
+                content=tr("quick_launch.max_items", max=self.MAX_APPS),
                 parent=self.window(),
                 duration=3000
             )
@@ -1801,7 +1795,7 @@ class QuickLaunchDock(QWidget):
         cfg.quickLaunchApps.value = apps
         save_cfg()
         self.set_apps(apps, animate_idx=len(apps) - 1)
-        InfoBar.success("添加成功", f"已添加网址 {new_item['name']}", parent=self.window(), duration=2000)
+        InfoBar.success(tr("quick_launch.add_success"), tr("quick_launch.added_url", name=new_item['name']), parent=self.window(), duration=2000)
 
     def _click(self, idx):
         a = self._apps[idx]
@@ -1815,7 +1809,7 @@ class QuickLaunchDock(QWidget):
     def _launch_thread(self, target, name, app_type):
         try:
             if not target:
-                self._launch_result.emit(name, "未配置路径", False)
+                self._launch_result.emit(name, tr("quick_launch.no_path"), False)
                 return
             
             if app_type == "url":
@@ -1826,13 +1820,13 @@ class QuickLaunchDock(QWidget):
                     os.startfile(target)
                     self._launch_result.emit(name, target, True)
                 else:
-                    self._launch_result.emit(name, f"文件夹不存在: {target}", False)
+                    self._launch_result.emit(name, tr("quick_launch.folder_not_exist", path=target), False)
             else:
                 if os.path.exists(target):
                     os.startfile(target)
                     self._launch_result.emit(name, target, True)
                 else:
-                    self._launch_result.emit(name, f"路径不存在: {target}", False)
+                    self._launch_result.emit(name, tr("quick_launch.path_not_exist", path=target), False)
         except Exception as e:
             self._launch_result.emit(name, str(e), False)
 
@@ -1843,15 +1837,15 @@ class QuickLaunchDock(QWidget):
         if success:
             logger.info(f"已启动：{app_name} ({info})")
             InfoBar.success(
-                title="启动成功",
-                content=f"正在打开 {app_name}",
+                title=tr("quick_launch.launch_success"),
+                content=tr("quick_launch.opening", name=app_name),
                 parent=self.window(),
                 duration=2000
             )
         else:
             logger.warning(f"启动失败：{app_name}, {info}")
             InfoBar.error(
-                title="启动失败",
+                title=tr("quick_launch.launch_failed"),
                 content=f"{app_name}: {info}",
                 parent=self.window(),
                 duration=3000

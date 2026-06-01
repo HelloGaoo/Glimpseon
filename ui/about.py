@@ -40,17 +40,19 @@ from qfluentwidgets import (
 )
 
 from core.constants import get_resPath, load_qss
+from core.utils import tr, TranslatableWidget
+from core.logger import logger
 from version import BUILD_DATE, VERSION
 from .common import show_text_file
 
 from .common import BaseScrollAreaInterface, show_text_file
 
 
-class AboutInterface(BaseScrollAreaInterface):
+class AboutInterface(BaseScrollAreaInterface, TranslatableWidget):
     """ 关于界面 """
-    
+
     def __init__(self, parent=None):
-        super().__init__("关于", parent)
+        super().__init__(tr("navigation.about"), parent)
         self.setObjectName("about")
         self.scrollWidget = QWidget()
         self.mainLayout = QVBoxLayout(self.scrollWidget)
@@ -83,7 +85,7 @@ class AboutInterface(BaseScrollAreaInterface):
         self.appNameLabel.setObjectName("appNameLabel")
         appInfoLayout.addWidget(self.appIconLabel)
         appInfoLayout.addWidget(self.appNameLabel, 1)
-        self.descriptionLabel = QLabel("114514", self.aboutCard)
+        self.descriptionLabel = QLabel(tr("about.description"), self.aboutCard)
         self.descriptionLabel.setObjectName("descriptionLabel")
         self.descriptionLabel.setWordWrap(True)
         leftLayout.addLayout(appInfoLayout)
@@ -91,11 +93,11 @@ class AboutInterface(BaseScrollAreaInterface):
         rightLayout = QVBoxLayout()
         rightLayout.setSpacing(8)
         rightLayout.setContentsMargins(0, 0, 0, 0)
-        self.versionInfo = QLabel(f"当前版本：{VERSION}\n构建日期：{BUILD_DATE}", self.aboutCard)
+        self.versionInfo = QLabel(f"{tr('about.current_version')}: {VERSION}\n{tr('about.build_date')}: {BUILD_DATE}", self.aboutCard)
         self.versionInfo.setObjectName("versionInfo")
         self.versionInfo.setWordWrap(True)
         rightLayout.addWidget(self.versionInfo)
-        self.authorLabel = QLabel("开发作者：HelloGaoo", self.aboutCard)
+        self.authorLabel = QLabel(f"{tr('about.author')}: HelloGaoo", self.aboutCard)
         self.authorLabel.setObjectName("authorLabel")
         rightLayout.addWidget(self.authorLabel)
         self.copyrightLabel = QLabel("© 2026 ClassLively. All rights reserved.", self.aboutCard)
@@ -111,9 +113,9 @@ class AboutInterface(BaseScrollAreaInterface):
         self.githubIcon = QLabel(self.githubCard)
         self.githubIcon.setFixedSize(24, 24)
         self.githubIcon.setObjectName("githubIcon")
-        self.githubLabel = QLabel("GitHub 仓库", self.githubCard)
+        self.githubLabel = QLabel(tr("about.github_repo"), self.githubCard)
         self.githubLabel.setObjectName("linkLabel")
-        self.githubButton = PushButton(FIF.GITHUB, "查看", self.githubCard)
+        self.githubButton = PushButton(FIF.GITHUB, tr("about.view"), self.githubCard)
         self.githubButton.setObjectName("linkButton")
         self.githubButton.setFixedHeight(36)
         self.githubLayout.addWidget(self.githubIcon)
@@ -126,9 +128,9 @@ class AboutInterface(BaseScrollAreaInterface):
         self.authorIcon = QLabel(self.authorCard)
         self.authorIcon.setFixedSize(24, 24)
         self.authorIcon.setObjectName("authorIcon")
-        self.authorLabel = QLabel("作者主页", self.authorCard)
+        self.authorLabel = QLabel(tr("about.author_homepage"), self.authorCard)
         self.authorLabel.setObjectName("linkLabel")
-        self.authorButton = PushButton(FIF.PEOPLE, "查看", self.authorCard)
+        self.authorButton = PushButton(FIF.PEOPLE, tr("about.view"), self.authorCard)
         self.authorButton.setObjectName("linkButton")
         self.authorButton.setFixedHeight(36)
         self.authorLayout.addWidget(self.authorIcon)
@@ -141,9 +143,9 @@ class AboutInterface(BaseScrollAreaInterface):
         self.licenseIcon = QLabel(self.licenseCard)
         self.licenseIcon.setFixedSize(24, 24)
         self.licenseIcon.setObjectName("licenseIcon") 
-        self.licenseLabel = QLabel("GNU General Public License Version 3 开源许可证", self.licenseCard)
-        self.licenseLabel.setObjectName("linkLabel") 
-        self.viewLicenseButton = PushButton(FIF.DOCUMENT, "查看", self.licenseCard)
+        self.licenseLabel = QLabel(tr("about.license"), self.licenseCard)
+        self.licenseLabel.setObjectName("linkLabel")
+        self.viewLicenseButton = PushButton(FIF.DOCUMENT, tr("about.view"), self.licenseCard)
         self.viewLicenseButton.setObjectName("linkButton")
         self.viewLicenseButton.setFixedHeight(36)
         self.licenseLayout.addWidget(self.licenseIcon)
@@ -161,16 +163,60 @@ class AboutInterface(BaseScrollAreaInterface):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setWidget(self.scrollWidget)
         self.setWidgetResizable(True)
-        
+
         self.__setQss()
         self.__initLayout()
+        self.setup_translatable_ui()
+
+    def retranslateUi(self):
+        try:
+            if hasattr(self, 'descriptionLabel'):
+                self.descriptionLabel.setText(tr("about.description"))
+
+            if hasattr(self, 'versionInfo'):
+                self.versionInfo.setText(f"{tr('about.current_version')}: {VERSION}\n{tr('about.build_date')}: {BUILD_DATE}")
+
+            if hasattr(self, 'authorLabel'):
+                self.authorLabel.setText(f"{tr('about.author')}: HelloGaoo")
+
+            if hasattr(self, 'githubLabel'):
+                self.githubLabel.setText(tr("about.github_repo"))
+
+            if hasattr(self, 'githubButton'):
+                self.githubButton.setText(tr("about.view"))
+
+            if hasattr(self, 'authorLabel'):
+                # authorLabel 在上面已设置
+                pass
+
+            if hasattr(self, 'authorButton'):
+                self.authorButton.setText(tr("about.view"))
+
+            if hasattr(self, 'licenseLabel'):
+                self.licenseLabel.setText(tr("about.license"))
+
+            if hasattr(self, 'viewLicenseButton'):
+                self.viewLicenseButton.setText(tr("about.view"))
+
+            # 查找 linkGroupLabel（mainLayout 中）
+            for i in range(self.mainLayout.count()):
+                item = self.mainLayout.itemAt(i)
+                if item and item.widget():
+                    widget = item.widget()
+                    if widget.objectName() == "groupLabel":
+                        widget.setText(tr("about.related_links"))
+                        break
+
+            logger.info("关于界面翻译已更新")
+        except Exception as e:
+            logger.error(f"更新关于界面翻译失败: {e}")
     
     def __initLayout(self):
         """ 初始化布局 """
         self.mainLayout.setSpacing(12)
         self.mainLayout.setContentsMargins(60, 0, 60, 40)
         self.mainLayout.addWidget(self.aboutCard)
-        linkGroupLabel = QLabel("相关链接", self.scrollWidget)
+        linkGroupLabel = QLabel(tr("about.related_links"), self.scrollWidget)
         linkGroupLabel.setObjectName("groupLabel")
         self.mainLayout.addWidget(linkGroupLabel)
         self.mainLayout.addWidget(self.githubCard)

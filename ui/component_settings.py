@@ -34,6 +34,7 @@ from qfluentwidgets import (
 
 from core.config import cfg
 from core.constants import load_qss
+from core.utils import tr, TranslatableWidget
 
 logger = logging.getLogger("ClassLively.ui.component_settings")
 
@@ -81,7 +82,7 @@ class _SettingRow(SettingCard):
         return super().minimumSizeHint()
 
 
-class ComponentSettingDialog(QDialog):
+class ComponentSettingDialog(QDialog, TranslatableWidget):
     COMPONENT_MAP = {}
 
     @classmethod
@@ -118,6 +119,7 @@ class ComponentSettingDialog(QDialog):
 
         self._initLayout()
         self._applyStyle()
+        self.setup_translatable_ui()
 
     def _initLayout(self):
         root = QVBoxLayout(self)
@@ -153,8 +155,8 @@ class ComponentSettingDialog(QDialog):
 
         root.addWidget(self._stack, 1)
 
-        self._pivot.addItem('basic', '组件设置')
-        self._pivot.addItem('advanced', '高级设置')
+        self._pivot.addItem('basic', tr("component_settings.basic"))
+        self._pivot.addItem('advanced', tr("component_settings.advanced"))
 
         self._createSettings()
 
@@ -184,7 +186,7 @@ class ComponentSettingDialog(QDialog):
 
     def _beginGroup(self, group: str):
         if group == 'basic':
-            self._addGroup('基本', is_advanced=False)
+            self._addGroup(tr("component_settings.basic_group"), is_advanced=False)
             return False
         if group == 'advanced':
             return True
@@ -268,9 +270,9 @@ class ComponentSettingDialog(QDialog):
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(6)
 
-        custom_btn = PushButton("自定义")
+        custom_btn = PushButton(tr("component_settings.custom"))
         custom_btn.setFixedSize(56, 24)
-        custom_btn.setToolTip("自定义颜色")
+        custom_btn.setToolTip(tr("component_settings.custom_color"))
         self._updateCustomBtnStyle(custom_btn, config_item.value)
 
         for color in presets:
@@ -289,8 +291,8 @@ class ComponentSettingDialog(QDialog):
 
         wall_btn = PushButton()
         wall_btn.setFixedSize(24, 24)
-        wall_btn.setToolTip('跟随壁纸')
-        wall_btn.setText('壁')
+        wall_btn.setToolTip(tr("component_settings.follow_wallpaper"))
+        wall_btn.setText(tr("component_settings.wallpaper_abbr"))
         wall_btn.setStyleSheet(
             f"PushButton {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #FFFFFF, stop:1 #000000);"
             f"border: 1px solid rgba(128,128,128,0.3); border-radius: 4px; color: #333; font-size: 10px; font-weight: bold; }}"
@@ -300,8 +302,8 @@ class ComponentSettingDialog(QDialog):
 
         sys_btn = PushButton()
         sys_btn.setFixedSize(24, 24)
-        sys_btn.setToolTip('跟随系统')
-        sys_btn.setText('系')
+        sys_btn.setToolTip(tr("component_settings.follow_system"))
+        sys_btn.setText(tr("component_settings.system_abbr"))
         sys_accent = _get_system_accent_color_hex()
         sys_btn.setStyleSheet(
             f"PushButton {{ background-color: {sys_accent}; border: 1px solid rgba(128,128,128,0.3); border-radius: 4px; color: #333; font-size: 10px; font-weight: bold; }}"
@@ -312,7 +314,7 @@ class ComponentSettingDialog(QDialog):
 
         theme_btn = PushButton()
         theme_btn.setFixedSize(32, 24)
-        theme_btn.setToolTip("跟随主题")
+        theme_btn.setToolTip(tr("component_settings.follow_theme"))
         text_c = "#333333" if not isDarkTheme() else "#FFFFFF"
         theme_btn.setText("Aa")
         theme_btn.setStyleSheet(
@@ -396,28 +398,31 @@ class ComponentSettingDialog(QDialog):
             current = current.name()
         initial = QColor(current)
         top_parent = self.window()
-        dialog = ColorDialog(initial, "选择颜色", top_parent, enableAlpha=False)
+        dialog = ColorDialog(initial, tr("component_settings.select_color"), top_parent, enableAlpha=False)
         dialog.colorChanged.connect(lambda c: self._updateCustomBtnStyle(btn, c.name()))
         if dialog.exec():
             config_item.value = dialog.color.name()
             self._updateCustomBtnStyle(btn, config_item.value)
 
+    def retranslateUi(self):
+        self.setWindowTitle(self._title)
+
 
 @ComponentSettingDialog.register('clock')
 class ClockSettingDialog(ComponentSettingDialog):
     def __init__(self, parent=None):
-        super().__init__('时钟设置', FIF.DATE_TIME, parent)
+        super().__init__(tr("component_settings.clock"), FIF.DATE_TIME, parent)
 
     def _createSettings(self):
         basic = self._beginGroup('basic')
-        (self._enableCard, self._enableSwitch) = self._addSwitch('启用时钟', cfg.showClock, is_advanced=basic)
-        (self._secondsCard, self._secondsSwitch) = self._addSwitch('显示秒针', cfg.showClockSeconds, is_advanced=basic)
-        (self._lunarCard, self._lunarSwitch) = self._addSwitch('显示农历', cfg.showLunarCalendar, is_advanced=basic)
+        (self._enableCard, self._enableSwitch) = self._addSwitch(tr("component_settings.enable_clock"), cfg.showClock, is_advanced=basic)
+        (self._secondsCard, self._secondsSwitch) = self._addSwitch(tr("component_settings.show_seconds"), cfg.showClockSeconds, is_advanced=basic)
+        (self._lunarCard, self._lunarSwitch) = self._addSwitch(tr("component_settings.show_lunar"), cfg.showLunarCalendar, is_advanced=basic)
 
-        g_style = self._addGroup('外观', is_advanced=True)
-        (self._colorCard, self._colorBtn) = self._addColorPicker('时钟颜色', cfg.clockColor, group=g_style)
-        (self._clockSizeCard, self._clockSizeSpin) = self._addSpinBox('时钟大小', cfg.clockSize, 80, 200, group=g_style)
-        (self._dateSizeCard, self._dateSizeSpin) = self._addSpinBox('日期大小', cfg.dateSize, 12, 50, group=g_style)
+        g_style = self._addGroup(tr("component_settings.appearance"), is_advanced=True)
+        (self._colorCard, self._colorBtn) = self._addColorPicker(tr("component_settings.clock_color"), cfg.clockColor, group=g_style)
+        (self._clockSizeCard, self._clockSizeSpin) = self._addSpinBox(tr("component_settings.clock_size"), cfg.clockSize, 80, 200, group=g_style)
+        (self._dateSizeCard, self._dateSizeSpin) = self._addSpinBox(tr("component_settings.date_size"), cfg.dateSize, 12, 50, group=g_style)
 
         self._enableSwitch.checkedChanged.connect(self._updateEnabled)
         self._updateEnabled(cfg.showClock.value)
@@ -433,24 +438,24 @@ class ClockSettingDialog(ComponentSettingDialog):
 @ComponentSettingDialog.register('weather')
 class WeatherSettingDialog(ComponentSettingDialog):
     def __init__(self, parent=None):
-        super().__init__('天气设置', FIF.CLOUD, parent)
+        super().__init__(tr("component_settings.weather"), FIF.CLOUD, parent)
 
     def _createSettings(self):
         basic = self._beginGroup('basic')
-        (self._enableCard, self._enableSwitch) = self._addSwitch('启用天气', cfg.showWeather, is_advanced=basic)
+        (self._enableCard, self._enableSwitch) = self._addSwitch(tr("component_settings.enable_weather"), cfg.showWeather, is_advanced=basic)
         city_btn = PushButton(cfg.city.value)
-        self._cityCard = self._addButtonRow('城市', city_btn, is_advanced=basic)
+        self._cityCard = self._addButtonRow(tr("component_settings.city"), city_btn, is_advanced=basic)
         city_btn.clicked.connect(self._onCityClicked)
 
-        g_style = self._addGroup('样式', is_advanced=True)
-        (self._sizeCard, self._sizeSpin) = self._addSpinBox('文字大小', cfg.weatherSize, 5, 50, group=g_style)
-        (self._textColorCard, self._textColorBtn) = self._addColorPicker('文字颜色', cfg.weatherTextColor, group=g_style)
-        (self._iconSizeCard, self._iconSizeSpin) = self._addSpinBox('图标大小', cfg.weatherIconSize, 32, 128, group=g_style)
+        g_style = self._addGroup(tr("component_settings.style"), is_advanced=True)
+        (self._sizeCard, self._sizeSpin) = self._addSpinBox(tr("component_settings.text_size"), cfg.weatherSize, 5, 50, group=g_style)
+        (self._textColorCard, self._textColorBtn) = self._addColorPicker(tr("component_settings.text_color"), cfg.weatherTextColor, group=g_style)
+        (self._iconSizeCard, self._iconSizeSpin) = self._addSpinBox(tr("component_settings.icon_size"), cfg.weatherIconSize, 32, 128, group=g_style)
 
-        g_data = self._addGroup('数据', is_advanced=True)
+        g_data = self._addGroup(tr("component_settings.data"), is_advanced=True)
         (self._intervalCard, self._intervalCombo) = self._addComboBox(
-            '更新间隔',
-            ['从不', '5 分钟', '15 分钟', '30 分钟', '1 小时', '3 小时', '6 小时', '12 小时', '24 小时'],
+            tr("component_settings.weather_update_interval"),
+            [tr("component_settings.interval_never"), tr("component_settings.interval_5min"), tr("component_settings.interval_15min"), tr("component_settings.interval_30min"), tr("component_settings.interval_1h"), tr("component_settings.interval_3h"), tr("component_settings.interval_6h"), tr("component_settings.interval_12h"), tr("component_settings.interval_24h")],
             cfg.weatherUpdateInterval,
             group=g_data
         )
@@ -474,7 +479,7 @@ class WeatherSettingDialog(ComponentSettingDialog):
                     if hasattr(main_window, '_MainWindow__updateWeather'):
                         main_window._MainWindow__updateWeather()
         except Exception:
-            logger.exception('打开城市选择器失败')
+            logger.exception(tr("component_settings.weather_open_city_selector_failed"))
 
     def _updateEnabled(self, enabled):
         self._cityCard.setEnabled(enabled)
@@ -487,33 +492,33 @@ class WeatherSettingDialog(ComponentSettingDialog):
 @ComponentSettingDialog.register('poetry')
 class PoetrySettingDialog(ComponentSettingDialog):
     def __init__(self, parent=None):
-        super().__init__('一言设置', FIF.BOOK_SHELF, parent)
+        super().__init__(tr("component_settings.poetry"), FIF.BOOK_SHELF, parent)
 
     def _createSettings(self):
         basic = self._beginGroup('basic')
-        (self._enableCard, self._enableSwitch) = self._addSwitch('启用一言', cfg.showPoetry, is_advanced=basic)
+        (self._enableCard, self._enableSwitch) = self._addSwitch(tr("component_settings.enable_poetry"), cfg.showPoetry, is_advanced=basic)
         api_combo = ComboBox()
-        api_combo.addItems(['一言 API', '诗词 API'])
+        api_combo.addItems([tr("home.yiyan_api"), tr("home.poetry_api")])
         if cfg.poetryApiUrl.value == 'https://www.ffapi.cn/int/v1/shici':
-            api_combo.setCurrentText('诗词 API')
+            api_combo.setCurrentText(tr("home.poetry_api"))
         else:
-            api_combo.setCurrentText('一言 API')
+            api_combo.setCurrentText(tr("home.yiyan_api"))
         api_combo.currentTextChanged.connect(self._onApiChanged)
         (self._apiCard, self._apiCombo) = ('api_card', api_combo)
-        self._apiCard = _SettingRow('API', api_combo)
+        self._apiCard = _SettingRow(tr("component_settings.api"), api_combo)
         groups_basic = self._basic_groups
         if groups_basic:
             groups_basic[-1].addSettingCard(self._apiCard)
         self._apiCombo = api_combo
 
-        g_style = self._addGroup('样式', is_advanced=True)
-        (self._sizeCard, self._sizeSpin) = self._addSpinBox('文字大小', cfg.poetrySize, 12, 50, group=g_style)
-        (self._textColorCard, self._textColorBtn) = self._addColorPicker('文字颜色', cfg.poetryTextColor, group=g_style)
+        g_style = self._addGroup(tr("component_settings.style"), is_advanced=True)
+        (self._sizeCard, self._sizeSpin) = self._addSpinBox(tr("component_settings.text_size"), cfg.poetrySize, 12, 50, group=g_style)
+        (self._textColorCard, self._textColorBtn) = self._addColorPicker(tr("component_settings.text_color"), cfg.poetryTextColor, group=g_style)
 
-        g_data = self._addGroup('数据', is_advanced=True)
+        g_data = self._addGroup(tr("component_settings.data"), is_advanced=True)
         (self._intervalCard, self._intervalCombo) = self._addComboBox(
-            '更新间隔',
-            ['从不', '5 分钟', '10 分钟', '30 分钟', '1 小时', '3 小时', '6 小时', '12 小时', '1 天'],
+            tr("component_settings.poetry_update_interval"),
+            [tr("component_settings.interval_never"), tr("component_settings.interval_5min"), tr("component_settings.interval_10min"), tr("component_settings.interval_30min"), tr("component_settings.interval_1h"), tr("component_settings.interval_3h"), tr("component_settings.interval_6h"), tr("component_settings.interval_12h"), tr("component_settings.interval_1day")],
             cfg.poetryUpdateInterval,
             group=g_data
         )
@@ -522,7 +527,7 @@ class PoetrySettingDialog(ComponentSettingDialog):
         self._updateEnabled(cfg.showPoetry.value)
 
     def _onApiChanged(self, text):
-        if text == '诗词 API':
+        if text == tr("home.poetry_api"):
             cfg.poetryApiUrl.value = 'https://www.ffapi.cn/int/v1/shici'
         else:
             cfg.poetryApiUrl.value = 'https://api.imlcd.cn/yy/api.php'
@@ -537,30 +542,30 @@ class PoetrySettingDialog(ComponentSettingDialog):
 @ComponentSettingDialog.register('countdown')
 class CountdownSettingDialog(ComponentSettingDialog):
     def __init__(self, parent=None):
-        super().__init__('倒计时设置', FIF.STOP_WATCH, parent)
+        super().__init__(tr("component_settings.countdown"), FIF.STOP_WATCH, parent)
 
     def _createSettings(self):
         basic = self._beginGroup('basic')
-        (self._enableCard, self._enableSwitch) = self._addSwitch('启用倒计时', cfg.showCountdown, is_advanced=basic)
+        (self._enableCard, self._enableSwitch) = self._addSwitch(tr("component_settings.enable_countdown"), cfg.showCountdown, is_advanced=basic)
         mode_combo = ComboBox()
-        mode_combo.addItems(['同时显示', '轮播显示'])
-        mode_combo.setCurrentText('同时显示' if cfg.countdownDisplayMode.value == 'simultaneous' else '轮播显示')
+        mode_combo.addItems([tr("component_settings.countdown_simultaneous"), tr("component_settings.countdown_carousel")])
+        mode_combo.setCurrentText(tr("component_settings.countdown_simultaneous") if cfg.countdownDisplayMode.value == 'simultaneous' else tr("component_settings.countdown_carousel"))
         mode_combo.currentTextChanged.connect(
-            lambda t: setattr(cfg.countdownDisplayMode, 'value', 'simultaneous' if t == '同时显示' else 'carousel')
+            lambda t: setattr(cfg.countdownDisplayMode, 'value', 'simultaneous' if t == tr("component_settings.countdown_simultaneous") else 'carousel')
         )
-        self._modeCard = _SettingRow('显示模式', mode_combo)
+        self._modeCard = _SettingRow(tr("component_settings.display_mode"), mode_combo)
         if self._basic_groups:
             self._basic_groups[-1].addSettingCard(self._modeCard)
         self._modeCombo = mode_combo
-        (self._carouselCard, self._carouselSpin) = self._addSpinBox('轮播间隔(秒)', cfg.countdownCarouselInterval, 1, 60, is_advanced=basic)
+        (self._carouselCard, self._carouselSpin) = self._addSpinBox(tr("component_settings.countdown_carousel_interval"), cfg.countdownCarouselInterval, 1, 60, is_advanced=basic)
 
-        g_style = self._addGroup('样式', is_advanced=True)
-        (self._textColorCard, self._textColorBtn) = self._addColorPicker('文字颜色', cfg.countdownTextColor, group=g_style)
-        (self._connectorColorCard, self._connectorColorBtn) = self._addColorPicker('连接词颜色', cfg.countdownConnectorColor, group=g_style)
-        (self._textSizeCard, self._textSizeSpin) = self._addSpinBox('文字大小', cfg.countdownTextSize, 12, 120, group=g_style)
-        (self._connectorSizeCard, self._connectorSizeSpin) = self._addSpinBox('连接词大小', cfg.countdownConnectorSize, 12, 60, group=g_style)
+        g_style = self._addGroup(tr("component_settings.style"), is_advanced=True)
+        (self._textColorCard, self._textColorBtn) = self._addColorPicker(tr("component_settings.text_color"), cfg.countdownTextColor, group=g_style)
+        (self._connectorColorCard, self._connectorColorBtn) = self._addColorPicker(tr("component_settings.connector_color"), cfg.countdownConnectorColor, group=g_style)
+        (self._textSizeCard, self._textSizeSpin) = self._addSpinBox(tr("component_settings.text_size"), cfg.countdownTextSize, 12, 120, group=g_style)
+        (self._connectorSizeCard, self._connectorSizeSpin) = self._addSpinBox(tr("component_settings.connector_size"), cfg.countdownConnectorSize, 12, 60, group=g_style)
 
-        g_list = self._addGroup('倒计时列表', is_advanced=True)
+        g_list = self._addGroup(tr("component_settings.countdown_list"), is_advanced=True)
         self._listWidget = ListWidget()
         self._listWidget.setMinimumHeight(80)
         self._listWidget.setMaximumHeight(180)
@@ -571,17 +576,17 @@ class CountdownSettingDialog(ComponentSettingDialog):
         btn_row = QHBoxLayout(btn_container)
         btn_row.setContentsMargins(0, 0, 0, 0)
         btn_row.setSpacing(8)
-        add_btn = PushButton('添加')
+        add_btn = PushButton(tr("common.add"))
         add_btn.clicked.connect(self._onAdd)
-        edit_btn = PushButton('编辑')
+        edit_btn = PushButton(tr("common.edit"))
         edit_btn.clicked.connect(self._onEdit)
-        del_btn = PushButton('删除')
+        del_btn = PushButton(tr("common.delete"))
         del_btn.clicked.connect(self._onDelete)
         btn_row.addWidget(add_btn)
         btn_row.addWidget(edit_btn)
         btn_row.addWidget(del_btn)
         btn_row.addStretch()
-        self._btnCard = _SettingRow('倒计时操作', btn_container)
+        self._btnCard = _SettingRow(tr("component_settings.countdown_actions"), btn_container)
         g_list.addSettingCard(self._btnCard)
 
         self._enableSwitch.checkedChanged.connect(self._updateEnabled)
@@ -643,17 +648,17 @@ class CountdownSettingDialog(ComponentSettingDialog):
 @ComponentSettingDialog.register('school_info')
 class SchoolInfoSettingDialog(ComponentSettingDialog):
     def __init__(self, parent=None):
-        super().__init__('学校信息设置', FIF.EDUCATION, parent)
+        super().__init__(tr("component_settings.school_info"), FIF.EDUCATION, parent)
 
     def _createSettings(self):
         basic = self._beginGroup('basic')
-        (self._enableCard, self._enableSwitch) = self._addSwitch('启用学校信息', cfg.showSchoolInfo, is_advanced=basic)
-        (self._classCard, self._classEdit) = self._addLineEdit('班级', cfg.schoolClass, '例：2516班', is_advanced=basic)
-        (self._schoolCard, self._schoolEdit) = self._addLineEdit('学校', cfg.school, '例：第二实验中学', is_advanced=basic)
+        (self._enableCard, self._enableSwitch) = self._addSwitch(tr("component_settings.enable_school_info"), cfg.showSchoolInfo, is_advanced=basic)
+        (self._classCard, self._classEdit) = self._addLineEdit(tr("component_settings.school_class"), cfg.schoolClass, tr("component_settings.school_class_example"), is_advanced=basic)
+        (self._schoolCard, self._schoolEdit) = self._addLineEdit(tr("component_settings.school_name"), cfg.school, tr("component_settings.school_name_example"), is_advanced=basic)
 
-        g_appearance = self._addGroup('外观', is_advanced=True)
-        (self._colorCard, self._colorBtn) = self._addColorPicker('文字颜色', cfg.schoolInfoTextColor, group=g_appearance)
-        (self._sizeCard, self._sizeSpin) = self._addSpinBox('文字大小', cfg.schoolInfoTextSize, 12, 60, group=g_appearance)
+        g_appearance = self._addGroup(tr("component_settings.appearance"), is_advanced=True)
+        (self._colorCard, self._colorBtn) = self._addColorPicker(tr("component_settings.text_color"), cfg.schoolInfoTextColor, group=g_appearance)
+        (self._sizeCard, self._sizeSpin) = self._addSpinBox(tr("component_settings.text_size"), cfg.schoolInfoTextSize, 12, 60, group=g_appearance)
 
         self._enableSwitch.checkedChanged.connect(self._updateEnabled)
         self._updateEnabled(cfg.showSchoolInfo.value)
@@ -669,87 +674,87 @@ class SchoolInfoSettingDialog(ComponentSettingDialog):
 class MediaSettingDialog(ComponentSettingDialog):
     def __init__(self, parent=None):
         self._all_cards = []
-        super().__init__('媒体信息设置', FIF.MUSIC, parent)
+        super().__init__(tr("component_settings.media_info"), FIF.MUSIC, parent)
 
     def _createSettings(self):
         basic = self._beginGroup('basic')
-        (self._enableCard, self._enableSwitch) = self._addSwitch('启用媒体信息', cfg.showMediaInfo, is_advanced=basic)
-        (self._coverCard, self._coverSwitch) = self._addSwitch('显示封面', cfg.showMediaCover, is_advanced=basic)
+        (self._enableCard, self._enableSwitch) = self._addSwitch(tr("component_settings.enable_media_info"), cfg.showMediaInfo, is_advanced=basic)
+        (self._coverCard, self._coverSwitch) = self._addSwitch(tr("component_settings.show_cover"), cfg.showMediaCover, is_advanced=basic)
         self._all_cards.append(self._coverCard)
-        (self._progressCard, self._progressSwitch) = self._addSwitch('显示进度条', cfg.showMediaProgress, is_advanced=basic)
+        (self._progressCard, self._progressSwitch) = self._addSwitch(tr("component_settings.show_progress"), cfg.showMediaProgress, is_advanced=basic)
         self._all_cards.append(self._progressCard)
-        (self._lyricsShowCard, self._lyricsShowSwitch) = self._addSwitch('显示歌词', cfg.showMediaLyrics, is_advanced=basic)
+        (self._lyricsShowCard, self._lyricsShowSwitch) = self._addSwitch(tr("component_settings.show_lyrics"), cfg.showMediaLyrics, is_advanced=basic)
         self._all_cards.append(self._lyricsShowCard)
 
-        g_size = self._addGroup('尺寸', is_advanced=True)
-        (card, spin) = self._addSpinBox('组件宽度', cfg.mediaWidth, 200, 800, group=g_size)
+        g_size = self._addGroup(tr("component_settings.size"), is_advanced=True)
+        (card, spin) = self._addSpinBox(tr("component_settings.media_width"), cfg.mediaWidth, 200, 800, group=g_size)
         self._widthSpin = spin
         self._all_cards.append(card)
-        (card, spin) = self._addSpinBox('组件高度', cfg.mediaHeight, 80, 300, group=g_size)
+        (card, spin) = self._addSpinBox(tr("component_settings.media_height"), cfg.mediaHeight, 80, 300, group=g_size)
         self._heightSpin = spin
         self._all_cards.append(card)
-        (card, spin) = self._addSpinBox('文字大小', cfg.mediaTextSize, 12, 32, group=g_size)
+        (card, spin) = self._addSpinBox(tr("component_settings.text_size"), cfg.mediaTextSize, 12, 32, group=g_size)
         self._textSizeSpin = spin
         self._all_cards.append(card)
-        (card, spin) = self._addSpinBox('封面大小', cfg.mediaCoverSize, 32, 128, group=g_size)
+        (card, spin) = self._addSpinBox(tr("component_settings.cover_size"), cfg.mediaCoverSize, 32, 128, group=g_size)
         self._coverSizeSpin = spin
         self._all_cards.append(card)
 
-        g_bg = self._addGroup('背景', is_advanced=True)
-        (card, btn) = self._addColorPicker('背景颜色', cfg.mediaBgColor, group=g_bg)
+        g_bg = self._addGroup(tr("component_settings.background"), is_advanced=True)
+        (card, btn) = self._addColorPicker(tr("component_settings.bg_color"), cfg.mediaBgColor, group=g_bg)
         self._bgColorBtn = btn
         self._all_cards.append(card)
-        (card, spin) = self._addSpinBox('背景透明度', cfg.mediaBgOpacity, 0, 100, group=g_bg)
+        (card, spin) = self._addSpinBox(tr("component_settings.bg_opacity"), cfg.mediaBgOpacity, 0, 100, group=g_bg)
         self._bgOpacitySpin = spin
         self._all_cards.append(card)
-        (card, spin) = self._addSpinBox('圆角半径', cfg.mediaBorderRadius, 0, 30, group=g_bg)
+        (card, spin) = self._addSpinBox(tr("component_settings.border_radius"), cfg.mediaBorderRadius, 0, 30, group=g_bg)
         self._borderRadiusSpin = spin
         self._all_cards.append(card)
-        (card, spin) = self._addSpinBox('边框宽度', cfg.mediaBorderWidth, 0, 5, group=g_bg)
+        (card, spin) = self._addSpinBox(tr("component_settings.border_width"), cfg.mediaBorderWidth, 0, 5, group=g_bg)
         self._borderWidthSpin = spin
         self._all_cards.append(card)
-        (card, btn) = self._addColorPicker('边框颜色', cfg.mediaBorderColor, group=g_bg)
+        (card, btn) = self._addColorPicker(tr("component_settings.border_color"), cfg.mediaBorderColor, group=g_bg)
         self._borderColorBtn = btn
         self._all_cards.append(card)
 
-        g_text = self._addGroup('文字', is_advanced=True)
-        (card, btn) = self._addColorPicker('标题颜色', cfg.mediaTitleColor, group=g_text)
+        g_text = self._addGroup(tr("component_settings.text"), is_advanced=True)
+        (card, btn) = self._addColorPicker(tr("component_settings.title_color"), cfg.mediaTitleColor, group=g_text)
         self._titleColorBtn = btn
         self._all_cards.append(card)
-        (card, btn) = self._addColorPicker('艺术家颜色', cfg.mediaArtistColor, group=g_text)
+        (card, btn) = self._addColorPicker(tr("component_settings.artist_color"), cfg.mediaArtistColor, group=g_text)
         self._artistColorBtn = btn
         self._all_cards.append(card)
-        (card, btn) = self._addColorPicker('时间颜色', cfg.mediaTimeColor, group=g_text)
+        (card, btn) = self._addColorPicker(tr("component_settings.time_color"), cfg.mediaTimeColor, group=g_text)
         self._timeColorBtn = btn
         self._all_cards.append(card)
 
-        g_lyrics = self._addGroup('歌词', is_advanced=True)
-        (card, btn) = self._addColorPicker('歌词颜色', cfg.mediaLyricsColor, group=g_lyrics)
+        g_lyrics = self._addGroup(tr("component_settings.lyrics"), is_advanced=True)
+        (card, btn) = self._addColorPicker(tr("component_settings.lyrics_color"), cfg.mediaLyricsColor, group=g_lyrics)
         self._lyricsColorBtn = btn
         self._all_cards.append(card)
-        (card, spin) = self._addSpinBox('歌词字号', cfg.mediaLyricsSize, 10, 24, group=g_lyrics)
+        (card, spin) = self._addSpinBox(tr("component_settings.lyrics_size"), cfg.mediaLyricsSize, 10, 24, group=g_lyrics)
         self._lyricsSizeSpin = spin
         self._all_cards.append(card)
-        (card, spin) = self._addSpinBox('歌词提前(ms)', cfg.mediaLyricsAdvance, 0, 2000, group=g_lyrics)
+        (card, spin) = self._addSpinBox(tr("component_settings.lyrics_advance"), cfg.mediaLyricsAdvance, 0, 2000, group=g_lyrics)
         self._lyricsAdvanceSpin = spin
         self._all_cards.append(card)
 
-        g_progress = self._addGroup('进度条', is_advanced=True)
-        (card, btn) = self._addColorPicker('进度条颜色', cfg.mediaProgressColor, group=g_progress)
+        g_progress = self._addGroup(tr("component_settings.progress_bar"), is_advanced=True)
+        (card, btn) = self._addColorPicker(tr("component_settings.progress_color"), cfg.mediaProgressColor, group=g_progress)
         self._progressColorBtn = btn
         self._all_cards.append(card)
-        (card, btn) = self._addColorPicker('轨道颜色', cfg.mediaProgressTrackColor, group=g_progress)
+        (card, btn) = self._addColorPicker(tr("component_settings.track_color"), cfg.mediaProgressTrackColor, group=g_progress)
         self._progressTrackBtn = btn
         self._all_cards.append(card)
-        (card, spin) = self._addSpinBox('进度条高度', cfg.mediaProgressHeight, 2, 8, group=g_progress)
+        (card, spin) = self._addSpinBox(tr("component_settings.progress_height"), cfg.mediaProgressHeight, 2, 8, group=g_progress)
         self._progressHeightSpin = spin
         self._all_cards.append(card)
 
-        g_cover = self._addGroup('封面', is_advanced=True)
-        (card, spin) = self._addSpinBox('封面圆角', cfg.mediaCoverBorderRadius, 0, 20, group=g_cover)
+        g_cover = self._addGroup(tr("component_settings.cover"), is_advanced=True)
+        (card, spin) = self._addSpinBox(tr("component_settings.cover_radius"), cfg.mediaCoverBorderRadius, 0, 20, group=g_cover)
         self._coverRadiusSpin = spin
         self._all_cards.append(card)
-        (card, btn) = self._addColorPicker('封面边框色', cfg.mediaCoverBorderColor, group=g_cover)
+        (card, btn) = self._addColorPicker(tr("component_settings.cover_border_color"), cfg.mediaCoverBorderColor, group=g_cover)
         self._coverBorderColorBtn = btn
         self._all_cards.append(card)
 
@@ -764,21 +769,21 @@ class MediaSettingDialog(ComponentSettingDialog):
 @ComponentSettingDialog.register('quick_launch')
 class QuickLaunchSettingDialog(ComponentSettingDialog):
     def __init__(self, parent=None):
-        super().__init__('快捷启动栏设置', FIF.LINK, parent)
+        super().__init__(tr("component_settings.quick_launch"), FIF.LINK, parent)
 
     def _createSettings(self):
         basic = self._beginGroup('basic')
-        (self._enableCard, self._enableSwitch) = self._addSwitch('启用快捷启动栏', cfg.showQuickLaunch, is_advanced=basic)
-        edit_btn = PushButton('编辑应用')
+        (self._enableCard, self._enableSwitch) = self._addSwitch(tr("component_settings.enable_quick_launch"), cfg.showQuickLaunch, is_advanced=basic)
+        edit_btn = PushButton(tr("component_settings.edit_apps"))
         edit_btn.clicked.connect(self._onEditApps)
-        self._editCard = self._addButtonRow('应用列表', edit_btn, is_advanced=basic)
+        self._editCard = self._addButtonRow(tr("component_settings.app_list"), edit_btn, is_advanced=basic)
 
-        g_icon = self._addGroup('图标', is_advanced=True)
-        (self._iconSizeCard, self._iconSizeSpin) = self._addSpinBox('图标大小', cfg.quickLaunchIconSize, 32, 96, group=g_icon)
-        (self._spacingCard, self._spacingSpin) = self._addSpinBox('图标间距', cfg.quickLaunchIconSpacing, 4, 40, group=g_icon)
+        g_icon = self._addGroup(tr("component_settings.icon"), is_advanced=True)
+        (self._iconSizeCard, self._iconSizeSpin) = self._addSpinBox(tr("component_settings.icon_size"), cfg.quickLaunchIconSize, 32, 96, group=g_icon)
+        (self._spacingCard, self._spacingSpin) = self._addSpinBox(tr("component_settings.icon_spacing"), cfg.quickLaunchIconSpacing, 4, 40, group=g_icon)
 
-        g_layout = self._addGroup('布局', is_advanced=True)
-        (self._labelsCard, self._labelsSwitch) = self._addSwitch('显示名称', cfg.quickLaunchShowLabels, group=g_layout)
+        g_layout = self._addGroup(tr("component_settings.layout"), is_advanced=True)
+        (self._labelsCard, self._labelsSwitch) = self._addSwitch(tr("component_settings.show_labels"), cfg.quickLaunchShowLabels, group=g_layout)
 
         self._enableSwitch.checkedChanged.connect(self._updateEnabled)
         self._updateEnabled(cfg.showQuickLaunch.value)
@@ -795,7 +800,7 @@ class QuickLaunchSettingDialog(ComponentSettingDialog):
             if dialog.exec() == 1:
                 self._refreshQuickLaunch()
         except Exception:
-            logger.exception('打开应用编辑失败')
+            logger.exception(tr("component_settings.quick_launch_open_editor_failed"))
 
     def _refreshQuickLaunch(self):
         from core.config import cfg as _cfg
