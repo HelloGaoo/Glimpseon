@@ -710,24 +710,23 @@ class HomeInterface(QWidget):
         cached = get_cached_content("weather")
         if cached:
             try:
-                weather_text = f"{cached.get('current_temp', '?')}{cached.get('temp_unit', '°C')}"
-                self.weatherTempLabel.setText(weather_text)
-                self.current_weather_code = cached.get('weather_code')
-                self._updateWeatherIcon()
-                logger.info(f"使用缓存天气：{weather_text}")
-                if hasattr(self, 'weatherContainer'):
-                    self.weatherContainer.updateSize()
-                if cache_only:
-                    return
+                current_temp = cached.get('current_temp') or cached.get('temp')
+                temp_unit = cached.get('temp_unit') or cached.get('unit', '°C')
+                weather_code = cached.get('weather_code') or cached.get('code')
+                if current_temp is not None:
+                    weather_text = f"{current_temp}{temp_unit}"
+                    self.weatherTempLabel.setText(weather_text)
+                    self.current_weather_code = weather_code
+                    self._updateWeatherIcon()
+                    logger.info(f"使用缓存天气：{weather_text}")
+                    if hasattr(self, 'weatherContainer'):
+                        self.weatherContainer.updateSize()
+                    if cache_only:
+                        return
             except Exception as e:
                 logger.warning(f"读取缓存天气数据失败：{e}")
 
         if cache_only:
-            self.weatherTempLabel.setText("")
-            self.current_weather_code = None
-            self.weatherIconLabel.clear()
-            if hasattr(self, 'weatherContainer'):
-                self.weatherContainer.updateSize()
             return
 
         success = False
