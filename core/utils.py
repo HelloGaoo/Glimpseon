@@ -587,11 +587,10 @@ class TranslationManager(QObject):
 
     def set_language(self, language_code: str) -> bool:
         if language_code not in [lang.value for lang in LanguageCode]:
-            _i18n_logger.warning(f" [TranslationManager] 无效语言代码: {language_code}")
+            _i18n_logger.warning(f"[I18N] 无效语言代码: {language_code}")
             return False
         old_language = self._current_language
         self._current_language = language_code
-        _i18n_logger.info(f" [TranslationManager] 语言变更: {old_language} -> {language_code}")
         if old_language != language_code:
             self.language_changed.emit(language_code)
         return True

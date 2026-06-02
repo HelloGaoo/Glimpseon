@@ -1118,16 +1118,12 @@ class MainWindow(FluentWindow):
                 Language.ENGLISH: LanguageCode.EN_US.value,
                 Language.AUTO: self._detect_system_language().value,
             }
-            logger.info(f" [I18N] 当前配置语言: {cfg.language.value}")
             manager.language_changed.connect(self._onLanguageChanged)
             cfg.language.valueChanged.connect(self._onLanguageConfigChanged)
             target_lang = language_map.get(cfg.language.value, LanguageCode.ZH_CN.value)
             manager.set_language(target_lang)
-            logger.info(f" [I18N] 当前语言: {target_lang}")
         except Exception as e:
-            logger.error(f" [I18N] 翻译失败: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"[I18N] 翻译失败: {e}")
 
     @staticmethod
     def _detect_system_language() -> LanguageCode:
@@ -1157,19 +1153,14 @@ class MainWindow(FluentWindow):
             Language.AUTO: self._detect_system_language().value,
         }
         target_lang = language_map.get(new_language, LanguageCode.ZH_CN.value)
-        logger.info(f" [I18n] 新语言: {target_lang}")
-        switch_result = switch_language(target_lang)
-        logger.info(f" [I18N] {switch_result}")
+        switch_language(target_lang)
         self._switchFluentTranslator(new_language)
 
     def _switchFluentTranslator(self, new_language):
         try:
             app = QApplication.instance()
             if not app:
-                logger.error("[I18N] not app")
                 return
-
-            logger.info(f" [I18N] 目标语言: {new_language}")
 
             if self._fluent_translator is not None:
                 app.removeTranslator(self._fluent_translator)
@@ -1184,11 +1175,8 @@ class MainWindow(FluentWindow):
             self._fluent_translator = FluentTranslator(locale)
             app.installTranslator(self._fluent_translator)
 
-
         except Exception as e:
-            logger.error(f" [I18N] 切换失败: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"[I18N] _fluent_translator 切换失败: {e}")
 
     def _onLanguageChanged(self, language_code: str):
         """全局语言回调"""
@@ -1218,30 +1206,30 @@ class MainWindow(FluentWindow):
                 self.debugPanel.retranslateUi()
 
         except Exception as e:
-            logger.error(f"[I18N] 更新主窗口语言失败: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"[I18N] 语言切换失败: {e}")
 
     def _updateNavigationText(self):
         """更新导航栏文本"""
         try:
             nav_items = {
-                'home': tr("navigation.home"),  # 主界面
-                'wallpaper': tr("navigation.wallpaper"),  # 壁纸
-                'download': tr("navigation.download"),  # 软件下载
-                'setting': tr("navigation.settings"),  # 设置
-                'update': tr("navigation.update"),  # 更新
-                'about': tr("navigation.about"),  # 关于
-                'debug': tr("navigation.debug"),  # 调试
+                'home': tr("navigation.home"),
+                'wallpaper': tr("navigation.wallpaper"),
+                'download': tr("navigation.download"),
+                'setting': tr("navigation.settings"),
+                'update': tr("navigation.update"),
+                'about': tr("navigation.about"),
+                'debug': tr("navigation.debug"),
             }
 
-            for route_key, text in nav_items.items():
-                if hasattr(self.navigationInterface, 'panel'):
-                    item = self.navigationInterface.panel.items.get(route_key)
-                    if item and hasattr(item, 'setText'):
-                        item.setText(text)
+            if hasattr(self.navigationInterface, 'panel'):
+                panel = self.navigationInterface.panel
+                if hasattr(panel, 'items'):
+                    for route_key, text in nav_items.items():
+                        item = panel.items.get(route_key)
+                        if item and hasattr(item, 'setText'):
+                            item.setText(text)
         except Exception as e:
-            logger.warning(f"更新导航栏文本失败: {e}")
+            logger.error(f"[I18N] 更新导航栏文本失败: {e}")
 
     def updateInterfaceText(self, interface, text: str, position=None):
         """更新子界面导航（已弃用）"""
