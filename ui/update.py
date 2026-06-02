@@ -46,7 +46,7 @@ from qfluentwidgets import (
 
 from core.config import cfg
 from core.constants import BASE_DIR, get_resPath, load_qss
-from core.utils import tr
+from core.utils import tr, TranslatableWidget
 from core.updater import check_github_verison, get_github_changelog
 from version import BUILD_DATE, VERSION
 

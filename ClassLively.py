@@ -286,15 +286,13 @@ class WizardWindow(QDialog, TranslatableWidget):
         self.setFixedSize(840, 650)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
 
-        locale = QLocale(QLocale.Language.Chinese, QLocale.Country.China)
-        self.translator = FluentTranslator(locale)
-        QApplication.instance().installTranslator(self.translator)
-
         setTheme(cfg.themeMode.value)
 
         icon_path = get_resPath(os.path.join("resource", "icons", "CY.png"))
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
+
+        self._initFluentTranslator()
 
         self.mainLayout = QVBoxLayout(self)
         self.mainLayout.setContentsMargins(30, 30, 30, 30)
@@ -739,6 +737,18 @@ class WizardWindow(QDialog, TranslatableWidget):
         self.themeCard.comboBox.currentIndexChanged.connect(self._onThemeChanged)
         self.themeColorCard.colorChanged.connect(self._onColorChanged)
 
+    def _initFluentTranslator(self):
+        language_locale_map = {
+            Language.CHINESE_SIMPLIFIED: QLocale(QLocale.Language.Chinese, QLocale.Country.China),
+            Language.CHINESE_TRADITIONAL: QLocale(QLocale.Language.Chinese, QLocale.Country.HongKong),
+            Language.ENGLISH: QLocale(QLocale.Language.English),
+            Language.AUTO: QLocale(),
+        }
+        locale = language_locale_map.get(cfg.language.value, QLocale())
+        self.translator = FluentTranslator(locale)
+        QApplication.instance().installTranslator(self.translator)
+        logger.info(f"语言配置: {cfg.language.value}")
+
     def resizeEvent(self, event):
         self.titleLabel.move(30, 10)
         self.closeButton.move(self.width() - 35, 5)
@@ -962,6 +972,8 @@ class MainWindow(FluentWindow):
     def __init__(self):
         super().__init__()
 
+        self._fluent_translator = None
+
         setTheme(cfg.themeMode.value)
 
         icon_path = get_resPath(os.path.join("resource", "icons", "CY.png"))
@@ -1101,34 +1113,86 @@ class MainWindow(FluentWindow):
         try:
             manager = get_translation_manager()
             language_map = {
-                Language.CHINESE_SIMPLIFIED: LanguageCode.CHINESE_SIMPLIFIED,
-                Language.CHINESE_TRADITIONAL: LanguageCode.CHINESE_TRADITIONAL,
-                Language.ENGLISH: LanguageCode.ENGLISH,
-                Language.AUTO: LanguageCode.CHINESE_SIMPLIFIED,
+                Language.CHINESE_SIMPLIFIED: LanguageCode.ZH_CN.value,
+                Language.CHINESE_TRADITIONAL: LanguageCode.ZH_TW.value,
+                Language.ENGLISH: LanguageCode.EN_US.value,
+                Language.AUTO: self._detect_system_language().value,
             }
-            manager.languageChanged.connect(self._onLanguageChanged)
+            logger.info(f" [I18N] 当前配置语言: {cfg.language.value}")
+            manager.language_changed.connect(self._onLanguageChanged)
             cfg.language.valueChanged.connect(self._onLanguageConfigChanged)
-            target_lang = language_map.get(cfg.language.value, LanguageCode.CHINESE_SIMPLIFIED)
-            manager.switch_language(target_lang)
-            logger.info(f"当前语言: {target_lang.value}")
+            target_lang = language_map.get(cfg.language.value, LanguageCode.ZH_CN.value)
+            manager.set_language(target_lang)
+            logger.info(f" [I18N] 当前语言: {target_lang}")
         except Exception as e:
-            logger.error(f"翻译失败: {e}")
+            logger.error(f" [I18N] 翻译失败: {e}")
+            import traceback
+            traceback.print_exc()
+
+    @staticmethod
+    def _detect_system_language() -> LanguageCode:
+        """检测系统语言"""
+        try:
+            system_locale = QLocale()
+            language = system_locale.language()
+            if language == QLocale.Language.Chinese:
+                if system_locale.territory() in [QLocale.Country.HongKong, QLocale.Country.Taiwan, QLocale.Country.Macau]:
+                    return LanguageCode.ZH_TW
+                return LanguageCode.ZH_CN
+            elif language == QLocale.Language.English:
+                return LanguageCode.EN_US
+            else:
+                return LanguageCode.ZH_CN
+        except Exception:
+            return LanguageCode.ZH_CN
 
     def _onLanguageConfigChanged(self, new_language):
         """语言回调"""
+        logger.info(f"[I18N] 语言变更: {new_language}")
+
         language_map = {
-            Language.CHINESE_SIMPLIFIED: LanguageCode.CHINESE_SIMPLIFIED,
-            Language.CHINESE_TRADITIONAL: LanguageCode.CHINESE_TRADITIONAL,
-            Language.ENGLISH: LanguageCode.ENGLISH,
-            Language.AUTO: LanguageCode.CHINESE_SIMPLIFIED,
+            Language.CHINESE_SIMPLIFIED: LanguageCode.ZH_CN.value,
+            Language.CHINESE_TRADITIONAL: LanguageCode.ZH_TW.value,
+            Language.ENGLISH: LanguageCode.EN_US.value,
+            Language.AUTO: self._detect_system_language().value,
         }
-        target_lang = language_map.get(new_language, LanguageCode.CHINESE_SIMPLIFIED)
-        switch_language(target_lang)
+        target_lang = language_map.get(new_language, LanguageCode.ZH_CN.value)
+        logger.info(f" [I18n] 新语言: {target_lang}")
+        switch_result = switch_language(target_lang)
+        logger.info(f" [I18N] {switch_result}")
+        self._switchFluentTranslator(new_language)
+
+    def _switchFluentTranslator(self, new_language):
+        try:
+            app = QApplication.instance()
+            if not app:
+                logger.error("[I18N] not app")
+                return
+
+            logger.info(f" [I18N] 目标语言: {new_language}")
+
+            if self._fluent_translator is not None:
+                app.removeTranslator(self._fluent_translator)
+
+            language_locale_map = {
+                Language.CHINESE_SIMPLIFIED: QLocale(QLocale.Language.Chinese, QLocale.Country.China),
+                Language.CHINESE_TRADITIONAL: QLocale(QLocale.Language.Chinese, QLocale.Country.HongKong),
+                Language.ENGLISH: QLocale(QLocale.Language.English),
+                Language.AUTO: QLocale(),
+            }
+            locale = language_locale_map.get(new_language, QLocale())
+            self._fluent_translator = FluentTranslator(locale)
+            app.installTranslator(self._fluent_translator)
+
+
+        except Exception as e:
+            logger.error(f" [I18N] 切换失败: {e}")
+            import traceback
+            traceback.print_exc()
 
     def _onLanguageChanged(self, language_code: str):
         """全局语言回调"""
         try:
-            logger.info(f"更新语言到: {language_code}")
             self._updateNavigationText()
             self._updateTrayMenu()
 
@@ -1153,9 +1217,10 @@ class MainWindow(FluentWindow):
             if hasattr(self, 'debugPanel') and hasattr(self.debugPanel, 'retranslateUi'):
                 self.debugPanel.retranslateUi()
 
-            logger.info(f"主窗口界面语言已切换到: {language_code}")
         except Exception as e:
-            logger.error(f"更新主窗口界面语言失败: {e}")
+            logger.error(f"[I18N] 更新主窗口语言失败: {e}")
+            import traceback
+            traceback.print_exc()
 
     def _updateNavigationText(self):
         """更新导航栏文本"""
@@ -1684,10 +1749,17 @@ if __name__ == "__main__":
     splash.setProgress(15)
     allow_ui_update(0.06)
     _t = time.time()
-    locale = QLocale(QLocale.Language.Chinese, QLocale.Country.China)
+
+    language_locale_map = {
+        Language.CHINESE_SIMPLIFIED: QLocale(QLocale.Language.Chinese, QLocale.Country.China),
+        Language.CHINESE_TRADITIONAL: QLocale(QLocale.Language.Chinese, QLocale.Country.HongKong),
+        Language.ENGLISH: QLocale(QLocale.Language.English),
+        Language.AUTO: QLocale(),
+    }
+    locale = language_locale_map.get(cfg.language.value, QLocale())
     fluentTranslator = FluentTranslator(locale)
     app.installTranslator(fluentTranslator)
-    logger.info(f"[BOOT] 翻译加载 耗时{time.time()-_t:.2f}s")
+    logger.info(f"[BOOT] 语言配置: {cfg.language.value}，耗时{time.time()-_t:.2f}s")
 
     if not verify_single_instance():
         splash.close()
@@ -1783,6 +1855,11 @@ if __name__ == "__main__":
     splash.waitForProgress(70, timeout=0.5)
     _t = time.time()
     window = MainWindow()
+
+    # 启动时的 FluentTranslator引用给 MainWindow
+    if 'fluentTranslator' in dir():
+        window._fluent_translator = fluentTranslator
+
     logger.info(f"[BOOT] 创建主窗口 耗时{time.time()-_t:.2f}s")
 
     def _upd_wp(path, src, url):

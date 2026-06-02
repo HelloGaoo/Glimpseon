@@ -552,6 +552,7 @@ def auto_start_launch():
 _i18n_logger = logging.getLogger("ClassLively.core.i18n")
 class LanguageCode(Enum):
     ZH_CN = "zh_CN"
+    ZH_TW = "zh_TW"
     EN_US = "en_US"
 
 
@@ -565,12 +566,12 @@ class TranslationManager(QObject):
         self._load_translations()
 
     def _load_translations(self):
-        locales_dir = os.path.join(BASE_DIR, "locales")
-        if not os.path.exists(locales_dir):
-            _i18n_logger.warning(f"Locales directory not found: {locales_dir}")
+        locale_dir = os.path.join(BASE_DIR, "locale")
+        if not os.path.exists(locale_dir):
+            _i18n_logger.warning(f"Locale directory not found: {locale_dir}")
             return
         for lang_code in LanguageCode:
-            file_path = os.path.join(locales_dir, f"{lang_code.value}.json")
+            file_path = os.path.join(locale_dir, f"{lang_code.value}.json")
             if os.path.exists(file_path):
                 try:
                     with open(file_path, "r", encoding="utf-8") as f:
@@ -586,13 +587,13 @@ class TranslationManager(QObject):
 
     def set_language(self, language_code: str) -> bool:
         if language_code not in [lang.value for lang in LanguageCode]:
-            _i18n_logger.warning(f"Invalid language code: {language_code}")
+            _i18n_logger.warning(f" [TranslationManager] 无效语言代码: {language_code}")
             return False
         old_language = self._current_language
         self._current_language = language_code
+        _i18n_logger.info(f" [TranslationManager] 语言变更: {old_language} -> {language_code}")
         if old_language != language_code:
             self.language_changed.emit(language_code)
-            _i18n_logger.info(f"Language changed: {old_language} -> {language_code}")
         return True
 
     def get_current_language(self) -> str:
@@ -600,13 +601,24 @@ class TranslationManager(QObject):
 
     def tr(self, key: str, **kwargs) -> str:
         lang_translations = self._translations.get(self._current_language, {})
-        text = lang_translations.get(key, key)
+        text = self._get_nested_value(lang_translations, key, key)
         if kwargs:
             try:
                 text = text.format(**kwargs)
             except (KeyError, ValueError) as e:
                 _i18n_logger.debug(f"Translation format error for key '{key}': {e}")
         return text
+
+    @staticmethod
+    def _get_nested_value(d: dict, key: str, default):
+        keys = key.split('.')
+        value = d
+        for k in keys:
+            if isinstance(value, dict) and k in value:
+                value = value[k]
+            else:
+                return default
+        return value if isinstance(value, str) else default
 
 
 _translation_manager: Optional[TranslationManager] = None
