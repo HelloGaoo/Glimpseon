@@ -5,19 +5,12 @@
     "version": "1.0.0",
     "author": "ClassLively Team"
   },
-  "app": {
-    "name": "ClassLively",
-    "description": "班級教學輔助工具"
-  },
   "splash": {
     "initializing": "正在初始化...",
     "loading_translation": "正在載入翻譯",
-    "loading_fonts": "正在初始化字型",
     "configuring_log": "正在設定日誌",
     "loading_config": "正在載入設定",
-    "creating_window": "正在建立主視窗...",
     "preloading": "正在預載入...",
-    "finishing_startup": "正在完成啟動",
     "cleaning_temp": "正在清理臨時文件...",
     "loading_resources": "正在加載資源...",
     "initializing_fonts": "正在初始化字體",
@@ -79,19 +72,13 @@
     "countdown_add_failed": "新增倒數計時失敗：{error}",
     "shortcut_created": "已成功建立桌面捷徑",
     "shortcut_failed": "建立捷徑失敗：{error}",
-    "file_open_error": "無法開啟協議檔案：{file}"
+    "file_open_error": "無法開啟協議檔案：{file}",
+    "finish": "完成"
   },
   "tray": {
     "show_window": "顯示主視窗",
     "exit": "結束",
     "minimize_message": "應用程式已最小化到系統列"
-  },
-  "window": {
-    "icon_missing": "視窗圖示檔案不存在",
-    "init_complete": "主視窗初始化完成",
-    "idle_disabled": "閒置偵測已停用",
-    "idle_detected": "偵測到電腦閒置超過{minutes}分鐘，自動開啟介面",
-    "idle_check_error": "閒置偵測失敗：{error}"
   },
   "dialog": {
     "instance_running": "{app} 已有實例執行中",
@@ -105,15 +92,9 @@
     "general": "一般",
     "appearance": "外觀",
     "advanced": "進階",
-    "about": "關於",
     "language": "語言",
     "language_desc": "切換應用顯示語言 / Switch application display language",
-    "theme": "主題",
-    "startup": "啟動選項",
-    "window_behavior": "視窗行為",
-    "notification": "通知",
     "data_management": "資料管理",
-    "debug": "偵錯模式",
     "idle_minutes": "閒置偵測時間",
     "idle_minutes_desc": "設定電腦閒置多少分鐘後觸發自動開啟（1-60 分鐘）",
     "disable_log": "停用日誌",
@@ -142,6 +123,9 @@
     "reset_default_button": "恢復預設",
     "reset_default_confirm": "確定要將所有設定恢復到預設值嗎？",
     "restart_required": "設定需要重新啟動應用程式才能生效",
+    "restart_required_desc": "語言設定已更改，是否立即重新啟動應用程式？",
+    "export_button": "匯出",
+    "import_button": "匯入",
     "debug_mode": "偵錯模式",
     "debug_mode_desc": "啟用偵錯模式以進行測試和偵錯",
     "clear_log_confirm": "確定要清空所有日誌檔案嗎？",
@@ -301,7 +285,7 @@
     "school_name": "學校",
     "school_name_example": "例如：XX 中學",
     "lyrics_advance": "歌詞提前(ms)",
-    "retranslate_complete": "主介面翻譯已更新"
+    "path_not_exist": "路徑不存在"
   },
   "component": {
     "clock": "時鐘",
@@ -420,7 +404,8 @@
     "applied": "已應用壁紙",
     "apply_failed": "應用失敗：{error}",
     "fetch_or_select_first": "請先獲取或選擇壁紙",
-    "set_as_desktop": "壁紙已設為桌面背景"
+    "set_as_desktop": "壁紙已設為桌面背景",
+    "time": "時間"
   },
   "about": {
     "description": "班級教學輔助工具",
@@ -431,8 +416,7 @@
     "author_homepage": "作者主頁",
     "view": "檢視",
     "license": "GNU General Public License Version 3 開源授權",
-    "related_links": "相關連結",
-    "title": "關於"
+    "related_links": "相關連結"
   },
   "common": {
     "close": "關閉",
@@ -446,7 +430,10 @@
     "unknown": "未知",
     "add": "新增",
     "edit": "編輯",
-    "delete": "刪除"
+    "delete": "刪除",
+    "restart_now": "立即重新啟動",
+    "restart_later": "稍後",
+    "error": "錯誤"
   },
   "media": {
     "not_playing": "未在播放",
@@ -582,7 +569,8 @@
     "interval_6h": "6 小時",
     "interval_12h": "12 小時",
     "interval_24h": "24 小時",
-    "interval_1day": "1 天"
+    "interval_1day": "1 天",
+    "city": "城市"
   },
   "weather_service": {
     "select_region": "選擇地區",

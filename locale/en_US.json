@@ -5,19 +5,12 @@
     "version": "1.0.0",
     "author": "ClassLively Team"
   },
-  "app": {
-    "name": "ClassLively",
-    "description": "Classroom Teaching Assistant Tool"
-  },
   "splash": {
     "initializing": "Initializing...",
     "loading_translation": "Loading translations",
-    "loading_fonts": "Initializing fonts",
     "configuring_log": "Configuring logs",
     "loading_config": "Loading configuration",
-    "creating_window": "Creating main window...",
     "preloading": "Preloading...",
-    "finishing_startup": "Finishing startup",
     "cleaning_temp": "Cleaning temporary files...",
     "loading_resources": "Loading resources...",
     "initializing_fonts": "Initializing fonts",
@@ -79,19 +72,13 @@
     "countdown_add_failed": "Failed to add countdown: {error}",
     "shortcut_created": "Desktop shortcut created successfully",
     "shortcut_failed": "Failed to create shortcut: {error}",
-    "file_open_error": "Cannot open agreement file: {file}"
+    "file_open_error": "Cannot open agreement file: {file}",
+    "finish": "Finish"
   },
   "tray": {
     "show_window": "Show Main Window",
     "exit": "Exit",
     "minimize_message": "Application minimized to system tray"
-  },
-  "window": {
-    "icon_missing": "Window icon file not found",
-    "init_complete": "Main window initialization complete",
-    "idle_disabled": "Idle detection disabled",
-    "idle_detected": "Computer idle for more than {minutes} minutes, auto-opening interface",
-    "idle_check_error": "Idle detection failed: {error}"
   },
   "dialog": {
     "instance_running": "{app} is already running",
@@ -105,15 +92,9 @@
     "general": "General",
     "appearance": "Appearance",
     "advanced": "Advanced",
-    "about": "About",
     "language": "Language",
     "language_desc": "Switch application display language / 切换应用显示语言",
-    "theme": "Theme",
-    "startup": "Startup Options",
-    "window_behavior": "Window Behavior",
-    "notification": "Notification",
     "data_management": "Data Management",
-    "debug": "Debug Mode",
     "idle_minutes": "Idle Detection Time",
     "idle_minutes_desc": "Set how many minutes of idle time before auto-open (1-60 minutes)",
     "disable_log": "Disable Logging",
@@ -140,9 +121,6 @@
     "reset_default": "Reset to Defaults",
     "reset_default_desc": "Restore all settings to default values",
     "reset_default_button": "Reset",
-    "lang_zh_cn": "Simplified Chinese",
-    "lang_zh_tw": "Traditional Chinese",
-    "lang_en": "English",
     "export_button": "Export",
     "import_button": "Import",
     "reset_default_confirm": "Are you sure you want to restore all settings to default values?",
@@ -307,7 +285,7 @@
     "school_name": "School",
     "school_name_example": "e.g.: XX Middle School",
     "lyrics_advance": "Lyrics Advance (ms)",
-    "retranslate_complete": "Home interface translation updated"
+    "path_not_exist": "Path does not exist"
   },
   "component": {
     "clock": "Clock",
@@ -426,7 +404,8 @@
     "applied": "Wallpaper applied",
     "apply_failed": "Apply failed: {error}",
     "fetch_or_select_first": "Please fetch or select wallpaper first",
-    "set_as_desktop": "Wallpaper set as desktop background"
+    "set_as_desktop": "Wallpaper set as desktop background",
+    "time": "Time"
   },
   "about": {
     "description": "Classroom Teaching Assistant Tool",
@@ -437,8 +416,7 @@
     "author_homepage": "Author's Homepage",
     "view": "View",
     "license": "GNU General Public License Version 3",
-    "related_links": "Related Links",
-    "title": "About"
+    "related_links": "Related Links"
   },
   "common": {
     "close": "Close",
@@ -454,7 +432,8 @@
     "restart_later": "Later",
     "add": "Add",
     "edit": "Edit",
-    "delete": "Delete"
+    "delete": "Delete",
+    "error": "Error"
   },
   "media": {
     "not_playing": "Not Playing",
@@ -590,7 +569,8 @@
     "interval_6h": "6 hours",
     "interval_12h": "12 hours",
     "interval_24h": "24 hours",
-    "interval_1day": "1 day"
+    "interval_1day": "1 day",
+    "city": "City"
   },
   "weather_service": {
     "select_region": "Select Region",

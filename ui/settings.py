@@ -119,9 +119,9 @@ class ButtonSettingCard(SettingCard):
 class DualButtonSettingCard(SettingCard):
     def __init__(self, icon, title, content=None, parent=None):
         super().__init__(icon, title, content, parent)
-        self.button1 = PushButton(FIF.SAVE, "导出", self)
+        self.button1 = PushButton(FIF.SAVE, tr("settings.export_button"), self)
         self.button1.setFixedSize(80, 32)
-        self.button2 = PushButton(FIF.DOWNLOAD, "导入", self)
+        self.button2 = PushButton(FIF.DOWNLOAD, tr("settings.import_button"), self)
         self.button2.setFixedSize(80, 32)
         from PyQt6.QtWidgets import QHBoxLayout
         button_layout = QHBoxLayout()

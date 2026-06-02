@@ -221,10 +221,10 @@ class RegionSelectorDialog(MessageBoxBase):
 
     def _init_ui(self):
         title = SubtitleLabel()
-        title.setText(tr("weather.select_region"))  # 选择地区
+        title.setText(tr("weather_service.select_region"))
 
         self._search_input = SearchLineEdit()
-        self._search_input.setPlaceholderText(tr("weather.region_placeholder"))  # 搜索地区
+        self._search_input.setPlaceholderText(tr("weather_service.region_placeholder"))
         self._search_input.setClearButtonEnabled(True)
         self._search_input.textChanged.connect(self._on_search)
 

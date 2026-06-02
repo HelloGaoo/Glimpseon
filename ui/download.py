@@ -172,7 +172,7 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
         
         info_bar = InfoBar.success(
             tr("download.starting_download"),  # 开始下载
-            tr("downloading_single").format(name=software_name),  # 正在下载 {name}...
+            tr("download.downloading_single").format(name=software_name),  # 正在下载 {name}...
             parent=self,
             duration=3000
         )
@@ -677,7 +677,7 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
         # 显示下载中提示
         info_bar = InfoBar.success(
             tr("download.starting_download"),  # 开始下载
-            tr("downloading_batch").format(count=len(self.selectedSoftware)),  # 正在下载 {count} 个软件...
+            tr("download.downloading_batch").format(count=len(self.selectedSoftware)),  # 正在下载 {count} 个软件...
             parent=self,
             duration=3000
         )

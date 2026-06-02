@@ -5,19 +5,12 @@
     "version": "1.0.0",
     "author": "ClassLively Team"
   },
-  "app": {
-    "name": "ClassLively",
-    "description": "班级教学辅助工具"
-  },
   "splash": {
     "initializing": "正在初始化...",
     "loading_translation": "正在加载翻译",
-    "loading_fonts": "正在初始化字体",
     "configuring_log": "正在配置日志",
     "loading_config": "正在加载配置",
-    "creating_window": "正在创建主窗口...",
     "preloading": "正在预加载...",
-    "finishing_startup": "正在完成启动",
     "cleaning_temp": "正在清理临时文件...",
     "loading_resources": "正在加载资源...",
     "initializing_fonts": "正在初始化字体",
@@ -79,19 +72,13 @@
     "countdown_add_failed": "添加倒计时失败：{error}",
     "shortcut_created": "已创建桌面快捷方式",
     "shortcut_failed": "创建快捷方式失败：{error}",
-    "file_open_error": "无法打开协议文件：{file}"
+    "file_open_error": "无法打开协议文件：{file}",
+    "finish": "完成"
   },
   "tray": {
     "show_window": "显示主窗口",
     "exit": "退出",
     "minimize_message": "应用已最小化到系统托盘"
-  },
-  "window": {
-    "icon_missing": "窗口图标文件不存在",
-    "init_complete": "主窗口初始化完成",
-    "idle_disabled": "空闲检测已禁用",
-    "idle_detected": "检测到电脑空闲超过{minutes}分钟，自动打开界面",
-    "idle_check_error": "检测空闲时间失败：{error}"
   },
   "dialog": {
     "instance_running": "{app} 已有实例运行",
@@ -105,15 +92,9 @@
     "general": "通用",
     "appearance": "外观",
     "advanced": "高级",
-    "about": "关于",
     "language": "语言",
     "language_desc": "切换应用显示语言 / Switch application display language",
-    "theme": "主题",
-    "startup": "启动选项",
-    "window_behavior": "窗口行为",
-    "notification": "通知",
     "data_management": "数据管理",
-    "debug": "调试模式",
     "idle_minutes": "空闲检测时间",
     "idle_minutes_desc": "设置电脑空闲多少分钟后触发自动打开（1-60 分钟）",
     "disable_log": "禁用日志",
@@ -157,10 +138,7 @@
     "selected_file_not_exist": "选择的文件不存在",
     "import_success": "配置已导入：{path}",
     "config_json_parse_error": "配置文件格式错误，无法解析 JSON",
-    "import_failed": "导入配置失败: {error}",
-    "lang_zh_cn": "简体中文",
-    "lang_zh_tw": "繁體中文",
-    "lang_en": "English"
+    "import_failed": "导入配置失败: {error}"
   },
   "weather": {
     "sunny": "晴",
@@ -307,7 +285,7 @@
     "school_name": "学校",
     "school_name_example": "例如：XX 中学",
     "lyrics_advance": "歌词提前(ms)",
-    "retranslate_complete": "主界面翻译已更新"
+    "path_not_exist": "路径不存在"
   },
   "component": {
     "clock": "时钟",
@@ -426,7 +404,8 @@
     "applied": "已应用壁纸",
     "apply_failed": "应用失败：{error}",
     "fetch_or_select_first": "请先获取或选择壁纸",
-    "set_as_desktop": "壁纸已设置为桌面背景"
+    "set_as_desktop": "壁纸已设置为桌面背景",
+    "time": "时间"
   },
   "about": {
     "description": "班级教学辅助工具",
@@ -437,8 +416,7 @@
     "author_homepage": "作者主页",
     "view": "查看",
     "license": "GNU General Public License Version 3 开源许可证",
-    "related_links": "相关链接",
-    "title": "关于"
+    "related_links": "相关链接"
   },
   "common": {
     "close": "关闭",
@@ -454,7 +432,8 @@
     "edit": "编辑",
     "delete": "删除",
     "restart_now": "立即重启",
-    "restart_later": "稍后"
+    "restart_later": "稍后",
+    "error": "错误"
   },
   "media": {
     "not_playing": "未在播放",
@@ -590,7 +569,8 @@
     "interval_6h": "6 小时",
     "interval_12h": "12 小时",
     "interval_24h": "24 小时",
-    "interval_1day": "1 天"
+    "interval_1day": "1 天",
+    "city": "城市"
   },
   "weather_service": {
     "select_region": "选择地区",
