@@ -587,63 +587,97 @@ class SettingInterface(ScrollArea, TranslatableWidget):
     def retranslateUi(self):
         try:
             if hasattr(self, 'settingLabel'):
-                self.settingLabel.setText(tr("settings.title"))  # 设置
+                self.settingLabel.setText(tr("settings.title"))
 
             if hasattr(self, 'basicGroup') and hasattr(self.basicGroup, 'titleLabel'):
-                self.basicGroup.titleLabel.setText(tr("settings.general"))  # 通用
+                self.basicGroup.titleLabel.setText(tr("settings.general"))
 
             if hasattr(self, 'appearanceGroup') and hasattr(self.appearanceGroup, 'titleLabel'):
-                self.appearanceGroup.titleLabel.setText(tr("settings.appearance"))  # 外观
+                self.appearanceGroup.titleLabel.setText(tr("settings.appearance"))
 
             if hasattr(self, 'logGroup') and hasattr(self.logGroup, 'titleLabel'):
-                self.logGroup.titleLabel.setText(tr("settings.advanced"))  # 高级
+                self.logGroup.titleLabel.setText(tr("settings.advanced"))
 
             if hasattr(self, 'otherGroup') and hasattr(self.otherGroup, 'titleLabel'):
-                self.otherGroup.titleLabel.setText(tr("settings.data_management"))  # 数据管理
+                self.otherGroup.titleLabel.setText(tr("settings.data_management"))
 
             card_translations = [
-                # 通用设置
-                (self.autoStartCard, tr("wizard.auto_start"), tr("wizard.auto_start_desc")),  # 开机自启动 / 设置应用在系统启动时自动运行
-                (self.autoOpenOnIdleCard, tr("wizard.auto_open_idle"), tr("wizard.auto_open_idle_desc")),  # 空闲时自动打开 / 电脑空闲时自动从最小化打开界面
-                (self.idleMinutesCard, tr("settings.idle_minutes"), tr("settings.idle_minutes_desc")),  # 空闲检测时间 / 设置电脑空闲多少分钟后触发自动打开（1-60 分钟）
-                (self.autoOpenMaximizeCard, tr("wizard.auto_open_maximize"), tr("wizard.auto_open_maximize_desc")),  # 自动打开时最大化 / 空闲自动打开界面时是否最大化窗口
-                # 外观设置
-                (self.themeCard, tr("wizard.theme_mode"), tr("wizard.theme_mode_desc")),  # 应用颜色主题 / 更改应用程序的颜色外观
-                (self.themeColorCard, tr("wizard.primary_color"), tr("wizard.primary_color_desc")),  # 主要颜色 / 更改应用程序的主要颜色
-                (self.languageCard, tr("settings.language"), tr("settings.language_desc")),  # 语言 / 切换应用显示语言 / Switch application display language
-                # 高级设置
-                (self.disableLogCard, tr("settings.disable_log"), tr("settings.disable_log_desc")),  # 禁用日志 / 完全禁用日志输出
-                (self.logLevelCard, tr("settings.log_level"), tr("settings.log_level_desc")),  # 日志级别 / 设置日志的输出级别
-                (self.logMaxCountCard, tr("settings.log_max_count"), tr("settings.log_max_count_desc")),  # 日志数量上限 / 设置日志文件的最大条目数
-                (self.logMaxDaysCard, tr("settings.log_max_days"), tr("settings.log_max_days_desc")),  # 日志时间上限 / 设置日志文件的最大保存天数
-                (self.clearLogCard, tr("settings.clear_log"), tr("settings.clear_log_desc")),  # 清空日志 / 清空所有日志文件
-                # 数据管理
-                (self.closeActionCard, tr("settings.close_action"), tr("settings.close_action_desc")),  # 关闭事件行为 / 设置点击关闭按钮时的行为
-                (self.allowMultipleInstancesCard, tr("settings.allow_multiple_instances"), tr("settings.allow_multiple_instances_desc")),  # 允许重复启动 / 允许同时运行多个应用实例
-                (self.enableGpuAccelerationCard, tr("settings.gpu_acceleration"), tr("settings.gpu_acceleration_desc")),  # GPU 加速 / 使用 OpenGL ES 作为图形渲染后端（重启生效）
-                (self.configIOCard, tr("settings.config_import_export"), tr("settings.config_import_export_desc")),  # 配置导入/导出 / 导出或导入配置文件（JSON）
-                (self.resetDefaultCard, tr("settings.reset_default"), tr("settings.reset_default_desc")),  # 恢复默认设置 / 将所有设置恢复到默认值
-                (self.debugModeCard, tr("settings.debug_mode"), tr("settings.debug_mode_desc")),  # 调试模式 / 启用调试模式以进行测试和调试
+                (self.autoStartCard, tr("wizard.auto_start"), tr("wizard.auto_start_desc")),
+                (self.autoOpenOnIdleCard, tr("wizard.auto_open_idle"), tr("wizard.auto_open_idle_desc")),
+                (self.idleMinutesCard, tr("settings.idle_minutes"), tr("settings.idle_minutes_desc")),
+                (self.autoOpenMaximizeCard, tr("wizard.auto_open_maximize"), tr("wizard.auto_open_maximize_desc")),
+                (self.themeCard, tr("wizard.theme_mode"), tr("wizard.theme_mode_desc")),
+                (self.themeColorCard, tr("wizard.primary_color"), tr("wizard.primary_color_desc")),
+                (self.languageCard, tr("settings.language"), tr("settings.language_desc")),
+                (self.disableLogCard, tr("settings.disable_log"), tr("settings.disable_log_desc")),
+                (self.logLevelCard, tr("settings.log_level"), tr("settings.log_level_desc")),
+                (self.logMaxCountCard, tr("settings.log_max_count"), tr("settings.log_max_count_desc")),
+                (self.logMaxDaysCard, tr("settings.log_max_days"), tr("settings.log_max_days_desc")),
+                (self.clearLogCard, tr("settings.clear_log"), tr("settings.clear_log_desc")),
+                (self.closeActionCard, tr("settings.close_action"), tr("settings.close_action_desc")),
+                (self.allowMultipleInstancesCard, tr("settings.allow_multiple_instances"), tr("settings.allow_multiple_instances_desc")),
+                (self.enableGpuAccelerationCard, tr("settings.gpu_acceleration"), tr("settings.gpu_acceleration_desc")),
+                (self.configIOCard, tr("settings.config_import_export"), tr("settings.config_import_export_desc")),
+                (self.resetDefaultCard, tr("settings.reset_default"), tr("settings.reset_default_desc")),
+                (self.debugModeCard, tr("settings.debug_mode"), tr("settings.debug_mode_desc")),
             ]
 
             for card, title, content in card_translations:
                 if card:
-                    # CustomColorSettingCard 没有 setTitle/setContent 方法
                     if hasattr(card, 'setTitle'):
                         card.setTitle(title)
                         card.setContent(content)
                     elif hasattr(card, 'titleLabel'):
-                        # 对于 CustomColorSettingCard 更新标题
                         card.titleLabel.setText(title)
 
             if hasattr(self, 'clearLogCard'):
-                self.clearLogCard.button.setText(tr("settings.clear_log_button"))  # 清空日志
+                self.clearLogCard.button.setText(tr("settings.clear_log_button"))
 
             if hasattr(self, 'resetDefaultCard'):
-                self.resetDefaultCard.button.setText(tr("settings.reset_default_button"))  # 恢复默认
+                self.resetDefaultCard.button.setText(tr("settings.reset_default_button"))
 
-            logger.info("设置界面翻译已更新")
+            if hasattr(self, 'configIOCard') and hasattr(self.configIOCard, 'button1'):
+                self.configIOCard.button1.setText(tr("settings.export_button"))
+                self.configIOCard.button2.setText(tr("settings.import_button"))
+
+            self._updateComboBoxTexts()
+
         except Exception as e:
             logger.error(f"更新设置界面翻译失败: {e}")
+
+    def _updateComboBoxTexts(self):
+        """更新ComboBox 下拉选项"""
+        try:
+            if hasattr(self, 'themeCard') and hasattr(self.themeCard, 'comboBox'):
+                combo = self.themeCard.comboBox
+                if combo.count() >= 3:
+                    combo.setItemText(0, tr("wizard.theme_light"))
+                    combo.setItemText(1, tr("wizard.theme_dark"))
+                    combo.setItemText(2, tr("wizard.theme_system"))
+
+            if hasattr(self, 'languageCard') and hasattr(self.languageCard, 'comboBox'):
+                combo = self.languageCard.comboBox
+                if combo.count() >= 4:
+                    combo.setItemText(0, tr("settings.lang_zh_cn"))
+                    combo.setItemText(1, tr("settings.lang_zh_tw"))
+                    combo.setItemText(2, tr("settings.lang_en"))
+                    combo.setItemText(3, "Auto")
+
+            if hasattr(self, 'closeActionCard') and hasattr(self.closeActionCard, 'comboBox'):
+                combo = self.closeActionCard.comboBox
+                if combo.count() >= 2:
+                    combo.setItemText(0, tr("settings.minimize_to_tray"))
+                    combo.setItemText(1, tr("settings.close_directly"))
+
+            if hasattr(self, 'logLevelCard') and hasattr(self.logLevelCard, 'comboBox'):
+                combo = self.logLevelCard.comboBox
+                if combo.count() >= 4:
+                    combo.setItemText(0, "Debug")
+                    combo.setItemText(1, "Info")
+                    combo.setItemText(2, "Warning")
+                    combo.setItemText(3, "Error")
+
+        except Exception as e:
+            logger.error(f"更新 ComboBox 文本失败: {e}")
 
 

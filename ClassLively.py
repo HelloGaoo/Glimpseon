@@ -1221,13 +1221,12 @@ class MainWindow(FluentWindow):
                 'debug': tr("navigation.debug"),
             }
 
-            if hasattr(self.navigationInterface, 'panel'):
-                panel = self.navigationInterface.panel
-                if hasattr(panel, 'items'):
-                    for route_key, text in nav_items.items():
-                        item = panel.items.get(route_key)
-                        if item and hasattr(item, 'setText'):
-                            item.setText(text)
+            nav_interface = self.navigationInterface
+            if hasattr(nav_interface, 'widget') and hasattr(nav_interface.widget, 'items'):
+                for route_key, text in nav_items.items():
+                    item = nav_interface.widget.items.get(route_key)
+                    if item and hasattr(item, 'setText'):
+                        item.setText(text)
         except Exception as e:
             logger.error(f"[I18N] 更新导航栏文本失败: {e}")
 
