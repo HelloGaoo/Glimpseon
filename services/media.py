@@ -999,6 +999,7 @@ class QQMusicReader:
         self._qq_hwnd = None
         self._uia_ready = False
         self._uia_attempted = False
+        self._loop = None
         import ctypes
         self._user32 = ctypes.windll.user32
 
