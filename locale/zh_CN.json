@@ -138,7 +138,17 @@
     "selected_file_not_exist": "选择的文件不存在",
     "import_success": "配置已导入：{path}",
     "config_json_parse_error": "配置文件格式错误，无法解析 JSON",
-    "import_failed": "导入配置失败: {error}"
+    "import_failed": "导入配置失败: {error}",
+    "lang_zh_cn": "简体中文",
+    "lang_zh_tw": "繁體中文",
+    "reset_success": "所有设置已恢复到默认值",
+    "reset_failed": "恢复默认设置失败: {error}",
+    "clear_log_success": "已清空 {count} 个日志文件",
+    "no_logs_to_clear": "没有可清空的日志文件",
+    "log_dir_not_exist": "日志目录不存在",
+    "clear_log_failed": "清空日志失败: {error}",
+    "export_config": "导出配置",
+    "json_filter": "JSON 文件 (*.json);;所有文件 (*)"
   },
   "weather": {
     "sunny": "晴",
@@ -323,7 +333,9 @@
     "downloading_progress": "正在下载更新：{percent}%",
     "download_retry": "下载失败，重试 {retry}/{max_retries}...",
     "failed": "更新失败：{error}",
-    "manual_check": "手动检查"
+    "manual_check": "手动检查",
+    "no_changelog": "暂无更新记录",
+    "load_failed": "加载失败"
   },
   "download": {
     "select_mode": "选择模式",
@@ -405,7 +417,9 @@
     "apply_failed": "应用失败：{error}",
     "fetch_or_select_first": "请先获取或选择壁纸",
     "set_as_desktop": "壁纸已设置为桌面背景",
-    "time": "时间"
+    "time": "时间",
+    "default_source": "默认",
+    "source_cache": "缓存"
   },
   "about": {
     "description": "班级教学辅助工具",
@@ -416,7 +430,9 @@
     "author_homepage": "作者主页",
     "view": "查看",
     "license": "GNU General Public License Version 3 开源许可证",
-    "related_links": "相关链接"
+    "related_links": "相关链接",
+    "license_intro": "此项目 (ClassLively) 基于 GNU General Public License Version 3 许可证发布：",
+    "license_title": "开源许可协议"
   },
   "common": {
     "close": "关闭",
@@ -433,7 +449,8 @@
     "delete": "删除",
     "restart_now": "立即重启",
     "restart_later": "稍后",
-    "error": "错误"
+    "error": "错误",
+    "execute": "执行"
   },
   "media": {
     "not_playing": "未在播放",

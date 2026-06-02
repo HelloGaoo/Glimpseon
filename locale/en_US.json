@@ -138,7 +138,17 @@
     "selected_file_not_exist": "Selected file does not exist",
     "import_success": "Config imported from: {path}",
     "config_json_parse_error": "Config file format error, cannot parse JSON",
-    "import_failed": "Import config failed: {error}"
+    "import_failed": "Import config failed: {error}",
+    "lang_zh_cn": "Simplified Chinese",
+    "lang_zh_tw": "Traditional Chinese",
+    "reset_success": "All settings have been restored to defaults",
+    "reset_failed": "Failed to restore defaults: {error}",
+    "clear_log_success": "Cleared {count} log files",
+    "no_logs_to_clear": "No log files to clear",
+    "log_dir_not_exist": "Log directory does not exist",
+    "clear_log_failed": "Failed to clear logs: {error}",
+    "export_config": "Export Config",
+    "json_filter": "JSON Files (*.json);;All Files (*)"
   },
   "weather": {
     "sunny": "Sunny",
@@ -323,7 +333,9 @@
     "downloading_progress": "Downloading update: {percent}%",
     "download_retry": "Download failed, retry {retry}/{max_retries}...",
     "failed": "Update failed: {error}",
-    "manual_check": "Manual check"
+    "manual_check": "Manual check",
+    "no_changelog": "No changelog available",
+    "load_failed": "Load failed"
   },
   "download": {
     "select_mode": "Select Mode",
@@ -405,7 +417,9 @@
     "apply_failed": "Apply failed: {error}",
     "fetch_or_select_first": "Please fetch or select wallpaper first",
     "set_as_desktop": "Wallpaper set as desktop background",
-    "time": "Time"
+    "time": "Time",
+    "default_source": "Default",
+    "source_cache": "Cache"
   },
   "about": {
     "description": "Classroom Teaching Assistant Tool",
@@ -416,7 +430,9 @@
     "author_homepage": "Author's Homepage",
     "view": "View",
     "license": "GNU General Public License Version 3",
-    "related_links": "Related Links"
+    "related_links": "Related Links",
+    "license_intro": "This project (ClassLively) is released under GNU General Public License Version 3:",
+    "license_title": "Open Source License"
   },
   "common": {
     "close": "Close",
@@ -433,7 +449,8 @@
     "add": "Add",
     "edit": "Edit",
     "delete": "Delete",
-    "error": "Error"
+    "error": "Error",
+    "execute": "Execute"
   },
   "media": {
     "not_playing": "Not Playing",

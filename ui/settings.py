@@ -110,7 +110,7 @@ class ButtonSettingCard(SettingCard):
 
     def __init__(self, icon, title, content=None, parent=None):
         super().__init__(icon, title, content, parent)
-        self.button = PushButton(FIF.EDIT, "执行", self)
+        self.button = PushButton(FIF.EDIT, tr("common.execute"), self)
         self.button.setFixedHeight(36)
         self.hBoxLayout.addWidget(self.button, 0, Qt.AlignmentFlag.AlignRight)
         self.hBoxLayout.addSpacing(16)
@@ -194,7 +194,7 @@ class SettingInterface(ScrollArea, TranslatableWidget):
             FIF.LANGUAGE,
             tr("settings.language"),  # 语言
             tr("settings.language_desc"),  # 切换应用显示语言 / Switch application display language
-            texts=["简体中文", "繁體中文", "English", "Auto"],
+            texts=[tr("settings.lang_zh_cn"), tr("settings.lang_zh_tw"), "English", "Auto"],
             parent=self.appearanceGroup
         )
         self.appearanceGroup.addSettingCard(self.themeCard)
@@ -424,15 +424,15 @@ class SettingInterface(ScrollArea, TranslatableWidget):
                 cfg.themeChanged.emit(current_theme)
                 
                 InfoBar.success(
-                    "成功",
-                    "所有设置已恢复到默认值",
+                    tr("wizard.success_title"),
+                    tr("settings.reset_success"),
                     duration=5000,
                     parent=self
                 )
             except Exception as e:
                 InfoBar.error(
-                    "错误",
-                    f"恢复默认设置失败: {str(e)}",
+                    tr("dialog.error"),
+                    tr("settings.reset_failed").format(error=str(e)),
                     duration=5000,
                     parent=self
                 )
@@ -470,29 +470,29 @@ class SettingInterface(ScrollArea, TranslatableWidget):
                             except Exception: pass
                     if deleted_count > 0:
                         InfoBar.success(
-                            "成功",
-                            f"已清空 {deleted_count} 个日志文件",
+                            tr("wizard.success_title"),
+                            tr("settings.clear_log_success").format(count=deleted_count),
                             duration=5000,
                             parent=self
                         )
                     else:
                         InfoBar.info(
-                            "提示",
-                            "没有可清空的日志文件",
+                            tr("common.tip"),
+                            tr("settings.no_logs_to_clear"),
                             duration=5000,
                             parent=self
                         )
                 else:
                     InfoBar.info(
-                        "提示",
-                        "日志目录不存在",
+                        tr("common.tip"),
+                        tr("settings.log_dir_not_exist"),
                         duration=5000,
                         parent=self
                     )
             except Exception as e:
                 InfoBar.error(
-                    "错误",
-                    f"清空日志失败: {str(e)}",
+                    tr("dialog.error"),
+                    tr("settings.clear_log_failed").format(error=str(e)),
                     duration=5000,
                     parent=self
                 )
@@ -503,7 +503,7 @@ class SettingInterface(ScrollArea, TranslatableWidget):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             default_filename = f"ClassLively_Config_{timestamp}.json"
             file_path, _ = QFileDialog.getSaveFileName(
-                self, "导出配置", default_filename, "JSON 文件 (*.json);;所有文件 (*.*)"
+                self, tr("settings.export_config"), default_filename, tr("settings.json_filter")
             )
             if not file_path: return
             
@@ -520,7 +520,7 @@ class SettingInterface(ScrollArea, TranslatableWidget):
         """导入配置"""
         try:
             file_path, _ = QFileDialog.getOpenFileName(
-                self, "导入配置", "", "JSON 文件 (*.json);;所有文件 (*.*)"
+                self, tr("settings.import_config"), "", tr("settings.json_filter")
             )
             if not file_path: return
             if not os.path.exists(file_path):

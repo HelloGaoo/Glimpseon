@@ -204,5 +204,5 @@ class AboutInterface(BaseScrollAreaInterface, TranslatableWidget):
     
     def __viewLicense(self):
         license_path = get_resPath("LICENSE")
-        intro = "此项目 (ClassLively) 基于 GNU General Public License Version 3 许可证发布："
-        show_text_file("开源许可协议", intro, license_path, parent=self.window())
+        intro = tr("about.license_intro")
+        show_text_file(tr("about.license_title"), intro, license_path, parent=self.window())

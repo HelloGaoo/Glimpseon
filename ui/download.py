@@ -53,6 +53,7 @@ from qfluentwidgets import (
 from core.config import cfg
 from core.constants import get_resPath, load_qss
 from core.downloader import DOWNLOAD_SOURCES, DEFAULT_SOURCE, Downloader, set_download_src
+from data.url_dir import url_dir
 from core.utils import tr, TranslatableWidget
 from core.logger import logger
 

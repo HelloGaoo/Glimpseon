@@ -624,27 +624,21 @@ class HomeInterface(QWidget, TranslatableWidget):
     def _updatePoetryInterval(self):
         self.poetryTimer.stop()
         interval_str = cfg.poetryUpdateInterval.value
-        if interval_str == "从不":
+        interval = self._parseInterval(interval_str, poetry=True)
+        if interval == 0:
             self._updatePoetry(cache_only=True)
             return
-        elif interval_str == "10 分钟":
-            interval = 10 * 60 * 1000
-        elif interval_str == "30 分钟":
-            interval = 30 * 60 * 1000
-        elif interval_str == "1 小时":
-            interval = 60 * 60 * 1000
-        elif interval_str == "3 小时":
-            interval = 3 * 60 * 60 * 1000
-        elif interval_str == "6 小时":
-            interval = 6 * 60 * 60 * 1000
-        elif interval_str == "12 小时":
-            interval = 12 * 60 * 60 * 1000
-        elif interval_str == "1 天":
-            interval = 24 * 60 * 60 * 1000
-        else:
-            interval = 60 * 60 * 1000
         self.poetryTimer.start(interval)
         self._updatePoetry(cache_only=True)
+
+    def _updateWeatherInterval(self):
+        self.weatherTimer.stop()
+        interval_str = cfg.weatherUpdateInterval.value
+        interval = self._parseInterval(interval_str, poetry=False)
+        if interval == 0:
+            self._updateWeather(cache_only=True)
+            return
+        self.weatherTimer.start(interval)
 
     def _updatePoetry(self, cache_only=False):
         if not cfg.showPoetry.value:
@@ -669,30 +663,32 @@ class HomeInterface(QWidget, TranslatableWidget):
         if hasattr(self, 'poetryContainer'):
             self.poetryContainer.updateSize()
 
-    def _updateWeatherInterval(self):
-        self.weatherTimer.stop()
-        interval_str = cfg.weatherUpdateInterval.value
-        if interval_str == "从不":
-            self._updateWeather(cache_only=True)
-            return
-        elif interval_str == "15 分钟":
-            interval = 15 * 60 * 1000
-        elif interval_str == "30 分钟":
-            interval = 30 * 60 * 1000
-        elif interval_str == "1 小时":
-            interval = 60 * 60 * 1000
-        elif interval_str == "3 小时":
-            interval = 3 * 60 * 60 * 1000
-        elif interval_str == "6 小时":
-            interval = 6 * 60 * 60 * 1000
-        elif interval_str == "12 小时":
-            interval = 12 * 60 * 60 * 1000
-        elif interval_str == "24 小时":
-            interval = 24 * 60 * 60 * 1000
+    @staticmethod
+    def _parseInterval(interval_str, poetry=True):
+        if poetry:
+            m = {
+                tr("time.never"): 0, "从不": 0,
+                tr("time.minutes_5"): 5 * 60 * 1000, "5 分钟": 5 * 60 * 1000,
+                tr("time.minutes_10"): 10 * 60 * 1000, "10 分钟": 10 * 60 * 1000,
+                tr("time.minutes_30"): 30 * 60 * 1000, "30 分钟": 30 * 60 * 1000,
+                tr("time.hour_1"): 60 * 60 * 1000, "1 小时": 60 * 60 * 1000,
+                tr("time.hours_3"): 3 * 60 * 60 * 1000, "3 小时": 3 * 60 * 60 * 1000,
+                tr("time.hours_6"): 6 * 60 * 60 * 1000, "6 小时": 6 * 60 * 60 * 1000,
+                tr("time.hours_12"): 12 * 60 * 60 * 1000, "12 小时": 12 * 60 * 60 * 1000,
+                tr("time.day_1"): 24 * 60 * 1000, "1 天": 24 * 60 * 1000,
+            }
         else:
-            interval = 60 * 60 * 1000
-        self.weatherTimer.start(interval)
-        self._updateWeather(cache_only=True)
+            m = {
+                tr("time.never"): 0, "从不": 0,
+                tr("time.minutes_15"): 15 * 60 * 1000, "15 分钟": 15 * 60 * 1000,
+                tr("time.minutes_30"): 30 * 60 * 1000, "30 分钟": 30 * 60 * 1000,
+                tr("time.hour_1"): 60 * 60 * 1000, "1 小时": 60 * 60 * 1000,
+                tr("time.hours_3"): 3 * 60 * 60 * 1000, "3 小时": 3 * 60 * 60 * 1000,
+                tr("time.hours_6"): 6 * 60 * 60 * 1000, "6 小时": 6 * 60 * 60 * 1000,
+                tr("time.hours_12"): 12 * 60 * 60 * 1000, "12 小时": 12 * 60 * 60 * 1000,
+                tr("time.hours_24"): 24 * 60 * 1000, "24 小时": 24 * 60 * 1000,
+            }
+        return m.get(interval_str, 30 * 60 * 1000)
 
     def _updateWeather(self, cache_only=False):
         if not cfg.showWeather.value:
@@ -768,14 +764,19 @@ class HomeInterface(QWidget, TranslatableWidget):
                         weather_code = 0
 
                     weather_map = {
-                        0: "晴", 1: "多云", 2: "阴", 3: "阵雨", 4: "雷阵雨",
-                        5: "雷阵雨并伴有冰雹", 6: "雨夹雪", 7: "小雨", 8: "中雨",
-                        9: "大雨", 10: "暴雨", 11: "大暴雨", 12: "特大暴雨",
-                        13: "阵雪", 14: "小雪", 15: "中雪", 16: "大雪", 17: "暴雪",
-                        18: "雾", 19: "冻雨", 20: "沙尘暴",
+                        0: tr("weather.sunny"), 1: tr("weather.cloudy"), 2: tr("weather.overcast"),
+                        3: tr("weather.shower"), 4: tr("weather.thundershower"),
+                        5: tr("weather.thundershower_with_hail"), 6: tr("weather.sleet"),
+                        7: tr("weather.light_rain"), 8: tr("weather.moderate_rain"),
+                        9: tr("weather.heavy_rain"), 10: tr("weather.rainstorm"),
+                        11: tr("weather.heavy_rainstorm"), 12: tr("weather.extreme_rainstorm"),
+                        13: tr("weather.snow_flurry"), 14: tr("weather.light_snow"),
+                        15: tr("weather.moderate_snow"), 16: tr("weather.heavy_snow"),
+                        17: tr("weather.snowstorm"), 18: tr("weather.fog"),
+                        19: tr("weather.freezing_rain"), 20: tr("weather.sandstorm"),
                     }
 
-                    weather = weather_map.get(weather_code, "未知")
+                    weather = weather_map.get(weather_code, tr("common.unknown"))
                     weather_text = f"{current_temp}{temp_unit}"
                     self.weatherTempLabel.setText(weather_text)
                     if hasattr(self, 'weatherContainer'):
@@ -2199,7 +2200,7 @@ class EditPanel(QWidget):
             target_date = target.date()
             now_date = now.date()
             if target_date == now_date and total_seconds < 0:
-                return "就在今天"
+                return tr("time.today")
             elif total_seconds > 0:
                 days = total_seconds // 86400
                 hours = (total_seconds % 86400) // 3600

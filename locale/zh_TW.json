@@ -138,7 +138,17 @@
     "selected_file_not_exist": "選擇的檔案不存在",
     "import_success": "配置已匯入：{path}",
     "config_json_parse_error": "配置檔案格式錯誤，無法解析 JSON",
-    "import_failed": "匯入配置失敗: {error}"
+    "import_failed": "匯入配置失敗: {error}",
+    "lang_zh_cn": "簡體中文",
+    "lang_zh_tw": "繁體中文",
+    "reset_success": "所有設定已恢復到預設值",
+    "reset_failed": "恢復預設值失敗: {error}",
+    "clear_log_success": "已清空 {count} 個日誌檔案",
+    "no_logs_to_clear": "沒有可清空的日誌檔案",
+    "log_dir_not_exist": "日誌目錄不存在",
+    "clear_log_failed": "清空日誌失敗: {error}",
+    "export_config": "匯出設定",
+    "json_filter": "JSON 檔案 (*.json);;所有檔案 (*)"
   },
   "weather": {
     "sunny": "晴",
@@ -323,7 +333,9 @@
     "downloading_progress": "正在下載更新：{percent}%",
     "download_retry": "下載失敗，重試 {retry}/{max_retries}...",
     "failed": "更新失敗：{error}",
-    "manual_check": "手動檢查"
+    "manual_check": "手動檢查",
+    "no_changelog": "暫無更新記錄",
+    "load_failed": "載入失敗"
   },
   "download": {
     "select_mode": "選擇模式",
@@ -405,7 +417,9 @@
     "apply_failed": "應用失敗：{error}",
     "fetch_or_select_first": "請先獲取或選擇壁紙",
     "set_as_desktop": "壁紙已設為桌面背景",
-    "time": "時間"
+    "time": "時間",
+    "default_source": "預設",
+    "source_cache": "快取"
   },
   "about": {
     "description": "班級教學輔助工具",
@@ -416,7 +430,9 @@
     "author_homepage": "作者主頁",
     "view": "檢視",
     "license": "GNU General Public License Version 3 開源授權",
-    "related_links": "相關連結"
+    "related_links": "相關連結",
+    "license_intro": "此專案 (ClassLively) 基於 GNU General Public License Version 3 許可證發布：",
+    "license_title": "開源許可協議"
   },
   "common": {
     "close": "關閉",
@@ -433,7 +449,8 @@
     "delete": "刪除",
     "restart_now": "立即重新啟動",
     "restart_later": "稍後",
-    "error": "錯誤"
+    "error": "錯誤",
+    "execute": "執行"
   },
   "media": {
     "not_playing": "未在播放",

@@ -1465,7 +1465,7 @@ class Preloader(QThread):
 
         default = get_resPath(os.path.join('resource', 'wallpaper', 'default.jpg'))
         if os.path.exists(default):
-            if not self._stop: self.sig_wp.emit(default, "默认", "")
+            if not self._stop: self.sig_wp.emit(default, tr("wallpaper.default_source"), "")
             return
 
         wd = os.path.join(BASE_DIR, 'wallpaper')
@@ -1477,7 +1477,7 @@ class Preloader(QThread):
             )
             if olds:
                 p = os.path.join(wd, olds[0])
-                if not self._stop: self.sig_wp.emit(p, "缓存", "")
+                if not self._stop: self.sig_wp.emit(p, tr("wallpaper.source_cache"), "")
 
     def _load_wt(self):
         if self._stop: return

@@ -238,7 +238,7 @@ class WallpaperHistory:
             self._save()
             return existing
         file_size = os.path.getsize(path)
-        resolution = "未知"
+        resolution = tr("common.unknown")
         try:
             reader = QImageReader(path)
             size = reader.size()
@@ -1019,7 +1019,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         logger.info(f"使用缓存壁纸: {wallpaper_path}")
         self.current_pixmap = QPixmap(wallpaper_path)
         self.current_wallpaper_path = wallpaper_path
-        self.current_wallpaper_source = cached.get("source", "缓存")
+        self.current_wallpaper_source = cached.get("source", tr("wallpaper.source_cache"))
         
         if self.current_pixmap.isNull():
             logger.error(f"无法加载缓存壁纸图片: {wallpaper_path}")
@@ -1028,7 +1028,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         self._updateBackground()
         self._updateMainWindowBackground()
         self._applyEffects()
-        self.infoCard.updateInfo(wallpaper_path, cached.get("source", "缓存"))
+        self.infoCard.updateInfo(wallpaper_path, cached.get("source", tr("wallpaper.source_cache")))
         self.wallpaperChanged.emit()
         return True
     

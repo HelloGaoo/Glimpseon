@@ -214,10 +214,10 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
                     # GitHub 获取失败，尝试读取本地文件
                     logger.info("GitHub 获取失败")                    
                     # 本地也没有，返回提示
-                    return "暂无更新记录"
+                    return tr("update.no_changelog")
             except Exception as e:
                 logger.error(f"加载更新日志失败：{str(e)}")
-                return "加载失败"
+                return tr("update.load_failed")
         
         def thread_func():
             changelog_text = load()
