@@ -142,6 +142,9 @@
     "reset_default_button": "恢复默认",
     "reset_default_confirm": "确定要将所有设置恢复到默认值吗？",
     "restart_required": "配置需要重启应用程序才能生效",
+    "restart_required_desc": "语言设置已更改，是否立即重启应用？",
+    "export_button": "导出",
+    "import_button": "导入",
     "debug_mode": "调试模式",
     "debug_mode_desc": "启用调试模式以进行测试和调试",
     "clear_log_confirm": "确定要清空所有日志文件吗？",
@@ -154,7 +157,10 @@
     "selected_file_not_exist": "选择的文件不存在",
     "import_success": "配置已导入：{path}",
     "config_json_parse_error": "配置文件格式错误，无法解析 JSON",
-    "import_failed": "导入配置失败: {error}"
+    "import_failed": "导入配置失败: {error}",
+    "lang_zh_cn": "简体中文",
+    "lang_zh_tw": "繁體中文",
+    "lang_en": "English"
   },
   "weather": {
     "sunny": "晴",
@@ -446,7 +452,9 @@
     "unknown": "未知",
     "add": "添加",
     "edit": "编辑",
-    "delete": "删除"
+    "delete": "删除",
+    "restart_now": "立即重启",
+    "restart_later": "稍后"
   },
   "media": {
     "not_playing": "未在播放",
