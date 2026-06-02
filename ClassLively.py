@@ -1950,8 +1950,4 @@ if __name__ == "__main__":
 
 
 # ==================== SplashScreen 启动窗口 ====================
-from PyQt6.QtCore import Qt, QTimer, pyqtSlot, pyqtSignal
-from PyQt6.QtGui import QPixmap, QFont
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout
-from qfluentwidgets import ProgressBar, BodyLabel, StrongBodyLabel, isDarkTheme
-from core.constants import load_qss
+from PyQt6.QtGui import QFont
