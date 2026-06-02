@@ -404,8 +404,6 @@ class ComponentSettingDialog(QDialog, TranslatableWidget):
             config_item.value = dialog.color.name()
             self._updateCustomBtnStyle(btn, config_item.value)
 
-    def retranslateUi(self):
-        self.setWindowTitle(self._title)
 
 
 @ComponentSettingDialog.register('clock')

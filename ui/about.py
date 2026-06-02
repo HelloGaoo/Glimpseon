@@ -168,49 +168,7 @@ class AboutInterface(BaseScrollAreaInterface, TranslatableWidget):
         self.__initLayout()
         self.setup_translatable_ui()
 
-    def retranslateUi(self):
-        try:
-            if hasattr(self, 'descriptionLabel'):
-                self.descriptionLabel.setText(tr("about.description"))  # 班级教学辅助工具
 
-            if hasattr(self, 'versionInfo'):
-                self.versionInfo.setText(f"{tr('about.current_version')}: {VERSION}\n{tr('about.build_date')}: {BUILD_DATE}")  # 当前版本 / 构建日期
-
-            if hasattr(self, 'authorLabel'):
-                self.authorLabel.setText(f"{tr('about.author')}: HelloGaoo")  # 开发作者
-
-            if hasattr(self, 'githubLabel'):
-                self.githubLabel.setText(tr("about.github_repo"))  # GitHub 仓库
-
-            if hasattr(self, 'githubButton'):
-                self.githubButton.setText(tr("about.view"))  # 查看
-
-            if hasattr(self, 'authorLabel'):
-                # authorLabel 在上面已设置
-                pass
-
-            if hasattr(self, 'authorButton'):
-                self.authorButton.setText(tr("about.view"))  # 查看
-
-            if hasattr(self, 'licenseLabel'):
-                self.licenseLabel.setText(tr("about.license"))  # GNU General Public License Version 3 开源许可证
-
-            if hasattr(self, 'viewLicenseButton'):
-                self.viewLicenseButton.setText(tr("about.view"))  # 查看
-
-            # 查找 linkGroupLabel（mainLayout 中）
-            for i in range(self.mainLayout.count()):
-                item = self.mainLayout.itemAt(i)
-                if item and item.widget():
-                    widget = item.widget()
-                    if widget.objectName() == "groupLabel":
-                        widget.setText(tr("about.related_links"))  # 相关链接
-                        break
-
-            logger.info("关于界面翻译已更新")
-        except Exception as e:
-            logger.error(f"更新关于界面翻译失败: {e}")
-    
     def __initLayout(self):
         """ 初始化布局 """
         self.mainLayout.setSpacing(12)

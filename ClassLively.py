@@ -68,7 +68,6 @@ from core.utils import (
     tr,
     get_translation_manager,
     LanguageCode,
-    switch_language,
     TranslatableWidget,
 )
 from data.software_list import SOFTWARE_CATEGORIES, get_software_icon_path
@@ -252,10 +251,6 @@ class SplashScreen(QWidget, TranslatableWidget):
     def paintEvent(self, event):
         pass
 
-    def retranslateUi(self):
-        if hasattr(self, 'status_label'):
-            self.status_label.setText(tr("splash.initializing"))  # 正在初始化...
-
 
 # ==================== WizardWindow 向导窗口 ====================
 import win32com.client
@@ -291,8 +286,6 @@ class WizardWindow(QDialog, TranslatableWidget):
         icon_path = get_resPath(os.path.join("resource", "icons", "CY.png"))
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
-
-        self._initFluentTranslator()
 
         self.mainLayout = QVBoxLayout(self)
         self.mainLayout.setContentsMargins(30, 30, 30, 30)
@@ -737,18 +730,6 @@ class WizardWindow(QDialog, TranslatableWidget):
         self.themeCard.comboBox.currentIndexChanged.connect(self._onThemeChanged)
         self.themeColorCard.colorChanged.connect(self._onColorChanged)
 
-    def _initFluentTranslator(self):
-        language_locale_map = {
-            Language.CHINESE_SIMPLIFIED: QLocale(QLocale.Language.Chinese, QLocale.Country.China),
-            Language.CHINESE_TRADITIONAL: QLocale(QLocale.Language.Chinese, QLocale.Country.HongKong),
-            Language.ENGLISH: QLocale(QLocale.Language.English),
-            Language.AUTO: QLocale(),
-        }
-        locale = language_locale_map.get(cfg.language.value, QLocale())
-        self.translator = FluentTranslator(locale)
-        QApplication.instance().installTranslator(self.translator)
-        logger.info(f"语言配置: {cfg.language.value}")
-
     def resizeEvent(self, event):
         self.titleLabel.move(30, 10)
         self.closeButton.move(self.width() - 35, 5)
@@ -930,49 +911,11 @@ class WizardWindow(QDialog, TranslatableWidget):
     def __setQss(self):
         self.setStyleSheet(load_qss('app.qss'))
 
-    def retranslateUi(self):
-        """重新翻译向导界面"""
-        try:
-            self.setWindowTitle(tr("wizard.title"))  # ClassLively 向导
-
-            if hasattr(self, 'welcomeLabel'):
-                self.welcomeLabel.setText(tr("wizard.welcome"))  # ClassLively
-            if hasattr(self, 'nextButton'):
-                self.nextButton.setText(tr("wizard.next"))  # 继续
-
-            if hasattr(self, 'agreementTitle'):
-                self.agreementTitle.setText(tr("wizard.agreement_title"))  # 软件使用协议
-            if hasattr(self, 'agreementText'):
-                self.agreementText.setText(tr("wizard.agreement_text"))  # 在使用本软件前，请阅读并同意以下协议：
-            if hasattr(self, 'agreeButton'):
-                self.agreeButton.setText(tr("wizard.agree"))  # 完成
-
-            if hasattr(self, 'settingsTitle'):
-                self.settingsTitle.setText(tr("wizard.settings_title"))  # 基本设置
-            if hasattr(self, 'settingsText'):
-                self.settingsText.setText(tr("wizard.settings_text"))  # 请选择您需要的功能选项：
-
-            if hasattr(self, 'appearanceTitle'):
-                self.appearanceTitle.setText(tr("wizard.appearance_title"))  # 外观设置
-            if hasattr(self, 'appearanceText'):
-                self.appearanceText.setText(tr("wizard.appearance_text"))  # 选择适合您的主题和颜色：
-
-            if hasattr(self, 'schoolInfoTitle'):
-                self.schoolInfoTitle.setText(tr("wizard.school_info_title"))  # 学校信息设置
-            if hasattr(self, 'schoolInfoText'):
-                self.schoolInfoText.setText(tr("wizard.school_info_text"))  # 请输入您的学校和班级信息，以及选择天气城市：
-
-            logger.info("向导界面翻译已更新")
-        except Exception as e:
-            logger.error(f"更新向导界面翻译失败: {e}")
-
 class MainWindow(FluentWindow):
     """主窗口"""
 
     def __init__(self):
         super().__init__()
-
-        self._fluent_translator = None
 
         setTheme(cfg.themeMode.value)
 
@@ -1118,12 +1061,11 @@ class MainWindow(FluentWindow):
                 Language.ENGLISH: LanguageCode.EN_US.value,
                 Language.AUTO: self._detect_system_language().value,
             }
-            manager.language_changed.connect(self._onLanguageChanged)
             cfg.language.valueChanged.connect(self._onLanguageConfigChanged)
             target_lang = language_map.get(cfg.language.value, LanguageCode.ZH_CN.value)
             manager.set_language(target_lang)
         except Exception as e:
-            logger.error(f"[I18N] 翻译失败: {e}")
+            logger.error(f"翻译初始化失败: {e}")
 
     @staticmethod
     def _detect_system_language() -> LanguageCode:
@@ -1143,92 +1085,22 @@ class MainWindow(FluentWindow):
             return LanguageCode.ZH_CN
 
     def _onLanguageConfigChanged(self, new_language):
-        """语言回调"""
-        logger.info(f"[I18N] 语言变更: {new_language}")
+        """语言切换回调重启提示"""
+        from qfluentwidgets import MessageBox
 
-        language_map = {
-            Language.CHINESE_SIMPLIFIED: LanguageCode.ZH_CN.value,
-            Language.CHINESE_TRADITIONAL: LanguageCode.ZH_TW.value,
-            Language.ENGLISH: LanguageCode.EN_US.value,
-            Language.AUTO: self._detect_system_language().value,
-        }
-        target_lang = language_map.get(new_language, LanguageCode.ZH_CN.value)
-        switch_language(target_lang)
-        self._switchFluentTranslator(new_language)
+        w = MessageBox(
+            tr("settings.restart_required"),
+            tr("settings.restart_required_desc"),
+            self
+        )
+        w.yesButton.setText(tr("common.restart_now"))
+        w.cancelButton.setText(tr("common.restart_later"))
 
-    def _switchFluentTranslator(self, new_language):
-        try:
-            app = QApplication.instance()
-            if not app:
-                return
-
-            if self._fluent_translator is not None:
-                app.removeTranslator(self._fluent_translator)
-
-            language_locale_map = {
-                Language.CHINESE_SIMPLIFIED: QLocale(QLocale.Language.Chinese, QLocale.Country.China),
-                Language.CHINESE_TRADITIONAL: QLocale(QLocale.Language.Chinese, QLocale.Country.HongKong),
-                Language.ENGLISH: QLocale(QLocale.Language.English),
-                Language.AUTO: QLocale(),
-            }
-            locale = language_locale_map.get(new_language, QLocale())
-            self._fluent_translator = FluentTranslator(locale)
-            app.installTranslator(self._fluent_translator)
-
-        except Exception as e:
-            logger.error(f"[I18N] _fluent_translator 切换失败: {e}")
-
-    def _onLanguageChanged(self, language_code: str):
-        """全局语言回调"""
-        try:
-            self._updateNavigationText()
-            self._updateTrayMenu()
-
-            if hasattr(self, 'homeInterface') and hasattr(self.homeInterface, 'retranslateUi'):
-                self.homeInterface.retranslateUi()
-
-            if hasattr(self, 'wallpaper') and hasattr(self.wallpaper, 'retranslateUi'):
-                self.wallpaper.retranslateUi()
-
-            if hasattr(self, 'downloadInterface') and hasattr(self.downloadInterface, 'retranslateUi'):
-                self.downloadInterface.retranslateUi()
-
-            if hasattr(self, 'settingInterface') and hasattr(self.settingInterface, 'retranslateUi'):
-                self.settingInterface.retranslateUi()
-
-            if hasattr(self, 'updateInterface') and hasattr(self.updateInterface, 'retranslateUi'):
-                self.updateInterface.retranslateUi()
-
-            if hasattr(self, 'aboutInterface') and hasattr(self.aboutInterface, 'retranslateUi'):
-                self.aboutInterface.retranslateUi()
-
-            if hasattr(self, 'debugPanel') and hasattr(self.debugPanel, 'retranslateUi'):
-                self.debugPanel.retranslateUi()
-
-        except Exception as e:
-            logger.error(f"[I18N] 语言切换失败: {e}")
-
-    def _updateNavigationText(self):
-        """更新导航栏文本"""
-        try:
-            nav_items = {
-                'home': tr("navigation.home"),
-                'wallpaper': tr("navigation.wallpaper"),
-                'download': tr("navigation.download"),
-                'setting': tr("navigation.settings"),
-                'update': tr("navigation.update"),
-                'about': tr("navigation.about"),
-                'debug': tr("navigation.debug"),
-            }
-
-            nav_interface = self.navigationInterface
-            if hasattr(nav_interface, 'widget') and hasattr(nav_interface.widget, 'items'):
-                for route_key, text in nav_items.items():
-                    item = nav_interface.widget.items.get(route_key)
-                    if item and hasattr(item, 'setText'):
-                        item.setText(text)
-        except Exception as e:
-            logger.error(f"[I18N] 更新导航栏文本失败: {e}")
+        if w.exec():
+            import sys
+            import subprocess
+            QApplication.quit()
+            subprocess.Popen([sys.executable] + sys.argv)
 
     def updateInterfaceText(self, interface, text: str, position=None):
         """更新子界面导航（已弃用）"""
@@ -1842,10 +1714,6 @@ if __name__ == "__main__":
     splash.waitForProgress(70, timeout=0.5)
     _t = time.time()
     window = MainWindow()
-
-    # 启动时的 FluentTranslator引用给 MainWindow
-    if 'fluentTranslator' in dir():
-        window._fluent_translator = fluentTranslator
 
     logger.info(f"[BOOT] 创建主窗口 耗时{time.time()-_t:.2f}s")
 

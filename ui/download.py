@@ -862,16 +862,5 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
 
         threading.Thread(target=_wait_tasks, daemon=True).start()
 
-    def retranslateUi(self):
-        self.titleLabel.setText(tr("navigation.download"))  # 软件下载
-        self.modeLabel.setText(tr("download.select_mode") + ":")  # 选择模式
-        self.singleModeButton.setText(tr("download.single_mode"))  # 单个下载
-        self.multiModeButton.setText(tr("download.multi_mode"))  # 批量下载
-        self.selectAllButton.setText(tr("download.select_all"))  # 全选
-        self.sourceLabel.setText(tr("download.download_source") + ":")  # 下载源
-        self.startButton.setText(tr("download.start_download"))  # 开始下载
-        for item in self.softwareList:
-            if item.get('button'):
-                item['button'].setText(tr("download.download_btn"))  # 下载
 
 

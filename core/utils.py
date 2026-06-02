@@ -587,7 +587,7 @@ class TranslationManager(QObject):
 
     def set_language(self, language_code: str) -> bool:
         if language_code not in [lang.value for lang in LanguageCode]:
-            _i18n_logger.warning(f"[I18N] 无效语言代码: {language_code}")
+            _i18n_logger.warning(f"无效语言代码: {language_code}")
             return False
         old_language = self._current_language
         self._current_language = language_code
@@ -654,12 +654,6 @@ def get_current_language() -> str:
 class TranslatableWidget:
     def setup_translatable_ui(self):
         pass
-
-    def retranslateUi(self):
-        pass
-
-    def _on_language_changed(self, language_code: str):
-        self.retranslateUi()
 
 
 class DynamicTranslator:

@@ -56,7 +56,7 @@ from qfluentwidgets import (
 
 from core.config import cfg, default_cfg, ConfigItem, CONFIG_PATH
 from core.constants import BASE_DIR, get_resPath, load_qss
-from core.utils import _load_app_fonts, apply_fonts, tr, get_translation_manager, LanguageCode, switch_language, TranslatableWidget
+from core.utils import _load_app_fonts, apply_fonts, tr, TranslatableWidget
 from core.logger import log_dir, logger
 
 
@@ -583,101 +583,5 @@ class SettingInterface(ScrollArea, TranslatableWidget):
             InfoBar.error(tr("dialog.error"), tr("settings.config_json_parse_error"), duration=5000, parent=self)
         except Exception as e:
             InfoBar.error(tr("dialog.error"), tr("settings.import_failed").format(error=str(e)), duration=5000, parent=self)
-
-    def retranslateUi(self):
-        try:
-            if hasattr(self, 'settingLabel'):
-                self.settingLabel.setText(tr("settings.title"))
-
-            if hasattr(self, 'basicGroup') and hasattr(self.basicGroup, 'titleLabel'):
-                self.basicGroup.titleLabel.setText(tr("settings.general"))
-
-            if hasattr(self, 'appearanceGroup') and hasattr(self.appearanceGroup, 'titleLabel'):
-                self.appearanceGroup.titleLabel.setText(tr("settings.appearance"))
-
-            if hasattr(self, 'logGroup') and hasattr(self.logGroup, 'titleLabel'):
-                self.logGroup.titleLabel.setText(tr("settings.advanced"))
-
-            if hasattr(self, 'otherGroup') and hasattr(self.otherGroup, 'titleLabel'):
-                self.otherGroup.titleLabel.setText(tr("settings.data_management"))
-
-            card_translations = [
-                (self.autoStartCard, tr("wizard.auto_start"), tr("wizard.auto_start_desc")),
-                (self.autoOpenOnIdleCard, tr("wizard.auto_open_idle"), tr("wizard.auto_open_idle_desc")),
-                (self.idleMinutesCard, tr("settings.idle_minutes"), tr("settings.idle_minutes_desc")),
-                (self.autoOpenMaximizeCard, tr("wizard.auto_open_maximize"), tr("wizard.auto_open_maximize_desc")),
-                (self.themeCard, tr("wizard.theme_mode"), tr("wizard.theme_mode_desc")),
-                (self.themeColorCard, tr("wizard.primary_color"), tr("wizard.primary_color_desc")),
-                (self.languageCard, tr("settings.language"), tr("settings.language_desc")),
-                (self.disableLogCard, tr("settings.disable_log"), tr("settings.disable_log_desc")),
-                (self.logLevelCard, tr("settings.log_level"), tr("settings.log_level_desc")),
-                (self.logMaxCountCard, tr("settings.log_max_count"), tr("settings.log_max_count_desc")),
-                (self.logMaxDaysCard, tr("settings.log_max_days"), tr("settings.log_max_days_desc")),
-                (self.clearLogCard, tr("settings.clear_log"), tr("settings.clear_log_desc")),
-                (self.closeActionCard, tr("settings.close_action"), tr("settings.close_action_desc")),
-                (self.allowMultipleInstancesCard, tr("settings.allow_multiple_instances"), tr("settings.allow_multiple_instances_desc")),
-                (self.enableGpuAccelerationCard, tr("settings.gpu_acceleration"), tr("settings.gpu_acceleration_desc")),
-                (self.configIOCard, tr("settings.config_import_export"), tr("settings.config_import_export_desc")),
-                (self.resetDefaultCard, tr("settings.reset_default"), tr("settings.reset_default_desc")),
-                (self.debugModeCard, tr("settings.debug_mode"), tr("settings.debug_mode_desc")),
-            ]
-
-            for card, title, content in card_translations:
-                if card:
-                    if hasattr(card, 'setTitle'):
-                        card.setTitle(title)
-                        card.setContent(content)
-                    elif hasattr(card, 'titleLabel'):
-                        card.titleLabel.setText(title)
-
-            if hasattr(self, 'clearLogCard'):
-                self.clearLogCard.button.setText(tr("settings.clear_log_button"))
-
-            if hasattr(self, 'resetDefaultCard'):
-                self.resetDefaultCard.button.setText(tr("settings.reset_default_button"))
-
-            if hasattr(self, 'configIOCard') and hasattr(self.configIOCard, 'button1'):
-                self.configIOCard.button1.setText(tr("settings.export_button"))
-                self.configIOCard.button2.setText(tr("settings.import_button"))
-
-            self._updateComboBoxTexts()
-
-        except Exception as e:
-            logger.error(f"更新设置界面翻译失败: {e}")
-
-    def _updateComboBoxTexts(self):
-        """更新ComboBox 下拉选项"""
-        try:
-            if hasattr(self, 'themeCard') and hasattr(self.themeCard, 'comboBox'):
-                combo = self.themeCard.comboBox
-                if combo.count() >= 3:
-                    combo.setItemText(0, tr("wizard.theme_light"))
-                    combo.setItemText(1, tr("wizard.theme_dark"))
-                    combo.setItemText(2, tr("wizard.theme_system"))
-
-            if hasattr(self, 'languageCard') and hasattr(self.languageCard, 'comboBox'):
-                combo = self.languageCard.comboBox
-                if combo.count() >= 4:
-                    combo.setItemText(0, tr("settings.lang_zh_cn"))
-                    combo.setItemText(1, tr("settings.lang_zh_tw"))
-                    combo.setItemText(2, tr("settings.lang_en"))
-                    combo.setItemText(3, "Auto")
-
-            if hasattr(self, 'closeActionCard') and hasattr(self.closeActionCard, 'comboBox'):
-                combo = self.closeActionCard.comboBox
-                if combo.count() >= 2:
-                    combo.setItemText(0, tr("settings.minimize_to_tray"))
-                    combo.setItemText(1, tr("settings.close_directly"))
-
-            if hasattr(self, 'logLevelCard') and hasattr(self.logLevelCard, 'comboBox'):
-                combo = self.logLevelCard.comboBox
-                if combo.count() >= 4:
-                    combo.setItemText(0, "Debug")
-                    combo.setItemText(1, "Info")
-                    combo.setItemText(2, "Warning")
-                    combo.setItemText(3, "Error")
-
-        except Exception as e:
-            logger.error(f"更新 ComboBox 文本失败: {e}")
 
 

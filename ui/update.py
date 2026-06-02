@@ -475,16 +475,5 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
         thread = threading.Thread(target=download_thread, daemon=True)
         thread.start()
 
-    def retranslateUi(self):
-        self.titleLabel.setText(tr("navigation.update"))  # 更新
-        self.buildDate.setText(f"{tr('update.build_date')}: {BUILD_DATE}")  # 构建日期
-        self.updateStatusLabel.setText(tr("update.status_ready"))  # 已就绪
-        self.checkUpdateButton.setText(tr("update.check_update"))  # 检查更新
-        self.changelogTitle.setText(tr("update.changelog"))  # 更新日志
-        self.changelogContent.setPlaceholderText(tr("update.loading_changelog"))  # 正在加载更新日志...
-        self.autoCheckUpdateCard.setTitle(tr("update.auto_check"))  # 自动检查
-        self.autoCheckUpdateCard.setContent(tr("update.auto_check_desc"))  # 启用后，应用启动时会自动检查新版本
-        self.autoUpdateCard.setTitle(tr("update.auto_update"))  # 自动更新
-        self.autoUpdateCard.setContent(tr("update.auto_update_desc"))  # 发现新版本时自动下载并安装
 
 

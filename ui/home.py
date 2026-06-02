@@ -88,7 +88,7 @@ from qfluentwidgets import (
 from core.config import cfg, save_cfg
 from core.constants import APP_NAME, BASE_DIR, get_resPath, load_qss
 from core.logger import logger
-from core.utils import get_cached_content, save_cache, tr, get_translation_manager, TranslatableWidget
+from core.utils import get_cached_content, save_cache, tr, TranslatableWidget
 from data.software_list import get_software_icon_path
 from services.weather import WeatherService, RegionDatabase, RegionSelectorDialog
 from services.poetry import PoetryService
@@ -422,26 +422,6 @@ class HomeInterface(QWidget, TranslatableWidget):
         QTimer.singleShot(0, self.loadComponentPositions)
         QTimer.singleShot(0, self._checkAndRefreshQuickLaunchIcons)
 
-    def retranslateUi(self):
-        """重新翻译主界面"""
-        try:
-            if hasattr(self, 'editButton'):
-                self.editButton.setText(tr("home.edit"))  # 编辑
-            if hasattr(self, 'countdownAddButton'):
-                self.countdownAddButton.setText(tr("home.add"))  # 添加
-            if hasattr(self, 'countdownEditButton'):
-                self.countdownEditButton.setText(tr("home.edit"))  # 编辑
-            if hasattr(self, 'countdownDeleteButton'):
-                self.countdownDeleteButton.setText(tr("home.delete"))  # 删除
-            if hasattr(self, 'quickLaunchEditButton'):
-                self.quickLaunchEditButton.setText(tr("home.edit_apps"))  # 编辑应用
-            if hasattr(self, 'quickLaunchShowLabelsSwitch'):
-                self.quickLaunchShowLabelsSwitch.setOffText(tr("common.off"))  # 关
-                self.quickLaunchShowLabelsSwitch.setOnText(tr("common.on"))  # 开
-
-            logger.info(tr("home.retranslate_complete"))  # 主界面翻译更新完成
-        except Exception as e:
-            logger.error(f"更新主界面翻译失败: {e}")
 
     def _initMediaWidgetTimers(self):
         try:

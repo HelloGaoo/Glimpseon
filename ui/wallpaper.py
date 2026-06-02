@@ -1320,25 +1320,4 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
             if show_notification:
                 InfoBar.error(tr("wallpaper.error"), f"{tr('wallpaper.set_failed')}: {str(e)}", duration=5000, parent=self)  # 错误 / 设置失败
 
-    def retranslateUi(self):
-        self.wallpaperLabel.setText(tr("navigation.wallpaper"))  # 壁纸
-        self.getButton.setText(tr("wallpaper.get_wallpaper"))  # 获取壁纸
-        self.saveButton.setText(tr("wallpaper.save_as"))  # 另存为
-        self.selectButton.setText(tr("wallpaper.manual_select"))  # 手动选择
-        self.setWallpaperButton.setText(tr("wallpaper.set_desktop"))  # 设为桌面
-        if hasattr(self.settingsGroup, 'titleLabel'):
-            self.settingsGroup.titleLabel.setText(tr("wallpaper.settings"))  # 设置
-        self.wallpaperSaveLimitCard.setTitle(tr("wallpaper.save_limit"))  # 保存数量上限
-        self.wallpaperSaveLimitCard.setContent(tr("wallpaper.save_limit_desc"))  # 设置壁纸历史记录的最大保存数量
-        self.autoGetIntervalCard.setTitle(tr("wallpaper.auto_interval"))  # 自动获取间隔
-        self.autoGetIntervalCard.setContent(tr("wallpaper.auto_interval_desc"))  # 设置自动获取壁纸的时间间隔
-        self.wallpaperApiCard.setTitle(tr("wallpaper.api"))  # 壁纸 API
-        self.wallpaperApiCard.setContent(tr("wallpaper.api_desc"))  # 选择获取壁纸的 API 来源
-        self.autoSyncToDesktopCard.setTitle(tr("wallpaper.auto_sync"))  # 自动同步桌面
-        self.autoSyncToDesktopCard.setContent(tr("wallpaper.auto_sync_desc"))  # 获取壁纸后自动设置为桌面壁纸
-        if hasattr(self.effectsGroup, 'titleLabel'):
-            self.effectsGroup.titleLabel.setText(tr("wallpaper.background_effects"))  # 背景效果
-        self.backgroundBlurCard.setTitle(tr("wallpaper.blur"))  # 模糊
-        self.backgroundBlurCard.setContent(tr("wallpaper.blur_desc"))  # 设置壁纸背景的模糊程度
-        self.brightnessCard.setTitle(tr("wallpaper.brightness"))  # 亮度
-        self.brightnessCard.setContent(tr("wallpaper.brightness_desc"))  # 设置壁纸背景的亮度
+
