@@ -1114,26 +1114,6 @@ class MainWindow(FluentWindow):
         except Exception as e:
             logger.warning(f"更新界面文本失败 [{interface.objectName() if hasattr(interface, 'objectName') else 'unknown'}]: {e}")
 
-    def _updateTrayMenu(self):
-        """更新任务栏托盘"""
-        if not hasattr(self, 'tray_menu'):
-            return
-
-        try:
-            actions = self.tray_menu.actions()
-            for action in actions:
-                if action.text() in [tr("tray.show_window", _no_translate=True),
-                                    "显示主窗口", "Show Main Window"]:
-                    action.setText(tr("tray.show_window"))  # 显示主窗口
-                elif action.text() in [tr("navigation.debug", _no_translate=True),
-                                      "调试", "Debug"]:
-                    action.setText(tr("navigation.debug"))  # 调试
-                elif action.text() in [tr("tray.exit", _no_translate=True),
-                                      "退出", "Exit"]:
-                    action.setText(tr("tray.exit"))  # 退出
-        except Exception as e:
-            logger.warning(f"更新任务栏失败: {e}")
-
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_F12:
             if cfg.debugMode.value and hasattr(self, 'debugPanel'):

@@ -28,9 +28,9 @@ import time
 import winreg
 from ctypes import wintypes
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QFont, QFontDatabase
 from PyQt6.QtWidgets import QApplication, QWidget
 from qfluentwidgets import setFontFamilies
@@ -557,7 +557,6 @@ class LanguageCode(Enum):
 
 
 class TranslationManager(QObject):
-    language_changed = pyqtSignal(str)
 
     def __init__(self):
         super().__init__()
@@ -589,14 +588,8 @@ class TranslationManager(QObject):
         if language_code not in [lang.value for lang in LanguageCode]:
             _i18n_logger.warning(f"无效语言代码: {language_code}")
             return False
-        old_language = self._current_language
         self._current_language = language_code
-        if old_language != language_code:
-            self.language_changed.emit(language_code)
         return True
-
-    def get_current_language(self) -> str:
-        return self._current_language
 
     def tr(self, key: str, **kwargs) -> str:
         lang_translations = self._translations.get(self._current_language, {})
@@ -634,14 +627,6 @@ def tr(key: str, **kwargs) -> str:
     return get_translation_manager().tr(key, **kwargs)
 
 
-def switch_language(language_code: str) -> bool:
-    return get_translation_manager().set_language(language_code)
-
-
-def get_current_language() -> str:
-    return get_translation_manager().get_current_language()
-
-
 
 
 
@@ -654,25 +639,3 @@ def get_current_language() -> str:
 class TranslatableWidget:
     def setup_translatable_ui(self):
         pass
-
-
-class DynamicTranslator:
-    def __init__(self):
-        self._translation_bindings: List[Callable] = []
-
-    def bind_translation(self, callback: Callable):
-        self._translation_bindings.append(callback)
-        return callback
-
-    def update_translations(self):
-        for callback in self._translation_bindings:
-            try:
-                callback()
-            except Exception as e:
-                logger.error(f"Translation callback error: {e}")
-
-
-def bind_translation(widget: QWidget, callback: Callable):
-    if not hasattr(widget, '_dynamic_translator'):
-        widget._dynamic_translator = DynamicTranslator()
-    return widget._dynamic_translator.bind_translation(callback)
