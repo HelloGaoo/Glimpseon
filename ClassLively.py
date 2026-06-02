@@ -26,7 +26,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, wait
 
 from PyQt6.QtCore import QEvent, QLocale, Qt, QThread, QTime, QTimer, QTranslator, pyqtSignal, pyqtSlot
-from PyQt6.QtGui import QIcon, QPixmap
+from PyQt6.QtGui import QIcon, QPixmap, QFont
 from PyQt6.QtWidgets import QApplication, QHBoxLayout, QLabel, QMessageBox, QSizePolicy, QSystemTrayIcon, QVBoxLayout, QWidget
 from qfluentwidgets import (
     Action,
