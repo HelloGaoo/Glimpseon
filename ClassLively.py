@@ -1948,6 +1948,3 @@ if __name__ == "__main__":
 
     sys.exit(app.exec())
 
-
-# ==================== SplashScreen 启动窗口 ====================
-from PyQt6.QtGui import QFont
