@@ -1736,8 +1736,11 @@ class EditPanel(QWidget):
         cityLabel = BodyLabel(tr("home.city"), self)  # 城市
         cityLabel.setFixedWidth(100)
         cityLayout.addWidget(cityLabel)
-        self.cityButton = PushButton(cfg.city.value or tr("component_settings.click_to_select"), self)
+        # self.cityButton = PushButton(cfg.city.value, self)
+        self.cityButton = PushButton(self)
         self.cityButton.setFixedHeight(36)
+
+        self.cityButton.setText(cfg.city.value if cfg.city.value else tr("component_settings.click_to_select"))
         self.cityButton.clicked.connect(self._onCityButtonClicked)
         cityLayout.addWidget(self.cityButton)
         layout.addLayout(cityLayout)

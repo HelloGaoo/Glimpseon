@@ -459,7 +459,11 @@ class WeatherSettingDialog(ComponentSettingDialog):
     def _createSettings(self):
         basic = self._beginGroup('basic')
         (self._enableCard, self._enableSwitch) = self._addSwitch(tr("component_settings.enable_weather"), cfg.showWeather, is_advanced=basic)  # 启用天气
-        city_btn = PushButton(cfg.city.value or tr("component_settings.click_to_select"))
+        # city_btn = PushButton(cfg.city.value)
+        city_btn = PushButton(self)
+        city_btn.setFixedHeight(36)
+        city_btn.setText(cfg.city.value if cfg.city.value else tr("component_settings.click_to_select"))
+        # city_btn = self._updateCityButton(city_btn)
         self._cityCard = self._addButtonRow(tr("component_settings.city"), city_btn, is_advanced=basic)  # 城市
         city_btn.clicked.connect(self._onCityClicked)
 
@@ -496,6 +500,15 @@ class WeatherSettingDialog(ComponentSettingDialog):
                         main_window._MainWindow__updateWeather()
         except Exception:
             logger.exception(tr("component_settings.weather_open_city_selector_failed"))  # 打开城市选择器失败
+
+    # 旧方案: 检测残留 fallback 文字并清除 — 已替换为更简洁的 setText 动态翻译
+    # def _updateCityButton(self, btn):
+    #     city = cfg.city.value
+    #     if not city or city in (tr("component_settings.click_to_select"), "点击选择", "Click to select", "點擊選擇"):
+    #         cfg.city.value = ""
+    #         btn.setText(tr("component_settings.click_to_select"))
+    #     else:
+    #         btn.setText(city)
 
     def _updateEnabled(self, enabled):
         self._cityCard.setEnabled(enabled)

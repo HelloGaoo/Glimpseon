@@ -633,7 +633,10 @@ class WizardWindow(QDialog, TranslatableWidget):
         city_label.setFixedWidth(120)
         city_row_layout.addWidget(city_label)
 
-        self.cityDisplayButton = PushButton(cfg.city.value or tr("component_settings.click_to_select"), self.page5)
+        # self.cityDisplayButton = PushButton(cfg.city.value, self.page5)
+        # self.cityDisplayButton.setFixedWidth(400)
+        self.cityDisplayButton = PushButton(self.page5)
+        self.cityDisplayButton.setText(cfg.city.value if cfg.city.value else tr("component_settings.click_to_select"))
         self.cityDisplayButton.clicked.connect(self._onCityButtonClicked)
         city_row_layout.addWidget(self.cityDisplayButton)
         city_row_layout.addStretch()
@@ -958,6 +961,10 @@ class MainWindow(FluentWindow):
         self.navigationInterface.installEventFilter(self)
 
         logger.info("主窗口初始化完成")
+
+        # _t_i18n = time.time()
+        # self._initTranslation()
+        # logger.info(f"[MW] 翻译系统初始化 耗时{time.time()-_t_i18n:.2f}s")
 
     def _initNavigation(self):
         _t = time.time()
