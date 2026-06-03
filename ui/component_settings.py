@@ -462,8 +462,11 @@ class WeatherSettingDialog(ComponentSettingDialog):
         # city_btn = PushButton(cfg.city.value)
         city_btn = PushButton(self)
         city_btn.setFixedHeight(36)
-        city_btn.setText(cfg.city.value if cfg.city.value else tr("component_settings.click_to_select"))
-        # city_btn = self._updateCityButton(city_btn)
+        _city = cfg.city.value
+        if not _city or _city in ("点击选择", "Click to select", "點據選擇"):
+            city_btn.setText(tr("component_settings.click_to_select"))
+        else:
+            city_btn.setText(_city)
         self._cityCard = self._addButtonRow(tr("component_settings.city"), city_btn, is_advanced=basic)  # 城市
         city_btn.clicked.connect(self._onCityClicked)
 

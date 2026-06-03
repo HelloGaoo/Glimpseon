@@ -1739,8 +1739,11 @@ class EditPanel(QWidget):
         # self.cityButton = PushButton(cfg.city.value, self)
         self.cityButton = PushButton(self)
         self.cityButton.setFixedHeight(36)
-
-        self.cityButton.setText(cfg.city.value if cfg.city.value else tr("component_settings.click_to_select"))
+        _city = cfg.city.value
+        if not _city or _city in ("点击选择", "Click to select", "點據選擇"):
+            self.cityButton.setText(tr("component_settings.click_to_select"))
+        else:
+            self.cityButton.setText(_city)
         self.cityButton.clicked.connect(self._onCityButtonClicked)
         cityLayout.addWidget(self.cityButton)
         layout.addLayout(cityLayout)

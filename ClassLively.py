@@ -636,7 +636,11 @@ class WizardWindow(QDialog, TranslatableWidget):
         # self.cityDisplayButton = PushButton(cfg.city.value, self.page5)
         # self.cityDisplayButton.setFixedWidth(400)
         self.cityDisplayButton = PushButton(self.page5)
-        self.cityDisplayButton.setText(cfg.city.value if cfg.city.value else tr("component_settings.click_to_select"))
+        _city = cfg.city.value
+        if not _city or _city in ("点击选择", "Click to select", "點據選擇"):
+            self.cityDisplayButton.setText(tr("component_settings.click_to_select"))
+        else:
+            self.cityDisplayButton.setText(_city)
         self.cityDisplayButton.clicked.connect(self._onCityButtonClicked)
         city_row_layout.addWidget(self.cityDisplayButton)
         city_row_layout.addStretch()
