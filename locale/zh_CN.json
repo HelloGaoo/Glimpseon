@@ -362,7 +362,14 @@
     "please_select_first": "请先选择要下载的软件",
     "confirm_batch": "确定要下载并安装以下软件吗？\n{list}",
     "downloading_single": "正在下载 {name}，请稍候...",
-    "downloading_batch": "正在下载 {count} 个软件，请稍候..."
+    "downloading_batch": "正在下载 {count} 个软件，请稍候...",
+    "source_github": "GitHub 原链接",
+    "source_hk": "香港加速站",
+    "source_cf": "CloudFlare 加速站",
+    "source_edgeone": "EdgeOne 加速站",
+    "source_geekertao": "Geekertao 加速站",
+    "or_separator": " 或 ",
+    "unsupported_type": "不支持的安装程序类型"
   },
   "wallpaper": {
     "resolution": "分辨率",
@@ -450,7 +457,8 @@
     "restart_now": "立即重启",
     "restart_later": "稍后",
     "error": "错误",
-    "execute": "执行"
+    "execute": "执行",
+    "file_read_error": "无法读取文件：{file_path}"
   },
   "media": {
     "not_playing": "未在播放",
@@ -672,5 +680,16 @@
     "element_check_enabled": "鼠标悬停查看组件信息",
     "element_check_disabled": "已禁用",
     "stopped": "已停止"
+  },
+  "install": {
+    "complete": "安装完成",
+    "installed": "已安装",
+    "failed": "安装失败"
+  },
+  "downloading": "下载中",
+  "extracting": "解压中",
+  "configuring": "配置中",
+  "poetry": {
+    "default": "他山之石，可以攻玉。——《诗经·小雅·鹤鸣》"
   }
 }

@@ -362,7 +362,14 @@
     "please_select_first": "請先選擇要下載的軟體",
     "confirm_batch": "確定要下載並安裝以下軟體嗎？\n{list}",
     "downloading_single": "正在下載 {name}，請稍候...",
-    "downloading_batch": "正在下載 {count} 個軟體，請稍候..."
+    "downloading_batch": "正在下載 {count} 個軟體，請稍候...",
+    "source_github": "GitHub 原始連結",
+    "source_hk": "香港加速站",
+    "source_cf": "CloudFlare 加速站",
+    "source_edgeone": "EdgeOne 加速站",
+    "source_geekertao": "Geekertao 加速站",
+    "or_separator": " 或 ",
+    "unsupported_type": "不支援的安裝程式類型"
   },
   "wallpaper": {
     "resolution": "解析度",
@@ -450,7 +457,8 @@
     "restart_now": "立即重新啟動",
     "restart_later": "稍後",
     "error": "錯誤",
-    "execute": "執行"
+    "execute": "執行",
+    "file_read_error": "無法讀取檔案：{file_path}"
   },
   "media": {
     "not_playing": "未在播放",
@@ -672,5 +680,16 @@
     "element_check_enabled": "鼠標懸停查看組件資訊",
     "element_check_disabled": "已禁用",
     "stopped": "已停止"
+  },
+  "install": {
+    "complete": "安裝完成",
+    "installed": "已安裝",
+    "failed": "安裝失敗"
+  },
+  "downloading": "下載中",
+  "extracting": "解壓中",
+  "configuring": "設定中",
+  "poetry": {
+    "default": "他山之石，可以攻玉。——《詩經·小雅·鶴鳴》"
   }
 }

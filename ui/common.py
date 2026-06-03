@@ -50,7 +50,7 @@ def show_text_file(title: str, intro: str, file_path: str, parent=None):
             with open(file_path, 'r', encoding='utf-8') as f:
                 content_text = f.read()
         except Exception:
-            content_text = f"无法读取文件：{file_path}"
+            content_text = tr("common.file_read_error").format(file_path=file_path)
     else:
         content_text = intro
 

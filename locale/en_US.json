@@ -362,7 +362,14 @@
     "please_select_first": "Please select software to download first",
     "confirm_batch": "Are you sure you want to download and install the following software?\n{list}",
     "downloading_single": "Downloading {name}, please wait...",
-    "downloading_batch": "Downloading {count} software, please wait..."
+    "downloading_batch": "Downloading {count} software, please wait...",
+    "source_github": "GitHub Original",
+    "source_hk": "Hong Kong Mirror",
+    "source_cf": "CloudFlare Mirror",
+    "source_edgeone": "EdgeOne Mirror",
+    "source_geekertao": "Geekertao Mirror",
+    "or_separator": " or ",
+    "unsupported_type": "Unsupported installer type"
   },
   "wallpaper": {
     "resolution": "Resolution",
@@ -450,7 +457,8 @@
     "edit": "Edit",
     "delete": "Delete",
     "error": "Error",
-    "execute": "Execute"
+    "execute": "Execute",
+    "file_read_error": "Cannot read file: {file_path}"
   },
   "media": {
     "not_playing": "Not Playing",
@@ -672,5 +680,16 @@
     "element_check_enabled": "Hover to view component info",
     "element_check_disabled": "Disabled",
     "stopped": "Stopped"
+  },
+  "install": {
+    "complete": "Installation complete",
+    "installed": "Already installed",
+    "failed": "Installation failed"
+  },
+  "downloading": "Downloading",
+  "extracting": "Extracting",
+  "configuring": "Configuring",
+  "poetry": {
+    "default": "Stones from other hills may serve to polish jade. — Book of Odes"
   }
 }

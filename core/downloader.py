@@ -109,23 +109,23 @@ subprocess.Popen = _popen_with_prio
 
 DOWNLOAD_SOURCES = {
     "original": {
-        "name": "GitHub 原链接",
+        "name": tr("download.source_github"),
         "prefix": "https://github.com"
     },
     "hk": {
-        "name": "香港加速站",
+        "name": tr("download.source_hk"),
         "prefix": "https://hk.gh-proxy.org/https://github.com"
     },
     "cloudflare": {
-        "name": "CloudFlare 加速站",
+        "name": tr("download.source_cf"),
         "prefix": "https://gh-proxy.org/https://github.com"
     },
     "edgeone": {
-        "name": "EdgeOne 加速站",
+        "name": tr("download.source_edgeone"),
         "prefix": "https://edgeone.gh-proxy.org/https://github.com"
     },
     "geekertao": {
-        "name": "Geekertao 加速站",
+        "name": tr("download.source_geekertao"),
         "prefix": "https://ghfile.geekertao.top/https://github.com"
     }
 }
@@ -991,7 +991,7 @@ class Downloader:
         """下载文件
             software_name: 软件名称
             cache_file: 缓存文件信息
-            download_location: 下载位置 ("Temporary" 或 "Cache")
+            download_location: 下载位置 ("Temporarytr("download.or_separator")Cache")
             progress_callback: 进度回调函数
             download_complete_callback: 下载完成回调函数
             download_rate_limit: 限速（bytes/s），0表示不限速
@@ -1000,7 +1000,7 @@ class Downloader:
         """
         url = self._get_download_url(cache_file)
         if not url:
-            raise Exception("未找到下载URL")
+            raise Exception(tr("download.error_no_url"))
         
         if download_location == "Temporary":
             save_path = os.path.join(TEMP_DIR, cache_file["filename"])
@@ -1166,7 +1166,7 @@ class Downloader:
             else:
                 if self.installer_logger:
                     self.installer_logger.warning(f"{software_name}: 不支持的安装程序类型")
-                raise Exception("不支持的安装程序类型")
+                raise Exception(tr("download.unsupported_type"))
         except Exception as err:
             if self.installer_logger:
                 self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}")
@@ -1176,12 +1176,12 @@ class Downloader:
         """更新状态
         """
         mapping = {
-            "安装完成": 100,
-            "已安装": 100,
-            "安装失败": 0,
-            "下载中": 20,
-            "解压中": 50,
-            "配置中": 80,
+            tr("install.complete"): 100,
+            tr("install.installed"): 100,
+            tr("install.failed"): 0,
+            tr("downloading"): 20,
+            tr("extracting"): 50,
+            tr("configuring"): 80,
         }
         try:
             if status in mapping:self.set_progress(software_name, mapping[status])

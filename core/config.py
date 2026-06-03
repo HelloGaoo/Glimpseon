@@ -198,9 +198,6 @@ class Config(QConfig):
     dateSize = RangeConfigItem(
         "Time", "DateSize", 20, RangeValidator(12, 50)
     )
-    clockPosition = OptionsConfigItem(
-        "Time", "ClockPosition", "顶部偏下", OptionsValidator(["左上预留", "左上", "右上预留", "右上", "左下预留", "左下", "右下预留", "右下", "中部", "顶部", "顶部偏下", "底部偏上", "底部"])
-    )
     showPoetry = ConfigItem(
         "Poetry", "ShowPoetry", True, BoolValidator()
     )
@@ -217,9 +214,6 @@ class Config(QConfig):
         "Poetry", "PoetrySize", 16, RangeValidator(12, 50)
     )
     poetryTextColor = ColorConfigItem("Poetry", "PoetryTextColor", "#FFFFFF")
-    poetryPosition = OptionsConfigItem(
-        "Poetry", "PoetryPosition", "底部预留", OptionsValidator(["顶部预留", "底部预留"])
-    )
     weatherSize = RangeConfigItem(
         "Weather", "WeatherSize", 24, RangeValidator(5, 50)
     )

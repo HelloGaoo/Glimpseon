@@ -401,7 +401,7 @@ def get_cache_info(cache_name: str) -> Optional[dict]:
         return {
             "name": cache_name,
             "cached_time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp)),
-            "expires_time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(expires_at)) if expires_at != float('inf') else "永不过期",
+            "expires_time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(expires_at)) if expires_at != float('inf') else tr("time.never"),
             "remaining_seconds": max(0, int(expires_at - now)),
             "is_expired": now >= expires_at,
             "interval": cache_data.get("interval", "未知"),

@@ -25,8 +25,8 @@ import requests
 
 from core.config import cfg
 from core.logger import logger
-from core.utils import get_cached_content, save_cache
-FALLBACK_POETRY = "他山之石，可以攻玉。——《诗经·小雅·鹤鸣》"
+from core.utils import tr,  get_cached_content, save_cache
+FALLBACK_POETRY = tr("poetry.default")
 
 
 class PoetryService:
