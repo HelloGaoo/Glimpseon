@@ -350,6 +350,7 @@
     "cat_common": "常用軟體",
     "cat_seewo": "希沃系列",
     "cat_system": "系統工具",
+    "cat_schedule": "課表軟體",
     "download_btn": "下載",
     "open_official_website": "打開官網",
     "confirm_download": "確認下載",
@@ -499,6 +500,8 @@
     "no_path": "未配置路徑",
     "folder_not_exist": "資料夾不存在: {path}",
     "path_not_exist": "路徑不存在: {path}",
+    "path": "路徑",
+    "url": "網址",
     "launch_success": "啟動成功",
     "opening": "正在開啟 {name}",
     "launch_failed": "啟動失敗"

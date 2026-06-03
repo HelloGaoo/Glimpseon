@@ -1545,9 +1545,9 @@ class QuickLaunchDock(QWidget):
         
         app_type = app.get("type", "app")
         if app_type == "url":
-            path_info = f"网址: {app.get('path', '')}"
+            path_info = f"{tr('quick_launch.url')}: {app.get('path', '')}"
         else:
-            path_info = f"路径: {app.get('path', '')}"
+            path_info = f"{tr('quick_launch.path')}: {app.get('path', '')}"
         
         info_action = Action(FIF.INFO, path_info, self)
         info_action.setEnabled(False)

@@ -68,7 +68,7 @@ SOFTWARE_CATEGORIES = [
         ]
     },
     {
-        "name": "希沃系列",
+        "name_key": "download.cat_seewo",
         "software": [
             {
                 "name": "希沃白板5",
@@ -221,7 +221,7 @@ SOFTWARE_CATEGORIES = [
         ]
     },
     {
-        "name": "课表软件",
+        "name_key": "download.cat_schedule",
         "software": [
             {
                 "name": "ClassIsland2",

@@ -350,6 +350,7 @@
     "cat_common": "Common Software",
     "cat_seewo": "Seewo Series",
     "cat_system": "System Tools",
+    "cat_schedule": "Schedule Software",
     "download_btn": "Download",
     "open_official_website": "Open Official Website",
     "confirm_download": "Confirm Download",
@@ -499,6 +500,8 @@
     "no_path": "Path Not Configured",
     "folder_not_exist": "Folder does not exist: {path}",
     "path_not_exist": "Path does not exist: {path}",
+    "path": "Path",
+    "url": "URL",
     "launch_success": "Launch Successful",
     "opening": "Opening {name}",
     "launch_failed": "Launch Failed"
