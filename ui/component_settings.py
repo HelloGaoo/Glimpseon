@@ -64,8 +64,7 @@ class _SettingRow(SettingCard):
         self.contentLabel.deleteLater()
         self.contentLabel = None
         self._widget = widget
-        self.hBoxLayout.addWidget(widget, 1)
-        self.hBoxLayout.addSpacing(16)
+        self.hBoxLayout.addWidget(widget, 0, Qt.AlignmentFlag.AlignRight)
 
     def sizeHint(self) -> QSize:
         if hasattr(self, '_widget') and self._widget:
@@ -198,6 +197,8 @@ class ComponentSettingDialog(QDialog, TranslatableWidget):
     def _addSwitch(self, title: str, config_item, group=None, is_advanced=False):
         switch = SwitchButton()
         switch.setChecked(config_item.value)
+        switch.setOffText('')
+        switch.setOnText('')
         switch.checkedChanged.connect(lambda v, ci=config_item: setattr(ci, 'value', v))
         card = _SettingRow(title, switch)
         target_group = group
