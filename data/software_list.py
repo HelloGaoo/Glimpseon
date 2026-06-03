@@ -33,7 +33,7 @@ logger = logging.getLogger("ClassLively.data.software_list")
 
 SOFTWARE_CATEGORIES = [
     {
-        "name": "常用软件",
+        "name_key": "download.cat_common",
         "software": [
             {
                 "name": "微信",
@@ -210,7 +210,7 @@ SOFTWARE_CATEGORIES = [
         ]
     },
     {
-        "name": "系统工具",
+        "name_key": "download.cat_system",
         "software": [
             {
                 "name": "激活工具",

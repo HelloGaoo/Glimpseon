@@ -110,26 +110,33 @@ subprocess.Popen = _popen_with_prio
 
 DOWNLOAD_SOURCES = {
     "original": {
-        "name": tr("download.source_github"),
+        "name_key": "download.source_github",
         "prefix": "https://github.com"
     },
     "hk": {
-        "name": tr("download.source_hk"),
+        "name_key": "download.source_hk",
         "prefix": "https://hk.gh-proxy.org/https://github.com"
     },
     "cloudflare": {
-        "name": tr("download.source_cf"),
+        "name_key": "download.source_cf",
         "prefix": "https://gh-proxy.org/https://github.com"
     },
     "edgeone": {
-        "name": tr("download.source_edgeone"),
+        "name_key": "download.source_edgeone",
         "prefix": "https://edgeone.gh-proxy.org/https://github.com"
     },
     "geekertao": {
-        "name": tr("download.source_geekertao"),
+        "name_key": "download.source_geekertao",
         "prefix": "https://ghfile.geekertao.top/https://github.com"
     }
 }
+
+
+def get_source_name(source_key: str) -> str:
+    """获取下载源的翻译后显示名称"""
+    if source_key in DOWNLOAD_SOURCES:
+        return tr(DOWNLOAD_SOURCES[source_key]["name_key"])
+    return source_key
 
 DEFAULT_SOURCE = "hk"
 current_source = DEFAULT_SOURCE

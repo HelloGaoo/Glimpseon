@@ -52,7 +52,7 @@ from qfluentwidgets import (
 
 from core.config import cfg
 from core.constants import get_resPath, load_qss
-from core.downloader import DOWNLOAD_SOURCES, DEFAULT_SOURCE, Downloader, set_download_src
+from core.downloader import DOWNLOAD_SOURCES, DEFAULT_SOURCE, Downloader, set_download_src, get_source_name
 from data.url_dir import url_dir
 from core.utils import tr, TranslatableWidget
 from core.logger import logger
@@ -107,11 +107,8 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
         self.selectAllButton.clicked.connect(self.__handleSelectAll)
     
     def __handleSourceChange(self, source_name):
-        source_key = None
-        for key, value in DOWNLOAD_SOURCES.items():
-            if value["name"] == source_name:
-                source_key = key
-                break
+        idx = self.sourceComboBox.currentIndex()
+        source_key = self.sourceComboBox.itemData(idx)
         if source_key:
             qconfig.set(cfg.downloadSource, source_key)
             logger.info(f"下载源已保存到配置：{source_name} ({source_key})")
@@ -419,8 +416,11 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
         self.sourceComboBox = ComboBox(sourceGroup)
         self.sourceComboBox.setObjectName("sourceComboBox")
         self.sourceComboBox.setFixedWidth(200)
-        source_items = [v["name"] for v in DOWNLOAD_SOURCES.values()]
+        source_items = [get_source_name(k) for k in DOWNLOAD_SOURCES]
         self.sourceComboBox.addItems(source_items)
+        # 存储key到每个item的userData
+        for i, key in enumerate(DOWNLOAD_SOURCES):
+            self.sourceComboBox.setItemData(i, key)
         
         source_key = cfg.downloadSource.value
         default_index = list(DOWNLOAD_SOURCES.keys()).index(source_key)

@@ -977,7 +977,7 @@ class MainWindow(FluentWindow):
 
         def _populateDownload():
             for category in SOFTWARE_CATEGORIES:
-                self.downloadInterface.addSection(category["name"])
+                self.downloadInterface.addSection(tr(category["name_key"]))
                 for software in category["software"]:
                     icon_path = get_software_icon_path(software["icon"])
                     link = software.get("link")
