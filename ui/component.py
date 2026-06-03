@@ -1978,7 +1978,7 @@ class QuickLaunchDock(QWidget):
                 name = self._apps[i].get("name", "")
                 if name:
                     label_font = p.font()
-                    label_font.setFamily("HarmonyOS Sans,Microsoft YaHei,sans-serif")
+                    label_font.setFamily("HarmonyOS Sans")
                     label_font.setPixelSize(14)
                     label_font.setWeight(QFont.Weight.Medium)
                     p.setFont(label_font)
