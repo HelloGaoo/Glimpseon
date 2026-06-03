@@ -605,7 +605,8 @@
     "interval_12h": "12 小時",
     "interval_24h": "24 小時",
     "interval_1day": "1 天",
-    "city": "城市"
+    "city": "城市",
+    "click_to_select": "點擊選擇"
   },
   "weather_service": {
     "select_region": "選擇地區",

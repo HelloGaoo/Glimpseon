@@ -403,7 +403,6 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
         self.selectAllButton = PushButton(tr("download.select_all"), modeGroup)  # 全选
         self.selectAllButton.setObjectName("selectAllButton")
         self.selectAllButton.setFixedHeight(36)
-        self.selectAllButton.setFixedWidth(80)
         self.selectAllButton.hide()
         modeGroupLayout.addWidget(self.selectAllButton)
         
@@ -543,7 +542,6 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
         # 创建下载按钮或复选框
         downloadButton = PrimaryPushButton(FIF.DOWNLOAD, tr("download.download_btn"), softwareCard)  # 下载
         downloadButton.setFixedHeight(36)
-        downloadButton.setFixedWidth(100)
         
         checkbox = CheckBox(softwareCard)
         checkbox.setFixedSize(32, 32)

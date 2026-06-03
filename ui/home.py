@@ -311,7 +311,7 @@ class HomeInterface(QWidget, TranslatableWidget):
 
         self.editButton = PushButton(tr("home.edit"), parent=self.editContainer)  # 编辑
         self.editButton.setObjectName("editButton")
-        self.editButton.setFixedSize(80, 32)
+        self.editButton.setFixedHeight(32)
         self.editButton.clicked.connect(self._enterEditMode)
 
         self.editLayout.addWidget(self.editButton)
@@ -1736,9 +1736,8 @@ class EditPanel(QWidget):
         cityLabel = BodyLabel(tr("home.city"), self)  # 城市
         cityLabel.setFixedWidth(100)
         cityLayout.addWidget(cityLabel)
-        self.cityButton = PushButton(cfg.city.value, self)
+        self.cityButton = PushButton(cfg.city.value or tr("component_settings.click_to_select"), self)
         self.cityButton.setFixedHeight(36)
-        self.cityButton.setFixedWidth(120)
         self.cityButton.clicked.connect(self._onCityButtonClicked)
         cityLayout.addWidget(self.cityButton)
         layout.addLayout(cityLayout)
@@ -2602,7 +2601,6 @@ class EditPanel(QWidget):
         appsLayout.addWidget(appsLabel)
         self.quickLaunchEditButton = PushButton(tr("home.edit_apps"), self)
         self.quickLaunchEditButton.setFixedHeight(36)
-        self.quickLaunchEditButton.setFixedWidth(120)
         self.quickLaunchEditButton.clicked.connect(self._onQuickLaunchEditClicked)
         appsLayout.addWidget(self.quickLaunchEditButton)
         layout.addLayout(appsLayout)
@@ -2985,7 +2983,6 @@ class AppEditDialog(MessageBoxBase):
         self.pathEdit.textChanged.connect(self._on_path_changed)
         pathLayout.addWidget(self.pathEdit)
         self.browseButton = PushButton(tr("common.browse"), self)
-        self.browseButton.setFixedWidth(60)
         self.browseButton.clicked.connect(self._on_browse)
         pathLayout.addWidget(self.browseButton)
         self.viewLayout.addLayout(pathLayout)
@@ -3008,7 +3005,6 @@ class AppEditDialog(MessageBoxBase):
         self.iconPathEdit.textChanged.connect(self._on_icon_path_changed)
         iconInputLayout.addWidget(self.iconPathEdit)
         self.iconBrowseButton = PushButton(tr("common.browse"), self)
-        self.iconBrowseButton.setFixedWidth(60)
         self.iconBrowseButton.clicked.connect(self._on_icon_browse)
         iconInputLayout.addWidget(self.iconBrowseButton)
         self.viewLayout.addLayout(iconInputLayout)

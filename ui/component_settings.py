@@ -459,7 +459,7 @@ class WeatherSettingDialog(ComponentSettingDialog):
     def _createSettings(self):
         basic = self._beginGroup('basic')
         (self._enableCard, self._enableSwitch) = self._addSwitch(tr("component_settings.enable_weather"), cfg.showWeather, is_advanced=basic)  # 启用天气
-        city_btn = PushButton(cfg.city.value)
+        city_btn = PushButton(cfg.city.value or tr("component_settings.click_to_select"))
         self._cityCard = self._addButtonRow(tr("component_settings.city"), city_btn, is_advanced=basic)  # 城市
         city_btn.clicked.connect(self._onCityClicked)
 

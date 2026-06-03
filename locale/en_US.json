@@ -605,7 +605,8 @@
     "interval_12h": "12 hours",
     "interval_24h": "24 hours",
     "interval_1day": "1 day",
-    "city": "City"
+    "city": "City",
+    "click_to_select": "Click to select"
   },
   "weather_service": {
     "select_region": "Select Region",

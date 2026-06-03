@@ -407,12 +407,10 @@ class WallpaperPreviewDialog(MessageBoxBase):
         self.infoLabel.setWordWrap(True)
         
         self.useButton = PrimaryPushButton(FIF.ACCEPT, tr("wallpaper.use_this"), self)  # 使用此壁纸
-        self.useButton.setFixedWidth(120)
         self.useButton.setFixedHeight(36)
         self.useButton.clicked.connect(self._onUse)
 
         self.deleteButton = PushButton(FIF.DELETE, tr("wallpaper.delete"), self)  # 删除
-        self.deleteButton.setFixedWidth(100)
         self.deleteButton.setFixedHeight(36)
         self.deleteButton.clicked.connect(self._onDelete)
         
@@ -786,16 +784,12 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         
         self.getButton = PrimaryPushButton(FIF.DOWNLOAD, tr("wallpaper.get_wallpaper"))  # 获取壁纸
         self.getButton.setFixedHeight(36)
-        self.getButton.setFixedWidth(140)
         self.saveButton = PushButton(FIF.SAVE, tr("wallpaper.save_as"))  # 另存为
         self.saveButton.setFixedHeight(36)
-        self.saveButton.setFixedWidth(120)
         self.selectButton = PushButton(FIF.FOLDER, tr("wallpaper.manual_select"))  # 手动选择
         self.selectButton.setFixedHeight(36)
-        self.selectButton.setFixedWidth(120)
         self.setWallpaperButton = PushButton(FIF.HOME, tr("wallpaper.set_desktop"))  # 设为桌面
         self.setWallpaperButton.setFixedHeight(36)
-        self.setWallpaperButton.setFixedWidth(120)
         
         self.settingsGroup = SettingCardGroup(tr("wallpaper.settings"), self.contentWidget)  # 设置
         self.wallpaperSaveLimitCard = RangeSettingCard(

@@ -304,7 +304,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         poetryRow.addWidget(StrongBodyLabel(tr("debug.label_poetry_api"), card))  # 诗词API
         poetryRow.addStretch()
         self.testPoetryButton = PrimaryPushButton(FIF.PLAY, tr("debug.btn_test"), card)  # 测试
-        self.testPoetryButton.setFixedWidth(100)
+        self.testPoetryButton.setFixedHeight(32)
         self.testPoetryButton.clicked.connect(self._testPoetryAPI)
         poetryRow.addWidget(self.testPoetryButton)
         layout.addLayout(poetryRow)
@@ -316,7 +316,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         weatherRow.addWidget(StrongBodyLabel(tr("debug.label_weather_api"), card))  # 天气API
         weatherRow.addStretch()
         self.testWeatherButton = PrimaryPushButton(FIF.PLAY, tr("debug.btn_test"), card)  # 测试
-        self.testWeatherButton.setFixedWidth(100)
+        self.testWeatherButton.setFixedHeight(32)
         self.testWeatherButton.clicked.connect(self._testWeatherAPI)
         weatherRow.addWidget(self.testWeatherButton)
         layout.addLayout(weatherRow)
@@ -584,11 +584,11 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         row.addWidget(self.batchWallpaperSpin)
         row.addSpacing(16)
         self.batchWallpaperBtn = PrimaryPushButton(FIF.DOWNLOAD, tr("debug.btn_start_fetch"), card)  # 开始获取
-        self.batchWallpaperBtn.setFixedSize(110, 32)
+        self.batchWallpaperBtn.setFixedHeight(32)
         self.batchWallpaperBtn.clicked.connect(self._batchGetWallpaper)
         row.addWidget(self.batchWallpaperBtn)
         self.batchWallpaperStopBtn = PushButton(tr("debug.btn_stop"), card)  # 停止
-        self.batchWallpaperStopBtn.setFixedSize(70, 32)
+        self.batchWallpaperStopBtn.setFixedHeight(32)
         self.batchWallpaperStopBtn.clicked.connect(self._stopBatchWallpaper)
         self.batchWallpaperStopBtn.setEnabled(False)
         row.addWidget(self.batchWallpaperStopBtn)

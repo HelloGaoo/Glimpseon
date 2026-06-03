@@ -633,8 +633,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         city_label.setFixedWidth(120)
         city_row_layout.addWidget(city_label)
 
-        self.cityDisplayButton = PushButton(cfg.city.value, self.page5)
-        self.cityDisplayButton.setFixedWidth(400)
+        self.cityDisplayButton = PushButton(cfg.city.value or tr("component_settings.click_to_select"), self.page5)
         self.cityDisplayButton.clicked.connect(self._onCityButtonClicked)
         city_row_layout.addWidget(self.cityDisplayButton)
         city_row_layout.addStretch()
