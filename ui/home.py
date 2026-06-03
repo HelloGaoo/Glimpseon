@@ -2800,6 +2800,7 @@ class QuickLaunchEditDialog(MessageBoxBase):
         super().__init__(parent)
         apps = cfg.quickLaunchApps.value
         self._apps = list(apps) if apps else []
+        self._deleted_apps = []  # 记录要删除的列表 确认后再删图标
         self._init_ui()
 
     def _init_ui(self):
@@ -2881,14 +2882,22 @@ class QuickLaunchEditDialog(MessageBoxBase):
             InfoBar.warning(tr("common.tip"), tr("home.select_app_first"), parent=self, duration=2000)
             return
 
+        # deleted_app = self._apps.pop(self._selected_row)
+        # self._delete_app_icon(deleted_app)
+        # self._update_app_list()
+        # if self.appListWidget.count() > 0:
+        #     new_row = min(self._selected_row, self.appListWidget.count() - 1)
+        #     self.appListWidget.setCurrentRow(new_row)
+        #     self._selected_row = new_row
+        # self._refresh_dock()
+
         deleted_app = self._apps.pop(self._selected_row)
-        self._delete_app_icon(deleted_app)
+        self._deleted_apps.append(deleted_app)
         self._update_app_list()
         if self.appListWidget.count() > 0:
             new_row = min(self._selected_row, self.appListWidget.count() - 1)
             self.appListWidget.setCurrentRow(new_row)
             self._selected_row = new_row
-        self._refresh_dock()
 
     def _delete_app_icon(self, app_data):
         if not app_data:return
@@ -2944,8 +2953,14 @@ class QuickLaunchEditDialog(MessageBoxBase):
                 self._refresh_dock()
 
     def accept(self):
+        # cfg.quickLaunchApps.value = self._apps
+        # save_cfg()
+        # super().accept()
         cfg.quickLaunchApps.value = self._apps
         save_cfg()
+        for deleted_app in self._deleted_apps:
+            self._delete_app_icon(deleted_app)
+        self._refresh_dock()
         super().accept()
 
     def get_apps(self):
