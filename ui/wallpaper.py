@@ -809,9 +809,9 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         self.autoGetIntervalCard = ComboBoxSettingCard(
             cfg.autoGetInterval,
             FIF.SYNC,
-            tr("wallpaper.auto_interval"),  # 自动获取间隔
-            tr("wallpaper.auto_interval_desc"),  # 设置自动获取壁纸的时间间隔
-            texts=["从不", "10分钟", "30分钟", "1小时", "2小时", "6小时", "12小时", "1天", "3天", "7天"],
+            tr("wallpaper.auto_interval"),
+            tr("wallpaper.auto_interval_desc"),
+            texts=[tr("time.never"), tr("time.minutes_10"), tr("time.minutes_30"), tr("time.hour_1"), tr("wallpaper.interval_2h"), tr("time.hours_6"), tr("time.hours_12"), tr("time.day_1"), tr("wallpaper.interval_3d"), tr("wallpaper.interval_5d"), tr("wallpaper.interval_7d")],
             parent=self.settingsGroup
         )
         self.settingsGroup.addSettingCard(self.autoGetIntervalCard)
@@ -952,19 +952,19 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
     def _updateAutoGetTimer(self):
         self.autoGetTimer.stop()
         interval_str = cfg.autoGetInterval.value
-        
-        if interval_str != "从不":
+
+        if interval_str != "never":
             interval_map = {
-                "10分钟": 10 * 60 * 1000,
-                "30分钟": 30 * 60 * 1000,
-                "1小时": 60 * 60 * 1000,
-                "3小时": 3 * 60 * 60 * 1000,
-                "6小时": 6 * 60 * 60 * 1000,
-                "12小时": 12 * 60 * 60 * 1000,
-                "1天": 24 * 60 * 60 * 1000,
-                "3天": 3 * 24 * 60 * 60 * 1000,
-                "5天": 5 * 24 * 60 * 60 * 1000,
-                "7天": 7 * 24 * 60 * 60 * 1000,
+                "10m": 10 * 60 * 1000, "10分钟": 10 * 60 * 1000,
+                "30m": 30 * 60 * 1000, "30分钟": 30 * 60 * 1000,
+                "1h": 60 * 60 * 1000, "1小时": 60 * 60 * 1000,
+                "3h": 3 * 60 * 60 * 1000, "3小时": 3 * 60 * 60 * 1000,
+                "6h": 6 * 60 * 60 * 1000, "6小时": 6 * 60 * 60 * 1000,
+                "12h": 12 * 60 * 60 * 1000, "12小时": 12 * 60 * 60 * 1000,
+                "1d": 24 * 60 * 60 * 1000, "1天": 24 * 60 * 60 * 1000,
+                "3d": 3 * 24 * 60 * 60 * 1000, "3天": 3 * 24 * 60 * 60 * 1000,
+                "5d": 5 * 24 * 60 * 60 * 1000, "5天": 5 * 24 * 60 * 60 * 1000,
+                "7d": 7 * 24 * 60 * 60 * 1000, "7天": 7 * 24 * 60 * 60 * 1000,
             }
             interval = interval_map.get(interval_str, 30 * 60 * 1000)
             self.autoGetTimer.start(interval)

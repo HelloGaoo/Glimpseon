@@ -168,7 +168,7 @@ class Config(QConfig):
         "Wallpaper", "SaveLimit", 50, RangeValidator(10, 100)
     )
     autoGetInterval = OptionsConfigItem(
-        "Wallpaper", "AutoGetInterval", "30分钟", OptionsValidator(["从不", "10分钟", "30分钟", "1小时", "3小时", "6小时", "12小时", "1天", "3天", "5天", "7天"])
+        "Wallpaper", "AutoGetInterval", "30m", OptionsValidator(["never", "10m", "30m", "1h", "3h", "6h", "12h", "1d", "3d", "5d", "7d"])
     )
     autoSyncToDesktop = ConfigItem(
         "Wallpaper", "AutoSyncToDesktop", True, BoolValidator()
@@ -208,7 +208,7 @@ class Config(QConfig):
         "Poetry", "PoetryApiUrl", "https://www.ffapi.cn/int/v1/shici"
     )
     poetryUpdateInterval = OptionsConfigItem(
-        "Poetry", "PoetryUpdateInterval", "10 分钟", OptionsValidator(["从不", "5 分钟", "10 分钟", "30 分钟", "1 小时", "3 小时", "6 小时", "12 小时", "1 天"])
+        "Poetry", "PoetryUpdateInterval", "10m", OptionsValidator(["never", "5m", "10m", "30m", "1h", "3h", "6h", "12h", "1d"])
     )
     poetrySize = RangeConfigItem(
         "Poetry", "PoetrySize", 16, RangeValidator(12, 50)
@@ -222,13 +222,10 @@ class Config(QConfig):
         "Weather", "WeatherIconSize", 64, RangeValidator(32, 200)
     )
     weatherUpdateInterval = OptionsConfigItem(
-        "Weather", "UpdateInterval", "5 分钟", OptionsValidator(["从不", "5 分钟", "15 分钟", "30 分钟", "1 小时", "3 小时", "6 小时", "12 小时", "24 小时"])
-    )
-    weatherPosition = OptionsConfigItem(
-        "Weather", "WeatherPosition", "右上预留", OptionsValidator(["左上预留", "右上预留", "左下预留", "右下预留"])
+        "Weather", "UpdateInterval", "5m", OptionsValidator(["never", "5m", "15m", "30m", "1h", "3h", "6h", "12h", "24h"])
     )
     city = ConfigItem(
-        "Weather", "City", "北京"
+        "Weather", "City", ""
     )
     latitude = ConfigItem(
         "Weather", "Latitude", 39.9042
@@ -270,9 +267,6 @@ class Config(QConfig):
     countdownDisplayMode = OptionsConfigItem(
         "Countdown", "DisplayMode", "simultaneous", OptionsValidator(["simultaneous", "carousel"])
     )
-    countdownPosition = OptionsConfigItem(
-        "Countdown", "CountdownPosition", "中部", OptionsValidator(["左上预留", "左上", "右上预留", "右上", "左下预留", "左下", "右下预留", "右下", "中部", "顶部", "顶部偏下", "底部偏上", "底部"])
-    )
     countdownTextColor = ColorConfigItem("Countdown", "TextColor", "#FF0000")
     countdownTextSize = RangeConfigItem(
         "Countdown", "TextSize", 35, RangeValidator(12, 120)
@@ -298,9 +292,6 @@ class Config(QConfig):
     )
     showSchoolInfo = ConfigItem(
         "School", "ShowSchoolInfo", False
-    )
-    schoolInfoPosition = OptionsConfigItem(
-        "School", "SchoolInfoPosition", "左上", OptionsValidator(["左上", "右上", "左下", "右下", "左上预留", "右上预留", "左下预留", "右下预留"])
     )
     schoolInfoTextColor = ConfigItem(
         "School", "SchoolInfoTextColor", "#FFFFFF"
@@ -330,10 +321,6 @@ class Config(QConfig):
     
     showMediaInfo = ConfigItem(
         "Media", "ShowMediaInfo", True, BoolValidator()
-    )
-    mediaPosition = OptionsConfigItem(
-        "Media", "MediaPosition", "左下预留", 
-        OptionsValidator(["左上预留", "右上预留", "左下预留", "右下预留"])
     )
     showMediaCover = ConfigItem(
         "Media", "ShowMediaCover", True, BoolValidator()
@@ -456,7 +443,7 @@ def default_cfg():
         },
         "Wallpaper": {
             "SaveLimit": 50,
-            "AutoGetInterval": "30分钟",
+            "AutoGetInterval": "30m",
             "AutoSyncToDesktop": True,
             "WallpaperApi": "wp.upx8.com",
             "Brightness": 0
@@ -470,27 +457,24 @@ def default_cfg():
             "ShowLunarCalendar": True,
             "ClockColor": "#FFFFFF",
             "ClockSize": 120,
-            "DateSize": 20,
-            "ClockPosition": "顶部偏下"
+            "DateSize": 20
         },
         "Poetry": {
             "ShowPoetry": True,
             "PoetryApiUrl": "https://www.ffapi.cn/int/v1/shici",
-            "PoetryUpdateInterval": "10 分钟",
+            "PoetryUpdateInterval": "10m",
             "PoetrySize": 16,
-            "PoetryTextColor": "#FFFFFF",
-            "PoetryPosition": "底部预留"
+            "PoetryTextColor": "#FFFFFF"
         },
         "Weather": {
             "ShowWeather": True,
             "WeatherSize": 24,
             "WeatherTextColor": "#FFFFFF",
             "WeatherIconSize": 64,
-            "UpdateInterval": "5 分钟",
-            "City": "北京",
+            "UpdateInterval": "5m",
+            "City": "",
             "Latitude": 39.9042,
-            "Longitude": 116.4074,
-            "WeatherPosition": "右上预留"
+            "Longitude": 116.4074
         },
         "QFluentWidgets": {
             "FontFamilies": ["HarmonyOS Sans"]
@@ -501,7 +485,6 @@ def default_cfg():
         "Countdown": {
             "ShowCountdown": True,
             "DisplayMode": "simultaneous",
-            "CountdownPosition": "中部",
             "TextColor": "#FF0000",
             "TextSize": 35,
             "ConnectorColor": "#FFFFFF",
@@ -513,7 +496,6 @@ def default_cfg():
             "School": "",
             "Class": "",
             "ShowSchoolInfo": False,
-            "SchoolInfoPosition": "左上",
             "SchoolInfoTextColor": "#FFFFFF",
             "SchoolInfoTextSize": 34
         },
@@ -527,7 +509,6 @@ def default_cfg():
         },
         "Media": {
             "ShowMediaInfo": True,
-            "MediaPosition": "左下预留",
             "ShowMediaCover": True,
             "ShowMediaProgress": True,
             "ShowMediaLyrics": True,

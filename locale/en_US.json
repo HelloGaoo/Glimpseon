@@ -426,7 +426,11 @@
     "set_as_desktop": "Wallpaper set as desktop background",
     "time": "Time",
     "default_source": "Default",
-    "source_cache": "Cache"
+    "source_cache": "Cache",
+    "interval_2h": "2 hours",
+    "interval_3d": "3 days",
+    "interval_5d": "5 days",
+    "interval_7d": "7 days"
   },
   "about": {
     "description": "Classroom Teaching Assistant Tool",

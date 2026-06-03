@@ -426,7 +426,11 @@
     "set_as_desktop": "壁紙已設為桌面背景",
     "time": "時間",
     "default_source": "預設",
-    "source_cache": "快取"
+    "source_cache": "快取",
+    "interval_2h": "2 小時",
+    "interval_3d": "3 天",
+    "interval_5d": "5 天",
+    "interval_7d": "7 天"
   },
   "about": {
     "description": "班級教學輔助工具",

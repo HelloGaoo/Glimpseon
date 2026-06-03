@@ -41,6 +41,7 @@ from concurrent.futures import ThreadPoolExecutor
 from win32com.client import Dispatch
 
 from core.logger import logger
+from core.utils import tr
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 

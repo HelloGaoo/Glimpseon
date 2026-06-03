@@ -426,7 +426,11 @@
     "set_as_desktop": "壁纸已设置为桌面背景",
     "time": "时间",
     "default_source": "默认",
-    "source_cache": "缓存"
+    "source_cache": "缓存",
+    "interval_2h": "2 小时",
+    "interval_3d": "3 天",
+    "interval_5d": "5 天",
+    "interval_7d": "7 天"
   },
   "about": {
     "description": "班级教学辅助工具",
