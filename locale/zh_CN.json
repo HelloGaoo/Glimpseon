@@ -295,7 +295,8 @@
     "school_name": "学校",
     "school_name_example": "例如：XX 中学",
     "lyrics_advance": "歌词提前(ms)",
-    "path_not_exist": "路径不存在"
+    "path_not_exist": "路径不存在",
+    "poetry_default": "他山之石，可以攻玉。——《诗经·小雅·鹤鸣》"
   },
   "component": {
     "clock": "时钟",
@@ -369,7 +370,10 @@
     "source_edgeone": "EdgeOne 加速站",
     "source_geekertao": "Geekertao 加速站",
     "or_separator": " 或 ",
-    "unsupported_type": "不支持的安装程序类型"
+    "unsupported_type": "不支持的安装程序类型",
+    "downloading": "下载中",
+    "extracting": "解压中",
+    "configuring": "配置中"
   },
   "wallpaper": {
     "resolution": "分辨率",
@@ -430,7 +434,9 @@
     "interval_2h": "2 小时",
     "interval_3d": "3 天",
     "interval_5d": "5 天",
-    "interval_7d": "7 天"
+    "interval_7d": "7 天",
+    "select_title": "选择壁纸",
+    "image_filter": "图片文件 (*.jpg *.jpeg *.png *.bmp *.gif)"
   },
   "about": {
     "description": "班级教学辅助工具",
@@ -690,9 +696,6 @@
     "installed": "已安装",
     "failed": "安装失败"
   },
-  "downloading": "下载中",
-  "extracting": "解压中",
-  "configuring": "配置中",
   "poetry": {
     "default": "他山之石，可以攻玉。——《诗经·小雅·鹤鸣》"
   }

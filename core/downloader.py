@@ -1180,9 +1180,9 @@ class Downloader:
             tr("install.complete"): 100,
             tr("install.installed"): 100,
             tr("install.failed"): 0,
-            tr("downloading"): 20,
-            tr("extracting"): 50,
-            tr("configuring"): 80,
+            tr("download.downloading"): 20,
+            tr("download.extracting"): 50,
+            tr("download.configuring"): 80,
         }
         try:
             if status in mapping:self.set_progress(software_name, mapping[status])

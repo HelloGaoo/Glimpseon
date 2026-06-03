@@ -222,11 +222,29 @@ class ComponentSettingDialog(QDialog, TranslatableWidget):
             target_group.addSettingCard(card)
         return card, spin
 
-    def _addComboBox(self, title: str, items: list, config_item, group=None, is_advanced=False):
+    def _addComboBox(self, title: str, items: list, config_item, group=None, is_advanced=False, value_map=None):
         combo = ComboBox()
         combo.addItems(items)
-        combo.setCurrentText(config_item.value)
-        combo.currentTextChanged.connect(lambda t, ci=config_item: setattr(ci, 'value', t))
+
+        if value_map:
+            for i in range(combo.count()):
+                combo.setItemData(i, value_map.get(combo.itemText(i), combo.itemText(i)))
+            found = False
+            for i in range(combo.count()):
+                if combo.itemData(i) == config_item.value:
+                    combo.setCurrentIndex(i)
+                    found = True
+                    break
+            if not found:
+                combo.setCurrentText(config_item.value)
+            combo.currentTextChanged.connect(
+                lambda t, ci=config_item, vm=value_map, c=combo:
+                setattr(ci, 'value', vm.get(t, t)) if vm else setattr(ci, 'value', t)
+            )
+        else:
+            combo.setCurrentText(config_item.value)
+            combo.currentTextChanged.connect(lambda t, ci=config_item: setattr(ci, 'value', t))
+
         card = _SettingRow(title, combo)
         target_group = group
         if target_group is None:

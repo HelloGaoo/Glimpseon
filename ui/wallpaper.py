@@ -1124,7 +1124,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         if os.path.exists(default_wallpaper_path):
             self.current_pixmap = QPixmap(default_wallpaper_path)
             self.current_wallpaper_path = default_wallpaper_path
-            self.current_wallpaper_source = "默认"
+            self.current_wallpaper_source = tr("wallpaper.default_source")
             
             if not self.current_pixmap.isNull():
                 self._updateBackground()
@@ -1133,7 +1133,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
                 self._applyEffects()
                 self.wallpaperChanged.emit()
             
-            self.infoCard.updateInfo(default_wallpaper_path, "默认")
+            self.infoCard.updateInfo(default_wallpaper_path, tr("wallpaper.default_source"))
         else:
             self._setBlankBackground()
             self.infoCard.updateInfo()
@@ -1250,13 +1250,13 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
     def _selectWallpaper(self):
         logger.info("开始手动选择壁纸")
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择壁纸",
+            self, tr("wallpaper.select_title"),
             os.path.join(BASE_DIR, "wallpaper"),
-            "图片文件 (*.jpg *.jpeg *.png *.bmp *.gif)"
+            tr("wallpaper.image_filter")
         )
         
         if file_path:
-            self._useWallpaper(file_path, "本地选择")
+            self._useWallpaper(file_path, tr("wallpaper.source_local"))
     
     def _useWallpaper(self, path: str, source: str):
         if not os.path.exists(path):
@@ -1275,7 +1275,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
                 
                 if source != "历史记录":
                     _, api_source = self._getApiUrl()
-                    self.historyManager.add(path, source if source != "本地选择" else api_source, "")
+                    self.historyManager.add(path, source if source != tr("wallpaper.source_local") else api_source, "")
                 
                 self.infoCard.updateInfo(path, source)
                 

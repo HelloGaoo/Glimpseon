@@ -927,6 +927,10 @@ class MainWindow(FluentWindow):
 
         self.isEditMode = False
 
+        _t_i18n = time.time()
+        self._initTranslation()
+        logger.info(f"[MW] 翻译系统初始化 耗时{time.time()-_t_i18n:.2f}s")
+
         _t_nav = time.time()
         self._initNavigation()
         logger.info(f"[MW] _initNavigation 总耗时{time.time()-_t_nav:.2f}s")
@@ -955,10 +959,6 @@ class MainWindow(FluentWindow):
         self.navigationInterface.installEventFilter(self)
 
         logger.info("主窗口初始化完成")
-
-        _t_i18n = time.time()
-        self._initTranslation()
-        logger.info(f"[MW] 翻译系统初始化 耗时{time.time()-_t_i18n:.2f}s")
 
     def _initNavigation(self):
         _t = time.time()

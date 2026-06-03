@@ -295,7 +295,8 @@
     "school_name": "School",
     "school_name_example": "e.g.: XX Middle School",
     "lyrics_advance": "Lyrics Advance (ms)",
-    "path_not_exist": "Path does not exist"
+    "path_not_exist": "Path does not exist",
+    "poetry_default": "Stones from other hills may serve to polish jade. — Book of Odes"
   },
   "component": {
     "clock": "Clock",
@@ -369,7 +370,10 @@
     "source_edgeone": "EdgeOne Mirror",
     "source_geekertao": "Geekertao Mirror",
     "or_separator": " or ",
-    "unsupported_type": "Unsupported installer type"
+    "unsupported_type": "Unsupported installer type",
+    "downloading": "Downloading",
+    "extracting": "Extracting",
+    "configuring": "Configuring"
   },
   "wallpaper": {
     "resolution": "Resolution",
@@ -430,7 +434,9 @@
     "interval_2h": "2 hours",
     "interval_3d": "3 days",
     "interval_5d": "5 days",
-    "interval_7d": "7 days"
+    "interval_7d": "7 days",
+    "select_title": "Select Wallpaper",
+    "image_filter": "Image Files (*.jpg *.jpeg *.png *.bmp *.gif)"
   },
   "about": {
     "description": "Classroom Teaching Assistant Tool",
@@ -690,10 +696,7 @@
     "installed": "Already installed",
     "failed": "Installation failed"
   },
-  "downloading": "Downloading",
-  "extracting": "Extracting",
-  "configuring": "Configuring",
   "poetry": {
-    "default": "Stones from other hills may serve to polish jade. — Book of Odes"
+    "default": "Stones from other hills may serve to polish jade."
   }
 }
