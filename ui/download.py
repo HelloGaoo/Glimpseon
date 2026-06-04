@@ -182,8 +182,10 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
                 if hasattr(self.downloader, install_method_name):
                     # 从url_dir中获取下载链接
                     cache_file = None
+                    _match_name = software_name.replace(" ", "").replace("[", "").replace("]", "")
                     for item in url_dir:
-                        if item.get("filename", "").startswith(software_name):
+                        _match_filename = item.get("filename", "").replace(" ", "").replace("[", "").replace("]", "")
+                        if _match_filename.startswith(_match_name):
                             cache_file = item.copy()
                             if "hash" not in cache_file:
                                 cache_file["hash"] = ""
@@ -743,8 +745,10 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
 
             # 查找下载链接
             cache_file = None
+            _match_name = software_name.replace(" ", "").replace("[", "").replace("]", "")
             for entry in url_dir:
-                if entry.get('filename', '').startswith(software_name):
+                _match_filename = entry.get('filename', '').replace(" ", "").replace("[", "").replace("]", "")
+                if _match_filename.startswith(_match_name):
                     cache_file = entry.copy()
                     if 'hash' not in cache_file:
                         cache_file['hash'] = ''
