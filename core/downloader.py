@@ -1159,7 +1159,7 @@ class Downloader:
         
         try:
             if installer_path.endswith('.exe'):
-                process = subprocess.Popen(
+                process = _popen_low_priority(
                     [installer_path, '/S'],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
