@@ -560,6 +560,41 @@ class FetchWorker(QObject):
             self.finished.emit({})
 
 
+class _MediaFetchWorker(QObject):
+    """QThread 中获取媒体信息 信号回传主线程"""
+    finished = pyqtSignal(object, bool)
+
+    def __init__(self, full=True):
+        super().__init__()
+        self._full = full
+
+    def run(self):
+        try:
+            m = get_media_info()
+            if not m or not m.is_valid():
+                logger.debug("媒体组件: 无效信息")
+        except Exception as e:
+            logger.error(f"媒体信息获取异常: {e}")
+            m = None
+        self.finished.emit(m, self._full)
+
+
+class _KugouThumbWorker(QObject):
+    """QThread 获取酷狗图"""
+    finished = pyqtSignal(object)
+
+    def run(self):
+        info = None
+        try:
+            from services.media import get_gstmtc
+            gsmtc = get_gstmtc()
+            if gsmtc and gsmtc.available:
+                info = gsmtc.get_info()
+        except Exception:
+            pass
+        self.finished.emit(info)
+
+
 class MediaWidget(QWidget):
     """媒体信息显示控件"""
 
@@ -583,6 +618,8 @@ class MediaWidget(QWidget):
         self._playing = False
         self._thread = None
         self._worker = None
+        self._kugou_thread = None
+        self._kugou_worker = None
         self._info_cache = {}
         self._rapid_update_count = 0
         self._normal_interval = cfg.mediaUpdateInterval.value * 1000
@@ -893,20 +930,37 @@ class MediaWidget(QWidget):
             if full:
                 self._pending_full = True
             return
-        import threading
+        # import threading
         self._fetching = True
         self._pending_full = False
-        t = threading.Thread(target=self._do_fetch, args=(full,), daemon=True)
-        t.start()
+        # t = threading.Thread(target=self._do_fetch, args=(full,), daemon=True)
+        # t.start()
+        self._thread = QThread()
+        self._worker = _MediaFetchWorker(full)
+        self._worker.moveToThread(self._thread)
+        self._thread.started.connect(self._worker.run)
+        self._worker.finished.connect(self._on_worker_done)
+        self._thread.start()
 
-    def _do_fetch(self, full):
-        try:
-            m = get_media_info()
-            if not m or not m.is_valid():
-                logger.debug(f"媒体组件: 无效信息")
-        except Exception as e:
-            logger.error(f"媒体信息获取异常: {e}")
-            m = None
+    # def _do_fetch(self, full):
+    #     try:
+    #         m = get_media_info()
+    #         if not m or not m.is_valid():
+    #             logger.debug(f"媒体组件: 无效信息")
+    #     except Exception as e:
+    #         logger.error(f"媒体信息获取异常: {e}")
+    #         m = None
+    #     self._fetch_done.emit(m, full)
+
+    def _on_worker_done(self, m, full):
+        if self._thread:
+            self._thread.quit()
+            self._thread.wait(2000)
+            self._thread.deleteLater()
+            self._thread = None
+        if self._worker:
+            self._worker.deleteLater()
+            self._worker = None
         self._fetch_done.emit(m, full)
 
     def _on_fetched(self, m, full):
@@ -1114,19 +1168,37 @@ class MediaWidget(QWidget):
             self._worker = None
 
     def _fetch_kugou_thumbnail(self):
-        import threading
-        def _do():
-            try:
-                from services.media import get_gstmtc
-                gsmtc = get_gstmtc()
-                if gsmtc and gsmtc.available:
-                    info = gsmtc.get_info()
-                    if info and getattr(info, 'thumbnail_data', None):
-                        self._fetch_done.emit(info, False)
-            except Exception:
-                pass
-        t = threading.Thread(target=_do, daemon=True)
-        t.start()
+        # import threading
+        # def _do():
+        #     try:
+        #         from services.media import get_gstmtc
+        #         gsmtc = get_gstmtc()
+        #         if gsmtc and gsmtc.available:
+        #             info = gsmtc.get_info()
+        #             if info and getattr(info, 'thumbnail_data', None):
+        #                 self._fetch_done.emit(info, False)
+        #     except Exception:
+        #         pass
+        # t = threading.Thread(target=_do, daemon=True)
+        # t.start()
+        self._kugou_thread = QThread()
+        self._kugou_worker = _KugouThumbWorker()
+        self._kugou_worker.moveToThread(self._kugou_thread)
+        self._kugou_thread.started.connect(self._kugou_worker.run)
+        self._kugou_worker.finished.connect(self._on_kugou_done)
+        self._kugou_thread.start()
+
+    def _on_kugou_done(self, info):
+        if self._kugou_thread:
+            self._kugou_thread.quit()
+            self._kugou_thread.wait(2000)
+            self._kugou_thread.deleteLater()
+            self._kugou_thread = None
+        if self._kugou_worker:
+            self._kugou_worker.deleteLater()
+            self._kugou_worker = None
+        if info and getattr(info, 'thumbnail_data', None):
+            self._fetch_done.emit(info, False)
 
     def update_settings(self):
         self._apply_config()

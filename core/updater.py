@@ -38,7 +38,9 @@ from core.logger import logger
 from version import CHANGELOG_URL, UPDATE_URL, VERSION_URL
 
 # 禁用 SSL 警告
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+# urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+import warnings
+warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
 
 def get_github_changelog(max_retries=3):

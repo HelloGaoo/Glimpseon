@@ -384,9 +384,11 @@ class Config(QConfig):
 
 cfg = Config()
 CONFIG_PATH = os.path.join(BASE_DIR, 'config', 'config.json')
+_cfg_loaded = False
 if os.path.exists(CONFIG_PATH):
     try:
         qconfig.load(CONFIG_PATH, cfg)
+        _cfg_loaded = True
         logger.info(f"已从 {CONFIG_PATH} 加载配置")
     except Exception as e:
         logger.error(f"加载配置失败：{e}")
@@ -540,4 +542,8 @@ def default_cfg():
 
 if not os.path.exists(os.path.join(BASE_DIR, 'config')):
     os.makedirs(os.path.join(BASE_DIR, 'config'))
-qconfig.load(CONFIG_PATH, cfg)
+if not _cfg_loaded and os.path.exists(CONFIG_PATH):
+    try:
+        qconfig.load(CONFIG_PATH, cfg)
+    except Exception:
+        pass

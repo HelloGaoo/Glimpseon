@@ -1496,7 +1496,7 @@ class Preloader(QThread):
 
         from core.utils import get_cached_content, save_cache
         import requests
-        from services.weather import RegionDatabase
+        from services.weather import RegionDatabase, WEATHER_API_URL, WEATHER_API_APPKEY, WEATHER_API_SIGN
 
         cached = get_cached_content("weather")
         if cached:
@@ -1507,7 +1507,7 @@ class Preloader(QThread):
         if self._stop: return
         code = RegionDatabase().get_code(cfg.city.value) or "101010100"
         resp = requests.get(
-            f"https://weatherapi.market.xiaomi.com/wtr-v3/weather/all?locationKey=weathercn:{code}&latitude=39.9042&longitude=116.4074&appKey=weather20151024&sign=zUFJoAR2ZVrDy1vF3D07&isGlobal=false&locale=zh_cn",
+            f"{WEATHER_API_URL}?locationKey=weathercn:{code}&latitude=39.9042&longitude=116.4074&appKey={WEATHER_API_APPKEY}&sign={WEATHER_API_SIGN}&isGlobal=false&locale=zh_cn",
             timeout=10
         )
         if resp.status_code == 200:
@@ -1593,6 +1593,9 @@ if __name__ == "__main__":
             logger.exception(f"后台初始化失败: {e}")
 
     future = executor.submit(_background_init)
+
+    # 退出程序的时候关线程池
+    atexit.register(lambda: executor.shutdown(wait=False))
 
     splash.updateStatus(tr("splash.loading_translation"))  # 正在加载翻译
     splash.setProgress(15)
@@ -1763,10 +1766,11 @@ if __name__ == "__main__":
         allow_ui_update(0.02)
         if time.time() - t0 > 12:
             loader.cancel()
-            loader.wait(3000)
-            if loader.isRunning():
-                loader.terminate()
-                loader.wait(1000)
+            loader.wait(5000)
+            # QThread.terminate() 不安全，可能导致资源泄漏
+            # if loader.isRunning():
+            #     loader.terminate()
+            #     loader.wait(1000)
             break
 
     logger.info(f"[BOOT] 预加载 {time.time()-t0:.2f}s")

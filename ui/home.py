@@ -90,7 +90,7 @@ from core.constants import APP_NAME, BASE_DIR, get_resPath, load_qss
 from core.logger import logger
 from core.utils import get_cached_content, save_cache, tr, TranslatableWidget
 from data.software_list import get_software_icon_path
-from services.weather import WeatherService, RegionDatabase, RegionSelectorDialog
+from services.weather import WeatherService, RegionDatabase, RegionSelectorDialog, WEATHER_API_URL, WEATHER_API_APPKEY, WEATHER_API_SIGN
 from services.poetry import PoetryService
 from ui.component import DraggableContainer, DraggableWidget, MediaWidget, QuickLaunchDock, resolve_app_from_path
 
@@ -746,7 +746,7 @@ class HomeInterface(QWidget, TranslatableWidget):
 
             logger.info(f"城市 {city} 对应的 locationKey: {location_key}")
 
-            api_url = f"https://weatherapi.market.xiaomi.com/wtr-v3/weather/all?locationKey={location_key}&latitude=39.9042&longitude=116.4074&appKey=weather20151024&sign=zUFJoAR2ZVrDy1vF3D07&isGlobal=false&locale=zh_cn"
+            api_url = f"{WEATHER_API_URL}?locationKey={location_key}&latitude=39.9042&longitude=116.4074&appKey={WEATHER_API_APPKEY}&sign={WEATHER_API_SIGN}&isGlobal=false&locale=zh_cn"
             response = requests.get(api_url, timeout=10)
 
             if response.status_code == 200:

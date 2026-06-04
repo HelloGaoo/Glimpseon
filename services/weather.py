@@ -37,6 +37,10 @@ from core.utils import tr
 
 logger = logging.getLogger("ClassLively.services.weather")
 
+WEATHER_API_URL = "https://weatherapi.market.xiaomi.com/wtr-v3/weather/all"
+WEATHER_API_APPKEY = "weather20151024"
+WEATHER_API_SIGN = "zUFJoAR2ZVrDy1vF3D07"
+
 
 class WeatherService:
     """天气 API 服务类"""
@@ -67,10 +71,10 @@ class WeatherService:
 
     def __init__(self, city_code: str = "101010100"):
         self.city_code = city_code
-        self.base_url = "https://weatherapi.market.xiaomi.com/wtr-v3/weather/all"
+        self.base_url = WEATHER_API_URL
         self.api_params = {
-            "appKey": "weather20151024",
-            "sign": "zUFJoAR2ZVrDy1vF3D07",
+            "appKey": WEATHER_API_APPKEY,
+            "sign": WEATHER_API_SIGN,
             "isGlobal": False,
             "locale": "zh_cn"
         }

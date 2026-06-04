@@ -326,19 +326,22 @@ class NeteaseCloudMusic:
         if self._pm:
             try:
                 self._pm.close_process()
-            except Exception:
+            except Exception as e:
+                logger.debug(f"关闭 pymem 进程失败: {e}")
                 pass
             self._pm = None
         if self._session:
             try:
                 self._session.close()
-            except Exception:
+            except Exception as e:
+                logger.debug(f"关闭 session 失败: {e}")
                 pass
             self._session = None
         if self._executor:
             try:
                 self._executor.shutdown(wait=False)
-            except Exception:
+            except Exception as e:
+                logger.debug(f"关闭 executor 失败: {e}")
                 pass
             self._executor = None
         self._api_cache.clear()
@@ -356,14 +359,16 @@ class NeteaseCloudMusic:
             if self._pm:
                 try:
                     pid = self._pm.process_id
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"获取进程ID失败: {e}")
                     pass
 
             if not pid or not psutil.pid_exists(pid):
                 if self._pm:
                     try:
                         self._pm.close_process()
-                    except Exception:
+                    except Exception as e:
+                        logger.debug(f"关闭 pymem 进程失败: {e}")
                         pass
                     self._pm = None
                 self._first = True
@@ -427,7 +432,8 @@ class NeteaseCloudMusic:
                     ver = GetFileVersionInfo(exe, '\\')
                     v = f"{HIWORD(ver['FileVersionMS'])}.{LOWORD(ver['FileVersionMS'])}.{HIWORD(ver['FileVersionLS'])}.{LOWORD(ver['FileVersionLS'])}"
                     return proc.info['pid'], v
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"获取版本信息失败: {e}")
                     return proc.info['pid'], ''
         return 0, ''
 
@@ -440,25 +446,29 @@ class NeteaseCloudMusic:
     def _read_bytes(self, addr: int, size: int) -> bytes:
         try:
             return self._pm.read_bytes(addr, size)
-        except Exception:
+        except Exception as e:
+            logger.debug(f"读取内存字节失败: {e}")
             return b''
 
     def _read_f64(self, addr: int) -> float:
         try:
             return struct.unpack('d', self._pm.read_bytes(addr, 8))[0]
-        except Exception:
+        except Exception as e:
+            logger.debug(f"读取浮点数失败: {e}")
             return 0.0
 
     def _read_u64(self, addr: int) -> int:
         try:
             return struct.unpack('<Q', self._pm.read_bytes(addr, 8))[0]
-        except Exception:
+        except Exception as e:
+            logger.debug(f"读取u64失败: {e}")
             return 0
 
     def _read_i32(self, addr: int) -> int:
         try:
             return struct.unpack('<i', self._pm.read_bytes(addr, 4))[0]
-        except Exception:
+        except Exception as e:
+            logger.debug(f"读取i32失败: {e}")
             return 0
 
     def _scan_v3(self) -> Tuple[int, int]:
@@ -504,7 +514,8 @@ class NeteaseCloudMusic:
                 raw = self._read_bytes(self._read_u64(ptr), min(int(length), 128))
             s = raw.decode('utf-8')
             return s[:s.index('_')] if '_' in s else ''
-        except Exception:
+        except Exception as e:
+            logger.debug(f"读取字符串失败: {e}")
             return ''
 
     def _parse_window_title(self) -> Tuple[str, str]:
@@ -525,7 +536,8 @@ class NeteaseCloudMusic:
             if len(parts) == 2 and parts[1].strip() and parts[0].strip() != "网易云音乐":
                 return parts[0].strip(), parts[1].strip()
             return "", ""
-        except Exception:
+        except Exception as e:
+            logger.debug(f"解析窗口标题失败: {e}")
             return "", ""
 
     def _api_wait(self):
@@ -702,14 +714,17 @@ class GSMTCReader:
             try:
                 if self._loop is None or self._loop.is_closed():
                     self._loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(self._loop)
+                    # asyncio.set_event_loop(self._loop)
 
                 result = self._loop.run_until_complete(_read())
                 return result
             except RuntimeError as e:
                 logger.warning(f"GSMTC: 事件循环错误: {e}")
+                # 关闭旧循环再创建新的，避免资源泄漏
+                if self._loop and not self._loop.is_closed():
+                    self._loop.close()
                 self._loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(self._loop)
+                # asyncio.set_event_loop(self._loop)
                 result = self._loop.run_until_complete(_read())
                 return result
             except Exception as e:
@@ -736,7 +751,8 @@ class GSMTCReader:
         if self._loop and not self._loop.is_closed():
             try:
                 self._loop.close()
-            except Exception:
+            except Exception as e:
+                logger.debug(f"关闭事件循环失败: {e}")
                 pass
         self._manager = None
         self._initialized = False
@@ -832,7 +848,8 @@ class KugouMemoryReader:
             if results:
                 return self._fix_kugou_title(results[0])
             return "", ""
-        except Exception:
+        except Exception as e:
+            logger.debug(f"枚举窗口失败: {e}")
             return ""
 
     @staticmethod
@@ -871,7 +888,8 @@ class KugouMemoryReader:
                         dur_ms = int(dur) * 1000
                         self._duration_cache[cache_key] = dur_ms
                         return dur_ms
-        except Exception:
+        except Exception as e:
+            logger.debug(f"获取酷狗时长失败: {e}")
             pass
         return 0
 
@@ -1050,7 +1068,8 @@ class QQMusicReader:
                 self._qq_win = win
                 self._qq_hwnd = hwnd
                 self._uia_ready = True
-            except Exception:
+            except Exception as e:
+                logger.debug(f"UIA控件获取失败: {e}")
                 return -1, 0
         
         try:
@@ -1063,7 +1082,8 @@ class QQMusicReader:
                         results.append((n.strip(), r.left))
                     for child in ctrl.GetChildren():
                         scan(child, depth + 1)
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"UIA遍历控件失败: {e}")
                     pass
             
             scan(self._qq_win, 0)
@@ -1086,7 +1106,8 @@ class QQMusicReader:
                     return pos_s * 1000, 0
             
             return -1, 0
-        except Exception:
+        except Exception as e:
+            logger.debug(f"UIA获取播放进度失败: {e}")
             self._uia_ready = False
             return -1, 0
 
@@ -1241,7 +1262,8 @@ class QQMusicReader:
                 lyrics = Lyrics(lines=lines, raw_lrc=lyric_str, song_id=0)
                 self._duration_cache[cache_key] = lyrics
                 return lyrics
-        except Exception:
+        except Exception as e:
+            logger.debug(f"解析QQ音乐歌词失败: {e}")
             pass
         return None
 
@@ -1266,7 +1288,8 @@ class QQMusicReader:
                 dur_ms = dur * 1000
                 self._duration_cache[cache_key] = dur_ms
                 return dur_ms
-        except Exception:
+        except Exception as e:
+            logger.debug(f"获取QQ音乐时长失败: {e}")
             pass
         return 0
 
@@ -1330,20 +1353,29 @@ class MediaProvider:
             source.close()
 
 
-_provider = MediaProvider()
+# _provider = MediaProvider()
+_provider: Optional[MediaProvider] = None
+
+def _get_provider() -> MediaProvider:
+    """惰性初始化 MediaProvider，避免导入时创建线程池和HTTP会话"""
+    global _provider
+    if _provider is None:
+        _provider = MediaProvider()
+    return _provider
 
 
 def get_media_info() -> Optional[MediaInfo]:
-    return _provider.get_info()
+    return _get_provider().get_info()
 
 def get_netease() -> NeteaseCloudMusic:
-    return _provider.get_source("NeteaseCloudMusic")
+    return _get_provider().get_source("NeteaseCloudMusic")
 
 def get_gstmtc() -> GSMTCReader:
-    return _provider.get_source("GSMTC")
+    return _get_provider().get_source("GSMTC")
 
 def fetch_all_info(song_name: str, artist: str = "") -> Dict[str, Any]:
-    kg = _provider.get_source("KugouMemory")
+    provider = _get_provider()
+    kg = provider.get_source("KugouMemory")
     if kg and kg.available:
         result = kg.fetch_all(song_name, artist)
         if result.get('lyrics') or result.get('cover'):
@@ -1354,4 +1386,5 @@ def fetch_all_info(song_name: str, artist: str = "") -> Dict[str, Any]:
     return {'song_id': None, 'detail': None, 'lyrics': None, 'cover': None}
 
 def close():
-    _provider.close()
+    if _provider is not None:
+        _provider.close()

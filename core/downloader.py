@@ -43,7 +43,9 @@ from win32com.client import Dispatch
 from core.logger import logger
 from core.utils import tr
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+# urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+import warnings
+warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
 SEVEN_ZIP_PASSWORD = 'zQt83iOY3xXLfDVg6SJ7ocnapy90I1d62w6jh79WlT0m1qPC8b55HU5Nk4ARZFBs'
 
@@ -143,7 +145,10 @@ def get_source_name(source_key: str) -> str:
     return source_key
 
 DEFAULT_SOURCE = "hk"
-current_source = DEFAULT_SOURCE
+# current_source = DEFAULT_SOURCE
+import threading
+_current_source = DEFAULT_SOURCE
+_source_lock = threading.Lock()
 
 
 def set_download_src(source_key):
@@ -152,11 +157,13 @@ def set_download_src(source_key):
     Args:
         source_key: 下载源键名 (original, hk, cloudflare, edgeone, geekertao)
     """
-    global current_source
-    if source_key in DOWNLOAD_SOURCES:
-        current_source = source_key
-    else:
-        current_source = DEFAULT_SOURCE
+    # global current_source
+    global _current_source
+    with _source_lock:
+        if source_key in DOWNLOAD_SOURCES:
+            _current_source = source_key
+        else:
+            _current_source = DEFAULT_SOURCE
 
 
 if getattr(os.sys, 'frozen', False):
@@ -995,7 +1002,9 @@ class Downloader:
         if "url" in cache_file:
             return cache_file["url"]
         elif "github_path" in cache_file:
-            prefix = DOWNLOAD_SOURCES[current_source]["prefix"]
+            with _source_lock:
+                src = _current_source
+            prefix = DOWNLOAD_SOURCES[src]["prefix"]
             return f"{prefix}{cache_file['github_path']}"
         return None
     
