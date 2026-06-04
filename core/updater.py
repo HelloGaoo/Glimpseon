@@ -34,6 +34,7 @@ import py7zr
 import requests
 import urllib3
 
+from core.constants import BASE_DIR
 from core.logger import logger
 from version import CHANGELOG_URL, UPDATE_URL, VERSION_URL
 

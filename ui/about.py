@@ -39,7 +39,7 @@ from qfluentwidgets import (
     Theme,
 )
 
-from core.constants import get_resPath, load_qss
+from core.constants import BASE_DIR, get_resPath, load_qss
 from core.utils import tr, TranslatableWidget
 from core.logger import logger
 from version import BUILD_DATE, VERSION

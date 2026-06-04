@@ -42,6 +42,7 @@ from win32com.client import Dispatch
 
 from core.logger import logger
 from core.utils import tr
+from core.constants import BASE_DIR as CONST_BASE_DIR, get_resPath
 
 # urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import warnings
@@ -166,12 +167,13 @@ def set_download_src(source_key):
             _current_source = DEFAULT_SOURCE
 
 
-if getattr(os.sys, 'frozen', False):
-    BASE_DIR = os.path.dirname(os.path.abspath(os.sys.executable))
-    MEIPASS_DIR = os.sys._MEIPASS
-else:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    MEIPASS_DIR = None
+# if getattr(os.sys, 'frozen', False):
+#     BASE_DIR = os.path.dirname(os.path.abspath(os.sys.executable))
+#     MEIPASS_DIR = os.sys._MEIPASS
+# else:
+#     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+#     MEIPASS_DIR = None
+BASE_DIR = CONST_BASE_DIR
 
 LOGS_DIR = os.path.join(BASE_DIR, "Logs")
 CACHE_DIR = os.path.join(BASE_DIR, "cache")

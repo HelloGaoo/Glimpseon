@@ -42,12 +42,12 @@ from typing import Optional, Dict, Any
 
 from PyQt6.QtCore import qInstallMessageHandler, QtMsgType
 
-from core.constants import APP_NAME
+from core.constants import APP_NAME, BASE_DIR
 
-if getattr(sys, 'frozen', False):
-    BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
-else:
-    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+#if getattr(sys, 'frozen', False):
+#    BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
+#else:
+#    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 log_dir = os.path.join(BASE_DIR, "logs")
 if not os.path.exists(log_dir): os.makedirs(log_dir)

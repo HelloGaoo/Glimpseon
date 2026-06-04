@@ -70,7 +70,7 @@ from win32com.shell import shell, shellcon
 from core.config import cfg, save_cfg
 from core.utils import tr
 from services.media import MediaInfo, Lyrics, get_media_info, fetch_all_info, close as close_media
-from core.constants import load_qss
+from core.constants import BASE_DIR, load_qss
 from data.software_list import get_software_icon_path
 
 logger = logging.getLogger("ClassLively.ui.component")
@@ -1213,13 +1213,13 @@ class MediaWidget(QWidget):
 DEFAULT_ICON_DIR = 'default_icon'
 
 def get_default_icon_path(icon_filename='exe.ico'):
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    base_dir = BASE_DIR
     return os.path.join(base_dir, 'data', DEFAULT_ICON_DIR, icon_filename)
 
 def get_ql_icon_path(icon_filename):
     if not icon_filename:
         return None
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    base_dir = BASE_DIR
     icon_path = os.path.join(base_dir, 'data', 'ql_icon', icon_filename)
     if os.path.exists(icon_path):
         return icon_path
@@ -1232,7 +1232,7 @@ def get_ql_icon_path(icon_filename):
     return None
 
 def get_ql_icon_save_dir():
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    base_dir = BASE_DIR
     icon_dir = os.path.join(base_dir, 'data', 'ql_icon')
     os.makedirs(icon_dir, exist_ok=True)
     return icon_dir
@@ -1241,7 +1241,7 @@ def get_folder_icon():
     return 'Directory.ico'
 
 def get_url_icon():
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    base_dir = BASE_DIR
     icon_path = os.path.join(base_dir, 'data', 'software_icon', 'url.ico')
     if os.path.exists(icon_path):
         return 'url.ico'

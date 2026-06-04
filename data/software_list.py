@@ -27,7 +27,7 @@ else:
     _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _BASE_DIR not in sys.path:sys.path.insert(0, _BASE_DIR)
 
-from core.constants import get_resPath
+from core.constants import BASE_DIR, get_resPath
 
 logger = logging.getLogger("ClassLively.data.software_list")
 

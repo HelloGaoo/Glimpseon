@@ -35,12 +35,18 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+# if getattr(sys, 'frozen', False):
+#     _BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
+# else:
+#     _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if getattr(sys, 'frozen', False):
     _BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
 else:
     _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _BASE_DIR not in sys.path:
     sys.path.insert(0, _BASE_DIR)
+
+from core.constants import BASE_DIR
 
 logger = logging.getLogger("ClassLively.services.media")
 
