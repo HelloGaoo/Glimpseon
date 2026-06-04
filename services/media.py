@@ -733,13 +733,13 @@ class GSMTCReader:
         return {'song_id': None, 'detail': None, 'lyrics': None, 'cover': None}
 
     def close(self):
-        try:
-            if self._pm:
-                self._pm.close_process()
-                self._pm = None
-        except Exception:
-            pass
-        self._mem_ready = False
+        if self._loop and not self._loop.is_closed():
+            try:
+                self._loop.close()
+            except Exception:
+                pass
+        self._manager = None
+        self._initialized = False
 
 
 class KugouMemoryReader:
@@ -1202,8 +1202,8 @@ class QQMusicReader:
 
     def get_lyrics(self, title: str, artist: str, duration_ms: int = 0):
         cache_key = f"qq_lyric_{title} - {artist}"
-        if cache_key in {}:
-            pass
+        if cache_key in self._duration_cache and isinstance(self._duration_cache.get(cache_key), Lyrics):
+            return self._duration_cache[cache_key]
         try:
             keyword = f"{artist} - {title}"
             url = (f"https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_y.fcg?"
@@ -1226,13 +1226,21 @@ class QQMusicReader:
                 if not text:
                     continue
                 for m in pat.findall(line):
-                    mins, secs, ms = int(m[0]), int(m[1]), int(m[2]) if m[2] else 0
-                    if len(ms) == 2: ms *= 10
-                    elif len(ms) == 1: ms *= 100
-                    lines.append(LyricLine(time_ms=mins * 60000 + secs * 1000 + ms, text=text))
+                    # mins, secs, ms = int(m[0]), int(m[1]), int(m[2]) if m[2] else 0
+                    # if len(ms) == 2: ms *= 10
+                    # elif len(ms) == 1: ms *= 100
+                    # lines.append(LyricLine(time_ms=mins * 60000 + secs * 1000 + ms, text=text))
+                    mins, secs, ms_str = int(m[0]), int(m[1]), m[2]
+                    ms_val = int(ms_str) if ms_str else 0
+                    if len(ms_str) == 2: ms_val *= 10
+                    elif len(ms_str) == 1: ms_val *= 100
+                    lines.append(LyricLine(time_ms=mins * 60000 + secs * 1000 + ms_val, text=text))
             lines.sort()
             if lines:
-                return Lyrics(lines=lines, raw_lrc=lyric_str, song_id=0)
+                # return Lyrics(lines=lines, raw_lrc=lyric_str, song_id=0)
+                lyrics = Lyrics(lines=lines, raw_lrc=lyric_str, song_id=0)
+                self._duration_cache[cache_key] = lyrics
+                return lyrics
         except Exception:
             pass
         return None
