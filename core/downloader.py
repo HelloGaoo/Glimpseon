@@ -93,20 +93,24 @@ def set_proc_prio(level='high'):
             logger.warning("设置当前进程优先级失败")
 
 
-_original_popen = subprocess.Popen
+# _original_popen = subprocess.Popen
 
 
-def _popen_with_prio(*popen_args, **popen_kwargs):
-    """为子进程设置优先级的包装函数"""
-    process = _original_popen(*popen_args, **popen_kwargs)
-    try:
-        set_priority_pid(process.pid, 'below_normal')
-    except Exception:
-        pass
+# def _popen_with_prio(*popen_args, **popen_kwargs):
+#     """为子进程设置优先级的包装函数"""
+#     process = _original_popen(*popen_args, **popen_kwargs)
+#     try:
+#         set_priority_pid(process.pid, 'below_normal')
+#     except Exception:
+#         pass
+
+
+
+def _popen_low_priority(*popen_args, **popen_kwargs):
+    """安装子进程  below_normal 优先级"""
+    process = subprocess.Popen(*popen_args, **popen_kwargs)
+    set_priority_pid(process.pid, 'below_normal')
     return process
-
-# 替换 subprocess.Popen
-subprocess.Popen = _popen_with_prio
 
 DOWNLOAD_SOURCES = {
     "original": {
@@ -677,7 +681,7 @@ class Downloader:
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 开始安装")
 
-            process = subprocess.Popen([installer_path])
+            process = _popen_low_priority([installer_path])
             
             self._wait_process(software_name, "省平台登录插件.exe", timeout=15, check_interval=2)
             
@@ -722,7 +726,7 @@ class Downloader:
             
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 开始静默安装")
-            process = subprocess.Popen([installer_path, "/S"])
+            process = _popen_low_priority([installer_path, "/S"])
             
             # 等待seewoPincoGroup.exe进程出现
             self._wait_process(software_name, "seewoPincoGroup.exe", timeout=20, check_interval=3)
@@ -752,7 +756,7 @@ class Downloader:
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 开始静默安装")
 
-            process = subprocess.Popen([installer_path, "/S"])
+            process = _popen_low_priority([installer_path, "/S"])
             
             # 等待seewoPincoTeacher.exe进程出现
             self._wait_process(software_name, "seewoPincoTeacher.exe", timeout=20, check_interval=3)
@@ -854,7 +858,7 @@ class Downloader:
             
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 运行 setup.exe /configure config.xml")
-            office_process = subprocess.Popen([setup_exe, "/configure", config_xml])
+            office_process = _popen_low_priority([setup_exe, "/configure", config_xml])
             
             if self.installer_logger:
                 self.installer_logger.info(f"{software_name}: 等待安装进程结束")
