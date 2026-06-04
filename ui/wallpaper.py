@@ -73,7 +73,7 @@ from qfluentwidgets import (
 
 from core.config import cfg
 from core.constants import BASE_DIR, get_resPath, load_qss
-from core.utils import get_cached_content, save_cache, get_cache_info, tr, TranslatableWidget
+from core.utils import get_cached_content, save_cache, get_cache_info, tr, TranslatableWidget, INTERVAL_MAP
 
 logger = logging.getLogger("ClassLively.ui.wallpaper")
 
@@ -948,19 +948,21 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         interval_str = cfg.autoGetInterval.value
 
         if interval_str != "never":
-            interval_map = {
-                "10m": 10 * 60 * 1000, "10分钟": 10 * 60 * 1000,
-                "30m": 30 * 60 * 1000, "30分钟": 30 * 60 * 1000,
-                "1h": 60 * 60 * 1000, "1小时": 60 * 60 * 1000,
-                "3h": 3 * 60 * 60 * 1000, "3小时": 3 * 60 * 60 * 1000,
-                "6h": 6 * 60 * 60 * 1000, "6小时": 6 * 60 * 60 * 1000,
-                "12h": 12 * 60 * 60 * 1000, "12小时": 12 * 60 * 60 * 1000,
-                "1d": 24 * 60 * 60 * 1000, "1天": 24 * 60 * 60 * 1000,
-                "3d": 3 * 24 * 60 * 60 * 1000, "3天": 3 * 24 * 60 * 60 * 1000,
-                "5d": 5 * 24 * 60 * 60 * 1000, "5天": 5 * 24 * 60 * 60 * 1000,
-                "7d": 7 * 24 * 60 * 60 * 1000, "7天": 7 * 24 * 60 * 60 * 1000,
-            }
-            interval = interval_map.get(interval_str, 30 * 60 * 1000)
+            # interval_map 弃用 改用 core.utils.INTERVAL_MAP（单位秒）
+            # interval_map = {
+            #     "10m": 10 * 60 * 1000, "10分钟": 10 * 60 * 1000,
+            #     "30m": 30 * 60 * 1000, "30分钟": 30 * 60 * 1000,
+            #     "1h": 60 * 60 * 1000, "1小时": 60 * 60 * 1000,
+            #     "3h": 3 * 60 * 60 * 1000, "3小时": 3 * 60 * 60 * 1000,
+            #     "6h": 6 * 60 * 60 * 1000, "6小时": 6 * 60 * 60 * 1000,
+            #     "12h": 12 * 60 * 60 * 1000, "12小时": 12 * 60 * 60 * 1000,
+            #     "1d": 24 * 60 * 60 * 1000, "1天": 24 * 60 * 60 * 1000,
+            #     "3d": 3 * 24 * 60 * 60 * 1000, "3天": 3 * 24 * 60 * 60 * 1000,
+            #     "5d": 5 * 24 * 60 * 60 * 1000, "5天": 5 * 24 * 60 * 60 * 1000,
+            #     "7d": 7 * 24 * 60 * 60 * 1000, "7天": 7 * 24 * 60 * 60 * 1000,
+            # }
+            # interval = interval_map.get(interval_str, 30 * 60 * 1000)
+            interval = INTERVAL_MAP.get(interval_str.strip(), 30 * 60) * 1000
             self.autoGetTimer.start(interval)
     
     def _checkAutoSync(self):

@@ -88,7 +88,7 @@ from qfluentwidgets import (
 from core.config import cfg, save_cfg
 from core.constants import APP_NAME, BASE_DIR, get_resPath, load_qss
 from core.logger import logger
-from core.utils import get_cached_content, save_cache, tr, TranslatableWidget
+from core.utils import get_cached_content, save_cache, tr, TranslatableWidget, INTERVAL_MAP
 from data.software_list import get_software_icon_path
 from services.weather import WeatherService, RegionDatabase, RegionSelectorDialog, WEATHER_API_URL, WEATHER_API_APPKEY, WEATHER_API_SIGN
 from services.poetry import PoetryService
@@ -665,31 +665,33 @@ class HomeInterface(QWidget, TranslatableWidget):
 
     @staticmethod
     def _parseInterval(interval_str, poetry=True):
-        if poetry:
-            m = {
-                "never": 0, tr("time.never"): 0, "从不": 0,
-                "5m": 5 * 60 * 1000, tr("time.minutes_5"): 5 * 60 * 1000, "5 分钟": 5 * 60 * 1000,
-                "10m": 10 * 60 * 1000, tr("time.minutes_10"): 10 * 60 * 1000, "10 分钟": 10 * 60 * 1000,
-                "30m": 30 * 60 * 1000, tr("time.minutes_30"): 30 * 60 * 1000, "30 分钟": 30 * 60 * 1000,
-                "1h": 60 * 60 * 1000, tr("time.hour_1"): 60 * 60 * 1000, "1 小时": 60 * 60 * 1000,
-                "3h": 3 * 60 * 60 * 1000, tr("time.hours_3"): 3 * 60 * 60 * 1000, "3 小时": 3 * 60 * 60 * 1000,
-                "6h": 6 * 60 * 60 * 1000, tr("time.hours_6"): 6 * 60 * 60 * 1000, "6 小时": 6 * 60 * 60 * 1000,
-                "12h": 12 * 60 * 60 * 1000, tr("time.hours_12"): 12 * 60 * 60 * 1000, "12 小时": 12 * 60 * 60 * 1000,
-                "1d": 24 * 60 * 1000, tr("time.day_1"): 24 * 60 * 1000, "1 天": 24 * 60 * 1000,
-            }
-        else:
-            m = {
-                "never": 0, tr("time.never"): 0, "从不": 0,
-                "5m": 5 * 60 * 1000, tr("time.minutes_5"): 5 * 60 * 1000, "5 分钟": 5 * 60 * 1000,
-                "15m": 15 * 60 * 1000, tr("time.minutes_15"): 15 * 60 * 1000, "15 分钟": 15 * 60 * 1000,
-                "30m": 30 * 60 * 1000, tr("time.minutes_30"): 30 * 60 * 1000, "30 分钟": 30 * 60 * 1000,
-                "1h": 60 * 60 * 1000, tr("time.hour_1"): 60 * 60 * 1000, "1 小时": 60 * 60 * 1000,
-                "3h": 3 * 60 * 60 * 1000, tr("time.hours_3"): 3 * 60 * 60 * 1000, "3 小时": 3 * 60 * 60 * 1000,
-                "6h": 6 * 60 * 60 * 1000, tr("time.hours_6"): 6 * 60 * 60 * 1000, "6 小时": 6 * 60 * 60 * 1000,
-                "12h": 12 * 60 * 60 * 1000, tr("time.hours_12"): 12 * 60 * 60 * 1000, "12 小时": 12 * 60 * 60 * 1000,
-                "24h": 24 * 60 * 1000, tr("time.hours_24"): 24 * 60 * 1000, "24 小时": 24 * 60 * 1000,
-            }
-        return m.get(interval_str, 30 * 60 * 1000)
+        # 旧本地映射已注释，改用 core.utils.INTERVAL_MAP（值为秒，需乘 1000 转毫秒）
+        # if poetry:
+        #     m = {
+        #         "never": 0, tr("time.never"): 0, "从不": 0,
+        #         "5m": 5 * 60 * 1000, tr("time.minutes_5"): 5 * 60 * 1000, "5 分钟": 5 * 60 * 1000,
+        #         "10m": 10 * 60 * 1000, tr("time.minutes_10"): 10 * 60 * 1000, "10 分钟": 10 * 60 * 1000,
+        #         "30m": 30 * 60 * 1000, tr("time.minutes_30"): 30 * 60 * 1000, "30 分钟": 30 * 60 * 1000,
+        #         "1h": 60 * 60 * 1000, tr("time.hour_1"): 60 * 60 * 1000, "1 小时": 60 * 60 * 1000,
+        #         "3h": 3 * 60 * 60 * 1000, tr("time.hours_3"): 3 * 60 * 60 * 1000, "3 小时": 3 * 60 * 60 * 1000,
+        #         "6h": 6 * 60 * 60 * 1000, tr("time.hours_6"): 6 * 60 * 60 * 1000, "6 小时": 6 * 60 * 60 * 1000,
+        #         "12h": 12 * 60 * 60 * 1000, tr("time.hours_12"): 12 * 60 * 60 * 1000, "12 小时": 12 * 60 * 60 * 1000,
+        #         "1d": 24 * 60 * 1000, tr("time.day_1"): 24 * 60 * 1000, "1 天": 24 * 60 * 1000,
+        #     }
+        # else:
+        #     m = {
+        #         "never": 0, tr("time.never"): 0, "从不": 0,
+        #         "5m": 5 * 60 * 1000, tr("time.minutes_5"): 5 * 60 * 1000, "5 分钟": 5 * 60 * 1000,
+        #         "15m": 15 * 60 * 1000, tr("time.minutes_15"): 15 * 60 * 1000, "15 分钟": 15 * 60 * 1000,
+        #         "30m": 30 * 60 * 1000, tr("time.minutes_30"): 30 * 60 * 1000, "30 分钟": 30 * 60 * 1000,
+        #         "1h": 60 * 60 * 1000, tr("time.hour_1"): 60 * 60 * 1000, "1 小时": 60 * 60 * 1000,
+        #         "3h": 3 * 60 * 60 * 1000, tr("time.hours_3"): 3 * 60 * 60 * 1000, "3 小时": 3 * 60 * 60 * 1000,
+        #         "6h": 6 * 60 * 60 * 1000, tr("time.hours_6"): 6 * 60 * 60 * 1000, "6 小时": 6 * 60 * 60 * 1000,
+        #         "12h": 12 * 60 * 60 * 1000, tr("time.hours_12"): 12 * 60 * 60 * 1000, "12 小时": 12 * 60 * 60 * 1000,
+        #         "24h": 24 * 60 * 1000, tr("time.hours_24"): 24 * 60 * 1000, "24 小时": 24 * 60 * 1000,
+        #     }
+        # return m.get(interval_str, 30 * 60 * 1000)
+        return INTERVAL_MAP.get(interval_str.strip(), 0) * 1000
 
     def _updateWeather(self, cache_only=False):
         if not cfg.showWeather.value:
@@ -764,20 +766,19 @@ class HomeInterface(QWidget, TranslatableWidget):
                     except (ValueError, TypeError):
                         weather_code = 0
 
-                    weather_map = {
-                        0: tr("weather.sunny"), 1: tr("weather.cloudy"), 2: tr("weather.overcast"),
-                        3: tr("weather.shower"), 4: tr("weather.thundershower"),
-                        5: tr("weather.thundershower_with_hail"), 6: tr("weather.sleet"),
-                        7: tr("weather.light_rain"), 8: tr("weather.moderate_rain"),
-                        9: tr("weather.heavy_rain"), 10: tr("weather.rainstorm"),
-                        11: tr("weather.heavy_rainstorm"), 12: tr("weather.extreme_rainstorm"),
-                        13: tr("weather.snow_flurry"), 14: tr("weather.light_snow"),
-                        15: tr("weather.moderate_snow"), 16: tr("weather.heavy_snow"),
-                        17: tr("weather.snowstorm"), 18: tr("weather.fog"),
-                        19: tr("weather.freezing_rain"), 20: tr("weather.sandstorm"),
-                    }
-
-                    weather = weather_map.get(weather_code, tr("common.unknown"))
+                    # weather_map = {
+                    #     0: tr("weather.sunny"), 1: tr("weather.cloudy"), 2: tr("weather.overcast"),
+                    #     3: tr("weather.shower"), 4: tr("weather.thundershower"),
+                    #     5: tr("weather.thundershower_with_hail"), 6: tr("weather.sleet"),
+                    #     7: tr("weather.light_rain"), 8: tr("weather.moderate_rain"),
+                    #     9: tr("weather.heavy_rain"), 10: tr("weather.rainstorm"),
+                    #     11: tr("weather.heavy_rainstorm"), 12: tr("weather.extreme_rainstorm"),
+                    #     13: tr("weather.snow_flurry"), 14: tr("weather.light_snow"),
+                    #     15: tr("weather.moderate_snow"), 16: tr("weather.heavy_snow"),
+                    #     17: tr("weather.snowstorm"), 18: tr("weather.fog"),
+                    #     19: tr("weather.freezing_rain"), 20: tr("weather.sandstorm"),
+                    # }
+                    weather = WeatherService.WEATHER_MAP.get(weather_code, (tr("common.unknown"),))[0]
                     weather_text = f"{current_temp}{temp_unit}"
                     self.weatherTempLabel.setText(weather_text)
                     if hasattr(self, 'weatherContainer'):
@@ -811,15 +812,15 @@ class HomeInterface(QWidget, TranslatableWidget):
             if not hasattr(self, 'current_weather_code') or self.current_weather_code is None:
                 return
 
-            icon_map = {
-                0: "0.svg", 1: "1.svg", 2: "2.svg", 3: "7.svg", 4: "4.svg",
-                5: "5.svg", 6: "19.svg", 7: "7.svg", 8: "8.svg", 9: "9.svg",
-                10: "10.svg", 11: "11.svg", 12: "11.svg", 13: "14.svg",
-                14: "14.svg", 15: "15.svg", 16: "16.svg", 17: "17.svg",
-                18: "18.svg", 19: "19.svg", 20: "20.svg",
-            }
+            # icon_map = {
+            #     0: "0.svg", 1: "1.svg", 2: "2.svg", 3: "7.svg", 4: "4.svg",
+            #     5: "5.svg", 6: "19.svg", 7: "7.svg", 8: "8.svg", 9: "9.svg",
+            #     10: "10.svg", 11: "11.svg", 12: "11.svg", 13: "14.svg",
+            #     14: "14.svg", 15: "15.svg", 16: "16.svg", 17: "17.svg",
+            #     18: "18.svg", 19: "19.svg", 20: "20.svg",
+            # }
 
-            icon_file = icon_map.get(self.current_weather_code, "0.svg")
+            icon_file = WeatherService.ICON_MAP.get(self.current_weather_code, "0.svg")
             icon_path = get_resPath(os.path.join("resource", "icons", "weather", icon_file))
             if os.path.exists(icon_path):
                 icon = QIcon(icon_path)

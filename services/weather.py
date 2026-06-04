@@ -69,6 +69,82 @@ class WeatherService:
         20: ("沙尘暴", "20.svg"),
     }
 
+    ICON_MAP = {
+        0: "0.svg", 1: "1.svg", 2: "2.svg", 3: "7.svg", 4: "4.svg",
+        5: "5.svg", 6: "19.svg", 7: "7.svg", 8: "8.svg", 9: "9.svg",
+        10: "10.svg", 11: "11.svg", 12: "11.svg", 13: "14.svg", 14: "14.svg",
+        15: "15.svg", 16: "16.svg", 17: "17.svg", 18: "18.svg", 19: "19.svg",
+        20: "20.svg", 21: "7.svg", 22: "8.svg", 23: "9.svg", 24: "10.svg",
+        25: "11.svg", 26: "14.svg", 27: "15.svg", 28: "16.svg", 29: "18.svg",
+        30: "20.svg", 31: "20.svg", 32: "3.svg", 33: "3.svg", 34: "16.svg",
+        35: "18.svg", 50: "0.svg", 51: "1.svg", 52: "2.svg", 53: "18.svg",
+        54: "7.svg", 55: "8.svg", 56: "9.svg", 57: "10.svg", 58: "4.svg",
+        59: "5.svg", 60: "14.svg", 61: "15.svg", 62: "16.svg", 63: "18.svg",
+        64: "18.svg", 65: "18.svg", 66: "3.svg", 67: "3.svg", 68: "11.svg",
+        69: "17.svg", 70: "19.svg", 71: "19.svg", 72: "18.svg", 73: "18.svg",
+        74: "20.svg", 75: "20.svg", 76: "18.svg", 77: "20.svg", 99: "0.svg",
+    }
+
+    # 天气代码 → 翻译键 映射
+    WEATHER_TEXT_MAP = {
+        0: "weather.sunny", 1: "weather.cloudy", 2: "weather.overcast", 3: "weather.shower", 4: "weather.thundershower",
+        5: "weather.thundershower_with_hail", 6: "weather.sleet", 7: "weather.light_rain", 8: "weather.moderate_rain",
+        9: "weather.heavy_rain", 10: "weather.rainstorm", 11: "weather.heavy_rainstorm", 12: "weather.extreme_rainstorm",
+        13: "weather.snow_flurry", 14: "weather.light_snow", 15: "weather.moderate_snow", 16: "weather.heavy_snow", 17: "weather.snowstorm",
+        18: "weather.fog", 19: "weather.freezing_rain", 20: "weather.sandstorm",
+        29: "weather.dust", 30: "weather.sand", 31: "weather.strong_sandstorm",
+        32: "weather.squall", 33: "weather.tornado", 34: "weather.weak_blowing_snow", 35: "weather.light_fog",
+        53: "weather.haze",
+        99: "weather.unknown",
+    }
+
+    # 天气代码 → 组合翻译键 映射（拼接两个翻译）
+    WEATHER_COMBINED_TEXT_MAP = {
+        21: ("weather.light_rain", "weather.moderate_rain"),
+        22: ("weather.moderate_rain", "weather.heavy_rain"),
+        23: ("weather.heavy_rain", "weather.rainstorm"),
+        24: ("weather.rainstorm", "weather.heavy_rainstorm"),
+        25: ("weather.heavy_rainstorm", "weather.extreme_rainstorm"),
+        26: ("weather.light_snow", "weather.moderate_snow"),
+        27: ("weather.moderate_snow", "weather.heavy_snow"),
+        28: ("weather.heavy_snow", "weather.snowstorm"),
+    }
+
+    # 夜间天气代码 → 对应的白天翻译键
+    WEATHER_NIGHT_MAP = {
+        50: "weather.sunny", 51: "weather.cloudy", 52: "weather.overcast",
+        54: "weather.light_rain", 55: "weather.moderate_rain", 56: "weather.heavy_rain", 57: "weather.rainstorm",
+        58: "weather.thundershower", 59: "weather.hail", 60: "weather.light_snow", 61: "weather.moderate_snow",
+        62: "weather.heavy_snow", 63: "weather.fog", 64: "weather.haze", 65: "weather.sand_dust",
+        66: "weather.strong_wind", 67: "weather.typhoon", 68: "weather.rainstorm", 69: "weather.snowstorm",
+        70: "weather.sleet", 71: "weather.freezing_rain", 72: "weather.rime", 73: "weather.frost",
+        74: "weather.sandstorm", 75: "weather.sand", 76: "weather.dust", 77: "weather.strong_sandstorm",
+    }
+
+    @staticmethod
+    def get_weather_text(code, tr_func):
+        """获取翻译后的天气文本"""
+        if code in WeatherService.WEATHER_TEXT_MAP:
+            return tr_func(WeatherService.WEATHER_TEXT_MAP[code])
+        if code in WeatherService.WEATHER_COMBINED_TEXT_MAP:
+            k1, k2 = WeatherService.WEATHER_COMBINED_TEXT_MAP[code]
+            return f"{tr_func(k1)} - {tr_func(k2)}"
+        if code in WeatherService.WEATHER_NIGHT_MAP:
+            return f"{tr_func(WeatherService.WEATHER_NIGHT_MAP[code])}({tr_func('weather.night')})"
+        return tr_func("weather.unknown")
+
+    @staticmethod
+    def build_weather_code_map(tr_func):
+        """天气代码→翻译文本映射"""
+        result = {}
+        all_codes = set()
+        all_codes.update(WeatherService.WEATHER_TEXT_MAP.keys())
+        all_codes.update(WeatherService.WEATHER_COMBINED_TEXT_MAP.keys())
+        all_codes.update(WeatherService.WEATHER_NIGHT_MAP.keys())
+        for code in all_codes:
+            result[code] = WeatherService.get_weather_text(code, tr_func)
+        return result
+
     def __init__(self, city_code: str = "101010100"):
         self.city_code = city_code
         self.base_url = WEATHER_API_URL

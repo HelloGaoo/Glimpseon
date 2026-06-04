@@ -343,25 +343,26 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.addLayout(self._cardTitle(FIF.CLOUD, tr("debug.title_weather_sim"), card))  # 天气模拟
 
-        self.weatherCodeMap = {
-            0: tr("weather.sunny"), 1: tr("weather.cloudy"), 2: tr("weather.overcast"), 3: tr("weather.shower"), 4: tr("weather.thundershower"),
-            5: tr("weather.thundershower_with_hail"), 6: tr("weather.sleet"), 7: tr("weather.light_rain"), 8: tr("weather.moderate_rain"),
-            9: tr("weather.heavy_rain"), 10: tr("weather.rainstorm"), 11: tr("weather.heavy_rainstorm"), 12: tr("weather.extreme_rainstorm"),
-            13: tr("weather.snow_flurry"), 14: tr("weather.light_snow"), 15: tr("weather.moderate_snow"), 16: tr("weather.heavy_snow"), 17: tr("weather.snowstorm"),
-            18: tr("weather.fog"), 19: tr("weather.freezing_rain"), 20: tr("weather.sandstorm"), 21: f"{tr('weather.light_rain')} - {tr('weather.moderate_rain')}",
-            22: f"{tr('weather.moderate_rain')} - {tr('weather.heavy_rain')}", 23: f"{tr('weather.heavy_rain')} - {tr('weather.rainstorm')}", 24: f"{tr('weather.rainstorm')} - {tr('weather.heavy_rainstorm')}",
-            25: f"{tr('weather.heavy_rainstorm')} - {tr('weather.extreme_rainstorm')}", 26: f"{tr('weather.light_snow')} - {tr('weather.moderate_snow')}", 27: f"{tr('weather.moderate_snow')} - {tr('weather.heavy_snow')}",
-            28: f"{tr('weather.heavy_snow')} - {tr('weather.snowstorm')}", 29: tr("weather.dust"), 30: tr("weather.sand"), 31: tr("weather.strong_sandstorm"),
-            32: tr("weather.squall"), 33: tr("weather.tornado"), 34: tr("weather.weak_blowing_snow"), 35: tr("weather.light_fog"),
-            50: f"{tr('weather.sunny')}({tr('weather.night')})", 51: f"{tr('weather.cloudy')}({tr('weather.night')})", 52: f"{tr('weather.overcast')}({tr('weather.night')})", 53: tr("weather.haze"),
-            54: f"{tr('weather.light_rain')}({tr('weather.night')})", 55: f"{tr('weather.moderate_rain')}({tr('weather.night')})", 56: f"{tr('weather.heavy_rain')}({tr('weather.night')})", 57: f"{tr('weather.rainstorm')}({tr('weather.night')})",
-            58: f"{tr('weather.thundershower')}({tr('weather.night')})", 59: f"{tr('weather.hail')}({tr('weather.night')})", 60: f"{tr('weather.light_snow')}({tr('weather.night')})", 61: f"{tr('weather.moderate_snow')}({tr('weather.night')})",
-            62: f"{tr('weather.heavy_snow')}({tr('weather.night')})", 63: f"{tr('weather.fog')}({tr('weather.night')})", 64: f"{tr('weather.haze')}({tr('weather.night')})", 65: f"{tr('weather.sand_dust')}({tr('weather.night')})",
-            66: f"{tr('weather.strong_wind')}({tr('weather.night')})", 67: f"{tr('weather.typhoon')}({tr('weather.night')})", 68: f"{tr('weather.rainstorm')}({tr('weather.night')})", 69: f"{tr('weather.snowstorm')}({tr('weather.night')})",
-            70: f"{tr('weather.sleet')}({tr('weather.night')})", 71: f"{tr('weather.freezing_rain')}({tr('weather.night')})", 72: f"{tr('weather.rime')}({tr('weather.night')})", 73: f"{tr('weather.frost')}({tr('weather.night')})",
-            74: f"{tr('weather.sandstorm')}({tr('weather.night')})", 75: f"{tr('weather.sand')}({tr('weather.night')})", 76: f"{tr('weather.dust')}({tr('weather.night')})", 77: f"{tr('weather.strong_sandstorm')}({tr('weather.night')})",
-            99: tr("weather.unknown"),
-        }
+        # weatherCodeMap = {
+        #     0: tr("weather.sunny"), 1: tr("weather.cloudy"), 2: tr("weather.overcast"), 3: tr("weather.shower"), 4: tr("weather.thundershower"),
+        #     5: tr("weather.thundershower_with_hail"), 6: tr("weather.sleet"), 7: tr("weather.light_rain"), 8: tr("weather.moderate_rain"),
+        #     9: tr("weather.heavy_rain"), 10: tr("weather.rainstorm"), 11: tr("weather.heavy_rainstorm"), 12: tr("weather.extreme_rainstorm"),
+        #     13: tr("weather.snow_flurry"), 14: tr("weather.light_snow"), 15: tr("weather.moderate_snow"), 16: tr("weather.heavy_snow"), 17: tr("weather.snowstorm"),
+        #     18: tr("weather.fog"), 19: tr("weather.freezing_rain"), 20: tr("weather.sandstorm"), 21: f"{tr('weather.light_rain')} - {tr('weather.moderate_rain')}",
+        #     22: f"{tr('weather.moderate_rain')} - {tr('weather.heavy_rain')}", 23: f"{tr('weather.heavy_rain')} - {tr('weather.rainstorm')}", 24: f"{tr('weather.rainstorm')} - {tr('weather.heavy_rainstorm')}",
+        #     25: f"{tr('weather.heavy_rainstorm')} - {tr('weather.extreme_rainstorm')}", 26: f"{tr('weather.light_snow')} - {tr('weather.moderate_snow')}", 27: f"{tr('weather.moderate_snow')} - {tr('weather.heavy_snow')}",
+        #     28: f"{tr('weather.heavy_snow')} - {tr('weather.snowstorm')}", 29: tr("weather.dust"), 30: tr("weather.sand"), 31: tr("weather.strong_sandstorm"),
+        #     32: tr("weather.squall"), 33: tr("weather.tornado"), 34: tr("weather.weak_blowing_snow"), 35: tr("weather.light_fog"),
+        #     50: f"{tr('weather.sunny')}({tr('weather.night')})", 51: f"{tr('weather.cloudy')}({tr('weather.night')})", 52: f"{tr('weather.overcast')}({tr('weather.night')})", 53: tr("weather.haze"),
+        #     54: f"{tr('weather.light_rain')}({tr('weather.night')})", 55: f"{tr('weather.moderate_rain')}({tr('weather.night')})", 56: f"{tr('weather.heavy_rain')}({tr('weather.night')})", 57: f"{tr('weather.rainstorm')}({tr('weather.night')})",
+        #     58: f"{tr('weather.thundershower')}({tr('weather.night')})", 59: f"{tr('weather.hail')}({tr('weather.night')})", 60: f"{tr('weather.light_snow')}({tr('weather.night')})", 61: f"{tr('weather.moderate_snow')}({tr('weather.night')})",
+        #     62: f"{tr('weather.heavy_snow')}({tr('weather.night')})", 63: f"{tr('weather.fog')}({tr('weather.night')})", 64: f"{tr('weather.haze')}({tr('weather.night')})", 65: f"{tr('weather.sand_dust')}({tr('weather.night')})",
+        #     66: f"{tr('weather.strong_wind')}({tr('weather.night')})", 67: f"{tr('weather.typhoon')}({tr('weather.night')})", 68: f"{tr('weather.rainstorm')}({tr('weather.night')})", 69: f"{tr('weather.snowstorm')}({tr('weather.night')})",
+        #     70: f"{tr('weather.sleet')}({tr('weather.night')})", 71: f"{tr('weather.freezing_rain')}({tr('weather.night')})", 72: f"{tr('weather.rime')}({tr('weather.night')})", 73: f"{tr('weather.frost')}({tr('weather.night')})",
+        #     74: f"{tr('weather.sandstorm')}({tr('weather.night')})", 75: f"{tr('weather.sand')}({tr('weather.night')})", 76: f"{tr('weather.dust')}({tr('weather.night')})", 77: f"{tr('weather.strong_sandstorm')}({tr('weather.night')})",
+        #     99: tr("weather.unknown"),
+        # }
+        self.weatherCodeMap = WeatherService.build_weather_code_map(tr)
 
         selectRow = QHBoxLayout()
         selectRow.addWidget(BodyLabel(tr("debug.label_select_weather") + ":", card))  # 选择天气
@@ -430,26 +431,26 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         return card
 
     def _populateWeatherIconGrid(self):
-        icon_map = {
-            0: "0.svg", 1: "1.svg", 2: "2.svg", 3: "7.svg", 4: "4.svg",
-            5: "5.svg", 6: "19.svg", 7: "7.svg", 8: "8.svg", 9: "9.svg",
-            10: "10.svg", 11: "11.svg", 12: "11.svg", 13: "14.svg", 14: "14.svg",
-            15: "15.svg", 16: "16.svg", 17: "17.svg", 18: "18.svg", 19: "19.svg",
-            20: "20.svg", 21: "7.svg", 22: "8.svg", 23: "9.svg", 24: "10.svg",
-            25: "11.svg", 26: "14.svg", 27: "15.svg", 28: "16.svg", 29: "18.svg",
-            30: "20.svg", 31: "20.svg", 32: "3.svg", 33: "3.svg", 34: "16.svg",
-            35: "18.svg", 50: "0.svg", 51: "1.svg", 52: "2.svg", 53: "18.svg",
-            54: "7.svg", 55: "8.svg", 56: "9.svg", 57: "10.svg", 58: "4.svg",
-            59: "5.svg", 60: "14.svg", 61: "15.svg", 62: "16.svg", 63: "18.svg",
-            64: "18.svg", 65: "18.svg", 66: "3.svg", 67: "3.svg", 68: "11.svg",
-            69: "17.svg", 70: "19.svg", 71: "19.svg", 72: "18.svg", 73: "18.svg",
-            74: "20.svg", 75: "20.svg", 76: "18.svg", 77: "20.svg", 99: "0.svg",
-        }
+        # icon_map = {
+        #     0: "0.svg", 1: "1.svg", 2: "2.svg", 3: "7.svg", 4: "4.svg",
+        #     5: "5.svg", 6: "19.svg", 7: "7.svg", 8: "8.svg", 9: "9.svg",
+        #     10: "10.svg", 11: "11.svg", 12: "11.svg", 13: "14.svg", 14: "14.svg",
+        #     15: "15.svg", 16: "16.svg", 17: "17.svg", 18: "18.svg", 19: "19.svg",
+        #     20: "20.svg", 21: "7.svg", 22: "8.svg", 23: "9.svg", 24: "10.svg",
+        #     25: "11.svg", 26: "14.svg", 27: "15.svg", 28: "16.svg", 29: "18.svg",
+        #     30: "20.svg", 31: "20.svg", 32: "3.svg", 33: "3.svg", 34: "16.svg",
+        #     35: "18.svg", 50: "0.svg", 51: "1.svg", 52: "2.svg", 53: "18.svg",
+        #     54: "7.svg", 55: "8.svg", 56: "9.svg", 57: "10.svg", 58: "4.svg",
+        #     59: "5.svg", 60: "14.svg", 61: "15.svg", 62: "16.svg", 63: "18.svg",
+        #     64: "18.svg", 65: "18.svg", 66: "3.svg", 67: "3.svg", 68: "11.svg",
+        #     69: "17.svg", 70: "19.svg", 71: "19.svg", 72: "18.svg", 73: "18.svg",
+        #     74: "20.svg", 75: "20.svg", 76: "18.svg", 77: "20.svg", 99: "0.svg",
+        # }
         card = self._weatherDebugCard
         col = 0
         row = 0
         for code, name in sorted(self.weatherCodeMap.items()):
-            item = self._createWeatherIconItem(code, name, icon_map.get(code, "0.svg"), card)
+            item = self._createWeatherIconItem(code, name, WeatherService.ICON_MAP.get(code, "0.svg"), card)
             self.weatherIconGridLayout.addWidget(item, row, col)
             col += 1
             if col >= 6:
@@ -498,22 +499,22 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         self._previewWeatherIcon(code)
 
     def _previewWeatherIcon(self, code):
-        icon_map = {
-            0: "0.svg", 1: "1.svg", 2: "2.svg", 3: "7.svg", 4: "4.svg",
-            5: "5.svg", 6: "19.svg", 7: "7.svg", 8: "8.svg", 9: "9.svg",
-            10: "10.svg", 11: "11.svg", 12: "11.svg", 13: "14.svg", 14: "14.svg",
-            15: "15.svg", 16: "16.svg", 17: "17.svg", 18: "18.svg", 19: "19.svg",
-            20: "20.svg", 21: "7.svg", 22: "8.svg", 23: "9.svg", 24: "10.svg",
-            25: "11.svg", 26: "14.svg", 27: "15.svg", 28: "16.svg", 29: "18.svg",
-            30: "20.svg", 31: "20.svg", 32: "3.svg", 33: "3.svg", 34: "16.svg",
-            35: "18.svg", 50: "0.svg", 51: "1.svg", 52: "2.svg", 53: "18.svg",
-            54: "7.svg", 55: "8.svg", 56: "9.svg", 57: "10.svg", 58: "4.svg",
-            59: "5.svg", 60: "14.svg", 61: "15.svg", 62: "16.svg", 63: "18.svg",
-            64: "18.svg", 65: "18.svg", 66: "3.svg", 67: "3.svg", 68: "11.svg",
-            69: "17.svg", 70: "19.svg", 71: "19.svg", 72: "18.svg", 73: "18.svg",
-            74: "20.svg", 75: "20.svg", 76: "18.svg", 77: "20.svg", 99: "0.svg",
-        }
-        icon_file = icon_map.get(code, "0.svg")
+        # icon_map = {
+        #     0: "0.svg", 1: "1.svg", 2: "2.svg", 3: "7.svg", 4: "4.svg",
+        #     5: "5.svg", 6: "19.svg", 7: "7.svg", 8: "8.svg", 9: "9.svg",
+        #     10: "10.svg", 11: "11.svg", 12: "11.svg", 13: "14.svg", 14: "14.svg",
+        #     15: "15.svg", 16: "16.svg", 17: "17.svg", 18: "18.svg", 19: "19.svg",
+        #     20: "20.svg", 21: "7.svg", 22: "8.svg", 23: "9.svg", 24: "10.svg",
+        #     25: "11.svg", 26: "14.svg", 27: "15.svg", 28: "16.svg", 29: "18.svg",
+        #     30: "20.svg", 31: "20.svg", 32: "3.svg", 33: "3.svg", 34: "16.svg",
+        #     35: "18.svg", 50: "0.svg", 51: "1.svg", 52: "2.svg", 53: "18.svg",
+        #     54: "7.svg", 55: "8.svg", 56: "9.svg", 57: "10.svg", 58: "4.svg",
+        #     59: "5.svg", 60: "14.svg", 61: "15.svg", 62: "16.svg", 63: "18.svg",
+        #     64: "18.svg", 65: "18.svg", 66: "3.svg", 67: "3.svg", 68: "11.svg",
+        #     69: "17.svg", 70: "19.svg", 71: "19.svg", 72: "18.svg", 73: "18.svg",
+        #     74: "20.svg", 75: "20.svg", 76: "18.svg", 77: "20.svg", 99: "0.svg",
+        # }
+        icon_file = WeatherService.ICON_MAP.get(code, "0.svg")
         icon_path = get_resPath(os.path.join("resource", "icons", "weather", icon_file))
         if os.path.exists(icon_path):
             pixmap = QPixmap(icon_path).scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.FastTransformation)

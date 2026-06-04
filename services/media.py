@@ -142,6 +142,27 @@ class Lyrics:
         return self.lines[0], 0
 
 
+def parse_lrc(lrc_text: str) -> List[LyricLine]:
+    """解析 LRC 格式歌词文本，返回按时间排序的 LyricLine 列表"""
+    lines = []
+    pat = re.compile(r'\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\]')
+    for line in lrc_text.split('\n'):
+        text = pat.sub('', line).strip()
+        if not text:
+            continue
+        for m in pat.findall(line):
+            try:
+                mins, secs, ms_str = int(m[0]), int(m[1]), m[2]
+                ms = int(ms_str) if ms_str else 0
+                if len(ms_str) == 2: ms *= 10
+                elif len(ms_str) == 1: ms *= 100
+                lines.append(LyricLine(time_ms=mins * 60000 + secs * 1000 + ms, text=text))
+            except ValueError:
+                continue
+    lines.sort()
+    return lines
+
+
 class NeteaseCloudMusic:
     """网易云音乐"""
 
@@ -570,22 +591,23 @@ class NeteaseCloudMusic:
         return songs[0].get('id') if songs else None
 
     def _parse_lrc(self, lrc: str) -> List[LyricLine]:
-        lines = []
-        pat = re.compile(r'\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\]')
-        for line in lrc.split('\n'):
-            text = pat.sub('', line).strip()
-            if not text:
-                continue
-            for m in pat.findall(line):
-                try:
-                    mins, secs, ms = int(m[0]), int(m[1]), int(m[2]) if m[2] else 0
-                    if len(m[2]) == 2: ms *= 10
-                    elif len(m[2]) == 1: ms *= 100
-                    lines.append(LyricLine(time_ms=mins * 60000 + secs * 1000 + ms, text=text))
-                except ValueError:
-                    continue
-        lines.sort()
-        return lines
+        return parse_lrc(lrc)
+        # lines = []
+        # pat = re.compile(r'\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\]')
+        # for line in lrc.split('\n'):
+        #     text = pat.sub('', line).strip()
+        #     if not text:
+        #         continue
+        #     for m in pat.findall(line):
+        #         try:
+        #             mins, secs, ms = int(m[0]), int(m[1]), int(m[2]) if m[2] else 0
+        #             if len(m[2]) == 2: ms *= 10
+        #             elif len(m[2]) == 1: ms *= 100
+        #             lines.append(LyricLine(time_ms=mins * 60000 + secs * 1000 + ms, text=text))
+        #         except ValueError:
+        #             continue
+        # lines.sort()
+        # return lines
 
 
 class GSMTCReader:
@@ -973,23 +995,24 @@ class KugouMemoryReader:
 
     @staticmethod
     def _parse_lrc(lrc: str):
-        import re
-        lines = []
-        pat = re.compile(r'\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\]')
-        for line in lrc.split('\n'):
-            text = pat.sub('', line).strip()
-            if not text:
-                continue
-            for m in pat.findall(line):
-                try:
-                    mins, secs, ms = int(m[0]), int(m[1]), int(m[2]) if m[2] else 0
-                    if len(m[2]) == 2: ms *= 10
-                    elif len(m[2]) == 1: ms *= 100
-                    lines.append(LyricLine(time_ms=mins * 60000 + secs * 1000 + ms, text=text))
-                except ValueError:
-                    continue
-        lines.sort()
-        return lines
+        return parse_lrc(lrc)
+        # import re
+        # lines = []
+        # pat = re.compile(r'\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\]')
+        # for line in lrc.split('\n'):
+        #     text = pat.sub('', line).strip()
+        #     if not text:
+        #         continue
+        #     for m in pat.findall(line):
+        #         try:
+        #             mins, secs, ms = int(m[0]), int(m[1]), int(m[2]) if m[2] else 0
+        #             if len(m[2]) == 2: ms *= 10
+        #             elif len(m[2]) == 1: ms *= 100
+        #             lines.append(LyricLine(time_ms=mins * 60000 + secs * 1000 + ms, text=text))
+        #         except ValueError:
+        #             continue
+        # lines.sort()
+        # return lines
 
     def get_detail(self, song_id): return None
     def get_cover_legacy(self, url): return None
@@ -1245,24 +1268,24 @@ class QQMusicReader:
             lyric_str = data.get('lyric', '')
             if not lyric_str:
                 return None
-            lines = []
-            import re
-            pat = re.compile(r'\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\]')
-            for line in lyric_str.split('\n'):
-                text = pat.sub('', line).strip()
-                if not text:
-                    continue
-                for m in pat.findall(line):
-                    # mins, secs, ms = int(m[0]), int(m[1]), int(m[2]) if m[2] else 0
-                    # if len(ms) == 2: ms *= 10
-                    # elif len(ms) == 1: ms *= 100
-                    # lines.append(LyricLine(time_ms=mins * 60000 + secs * 1000 + ms, text=text))
-                    mins, secs, ms_str = int(m[0]), int(m[1]), m[2]
-                    ms_val = int(ms_str) if ms_str else 0
-                    if len(ms_str) == 2: ms_val *= 10
-                    elif len(ms_str) == 1: ms_val *= 100
-                    lines.append(LyricLine(time_ms=mins * 60000 + secs * 1000 + ms_val, text=text))
-            lines.sort()
+            lines = parse_lrc(lyric_str)
+            # import re
+            # pat = re.compile(r'\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\]')
+            # for line in lyric_str.split('\n'):
+            #     text = pat.sub('', line).strip()
+            #     if not text:
+            #         continue
+            #     for m in pat.findall(line):
+            #         # mins, secs, ms = int(m[0]), int(m[1]), int(m[2]) if m[2] else 0
+            #         # if len(ms) == 2: ms *= 10
+            #         # elif len(ms) == 1: ms *= 100
+            #         # lines.append(LyricLine(time_ms=mins * 60000 + secs * 1000 + ms, text=text))
+            #         mins, secs, ms_str = int(m[0]), int(m[1]), m[2]
+            #         ms_val = int(ms_str) if ms_str else 0
+            #         if len(ms_str) == 2: ms_val *= 10
+            #         elif len(ms_str) == 1: ms_val *= 100
+            #         lines.append(LyricLine(time_ms=mins * 60000 + secs * 1000 + ms_val, text=text))
+            # lines.sort()
             if lines:
                 # return Lyrics(lines=lines, raw_lrc=lyric_str, song_id=0)
                 lyrics = Lyrics(lines=lines, raw_lrc=lyric_str, song_id=0)
@@ -1363,7 +1386,7 @@ class MediaProvider:
 _provider: Optional[MediaProvider] = None
 
 def _get_provider() -> MediaProvider:
-    """惰性初始化 MediaProvider，避免导入时创建线程池和HTTP会话"""
+    """惰性初始化 MediaProvider"""
     global _provider
     if _provider is None:
         _provider = MediaProvider()
