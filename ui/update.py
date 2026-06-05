@@ -229,10 +229,10 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
 
     @pyqtSlot(str)
     def _on_changelog_loaded(self, changelog_text: str):
-        try:
-            self.changelogContent.setPlainText(changelog_text)
-        except Exception:
-            pass
+        # try:
+        self.changelogContent.setPlainText(changelog_text)
+        # except Exception:
+        #     pass
     
     def __checkUpdate(self, auto_check=False):
         """

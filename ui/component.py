@@ -534,10 +534,10 @@ class MediaProgressBar(QProgressBar):
             # allow parent widget to override progress color (e.g. follow wallpaper)
             progress_color = QColor(cfg.mediaProgressColor.value)
             parent = getattr(self, 'parent', None)
-            try:
-                parent_widget = self.parent()
-            except Exception:
-                parent_widget = None
+            # try:
+            parent_widget = self.parent()
+            # except Exception:
+            #     parent_widget = None
             if parent_widget and hasattr(parent_widget, '_override_progress_color') and parent_widget._override_progress_color:
                 progress_color = parent_widget._override_progress_color
             p.setBrush(progress_color)

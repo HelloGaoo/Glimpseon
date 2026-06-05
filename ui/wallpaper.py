@@ -1126,7 +1126,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
                 self._updateBackground()
                 self._updateMainWindowBackground()
                 self._applyEffects()
-                self._applyEffects()
+                # self._applyEffects()
                 self.wallpaperChanged.emit()
             
             self.infoCard.updateInfo(default_wallpaper_path, tr("wallpaper.default_source"))

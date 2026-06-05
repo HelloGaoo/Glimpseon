@@ -194,6 +194,12 @@ class ComponentSettingDialog(QDialog, TranslatableWidget):
     def _applyStyle(self):
         self.setStyleSheet(load_qss('setting_dialog.qss'))
 
+    def _resolve_group(self, group, is_advanced):
+        if group is not None:
+            return group
+        groups = self._advanced_groups if is_advanced else self._basic_groups
+        return groups[-1] if groups else None
+
     def _addSwitch(self, title: str, config_item, group=None, is_advanced=False):
         switch = SwitchButton()
         switch.setChecked(config_item.value)
@@ -201,10 +207,11 @@ class ComponentSettingDialog(QDialog, TranslatableWidget):
         switch.setOnText('')
         switch.checkedChanged.connect(lambda v, ci=config_item: setattr(ci, 'value', v))
         card = _SettingRow(title, switch)
-        target_group = group
-        if target_group is None:
-            groups = self._advanced_groups if is_advanced else self._basic_groups
-            target_group = groups[-1] if groups else None
+        # target_group = group
+        # if target_group is None:
+        #     groups = self._advanced_groups if is_advanced else self._basic_groups
+        #     target_group = groups[-1] if groups else None
+        target_group = self._resolve_group(group, is_advanced)
         if target_group:
             target_group.addSettingCard(card)
         return card, switch
@@ -215,10 +222,11 @@ class ComponentSettingDialog(QDialog, TranslatableWidget):
         spin.setValue(config_item.value)
         spin.valueChanged.connect(lambda v, ci=config_item: setattr(ci, 'value', v))
         card = _SettingRow(title, spin)
-        target_group = group
-        if target_group is None:
-            groups = self._advanced_groups if is_advanced else self._basic_groups
-            target_group = groups[-1] if groups else None
+        # target_group = group
+        # if target_group is None:
+        #     groups = self._advanced_groups if is_advanced else self._basic_groups
+        #     target_group = groups[-1] if groups else None
+        target_group = self._resolve_group(group, is_advanced)
         if target_group:
             target_group.addSettingCard(card)
         return card, spin
@@ -247,10 +255,11 @@ class ComponentSettingDialog(QDialog, TranslatableWidget):
             combo.currentTextChanged.connect(lambda t, ci=config_item: setattr(ci, 'value', t))
 
         card = _SettingRow(title, combo)
-        target_group = group
-        if target_group is None:
-            groups = self._advanced_groups if is_advanced else self._basic_groups
-            target_group = groups[-1] if groups else None
+        # target_group = group
+        # if target_group is None:
+        #     groups = self._advanced_groups if is_advanced else self._basic_groups
+        #     target_group = groups[-1] if groups else None
+        target_group = self._resolve_group(group, is_advanced)
         if target_group:
             target_group.addSettingCard(card)
         return card, combo
@@ -261,20 +270,22 @@ class ComponentSettingDialog(QDialog, TranslatableWidget):
         edit.setPlaceholderText(placeholder)
         edit.textChanged.connect(lambda t, ci=config_item: setattr(ci, 'value', t))
         card = _SettingRow(title, edit)
-        target_group = group
-        if target_group is None:
-            groups = self._advanced_groups if is_advanced else self._basic_groups
-            target_group = groups[-1] if groups else None
+        # target_group = group
+        # if target_group is None:
+        #     groups = self._advanced_groups if is_advanced else self._basic_groups
+        #     target_group = groups[-1] if groups else None
+        target_group = self._resolve_group(group, is_advanced)
         if target_group:
             target_group.addSettingCard(card)
         return card, edit
 
     def _addButtonRow(self, title: str, button: PushButton, group=None, is_advanced=False):
         card = _SettingRow(title, button)
-        target_group = group
-        if target_group is None:
-            groups = self._advanced_groups if is_advanced else self._basic_groups
-            target_group = groups[-1] if groups else None
+        # target_group = group
+        # if target_group is None:
+        #     groups = self._advanced_groups if is_advanced else self._basic_groups
+        #     target_group = groups[-1] if groups else None
+        target_group = self._resolve_group(group, is_advanced)
         if target_group:
             target_group.addSettingCard(card)
         return card

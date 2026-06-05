@@ -33,6 +33,8 @@ import shutil
 import py7zr
 import requests
 import urllib3
+import warnings
+import zipfile
 
 from core.constants import BASE_DIR
 from core.logger import logger
@@ -40,7 +42,6 @@ from version import CHANGELOG_URL, UPDATE_URL, VERSION_URL
 
 # 禁用 SSL 警告
 # urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-import warnings
 warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
 

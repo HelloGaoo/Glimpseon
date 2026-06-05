@@ -96,19 +96,6 @@ def set_proc_prio(level='high'):
             logger.warning("设置当前进程优先级失败")
 
 
-# _original_popen = subprocess.Popen
-
-
-# def _popen_with_prio(*popen_args, **popen_kwargs):
-#     """为子进程设置优先级的包装函数"""
-#     process = _original_popen(*popen_args, **popen_kwargs)
-#     try:
-#         set_priority_pid(process.pid, 'below_normal')
-#     except Exception:
-#         pass
-
-
-
 def _popen_low_priority(*popen_args, **popen_kwargs):
     """安装子进程  below_normal 优先级"""
     process = subprocess.Popen(*popen_args, **popen_kwargs)
@@ -159,6 +146,10 @@ def set_download_src(source_key):
         source_key: 下载源键名 (original, hk, cloudflare, edgeone, geekertao)
     """
     # global current_source
+    # if source_key in DOWNLOAD_SOURCES:
+    #     current_source = source_key
+    # else:
+    #     current_source = DEFAULT_SOURCE
     global _current_source
     with _source_lock:
         if source_key in DOWNLOAD_SOURCES:
@@ -196,22 +187,31 @@ class Downloader:
         self._last_progress = {}
 
     def set_progress(self, software_name, percent):
-        try:
-            # 失败时回退到0
-            last = self._last_progress.get(software_name, -1)
-            if percent == 0 or percent >= last:
-                self._last_progress[software_name] = percent
-                if getattr(self, 'progress_callback', None) and callable(self.progress_callback):
-                    try:
-                        self.progress_callback(software_name, percent)
-                    except Exception as e:
-                        if self.installer_logger:
-                            self.installer_logger.warning(f"{software_name}: 调用外部进度回调异常 - {e}")
-            else:
-                pass
-        except Exception as e:
-            if self.installer_logger:
-                self.installer_logger.warning(f"{software_name}: 更新进度回调异常 - {e}")
+        # try:
+        #     # 失败时回退到0
+        #     last = self._last_progress.get(software_name, -1)
+        #     if percent == 0 or percent >= last:
+        #         self._last_progress[software_name] = percent
+        #         if getattr(self, 'progress_callback', None) and callable(self.progress_callback):
+        #             try:
+        #                 self.progress_callback(software_name, percent)
+        #             except Exception as e:
+        #                 if self.installer_logger:
+        #                     self.installer_logger.warning(f"{software_name}: 调用外部进度回调异常 - {e}")
+        #         else:
+        #             pass
+        # except Exception as e:
+        #     if self.installer_logger:
+        #         self.installer_logger.warning(f"{software_name}: 更新进度回调异常 - {e}")
+        last = self._last_progress.get(software_name, -1)
+        if percent == 0 or percent >= last:
+            self._last_progress[software_name] = percent
+            if self.progress_callback and callable(self.progress_callback):
+                try:
+                    self.progress_callback(software_name, percent)
+                except Exception as e:
+                    if self.installer_logger:
+                        self.installer_logger.warning(f"进度回调异常: {e}")
 
     def _calc_phase_offsets(self, allocation: dict):
         """返回阶段顺序与每阶段开始偏移量字典。"""
@@ -415,10 +415,10 @@ class Downloader:
 
             output_dir = r"C:\Windows\Web"
             self._decompress_7Z(software_name, installer_path, output_dir)
-            try:
-                self._update_progress(software_name, 'decompress', 100, allocation)
-            except Exception:
-                pass
+            # try:
+            self._update_progress(software_name, 'decompress', 100, allocation)
+            # except Exception:
+            #     pass
             
             SPI_SETDESKWALLPAPER = 20
             SPIF_UPDATEINIFILE = 0x01
@@ -1004,6 +1004,7 @@ class Downloader:
         if "url" in cache_file:
             return cache_file["url"]
         elif "github_path" in cache_file:
+            # prefix = DOWNLOAD_SOURCES[current_source]["prefix"]
             with _source_lock:
                 src = _current_source
             prefix = DOWNLOAD_SOURCES[src]["prefix"]
@@ -1275,5 +1276,5 @@ def cleanup_temp_directory(temp_dir=None, logger=None):
     except Exception as err:
         if logger:logger.error(f"清理临时目录失败：{err}")
 
-def clean_tempdir(logger=None):
-    cleanup_temp_directory(logger=logger)
+# def clean_tempdir(logger=None):
+#     cleanup_temp_directory(logger=logger)

@@ -32,7 +32,6 @@ from qfluentwidgets import BodyLabel, MessageBoxBase, SearchLineEdit, SubtitleLa
 
 from core.config import cfg
 from core.constants import BASE_DIR, get_resPath
-from core.logger import logger
 from core.utils import tr
 
 logger = logging.getLogger("ClassLively.services.weather")

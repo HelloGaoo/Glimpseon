@@ -48,7 +48,7 @@ from pycaw.pycaw import AudioUtilities
 
 from core.config import cfg, save_cfg, Language
 from core.constants import APP_NAME, BASE_DIR, get_resPath, load_qss
-from core.downloader import clean_tempdir
+from core.downloader import cleanup_temp_directory
 from core.logger import logger, init_exhook
 from core.updater import (
     create_update_script,
@@ -239,10 +239,10 @@ class SplashScreen(QWidget, TranslatableWidget):
             self._anim_timer.stop()
 
     def waitForProgress(self, target: int = 100, timeout: float = 3.0):
-        try:
-            target = int(max(0, min(100, target)))
-        except Exception:
-            target = 100
+        # try:
+        # target = int(max(0, min(100, target)))
+        # except Exception:
+        #     target = 100
         end = time.time() + float(timeout)
         while time.time() < end and self._current_progress < target:
             QApplication.processEvents()
@@ -859,11 +859,12 @@ class WizardWindow(QDialog, TranslatableWidget):
             desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
             shortcut_path = os.path.join(desktop_path, "ClassLively.lnk")
 
-            if getattr(sys, 'frozen', False):
-                exe_path = sys.executable
-            else:
-                exe_path = sys.executable
-                pass
+            # if getattr(sys, 'frozen', False):
+            #     exe_path = sys.executable
+            # else:
+            #     exe_path = sys.executable
+            #     pass
+            exe_path = sys.executable
 
             shell = win32com.client.Dispatch('WScript.Shell')
             shortcut = shell.CreateShortCut(shortcut_path)
@@ -1209,12 +1210,17 @@ class MainWindow(FluentWindow):
         self.tray_icon.show()
 
     def _onTrayIconActivated(self, reason):
-        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
-            if self.isVisible():
-                self.hide()
-            else:
-                self.show()
-        elif reason == QSystemTrayIcon.ActivationReason.Trigger:
+        # if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+        #     if self.isVisible():
+        #         self.hide()
+        #     else:
+        #         self.show()
+        # elif reason == QSystemTrayIcon.ActivationReason.Trigger:
+        #     if self.isVisible():
+        #         self.hide()
+        #     else:
+        #         self.show()
+        if reason in (QSystemTrayIcon.ActivationReason.DoubleClick, QSystemTrayIcon.ActivationReason.Trigger):
             if self.isVisible():
                 self.hide()
             else:
@@ -1586,7 +1592,7 @@ if __name__ == "__main__":
         try:
             splash.status_signal.emit(tr("splash.cleaning_temp"))  # 正在清理临时文件...
             splash.progress_signal.emit(10)
-            clean_tempdir(logger=logger)
+            cleanup_temp_directory(logger=logger)
             splash.status_signal.emit(tr("splash.loading_resources"))  # 正在加载资源...
             splash.progress_signal.emit(70)
         except Exception as e:

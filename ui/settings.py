@@ -381,47 +381,48 @@ class SettingInterface(ScrollArea, TranslatableWidget):
                 with open(config_path, 'w', encoding='utf-8') as f:json.dump(default_config, f, ensure_ascii=False, indent=4)
                 qconfig.load(config_path, cfg)
                 
-                for attr_name in dir(cfg):
-                    if not attr_name.startswith('_'):
-                        attr = getattr(cfg, attr_name)
-                        if isinstance(attr, ConfigItem) and hasattr(attr, 'valueChanged'):
-                            attr.valueChanged.emit(attr.value)
-                
-                main_window = self.window()
-                
-                if hasattr(main_window, '_MainWindow__updateQuickLaunch'):
-                    main_window._MainWindow__updateQuickLaunch()
-                
-                if hasattr(main_window, '_MainWindow__updateClock'):
-                    main_window._MainWindow__updateClock()
-                if hasattr(main_window, '_MainWindow__updatePoetry'):
-                    main_window._MainWindow__updatePoetry()
-                if hasattr(main_window, '_MainWindow__updateWeather'):
-                    main_window._MainWindow__updateWeather()
-                if hasattr(main_window, '_MainWindow__updateCountdown'):
-                    main_window._MainWindow__updateCountdown()
-                if hasattr(main_window, 'updateSchoolInfo'):
-                    main_window.updateSchoolInfo()
-                if hasattr(main_window, 'updateSchoolInfoStyle'):
-                    main_window.updateSchoolInfoStyle()
-                if hasattr(main_window, '_MainWindow__updateSchoolInfoPosition'):
-                    main_window._MainWindow__updateSchoolInfoPosition()
-                if hasattr(main_window, '_MainWindow__updateClockPosition'):
-                    main_window._MainWindow__updateClockPosition()
-                if hasattr(main_window, '_MainWindow__updatePoetryPosition'):
-                    main_window._MainWindow__updatePoetryPosition()
-                if hasattr(main_window, '_MainWindow__updateWeatherPosition'):
-                    main_window._MainWindow__updateWeatherPosition()
-                if hasattr(main_window, '_MainWindow__updateCountdownPosition'):
-                    main_window._MainWindow__updateCountdownPosition()
-                
-                app = QApplication.instance()
-                if app:
-                    font_loaded = _load_app_fonts()
-                    apply_fonts(app, use_harmonyos=font_loaded)
-                current_theme = cfg.themeMode.value
-                setTheme(current_theme)
-                cfg.themeChanged.emit(current_theme)
+                self._refreshAllConfigUI()
+                # for attr_name in dir(cfg):
+                #     if not attr_name.startswith('_'):
+                #         attr = getattr(cfg, attr_name)
+                #         if isinstance(attr, ConfigItem) and hasattr(attr, 'valueChanged'):
+                #             attr.valueChanged.emit(attr.value)
+                #
+                # main_window = self.window()
+                #
+                # if hasattr(main_window, '_MainWindow__updateQuickLaunch'):
+                #     main_window._MainWindow__updateQuickLaunch()
+                #
+                # if hasattr(main_window, '_MainWindow__updateClock'):
+                #     main_window._MainWindow__updateClock()
+                # if hasattr(main_window, '_MainWindow__updatePoetry'):
+                #     main_window._MainWindow__updatePoetry()
+                # if hasattr(main_window, '_MainWindow__updateWeather'):
+                #     main_window._MainWindow__updateWeather()
+                # if hasattr(main_window, '_MainWindow__updateCountdown'):
+                #     main_window._MainWindow__updateCountdown()
+                # if hasattr(main_window, 'updateSchoolInfo'):
+                #     main_window.updateSchoolInfo()
+                # if hasattr(main_window, 'updateSchoolInfoStyle'):
+                #     main_window.updateSchoolInfoStyle()
+                # if hasattr(main_window, '_MainWindow__updateSchoolInfoPosition'):
+                #     main_window._MainWindow__updateSchoolInfoPosition()
+                # if hasattr(main_window, '_MainWindow__updateClockPosition'):
+                #     main_window._MainWindow__updateClockPosition()
+                # if hasattr(main_window, '_MainWindow__updatePoetryPosition'):
+                #     main_window._MainWindow__updatePoetryPosition()
+                # if hasattr(main_window, '_MainWindow__updateWeatherPosition'):
+                #     main_window._MainWindow__updateWeatherPosition()
+                # if hasattr(main_window, '_MainWindow__updateCountdownPosition'):
+                #     main_window._MainWindow__updateCountdownPosition()
+                #
+                # app = QApplication.instance()
+                # if app:
+                #     font_loaded = _load_app_fonts()
+                #     apply_fonts(app, use_harmonyos=font_loaded)
+                # current_theme = cfg.themeMode.value
+                # setTheme(current_theme)
+                # cfg.themeChanged.emit(current_theme)
                 
                 InfoBar.success(
                     tr("wizard.success_title"),
@@ -550,38 +551,81 @@ class SettingInterface(ScrollArea, TranslatableWidget):
                 json.dump(imported_config, f, ensure_ascii=False, indent=4)
             qconfig.load(CONFIG_PATH, cfg)
             
-            for attr_name in dir(cfg):
-                if not attr_name.startswith('_'):
-                    attr = getattr(cfg, attr_name)
-                    if isinstance(attr, ConfigItem) and hasattr(attr, 'valueChanged'):
-                        attr.valueChanged.emit(attr.value)
-            
-            main_window = self.window()
-            if hasattr(main_window, '_MainWindow__updateQuickLaunch'): main_window._MainWindow__updateQuickLaunch()
-            if hasattr(main_window, '_MainWindow__updateClock'): main_window._MainWindow__updateClock()
-            if hasattr(main_window, '_MainWindow__updatePoetry'): main_window._MainWindow__updatePoetry()
-            if hasattr(main_window, '_MainWindow__updateWeather'): main_window._MainWindow__updateWeather()
-            if hasattr(main_window, '_MainWindow__updateCountdown'): main_window._MainWindow__updateCountdown()
-            if hasattr(main_window, 'updateSchoolInfo'): main_window.updateSchoolInfo()
-            if hasattr(main_window, 'updateSchoolInfoStyle'): main_window.updateSchoolInfoStyle()
-            if hasattr(main_window, '_MainWindow__updateSchoolInfoPosition'): main_window._MainWindow__updateSchoolInfoPosition()
-            if hasattr(main_window, '_MainWindow__updateClockPosition'): main_window._MainWindow__updateClockPosition()
-            if hasattr(main_window, '_MainWindow__updatePoetryPosition'): main_window._MainWindow__updatePoetryPosition()
-            if hasattr(main_window, '_MainWindow__updateWeatherPosition'): main_window._MainWindow__updateWeatherPosition()
-            if hasattr(main_window, '_MainWindow__updateCountdownPosition'): main_window._MainWindow__updateCountdownPosition()
-            
-            app = QApplication.instance()
-            if app:
-                font_loaded = _load_app_fonts()
-                apply_fonts(app, use_harmonyos=font_loaded)
-            
-            current_theme = cfg.themeMode.value
-            setTheme(current_theme)
-            cfg.themeChanged.emit(current_theme)
+            self._refreshAllConfigUI()
+            # for attr_name in dir(cfg):
+            #     if not attr_name.startswith('_'):
+            #         attr = getattr(cfg, attr_name)
+            #         if isinstance(attr, ConfigItem) and hasattr(attr, 'valueChanged'):
+            #             attr.valueChanged.emit(attr.value)
+            #
+            # main_window = self.window()
+            # if hasattr(main_window, '_MainWindow__updateQuickLaunch'): main_window._MainWindow__updateQuickLaunch()
+            # if hasattr(main_window, '_MainWindow__updateClock'): main_window._MainWindow__updateClock()
+            # if hasattr(main_window, '_MainWindow__updatePoetry'): main_window._MainWindow__updatePoetry()
+            # if hasattr(main_window, '_MainWindow__updateWeather'): main_window._MainWindow__updateWeather()
+            # if hasattr(main_window, '_MainWindow__updateCountdown'): main_window._MainWindow__updateCountdown()
+            # if hasattr(main_window, 'updateSchoolInfo'): main_window.updateSchoolInfo()
+            # if hasattr(main_window, 'updateSchoolInfoStyle'): main_window.updateSchoolInfoStyle()
+            # if hasattr(main_window, '_MainWindow__updateSchoolInfoPosition'): main_window._MainWindow__updateSchoolInfoPosition()
+            # if hasattr(main_window, '_MainWindow__updateClockPosition'): main_window._MainWindow__updateClockPosition()
+            # if hasattr(main_window, '_MainWindow__updatePoetryPosition'): main_window._MainWindow__updatePoetryPosition()
+            # if hasattr(main_window, '_MainWindow__updateWeatherPosition'): main_window._MainWindow__updateWeatherPosition()
+            # if hasattr(main_window, '_MainWindow__updateCountdownPosition'): main_window._MainWindow__updateCountdownPosition()
+            #
+            # app = QApplication.instance()
+            # if app:
+            #     font_loaded = _load_app_fonts()
+            #     apply_fonts(app, use_harmonyos=font_loaded)
+            #
+            # current_theme = cfg.themeMode.value
+            # setTheme(current_theme)
+            # cfg.themeChanged.emit(current_theme)
             InfoBar.success(tr("wizard.success_title"), tr("settings.import_success").format(path=file_path), duration=5000, parent=self)
         except json.JSONDecodeError:
             InfoBar.error(tr("dialog.error"), tr("settings.config_json_parse_error"), duration=5000, parent=self)
         except Exception as e:
             InfoBar.error(tr("dialog.error"), tr("settings.import_failed").format(error=str(e)), duration=5000, parent=self)
+
+    def _refreshAllConfigUI(self):
+        """刷新所有配置项的UI显示，包括信号通知和主窗口各组件更新"""
+        for attr_name in dir(cfg):
+            if not attr_name.startswith('_'):
+                attr = getattr(cfg, attr_name)
+                if isinstance(attr, ConfigItem) and hasattr(attr, 'valueChanged'):
+                    attr.valueChanged.emit(attr.value)
+
+        main_window = self.window()
+        if hasattr(main_window, '_MainWindow__updateQuickLaunch'):
+            main_window._MainWindow__updateQuickLaunch()
+        if hasattr(main_window, '_MainWindow__updateClock'):
+            main_window._MainWindow__updateClock()
+        if hasattr(main_window, '_MainWindow__updatePoetry'):
+            main_window._MainWindow__updatePoetry()
+        if hasattr(main_window, '_MainWindow__updateWeather'):
+            main_window._MainWindow__updateWeather()
+        if hasattr(main_window, '_MainWindow__updateCountdown'):
+            main_window._MainWindow__updateCountdown()
+        if hasattr(main_window, 'updateSchoolInfo'):
+            main_window.updateSchoolInfo()
+        if hasattr(main_window, 'updateSchoolInfoStyle'):
+            main_window.updateSchoolInfoStyle()
+        if hasattr(main_window, '_MainWindow__updateSchoolInfoPosition'):
+            main_window._MainWindow__updateSchoolInfoPosition()
+        if hasattr(main_window, '_MainWindow__updateClockPosition'):
+            main_window._MainWindow__updateClockPosition()
+        if hasattr(main_window, '_MainWindow__updatePoetryPosition'):
+            main_window._MainWindow__updatePoetryPosition()
+        if hasattr(main_window, '_MainWindow__updateWeatherPosition'):
+            main_window._MainWindow__updateWeatherPosition()
+        if hasattr(main_window, '_MainWindow__updateCountdownPosition'):
+            main_window._MainWindow__updateCountdownPosition()
+
+        app = QApplication.instance()
+        if app:
+            font_loaded = _load_app_fonts()
+            apply_fonts(app, use_harmonyos=font_loaded)
+        current_theme = cfg.themeMode.value
+        setTheme(current_theme)
+        cfg.themeChanged.emit(current_theme)
 
 
