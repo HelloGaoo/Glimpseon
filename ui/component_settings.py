@@ -511,8 +511,7 @@ class WeatherSettingDialog(ComponentSettingDialog):
                     cfg.city.value = selected_region
                     for btn in self._cityCard.findChildren(PushButton):
                         btn.setText(selected_region)
-                    if hasattr(main_window, '_MainWindow__updateWeather'):
-                        main_window._MainWindow__updateWeather()
+                    main_window.refresh_weather()
         except Exception:
             logger.exception(tr("component_settings.weather_open_city_selector_failed"))  # 打开城市选择器失败
 

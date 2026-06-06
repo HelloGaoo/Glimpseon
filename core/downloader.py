@@ -35,7 +35,6 @@ import time
 import py7zr
 import pythoncom
 import requests
-import urllib3
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from win32com.client import Dispatch

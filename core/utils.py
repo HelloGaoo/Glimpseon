@@ -104,9 +104,7 @@ def verify_single_instance():
     """检查是否已经有实例运行"""
     allow_multiple = cfg.allowMultipleInstances.value
     is_debug_mode = cfg.debugMode.value
-    if allow_multiple:
-        return True
-    if is_debug_mode:
+    if allow_multiple or is_debug_mode:
         return True
     is_only_instance = check_single_instance()
     if is_only_instance:

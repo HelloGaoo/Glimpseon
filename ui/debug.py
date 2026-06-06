@@ -61,9 +61,10 @@ from qfluentwidgets import (
     SubtitleLabel,
     ToggleButton,
 )
+from PyQt6.QtCore import pyqtSignal
 
 from core.config import cfg
-from core.constants import BASE_DIR, get_resPath, load_qss
+from core.constants import BASE_DIR, WALLPAPER_DIR, get_resPath, load_qss
 from core.utils import tr, TranslatableWidget
 from core.logger import logger
 from services.weather import WeatherService, RegionDatabase
@@ -73,10 +74,13 @@ from .common import BaseScrollAreaInterface, show_text_file
 
 class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
 
+    _diag_result = pyqtSignal(object)
+
     def __init__(self, mainWindow):
         super().__init__(tr("debug.title"), parent=None)  # 调试
         self.mainWindow = mainWindow
         self.setObjectName('debug')
+        self._diag_result.connect(self._handle_diag_result)
 
         self.frameCount = 0
         self.lastFpsTime = time.time()
@@ -219,7 +223,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         self.openLogDirBtn.clicked.connect(lambda: os.startfile(os.path.join(BASE_DIR, 'logs')))
         row2.addWidget(self.openLogDirBtn)
         self.openWallpaperDirBtn = PushButton(FIF.FOLDER_ADD, tr("debug.btn_open_wallpaper_dir"), card)  # 打开壁纸目录
-        self.openWallpaperDirBtn.clicked.connect(lambda: os.startfile(os.path.join(BASE_DIR, 'wallpaper')))
+        self.openWallpaperDirBtn.clicked.connect(lambda: os.startfile(WALLPAPER_DIR))  # os.path.join(BASE_DIR, 'wallpaper')
         row2.addWidget(self.openWallpaperDirBtn)
         self.openConfigDirBtn = PushButton(FIF.SETTING, tr("debug.btn_open_config_dir"), card)  # 打开配置目录
         self.openConfigDirBtn.clicked.connect(lambda: os.startfile(os.path.join(BASE_DIR, 'config')))
@@ -525,6 +529,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         if code is None: return
         mw = self.mainWindow
         home = mw.homeInterface
+        if home is None: return
         self._savedWeatherCode = getattr(home, 'current_weather_code', None)
         self._savedWeatherTemp = home.weatherTempLabel.text() if hasattr(home, 'weatherTempLabel') else ""
         home.current_weather_code = code
@@ -544,7 +549,9 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         if hasattr(self, '_savedWeatherCode'): del self._savedWeatherCode
         if hasattr(self, '_savedWeatherTemp'): del self._savedWeatherTemp
         mw = self.mainWindow
-        mw.homeInterface._updateWeather()
+        home = getattr(mw, 'homeInterface', None)
+        if home:
+            home._refreshWeather()
 
     def _createElementCheckCard(self):
         card = CardWidget()
@@ -640,7 +647,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             url, source = wallpaper._getApiUrl()
             response = requests.get(url, stream=True, timeout=10)
             if response.status_code == 200:
-                wallpaper_dir = os.path.join(BASE_DIR, 'wallpaper')
+                wallpaper_dir = WALLPAPER_DIR  # os.path.join(BASE_DIR, 'wallpaper')
                 if not os.path.exists(wallpaper_dir): os.makedirs(wallpaper_dir)
                 current_date = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
                 wallpaper_path = os.path.join(wallpaper_dir, f'wallpaper_{current_date}.jpg')
@@ -697,65 +704,103 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
 
     def _restartApp(self):
         InfoBar.info(title=tr("debug.btn_restart_app"), content=tr("debug.restarting"), parent=self, duration=2000)
-        QTimer.singleShot(800, lambda: subprocess.Popen([sys.executable] + sys.argv))
+        QTimer.singleShot(800, lambda: (subprocess.Popen([sys.executable] + sys.argv), QApplication.quit()))
 
     def _runNetworkDiag(self):
         target = self.networkTargetCombo.currentText().strip()
         if not target: return
+
+        def _diag():
+            results = []
+            results.append(f"[{time.strftime('%H:%M:%S')}] 开始诊断: {target}")
+
+            try:
+                start = time.time()
+                ip = socket.gethostbyname(target)
+                dns_ms = (time.time() - start) * 1000
+                results.append(("dns", ip, dns_ms))
+                results.append(f"  DNS 解析: {ip} ({dns_ms:.0f}ms)")
+            except Exception as e:
+                results.append(("dns_fail", str(e)))
+                results.append(f"  DNS 解析失败: {e}")
+
+            try:
+                start = time.time()
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(5)
+                port = 443
+                sock.connect((target, port))
+                latency = (time.time() - start) * 1000
+                sock.close()
+                results.append(("conn_ok", latency))
+                results.append(f"  连通性: OK (端口 {port}, {latency:.0f}ms)")
+            except socket.timeout:
+                results.append(("conn_timeout",))
+                results.append(f"  连通性: 超时 (>5s)")
+            except Exception as e:
+                results.append(("conn_fail", str(e)))
+                results.append(f"  连通性失败: {e}")
+
+            try:
+                start = time.time()
+                api_url = cfg.poetryApiUrl.value
+                resp = requests.get(api_url, timeout=5)
+                elapsed = (time.time() - start) * 1000
+                if resp.status_code == 200:
+                    results.append(("poetry_ok", elapsed))
+                    results.append(f"  一言 API: OK ({elapsed:.0f}ms)")
+                else:
+                    results.append(("poetry_http", resp.status_code))
+                    results.append(f"  一言 API: HTTP {resp.status_code}")
+            except Exception as e:
+                results.append(("poetry_fail",))
+                results.append(f"  一言 API: {e}")
+
+            results.append("--- 诊断完成 ---")
+            return results
+
         self.networkLogEdit.clear()
-        self.networkLogEdit.append(f"[{time.strftime('%H:%M:%S')}] 开始诊断: {target}")
-        QApplication.processEvents()
+        self.networkLogEdit.append(f"[{time.strftime('%H:%M:%S')}] 正在诊断: {target}...")
 
+        from concurrent.futures import ThreadPoolExecutor
+        executor = ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(_diag)
+        future._executor = executor
+        future.add_done_callback(lambda f: self._diag_result.emit(f))
+
+    def _handle_diag_result(self, future):
+        executor = getattr(future, '_executor', None)
         try:
-            start = time.time()
-            ip = socket.gethostbyname(target)
-            dns_ms = (time.time() - start) * 1000
-            self.networkDnsLabel.setText(f"{ip} ({dns_ms:.0f}ms)")
-            self.networkLogEdit.append(f"  DNS 解析: {ip} ({dns_ms:.0f}ms)")
+            results = future.result()
+            self.networkLogEdit.clear()
+            for r in results:
+                if isinstance(r, tuple):
+                    if r[0] == "dns":
+                        self.networkDnsLabel.setText(f"{r[1]} ({r[2]:.0f}ms)")
+                    elif r[0] == "dns_fail":
+                        self.networkDnsLabel.setText(f"失败 ({r[1]})")
+                    elif r[0] == "conn_ok":
+                        self.networkConnectLabel.setText("✓ 正常")
+                        self.networkLatencyLabel.setText(f"{r[1]:.0f} ms")
+                    elif r[0] == "conn_timeout":
+                        self.networkConnectLabel.setText("✗ 超时")
+                        self.networkLatencyLabel.setText(">5000ms")
+                    elif r[0] == "conn_fail":
+                        self.networkConnectLabel.setText("✗ 失败")
+                        self.networkLatencyLabel.setText("-")
+                    elif r[0] == "poetry_ok":
+                        self.networkPoetryLabel.setText(f"✓ {r[1]:.0f}ms")
+                    elif r[0] == "poetry_http":
+                        self.networkPoetryLabel.setText(f"HTTP {r[1]}")
+                    elif r[0] == "poetry_fail":
+                        self.networkPoetryLabel.setText(tr("debug.status_failed"))
+                elif isinstance(r, str):
+                    self.networkLogEdit.append(r)
         except Exception as e:
-            self.networkDnsLabel.setText(f"失败 ({e})")
-            self.networkLogEdit.append(f"  DNS 解析失败: {e}")
-
-        QApplication.processEvents()
-
-        try:
-            start = time.time()
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(5)
-            port = 443
-            sock.connect((target, port))
-            latency = (time.time() - start) * 1000
-            sock.close()
-            self.networkConnectLabel.setText("✓ 正常")
-            self.networkLatencyLabel.setText(f"{latency:.0f} ms")
-            self.networkLogEdit.append(f"  连通性: OK (端口 {port}, {latency:.0f}ms)")
-        except socket.timeout:
-            self.networkConnectLabel.setText("✗ 超时")
-            self.networkLatencyLabel.setText(">5000ms")
-            self.networkLogEdit.append(f"  连通性: 超时 (>5s)")
-        except Exception as e:
-            self.networkConnectLabel.setText(f"✗ 失败")
-            self.networkLatencyLabel.setText("-")
-            self.networkLogEdit.append(f"  连通性失败: {e}")
-
-        QApplication.processEvents()
-
-        try:
-            start = time.time()
-            api_url = cfg.poetryApiUrl.value
-            resp = requests.get(api_url, timeout=5)
-            elapsed = (time.time() - start) * 1000
-            if resp.status_code == 200:
-                self.networkPoetryLabel.setText(f"✓ {elapsed:.0f}ms")
-                self.networkLogEdit.append(f"  一言 API: OK ({elapsed:.0f}ms)")
-            else:
-                self.networkPoetryLabel.setText(f"HTTP {resp.status_code}")
-                self.networkLogEdit.append(f"  一言 API: HTTP {resp.status_code}")
-        except Exception as e:
-            self.networkPoetryLabel.setText(tr("debug.status_failed"))  # 失败
-            self.networkLogEdit.append(f"  一言 API: {e}")
-
-        self.networkLogEdit.append("--- 诊断完成 ---")
+            self.networkLogEdit.append(f"诊断异常: {e}")
+        finally:
+            if executor is not None:
+                executor.shutdown(wait=False)
 
     def _runNetworkDiagAll(self):
         combo = self.networkTargetCombo
@@ -766,9 +811,9 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         for idx, target in enumerate(items):
             combo.setCurrentIndex(idx)
             self.networkLogEdit.append(f"\n{'='*30} [{idx+1}/{len(items)}] {target} {'='*30}")
+            # 单目标诊断
             self._runNetworkDiag()
         combo.setCurrentIndex(original)
-        self.networkLogEdit.append(f"\n[{time.strftime('%H:%M:%S')}] 全部诊断完成")
 
     def _setupTimers(self):
         self.fpsTimer = QTimer(self)
@@ -879,7 +924,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
 
     def _updateResourceMonitor(self):
         try:
-            wallpaper_dir = os.path.normpath(os.path.join(BASE_DIR, 'wallpaper'))
+            wallpaper_dir = os.path.normpath(WALLPAPER_DIR)  # os.path.join(BASE_DIR, 'wallpaper')
             if os.path.exists(wallpaper_dir):
                 total_size = 0
                 file_count = 0
@@ -943,7 +988,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
 
     def _clearCache(self):
         try:
-            wallpaper_dir = os.path.normpath(os.path.join(BASE_DIR, 'wallpaper'))
+            wallpaper_dir = os.path.normpath(WALLPAPER_DIR)  # os.path.join(BASE_DIR, 'wallpaper')
             if os.path.exists(wallpaper_dir):
                 deleted_count = 0
                 deleted_size = 0
@@ -1086,7 +1131,9 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             self._popOutContentContainer = container
             outer_layout.addWidget(scroll)
 
-            screen = QApplication.primaryScreen().availableGeometry()
+            screen_obj = QApplication.primaryScreen()
+            if not screen_obj: return
+            screen = screen_obj.availableGeometry()
             x = (screen.width() - self._popOutWindow.width()) // 2
             y = (screen.height() - self._popOutWindow.height()) // 2
             self._popOutWindow.move(x, y)

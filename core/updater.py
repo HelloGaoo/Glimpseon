@@ -32,7 +32,6 @@ import shutil
 
 import py7zr
 import requests
-import urllib3
 import warnings
 import zipfile
 

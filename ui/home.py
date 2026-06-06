@@ -94,6 +94,8 @@ from services.weather import WeatherService, RegionDatabase, RegionSelectorDialo
 from services.poetry import PoetryService
 from ui.component import DraggableContainer, DraggableWidget, MediaWidget, QuickLaunchDock, resolve_app_from_path
 
+FONT_FAMILY = '"HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif'
+
 
 class GuideLineOverlay(QWidget):
     """辅助线"""
@@ -380,9 +382,9 @@ class HomeInterface(QWidget, TranslatableWidget):
         self._updateClock()
 
         self.poetryTimer = QTimer(self)
-        self.poetryTimer.timeout.connect(self._updatePoetry)
-        cfg.showPoetry.valueChanged.connect(self._updatePoetry)
-        cfg.poetryApiUrl.valueChanged.connect(self._updatePoetry)
+        self.poetryTimer.timeout.connect(self._refreshPoetry)
+        cfg.showPoetry.valueChanged.connect(self._refreshPoetry)
+        cfg.poetryApiUrl.valueChanged.connect(self._refreshPoetry)
         cfg.poetryUpdateInterval.valueChanged.connect(self._updatePoetryInterval)
         self._updatePoetryInterval()
 
@@ -406,9 +408,9 @@ class HomeInterface(QWidget, TranslatableWidget):
         self.countdownRefreshTimer.start(1000)
 
         self.weatherTimer = QTimer(self)
-        self.weatherTimer.timeout.connect(self._updateWeather)
+        self.weatherTimer.timeout.connect(self._refreshWeather)
         cfg.weatherUpdateInterval.valueChanged.connect(self._updateWeatherInterval)
-        cfg.showWeather.valueChanged.connect(self._updateWeather)
+        cfg.showWeather.valueChanged.connect(self._refreshWeather)
         self._updateWeatherInterval()
 
         self._initMediaWidgetTimers()
@@ -511,10 +513,11 @@ class HomeInterface(QWidget, TranslatableWidget):
             try:
                 if hasattr(self, 'originalPixmap') and self.originalPixmap is not None and not self.originalPixmap.isNull():
                     scaled_pixmap = self.originalPixmap.scaled(available_width, available_height, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
-                    blur_effect = QGraphicsBlurEffect()
+                    if not hasattr(self, '_bg_blur_effect') or self._bg_blur_effect is None:
+                        self._bg_blur_effect = QGraphicsBlurEffect()
+                        self.homeBackgroundImage.setGraphicsEffect(self._bg_blur_effect)
                     blur_radius = cfg.backgroundBlurRadius.value
-                    blur_effect.setBlurRadius(blur_radius)
-                    self.homeBackgroundImage.setGraphicsEffect(blur_effect)
+                    self._bg_blur_effect.setBlurRadius(blur_radius)
                     self.homeBackgroundImage.setPixmap(scaled_pixmap)
             except Exception as e:
                 logger.error(f"resizeEvent 错误：{e}")
@@ -587,28 +590,28 @@ class HomeInterface(QWidget, TranslatableWidget):
             color: {color_str}; 
             font-size: {clock_size}px; 
             font-weight: bold; 
-            font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            font-family: {FONT_FAMILY}; # "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
 
         self.dateLabel.setStyleSheet(f"""
-            color: {color_str}; 
-            font-size: {date_size}px; 
-            font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            color: {color_str};
+            font-size: {date_size}px;
+            font-family: {FONT_FAMILY}; # "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
 
         self.poetryLabel.setStyleSheet(f"""
-            color: {color_str}; 
-            font-size: {poetry_size}px; 
-            font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            color: {color_str};
+            font-size: {poetry_size}px;
+            font-family: {FONT_FAMILY}; # "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
 
         self.weatherTempLabel.setStyleSheet(f"""
-            color: {color_str}; 
-            font-size: {weather_size}px; 
-            font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            color: {color_str};
+            font-size: {weather_size}px;
+            font-family: {FONT_FAMILY}; # "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
         if hasattr(self, 'clockContainer'):
@@ -624,23 +627,24 @@ class HomeInterface(QWidget, TranslatableWidget):
     def _updatePoetryInterval(self):
         self.poetryTimer.stop()
         interval_str = cfg.poetryUpdateInterval.value
-        interval = self._parseInterval(interval_str, poetry=True)
+        interval = self._parseInterval(interval_str)
         if interval == 0:
-            self._updatePoetry(cache_only=True)
+            self._showCachedPoetry()
             return
         self.poetryTimer.start(interval)
-        self._updatePoetry(cache_only=True)
+        self._showCachedPoetry()
 
     def _updateWeatherInterval(self):
         self.weatherTimer.stop()
         interval_str = cfg.weatherUpdateInterval.value
-        interval = self._parseInterval(interval_str, poetry=False)
+        interval = self._parseInterval(interval_str)
         if interval == 0:
-            self._updateWeather(cache_only=True)
+            self._showCachedWeather()
             return
         self.weatherTimer.start(interval)
 
-    def _updatePoetry(self, cache_only=False):
+    def _showCachedPoetry(self):
+        """缓存读取诗词显示"""
         if not cfg.showPoetry.value:
             self.poetryLabel.hide()
             if hasattr(self, 'poetryContainer'):
@@ -654,18 +658,42 @@ class HomeInterface(QWidget, TranslatableWidget):
             self.poetryContainer.setContentVisible(True)
         self.poetryLabel.show()
 
-        if cache_only:
-            cached = get_cached_content("poetry")
-            text = cached if cached else ""
-        else:
-            text = PoetryService.get_poetry_with_cache()
+        cached = get_cached_content("poetry")
+        text = cached if cached else ""
         self.poetryLabel.setText(text)
         if hasattr(self, 'poetryContainer'):
             self.poetryContainer.updateSize()
 
+    def _refreshPoetry(self):
+        """网络获取诗词显示"""
+        if not cfg.showPoetry.value:
+            self.poetryLabel.hide()
+            if hasattr(self, 'poetryContainer'):
+                if self.isEditMode:
+                    self.poetryContainer.setContentVisible(False)
+                    self.poetryContainer.show()
+                else:
+                    self.poetryContainer.hide()
+            return
+        if hasattr(self, 'poetryContainer'):
+            self.poetryContainer.setContentVisible(True)
+        self.poetryLabel.show()
+
+        text = PoetryService.get_poetry_with_cache()
+        self.poetryLabel.setText(text)
+        if hasattr(self, 'poetryContainer'):
+            self.poetryContainer.updateSize()
+
+    # def _updatePoetry(self, cache_only=False):
+    #     """拆分为 _showCachedPoetry 和 _refreshPoetry"""
+    #     if cache_only:
+    #         self._showCachedPoetry()
+    #     else:
+    #         self._refreshPoetry()
+
     @staticmethod
-    def _parseInterval(interval_str, poetry=True):
-        # 旧本地映射已注释，改用 core.utils.INTERVAL_MAP（值为秒，需乘 1000 转毫秒）
+    def _parseInterval(interval_str):
+        #  弃用 改用 core.utils.INTERVAL_MAP
         # if poetry:
         #     m = {
         #         "never": 0, tr("time.never"): 0, "从不": 0,
@@ -693,7 +721,8 @@ class HomeInterface(QWidget, TranslatableWidget):
         # return m.get(interval_str, 30 * 60 * 1000)
         return INTERVAL_MAP.get(interval_str.strip(), 0) * 1000
 
-    def _updateWeather(self, cache_only=False):
+    def _displayCachedWeather(self):
+        """缓存显示天气"""
         if not cfg.showWeather.value:
             self.weatherTempLabel.hide()
             self.weatherIconLabel.hide()
@@ -703,7 +732,8 @@ class HomeInterface(QWidget, TranslatableWidget):
                     self.weatherContainer.show()
                 else:
                     self.weatherContainer.hide()
-            return
+            # 返回是否应在线刷新
+            return False
 
         if hasattr(self, 'weatherContainer'):
             self.weatherContainer.setContentVisible(True)
@@ -724,12 +754,19 @@ class HomeInterface(QWidget, TranslatableWidget):
                     logger.info(f"使用缓存天气：{weather_text}")
                     if hasattr(self, 'weatherContainer'):
                         self.weatherContainer.updateSize()
-                    if cache_only:
-                        return
             except Exception as e:
                 logger.warning(f"读取缓存天气数据失败：{e}")
 
-        if cache_only:
+        # 返回是否应在线刷新
+        return True
+
+    def _showCachedWeather(self):
+        """缓存读取天气显示"""
+        self._displayCachedWeather()
+
+    def _refreshWeather(self):
+        """在线获取天气显示"""
+        if not self._displayCachedWeather():
             return
 
         success = False
@@ -806,6 +843,13 @@ class HomeInterface(QWidget, TranslatableWidget):
             self.weatherIconLabel.clear()
             if hasattr(self, 'weatherContainer'):
                 self.weatherContainer.updateSize()
+
+    # def _updateWeather(self, cache_only=False):
+    #     """已拆分为 _showCachedWeather 和 _refreshWeather，保留以兼容"""
+    #     if cache_only:
+    #         self._showCachedWeather()
+    #     else:
+    #         self._refreshWeather()
 
     def _updateWeatherIcon(self):
         try:
@@ -894,12 +938,12 @@ class HomeInterface(QWidget, TranslatableWidget):
         def fmt(text, connector=""):
             if hasattr(self, 'countdownTextColor'):
                 if connector:
-                    return (f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownTitleSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{title}</span>'
-                            f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{connector}</span>'
-                            f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownDaysSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{text}</span>')
+                    return (f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownTitleSize}px; font-weight: bold; font-family: {FONT_FAMILY};">{title}</span>'  # &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif
+                            f'<span style="color: {self.countdownConnectorColor}; font-size: {self.countdownConnectorSize}px; font-weight: bold; font-family: {FONT_FAMILY};">{connector}</span>'  # &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif
+                            f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownDaysSize}px; font-weight: bold; font-family: {FONT_FAMILY};">{text}</span>')  # &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif
                 else:
-                    return (f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownTitleSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{title}</span>'
-                            f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownDaysSize}px; font-weight: bold; font-family: &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif;">{text}</span>')
+                    return (f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownTitleSize}px; font-weight: bold; font-family: {FONT_FAMILY};">{title}</span>'  # &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif
+                            f'<span style="color: {self.countdownTextColor}; font-size: {self.countdownDaysSize}px; font-weight: bold; font-family: {FONT_FAMILY};">{text}</span>')  # &quot;HarmonyOS Sans&quot;, &quot;Microsoft YaHei&quot;, &quot;SimHei&quot;, sans-serif
             else:
                 return f"{title}{connector}{text}"
 
@@ -944,7 +988,7 @@ class HomeInterface(QWidget, TranslatableWidget):
             color: {text_color_str};
             font-size: {text_size}px;
             font-weight: bold;
-            font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            font-family: {FONT_FAMILY}; # "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
             background-color: transparent;
         """)
 
@@ -979,8 +1023,8 @@ class HomeInterface(QWidget, TranslatableWidget):
         text_size = cfg.schoolInfoTextSize.value
         self.schoolInfoTextColor = text_color_str
         self.schoolInfoTextSize = text_size
-        self.schoolClassLabel.setStyleSheet(f"color: {text_color_str}; font-size: {text_size}px; font-weight: bold; font-family: \"HarmonyOS Sans\", \"Microsoft YaHei\", \"SimHei\", sans-serif;")
-        self.schoolNameLabel.setStyleSheet(f"color: {text_color_str}; font-size: {text_size}px; font-weight: bold; font-family: \"HarmonyOS Sans\", \"Microsoft YaHei\", \"SimHei\", sans-serif;")
+        self.schoolClassLabel.setStyleSheet(f"color: {text_color_str}; font-size: {text_size}px; font-weight: bold; font-family: {FONT_FAMILY};")  # \"HarmonyOS Sans\", \"Microsoft YaHei\", \"SimHei\", sans-serif
+        self.schoolNameLabel.setStyleSheet(f"color: {text_color_str}; font-size: {text_size}px; font-weight: bold; font-family: {FONT_FAMILY};")  # \"HarmonyOS Sans\", \"Microsoft YaHei\", \"SimHei\", sans-serif
         if hasattr(self, 'schoolInfoContainer'):
             self.schoolInfoContainer.updateSize()
 
@@ -1102,8 +1146,8 @@ class HomeInterface(QWidget, TranslatableWidget):
 
     def _refreshDisabledComponents(self):
         self._updateClock()
-        self._updatePoetry(cache_only=True)
-        self._updateWeather(cache_only=True)
+        self._showCachedPoetry()
+        self._showCachedWeather()
         self._updateCountdown()
         self.updateSchoolInfo()
         self._updateQuickLaunch()
@@ -1233,33 +1277,27 @@ class HomeInterface(QWidget, TranslatableWidget):
         if self._guideOverlay:
             self._guideOverlay.setAlignLines([])
 
+    # 组件拖拽位置变更回调（预留，暂未持久化位置）
     def _onClockPositionChanged(self, x: float, y: float):
         pass
-    # 这几段是干啥的我忘了 为啥还要传入xy坐标 _initContainers函数有引用 
 
     def _onWeatherPositionChanged(self, x: float, y: float):
         pass
-    # 这几段是干啥的我忘了 为啥还要传入xy坐标 _initContainers函数有引用 
 
     def _onPoetryPositionChanged(self, x: float, y: float):
         pass
-    # 这几段是干啥的我忘了 为啥还要传入xy坐标 _initContainers函数有引用 
 
     def _onCountdownPositionChanged(self, x: float, y: float):
         pass
-    # 这几段是干啥的我忘了 为啥还要传入xy坐标 _initContainers函数有引用 
 
     def _onSchoolInfoPositionChanged(self, x: float, y: float):
         pass
-    # 这几段是干啥的我忘了 为啥还要传入xy坐标 _initContainers函数有引用 
 
     def _onMediaPositionChanged(self, x: float, y: float):
         pass
-    # 这几段是干啥的我忘了 为啥还要传入xy坐标 _initContainers函数有引用 
 
     def _onQuickLaunchPositionChanged(self, x: float, y: float):
         pass
-    # 这几段是干啥的我忘了 为啥还要传入xy坐标 _initContainers函数有引用 
 
     def _updateEditButtonPosition(self):
         if not hasattr(self, 'editLayout'):
@@ -1408,7 +1446,6 @@ class EditPanel(QWidget):
         self._updateTheme()
 
         self.hide()
-        self.setVisible(False)
 
     def _addSeparator(self, layout):
         """添加分隔线"""
@@ -1901,19 +1938,19 @@ class EditPanel(QWidget):
         """启用时钟开关变化"""
         cfg.showClock.value = checked
         self._updateTimeSettingsEnabled(checked)
-        if hasattr(self.mainWindow, '_MainWindow__updateClock'):self.mainWindow._MainWindow__updateClock()
+        self.mainWindow.refresh_clock()
         logger.info(f"时间设置：启用时钟={'开启' if checked else '关闭'}")
 
     def _onShowSecondsChanged(self, checked: bool):
         """显示秒针开关变化"""
         cfg.showClockSeconds.value = checked
-        if hasattr(self.mainWindow, '_MainWindow__updateClock'):self.mainWindow._MainWindow__updateClock()
+        self.mainWindow.refresh_clock()
         logger.info(f"时间设置：显示秒针={'开启' if checked else '关闭'}")
 
     def _onShowLunarChanged(self, checked: bool):
         """显示农历开关变化"""
         cfg.showLunarCalendar.value = checked
-        if hasattr(self.mainWindow, '_MainWindow__updateClock'):self.mainWindow._MainWindow__updateClock()
+        self.mainWindow.refresh_clock()
         logger.info(f"时间设置：显示农历={'开启' if checked else '关闭'}")
 
     def _getColorText(self, color, default='main'):
@@ -1977,14 +2014,13 @@ class EditPanel(QWidget):
             cfg.poetryApiUrl.value = 'https://www.ffapi.cn/int/v1/shici'
         else:
             cfg.poetryApiUrl.value = 'https://api.imlcd.cn/yy/api.php'
-        if hasattr(self.mainWindow, '_MainWindow__updatePoetry'):
-            self.mainWindow._MainWindow__updatePoetry()
+        self.mainWindow.refresh_poetry()
         logger.info(f"一言设置：API 地址={cfg.poetryApiUrl.value}")
 
     def _onPoetryUpdateIntervalChanged(self, text: str):
         """一言更新间隔变化"""
         cfg.poetryUpdateInterval.value = text
-        if hasattr(self.mainWindow, '_MainWindow__updatePoetryInterval'):self.mainWindow._MainWindow__updatePoetryInterval()
+        self.mainWindow.refresh_poetry_interval()
         logger.info(f"一言设置：更新间隔={text}")
 
     def _onPoetrySizeChanged(self, value: int):
@@ -1997,7 +2033,7 @@ class EditPanel(QWidget):
         """启用天气开关变化"""
         cfg.showWeather.value = checked
         self._updateWeatherSettingsEnabled(checked)
-        if hasattr(self.mainWindow, '_MainWindow__updateWeather'):self.mainWindow._MainWindow__updateWeather()
+        self.mainWindow.refresh_weather()
         logger.info(f"天气设置：启用天气={'开启' if checked else '关闭'}")
 
     def _onWeatherSizeChanged(self, value: int):
@@ -2009,13 +2045,13 @@ class EditPanel(QWidget):
     def _onWeatherIconSizeChanged(self, value: int):
         """天气图标大小变化"""
         cfg.weatherIconSize.value = value
-        if hasattr(self.mainWindow, '_MainWindow__updateWeatherIcon'):self.mainWindow._MainWindow__updateWeatherIcon()
+        self.mainWindow.refresh_weather_icon()
         logger.info(f"天气设置：天气图标大小={value}px")
 
     def _onWeatherUpdateIntervalChanged(self, text: str):
         """天气更新间隔变化"""
         cfg.weatherUpdateInterval.value = text
-        if hasattr(self.mainWindow, '_MainWindow__updateWeatherInterval'):self.mainWindow._MainWindow__updateWeatherInterval()
+        self.mainWindow.refresh_weather_interval()
         logger.info(f"天气设置：更新间隔={text}")
 
     def _onCityButtonClicked(self):
@@ -2026,8 +2062,7 @@ class EditPanel(QWidget):
             if selected_region:
                 cfg.city.value = selected_region
                 logger.info(f"天气设置：城市={selected_region}")
-                if hasattr(self.mainWindow, '_MainWindow__updateWeather'):
-                    self.mainWindow._MainWindow__updateWeather()
+                self.mainWindow.refresh_weather()
 
     def _togglePosition(self):
         """切换编辑面板位置"""
@@ -2038,8 +2073,7 @@ class EditPanel(QWidget):
         else:
             self.positionButton.setIcon(FIF.CARE_LEFT_SOLID)
             self.positionButton.setToolTip(tr("home.switch_to_left"))  # 切换到左侧
-        if hasattr(self.mainWindow, '_MainWindow__updateEditButtonPosition'):
-            self.mainWindow._MainWindow__updateEditButtonPosition()
+        self.mainWindow.refresh_edit_button_position()
 
         if self.isVisible():
             self.showPanel()
@@ -2282,14 +2316,12 @@ class EditPanel(QWidget):
     def _onShowCountdownChanged(self, checked: bool):
         cfg.showCountdown.value = checked
         self._updateCountdownSettingsEnabled(checked)
-        if hasattr(self.mainWindow, '_MainWindow__updateCountdown'):
-            self.mainWindow._MainWindow__updateCountdown()
+        self.mainWindow.refresh_countdown()
         logger.info(f"倒计时设置：启用倒计时={'开启' if checked else '关闭'}")
 
     def _onCountdownDisplayModeChanged(self, text: str):
         cfg.countdownDisplayMode.value = 'simultaneous' if text == tr("home.simultaneous") else 'carousel'  # 同时显示 / 轮播显示
-        if hasattr(self.mainWindow, '_MainWindow__updateCountdown'):
-            self.mainWindow._MainWindow__updateCountdown()
+        self.mainWindow.refresh_countdown()
         logger.info(f"倒计时设置：显示模式={text}")
 
     def _onCountdownTextSizeChanged(self, value: int):
@@ -2306,8 +2338,7 @@ class EditPanel(QWidget):
 
     def _onCountdownCarouselIntervalChanged(self, value: int):
         cfg.countdownCarouselInterval.value = value
-        if hasattr(self.mainWindow, '_MainWindow__updateCountdownCarouselInterval'):
-            self.mainWindow._MainWindow__updateCountdownCarouselInterval()
+        self.mainWindow.refresh_countdown_carousel_interval()
         logger.info(f"倒计时设置：轮播间隔={value}秒")
 
     def _onCountdownAddClicked(self):
@@ -2323,8 +2354,7 @@ class EditPanel(QWidget):
                 self._updateCountdownList()
                 if self.countdownListWidget.count() > 0:
                     self.countdownListWidget.setCurrentRow(self.countdownListWidget.count() - 1)
-                if hasattr(self.mainWindow, '_MainWindow__updateCountdown'):
-                    self.mainWindow._MainWindow__updateCountdown()
+                self.mainWindow.refresh_countdown()
                 logger.info(f"倒计时设置：添加倒计时={countdown_data}")
 
     def _onCountdownEditClicked(self):
@@ -2346,8 +2376,7 @@ class EditPanel(QWidget):
                 self._updateCountdownList()
                 if 0 <= current_row < self.countdownListWidget.count():
                     self.countdownListWidget.setCurrentRow(current_row)
-                if hasattr(self.mainWindow, '_MainWindow__updateCountdown'):
-                    self.mainWindow._MainWindow__updateCountdown()
+                self.mainWindow.refresh_countdown()
                 logger.info(f"倒计时设置：编辑倒计时={countdown_data}")
 
     def _onCountdownDeleteClicked(self):
@@ -2365,8 +2394,7 @@ class EditPanel(QWidget):
         if self.countdownListWidget.count() > 0:
             new_row = min(current_row, self.countdownListWidget.count() - 1)
             self.countdownListWidget.setCurrentRow(new_row)
-        if hasattr(self.mainWindow, '_MainWindow__updateCountdown'):
-            self.mainWindow._MainWindow__updateCountdown()
+        self.mainWindow.refresh_countdown()
         logger.info(f"倒计时设置：删除倒计时索引={current_row}")
 
     def _onCountdownTextColorChanged(self, text: str):
@@ -2444,32 +2472,27 @@ class EditPanel(QWidget):
     def _onShowQuickLaunchChanged(self, checked: bool):
         cfg.showQuickLaunch.value = checked
         save_cfg()
-        if hasattr(self.mainWindow, '_MainWindow__updateQuickLaunch'):
-            self.mainWindow._MainWindow__updateQuickLaunch()
+        self.mainWindow.refresh_quick_launch()
 
     def _onQuickLaunchEditClicked(self):
         dialog = QuickLaunchEditDialog(self.mainWindow)
         dialog.exec()
-        if hasattr(self.mainWindow, '_MainWindow__updateQuickLaunch'):
-            self.mainWindow._MainWindow__updateQuickLaunch()
+        self.mainWindow.refresh_quick_launch()
 
     def _onQuickLaunchIconSizeChanged(self, value: int):
         cfg.quickLaunchIconSize.value = value
         save_cfg()
-        if hasattr(self.mainWindow, '_MainWindow__updateQuickLaunch'):
-            self.mainWindow._MainWindow__updateQuickLaunch()
+        self.mainWindow.refresh_quick_launch()
 
     def _onQuickLaunchIconSpacingChanged(self, value: int):
         cfg.quickLaunchIconSpacing.value = value
         save_cfg()
-        if hasattr(self.mainWindow, '_MainWindow__updateQuickLaunch'):
-            self.mainWindow._MainWindow__updateQuickLaunch()
+        self.mainWindow.refresh_quick_launch()
 
     def _onQuickLaunchShowLabelsChanged(self, checked: bool):
         cfg.quickLaunchShowLabels.value = checked
         save_cfg()
-        if hasattr(self.mainWindow, '_MainWindow__updateQuickLaunch'):
-            self.mainWindow._MainWindow__updateQuickLaunch()
+        self.mainWindow.refresh_quick_launch()
 
     def refreshQuickLaunchSettings(self):
         self.showQuickLaunchSwitch.setChecked(cfg.showQuickLaunch.value)
@@ -2973,8 +2996,8 @@ class QuickLaunchEditDialog(MessageBoxBase):
 
     def _refresh_dock(self):
         """刷新 dock 栏显示"""
-        if hasattr(self, 'mainWindow') and hasattr(self.mainWindow, '_MainWindow__updateQuickLaunch'):
-            self.mainWindow._MainWindow__updateQuickLaunch()
+        if hasattr(self, 'mainWindow'):
+            self.mainWindow.refresh_quick_launch()
 
     def dragEnterEvent(self, e):
         if e.mimeData().hasUrls():

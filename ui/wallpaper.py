@@ -72,7 +72,7 @@ from qfluentwidgets import (
 )
 
 from core.config import cfg
-from core.constants import BASE_DIR, get_resPath, load_qss
+from core.constants import BASE_DIR, WALLPAPER_DIR, get_resPath, load_qss
 from core.utils import get_cached_content, save_cache, get_cache_info, tr, TranslatableWidget, INTERVAL_MAP
 
 logger = logging.getLogger("ClassLively.ui.wallpaper")
@@ -101,7 +101,7 @@ def get_cached_thumbnail(path: str, size: tuple = (144, 90)) -> Optional[QPixmap
         if pixmap.isNull():return None
         scaled = pixmap.scaled(size[0], size[1], Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.FastTransformation)
         if len(_thumbnail_cache) >= _cache_max_size:
-            old_keys = list(_thumbnail_cache.keys())[:50]
+            old_keys = list(_thumbnail_cache)[:50]
             for k in old_keys:del _thumbnail_cache[k]
 
         _thumbnail_cache[cache_key] = scaled
@@ -161,7 +161,7 @@ class WallpaperHistory:
             return
         self._initialized = True
         
-        self.wallpaper_dir = os.path.join(BASE_DIR, 'wallpaper')
+        self.wallpaper_dir = WALLPAPER_DIR  # os.path.join(BASE_DIR, 'wallpaper')
         self.history_file = os.path.join(self.wallpaper_dir, HISTORY_FILE_NAME)
         self._history: List[WallpaperRecord] = []
         self._load()
@@ -985,7 +985,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         if self.current_pixmap and not self.current_pixmap.isNull():self._updateBackground()
 
     def _onWallpaperSaveLimitChanged(self, new_limit: int):
-        wallpaper_dir = os.path.join(BASE_DIR, 'wallpaper')
+        wallpaper_dir = WALLPAPER_DIR  # os.path.join(BASE_DIR, 'wallpaper')
         self._manageWallpaperLimit(wallpaper_dir, new_limit)
 
     def _applyEffects(self):
@@ -1052,7 +1052,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
             
             if response.status_code == 200:
                 logger.info(f"壁纸请求成功，状态码: {response.status_code}")
-                wallpaper_dir = os.path.join(BASE_DIR, 'wallpaper')
+                wallpaper_dir = WALLPAPER_DIR  # os.path.join(BASE_DIR, 'wallpaper')
                 if not os.path.exists(wallpaper_dir):
                     os.makedirs(wallpaper_dir)
                     logger.info(f"创建壁纸目录: {wallpaper_dir}")
@@ -1110,7 +1110,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         default_wallpaper_path = get_resPath(os.path.join('resource', 'wallpaper', 'default.jpg'))
         
         if not os.path.exists(default_wallpaper_path):
-            wallpaper_dir = os.path.join(BASE_DIR, 'wallpaper')
+            wallpaper_dir = WALLPAPER_DIR  # os.path.join(BASE_DIR, 'wallpaper')
             if os.path.exists(wallpaper_dir):
                 wallpapers = [f for f in os.listdir(wallpaper_dir) if f.endswith('.jpg') and f.startswith('wallpaper_')]
                 if wallpapers:
@@ -1230,7 +1230,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         
         file_path, _ = QFileDialog.getSaveFileName(
             self, "另存壁纸",
-            os.path.join(BASE_DIR, "wallpaper"),
+            WALLPAPER_DIR,  # os.path.join(BASE_DIR, "wallpaper")
             "JPEG图片 (*.jpg);;PNG图片 (*.png)"
         )
         
@@ -1247,7 +1247,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         logger.info("开始手动选择壁纸")
         file_path, _ = QFileDialog.getOpenFileName(
             self, tr("wallpaper.select_title"),
-            os.path.join(BASE_DIR, "wallpaper"),
+            WALLPAPER_DIR,  # os.path.join(BASE_DIR, "wallpaper")
             tr("wallpaper.image_filter")
         )
         

@@ -47,7 +47,7 @@ from qfluentwidgets import (
 from pycaw.pycaw import AudioUtilities
 
 from core.config import cfg, save_cfg, Language
-from core.constants import APP_NAME, BASE_DIR, get_resPath, load_qss
+from core.constants import APP_NAME, BASE_DIR, WALLPAPER_DIR, get_resPath, load_qss
 from core.downloader import cleanup_temp_directory
 from core.logger import logger, init_exhook
 from core.updater import (
@@ -79,9 +79,11 @@ from ui.wallpaper import WallpaperInterface
 from version import BUILD_DATE, VERSION
 from data.url_dir import url_dir
 
+WIZARD_CONFIG_PATH = os.path.join(BASE_DIR, "config", "Setup_Wizard.json")
+
 
 def check_wizard_needed():
-    wizard_path = os.path.join(BASE_DIR, "config", "Setup_Wizard.json")
+    wizard_path = WIZARD_CONFIG_PATH  # os.path.join(BASE_DIR, "config", "Setup_Wizard.json")
     if not os.path.exists(wizard_path):
         return True
     try:
@@ -93,13 +95,13 @@ def check_wizard_needed():
 
 
 def create_wizard_file():
-    wizard_path = os.path.join(BASE_DIR, "config", "Setup_Wizard.json")
+    wizard_path = WIZARD_CONFIG_PATH  # os.path.join(BASE_DIR, "config", "Setup_Wizard.json")
     with open(wizard_path, "w", encoding="utf-8") as f:
         json.dump({"completed": 0}, f)
 
 
 def complete_wizard():
-    wizard_path = os.path.join(BASE_DIR, "config", "Setup_Wizard.json")
+    wizard_path = WIZARD_CONFIG_PATH  # os.path.join(BASE_DIR, "config", "Setup_Wizard.json")
     with open(wizard_path, "w", encoding="utf-8") as f:
         json.dump({"completed": 1}, f)
 
@@ -149,7 +151,7 @@ class SplashScreen(QWidget, TranslatableWidget):
         self.app_name_label = StrongBodyLabel(self.app_name)
         title_layout.addWidget(self.app_name_label)
 
-        self.version_label = BodyLabel(f"{self.version}")
+        self.version_label = BodyLabel(self.version)
         self.version_label.setObjectName("versionLabel")
         title_layout.addWidget(self.version_label)
         title_layout.addStretch()
@@ -178,11 +180,7 @@ class SplashScreen(QWidget, TranslatableWidget):
 
     def _updateBackgroundStyle(self):
         """更新背景"""
-        is_dark = isDarkTheme()
-        if is_dark:
-            bg_color = "rgba(32, 32, 32, 200)"
-        else:
-            bg_color = "rgba(255, 255, 255, 200)"
+        bg_color = "rgba(32, 32, 32, 200)" if isDarkTheme() else "rgba(255, 255, 255, 200)"
 
         self.content_widget.setStyleSheet(f"""
             #contentWidget {{
@@ -221,7 +219,7 @@ class SplashScreen(QWidget, TranslatableWidget):
     def setProgress(self, value: int):
         """设置0-100"""
         try:
-            v = int(max(0, min(100, value)))
+            v = max(0, min(100, value))
         except Exception:
             return
         self._target_progress = v
@@ -733,7 +731,6 @@ class WizardWindow(QDialog, TranslatableWidget):
         self.finishButton.clicked.connect(self._onFinishClicked)
         self.finishButton2.clicked.connect(self._onFinishClicked2)
         self.finishButton3.clicked.connect(self._onFinishClicked3)
-        self.themeCard.comboBox.currentIndexChanged.connect(self._onThemeChanged)
         self.themeColorCard.colorChanged.connect(self._onColorChanged)
 
     def resizeEvent(self, event):
@@ -942,7 +939,6 @@ class MainWindow(FluentWindow):
         self._initNavigation()
         logger.info(f"[MW] _initNavigation 总耗时{time.time()-_t_nav:.2f}s")
 
-        _t = time.time()
         self._normal_size = (1050, 750)
         self._is_maximized = False
         self._resize_timer = QTimer(self)
@@ -1039,28 +1035,20 @@ class MainWindow(FluentWindow):
         self._installGlobalHooks()
 
     def _initThemeConnections(self):
-        cfg.themeMode.valueChanged.connect(self._onThemeChanged)
         cfg.themeChanged.connect(self.updateInterface._onThemeChanged)
         cfg.themeChanged.connect(self.downloadInterface._onThemeChanged)
         cfg.themeChanged.connect(self.wallpaper._onThemeChanged)
         cfg.themeChanged.connect(self.aboutInterface._onThemeChanged)
         cfg.themeChanged.connect(self._onDebugPanelThemeChanged)
-        cfg.themeChanged.connect(self._onEditPanelThemeChanged)
 
     def _onDebugModeChanged(self, value):
         self.debugNavItem.setVisible(value)
         if not value and self.stackedWidget.currentWidget() == self.debugPanel:
             self.switchTo(self.homeInterface)
 
-    def _onThemeChanged(self):
-        pass
-
     def _onDebugPanelThemeChanged(self):
         if hasattr(self, 'debugPanel') and self.debugPanel:
             self.debugPanel._updateTheme()
-
-    def _onEditPanelThemeChanged(self):
-        pass
 
     def _initTranslation(self):
         """翻译"""
@@ -1428,6 +1416,67 @@ class MainWindow(FluentWindow):
             logger.error(f"加载窗口位置失败: {e}")
             return False
 
+    # 刷新委托到 homeInterface
+    def refresh_clock(self):
+        hi = getattr(self, 'homeInterface', None)
+        if hi and hasattr(hi, '_updateClock'): hi._updateClock()
+
+    def refresh_poetry(self):
+        hi = getattr(self, 'homeInterface', None)
+        if hi and hasattr(hi, '_refreshPoetry'): hi._refreshPoetry()
+
+    def refresh_poetry_interval(self):
+        hi = getattr(self, 'homeInterface', None)
+        if hi and hasattr(hi, '_updatePoetryInterval'): hi._updatePoetryInterval()
+
+    def refresh_weather(self):
+        hi = getattr(self, 'homeInterface', None)
+        if hi and hasattr(hi, '_refreshWeather'): hi._refreshWeather()
+
+    def refresh_weather_icon(self):
+        hi = getattr(self, 'homeInterface', None)
+        if hi and hasattr(hi, '_updateWeatherIcon'): hi._updateWeatherIcon()
+
+    def refresh_weather_interval(self):
+        hi = getattr(self, 'homeInterface', None)
+        if hi and hasattr(hi, '_updateWeatherInterval'): hi._updateWeatherInterval()
+
+    def refresh_countdown(self):
+        hi = getattr(self, 'homeInterface', None)
+        if hi and hasattr(hi, '_updateCountdown'): hi._updateCountdown()
+
+    def refresh_countdown_carousel_interval(self):
+        hi = getattr(self, 'homeInterface', None)
+        if hi and hasattr(hi, '_updateCountdownCarouselInterval'): hi._updateCountdownCarouselInterval()
+
+    def refresh_quick_launch(self):
+        hi = getattr(self, 'homeInterface', None)
+        if hi and hasattr(hi, '_updateQuickLaunch'): hi._updateQuickLaunch()
+
+    def refresh_edit_button_position(self):
+        hi = getattr(self, 'homeInterface', None)
+        if hi and hasattr(hi, '_updateEditButtonPosition'): hi._updateEditButtonPosition()
+
+    def refresh_school_info_position(self):
+        hi = getattr(self, 'homeInterface', None)
+        if hi and hasattr(hi, '_updateSchoolInfoPosition'): hi._updateSchoolInfoPosition()
+
+    def refresh_clock_position(self):
+        hi = getattr(self, 'homeInterface', None)
+        if hi and hasattr(hi, '_updateClockPosition'): hi._updateClockPosition()
+
+    def refresh_poetry_position(self):
+        hi = getattr(self, 'homeInterface', None)
+        if hi and hasattr(hi, '_updatePoetryPosition'): hi._updatePoetryPosition()
+
+    def refresh_weather_position(self):
+        hi = getattr(self, 'homeInterface', None)
+        if hi and hasattr(hi, '_updateWeatherPosition'): hi._updateWeatherPosition()
+
+    def refresh_countdown_position(self):
+        hi = getattr(self, 'homeInterface', None)
+        if hi and hasattr(hi, '_updateCountdownPosition'): hi._updateCountdownPosition()
+
 
 class Preloader(QThread):
     sig_wp = pyqtSignal(str, str, str)
@@ -1470,7 +1519,7 @@ class Preloader(QThread):
         url, src = wp._getApiUrl()
         resp = requests.get(url, stream=True, timeout=15)
         if resp.status_code == 200:
-            d = os.path.join(BASE_DIR, 'wallpaper')
+            d = WALLPAPER_DIR  # os.path.join(BASE_DIR, 'wallpaper')
             os.makedirs(d, exist_ok=True)
             p = os.path.join(d, f"wp_{datetime.datetime.now().strftime('%H%M%S')}.jpg")
             with open(p, 'wb') as f: f.write(resp.content)
@@ -1484,7 +1533,7 @@ class Preloader(QThread):
             if not self._stop: self.sig_wp.emit(default, tr("wallpaper.default_source"), "")
             return
 
-        wd = os.path.join(BASE_DIR, 'wallpaper')
+        wd = WALLPAPER_DIR  # os.path.join(BASE_DIR, 'wallpaper')
         if os.path.exists(wd):
             olds = sorted(
                 [f for f in os.listdir(wd) if f.endswith('.jpg') and f.startswith('wallpaper_')],
@@ -1733,12 +1782,12 @@ if __name__ == "__main__":
         except Exception as e:
             logger.error(f"[PRELOAD-UI] wp: {e}")
 
-    def _upd_wt(d):
+    def _update_weather_display(weather_data):
         try:
             hi = getattr(window, 'homeInterface', None)
             if not hi: return
-            hi.weatherTempLabel.setText(f"{d['temp']}{d['unit']}")
-            hi.current_weather_code = d.get('code')
+            hi.weatherTempLabel.setText(f"{weather_data['temp']}{weather_data['unit']}")
+            hi.current_weather_code = weather_data.get('code')
             hi._updateWeatherIcon()
             if hasattr(hi, 'weatherContainer'): hi.weatherContainer.updateSize()
         except Exception as e:
@@ -1758,12 +1807,12 @@ if __name__ == "__main__":
 
     loader = Preloader(window)
     loader.sig_wp.connect(_upd_wp)
-    loader.sig_wt.connect(_upd_wt)
+    loader.sig_wt.connect(_update_weather_display)
     loader.sig_po.connect(_upd_po)
     loader.start()
 
     if cfg.autoCheckUpdate.value:
-        window.updateInterface._UpdateInterface__checkUpdate(auto_check=True)
+        window.updateInterface.checkUpdateAuto()
 
     splash.updateStatus(tr("splash.completing_startup"))  # 正在完成启动
     t0 = time.time()

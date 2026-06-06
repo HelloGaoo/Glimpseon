@@ -80,7 +80,7 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
     
     def __connectSignalToSlot(self):
         """ 连接信号与槽 """
-        cfg.themeChanged.connect(self._onThemeChanged)
+        # cfg.themeChanged 在 MainWindow._initThemeConnections 中连接了
     
     def __setQss(self):
         """ 设置样式表 """
@@ -149,7 +149,7 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
         # 检查更新按钮
         self.checkUpdateButton = PrimaryPushButton(FIF.SYNC, tr("update.check_update"), self.versionCard)  # 检查更新
         self.checkUpdateButton.setFixedHeight(36)
-        self.checkUpdateButton.clicked.connect(self.__checkUpdate)
+        self.checkUpdateButton.clicked.connect(self.checkUpdateManual)
         
         self.versionLayout.addLayout(self.versionHeaderLayout)
         self.versionLayout.addStretch()
@@ -234,102 +234,72 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
         # except Exception:
         #     pass
     
-    def __checkUpdate(self, auto_check=False):
-        """
-        检查更新
-        Args:
-            auto_check: 是否为自动检查
-        """
+    def checkUpdateManual(self):
+        """手动检查更新：显示状态 启用/禁用按钮"""
         if hasattr(self, 'has_new_version') and self.has_new_version:
             self.__downloadUpdate()
             return
-        
-        check_type = tr("update.auto_check") if auto_check else tr("update.manual_check")  # 自动检查 / 手动检查
-        logger.info(f"{check_type}：开始检查版本")
-        
-        if not auto_check:
-            self.checkUpdateButton.setEnabled(False)
-            self.updateStatusLabel.setText(tr("update.checking"))  # 正在检查更新
-            self.__setUpdateStatus('checking')
-        
+
+        logger.info("手动检查：开始检查版本")
+
+        self.checkUpdateButton.setEnabled(False)
+        self.updateStatusLabel.setText(tr("update.checking"))  # 正在检查更新
+        self.__setUpdateStatus('checking')
+
         def do_check():
             try:
                 result = check_github_verison()
             except Exception as e:
-                logger.error(f"{check_type}：检查更新时出错 - {str(e)}")
+                logger.error(f"手动检查：检查更新时出错 - {str(e)}")
                 result = {'success': False, 'error': str(e)}
+            result['auto_check'] = False
 
-            def update_ui():
-                try:
-                    if not result.get('success', False):
-                        logger.warning(f"{check_type}：检查版本失败 - {result.get('error', '未知错误')}")
-                        if not auto_check:
-                            self.checkUpdateButton.setEnabled(True)
-                            self.updateStatusLabel.setText(tr("update.check_failed").format(error=result.get('error', tr("update.unknown_error"))))  # 检查失败：{error} / 未知错误  # 检查失败：{error} / 未知错误
-                            self.__setUpdateStatus('error')
-                        return
+            self._check_result_signal.emit(result)
 
-                    github_version = result.get('version')
-                    github_build_date = result.get('build_date')
-                    changelog = result.get('changelog')
+        # 另线程请求
+        thread = threading.Thread(target=do_check, daemon=True)
+        thread.start()
 
-                    logger.info(f"{check_type}：GitHub 最新版本：{github_version} (构建日期：{github_build_date})，更新日志长度：{len(changelog) if changelog else 0}，当前版本：{VERSION}")
+    def checkUpdateAuto(self):
+        """自动后台检查更新：静默检查 自动下载"""
+        if hasattr(self, 'has_new_version') and self.has_new_version:
+            self.__downloadUpdate(auto_update=True)
+            return
 
-                    has_update = (github_version != VERSION)
+        logger.info("自动检查：开始检查版本")
 
-                    if has_update:
-                        logger.info(f"{check_type}：发现新版本 {github_version}")
-                        self.has_new_version = True
-                        self.new_version = github_version
-                        self.build_date = github_build_date
-                        self.update_url = result.get('update_url')
-
-                        self.updateStatusLabel.setText(tr("update.new_version_found").format(version=github_version))  # 发现新版本：{version}  # 发现新版本：{version}
-                        self.__setUpdateStatus('update_available')
-
-                        if not auto_check:
-                            self.checkUpdateButton.setText(tr("update.download"))  # 下载更新  # 下载更新
-                            self.checkUpdateButton.setIcon(FIF.DOWNLOAD)
-                            self.checkUpdateButton.setEnabled(True)
-
-                        if changelog:
-                            self.changelogContent.setPlainText(changelog)
-
-                        if auto_check and cfg.autoUpdate.value:
-                            logger.info("自动检查：启用自动更新，开始下载")
-                            QTimer.singleShot(2000, lambda: self.__downloadUpdate(auto_update=True))
-
-                    else:
-                        logger.info(f"{check_type}：已是最新版本")
-                        self.updateStatusLabel.setText(tr("update.latest"))  # 已是最新版本  # 已是最新版本
-                        self.__setUpdateStatus('latest')
-                        if not auto_check:
-                            self.checkUpdateButton.setEnabled(True)
-                        if changelog:
-                            self.changelogContent.setPlainText(changelog)
-                except Exception as e:
-                    logger.error(f"更新 UI 失败：{e}")
+        def do_check():
+            try:
+                result = check_github_verison()
+            except Exception as e:
+                logger.error(f"自动检查：检查更新时出错 - {str(e)}")
+                result = {'success': False, 'error': str(e)}
+            result['auto_check'] = True
 
             # 发射信号在主线程执行 UI 更新
             self._check_result_signal.emit(result)
-        
-        # 启动一个线程执行网络请求，避免阻塞主线程；UI 更新通过 QTimer.singleShot 在主线程执行
+
+        # 启动一个线程执行网络请求，避免阻塞主线程
         thread = threading.Thread(target=do_check, daemon=True)
-        # 在手动触发的情况下先禁用按钮并设置状态，然后启动线程
-        if not auto_check:
-            self.checkUpdateButton.setEnabled(False)
-            self.updateStatusLabel.setText(tr("update.checking"))
-            self.__setUpdateStatus('checking')
         thread.start()
+
+    # def __checkUpdate(self, auto_check=False):
+    #     """已拆分为 checkUpdateManual 和 checkUpdateAuto，保留以兼容"""
+    #     if auto_check:
+    #         self.checkUpdateAuto()
+    #     else:
+    #         self.checkUpdateManual()
 
     @pyqtSlot(object)
     def _on_check_result(self, result: object):
+        auto_check = result.get('auto_check', False)
         try:
             if not result.get('success', False):
                 logger.warning(f"检查版本失败 - {result.get('error', '未知错误')}")
-                self.checkUpdateButton.setEnabled(True)
-                self.updateStatusLabel.setText(tr("update.check_failed").format(error=result.get('error', tr("update.unknown_error"))))
-                self.__setUpdateStatus('error')
+                if not auto_check:
+                    self.checkUpdateButton.setEnabled(True)
+                    self.updateStatusLabel.setText(tr("update.check_failed").format(error=result.get('error', tr("update.unknown_error"))))
+                    self.__setUpdateStatus('error')
                 return
 
             github_version = result.get('version')
@@ -349,14 +319,15 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
                 self.updateStatusLabel.setText(tr("update.new_version_found").format(version=github_version))
                 self.__setUpdateStatus('update_available')
 
-                self.checkUpdateButton.setText(tr("update.download"))
-                self.checkUpdateButton.setIcon(FIF.DOWNLOAD)
-                self.checkUpdateButton.setEnabled(True)
+                if not auto_check:
+                    self.checkUpdateButton.setText(tr("update.download"))
+                    self.checkUpdateButton.setIcon(FIF.DOWNLOAD)
+                    self.checkUpdateButton.setEnabled(True)
 
                 if changelog:
                     self.changelogContent.setPlainText(changelog)
 
-                if result.get('auto_check', False) and cfg.autoUpdate.value:
+                if auto_check and cfg.autoUpdate.value:
                     logger.info("自动检查：启用自动更新，开始下载")
                     QTimer.singleShot(2000, lambda: self.__downloadUpdate(auto_update=True))
 
@@ -364,12 +335,22 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
                 logger.info("已是最新版本")
                 self.updateStatusLabel.setText(tr("update.latest"))
                 self.__setUpdateStatus('latest')
-                self.checkUpdateButton.setEnabled(True)
+                if not auto_check:
+                    self.checkUpdateButton.setEnabled(True)
                 if changelog:
                     self.changelogContent.setPlainText(changelog)
         except Exception as e:
             logger.error(f"更新 UI 失败：{e}")
     
+    def _updateErrorState(self, msg):
+        """统一更新下载错误状态到 UI（在主线程调用）"""
+        self.checkUpdateButton.setText(tr("update.retry"))
+        self.checkUpdateButton.setIcon(FIF.SYNC)
+        self.checkUpdateButton.setEnabled(True)
+        self.updateStatusLabel.setText(tr("update.failed").format(error=msg))
+        self.updateStatusLabel.setStyleSheet("color: #FF0000;")
+        self.updateStatusIcon.setStyleSheet("background-color: #FF0000; border-radius: 8px;")
+
     def __downloadUpdate(self, auto_update=False):
         """下载并安装更新"""
         self.checkUpdateButton.setEnabled(False)
@@ -463,12 +444,13 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
                         shutil.rmtree(update_folder)
                     except Exception:
                         pass
-                QTimer.singleShot(0, lambda: self.checkUpdateButton.setText(tr("update.retry")))  # 重试更新
-                QTimer.singleShot(0, lambda: self.checkUpdateButton.setIcon(FIF.SYNC))
-                QTimer.singleShot(0, lambda: self.checkUpdateButton.setEnabled(True))
-                QTimer.singleShot(0, lambda msg=str(e): self.updateStatusLabel.setText(tr("update.failed").format(error=msg)))  # 更新失败：{error}
-                QTimer.singleShot(0, lambda: self.updateStatusLabel.setStyleSheet("color: #FF0000;"))
-                QTimer.singleShot(0, lambda: self.updateStatusIcon.setStyleSheet("background-color: #FF0000; border-radius: 8px;"))
+                # QTimer.singleShot(0, lambda: self.checkUpdateButton.setText(tr("update.retry")))  # 重试更新
+                # QTimer.singleShot(0, lambda: self.checkUpdateButton.setIcon(FIF.SYNC))
+                # QTimer.singleShot(0, lambda: self.checkUpdateButton.setEnabled(True))
+                # QTimer.singleShot(0, lambda msg=str(e): self.updateStatusLabel.setText(tr("update.failed").format(error=msg)))  # 更新失败：{error}
+                # QTimer.singleShot(0, lambda: self.updateStatusLabel.setStyleSheet("color: #FF0000;"))
+                # QTimer.singleShot(0, lambda: self.updateStatusIcon.setStyleSheet("background-color: #FF0000; border-radius: 8px;"))
+                QTimer.singleShot(0, lambda: self._updateErrorState(str(e)))
                 
                 self.has_new_version = False
         

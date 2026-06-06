@@ -27,7 +27,7 @@ from typing import Any, Dict, Optional
 
 import requests
 
-from PyQt6.QtCore import QCoreApplication, Qt
+from PyQt6.QtCore import Qt
 from qfluentwidgets import BodyLabel, MessageBoxBase, SearchLineEdit, SubtitleLabel, ListWidget
 
 from core.config import cfg
@@ -253,7 +253,8 @@ class RegionDatabase:
                     )
                 return [row[0] for row in cursor.fetchall()]
         except Exception as err:
-            print(f'搜索地区出错：{err}')
+            # print(f'搜索地区出错：{err}')
+            logger.error(f'搜索地区出错：{err}')
             return []
 
     def get_code(self, region_name):
@@ -267,7 +268,8 @@ class RegionDatabase:
                 result = cursor.fetchone()
                 return result[0] if result else ''
         except Exception as err:
-            print(f'获取地区代码失败：{err}')
+            # print(f'获取地区代码失败：{err}')
+            logger.error(f'获取地区代码失败：{err}')
             return ''
 
     def get_name(self, region_code):
@@ -285,7 +287,8 @@ class RegionDatabase:
                 result = cursor.fetchone()
                 return result[0] if result else ''
         except Exception as err:
-            print(f'通过代码获取地区名失败：{err}')
+            # print(f'通过代码获取地区名失败：{err}')
+            logger.error(f'获取地区名失败：{err}')
             return ''
 
 
@@ -342,7 +345,8 @@ class RegionSelectorDialog(MessageBoxBase):
                     self._region_list.setCurrentItem(items[0])
                     self._region_list.scrollToItem(items[0])
         except Exception as err:
-            print(f'选中当前地区失败：{err}')
+            # print(f'选中当前地区失败：{err}')
+            logger.warning(f'选中当前地区失败：{err}')
 
     def get_selected_region(self):
         selected = self._region_list.selectedItems()

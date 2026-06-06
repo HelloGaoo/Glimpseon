@@ -28,8 +28,9 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Optional, List, Tuple, Dict, Any
-from functools import lru_cache
+# from functools import lru_cache
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -47,6 +48,8 @@ if _BASE_DIR not in sys.path:
     sys.path.insert(0, _BASE_DIR)
 
 from core.constants import BASE_DIR
+
+DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 
 logger = logging.getLogger("ClassLively.services.media")
 
@@ -184,7 +187,7 @@ class NeteaseCloudMusic:
     V3_PLAYER_PATTERN = b"\x48\x8D\x0D\x00\x00\x00\x00\xE8\x00\x00\x00\x00\x48\x8D\x0D\x00\x00\x00\x00\xE8\x00\x00\x00\x00\x90\x48\x8D\x0D\x00\x00\x00\x00\xE8\x00\x00\x00\x00\x48\x8D\x05\x00\x00\x00\x00\x48\x8D\xA5\x00\x00\x00\x00\x5F\x5D\xC3\xCC\xCC\xCC\xCC\xCC\x48\x89\x4C\x24\x00\x55\x57\x48\x81\xEC\x00\x00\x00\x00\x48\x8D\x6C\x24\x00\x48\x8D\x7C\x24"
 
     API_BASE = "https://music163.xuanmou.com.cn"
-    API_HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    API_HEADERS = {'User-Agent': DEFAULT_USER_AGENT}  # 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 
     def __init__(self):
         self._pm = None
@@ -824,22 +827,21 @@ class KugouMemoryReader:
                 self._pause_start = 0.0
                 self._was_playing = True
 
+            # 酷狗没法获取播放进度 没法监测暂停
             is_playing = True
-            if is_playing and not self._was_playing:
-                if self._pause_start > 0:
-                    self._paused_time += now - self._pause_start
-                    self._pause_start = 0.0
-            elif not is_playing and self._was_playing:
-                self._pause_start = now
-            self._was_playing = is_playing
+            # if is_playing and not self._was_playing:
+            #     if self._pause_start > 0:
+            #         self._paused_time += now - self._pause_start
+            #         self._pause_start = 0.0
+            # elif not is_playing and self._was_playing:
+            #     self._pause_start = now
+            # self._was_playing = is_playing
 
             dur_ms = self._get_duration(title, artist)
 
-            if is_playing:
-                elapsed = now - self._song_start_time - self._paused_time
-                position_ms = int(max(0, elapsed) * 1000)
-            else:
-                position_ms = int(max(0, now - self._pause_start - self._paused_time) * 1000)
+            # 就is_playing 一直为 True 模拟播放进度
+            elapsed = now - self._song_start_time - self._paused_time
+            position_ms = int(max(0, elapsed) * 1000)
 
             if dur_ms > 0 and position_ms > dur_ms:
                 position_ms = dur_ms
@@ -906,7 +908,7 @@ class KugouMemoryReader:
             keyword = f"{title} {artist}"
             url = f"http://songsearch.kugou.com/song_search_v2?keyword={keyword}&platform=WebFilter&format=json&page=1&pagesize=1"
             resp = requests.get(url, timeout=5,
-                                headers={'User-Agent': 'Mozilla/5.0'})
+                                headers={'User-Agent': DEFAULT_USER_AGENT})  # 'Mozilla/5.0'
             if resp.status_code == 200:
                 data = resp.json()
                 if data.get('error_code') == 0:
@@ -932,7 +934,7 @@ class KugouMemoryReader:
                           f"ver=1&man=yes&client=pc&keyword={keyword}"
                           f"&duration={duration_ms}&hash=")
             resp = requests.get(search_url, timeout=5,
-                                headers={'User-Agent': 'Mozilla/5.0'})
+                                headers={'User-Agent': DEFAULT_USER_AGENT})  # 'Mozilla/5.0'
             if resp.status_code != 200:
                 return None
             data = resp.json()
@@ -947,7 +949,7 @@ class KugouMemoryReader:
             dl_url = (f"http://lyrics.kugou.com/download?"
                      f"ver=1&client=pc&id={lyric_id}&accesskey={accesskey}&fmt=lrc&charset=utf8")
             dl_resp = requests.get(dl_url, timeout=5,
-                                   headers={'User-Agent': 'Mozilla/5.0'})
+                                   headers={'User-Agent': DEFAULT_USER_AGENT})  # 'Mozilla/5.0'
             if dl_resp.status_code != 200:
                 return None
             dl_data = dl_resp.json()
@@ -975,7 +977,7 @@ class KugouMemoryReader:
             keyword = f"{title} {artist}"
             url = f"http://songsearch.kugou.com/song_search_v2?keyword={keyword}&platform=WebFilter&format=json&page=1&pagesize=1"
             resp = requests.get(url, timeout=5,
-                                headers={'User-Agent': 'Mozilla/5.0'})
+                                headers={'User-Agent': DEFAULT_USER_AGENT})  # 'Mozilla/5.0'
             if resp.status_code == 200:
                 data = resp.json()
                 if data.get('error_code') == 0:
@@ -984,7 +986,7 @@ class KugouMemoryReader:
                         cover_url = lists[0].get('Image', '').replace('/{size}', '')
                         if cover_url:
                             cr = requests.get(cover_url, timeout=8,
-                                             headers={'User-Agent': 'Mozilla/5.0',
+                                             headers={'User-Agent': DEFAULT_USER_AGENT,  # 'Mozilla/5.0'
                                                       'Referer': 'http://www.kugou.com/'})
                             if cr.status_code == 200 and 1024 < len(cr.content) < 10 * 1024 * 1024:
                                 self._duration_cache[cache_key] = cr.content
@@ -1260,7 +1262,7 @@ class QQMusicReader:
                    f"songmid=&g_tk=5381&format=json&incharset=utf8&outcharset=utf-8"
                    f"&nobase64=0&keyword={keyword}")
             resp = requests.get(url, timeout=5,
-                                headers={'User-Agent': 'Mozilla/5.0',
+                                headers={'User-Agent': DEFAULT_USER_AGENT,  # 'Mozilla/5.0'
                                          'Referer': 'https://y.qq.com/'})
             if resp.status_code != 200:
                 return None
@@ -1306,7 +1308,7 @@ class QQMusicReader:
                    f"cr=1&new_json=1&format=json&aggr=1&lossless=0"
                    f"&n=1&w={keyword}")
             resp = requests.get(url, timeout=5,
-                                headers={'User-Agent': 'Mozilla/5.0',
+                                headers={'User-Agent': DEFAULT_USER_AGENT,  # 'Mozilla/5.0'
                                          'Referer': 'https://y.qq.com/'})
             if resp.status_code != 200:
                 return 0

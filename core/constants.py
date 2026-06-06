@@ -34,6 +34,8 @@ else:
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     MEIPASS_DIR = None
 
+WALLPAPER_DIR = os.path.join(BASE_DIR, 'wallpaper')
+
 
 def get_resPath(relative_path):
     base_path = os.path.join(BASE_DIR, relative_path)

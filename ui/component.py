@@ -62,7 +62,7 @@ from PyQt6.QtGui import (
     QPixmap, QIcon
 )
 from PyQt6.QtWidgets import (
-    QFileIconProvider, QLabel, QSizePolicy, QWidget, QVBoxLayout, QHBoxLayout, QApplication, QProgressBar, QFrame, QGraphicsOpacityEffect
+    QFileIconProvider, QLabel, QSizePolicy, QWidget, QVBoxLayout, QHBoxLayout, QApplication, QProgressBar, QGraphicsOpacityEffect
 )
 from qfluentwidgets import InfoBar, isDarkTheme, RoundMenu, Action, FluentIcon as FIF
 from win32com.shell import shell, shellcon
@@ -533,7 +533,6 @@ class MediaProgressBar(QProgressBar):
             w = int(self.width() * self.value() / self.maximum()) if self.maximum() > 0 else 0
             # allow parent widget to override progress color (e.g. follow wallpaper)
             progress_color = QColor(cfg.mediaProgressColor.value)
-            parent = getattr(self, 'parent', None)
             # try:
             parent_widget = self.parent()
             # except Exception:
@@ -561,7 +560,7 @@ class FetchWorker(QObject):
 
 
 class _MediaFetchWorker(QObject):
-    """QThread 中获取媒体信息 信号回传主线程"""
+    """获取(QThread)媒体信息回传主线程"""
     finished = pyqtSignal(object, bool)
 
     def __init__(self, full=True):
@@ -580,7 +579,7 @@ class _MediaFetchWorker(QObject):
 
 
 class _KugouThumbWorker(QObject):
-    """QThread 获取酷狗图"""
+    """获取(QThread)酷狗图"""
     finished = pyqtSignal(object)
 
     def run(self):
@@ -620,7 +619,7 @@ class MediaWidget(QWidget):
         self._worker = None
         self._kugou_thread = None
         self._kugou_worker = None
-        self._info_cache = {}
+        self._info_cache = OrderedDict()
         self._rapid_update_count = 0
         self._normal_interval = cfg.mediaUpdateInterval.value * 1000
 
@@ -641,7 +640,7 @@ class MediaWidget(QWidget):
             if hasattr(color_val, 'name'):
                 color_val = color_val.name()
             c = QColor(color_val)
-        return f"rgba({c.red()}, {c.green()}, {c.blue()}, {round(c.alpha() / 255 * 100) / 100})"
+        return f"rgba({c.red()}, {c.green()}, {c.blue()}, {round(c.alpha() / 255, 2)})"
 
     def _init_ui(self):
         self.setStyleSheet(load_qss('home.qss'))
@@ -1123,7 +1122,8 @@ class MediaWidget(QWidget):
     def _fetch(self, title: str, artist: str):
         cache_key = f"{title} - {artist}"
         if cache_key in self._info_cache:
-            info = self._info_cache[cache_key]
+            info = self._info_cache.pop(cache_key)
+            self._info_cache[cache_key] = info  # 插入到末尾（LRU）
             self._apply_fetched_info(info)
             return
         
@@ -1144,6 +1144,8 @@ class MediaWidget(QWidget):
         cache_key = f"{self._media.title} - {self._media.artist}" if self._media else ""
         if cache_key:
             self._info_cache[cache_key] = info
+            if len(self._info_cache) > 50:
+                self._info_cache.popitem(last=False)
         self._apply_fetched_info(info)
     
     def _apply_fetched_info(self, info: dict):
@@ -1363,7 +1365,6 @@ class QuickLaunchDock(QWidget):
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
-        self._timer.start(int(1000 / self.FPS))
 
     def _sz(self):
         return cfg.quickLaunchIconSize.value
@@ -1719,6 +1720,14 @@ class QuickLaunchDock(QWidget):
         if new_hover != self._hover_idx:
             self._hover_idx = new_hover
 
+        self._ensure_timer()
+
+    def _ensure_timer(self):
+        """确保动画定时器在运行"""
+        if not self._timer.isActive():
+            self._last_frame = 0.0
+            self._timer.start(int(1000 / self.FPS))
+
     def _tick(self):
         now = time.time()
         dt = min(now - self._last_frame, 0.05) if self._last_frame > 0 else 0.016
@@ -1770,6 +1779,8 @@ class QuickLaunchDock(QWidget):
 
         if changed:
             self.update()
+        else:
+            self._timer.stop()
 
     def dragEnterEvent(self, e):
         if e.mimeData().hasUrls():
@@ -1930,6 +1941,7 @@ class QuickLaunchDock(QWidget):
         self._bounce_y = 0.0
         self._bounce_active = True
         self._bounce_start_time = time.time()
+        self._ensure_timer()
 
     def _get_by(self):
         return self._bounce_y
@@ -2113,5 +2125,4 @@ class QuickLaunchDock(QWidget):
         super().hideEvent(e)
 
     def showEvent(self, e):
-        self._timer.start(int(1000 / self.FPS))
         super().showEvent(e)
