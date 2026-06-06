@@ -590,28 +590,28 @@ class HomeInterface(QWidget, TranslatableWidget):
             color: {color_str}; 
             font-size: {clock_size}px; 
             font-weight: bold; 
-            font-family: {FONT_FAMILY}; # "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            font-family: {FONT_FAMILY}; /* "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif */
             background-color: transparent;
         """)
 
         self.dateLabel.setStyleSheet(f"""
             color: {color_str};
             font-size: {date_size}px;
-            font-family: {FONT_FAMILY}; # "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            font-family: {FONT_FAMILY}; /* "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif */
             background-color: transparent;
         """)
 
         self.poetryLabel.setStyleSheet(f"""
             color: {color_str};
             font-size: {poetry_size}px;
-            font-family: {FONT_FAMILY}; # "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            font-family: {FONT_FAMILY}; /* "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif */
             background-color: transparent;
         """)
 
         self.weatherTempLabel.setStyleSheet(f"""
             color: {color_str};
             font-size: {weather_size}px;
-            font-family: {FONT_FAMILY}; # "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            font-family: {FONT_FAMILY}; /* "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif */
             background-color: transparent;
         """)
         if hasattr(self, 'clockContainer'):
@@ -636,10 +636,11 @@ class HomeInterface(QWidget, TranslatableWidget):
 
     def _updateWeatherInterval(self):
         self.weatherTimer.stop()
+        # 先显示缓存天气
+        self._showCachedWeather()
         interval_str = cfg.weatherUpdateInterval.value
         interval = self._parseInterval(interval_str)
         if interval == 0:
-            self._showCachedWeather()
             return
         self.weatherTimer.start(interval)
 
@@ -766,8 +767,21 @@ class HomeInterface(QWidget, TranslatableWidget):
 
     def _refreshWeather(self):
         """在线获取天气显示"""
-        if not self._displayCachedWeather():
+        if not cfg.showWeather.value:
+            self.weatherTempLabel.hide()
+            self.weatherIconLabel.hide()
+            if hasattr(self, 'weatherContainer'):
+                if self.isEditMode:
+                    self.weatherContainer.setContentVisible(False)
+                    self.weatherContainer.show()
+                else:
+                    self.weatherContainer.hide()
             return
+
+        if hasattr(self, 'weatherContainer'):
+            self.weatherContainer.setContentVisible(True)
+        self.weatherTempLabel.show()
+        self.weatherIconLabel.show()
 
         success = False
         try:
@@ -988,7 +1002,7 @@ class HomeInterface(QWidget, TranslatableWidget):
             color: {text_color_str};
             font-size: {text_size}px;
             font-weight: bold;
-            font-family: {FONT_FAMILY}; # "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+            font-family: {FONT_FAMILY}; /* "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif */
             background-color: transparent;
         """)
 

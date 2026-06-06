@@ -352,6 +352,10 @@ def load_cache(cache_name: str) -> Optional[dict]:
         now = time.time()
         expires_at = cache_data.get("expires_at", 0)
 
+        if expires_at == float('inf'):
+            logger.debug(f"读取缓存永不过期: {cache_name},")
+            return cache_data
+
         if now >= expires_at:
             logger.debug(f"缓存已过期: {cache_name}")
             return None
@@ -414,7 +418,7 @@ def get_cache_info(cache_name: str) -> Optional[dict]:
             "name": cache_name,
             "cached_time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp)),
             "expires_time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(expires_at)) if expires_at != float('inf') else tr("time.never"),
-            "remaining_seconds": max(0, int(expires_at - now)),
+            "remaining_seconds": -1 if expires_at == float('inf') else max(0, int(expires_at - now)),
             "is_expired": now >= expires_at,
             "interval": cache_data.get("interval", "未知"),
         }
