@@ -453,7 +453,12 @@
     "license": "GNU General Public License Version 3",
     "related_links": "Related Links",
     "license_intro": "This project (ClassLively) is released under GNU General Public License Version 3:",
-    "license_title": "Open Source License"
+    "license_title": "Open Source License",
+    "visit": "Visit",
+    "app_info": "App Info",
+    "changelog": "Changelog",
+    "changelog_unavailable": "Changelog not available",
+    "thanks": "Credits"
   },
   "common": {
     "close": "Close",
@@ -472,7 +477,8 @@
     "delete": "Delete",
     "error": "Error",
     "execute": "Execute",
-    "file_read_error": "Cannot read file: {file_path}"
+    "file_read_error": "Cannot read file: {file_path}",
+    "link": "Link"
   },
   "media": {
     "not_playing": "Not Playing",

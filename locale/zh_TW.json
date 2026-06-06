@@ -453,7 +453,12 @@
     "license": "GNU General Public License Version 3 開源授權",
     "related_links": "相關連結",
     "license_intro": "此專案 (ClassLively) 基於 GNU General Public License Version 3 許可證發布：",
-    "license_title": "開源許可協議"
+    "license_title": "開源許可協議",
+    "visit": "造訪",
+    "app_info": "應用資訊",
+    "changelog": "更新日誌",
+    "changelog_unavailable": "暫無更新日誌",
+    "thanks": "鳴謝"
   },
   "common": {
     "close": "關閉",
@@ -472,7 +477,8 @@
     "restart_later": "稍後",
     "error": "錯誤",
     "execute": "執行",
-    "file_read_error": "無法讀取檔案：{file_path}"
+    "file_read_error": "無法讀取檔案：{file_path}",
+    "link": "連結"
   },
   "media": {
     "not_playing": "未在播放",
