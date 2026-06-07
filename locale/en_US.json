@@ -711,5 +711,18 @@
   },
   "poetry": {
     "default": "Stones from other hills may serve to polish jade."
+  },
+  "weekday": {
+    "monday": "Monday",
+    "tuesday": "Tuesday",
+    "wednesday": "Wednesday",
+    "thursday": "Thursday",
+    "friday": "Friday",
+    "saturday": "Saturday",
+    "sunday": "Sunday"
+  },
+  "date": {
+    "format": "{w}, {M} {d}, {y}",
+    "lunar_error": "Lunar calendar error: {error}"
   }
 }

@@ -1357,6 +1357,12 @@ class MainWindow(FluentWindow):
         if hasattr(self, 'homeInterface'):
             self.homeInterface.saveComponentPositions()
 
+        # 清理线程
+        _preloader = getattr(self, '_preloader', None)
+        if _preloader and _preloader.isRunning():
+            _preloader.cancel()
+            _preloader.wait(3000)
+
         if cfg.debugMode.value:
             event.accept()
             if hasattr(self, 'keyboardHook') and self.keyboardHook:
@@ -1806,6 +1812,7 @@ if __name__ == "__main__":
     splash.progress_signal.emit(75)
 
     loader = Preloader(window)
+    window._preloader = loader
     loader.sig_wp.connect(_upd_wp)
     loader.sig_wt.connect(_update_weather_display)
     loader.sig_po.connect(_upd_po)

@@ -711,5 +711,18 @@
   },
   "poetry": {
     "default": "他山之石，可以攻玉。——《诗经·小雅·鹤鸣》"
+  },
+  "weekday": {
+    "monday": "星期一",
+    "tuesday": "星期二",
+    "wednesday": "星期三",
+    "thursday": "星期四",
+    "friday": "星期五",
+    "saturday": "星期六",
+    "sunday": "星期日"
+  },
+  "date": {
+    "format": "{y}年{M}月{d}日 {w}",
+    "lunar_error": "农历显示错误：{error}"
   }
 }

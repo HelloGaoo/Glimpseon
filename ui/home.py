@@ -556,7 +556,11 @@ class HomeInterface(QWidget, TranslatableWidget):
             timeString = currentTime.toString("HH:mm")
         self.clockLabel.setText(timeString)
 
-        solarString = currentDate.toString("yyyy 年 M 月 d 日 dddd")
+        _weekday_keys = ["weekday.monday", "weekday.tuesday", "weekday.wednesday",
+                          "weekday.thursday", "weekday.friday", "weekday.saturday", "weekday.sunday"]
+        weekday_name = tr(_weekday_keys[currentDate.dayOfWeek() - 1])
+        solarString = tr("date.format", y=currentDate.year(), M=currentDate.month(),
+                         d=currentDate.day(), w=weekday_name)
 
         if cfg.showLunarCalendar.value:
             try:
@@ -568,7 +572,7 @@ class HomeInterface(QWidget, TranslatableWidget):
                 lunarString = f"{lunarMonthCn}{lunarDayCn}"
                 dateString = f"{solarString} {lunarString}"
             except Exception as e:
-                logger.error(f"农历显示错误：{e}")
+                logger.error(tr("date.lunar_error", error=e))
                 dateString = solarString
         else:
             dateString = solarString
