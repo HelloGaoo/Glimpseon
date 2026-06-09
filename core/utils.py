@@ -48,30 +48,19 @@ class SingleInstanceManager:
     MUTEX_NAME = "ClassLively_SingleInstance_Mutex_{A7F3E2D1-8B4C-4F6A-9D0E-1C2B3A4F5E6D}"
 
     def __init__(self):
-        self._mutex_handle: MutexHandle = None
         self._is_owner = False
 
     def try_acquire(self) -> bool:
-        if self._mutex_handle is not None:
-            return self._is_owner
-        self._mutex_handle = kernel32.CreateMutexW(None, True, self.MUTEX_NAME)
-        last_error = kernel32.GetLastError()
-        if self._mutex_handle is None or self._mutex_handle == 0:
-            logger.error(f"创建互斥失败，句柄: {self._mutex_handle}")
+        if self._is_owner:
             return True
-        if last_error == ERROR_ALREADY_EXISTS:
-            logger.info("已有实例运行")
-            self._is_owner = False
-            return False
-        self._is_owner = True
-        return True
+        from classlively_native import acquire_mutex
+        self._is_owner = acquire_mutex(self.MUTEX_NAME)
+        return self._is_owner
 
     def release(self):
-        if self._mutex_handle is not None and self._mutex_handle != 0:
-            if self._is_owner:
-                kernel32.ReleaseMutex(self._mutex_handle)
-            kernel32.CloseHandle(self._mutex_handle)
-            self._mutex_handle = None
+        if self._is_owner:
+            from classlively_native import release_mutex
+            release_mutex()
             self._is_owner = False
             logger.info("互斥已释放")
 
@@ -164,7 +153,8 @@ def _install_system_fonts() -> bool:
             if os.path.exists(local_font_path) and not os.path.exists(system_font_path):
                 try:
                     shutil.copy2(local_font_path, system_font_path)
-                    result = ctypes.windll.gdi32.AddFontResourceW(system_font_path)
+                    from classlively_native import install_font
+                    result = install_font(system_font_path)
                     if result > 0:
                         installed_any = True
                         logger.debug(f"已安装字体：{font_file}")

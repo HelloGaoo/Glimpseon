@@ -1119,60 +1119,76 @@ class HomeInterface(QWidget, TranslatableWidget):
             except Exception as e:
                 logger.error(f"重新提取图标失败 {app.get('name', '')}: {e}")
 
+#    def _extractIcon(self, exe_path, icon_filename):
+#        try:
+#            hicon = None
+#            try:
+#                res = win32gui.PrivateExtractIcons(exe_path, 0, 256, 256, 1, 0)
+#                if res and res[0]:
+#                    hicon = res[0][0]
+#            except Exception:
+#                pass
+#            if not hicon:
+#                large, small = win32gui.ExtractIconEx(exe_path, 0)
+#                if large and large[0]:
+#                    hicon = large[0]
+#            if not hicon:
+#                return 'exe.ico'
+#            ico_info = win32gui.GetIconInfo(hicon)
+#            hbm_mask = ico_info[3]
+#            hbm_color = ico_info[4]
+#            hbm = hbm_color if hbm_color else hbm_mask
+#            bmp_obj = win32gui.GetObject(hbm)
+#            if not bmp_obj:
+#                if hbm_color:
+#                    win32gui.DeleteObject(hbm_color)
+#                if hbm_mask:
+#                    win32gui.DeleteObject(hbm_mask)
+#                win32gui.DestroyIcon(hicon)
+#                return 'exe.ico'
+#
+#            width = bmp_obj.bmWidth
+#            height = bmp_obj.bmHeight
+#            hdc = win32gui.GetDC(0)
+#            hdc_src = win32ui.CreateDCFromHandle(hdc)
+#            hdc_dest = hdc_src.CreateCompatibleDC()
+#            bitmap = win32ui.CreateBitmap()
+#            bitmap.CreateCompatibleBitmap(hdc_src, width, height)
+#            hdc_dest.SelectObject(bitmap)
+#            win32gui.DrawIcon(hdc_dest.GetSafeHdc(), 0, 0, hicon)
+#            bmpstr = bitmap.GetBitmapBits(True)
+#
+#            if hbm_color:
+#                img = Image.frombuffer('RGBA', (width, height), bmpstr, 'raw', 'BGRA', 0, 1)
+#            else:
+#                img = Image.frombuffer('L', (width, height), bmpstr, 'raw', 'L', 0, 1).convert('RGBA')
+#
+#            icon_dir = os.path.join(BASE_DIR, 'data', 'ql_icon')
+#            os.makedirs(icon_dir, exist_ok=True)
+#            icon_save_path = os.path.join(icon_dir, icon_filename)
+#            img.save(icon_save_path, format='PNG')
+#            if hbm_color:
+#                win32gui.DeleteObject(hbm_color)
+#            if hbm_mask:
+#                win32gui.DeleteObject(hbm_mask)
+#            win32gui.DestroyIcon(hicon)
+#            win32gui.ReleaseDC(0, hdc)
+#            return icon_filename
+
     def _extractIcon(self, exe_path, icon_filename):
+        """使用 C++ SHGetFileInfo 提取图标"""
         try:
-            hicon = None
-            try:
-                res = win32gui.PrivateExtractIcons(exe_path, 0, 256, 256, 1, 0)
-                if res and res[0]:
-                    hicon = res[0][0]
-            except Exception:
-                pass
-            if not hicon:
-                large, small = win32gui.ExtractIconEx(exe_path, 0)
-                if large and large[0]:
-                    hicon = large[0]
-            if not hicon:
+            from classlively_native import extract_icon
+            w, h, bgra_bytes = extract_icon(exe_path, 256)
+            if w == 0 or len(bgra_bytes) == 0:
                 return 'exe.ico'
-            ico_info = win32gui.GetIconInfo(hicon)
-            hbm_mask = ico_info[3]
-            hbm_color = ico_info[4]
-            hbm = hbm_color if hbm_color else hbm_mask
-            bmp_obj = win32gui.GetObject(hbm)
-            if not bmp_obj:
-                if hbm_color:
-                    win32gui.DeleteObject(hbm_color)
-                if hbm_mask:
-                    win32gui.DeleteObject(hbm_mask)
-                win32gui.DestroyIcon(hicon)
-                return 'exe.ico'
-
-            width = bmp_obj.bmWidth
-            height = bmp_obj.bmHeight
-            hdc = win32gui.GetDC(0)
-            hdc_src = win32ui.CreateDCFromHandle(hdc)
-            hdc_dest = hdc_src.CreateCompatibleDC()
-            bitmap = win32ui.CreateBitmap()
-            bitmap.CreateCompatibleBitmap(hdc_src, width, height)
-            hdc_dest.SelectObject(bitmap)
-            win32gui.DrawIcon(hdc_dest.GetSafeHdc(), 0, 0, hicon)
-            bmpstr = bitmap.GetBitmapBits(True)
-
-            if hbm_color:
-                img = Image.frombuffer('RGBA', (width, height), bmpstr, 'raw', 'BGRA', 0, 1)
-            else:
-                img = Image.frombuffer('L', (width, height), bmpstr, 'raw', 'L', 0, 1).convert('RGBA')
-
+            from PIL import Image as PILImage
+            import io
+            img = PILImage.frombytes('RGBA', (w, h), bgra_bytes, 'raw', 'BGRA', 0, 1)
             icon_dir = os.path.join(BASE_DIR, 'data', 'ql_icon')
             os.makedirs(icon_dir, exist_ok=True)
             icon_save_path = os.path.join(icon_dir, icon_filename)
             img.save(icon_save_path, format='PNG')
-            if hbm_color:
-                win32gui.DeleteObject(hbm_color)
-            if hbm_mask:
-                win32gui.DeleteObject(hbm_mask)
-            win32gui.DestroyIcon(hicon)
-            win32gui.ReleaseDC(0, hdc)
             return icon_filename
         except Exception as e:
             logger.error(f"提取图标失败: {e}")

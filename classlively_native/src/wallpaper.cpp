@@ -55,4 +55,21 @@ PYBIND11_MODULE(classlively_native, m) {
           "Get system idle time in milliseconds. Returns -1 on failure.");
     m.def("idle_get_seconds", &classlively_native::idle_get_seconds,
           "Get system idle time in seconds. Returns -1 on failure.");
+
+    // 互斥锁
+    m.def("acquire_mutex", &classlively_native::acquire_mutex,
+          "Acquire named mutex. Returns True if acquired (first instance), False if already exists.",
+          py::arg("name"));
+    m.def("release_mutex", &classlively_native::release_mutex,
+          "Release the mutex.");
+
+    // 字体安装
+    m.def("install_font", &classlively_native::install_font,
+          "Install font to system. Returns number of fonts added.",
+          py::arg("path"));
+
+    // 图标提取
+    m.def("extract_icon", &classlively_native::extract_icon,
+          "Extract icon from exe/dll file. Returns (width, height, bgra_bytes).",
+          py::arg("path"), py::arg("size") = 256);
 }
