@@ -10,6 +10,9 @@
     <ClCompile Include="E:\260523\py\ClassLively\classlively_native\src\hook.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="E:\260523\py\ClassLively\classlively_native\src\sys.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="E:\260523\py\ClassLively\classlively_native\CMakeLists.txt" />

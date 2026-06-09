@@ -386,6 +386,7 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="E:\260523\py\ClassLively\classlively_native\src\wallpaper.cpp" />
     <ClCompile Include="E:\260523\py\ClassLively\classlively_native\src\image.cpp" />
     <ClCompile Include="E:\260523\py\ClassLively\classlively_native\src\hook.cpp" />
+    <ClCompile Include="E:\260523\py\ClassLively\classlively_native\src\sys.cpp" />
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>

@@ -4,6 +4,7 @@
 #include <Windows.h>
 #include "image_blur.h"
 #include "hook.h"
+#include "sys.h"
 
 namespace py = pybind11;
 
@@ -48,4 +49,10 @@ PYBIND11_MODULE(classlively_native, m) {
           "Check if PageUp/Down or mouse wheel event occurred within ms_threshold milliseconds.\n"
           "Args: ms_threshold(int)\nReturns: bool",
           py::arg("ms_threshold"));
+
+    // 系统工具
+    m.def("idle_get_milliseconds", &classlively_native::idle_get_milliseconds,
+          "Get system idle time in milliseconds. Returns -1 on failure.");
+    m.def("idle_get_seconds", &classlively_native::idle_get_seconds,
+          "Get system idle time in seconds. Returns -1 on failure.");
 }

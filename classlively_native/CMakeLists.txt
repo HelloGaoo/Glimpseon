@@ -14,5 +14,6 @@ pybind11_add_module(classlively_native
     src/wallpaper.cpp
     src/image.cpp
     src/hook.cpp
+    src/sys.cpp
 )
 

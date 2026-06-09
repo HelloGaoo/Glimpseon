@@ -1248,17 +1248,12 @@ class MainWindow(FluentWindow):
             self.hasTriggeredAutoOpen = False
             return
 
-        class LASTINPUTINFO(ctypes.Structure):
-            _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_uint)]
-
         try:
             if self.isVideoPlaying:
                 return
-            last_input = LASTINPUTINFO()
-            last_input.cbSize = ctypes.sizeof(LASTINPUTINFO)
-            ctypes.windll.user32.GetLastInputInfo(ctypes.byref(last_input))
-            ticks = ctypes.windll.kernel32.GetTickCount()
-            idle_time_ms = ticks - last_input.dwTime
+            from classlively_native import idle_get_milliseconds
+            idle_time_ms = idle_get_milliseconds()
+            if idle_time_ms < 0: return  # API 调用失败 跳过
 
             now = QTime.currentTime()
             try:
