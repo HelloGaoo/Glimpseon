@@ -26,7 +26,6 @@ else:
     _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _BASE_DIR not in sys.path:sys.path.insert(0, _BASE_DIR)
 
-import ctypes
 import datetime
 import json
 import logging
@@ -977,11 +976,14 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
             self.autoSyncCheckTimer.start(5000)
     
     def _updateBackgroundBlur(self):
+        logger.info(f"[BLUR-DBG] _updateBackgroundBlur triggered, blur_radius={cfg.backgroundBlurRadius.value}")
         home = self._getHome()
         if home and hasattr(home, 'homeBackgroundImage'):
             if home.originalPixmap is not None and not home.originalPixmap.isNull():
-                home.mainWindow.resizeEvent(None)
-        if hasattr(self, '_cachedBgSize'):self._cachedBgSize = None
+                home._computeBlurredBackground()  # 一次性模糊原图并缓存
+        self._cachedBgKey = None
+        if hasattr(home, '_blur_cache_key'):
+            delattr(home, '_blur_cache_key')
         if self.current_pixmap and not self.current_pixmap.isNull():self._updateBackground()
 
     def _onWallpaperSaveLimitChanged(self, new_limit: int):
@@ -1150,14 +1152,19 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
     def _updateBackground(self):
         if not self.current_pixmap or self.current_pixmap.isNull():
             return
-        
+
         self.originalPixmap = self.current_pixmap
         available_width = self.viewport().width()
         available_height = max(self.viewport().height(), self.scrollWidget.height() if hasattr(self, 'scrollWidget') else 600, 600)
-        
-        if hasattr(self, '_cachedBgSize') and self._cachedBgSize == (available_width, available_height) and hasattr(self, '_cachedBgPixmap') and self._cachedBgPixmap == self.current_pixmap:return
-        self._cachedBgSize = (available_width, available_height)
-        self._cachedBgPixmap = self.current_pixmap
+
+        blur_radius = cfg.backgroundBlurRadius.value
+        logger.info(f"[BLUR-DBG] _updateBackground called: w={available_width} h={available_height} blur_radius={blur_radius} pixmap={'set' if self.current_pixmap else 'None'}")
+
+        if hasattr(self, '_cachedBgKey') and self._cachedBgKey == (available_width, available_height, id(self.current_pixmap), blur_radius):
+            logger.warning(f"[BLUR-DBG] CACHE HIT! _cachedBgKey={self._cachedBgKey}, skipping blur")
+            return
+        logger.info(f"[BLUR-DBG] Cache miss, proceeding. old_key={getattr(self,'_cachedBgKey',None)}")
+        self._cachedBgKey = (available_width, available_height, id(self.current_pixmap), blur_radius)
         
         scaled_pixmap = self.current_pixmap.scaled(
             available_width, available_height,
@@ -1165,11 +1172,20 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
             Qt.TransformationMode.SmoothTransformation
         )
         
-        blur_radius = cfg.backgroundBlurRadius.value
         if blur_radius > 0:
-            blur_effect = QGraphicsBlurEffect()
-            blur_effect.setBlurRadius(blur_radius)
-            self.backgroundImage.setGraphicsEffect(blur_effect)
+            logger.info(f"[BLUR-DBG] Running blur, radius={blur_radius}")
+            try:
+                from classlively_native import blur_image
+                qimg = scaled_pixmap.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+                blurred_bytes = blur_image(
+                    qimg.bits().asstring(qimg.sizeInBytes()), qimg.width(), qimg.height(), blur_radius
+                )
+                blurred_qimage = QImage(blurred_bytes, qimg.width(), qimg.height(), QImage.Format.Format_ARGB32)
+                scaled_pixmap = QPixmap.fromImage(blurred_qimage)
+                logger.info(f"[BLUR-DBG] Blur success, result size={scaled_pixmap.width()}x{scaled_pixmap.height()}")
+            except Exception as e:
+                logger.warning(f"高斯模糊失败: {e}")
+            self.backgroundImage.setGraphicsEffect(None)
         else:
             self.backgroundImage.setGraphicsEffect(None)
         
@@ -1181,13 +1197,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         home = self._getHome()
         if home and hasattr(home, 'homeBackgroundImage') and self.current_pixmap:
             home.originalPixmap = self.current_pixmap
-            available_width = self.mainWindow.width() - 50
-            available_height = self.mainWindow.height()
-            scaled_pixmap = self.current_pixmap.scaled(
-                available_width, available_height,
-                Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation
-            )
-            home.homeBackgroundImage.setPixmap(scaled_pixmap)
+            home._computeBlurredBackground()  # 一次性模糊原图并缓存
 
     def get_dominant_color(self, sample_size: int = 32) -> QColor:
         """从当前壁纸提取一个主色（简单平均采样）。"""
@@ -1294,16 +1304,8 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         
         logger.info(f"设置壁纸路径: {self.current_wallpaper_path}")
         try:
-            SPI_SETDESKWALLPAPER = 20
-            SPIF_UPDATEINIFILE = 0x01
-            SPIF_SENDWININICHANGE = 0x02
-            
-            ctypes.windll.user32.SystemParametersInfoW(
-                SPI_SETDESKWALLPAPER,
-                0,
-                self.current_wallpaper_path,
-                SPIF_UPDATEINIFILE | SPIF_SENDWININICHANGE
-            )
+            from classlively_native import set_wallpaper
+            set_wallpaper(self.current_wallpaper_path)
             
             self.last_sync_path = self.current_wallpaper_path
             logger.info("壁纸已成功设置为桌面背景")

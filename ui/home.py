@@ -47,6 +47,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import (
     QColor,
     QIcon,
+    QImage,
     QPainter,
     QPen,
     QPixmap,
@@ -511,14 +512,19 @@ class HomeInterface(QWidget, TranslatableWidget):
 
         if hasattr(self, 'homeBackgroundImage') and self.homeBackgroundImage:
             try:
-                if hasattr(self, 'originalPixmap') and self.originalPixmap is not None and not self.originalPixmap.isNull():
-                    scaled_pixmap = self.originalPixmap.scaled(available_width, available_height, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
-                    if not hasattr(self, '_bg_blur_effect') or self._bg_blur_effect is None:
-                        self._bg_blur_effect = QGraphicsBlurEffect()
-                        self.homeBackgroundImage.setGraphicsEffect(self._bg_blur_effect)
-                    blur_radius = cfg.backgroundBlurRadius.value
-                    self._bg_blur_effect.setBlurRadius(blur_radius)
-                    self.homeBackgroundImage.setPixmap(scaled_pixmap)
+                blurred = getattr(self, '_blurredOriginalPixmap', None)
+                if blurred and not blurred.isNull():
+                    self.homeBackgroundImage.setPixmap(
+                        blurred.scaled(available_width, available_height,
+                                       Qt.AspectRatioMode.IgnoreAspectRatio,
+                                       Qt.TransformationMode.SmoothTransformation)
+                    )
+                elif hasattr(self, 'originalPixmap') and self.originalPixmap is not None and not self.originalPixmap.isNull():
+                    self.homeBackgroundImage.setPixmap(
+                        self.originalPixmap.scaled(available_width, available_height,
+                                                   Qt.AspectRatioMode.IgnoreAspectRatio,
+                                                   Qt.TransformationMode.SmoothTransformation)
+                    )
             except Exception as e:
                 logger.error(f"resizeEvent 错误：{e}")
 
@@ -529,6 +535,30 @@ class HomeInterface(QWidget, TranslatableWidget):
 
         if hasattr(self, '_guideOverlay') and self._guideOverlay and self._guideOverlay.isVisible():
             self._updateGuideLinesPosition()
+
+    def _computeBlurredBackground(self):
+        if not hasattr(self, 'originalPixmap') or self.originalPixmap is None or self.originalPixmap.isNull():
+            return
+        blur_radius = cfg.backgroundBlurRadius.value
+        if blur_radius <= 0:
+            self._blurredOriginalPixmap = None
+            self.resizeEvent(None)
+            return
+
+        src = self.originalPixmap
+        try:
+            from classlively_native import blur_image
+            qimg = src.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+            t0 = time.perf_counter()
+            blurred_bytes = blur_image(qimg.bits().asstring(qimg.sizeInBytes()), qimg.width(), qimg.height(), float(blur_radius))
+            elapsed = (time.perf_counter() - t0) * 1000
+            blurred_qimage = QImage(blurred_bytes, qimg.width(), qimg.height(), QImage.Format.Format_ARGB32)
+            self._blurredOriginalPixmap = QPixmap.fromImage(blurred_qimage)
+            logger.info(f"[HOME-BLUR] 模糊完成: {qimg.width()}x{qimg.height()}, radius={blur_radius}, {elapsed:.1f}ms")
+        except Exception as e:
+            logger.error(f"[HOME-BLUR] 模糊失败: {e}")
+            self._blurredOriginalPixmap = None
+        self.resizeEvent(None)
 
     def _updateClock(self):
         if not cfg.showClock.value:

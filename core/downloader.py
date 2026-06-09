@@ -419,21 +419,13 @@ class Downloader:
             # except Exception:
             #     pass
             
-            SPI_SETDESKWALLPAPER = 20
-            SPIF_UPDATEINIFILE = 0x01
-            SPIF_SENDCHANGE = 0x02
-            
+            # 调用 native 模块更改桌面背景（C++ 封装，替代原 ctypes 调用）
+            from classlively_native import set_wallpaper
             wallpaper_path = os.path.join(output_dir, "img0.jpg")
             if os.path.exists(wallpaper_path):
                 if self.installer_logger:
                     self.installer_logger.info(f"{software_name}: 更改桌面背景")
-                # 调用SystemParametersInfo函数更改桌面背景
-                ctypes.windll.user32.SystemParametersInfoW(
-                    SPI_SETDESKWALLPAPER, 
-                    0, 
-                    wallpaper_path, 
-                    SPIF_UPDATEINIFILE | SPIF_SENDCHANGE
-                )
+                set_wallpaper(wallpaper_path)
                 if self.installer_logger:
                     self.installer_logger.info(f"{software_name}: 桌面背景已更改")
                 try:
