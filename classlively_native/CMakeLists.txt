@@ -13,5 +13,6 @@ find_package(pybind11 CONFIG REQUIRED)
 pybind11_add_module(classlively_native
     src/wallpaper.cpp
     src/image.cpp
+    src/hook.cpp
 )
 

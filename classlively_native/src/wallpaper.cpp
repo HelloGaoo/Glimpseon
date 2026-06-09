@@ -3,6 +3,7 @@
 #include <pybind11/pybind11.h>
 #include <Windows.h>
 #include "image_blur.h"
+#include "hook.h"
 
 namespace py = pybind11;
 
@@ -37,4 +38,14 @@ PYBIND11_MODULE(classlively_native, m) {
           "Args: input(bytes-like, BGRA), width(int), height(int), radius(int 0-30)\n"
           "Returns: bytes of blurred BGRA pixel data",
           py::arg("input"), py::arg("width"), py::arg("height"), py::arg("radius"));
+
+    // 全局钩子
+    m.def("install_hook", &classlively_native::install_hook,
+          "Install global low-level keyboard (PageUp/Down) and mouse (wheel) hooks.");
+    m.def("uninstall_hook", &classlively_native::uninstall_hook,
+          "Uninstall all global hooks.");
+    m.def("was_page_operation_recent", &classlively_native::was_page_operation_recent,
+          "Check if PageUp/Down or mouse wheel event occurred within ms_threshold milliseconds.\n"
+          "Args: ms_threshold(int)\nReturns: bool",
+          py::arg("ms_threshold"));
 }

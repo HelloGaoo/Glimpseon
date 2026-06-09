@@ -1023,7 +1023,6 @@ class MainWindow(FluentWindow):
         self.idleTimer.timeout.connect(self._checkIdle)
         self.lastMouseActivity = QTime.currentTime()
         self.lastKeyboardActivity = QTime.currentTime()
-        self.lastPageOperation = QTime.currentTime()
         self.isMinimized = False
         self.idleCheckInterval = 10000
         self.hasTriggeredAutoOpen = False
@@ -1262,8 +1261,11 @@ class MainWindow(FluentWindow):
             idle_time_ms = ticks - last_input.dwTime
 
             now = QTime.currentTime()
-            page_operation_elapsed = self.lastPageOperation.msecsTo(now)
-            is_recent_page_operation = page_operation_elapsed < 5000
+            try:
+                from classlively_native import was_page_operation_recent
+                is_recent_page_operation = was_page_operation_recent(5000)
+            except Exception:
+                is_recent_page_operation = False
 
             idle_minutes = cfg.idleMinutes.value
             idle_threshold = idle_minutes * 60 * 1000
@@ -1291,41 +1293,10 @@ class MainWindow(FluentWindow):
 
     def _installGlobalHooks(self):
         try:
-            HOOKPROC = ctypes.CFUNCTYPE(ctypes.c_long, ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong)
-            self.keyboardProcWrapper = HOOKPROC(self._keyboardProc)
-            self.mouseProcWrapper = HOOKPROC(self._mouseProc)
-            self.keyboardHook = ctypes.windll.user32.SetWindowsHookExW(
-                13, self.keyboardProcWrapper,
-                ctypes.windll.kernel32.GetModuleHandleW(None), 0
-            )
-            self.mouseHook = ctypes.windll.user32.SetWindowsHookExW(
-                14, self.mouseProcWrapper,
-                ctypes.windll.kernel32.GetModuleHandleW(None), 0
-            )
+            from classlively_native import install_hook
+            install_hook()
         except Exception as e:
             logger.error(f"全局钩子安装失败：{e}")
-
-    def _keyboardProc(self, nCode, wParam, lParam):
-        if nCode >= 0:
-            class KBDLLHOOKSTRUCT(ctypes.Structure):
-                _fields_ = [
-                    ("vkCode", ctypes.c_uint),
-                    ("scanCode", ctypes.c_uint),
-                    ("flags", ctypes.c_uint),
-                    ("time", ctypes.c_uint),
-                    ("dwExtraInfo", ctypes.c_ulong)
-                ]
-            kbd_struct = KBDLLHOOKSTRUCT.from_address(lParam)
-            keyCode = kbd_struct.vkCode
-            if keyCode in [33, 34]:
-                self.lastPageOperation = QTime.currentTime()
-        return ctypes.windll.user32.CallNextHookEx(self.keyboardHook, nCode, wParam, lParam)
-
-    def _mouseProc(self, nCode, wParam, lParam):
-        if nCode >= 0:
-            if wParam == 0x020A:
-                self.lastPageOperation = QTime.currentTime()
-        return ctypes.windll.user32.CallNextHookEx(self.mouseHook, nCode, wParam, lParam)
 
     def setVideoPlaying(self, playing):
         self.isVideoPlaying = playing
@@ -1365,10 +1336,11 @@ class MainWindow(FluentWindow):
 
         if cfg.debugMode.value:
             event.accept()
-            if hasattr(self, 'keyboardHook') and self.keyboardHook:
-                ctypes.windll.user32.UnhookWindowsHookEx(self.keyboardHook)
-            if hasattr(self, 'mouseHook') and self.mouseHook:
-                ctypes.windll.user32.UnhookWindowsHookEx(self.mouseHook)
+            try:
+                from classlively_native import uninstall_hook
+                uninstall_hook()
+            except Exception:
+                pass
             release_single_instance()
             QApplication.quit()
             return
@@ -1383,10 +1355,11 @@ class MainWindow(FluentWindow):
                 cfg.minimizeNotificationCount.value = cfg.minimizeNotificationCount.value + 1
                 save_cfg()
         else:
-            if hasattr(self, 'keyboardHook') and self.keyboardHook:
-                ctypes.windll.user32.UnhookWindowsHookEx(self.keyboardHook)
-            if hasattr(self, 'mouseHook') and self.mouseHook:
-                ctypes.windll.user32.UnhookWindowsHookEx(self.mouseHook)
+            try:
+                from classlively_native import uninstall_hook
+                uninstall_hook()
+            except Exception:
+                pass
             release_single_instance()
             QApplication.quit()
 
