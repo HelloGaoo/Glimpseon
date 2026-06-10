@@ -1,0 +1,174 @@
+/* 下载界面 */
+
+DownloadInterface {
+    background-color: rgb(39, 39, 39);
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+DownloadInterface #scrollWidget {
+    background-color: rgb(39, 39, 39);
+}
+
+DownloadInterface QScrollArea {
+    border: none;
+    background-color: rgb(39, 39, 39);
+}
+
+/* 标题 */
+
+DownloadInterface QLabel#settingLabel {
+    font-size: 33px;
+    background-color: transparent;
+    color: white;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 卡片 */
+
+DownloadInterface CardWidget {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+DownloadInterface CardWidget:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* 标签 */
+
+DownloadInterface QLabel#softwareNameLabel {
+    font-size: 18px;
+    color: white;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+DownloadInterface QLabel#softwareDescLabel {
+    font-size: 14px;
+    color: #888888;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+DownloadInterface QLabel#sectionTitleLabel {
+    font-size: 20px;
+    color: white;
+    margin-top: 20px;
+    margin-bottom: 10px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+DownloadInterface QLabel#modeLabel,
+DownloadInterface QLabel#sourceLabel {
+    font-size: 18px;
+    color: white;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+DownloadInterface QLabel#softwareEmptyIconLabel {
+    font-size: 32px;
+    background-color: transparent;
+}
+
+/* 模式选择 */
+
+DownloadInterface #modeContainer {
+    margin-top: 8px;
+    margin-bottom: 8px;
+}
+
+DownloadInterface QRadioButton {
+    font-size: 14px;
+    color: white;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+DownloadInterface QRadioButton::indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    border: 2px solid #888888;
+    background-color: transparent;
+}
+
+DownloadInterface QRadioButton::indicator:checked {
+    border: 2px solid #ff6b9d;
+    background-color: #ff6b9d;
+}
+
+DownloadInterface QRadioButton::indicator:hover {
+    border: 2px solid #ff8fb3;
+}
+
+/* 下载源下拉框 */
+
+DownloadInterface ComboBox#sourceComboBox {
+    font-size: 14px;
+    color: white;
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+DownloadInterface ComboBox#sourceComboBox:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+DownloadInterface ComboBox#sourceComboBox::drop-down {
+    border: none;
+    width: 30px;
+}
+
+DownloadInterface ComboBox#sourceComboBox::down-arrow {
+    image: none;
+    border: none;
+    width: 12px;
+    height: 12px;
+    margin-right: 8px;
+}
+
+/* 按钮 */
+
+DownloadInterface PushButton#startButton {
+    font-size: 14px;
+    color: white;
+    background-color: #00c853;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 16px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+DownloadInterface PushButton#startButton:hover {
+    background-color: #00e676;
+    border: none;
+}
+
+DownloadInterface PushButton#startButton:pressed {
+    background-color: #009624;
+    border: none;
+}
+
+DownloadInterface QToolButton#softwareLinkButton {
+    border: none;
+    background: transparent;
+    border-radius: 4px;
+}
+
+DownloadInterface QToolButton#softwareLinkButton:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* 进度环 */
+
+DownloadInterface ProgressRing {
+    background-color: transparent;
+}
+
+DownloadInterface ProgressRing::chunk {
+    background-color: #00e676;
+    border-radius: 30px;
+}

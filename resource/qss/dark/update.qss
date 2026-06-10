@@ -1,0 +1,100 @@
+/* 更新界面 */
+
+#update {
+    background-color: rgb(39, 39, 39);
+    border: none;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#update #scrollWidget {
+    background-color: rgb(39, 39, 39);
+}
+
+#update QScrollArea {
+    border: none;
+    background-color: rgb(39, 39, 39);
+}
+
+/* 标题 */
+
+#update QLabel#settingLabel {
+    font-size: 33px;
+    background-color: transparent;
+    color: white;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 卡片 */
+
+#update CardWidget,
+#update SettingCard,
+#update SwitchSettingCard {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+}
+
+#update CardWidget:hover,
+#update SettingCard:hover,
+#update SwitchSettingCard:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+#update SmoothScrollArea {
+    background-color: transparent;
+    border: none;
+}
+
+/* 标签 */
+
+#update QLabel#changelogTitle {
+    font-size: 16px;
+    color: white;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#update QLabel#changelogContent {
+    color: #CCCCCC;
+    line-height: 1.8;
+    font-size: 13px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#update QLabel#versionTitle {
+    font-size: 20px;
+    color: white;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#update QLabel#buildDate {
+    color: #CCCCCC;
+    font-size: 13px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#update QLabel#updateStatusIcon {
+    border-radius: 8px;
+    background-color: #999999;
+}
+
+#update QLabel#updateStatusLabel {
+    color: #999999;
+    font-size: 14px;
+}
+
+/* 按钮 */
+
+#update PrimaryPushButton {
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 14px;
+    color: white;
+}
+
+#update PrimaryPushButton:hover {
+    color: white;
+}
+
+#update PrimaryPushButton:pressed {
+    color: rgba(255, 255, 255, 0.7);
+}

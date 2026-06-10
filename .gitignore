@@ -1,0 +1,16 @@
+__pycache__/
+.trae/
+*.pyc
+logs/
+Logs/
+config/
+.vscode/
+.idea/
+venv/
+.venv/
+env/
+Thumbs.db
+.DS_Store
+wallpaper/
+data/ql_icon/
+data/cache/

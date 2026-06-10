@@ -1,0 +1,11 @@
+/* 组件设置对话框 */
+
+#settingDialog {
+    background-color: rgb(32, 32, 32);
+    border: none;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#settingDialog Pivot {
+    background-color: transparent;
+}

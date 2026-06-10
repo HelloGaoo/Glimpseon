@@ -1,0 +1,340 @@
+/* 调试面板 */
+
+#debug {
+    background-color: rgb(39, 39, 39);
+    border: none;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#debug #scrollWidget {
+    background-color: rgb(39, 39, 39);
+}
+
+#debug QScrollArea {
+    background-color: transparent;
+    border: none;
+}
+
+/* 标题 */
+
+#debug QLabel#settingLabel {
+    font-size: 33px;
+    background-color: transparent;
+    color: white;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#debug SubtitleLabel {
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+#debug BodyLabel {
+    color: #d0d0d0;
+    font-size: 14px;
+}
+
+#debug StrongBodyLabel {
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+#debug BodyLabel#debugValueLabel {
+    font-size: 18px;
+    font-weight: bold;
+    color: #0078d4;
+}
+
+#debug QLabel {
+    color: #d0d0d0;
+    background-color: transparent;
+}
+
+#debug QLabel#debugSeparator {
+    background-color: #3d3d3d;
+    max-height: 1px;
+}
+
+/* 卡片 */
+
+#debug CardWidget {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#debug CardWidget:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* 按钮 */
+
+#debug PrimaryPushButton {
+    background-color: #0078d4;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 16px;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+#debug PrimaryPushButton:hover {
+    background-color: #1084d8;
+}
+
+#debug PrimaryPushButton:pressed {
+    background-color: #006cbe;
+}
+
+#debug PushButton {
+    background-color: #3d3d3d;
+    color: #ffffff;
+    border: 1px solid #555555;
+    border-radius: 4px;
+    padding: 6px 16px;
+    font-size: 14px;
+}
+
+#debug PushButton:hover {
+    background-color: #4d4d4d;
+    border-color: #666666;
+}
+
+#debug PushButton:pressed {
+    background-color: #333333;
+}
+
+#debug ToggleButton {
+    background-color: transparent;
+    color: #ffffff;
+    border: 1px solid #555555;
+    border-radius: 4px;
+    padding: 6px 16px;
+    font-size: 14px;
+}
+
+#debug ToggleButton:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+#debug ToggleButton:checked {
+    background-color: #0078d4;
+    border-color: #0078d4;
+}
+
+/* 输入控件 */
+
+#debug QTextEdit {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    border: 1px solid #3d3d3d;
+    border-radius: 4px;
+    padding: 8px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 13px;
+    selection-background-color: #0078d4;
+}
+
+#debug QTextEdit:focus {
+    border: 1px solid #0078d4;
+}
+
+#debug QTextEdit:disabled {
+    background-color: #2a2a2a;
+    color: #888888;
+}
+
+#debug SpinBox {
+    background-color: #3d3d3d;
+    color: #ffffff;
+    border: 1px solid #555555;
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+
+#debug SpinBox:hover {
+    border-color: #0078d4;
+}
+
+#debug SpinBox::up-button,
+#debug SpinBox::down-button {
+    border: none;
+    width: 16px;
+    background-color: transparent;
+}
+
+#debug SpinBox::up-button:hover,
+#debug SpinBox::down-button:hover {
+    background-color: #4d4d4d;
+}
+
+#debug ComboBox {
+    background-color: #3d3d3d;
+    color: #ffffff;
+    border: 1px solid #555555;
+    border-radius: 4px;
+    padding: 6px 12px;
+    min-width: 120px;
+}
+
+#debug ComboBox:hover {
+    border-color: #0078d4;
+}
+
+#debug ComboBox::drop-down {
+    border: none;
+    width: 24px;
+}
+
+#debug ComboBox::down-arrow {
+    image: none;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid #ffffff;
+    margin-right: 8px;
+}
+
+#debug QComboBox QAbstractItemView {
+    background-color: #2b2b2b;
+    color: #ffffff;
+    border: 1px solid #3d3d3d;
+    selection-background-color: #0078d4;
+    outline: none;
+}
+
+#debug QComboBox QAbstractItemView::item {
+    height: 32px;
+    padding-left: 12px;
+}
+
+#debug QComboBox QAbstractItemView::item:hover {
+    background-color: #3d3d3d;
+}
+
+#debug QComboBox QAbstractItemView::item:selected {
+    background-color: #0078d4;
+}
+
+/* 复选框 */
+
+#debug QCheckBox {
+    color: #ffffff;
+    spacing: 8px;
+}
+
+#debug QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 1px solid #555555;
+    background-color: #3d3d3d;
+}
+
+#debug QCheckBox::indicator:checked {
+    background-color: #0078d4;
+    border-color: #0078d4;
+    image: url(:/qfluentwidgets/images/icons/CheckBlack_16x16.png);
+}
+
+/* 进度条 */
+
+#debug QProgressBar {
+    background-color: #3d3d3d;
+    border: none;
+    border-radius: 4px;
+    text-align: center;
+    color: #ffffff;
+    height: 8px;
+}
+
+#debug QProgressBar::chunk {
+    background-color: #0078d4;
+    border-radius: 4px;
+}
+
+/* 分组框 */
+
+#debug QGroupBox {
+    background-color: #2b2b2b;
+    border: 1px solid #3d3d3d;
+    border-radius: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+#debug QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 12px;
+    padding: 0 8px;
+    color: #0078d4;
+}
+
+/* 滚动条 */
+
+#debug QScrollBar:vertical {
+    background-color: #2b2b2b;
+    width: 10px;
+    border-radius: 5px;
+    margin: 2px;
+}
+
+#debug QScrollBar::handle:vertical {
+    background-color: #555555;
+    border-radius: 5px;
+    min-height: 20px;
+    margin: 2px;
+}
+
+#debug QScrollBar::handle:vertical:hover {
+    background-color: #666666;
+}
+
+#debug QScrollBar::handle:vertical:pressed {
+    background-color: #777777;
+}
+
+#debug QScrollBar::add-line:vertical,
+#debug QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+#debug QScrollBar::add-page:vertical,
+#debug QScrollBar::sub-page:vertical {
+    background: none;
+}
+
+/* 布局 */
+
+#debug QVBoxLayout,
+#debug QHBoxLayout,
+#debug QGridLayout {
+    spacing: 10px;
+}
+
+/* 天气图标网格 */
+
+#debug #weatherIconGrid {
+    background-color: transparent;
+}
+
+#debug #weatherIconGrid CardWidget {
+    background-color: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 8px;
+}
+
+#debug #weatherIconGrid CardWidget:hover {
+    background-color: rgba(0, 120, 212, 0.15);
+    border: 1px solid rgba(0, 120, 212, 0.4);
+}
+
+#debug #weatherIconGrid CardWidget BodyLabel {
+    color: #cccccc;
+}

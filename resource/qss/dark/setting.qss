@@ -1,0 +1,177 @@
+/* 设置界面 */
+
+#setting, #scrollWidget {
+    background-color: rgb(39, 39, 39);
+    border: none;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#setting QScrollArea {
+    border: none;
+    background-color: rgb(39, 39, 39);
+}
+
+/* 标题 */
+
+#setting QLabel#settingLabel {
+    font-size: 33px;
+    background-color: transparent;
+    color: white;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 卡片 */
+
+#setting CardWidget {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#setting CardWidget:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+#setting SettingCard,
+#setting LineEditSettingCard,
+#setting SpinBoxSettingCard,
+#setting ButtonSettingCard {
+    background-color: transparent;
+    border-radius: 8px;
+}
+
+#setting SettingCard:hover,
+#setting LineEditSettingCard:hover,
+#setting SpinBoxSettingCard:hover,
+#setting ButtonSettingCard:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+}
+
+#setting OptionsSettingCard:hover,
+#setting RangeSettingCard:hover,
+#setting SwitchSettingCard:hover,
+#setting CustomColorSettingCard:hover,
+#setting ComboBoxSettingCard:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* 控件 */
+
+#setting PushButton {
+    background-color: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 5px;
+}
+
+#setting PushButton:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+#setting SwitchButton:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+#setting ComboBox {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 5px;
+}
+
+#setting ComboBox:hover {
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+#setting LineEdit {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 5px;
+    padding: 4px 8px;
+}
+
+#setting LineEdit:hover {
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+#setting SpinBox {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 5px;
+    padding: 4px 8px;
+}
+
+#setting SpinBox:hover {
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* 壁纸 */
+
+#setting #dimOverlay {
+    background-color: rgba(0, 0, 0, 120);
+}
+
+#setting #wallpaperContent {
+    background-color: transparent;
+}
+
+#setting #wallpaperInfoCard {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+}
+
+#setting #historyWidget {
+    background-color: transparent;
+}
+
+#setting #historyWidget QLabel#historyTitle {
+    color: #FFFFFF;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+#setting #historyWidget QLabel#historyCount {
+    color: #999999;
+    font-size: 13px;
+}
+
+#setting #historyWidget QLabel#emptyLabel {
+    color: #666666;
+}
+
+#setting #thumbnailCard {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+}
+
+#setting #thumbnailCard:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+#setting #thumbnailCard QLabel#thumbImage {
+    background-color: rgba(128, 128, 128, 30);
+    border-radius: 4px;
+}
+
+#setting #thumbnailCard QLabel#thumbInfo {
+    color: #999999;
+    font-size: 11px;
+}
+
+#setting #historyWidget PushButton#loadMoreBtn {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+}
+
+#setting #historyWidget PushButton#loadMoreBtn:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+}

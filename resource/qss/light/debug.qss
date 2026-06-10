@@ -1,0 +1,328 @@
+/* 调试面板 */
+
+#debug {
+    background-color: rgb(249, 249, 249);
+    border: none;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#debug #scrollWidget {
+    background-color: rgb(249, 249, 249);
+}
+
+#debug QScrollArea {
+    background-color: transparent;
+    border: none;
+}
+
+/* 标题 */
+
+#debug QLabel#settingLabel {
+    font-size: 33px;
+    background-color: transparent;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#debug SubtitleLabel {
+    color: #000000;
+    font-size: 18px;
+    font-weight: bold;
+    padding: 10px 0;
+}
+
+#debug BodyLabel {
+    color: #333333;
+    font-size: 14px;
+}
+
+#debug StrongBodyLabel {
+    color: #000000;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+#debug BodyLabel#debugValueLabel {
+    font-size: 18px;
+    font-weight: bold;
+    color: #0078d4;
+}
+
+#debug QLabel {
+    color: #333333;
+    background-color: transparent;
+}
+
+#debug QLabel#debugSeparator {
+    background-color: #d0d0d0;
+    max-height: 1px;
+}
+
+/* 卡片 */
+
+#debug CardWidget {
+    background-color: #ffffff;
+    border-radius: 8px;
+    border: 1px solid #d0d0d0;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#debug CardWidget:hover {
+    border: 1px solid #0078d4;
+}
+
+/* 按钮 */
+
+#debug PrimaryPushButton {
+    background-color: #0078d4;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-weight: bold;
+}
+
+#debug PrimaryPushButton:hover {
+    background-color: #1084d8;
+}
+
+#debug PrimaryPushButton:pressed {
+    background-color: #006cbe;
+}
+
+#debug PushButton {
+    background-color: #e0e0e0;
+    color: #000000;
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    padding: 6px 12px;
+}
+
+#debug PushButton:hover {
+    background-color: #f0f0f0;
+}
+
+#debug PushButton:pressed {
+    background-color: #d0d0d0;
+}
+
+#debug ToggleButton {
+    background-color: #e0e0e0;
+    color: #000000;
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    padding: 6px 12px;
+}
+
+#debug ToggleButton:checked {
+    background-color: #0078d4;
+    border-color: #0078d4;
+    color: #ffffff;
+}
+
+#debug ToggleButton:hover {
+    background-color: #f0f0f0;
+}
+
+/* 输入控件 */
+
+#debug QTextEdit {
+    background-color: #f9f9f9;
+    color: #333333;
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
+    padding: 8px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 13px;
+}
+
+#debug QTextEdit:focus {
+    border: 1px solid #0078d4;
+}
+
+#debug QTextEdit:disabled {
+    background-color: #f0f0f0;
+    color: #888888;
+}
+
+#debug SpinBox {
+    background-color: #ffffff;
+    color: #000000;
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+
+#debug SpinBox:hover {
+    border-color: #0078d4;
+}
+
+#debug SpinBox::up-button,
+#debug SpinBox::down-button {
+    border: none;
+    width: 16px;
+    background-color: transparent;
+}
+
+#debug SpinBox::up-button:hover,
+#debug SpinBox::down-button:hover {
+    background-color: #e0e0e0;
+}
+
+#debug ComboBox {
+    background-color: #ffffff;
+    color: #000000;
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    padding: 6px 12px;
+}
+
+#debug ComboBox:hover {
+    border-color: #0078d4;
+}
+
+#debug ComboBox::drop-down {
+    border: none;
+    width: 20px;
+}
+
+#debug ComboBox::down-arrow {
+    image: none;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid #000000;
+    margin-right: 10px;
+}
+
+#debug QComboBox QAbstractItemView {
+    background-color: #ffffff;
+    color: #000000;
+    border: 1px solid #d0d0d0;
+    selection-background-color: #0078d4;
+}
+
+#debug QComboBox QAbstractItemView::item {
+    height: 32px;
+    padding-left: 12px;
+}
+
+#debug QComboBox QAbstractItemView::item:hover {
+    background-color: #e0e0e0;
+}
+
+#debug QComboBox QAbstractItemView::item:selected {
+    background-color: #0078d4;
+}
+
+/* 复选框 */
+
+#debug QCheckBox {
+    color: #000000;
+    spacing: 8px;
+}
+
+#debug QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 1px solid #cccccc;
+    background-color: #ffffff;
+}
+
+#debug QCheckBox::indicator:checked {
+    background-color: #0078d4;
+    border-color: #0078d4;
+}
+
+/* 进度条 */
+
+#debug QProgressBar {
+    background-color: #e0e0e0;
+    border: none;
+    border-radius: 4px;
+    text-align: center;
+    color: #000000;
+    height: 20px;
+}
+
+#debug QProgressBar::chunk {
+    background-color: #0078d4;
+    border-radius: 4px;
+}
+
+/* 分组框 */
+
+#debug QGroupBox {
+    background-color: #ffffff;
+    border: 1px solid #d0d0d0;
+    border-radius: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    font-weight: bold;
+    color: #000000;
+}
+
+#debug QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 10px;
+    padding: 0 5px;
+    color: #0078d4;
+}
+
+/* 滚动条 */
+
+#debug QScrollBar:vertical {
+    background-color: #f3f3f3;
+    width: 12px;
+    border-radius: 6px;
+}
+
+#debug QScrollBar::handle:vertical {
+    background-color: #cccccc;
+    border-radius: 6px;
+    min-height: 20px;
+}
+
+#debug QScrollBar::handle:vertical:hover {
+    background-color: #bbbbbb;
+}
+
+#debug QScrollBar::add-line:vertical,
+#debug QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+#debug QScrollBar::add-page:vertical,
+#debug QScrollBar::sub-page:vertical {
+    background: none;
+}
+
+/* 布局 */
+
+#debug QVBoxLayout,
+#debug QHBoxLayout,
+#debug QGridLayout {
+    spacing: 10px;
+    margin: 0px;
+}
+
+/* 天气图标网格 */
+
+#debug #weatherIconGrid {
+    background-color: transparent;
+}
+
+#debug #weatherIconGrid CardWidget {
+    background-color: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 8px;
+}
+
+#debug #weatherIconGrid CardWidget:hover {
+    background-color: rgba(0, 120, 212, 0.08);
+    border: 1px solid rgba(0, 120, 212, 0.3);
+}
+
+#debug #weatherIconGrid CardWidget BodyLabel {
+    color: #555555;
+}

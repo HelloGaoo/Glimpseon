@@ -1,0 +1,389 @@
+[
+  {
+    "type": "reference",
+    "display_name": "SeevvoDownloader",
+    "license": "GPL-3.0",
+    "url": "https://github.com/HelloGaoo/SeevvoDownloader"
+  },
+  {
+    "type": "reference",
+    "display_name": "ClassIsland",
+    "license": "GPL-3.0",
+    "url": "https://github.com/ClassIsland/ClassIsland"
+  },
+  {
+    "type": "reference",
+    "display_name": "Class-Widgets",
+    "license": "MIT",
+    "url": "https://github.com/Class-Widgets/Class-Widgets"
+  },
+  {
+    "type": "reference",
+    "display_name": "NeteaseCloudMusicDiscordRPC",
+    "license": "MIT",
+    "url": "https://github.com/Kxnrl/NetEase-Cloud-Music-DiscordRPC"
+  },
+  {
+    "import_name": "altgraph",
+    "display_name": "altgraph",
+    "license": "MIT",
+    "url": "https://github.com/ronaldoussoren/altgraph"
+  },
+  {
+    "import_name": "backports.zstd",
+    "display_name": "backports.zstd",
+    "license": "BSD / GPLv2+",
+    "url": "https://github.com/rgommers/backports.zstd"
+  },
+  {
+    "import_name": "brotli",
+    "display_name": "Brotli",
+    "license": "MIT",
+    "url": "https://github.com/google/brotli"
+  },
+  {
+    "import_name": "certifi",
+    "display_name": "certifi",
+    "license": "MPL-2.0",
+    "url": "https://github.com/certifi/python-certifi"
+  },
+  {
+    "import_name": "charset_normalizer",
+    "display_name": "charset-normalizer",
+    "license": "MIT",
+    "url": "https://github.com/Ousret/charset_normalizer"
+  },
+  {
+    "import_name": "cnlunar",
+    "display_name": "cnlunar",
+    "license": "MIT",
+    "url": "https://github.com/CNlyl/cnlunar"
+  },
+  {
+    "import_name": "colorthief",
+    "display_name": "colorthief",
+    "license": "BSD-3",
+    "url": "https://github.com/fengsp/color-thief-py"
+  },
+  {
+    "import_name": "comtypes",
+    "display_name": "comtypes",
+    "license": "MIT",
+    "url": "https://github.com/enthought/comtypes"
+  },
+  {
+    "import_name": "darkdetect",
+    "display_name": "darkdetect",
+    "license": "BSD-3",
+    "url": "https://github.com/albertosottile/darkdetect"
+  },
+  {
+    "import_name": "easyocr",
+    "display_name": "EasyOCR",
+    "license": "Apache-2.0",
+    "url": "https://github.com/JaidedAI/EasyOCR"
+  },
+  {
+    "import_name": "filelock",
+    "display_name": "filelock",
+    "license": "BSD-3",
+    "url": "https://github.com/pycontribs/filelock"
+  },
+  {
+    "import_name": "fsspec",
+    "display_name": "fsspec",
+    "license": "BSD-3",
+    "url": "https://github.com/fsspec/filesystem_spec"
+  },
+  {
+    "import_name": "idna",
+    "display_name": "idna",
+    "license": "BSD-3",
+    "url": "https://github.com/kjd/idna"
+  },
+  {
+    "import_name": "imageio",
+    "display_name": "ImageIO",
+    "license": "BSD-2",
+    "url": "https://github.com/imageio/imageio"
+  },
+  {
+    "import_name": "inflate64",
+    "display_name": "inflate64",
+    "license": "LGPLv2+",
+    "url": "https://github.com/miurahr/inflate64"
+  },
+  {
+    "import_name": "jinja2",
+    "display_name": "Jinja2",
+    "license": "BSD-3",
+    "url": "https://github.com/pallets/jinja"
+  },
+  {
+    "import_name": "lazy_loader",
+    "display_name": "lazy-loader",
+    "license": "BSD-3",
+    "url": "https://github.com/scientific-python/lazy_loader"
+  },
+  {
+    "import_name": "markupsafe",
+    "display_name": "MarkupSafe",
+    "license": "BSD-3",
+    "url": "https://github.com/pallets/markupsafe"
+  },
+  {
+    "import_name": "mpmath",
+    "display_name": "mpmath",
+    "license": "BSD-3",
+    "url": "https://github.com/mpmath/mpmath"
+  },
+  {
+    "import_name": "multivolumefile",
+    "display_name": "multivolumefile",
+    "license": "LGPLv2+",
+    "url": "https://github.com/miurahr/multivolume"
+  },
+  {
+    "import_name": "networkx",
+    "display_name": "NetworkX",
+    "license": "BSD-3",
+    "url": "https://github.com/networkx/networkx"
+  },
+  {
+    "import_name": "ninja",
+    "display_name": "ninja",
+    "license": "Apache-2.0",
+    "url": "https://github.com/scikit-build/ninja"
+  },
+  {
+    "import_name": "numpy",
+    "display_name": "NumPy",
+    "license": "BSD-3",
+    "url": "https://github.com/numpy/numpy"
+  },
+  {
+    "import_name": "cv2",
+    "metadata_name": "opencv-python-headless",
+    "display_name": "OpenCV (opencv-python-headless)",
+    "license": "Apache-2.0",
+    "url": "https://github.com/opencv/opencv-python"
+  },
+  {
+    "import_name": "packaging",
+    "display_name": "packaging",
+    "license": "Apache-2.0 / BSD",
+    "url": "https://github.com/pypa/packaging"
+  },
+  {
+    "import_name": "pefile",
+    "display_name": "pefile",
+    "license": "MIT",
+    "url": "https://github.com/erocarrera/pefile"
+  },
+  {
+    "import_name": "PIL",
+    "metadata_name": "pillow",
+    "display_name": "Pillow",
+    "license": "HPND",
+    "url": "https://github.com/python-pillow/Pillow"
+  },
+  {
+    "import_name": "psutil",
+    "display_name": "psutil",
+    "license": "BSD-3",
+    "url": "https://github.com/giampaolo/psutil"
+  },
+  {
+    "import_name": "py_now_playing",
+    "display_name": "py-now-playing",
+    "license": "GPL-3.0",
+    "url": "https://github.com/ABUCKY0/py-now-playing"
+  },
+  {
+    "import_name": "py7zr",
+    "display_name": "py7zr",
+    "license": "LGPLv2+",
+    "url": "https://github.com/miurahr/py7zr"
+  },
+  {
+    "import_name": "pybcj",
+    "display_name": "pybcj",
+    "license": "LGPLv2+",
+    "url": "https://github.com/miurahr/pybcj"
+  },
+  {
+    "import_name": "pycaw",
+    "display_name": "pycaw",
+    "license": "MIT",
+    "url": "https://github.com/AndreMiras/pycaw"
+  },
+  {
+    "import_name": "pyclipper",
+    "display_name": "pyclipper",
+    "license": "Custom (based on Clipper)",
+    "url": "https://github.com/fonttools/pyclipper"
+  },
+  {
+    "import_name": "pycryptodomex",
+    "display_name": "pycryptodome",
+    "license": "Unlicense / BSD-2",
+    "url": "https://github.com/Legrandin/pycryptodome"
+  },
+  {
+    "import_name": "PyInstaller",
+    "display_name": "PyInstaller",
+    "license": "GPL-2.0+",
+    "url": "https://github.com/pyinstaller/pyinstaller"
+  },
+  {
+    "import_name": "_pyinstaller_hooks_contrib",
+    "metadata_name": "pyinstaller-hooks-contrib",
+    "display_name": "pyinstaller-hooks-contrib",
+    "license": "Apache-2.0",
+    "url": "https://github.com/pyinstaller/pyinstaller-hooks-contrib"
+  },
+  {
+    "import_name": "pymem",
+    "display_name": "Pymem",
+    "license": "MIT",
+    "url": "https://github.com/srounet/Pymem"
+  },
+  {
+    "import_name": "pyppmd",
+    "display_name": "pyppmd",
+    "license": "LGPLv2+",
+    "url": "https://github.com/miurahr/pyppmd"
+  },
+  {
+    "import_name": "PyQt6",
+    "display_name": "PyQt6",
+    "license": "GPL-3.0 / Commercial",
+    "url": "https://www.riverbankcomputing.com/software/pyqt/"
+  },
+  {
+    "import_name": "qfluentwidgets",
+    "metadata_name": "PyQt6-Fluent-Widgets",
+    "display_name": "PyQt-Fluent-Widgets",
+    "license": "GPL-3.0",
+    "url": "https://github.com/zhiyiYo/PyQt-Fluent-Widgets"
+  },
+  {
+    "import_name": "qframelesswindow",
+    "metadata_name": "PyQt6-Frameless-Window",
+    "display_name": "PyQt6-Frameless-Window",
+    "license": "GPL-3.0",
+    "url": "https://github.com/zhiyiYo/PyQt-Frameless-Window"
+  },
+  {
+    "import_name": "pytesseract",
+    "display_name": "pytesseract",
+    "license": "Apache-2.0",
+    "url": "https://github.com/madmub/pytesseract"
+  },
+  {
+    "import_name": "python_bidi",
+    "display_name": "python-bidi",
+    "license": "LGPL",
+    "url": "https://github.com/MeirKrihavi/python-bidi"
+  },
+  {
+    "import_name": "win32api",
+    "metadata_name": "pywin32",
+    "display_name": "pywin32",
+    "license": "PSF-2.0",
+    "url": "https://github.com/mhammond/pywin32"
+  },
+  {
+    "import_name": "win32ctypes",
+    "metadata_name": "pywin32-ctypes",
+    "display_name": "pywin32-ctypes",
+    "license": "PSF-2.0",
+    "url": "https://github.com/enthought/pywin32-ctypes"
+  },
+  {
+    "import_name": "yaml",
+    "metadata_name": "pyyaml",
+    "display_name": "PyYAML",
+    "license": "MIT",
+    "url": "https://github.com/yaml/pyyaml"
+  },
+  {
+    "import_name": "requests",
+    "display_name": "requests",
+    "license": "Apache-2.0",
+    "url": "https://github.com/psf/requests"
+  },
+  {
+    "import_name": "skimage",
+    "metadata_name": "scikit-image",
+    "display_name": "scikit-image",
+    "license": "BSD-3",
+    "url": "https://github.com/scikit-image/scikit-image"
+  },
+  {
+    "import_name": "scipy",
+    "display_name": "SciPy",
+    "license": "BSD-3",
+    "url": "https://github.com/scipy/scipy"
+  },
+  {
+    "import_name": "shapely",
+    "display_name": "Shapely",
+    "license": "BSD-3",
+    "url": "https://github.com/shapely/shapely"
+  },
+  {
+    "import_name": "sympy",
+    "display_name": "SymPy",
+    "license": "BSD-3",
+    "url": "https://github.com/sympy/sympy"
+  },
+  {
+    "import_name": "texttable",
+    "display_name": "texttable",
+    "license": "MIT",
+    "url": "https://github.com/foutaise/texttable"
+  },
+  {
+    "import_name": "tifffile",
+    "display_name": "tifffile",
+    "license": "BSD-3",
+    "url": "https://github.com/cgohlke/tifffile"
+  },
+  {
+    "import_name": "torch",
+    "display_name": "PyTorch",
+    "license": "BSD-3",
+    "url": "https://github.com/pytorch/pytorch"
+  },
+  {
+    "import_name": "torchvision",
+    "display_name": "torchvision",
+    "license": "BSD-3",
+    "url": "https://github.com/pytorch/vision"
+  },
+  {
+    "import_name": "typing_extensions",
+    "display_name": "typing_extensions",
+    "license": "PSF-2.0",
+    "url": "https://github.com/python/typing_extensions"
+  },
+  {
+    "import_name": "uiautomation",
+    "display_name": "uiautomation",
+    "license": "MIT",
+    "url": "https://github.com/yinkaisheng/Python-UIAutomation-for-Windows"
+  },
+  {
+    "import_name": "urllib3",
+    "display_name": "urllib3",
+    "license": "MIT",
+    "url": "https://github.com/urllib3/urllib3"
+  },
+  {
+    "import_name": "winsdk",
+    "display_name": "winsdk",
+    "license": "MIT",
+    "url": "https://github.com/pywinrt/python-winsdk"
+  }
+]

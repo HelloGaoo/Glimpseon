@@ -1,0 +1,1271 @@
+# ClassLively
+# Copyright (C) 2026 HelloGaoo
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+"""
+文件下载模块
+"""
+
+import logging
+import os
+import sys
+if getattr(sys, 'frozen', False):
+    _BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
+else:
+    _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _BASE_DIR not in sys.path:sys.path.insert(0, _BASE_DIR)
+
+import ctypes
+import shutil
+import subprocess
+import time
+
+import py7zr
+import pythoncom
+import requests
+import zipfile
+from concurrent.futures import ThreadPoolExecutor
+from win32com.client import Dispatch
+
+from core.logger import logger
+from core.utils import tr
+from core.constants import BASE_DIR as CONST_BASE_DIR, get_resPath
+
+# urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+import warnings
+warnings.filterwarnings("ignore", message="Unverified HTTPS request")
+
+SEVEN_ZIP_PASSWORD = 'zQt83iOY3xXLfDVg6SJ7ocnapy90I1d62w6jh79WlT0m1qPC8b55HU5Nk4ARZFBs'
+
+# 进程/子进程 优先级控制 这一段是从旧项目SeevvoDownloader搬过来的
+PRIORITY_CLASSES = {
+    'idle': 0x40,
+    'below_normal': 0x00004000,
+    'normal': 0x20,
+    'above_normal': 0x00008000,
+    'high': 0x00000080,
+    'realtime': 0x00000100,
+}
+
+
+def set_priority_pid(pid, level='below_normal'):
+    """设置指定 pid 的进程优先级
+        pid: 进程ID
+        level: 优先级级别，可选值：'idle'|'below_normal'|'normal'|'above_normal'|'high'|'realtime'
+        bool: 设置是否成功
+    """
+    try:
+        level_const = PRIORITY_CLASSES.get(level, PRIORITY_CLASSES['normal'])
+        PROCESS_SET_INFORMATION = 0x0200
+        PROCESS_QUERY_INFORMATION = 0x0400
+        handle = ctypes.windll.kernel32.OpenProcess(PROCESS_SET_INFORMATION | PROCESS_QUERY_INFORMATION, False, int(pid))
+        if not handle:
+            return False
+        try:
+            res = ctypes.windll.kernel32.SetPriorityClass(handle, int(level_const))
+            return bool(res)
+        finally:
+            ctypes.windll.kernel32.CloseHandle(handle)
+    except Exception:
+        return False
+
+
+def set_proc_prio(level='high'):
+    """将当前进程优先级设置为指定级别
+        level: 优先级级别，可选值：'idle'|'below_normal'|'normal'|'above_normal'|'high'|'realtime'
+    """
+    try:
+        set_priority_pid(os.getpid(), level)
+        if logger:
+            logger.info(f"已设置当前进程优先级为: {level}")
+    except Exception:
+        if logger:
+            logger.warning("设置当前进程优先级失败")
+
+
+def _popen_low_priority(*popen_args, **popen_kwargs):
+    """安装子进程  below_normal 优先级"""
+    process = subprocess.Popen(*popen_args, **popen_kwargs)
+    set_priority_pid(process.pid, 'below_normal')
+    return process
+
+DOWNLOAD_SOURCES = {
+    "original": {
+        "name_key": "download.source_github",
+        "prefix": "https://github.com"
+    },
+    "hk": {
+        "name_key": "download.source_hk",
+        "prefix": "https://hk.gh-proxy.org/https://github.com"
+    },
+    "cloudflare": {
+        "name_key": "download.source_cf",
+        "prefix": "https://gh-proxy.org/https://github.com"
+    },
+    "edgeone": {
+        "name_key": "download.source_edgeone",
+        "prefix": "https://edgeone.gh-proxy.org/https://github.com"
+    },
+    "geekertao": {
+        "name_key": "download.source_geekertao",
+        "prefix": "https://ghfile.geekertao.top/https://github.com"
+    }
+}
+
+
+def get_source_name(source_key: str) -> str:
+    """获取下载源的翻译后显示名称"""
+    if source_key in DOWNLOAD_SOURCES:
+        return tr(DOWNLOAD_SOURCES[source_key]["name_key"])
+    return source_key
+
+DEFAULT_SOURCE = "hk"
+# current_source = DEFAULT_SOURCE
+import threading
+_current_source = DEFAULT_SOURCE
+_source_lock = threading.Lock()
+
+
+def set_download_src(source_key):
+    """设置下载源
+    
+    Args:
+        source_key: 下载源键名 (original, hk, cloudflare, edgeone, geekertao)
+    """
+    # global current_source
+    # if source_key in DOWNLOAD_SOURCES:
+    #     current_source = source_key
+    # else:
+    #     current_source = DEFAULT_SOURCE
+    global _current_source
+    with _source_lock:
+        if source_key in DOWNLOAD_SOURCES:
+            _current_source = source_key
+        else:
+            _current_source = DEFAULT_SOURCE
+
+
+# if getattr(os.sys, 'frozen', False):
+#     BASE_DIR = os.path.dirname(os.path.abspath(os.sys.executable))
+#     MEIPASS_DIR = os.sys._MEIPASS
+# else:
+#     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+#     MEIPASS_DIR = None
+BASE_DIR = CONST_BASE_DIR
+
+LOGS_DIR = os.path.join(BASE_DIR, "Logs")
+CACHE_DIR = os.path.join(BASE_DIR, "cache")
+TEMP_DIR = os.path.join(BASE_DIR, "Temporary")
+TOOLS_DIR = os.path.join(BASE_DIR, "Tools")
+UPDATE_DIR = os.path.join(BASE_DIR, "Update")
+
+SEVEN_ZIP_PATH = os.path.join(TOOLS_DIR, "7z.exe")
+
+DEFAULT_PHASE_ALLOCATION = {
+    'download': 70,
+    'decompress': 20,
+    'install': 10,
+}
+
+class Downloader:
+    def __init__(self, logger=None, progress_callback=None):
+        self.installer_logger = logger
+        self.progress_callback = progress_callback
+        self._last_progress = {}
+
+    def set_progress(self, software_name, percent):
+        # try:
+        #     # 失败时回退到0
+        #     last = self._last_progress.get(software_name, -1)
+        #     if percent == 0 or percent >= last:
+        #         self._last_progress[software_name] = percent
+        #         if getattr(self, 'progress_callback', None) and callable(self.progress_callback):
+        #             try:
+        #                 self.progress_callback(software_name, percent)
+        #             except Exception as e:
+        #                 if self.installer_logger:
+        #                     self.installer_logger.warning(f"{software_name}: 调用外部进度回调异常 - {e}")
+        #         else:
+        #             pass
+        # except Exception as e:
+        #     if self.installer_logger:
+        #         self.installer_logger.warning(f"{software_name}: 更新进度回调异常 - {e}")
+        last = self._last_progress.get(software_name, -1)
+        if percent == 0 or percent >= last:
+            self._last_progress[software_name] = percent
+            if self.progress_callback and callable(self.progress_callback):
+                try:
+                    self.progress_callback(software_name, percent)
+                except Exception as e:
+                    if self.installer_logger:
+                        self.installer_logger.warning(f"进度回调异常: {e}")
+
+    def _calc_phase_offsets(self, allocation: dict):
+        """返回阶段顺序与每阶段开始偏移量字典。"""
+        order = ['download', 'decompress', 'install']
+        offsets = {}
+        cur = 0
+        for p in order:
+            offsets[p] = cur
+            cur += allocation.get(p, 0)
+        return offsets
+
+    def _update_progress(self, software_name, phase, phase_percent, allocation=None):
+        """根据单阶段百分比(0-100)更新整体进度。"""
+        # 以前会有卡在70%或0% 或100%又退到70%的问题
+        if allocation is None:
+            allocation = DEFAULT_PHASE_ALLOCATION
+        offsets = self._calc_phase_offsets(allocation)
+        phase_alloc = allocation.get(phase, 0)
+        start = offsets.get(phase, 0)
+        total = start + (phase_percent / 100.0) * phase_alloc
+        total = round(total, 1)
+        self.set_progress(software_name, total)
+    
+    def _wait_process(self, software_name, process_name, timeout=30, check_interval=1):
+        #下面这一百行是ai写的 嵌套太多了看不懂 头疼。。。
+        if self.installer_logger:
+            self.installer_logger.info(f"{software_name}: 等待进程 {process_name} 出现，超时 {timeout} 秒")
+        start_time = time.time()
+        
+        while time.time() - start_time < timeout:
+            try:
+                result = subprocess.run(
+                    ["tasklist", "/FI", f"IMAGENAME eq {process_name}", "/NH"],
+                    capture_output=True, text=True, shell=False
+                )
+                if process_name in result.stdout:
+                    if self.installer_logger:
+                        self.installer_logger.info(f"{software_name}: 进程 {process_name} 已出现")
+                    return True
+            except Exception as err:
+                if self.installer_logger:
+                    self.installer_logger.warning(f"{software_name}: 检查进程 {process_name} 时出错 - {err}")
+            
+            time.sleep(check_interval)
+        
+        if self.installer_logger:
+            self.installer_logger.warning(f"{software_name}: 等待进程 {process_name} 超时（{timeout} 秒）")
+        return False
+    
+    def _wait_process_exit(self, software_name, process, timeout=None, check_interval=2):
+        if self.installer_logger:
+            if timeout:
+                self.installer_logger.info(f"{software_name}: 等待进程退出，超时 {timeout} 秒")
+            else:
+                self.installer_logger.info(f"{software_name}: 等待进程退出")
+        
+        if timeout:
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                if process.poll() is not None:
+                    if self.installer_logger:
+                        self.installer_logger.info(f"{software_name}: 进程已退出")
+                    return True
+                time.sleep(check_interval)
+            
+            if self.installer_logger:
+                self.installer_logger.warning(f"{software_name}: 等待进程退出超时（{timeout} 秒）")
+            return False
+        else:
+            process.wait()
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 进程已退出")
+            return True
+    
+    def _wait_condition(self, software_name, condition_func, timeout=30, check_interval=1):
+        if self.installer_logger:
+            self.installer_logger.info(f"{software_name}: 等待条件满足，超时 {timeout} 秒")
+        start_time = time.time()
+        
+        while time.time() - start_time < timeout:
+            try:
+                if condition_func():
+                    if self.installer_logger:
+                        self.installer_logger.info(f"{software_name}: 条件已满足")
+                    return True
+            except Exception as err:
+                if self.installer_logger:
+                    self.installer_logger.warning(f"{software_name}: 检查条件时出错 - {err}")
+            
+            time.sleep(check_interval)
+        
+        if self.installer_logger:
+            self.installer_logger.warning(f"{software_name}: 等待条件满足超时（{timeout} 秒）")
+        return False
+    
+    def _kill_process(self, software_name, process_name):
+        if self.installer_logger:
+            self.installer_logger.info(f"{software_name}: 尝试终止进程: {process_name}")
+        
+        try:
+            result = subprocess.run(
+                ["taskkill", "/f", "/im", process_name],
+                capture_output=True, text=True, shell=False
+            )
+            if result.returncode == 0:
+                if self.installer_logger:
+                    self.installer_logger.info(f"{software_name}: 进程 {process_name} 已终止")
+            else:
+                if self.installer_logger:
+                    self.installer_logger.warning(f"{software_name}: 终止进程 {process_name} 失败: {result.stderr}")
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 终止进程时出错 - {str(err)}")
+
+
+
+    # 下面为单独的安装函数了 不合并是因为有例外
+    # 这一整个文件基本上都是从旧项目SeevvoDownloader复制来的 但因为场景不一样 可能会有没修改来的问题
+
+    def _install_剪辑师(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self._update_progress(software_name, 'install', 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+    
+    def _install_知识胶囊(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self._update_progress(software_name, 'install', 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_掌上看班(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self._update_progress(software_name, 'install', 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_激活工具(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 开始下载")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            output_dir = r"C:\Program Files (x86)\Seewo"
+            self._decompress_7Z(software_name, installer_path, output_dir)
+            
+            source_shortcut = os.path.join(output_dir, "激活工具-WHYOS-Gaoo", "激活工具.lnk")
+            dest_shortcut = os.path.join(r"C:\Users\Public\Desktop", "激活工具.lnk")
+            
+            if os.path.exists(source_shortcut):
+                if self.installer_logger:
+                    self.installer_logger.info(f"{software_name}: 复制快捷方式到桌面")
+                shutil.copy2(source_shortcut, dest_shortcut)
+                if self.installer_logger:
+                    self.installer_logger.info(f"{software_name}: 快捷方式已复制到桌面")
+            else:
+                if self.installer_logger:
+                    self.installer_logger.warning(f"{software_name}: 未找到快捷方式: {source_shortcut}")
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self._update_progress(software_name, 'install', 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_希沃壁纸(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 开始下载")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            allocation = cache_file.get('phase_allocation', DEFAULT_PHASE_ALLOCATION)
+
+            output_dir = r"C:\Windows\Web"
+            self._decompress_7Z(software_name, installer_path, output_dir)
+            # try:
+            self._update_progress(software_name, 'decompress', 100, allocation)
+            # except Exception:
+            #     pass
+            
+            # 调用 native 模块更改桌面背景（C++ 封装，替代原 ctypes 调用）
+            from classlively_native import set_wallpaper
+            wallpaper_path = os.path.join(output_dir, "img0.jpg")
+            if os.path.exists(wallpaper_path):
+                if self.installer_logger:
+                    self.installer_logger.info(f"{software_name}: 更改桌面背景")
+                set_wallpaper(wallpaper_path)
+                if self.installer_logger:
+                    self.installer_logger.info(f"{software_name}: 桌面背景已更改")
+                try:
+                    self._update_progress(software_name, 'install', 100, allocation)
+                except Exception:
+                    pass
+            else:
+                if self.installer_logger:
+                    self.installer_logger.warning(f"{software_name}: 未找到壁纸文件: {wallpaper_path}")
+            
+            self._update_progress(software_name, 'install', 100)
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 安装完成")
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_希沃管家(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self._update_progress(software_name, 'install', 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_希沃快传(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self._update_progress(software_name, 'install', 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_希沃集控(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self._update_progress(software_name, 'install', 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_希沃智能笔(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self._update_progress(software_name, 'install', 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_希沃易课堂(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self._update_progress(software_name, 'install', 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_希沃输入法(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self._update_progress(software_name, 'install', 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_PPT小工具(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self._update_progress(software_name, 'install', 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_希沃轻白板(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self._update_progress(software_name, 'install', 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_希沃白板5(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self._update_progress(software_name, 'install', 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+
+    def _install_希沃课堂助手(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self._update_progress(software_name, 'install', 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_希沃电脑助手(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self._update_progress(software_name, 'install', 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_希沃导播助手(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self.set_progress(software_name, 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_希沃视频展台(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self.set_progress(software_name, 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_希沃物联校园(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self.set_progress(software_name, 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_远程互动课堂(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self.set_progress(software_name, 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_省平台登录插件(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 开始下载")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 开始安装")
+
+            process = _popen_low_priority([installer_path])
+            
+            self._wait_process(software_name, "省平台登录插件.exe", timeout=15, check_interval=2)
+            
+            self._kill_process(software_name, "省平台登录插件.exe")
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self.set_progress(software_name, 100)
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 安装完成")
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_希象传屏发送端(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self.set_progress(software_name, 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_希沃品课小组端(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            install_dir = r"C:\Program Files (x86)\Seewo\SeewoPinK"
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 创建安装目录: {install_dir}")
+            os.makedirs(install_dir, exist_ok=True)
+            
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 开始下载")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 开始静默安装")
+            process = _popen_low_priority([installer_path, "/S"])
+            
+            # 等待seewoPincoGroup.exe进程出现
+            self._wait_process(software_name, "seewoPincoGroup.exe", timeout=20, check_interval=3)
+            
+            # 等待安装进程退出
+            self._wait_process_exit(software_name, process, timeout=45, check_interval=5)
+            
+            self._kill_process(software_name, "seewoPincoGroup.exe")
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self.set_progress(software_name, 100)
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 安装完成")
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_希沃品课教师端(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 开始下载")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 开始静默安装")
+
+            process = _popen_low_priority([installer_path, "/S"])
+            
+            # 等待seewoPincoTeacher.exe进程出现
+            self._wait_process(software_name, "seewoPincoTeacher.exe", timeout=20, check_interval=3)
+            
+            # 等待安装进程退出
+            self._wait_process_exit(software_name, process, timeout=45, check_interval=5)
+            
+            # 终止进程
+            self._kill_process(software_name, "seewoPincoTeacher.exe")
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self.set_progress(software_name, 100)
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 安装完成")
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_微信(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self.set_progress(software_name, 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_QQ(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self.set_progress(software_name, 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_UU远程(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self.set_progress(software_name, 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_网易云音乐(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            self.silent_installation(software_name, installer_path)
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self.set_progress(software_name, 100)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+
+    def _install_office2021(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:            
+            if self.installer_logger:self.installer_logger.info(f"{software_name}: 开始下载")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            if self.installer_logger:self.installer_logger.info(f"{software_name}: 开始解压")
+            
+            allocation = cache_file.get('phase_allocation', DEFAULT_PHASE_ALLOCATION)
+            output_dir = TEMP_DIR
+            self._decompress_7Z(software_name, installer_path, output_dir)
+            try:
+                self._update_progress(software_name, 'decompress', 100, allocation)
+            except Exception:
+                pass
+            if self.installer_logger:self.installer_logger.info(f"{software_name}: 开始安装")
+            
+            setup_exe = os.path.join(output_dir, "setup.exe")
+            config_xml = os.path.join(output_dir, "config.xml")
+            
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 运行 setup.exe /configure config.xml")
+            office_process = _popen_low_priority([setup_exe, "/configure", config_xml])
+            
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 等待安装进程结束")
+            office_process.wait()
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 安装进程已结束")
+            
+            self.set_progress(software_name, 100)
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 安装完成")
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_ClassIsland2(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 开始下载")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 开始安装")
+            
+            install_dir = r"C:\ClassIsland2"
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 创建安装目录: {install_dir}")
+            os.makedirs(install_dir, exist_ok=True)
+            
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 解压文件到: {install_dir}")
+            with zipfile.ZipFile(installer_path, 'r') as zip_ref:
+                zip_ref.extractall(install_dir)
+            
+            shortcut_name = "ClassIsland2"
+            target_path = os.path.join(install_dir, "ClassIsland.exe")
+            public_desktop = os.path.join(os.environ.get("PUBLIC"), "Desktop")
+            shortcut_path = os.path.join(public_desktop, f"{shortcut_name}.lnk")
+            
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 创建快捷方式到公用桌面: {shortcut_path}")
+            try:
+                pythoncom.CoInitialize()
+                shell = Dispatch('WScript.Shell')
+                shortcut = shell.CreateShortCut(shortcut_path)
+                shortcut.TargetPath = target_path
+                shortcut.WorkingDirectory = install_dir
+                shortcut.IconLocation = target_path
+                shortcut.save()
+                if self.installer_logger:
+                    self.installer_logger.info(f"{software_name}: 快捷方式创建成功")
+            except Exception as e:
+                if self.installer_logger:
+                    self.installer_logger.warning(f"{software_name}: 创建快捷方式失败 - {str(e)}")
+            finally:
+                try:
+                    pythoncom.CoUninitialize()
+                except Exception:
+                    pass
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self.set_progress(software_name, 100)
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 安装完成")
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _install_ClassWidgets(self, software_name, cache_file, progress_callback=None, download_complete_callback=None):
+        try:
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 开始下载")
+            installer_path = self._download_file(software_name, cache_file, download_location="Temporary", progress_callback=progress_callback, download_complete_callback=download_complete_callback)
+            
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 开始安装")
+            
+            install_dir = r"C:\ClassWidgets"
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 创建安装目录: {install_dir}")
+            os.makedirs(install_dir, exist_ok=True)
+            
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 解压文件到: {install_dir}")
+            with zipfile.ZipFile(installer_path, 'r') as zip_ref:
+                zip_ref.extractall(install_dir)
+            
+            shortcut_name = "ClassWidgets"
+            target_path = r"C:\ClassWidgets\ClassWidgets.exe"
+            
+            public_desktop = os.path.join(os.environ.get("PUBLIC"), "Desktop")
+            shortcut_path = os.path.join(public_desktop, f"{shortcut_name}.lnk")
+            
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 创建快捷方式到公用桌面: {shortcut_path}")
+            try:
+                pythoncom.CoInitialize()
+                shell = Dispatch('WScript.Shell')
+                shortcut = shell.CreateShortCut(shortcut_path)
+                shortcut.TargetPath = target_path
+                shortcut.WorkingDirectory = r"C:\ClassWidgets"
+                shortcut.IconLocation = target_path
+                shortcut.save()
+                if self.installer_logger:
+                    self.installer_logger.info(f"{software_name}: 快捷方式创建成功")
+            except Exception as e:
+                if self.installer_logger:
+                    self.installer_logger.warning(f"{software_name}: 创建快捷方式失败 - {str(e)}")
+            finally:
+                try:
+                    pythoncom.CoUninitialize()
+                except Exception:
+                    pass
+            
+            self._clean_tempdir(TEMP_DIR, cache_file["filename"], software_name)
+            
+            self.set_progress(software_name, 100)
+            if self.installer_logger:
+                self.installer_logger.info(f"{software_name}: 安装完成")
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}", exc_info=True)
+            self.set_progress(software_name, 0)
+            raise
+    
+    def _get_download_url(self, cache_file):
+        """获取URL"""
+        if "url" in cache_file:
+            return cache_file["url"]
+        elif "github_path" in cache_file:
+            # prefix = DOWNLOAD_SOURCES[current_source]["prefix"]
+            with _source_lock:
+                src = _current_source
+            prefix = DOWNLOAD_SOURCES[src]["prefix"]
+            return f"{prefix}{cache_file['github_path']}"
+        return None
+    
+    def _download_file(self, software_name, cache_file, download_location="Temporary", progress_callback=None, download_complete_callback=None, download_rate_limit=0, progress_update_interval=0.5):
+        """下载文件
+            software_name: 软件名称
+            cache_file: 缓存文件信息
+            download_location: 下载位置 ("Temporarytr("download.or_separator")Cache")
+            progress_callback: 进度回调函数
+            download_complete_callback: 下载完成回调函数
+            download_rate_limit: 限速（bytes/s），0表示不限速
+            progress_update_interval: UI更新间隔（秒）
+            str: 下载文件的路径
+        """
+        url = self._get_download_url(cache_file)
+        if not url:
+            raise Exception(tr("download.error_no_url"))
+        
+        if download_location == "Temporary":
+            save_path = os.path.join(TEMP_DIR, cache_file["filename"])
+        else:
+            save_path = os.path.join(CACHE_DIR, cache_file["filename"])
+        
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        
+        if self.installer_logger:
+            self.installer_logger.info(f"{software_name}: 开始下载: {url}")
+
+        allocation = cache_file.get('phase_allocation', DEFAULT_PHASE_ALLOCATION)
+
+        def _internal_progress(p):
+            try:
+                float_p = float(p)
+                self._update_progress(software_name, 'download', float_p, allocation)
+                # 总进度
+                offsets = self._calc_phase_offsets(allocation)
+                start = offsets.get('download', 0)
+                total = start + (float_p / 100.0) * allocation.get('download', 0)
+                total = round(total, 1)
+            except Exception:
+                total = None
+            if progress_callback:
+                try:
+                    if total is None:
+                        progress_callback(software_name, p)
+                    else:
+                        progress_callback(software_name, total)
+                except Exception:
+                    if self.installer_logger:
+                        self.installer_logger.warning(f"{software_name}: 外部下载进度回调异常")
+        max_retries = 3
+        retry_count = 0
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Referer": "https://www.seewo.com/",
+            "Cache-Control": "max-age=0"
+        }
+
+        while retry_count < max_retries:
+            try:
+                if self.installer_logger:
+                    self.installer_logger.info(f"{software_name}: 发送下载请求 (重试 {retry_count + 1}/{max_retries})")
+                session = requests.Session()
+                session.headers.update(headers)
+
+                response = session.get(url, stream=True, timeout=60, allow_redirects=False, verify=False)
+                if response.status_code in (301, 302):
+                    redirect_url = response.headers.get("Location")
+                    if redirect_url:
+                        if self.installer_logger:
+                            self.installer_logger.info(f"{software_name}: 跟随重定向到: {redirect_url}")
+                        response = session.get(redirect_url, stream=True, timeout=60, verify=False)
+
+                response.raise_for_status()
+                total_size = int(response.headers.get('content-length', 0))
+                if self.installer_logger:
+                    self.installer_logger.info(f"{software_name}: 文件大小: {total_size} bytes")
+
+                downloaded_size = 0
+                start_time = time.time()
+                window_start = start_time
+                window_downloaded = 0
+                last_update_time = 0
+
+                with open(save_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                            chunk_len = len(chunk)
+                            downloaded_size += chunk_len
+
+                            # 限速
+                            if download_rate_limit and download_rate_limit > 0:
+                                window_downloaded += chunk_len
+                                now_t = time.time()
+                                elapsed_window = now_t - window_start
+                                if elapsed_window >= 1.0:
+                                    window_start = now_t
+                                    window_downloaded = 0
+                                else:
+                                    expected_time = window_downloaded / float(download_rate_limit)
+                                    if expected_time > elapsed_window:
+                                        time_to_sleep = expected_time - elapsed_window
+                                        time.sleep(time_to_sleep)
+
+                            now = time.time()
+                            if last_update_time == 0 or (now - last_update_time) >= progress_update_interval:
+                                elapsed_time = now - start_time if (now - start_time) > 0 else 1e-6
+                                speed = downloaded_size / elapsed_time
+                                if self.installer_logger:
+                                    if speed < 1024:
+                                        speed_str = f"{speed:.2f} B/s"
+                                    elif speed < 1024 * 1024:
+                                        speed_str = f"{speed / 1024:.2f} KB/s"
+                                    else:
+                                        speed_str = f"{speed / (1024 * 1024):.2f} MB/s"
+                                    self.installer_logger.debug(f"{software_name}: 下载速度 {speed_str}")
+                                if total_size > 0:
+                                    progress = int((downloaded_size / total_size) * 100)
+                                    _internal_progress(progress)
+                                last_update_time = now
+
+                _internal_progress(100)
+                if self.installer_logger:
+                    self.installer_logger.info(f"{software_name}: 下载完成：{save_path}")
+
+                if download_complete_callback:
+                    try:
+                        download_complete_callback(software_name)
+                    except TypeError:
+                        download_complete_callback()
+
+                return save_path
+            except requests.exceptions.RequestException as e:
+                retry_count += 1
+                if self.installer_logger:
+                    self.installer_logger.warning(f"{software_name}: 下载失败，将重试 ({retry_count}/{max_retries}) - {str(e)}")
+                time.sleep(5)
+                if retry_count >= max_retries:
+                    if self.installer_logger:
+                        self.installer_logger.error(f"{software_name}: 下载失败 - {str(e)}", exc_info=True)
+                    raise RuntimeError(str(e)) from e
+            except OSError as e:
+                if self.installer_logger:
+                    self.installer_logger.error(f"{software_name}: 文件操作失败 - {str(e)}", exc_info=True)
+                raise RuntimeError(str(e)) from e
+            except Exception as e:
+                if self.installer_logger:
+                    self.installer_logger.error(f"{software_name}: 下载异常 - {str(e)}", exc_info=True)
+                raise RuntimeError(str(e)) from e
+    
+    def silent_installation(self, software_name, installer_path):
+        """静默安装"""
+        if self.installer_logger:
+            self.installer_logger.info(f"{software_name}: 开始静默安装")
+        
+        try:
+            if installer_path.endswith('.exe'):
+                process = _popen_low_priority(
+                    [installer_path, '/S'],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    shell=False
+                )
+    
+                self._wait_process_exit(software_name, process, timeout=None)
+                
+                if process.returncode == 0:
+                    if self.installer_logger:
+                        self.installer_logger.info(f"{software_name}: 静默安装成功")
+                else:
+                    if self.installer_logger:
+                        self.installer_logger.error(f"{software_name}: 静默安装失败，返回码: {process.returncode}")
+                    raise Exception(f"安装失败，返回码: {process.returncode}")
+            else:
+                if self.installer_logger:
+                    self.installer_logger.warning(f"{software_name}: 不支持的安装程序类型")
+                raise Exception(tr("download.unsupported_type"))
+        except Exception as err:
+            if self.installer_logger:
+                self.installer_logger.error(f"{software_name}: 安装失败 - {str(err)}")
+            raise
+    
+    def _update_status(self, software_name, status):
+        """更新状态
+        """
+        mapping = {
+            tr("install.complete"): 100,
+            tr("install.installed"): 100,
+            tr("install.failed"): 0,
+            tr("download.downloading"): 20,
+            tr("download.extracting"): 50,
+            tr("download.configuring"): 80,
+        }
+        try:
+            if status in mapping:self.set_progress(software_name, mapping[status])
+            if self.installer_logger:self.installer_logger.info(f"{software_name}: {status}")
+        except Exception:
+            if self.installer_logger:self.installer_logger.info(f"{software_name}: {status}")
+    
+    def _decompress_7Z(self, software_name, archive_path, output_dir):
+        """解压7z文件"""
+        if self.installer_logger:
+            self.installer_logger.info(f"{software_name}: 开始解压到: {output_dir}")
+        
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+            with py7zr.SevenZipFile(archive_path, 'r', password=SEVEN_ZIP_PASSWORD) as archive:archive.extractall(output_dir)
+            if self.installer_logger:self.installer_logger.info(f"{software_name}: 解压完成")
+        except Exception as err:
+            if self.installer_logger:self.installer_logger.error(f"{software_name}: 解压失败 - {str(err)}")
+            raise
+    
+    def _clean_tempdir(self, temp_dir, filename, software_name, max_retries=3, retry_delay=1.0):
+        """清理临时文件
+        这里的与cleanup_temp_directory函数不同 这里的是清理单个文件 那个是清理整个目录 这是在安装后调用的 那个是启动软件自动清理的"""
+        file_path = os.path.join(temp_dir, filename)
+        if not os.path.exists(file_path):
+            return
+        
+        for attempt in range(max_retries):
+            try:
+                os.remove(file_path)
+                if self.installer_logger:
+                    self.installer_logger.info(f"{software_name}: 已清理临时文件：{file_path}")
+                return
+            except PermissionError as err:
+                if attempt < max_retries - 1:
+                    if self.installer_logger:
+                        self.installer_logger.warning(f"{software_name}: 文件被占用，将在 {retry_delay}秒后重试 ({attempt + 1}/{max_retries})")
+                    time.sleep(retry_delay)
+                else:
+                    if self.installer_logger:
+                        self.installer_logger.error(f"{software_name}: 清理临时文件失败（文件被占用）: {file_path} - {err}")
+            except Exception as err:
+                if self.installer_logger:
+                    self.installer_logger.warning(f"{software_name}: 清理临时文件时出错 - {err}")
+                break
+
+
+def cleanup_temp_directory(temp_dir=None, logger=None):
+    """清理临时目录中的所有文件"""
+    if temp_dir is None:temp_dir = TEMP_DIR
+    if not os.path.exists(temp_dir):return
+    try:
+        if logger:logger.info(f"开始清理临时目录：{temp_dir}")
+        count = 0
+        for filename in os.listdir(temp_dir):
+            file_path = os.path.join(temp_dir, filename)
+            try:
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                    count += 1
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+                    count += 1
+            except Exception as err:
+                if logger:logger.warning(f"清理临时文件失败：{file_path} - {err}")
+        
+        if logger:logger.info(f"临时目录清理完成，共清理 {count} 个文件/文件夹")
+    except Exception as err:
+        if logger:logger.error(f"清理临时目录失败：{err}")
+
+# def clean_tempdir(logger=None):
+#     cleanup_temp_directory(logger=logger)

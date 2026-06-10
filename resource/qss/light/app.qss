@@ -1,0 +1,110 @@
+/* 启动窗口 */
+
+#contentWidget {
+    background-color: rgba(255, 255, 255, 230);
+    border-radius: 10px;
+}
+
+StrongBodyLabel {
+    color: #000000;
+    font-size: 24px;
+    font-weight: bold;
+    font-family: "HarmonyOS Sans";
+}
+
+BodyLabel {
+    color: #888888;
+    font-size: 14px;
+}
+
+#versionLabel {
+    color: #AAAAAA;
+    font-size: 12px;
+}
+
+#statusLabel {
+    color: #333333;
+    font-size: 13px;
+}
+
+ProgressBar {
+    background-color: #E0E0E0;
+    border-radius: 2px;
+    min-height: 4px;
+    max-height: 4px;
+}
+
+ProgressBar::chunk {
+    background-color: #0078D4;
+    border-radius: 2px;
+}
+
+/* 向导窗口 */
+
+WizardWindow {
+    background-color: rgb(247, 247, 247);
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+WizardWindow QWidget {
+    background-color: rgb(247, 247, 247);
+}
+
+/* 标签 */
+
+WizardWindow StrongBodyLabel {
+    color: black;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-size: 28px;
+    margin-top: 8px;
+    margin-bottom: 8px;
+    font-weight: 900;
+}
+
+WizardWindow BodyLabel {
+    color: rgba(0, 0, 0, 0.8);
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-size: 20px;
+    margin-top: 6px;
+    margin-bottom: 6px;
+}
+
+WizardWindow QLabel#titleLabel {
+    color: black;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+WizardWindow QLabel#welcomeLabel {
+    margin: 0;
+    padding-left: 8px;
+}
+
+/* 控件 */
+
+WizardWindow CheckBox {
+    color: black;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    font-size: 18px;
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
+WizardWindow a {
+    color: #4fc08d;
+}
+
+WizardWindow QPushButton#closeButton {
+    background-color: transparent;
+    border: none;
+    color: black;
+    font-size: 20px;
+    border-radius: 15px;
+}
+
+WizardWindow QPushButton#closeButton:hover {
+    background-color: #E81123;
+    color: white;
+    border: none;
+}

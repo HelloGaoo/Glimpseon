@@ -1,0 +1,90 @@
+/* 更新界面 */
+
+#update {
+    background-color: rgb(249, 249, 249);
+    border: none;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#update #scrollWidget {
+    background-color: rgb(249, 249, 249);
+}
+
+#update QScrollArea {
+    background-color: rgb(249, 249, 249);
+    border: none;
+}
+
+/* 标题 */
+
+#update QLabel#settingLabel {
+    font-size: 33px;
+    background-color: transparent;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 卡片 */
+
+#update CardWidget,
+#update SettingCard,
+#update SwitchSettingCard {
+    background-color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 8px;
+}
+
+#update CardWidget:hover,
+#update SettingCard:hover,
+#update SwitchSettingCard:hover {
+    background-color: rgba(255, 255, 255, 1);
+}
+
+#update SmoothScrollArea {
+    background-color: transparent;
+    border: none;
+}
+
+/* 标签 */
+
+#update QLabel#changelogTitle {
+    font-size: 16px;
+    color: black;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#update QLabel#changelogContent {
+    color: #666666;
+    line-height: 1.8;
+    font-size: 13px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#update QLabel#versionTitle {
+    font-size: 20px;
+    color: black;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#update QLabel#buildDate {
+    color: #666666;
+    font-size: 13px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#update QLabel#updateStatusIcon {
+    border-radius: 8px;
+    background-color: #999999;
+}
+
+#update QLabel#updateStatusLabel {
+    color: #999999;
+    font-size: 14px;
+}
+
+/* 按钮 */
+
+#update PrimaryPushButton {
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 14px;
+}

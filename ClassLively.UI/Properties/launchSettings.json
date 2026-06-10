@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "ClassLively.UI (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "ClassLively.UI (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

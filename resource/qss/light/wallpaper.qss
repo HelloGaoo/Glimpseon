@@ -1,0 +1,176 @@
+/* 壁纸界面 */
+
+#wallpaper, #scrollWidget {
+    background-color: rgb(249, 249, 249);
+    border: none;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#wallpaper QScrollArea {
+    background-color: rgb(249, 249, 249);
+    border: none;
+}
+
+/* 标题 */
+
+#wallpaper QLabel#settingLabel {
+    font-size: 33px;
+    background-color: transparent;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 卡片 */
+
+#wallpaper CardWidget {
+    background-color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 8px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#wallpaper CardWidget:hover {
+    background-color: rgba(255, 255, 255, 1);
+}
+
+#wallpaper SettingCard,
+#wallpaper LineEditSettingCard,
+#wallpaper SpinBoxSettingCard,
+#wallpaper ButtonSettingCard {
+    background-color: transparent;
+    border-radius: 8px;
+}
+
+#wallpaper SettingCard:hover,
+#wallpaper LineEditSettingCard:hover,
+#wallpaper SpinBoxSettingCard:hover,
+#wallpaper ButtonSettingCard:hover {
+    background-color: rgba(0, 0, 0, 0.03);
+    border-radius: 8px;
+}
+
+#wallpaper OptionsSettingCard:hover,
+#wallpaper RangeSettingCard:hover,
+#wallpaper SwitchSettingCard:hover,
+#wallpaper CustomColorSettingCard:hover,
+#wallpaper ComboBoxSettingCard:hover {
+    background-color: rgba(0, 0, 0, 0.03);
+}
+
+/* 控件 */
+
+#wallpaper PushButton {
+    background-color: transparent;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 5px;
+}
+
+#wallpaper PushButton:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+    border-color: rgba(0, 0, 0, 0.2);
+}
+
+#wallpaper SwitchButton:hover {
+    background-color: rgba(0, 0, 0, 0.03);
+}
+
+#wallpaper ComboBox {
+    background-color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 5px;
+}
+
+#wallpaper ComboBox:hover {
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    background-color: rgba(255, 255, 255, 1);
+}
+
+#wallpaper LineEdit {
+    background-color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 5px;
+    padding: 4px 8px;
+}
+
+#wallpaper LineEdit:hover {
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    background-color: rgba(255, 255, 255, 1);
+}
+
+#wallpaper SpinBox {
+    background-color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 5px;
+    padding: 4px 8px;
+}
+
+#wallpaper SpinBox:hover {
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    background-color: rgba(255, 255, 255, 1);
+}
+
+/* 壁纸特有 */
+
+#wallpaper #dimOverlay {
+    background-color: rgba(0, 0, 0, 100);
+}
+
+#wallpaper #wallpaperContent {
+    background-color: transparent;
+}
+
+#wallpaper #wallpaperInfoCard {
+    background-color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 8px;
+}
+
+#wallpaper #historyWidget {
+    background-color: transparent;
+}
+
+#wallpaper #historyWidget QLabel#historyTitle {
+    color: #333333;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+#wallpaper #historyWidget QLabel#historyCount {
+    color: #999999;
+    font-size: 13px;
+}
+
+#wallpaper #historyWidget QLabel#emptyLabel {
+    color: #999999;
+}
+
+#wallpaper #thumbnailCard {
+    background-color: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 6px;
+}
+
+#wallpaper #thumbnailCard:hover {
+    background-color: rgba(255, 255, 255, 1);
+    border-color: rgba(0, 0, 0, 0.15);
+}
+
+#wallpaper #thumbnailCard QLabel#thumbImage {
+    background-color: rgba(128, 128, 128, 20);
+    border-radius: 4px;
+}
+
+#wallpaper #thumbnailCard QLabel#thumbInfo {
+    color: #666666;
+    font-size: 11px;
+}
+
+#wallpaper #historyWidget PushButton#loadMoreBtn {
+    background-color: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 6px;
+}
+
+#wallpaper #historyWidget PushButton#loadMoreBtn:hover {
+    background-color: rgba(0, 0, 0, 0.06);
+    border-color: rgba(0, 0, 0, 0.2);
+}

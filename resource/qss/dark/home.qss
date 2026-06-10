@@ -1,0 +1,151 @@
+/* 主界面 */
+
+#homeBackgroundImage,
+#clockContainer,
+#weatherContainer,
+#schoolInfoContainer,
+#poetryContainer,
+#countdownContainer,
+#mediaContainer,
+#editContainer,
+#quickLaunchDock {
+    background-color: transparent;
+}
+
+/* 悬停提示 */
+
+#qlTooltip {
+    background-color: rgba(30, 30, 30, 200);
+    border: 1px solid rgba(255, 255, 255, 50);
+    border-radius: 6px;
+}
+
+#qlTooltipLabel {
+    color: #FFFFFF;
+    font-size: 12px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    background-color: transparent;
+}
+
+/* 标签 */
+
+#weatherTempLabel {
+    color: #FFFFFF;
+    font-size: 14px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    background-color: transparent;
+}
+
+#weatherIconLabel {
+    background-color: transparent;
+}
+
+#poetryLabel {
+    color: #FFFFFF;
+    font-size: 16px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    background-color: transparent;
+}
+
+#schoolClassLabel {
+    color: #FFFFFF;
+    font-size: 16px;
+    font-weight: bold;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    background-color: transparent;
+}
+
+#schoolNameLabel {
+    color: #FFFFFF;
+    font-size: 14px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    background-color: transparent;
+}
+
+/* 编辑按钮 */
+
+#editButton {
+    background-color: rgba(0, 0, 0, 0.3);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+#editButton:hover {
+    background-color: rgba(0, 0, 0, 0.5);
+    border: none;
+}
+
+/* 编辑面板 */
+
+#EditPanel {
+    background-color: rgb(32, 32, 32);
+    border: none;
+}
+
+#EditPanel QWidget {
+    background-color: transparent;
+    color: #FFFFFF;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#EditPanel SmoothScrollArea {
+    background-color: rgb(32, 32, 32);
+    border: none;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#EditPanel SmoothScrollArea QWidget {
+    background-color: rgb(32, 32, 32);
+}
+
+#EditPanel QLabel#iconPreviewLabel {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+}
+
+/* 媒体组件 */
+
+#mediaWidget {
+    background-color: rgba(18, 18, 22, 0.78);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+MainWindow #mediaContainer,
+#mediaProgressContainer,
+#mediaLyricsWidget {
+    background-color: transparent;
+}
+
+#mediaTitleLabel {
+    color: #F5F5FA;
+    font-weight: 600;
+    font-size: 17px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    background-color: transparent;
+    letter-spacing: 0.4px;
+}
+
+#mediaArtistLabel {
+    color: rgba(230, 230, 235, 0.65);
+    font-size: 14px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    background-color: transparent;
+    letter-spacing: 0.3px;
+}
+
+#mediaTimeLabel,
+#mediaDurationLabel {
+    color: rgba(220, 220, 225, 0.45);
+    font-size: 11px;
+    font-weight: 500;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    background-color: transparent;
+}
+
+#mediaCoverLabel {
+    background-color: transparent;
+    border-radius: 10px;
+}
