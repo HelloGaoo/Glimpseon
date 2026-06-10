@@ -6,10 +6,241 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
-    <Grid>
-        <TextBlock Text="壁纸页面 (待实现)"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   FontSize="24" />
-    </Grid>
+
+    <ScrollViewer Padding="40,20">
+        <StackPanel Spacing="24">
+
+            <!-- 标题 操作按钮行 -->
+            <StackPanel Spacing="12">
+
+                <TextBlock Text="壁纸" Style="{StaticResource TitleTextBlockStyle}" FontSize="28" />
+
+                <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto">
+                    <Button x:Name="GetWallpaperBtn" Style="{StaticResource AccentButtonStyle}"
+                            Click="GetWallpaper_Click" Grid.Column="0">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE896;" />
+                            <TextBlock Text="获取壁纸" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="SaveAsBtn" Margin="8,0,0,0"
+                            Click="SaveAs_Click" Grid.Column="1">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE74E;" />
+                            <TextBlock Text="另存为" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="SelectWallpaperBtn" Margin="8,0,0,0"
+                            Click="SelectWallpaper_Click" Grid.Column="2">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE8F4;" />
+                            <TextBlock Text="手动选择" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="SetDesktopBtn"
+                            Click="SetDesktop_Click" Grid.Column="4" HorizontalAlignment="Right">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xEB9F;" />
+                            <TextBlock Text="设为桌面" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </StackPanel>
+
+            <!-- 壁纸信息卡片 -->
+            <Border CornerRadius="8" Padding="20"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto">
+
+                    <!-- 左：预览图 -->
+                    <Border x:Name="PreviewBorder" CornerRadius="6" Grid.Column="0"
+                            Background="{ThemeResource ControlStrongFillDefaultBrush}"
+                            HorizontalAlignment="Left" MaxWidth="480">
+                        <Image x:Name="PreviewImage" Stretch="UniformToFill"
+                               MaxHeight="300" />
+                    </Border>
+
+                    <!-- 右：信息标签 -->
+                    <StackPanel Spacing="10" Grid.Column="1" VerticalAlignment="Center"
+                                Margin="24,0,0,0" MinWidth="220">
+
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="分辨率" FontWeight="SemiBold" FontSize="13" Opacity="0.7"/>
+                            <TextBlock x:Name="ResolutionLabel" Text="--" FontSize="15" />
+                        </StackPanel>
+
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="大小" FontWeight="SemiBold" FontSize="13" Opacity="0.7"/>
+                            <TextBlock x:Name="FileSizeLabel" Text="--" FontSize="15" />
+                        </StackPanel>
+
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="来源" FontWeight="SemiBold" FontSize="13" Opacity="0.7"/>
+                            <TextBlock x:Name="SourceLabel" Text="--" FontSize="15" />
+                        </StackPanel>
+
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="路径" FontWeight="SemiBold" FontSize="13" Opacity="0.7"/>
+                            <TextBlock x:Name="PathLabel" Text="--" FontSize="13"
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTipService.ToolTip="{Binding Text, ElementName=PathLabel}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- 设置组 -->
+            <Expander Header="设置" IsExpanded="True" HorizontalContentAlignment="Stretch">
+                <StackPanel Spacing="16" Padding="16,12">
+
+                    <!-- 保存数量上限 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph="&#xE946;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="保存数量上限" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="设置历史记录保存的最大条目数（10-500）" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <NumberBox x:Name="SaveLimitBox" Value="100" Minimum="10" Maximum="500" SmallChange="10"
+                                   Width="70" HorizontalAlignment="Right" Grid.ColumnSpan="2"
+                                   ValueChanged="SaveLimit_ValueChanged" />
+                    </Grid>
+
+                    <!-- 自动获取间隔 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph="&#xE81C;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="自动获取间隔" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="设置自动更换壁纸的时间间隔" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <ComboBox x:Name="AutoIntervalCombo" Width="140" HorizontalAlignment="Right" Grid.ColumnSpan="2"
+                                  SelectionChanged="AutoInterval_SelectionChanged">
+                            <ComboBoxItem Content="关闭" Tag="off" IsSelected="True" />
+                            <ComboBoxItem Content="10分钟" Tag="10m" />
+                            <ComboBoxItem Content="30分钟" Tag="30m" />
+                            <ComboBoxItem Content="1小时" Tag="1h" />
+                            <ComboBoxItem Content="2小时" Tag="2h" />
+                            <ComboBoxItem Content="6小时" Tag="6h" />
+                            <ComboBoxItem Content="12小时" Tag="12h" />
+                            <ComboBoxItem Content="1天" Tag="1d" />
+                            <ComboBoxItem Content="3天" Tag="3d" />
+                            <ComboBoxItem Content="5天" Tag="5d" />
+                            <ComboBoxItem Content="7天" Tag="7d" />
+                        </ComboBox>
+                    </Grid>
+
+                    <!-- 壁纸 API 来源 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph="&#xE774;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="壁纸 API 来源" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="选择用于获取壁纸的 API 接口" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <ComboBox x:Name="ApiSourceCombo" Width="180" HorizontalAlignment="Right" Grid.ColumnSpan="2"
+                                  SelectionChanged="ApiSource_SelectionChanged">
+                            <ComboBoxItem Content="wp.upx8.com" IsSelected="True" />
+                            <ComboBoxItem Content="api.ltyuanfang.cn" />
+                            <ComboBoxItem Content="imlcd.cn_bg_high" />
+                            <ComboBoxItem Content="imlcd.cn_bg_mc" />
+                            <ComboBoxItem Content="imlcd.cn_bg_gq" />
+                        </ComboBox>
+                    </Grid>
+
+                    <!-- 自动同步桌面 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph="&#xEB9F;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="自动同步桌面" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="获取新壁纸后自动设为桌面背景" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <ToggleSwitch x:Name="AutoSyncToggle" IsOn="False" Grid.ColumnSpan="2" HorizontalAlignment="Right"
+                                     Toggled="AutoSync_Toggled" />
+                    </Grid>
+                </StackPanel>
+            </Expander>
+
+            <!-- 背景效果组 -->
+            <Expander Header="背景效果" IsExpanded="True" HorizontalContentAlignment="Stretch">
+                <StackPanel Spacing="16" Padding="16,12">
+
+                    <!-- 模糊程度 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto">
+                        <FontIcon Glyph="&#xE79E;" Grid.Row="0" Grid.RowSpan="3" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="模糊程度" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="调整壁纸的模糊效果强度（0=无模糊，50=最大模糊）" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+
+                        <StackPanel Orientation="Horizontal" Spacing="10" Grid.Column="1" Grid.Row="2"
+                                    VerticalAlignment="Center" Margin="0,4,0,0">
+                            <Slider x:Name="BlurSlider" Minimum="0" Maximum="50" Value="21"
+                                    Width="240" ValueChanged="BlurSlider_ValueChanged" />
+                            <TextBlock x:Name="BlurValueLabel" Text="21" FontWeight="SemiBold"
+                                       MinWidth="30" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- 亮度调节 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto">
+                        <FontIcon Glyph="&#xE70F;" Grid.Row="0" Grid.RowSpan="3" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="亮度调节" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="调整壁纸的亮度（负值降低亮度，0=原始亮度）" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+
+                        <StackPanel Orientation="Horizontal" Spacing="10" Grid.Column="1" Grid.Row="2"
+                                    VerticalAlignment="Center" Margin="0,4,0,0">
+                            <Slider x:Name="BrightnessSlider" Minimum="-100" Maximum="0" Value="0"
+                                    Width="240" ValueChanged="BrightnessSlider_ValueChanged" />
+                            <TextBlock x:Name="BrightnessValueLabel" Text="0" FontWeight="SemiBold"
+                                       MinWidth="36" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Expander>
+
+            <!-- 历史记录组 -->
+            <Expander Header="历史记录" IsExpanded="True" HorizontalContentAlignment="Stretch">
+                <StackPanel Spacing="12" Padding="16,12">
+
+                    <!-- 标题行：标题 计数 清空按钮 -->
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <TextBlock Text="历史记录" FontWeight="SemiBold" FontSize="15" Grid.Column="0" VerticalAlignment="Center" />
+                        <TextBlock x:Name="HistoryCountLabel" Text="(0)" Opacity="0.5" FontSize="13"
+                                   Grid.Column="0" VerticalAlignment="Center" Margin="70,0,0,0" />
+                        <Button x:Name="ClearHistoryBtn" Content="清空全部" Grid.Column="2"
+                                Click="ClearHistory_Click" FontSize="12" />
+                    </Grid>
+
+                    <!-- 空状态提示 -->
+                    <TextBlock x:Name="EmptyHistoryText" Text="暂无历史记录"
+                               HorizontalAlignment="Center" Opacity="0.45" FontSize="14"
+                               Visibility="Visible" Padding="0,40,0,40" />
+
+                    <!-- 历史缩略图网格 -->
+                    <GridView x:Name="HistoryGridView" Visibility="Collapsed"
+                              ItemsSource="{x:Null}">
+                        <GridView.ItemTemplate>
+                            <DataTemplate>
+                                <Border CornerRadius="6" Padding="4"
+                                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1"
+                                        Width="160" Height="120"
+                                        PointerPressed="HistoryItem_Click">
+                                    <StackPanel Spacing="4">
+                                        <Border CornerRadius="4" Height="90"
+                                                Background="{ThemeResource ControlStrongFillDefaultBrush}">
+                                            <Image Source="{Binding ThumbnailUri}"
+                                                   Stretch="UniformToFill" />
+                                        </Border>
+                                        <TextBlock Text="{Binding ResolutionText}"
+                                                   FontSize="11" HorizontalAlignment="Center"
+                                                   Opacity="0.65" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </GridView.ItemTemplate>
+                    </GridView>
+
+                    <!-- 加载更多按钮 -->
+                    <Button x:Name="LoadMoreBtn" Content="加载更多"
+                            HorizontalAlignment="Center" Click="LoadMore_Click"
+                            Visibility="Collapsed" Margin="0,8,0,0" />
+                </StackPanel>
+            </Expander>
+
+        </StackPanel>
+    </ScrollViewer>
 </Page>
