@@ -1,19 +1,218 @@
-<?xml version="1.0" encoding="utf-8" ?>
 <Page
     x:Class="ClassLively_UI.Pages.SettingsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:ClassLively_UI.Pages"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
+    <ScrollViewer Padding="40,20">
+        <StackPanel Spacing="24">
 
-    <Grid Padding="24,16,24,16" RowSpacing="24">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-        <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Settings" />
-        <TextBlock Grid.Row="1" Text="This is the Settings page" />
-    </Grid>
+            <!-- 页面标题 -->
+            <TextBlock Text="设置" Style="{StaticResource TitleTextBlockStyle}" FontSize="28" Margin="0,0,0,8" />
+
+            <!--通用组-->
+            <Expander Header="通用" IsExpanded="True" HorizontalContentAlignment="Stretch">
+                <StackPanel Spacing="16" Padding="16,12">
+
+                    <!-- 开机自启动 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph="&#xE768;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="开机自启动" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="设置应用在系统启动时自动运行" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <ToggleSwitch x:Name="AutoStartSwitch" IsOn="False" Grid.ColumnSpan="2" HorizontalAlignment="Right" Toggled="AutoStart_Toggled" />
+                    </Grid>
+
+                    <!-- 空闲时自动打开 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph="&#xE80F;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="空闲时自动打开" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="电脑空闲时自动从最小化打开界面" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <ToggleSwitch x:Name="AutoOpenIdleSwitch" IsOn="False" Grid.ColumnSpan="2" HorizontalAlignment="Right" Toggled="AutoOpenIdle_Toggled" />
+                    </Grid>
+
+                    <!-- 空闲检测时间 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph="&#xE81C;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="空闲检测时间（分钟）" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="设置电脑空闲多少分钟后触发自动打开（1-60 分钟）" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <NumberBox x:Name="IdleMinutesBox" Value="5" Minimum="1" Maximum="60" SmallChange="1"
+                                   Width="70" HorizontalAlignment="Right" Grid.ColumnSpan="2"
+                                   ValueChanged="IdleMinutes_ValueChanged" />
+                    </Grid>
+
+                    <!-- 自动打开时最大化 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph="&#xE740;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="自动打开时最大化" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="空闲自动打开界面时是否最大化窗口" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <ToggleSwitch x:Name="AutoOpenMaximizeSwitch" IsOn="False" Grid.ColumnSpan="2" HorizontalAlignment="Right" Toggled="AutoOpenMaximize_Toggled" />
+                    </Grid>
+                </StackPanel>
+            </Expander>
+
+            <!-- ═══ 外观组 ═══ -->
+            <Expander Header="外观" IsExpanded="True" HorizontalContentAlignment="Stretch">
+                <StackPanel Spacing="16" Padding="16,12">
+
+                    <!-- 主题模式 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph="&#xE790;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="应用颜色主题" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="更改应用程序的颜色外观" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <ComboBox x:Name="ThemeModeCombo" Width="160" HorizontalAlignment="Right" Grid.ColumnSpan="2"
+                                  SelectionChanged="ThemeMode_SelectionChanged">
+                            <ComboBoxItem Content="浅色" Tag="light" IsSelected="True" />
+                            <ComboBoxItem Content="深色" Tag="dark" />
+                            <ComboBoxItem Content="跟随系统" Tag="system" />
+                        </ComboBox>
+                    </Grid>
+
+                    <!-- 主色调 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph="&#xE790;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="主要颜色" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="更改应用程序的主要颜色" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <Border Background="#0078D4" CornerRadius="4" Width="32" Height="32" Grid.ColumnSpan="2"
+                                HorizontalAlignment="Right" x:Name="ThemeColorPreview" />
+                    </Grid>
+
+                    <!-- 语言 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph="&#xE8B2;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="语言" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="切换应用显示语言 / Switch application display language" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <ComboBox x:Name="LanguageCombo" Width="140" HorizontalAlignment="Right" Grid.ColumnSpan="2"
+                                  SelectionChanged="Language_SelectionChanged">
+                            <ComboBoxItem Content="简体中文" Tag="zh_CN" IsSelected="True" />
+                            <ComboBoxItem Content="繁體中文" Tag="zh_TW" />
+                            <ComboBoxItem Content="English" Tag="en_US" />
+                            <ComboBoxItem Content="自动" Tag="auto" />
+                        </ComboBox>
+                    </Grid>
+                </StackPanel>
+            </Expander>
+
+            <!-- 日志组 -->
+            <Expander Header="日志" IsExpanded="True" HorizontalContentAlignment="Stretch">
+                <StackPanel Spacing="16" Padding="16,12">
+
+                    <!-- 禁用日志 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph="&#xE89E;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="禁用日志" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="完全禁用日志输出" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <ToggleSwitch x:Name="DisableLogSwitch" IsOn="False" Grid.ColumnSpan="2" HorizontalAlignment="Right" Toggled="DisableLog_Toggled" />
+                    </Grid>
+
+                    <!-- 日志级别 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph="&#xE946;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="日志级别" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="设置日志的输出级别" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <ComboBox x:Name="LogLevelCombo" Width="100" HorizontalAlignment="Right" Grid.ColumnSpan="2"
+                                  SelectionChanged="LogLevel_SelectionChanged">
+                            <ComboBoxItem Content="Debug" Tag="debug" />
+                            <ComboBoxItem Content="Info" Tag="info" IsSelected="True" />
+                            <ComboBoxItem Content="Warning" Tag="warning" />
+                            <ComboBoxItem Content="Error" Tag="error" />
+                        </ComboBox>
+                    </Grid>
+
+                    <!-- 日志数量上限 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph="&#xE946;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="日志数量上限" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="设置日志文件的最大条目数" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <NumberBox x:Name="LogMaxCountBox" Value="100" Minimum="10" Maximum="500" SmallChange="10"
+                                   Width="70" HorizontalAlignment="Right" Grid.ColumnSpan="2"
+                                   ValueChanged="LogMaxCount_ValueChanged" />
+                    </Grid>
+
+                    <!-- 日志天数上限 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph="&#xE783;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="日志保存天数" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="设置日志文件的最大保存天数" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <NumberBox x:Name="LogMaxDaysBox" Value="30" Minimum="30" Maximum="365" SmallChange="10"
+                                   Width="70" HorizontalAlignment="Right" Grid.ColumnSpan="2"
+                                   ValueChanged="LogMaxDays_ValueChanged" />
+                    </Grid>
+
+                    <!-- 清空日志 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph="&#xE74D;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="清空日志" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="清空所有日志文件" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <Button Content="清空日志" Grid.ColumnSpan="2" HorizontalAlignment="Right"
+                                Click="ClearLog_Click" />
+                    </Grid>
+                </StackPanel>
+            </Expander>
+
+            <!-- ═══ 其他组 ═══ -->
+            <Expander Header="其他" IsExpanded="True" HorizontalContentAlignment="Stretch">
+                <StackPanel Spacing="16" Padding="16,12">
+
+                    <!-- 关闭行为 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph="&#xE713;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="关闭事件行为" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="设置点击关闭按钮时的行为" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <ComboBox x:Name="CloseActionCombo" Width="130" HorizontalAlignment="Right" Grid.ColumnSpan="2"
+                                  SelectionChanged="CloseAction_SelectionChanged">
+                            <ComboBoxItem Content="最小化到任务栏" Tag="minimize" IsSelected="True" />
+                            <ComboBoxItem Content="直接关闭" Tag="close" />
+                        </ComboBox>
+                    </Grid>
+
+                    <!-- 允许多实例 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph="&#xE72C;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="允许重复启动" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="允许同时运行多个应用实例" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <ToggleSwitch x:Name="AllowMultiInstanceSwitch" IsOn="False" Grid.ColumnSpan="2" HorizontalAlignment="Right" Toggled="AllowMultiInstance_Toggled" />
+                    </Grid>
+
+                    <!-- GPU 加速 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph="&#xE7FC;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="GPU 加速" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="使用硬件加速图形渲染后端（重启生效）" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <ToggleSwitch x:Name="GpuAccelerationSwitch" IsOn="False" Grid.ColumnSpan="2" HorizontalAlignment="Right" Toggled="GpuAcceleration_Toggled" />
+                    </Grid>
+
+                    <!-- 配置导入/导出 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph="&#xE774;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="配置导入/导出" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="导出或导入配置文件（JSON）" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" Grid.ColumnSpan="2" HorizontalAlignment="Right">
+                            <Button Content="导出配置" Click="ExportConfig_Click" />
+                            <Button Content="导入配置" Click="ImportConfig_Click" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- 恢复默认 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph=";&#xE777;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="恢复默认设置" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="将所有设置恢复到默认值" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <Button Content="恢复默认" Grid.ColumnSpan="2" HorizontalAlignment="Right"
+                                Click="ResetDefault_Click" />
+                    </Grid>
+
+                    <!-- 调试模式 -->
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                        <FontIcon Glyph="&#xE921;" Grid.Row="0" Grid.RowSpan="2" VerticalAlignment="Center" FontSize="16" Margin="0,0,14,0"/>
+                        <TextBlock Text="调试模式" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold" />
+                        <TextBlock Text="启用调试模式以进行测试和调试" Grid.Column="1" Grid.Row="1" Opacity="0.6" FontSize="12" />
+                        <ToggleSwitch x:Name="DebugModeSwitch" IsOn="False" Grid.ColumnSpan="2" HorizontalAlignment="Right" Toggled="DebugMode_Toggled" />
+                    </Grid>
+                </StackPanel>
+            </Expander>
+
+        </StackPanel>
+    </ScrollViewer>
 </Page>
