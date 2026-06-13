@@ -31,6 +31,14 @@ public class ApiService : IApiService, IDisposable
         return resp?.Data;
     }
 
+    public async Task<object?> GetConfigAsync(string key)
+    {
+        var all = await GetConfigAsync();
+        if (all != null && all.TryGetValue(key, out var value))
+            return value;
+        return null;
+    }
+
     public async Task<bool> SetConfigAsync(string key, object value)
     {
         try
@@ -53,6 +61,26 @@ public class ApiService : IApiService, IDisposable
     {
         var resp = await _http.GetFromJsonAsync<ApiResponse<WallpaperInfoModel>>("/api/wallpaper/current", _jsonOptions);
         return resp?.Data;
+    }
+
+    /// <summary>获取当前壁纸路径</summary>
+    public async Task<string?> GetCurrentWallpaperPathAsync()
+    {
+        var resp = await _http.GetFromJsonAsync<ApiResponse<Dictionary<string, object>>>("/api/wallpaper/current", _jsonOptions);
+        var path = resp?.Data?["path"]?.ToString();
+        return path;
+    }
+
+    /// <summary>获取模糊后的壁纸字节</summary>
+    public async Task<byte[]?> GetBlurredWallpaperAsync(string path)
+    {
+        try
+        {
+            var resp = await _http.GetAsync($"/api/wallpaper/blurred?path={Uri.EscapeDataString(path)}");
+            if (!resp.IsSuccessStatusCode) return null;
+            return await resp.Content.ReadAsByteArrayAsync();
+        }
+        catch { return null; }
     }
 
     public async Task<WallpaperInfoModel?> FetchWallpaperAsync(string? source = null)
@@ -111,6 +139,21 @@ public class ApiService : IApiService, IDisposable
     {
         var resp = await _http.GetFromJsonAsync<ApiResponse<MediaInfoModel>>("/api/media/info", _jsonOptions);
         return resp?.Data ?? new MediaInfoModel();
+    }
+
+    public async Task<Dictionary<string, object?>?> GetMediaDetailAsync(string title, string artist)
+    {
+        try
+        {
+            var url = $"/api/media/detail?title={Uri.EscapeDataString(title)}&artist={Uri.EscapeDataString(artist ?? "")}";
+            var resp = await _http.GetFromJsonAsync<ApiResponse<Dictionary<string, object?>>>(url, _jsonOptions);
+            return resp?.Data;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ApiService] 获取媒体详情失败: {ex.Message}");
+            return null;
+        }
     }
 
     //  下载 

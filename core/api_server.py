@@ -1,15 +1,7 @@
 # core/api_server.py
 """
-ClassLively Python 后台服务 — FastAPI 包装层
-将现有业务逻辑暴露为 REST API，供 C# WinUI 3 前端调用。
-
-启动方式: python -m core.api_server
-或: uvicorn core.api_server:app --host 127.0.0.1 --port 19856
-
-硬性约束:
-- 本文件为纯增量添加，不修改任何已有 .py 文件
-- 所有数据读写统一走 cfg 对象，不引入新的持久化机制
-- API 设计考虑未来 gRPC/命名管道升级（路由结构稳定）
+ClassLively Python 服
+fastapi 暴露为 REST API，供 C# WinUI 3 前端调用。
 """
 
 from __future__ import annotations
@@ -17,7 +9,6 @@ from __future__ import annotations
 import os
 import sys
 
-# 确保项目根目录在路径中
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import FastAPI, HTTPException, Query
@@ -33,7 +24,7 @@ from core.logger import logger
 
 app = FastAPI(title="ClassLively Backend", version="1.0.0")
 
-# ── 延迟导入（避免循环依赖 + 启动时不加载 UI）──
+# 延迟导入
 
 _wallpaper_interface = None
 _home_interface = None
@@ -80,7 +71,6 @@ class ConfigSetRequest(BaseModel):
 
 @app.get("/api/health", tags=["system"])
 async def health_check() -> ApiResponse:
-    """健康检查 — 用于验证后台服务是否在线"""
     return ApiResponse(data={"status": "ok", "app": APP_NAME, "version": VERSION})
 
 
@@ -210,6 +200,34 @@ async def get_history(page: int = Query(1, ge=1), per_page: int = Query(20, ge=1
         return ApiResponse(code=500, message=str(e))
 
 
+@app.get("/api/wallpaper/blurred", tags=["wallpaper"])
+async def get_blurred_wallpaper(path: str = Query(...)) -> FileResponse:
+    """调用 C++ blur_image返回模糊后的壁纸"""
+    import io
+    from classlively_native import blur_image_py
+    from PIL import Image as PILImage
+
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail=f"File not found: {path}")
+
+    # 原图 → C++ 模糊 → 返回 JPEG 字节
+    radius = getattr(cfg.blur_radius, 'value', 30)
+    img = PILImage.open(path).convert('RGBA')
+    blurred_bytes = blur_image_py(img, radius)
+    # 模糊结果写入临时文件供 FileResponse 返回
+    buf = io.BytesIO()
+    result_img = PILImage.frombytes('RGBA', img.size, blurred_bytes)
+    result_img.save(buf, format='JPEG')
+    buf.seek(0)
+
+    # 写入临时文件
+    tmp_path = os.path.join(BASE_DIR, '_tmp_blurred.jpg')
+    with open(tmp_path, 'wb') as f:
+        f.write(buf.getvalue())
+
+    return FileResponse(tmp_path, media_type='image/jpeg')
+
+
 # ── 天气 API ──
 
 @app.get("/api/weather", tags=["weather"])
@@ -263,31 +281,85 @@ async def idle_ms() -> ApiResponse:
 
 # ── 媒体 API ──
 
+import base64
+
 @app.get("/api/media/info", tags=["media"])
 async def media_info() -> ApiResponse:
     """获取当前媒体播放信息"""
     try:
-        from services.media import MediaInfo, get_media_info
+        from services.media import get_media_info
         info = get_media_info()
         if info is None:
             return ApiResponse(data={})
 
-        lyrics_text = ""
-        if hasattr(info, 'lyrics') and info.lyrics:
-            lyrics_text = str(info.lyrics)
+        thumb_b64 = ""
+        if hasattr(info, 'thumbnail_data') and info.thumbnail_data:
+            try:
+                thumb_b64 = base64.b64encode(info.thumbnail_data).decode('ascii')
+            except Exception:
+                pass
 
         return ApiResponse(data={
-            "title": getattr(info, 'title', ''),
-            "artist": getattr(info, 'artist', ''),
-            "album": getattr(info, 'album', ''),
-            "cover_path": getattr(info, 'cover_path', '') or "",
-            "lyrics": lyrics_text,
-            "progress": getattr(info, 'position', 0),
-            "duration": getattr(info, 'duration', 0),
-            "is_playing": getattr(info, 'is_playing', False)
+            "title": getattr(info, 'title', '') or "",
+            "artist": getattr(info, 'artist', '') or "",
+            "album": getattr(info, 'album', '') or "",
+            "position_ms": getattr(info, 'position_ms', 0),
+            "duration_ms": getattr(info, 'duration_ms', 0),
+            "is_playing": getattr(info, 'is_playing', False),
+            "app_name": getattr(info, 'app_name', '') or "",
+            "song_id": getattr(info, 'song_id', '') or "",
+            "thumbnail_base64": thumb_b64,
         })
     except Exception as e:
         logger.error(f"[API] media_info error: {e}")
+        return ApiResponse(code=500, message=str(e), data={})
+
+
+@app.get("/api/media/detail", tags=["media"])
+async def media_detail(title: str = Query(""), artist: str = Query("")) -> ApiResponse:
+    """获取歌曲详情"""
+    try:
+        from services.media import fetch_all_info
+        result = fetch_all_info(title.strip(), artist.strip())
+
+        # 封面 → base64
+        cover_b64 = ""
+        cover = result.get('cover')
+        if cover and isinstance(cover, (bytes, bytearray)):
+            try:
+                cover_b64 = base64.b64encode(cover).decode('ascii')
+            except Exception:
+                pass
+
+        # 歌词文本
+        lyrics_obj = result.get('lyrics')
+        lyrics_text = ""
+        if lyrics_obj and hasattr(lyrics_obj, 'raw_lrc'):
+            lyrics_text = lyrics_obj.raw_lrc
+        elif isinstance(lyrics_obj, str):
+            lyrics_text = lyrics_obj
+
+        # 歌曲详情
+        detail = result.get('detail')
+        detail_data = {}
+        if detail:
+            detail_data = {
+                "song_id": getattr(detail, 'song_id', None),
+                "name": getattr(detail, 'name', ''),
+                "artists": getattr(detail, 'artists', []),
+                "album_name": getattr(detail, 'album_name', ''),
+                "cover_url": getattr(detail, 'cover_url', ''),
+                "duration": getattr(detail, 'duration', 0),
+            }
+
+        return ApiResponse(data={
+            "song_id": result.get('song_id'),
+            "detail": detail_data,
+            "lyrics": lyrics_text,
+            "cover_base64": cover_b64,
+        })
+    except Exception as e:
+        logger.error(f"[API] media_detail error: {e}")
         return ApiResponse(code=500, message=str(e), data={})
 
 
@@ -325,7 +397,6 @@ async def software_download(name: str) -> ApiResponse:
     """触发软件下载"""
     try:
         dl = _get_download()
-        # 查找并触发下载
         if hasattr(dl, '_startDownload'):
             dl._startDownload(name)
         return ApiResponse(message=f"Download triggered: {name}")

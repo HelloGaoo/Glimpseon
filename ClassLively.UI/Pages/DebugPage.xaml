@@ -6,10 +6,83 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
-    <Grid>
-        <TextBlock Text="调试页面 (待实现)"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   FontSize="24" />
+
+    <Grid Padding="40">
+        <ScrollViewer>
+            <StackPanel Spacing="20">
+
+                <!-- 标题 -->
+                <TextBlock Text="调试面板" FontSize="28" FontWeight="Bold"/>
+
+                <!-- 系统信息卡片 -->
+                <Border CornerRadius="8" Padding="20" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="系统信息" FontSize="18" FontWeight="SemiBold"/>
+                        <StackPanel x:Name="SystemInfoPanel" Spacing="6"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- 网络诊断卡片 -->
+                <Border CornerRadius="8" Padding="20" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="网络诊断" FontSize="18" FontWeight="SemiBold"/>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBox x:Name="NetworkUrlInput" Text="http://127.0.0.1:19856/api/config" Width="400"
+                                     PlaceholderText="输入 API"/>
+                            <Button Content="测试连接" Click="OnTestConnectionClick"/>
+                        </StackPanel>
+                        <TextBlock x:Name="NetworkResultText" TextWrapping="Wrap" IsTextSelectionEnabled="True"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- API 测试卡片 -->
+                <Border CornerRadius="8" Padding="20" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="API 测试" FontSize="18" FontWeight="SemiBold"/>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <ComboBox x:Name="EndpointSelector" Width="220" SelectedIndex="0">
+                                <ComboBoxItem Tag="config/get" Content="config/get"/>
+                                <ComboBoxItem Tag="config/set" Content="config/set"/>
+                                <ComboBoxItem Tag="wallpaper/current" Content="wallpaper/current"/>
+                                <ComboBoxItem Tag="weather" Content="weather"/>
+                                <ComboBoxItem Tag="poetry" Content="poetry"/>
+                                <ComboBoxItem Tag="media/info" Content="media/info"/>
+                            </ComboBox>
+                            <Button Content="发送请求" Click="OnSendApiRequestClick"/>
+                        </StackPanel>
+                        <TextBox x:Name="ApiResultText" IsReadOnly="True" TextWrapping="Wrap"
+                                 AcceptsReturn="True" Height="180"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 PlaceholderText="API 返回结果"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- 日志查看器卡片 -->
+                <Border CornerRadius="8" Padding="20" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="日志查看器" FontSize="18" FontWeight="SemiBold"/>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Button Content="刷新日志" Click="OnRefreshLogClick"/>
+                            <Button Content="清除日志" Click="OnClearLogClick"/>
+                        </StackPanel>
+                        <TextBox x:Name="LogContentText" IsReadOnly="True" TextWrapping="Wrap"
+                                 AcceptsReturn="True" Height="150"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 PlaceholderText="日志内容"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- 操作按钮行 -->
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Button Content="打开配置文件夹" Click="OnOpenConfigFolderClick"/>
+                    <Button Content="打开数据文件夹" Click="OnOpenDataFolderClick"/>
+                    <Button Content="GC 回收" Click="OnGcCollectClick"/>
+                    <Button Content="重新加载页面" Click="OnReloadPageClick"/>
+                </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
+
 </Page>

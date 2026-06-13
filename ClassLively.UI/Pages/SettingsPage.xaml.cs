@@ -1,262 +1,346 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading.Tasks;
+using Windows.Storage;
+using Windows.System;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Windows.Storage.Pickers;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Media;
+using ClassLively_UI.Helpers;
 using ClassLively_UI.Services;
 
 namespace ClassLively_UI.Pages;
 
-/// <summary>
-/// 设置页面
-/// 原 PyQt6: ui/settings.py -> SettingInterface
-/// </summary>
 public sealed partial class SettingsPage : Page
 {
-    private readonly IApiService _api;
+    private readonly IApiService _api = new ApiService();
 
     public SettingsPage()
     {
         InitializeComponent();
-        _api = new ApiService();
+        _ = AppSettings.LoadAsync();
+        _ = LoadAllSettings();
     }
 
-    /// <summary>
-    /// 获取窗口句柄
-    /// </summary>
-    private nint GetWindowHandle()
-    {
-        return WinRT.Interop.WindowNative.GetWindowHandle(this);
-    }
+    // ──── 通用组 ────
 
-    //   通用组 (General)---------------------------
     private async void AutoStart_Toggled(object sender, RoutedEventArgs e)
     {
-        if (sender is ToggleSwitch sw) await _api.SetConfigAsync("autoStart", sw.IsOn);
+        if (sender is ToggleSwitch sw)
+        {
+            AppSettings.Set("autoStart", sw.IsOn);
+            _ = AppSettings.SaveAsync();
+            await _api.SetConfigAsync("autoStart", sw.IsOn);
+        }
     }
 
     private async void AutoOpenIdle_Toggled(object sender, RoutedEventArgs e)
     {
-        if (sender is ToggleSwitch sw) await _api.SetConfigAsync("autoOpenOnIdle", sw.IsOn);
+        if (sender is ToggleSwitch sw)
+        {
+            AppSettings.Set("autoOpenOnIdle", sw.IsOn);
+            _ = AppSettings.SaveAsync();
+            await _api.SetConfigAsync("autoOpenOnIdle", sw.IsOn);
+        }
     }
 
-    private async void IdleMinutes_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    private async void IdleMinutes_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
     {
-        if (sender.Value >= sender.Minimum && sender.Value <= sender.Maximum)
-            await _api.SetConfigAsync("idleMinutes", (int)sender.Value);
+        if (sender is Slider slider && slider.Value >= slider.Minimum && slider.Value <= slider.Maximum)
+        {
+            var value = (int)slider.Value;
+            AppSettings.Set("idleMinutes", value);
+            _ = AppSettings.SaveAsync();
+            await _api.SetConfigAsync("idleMinutes", value);
+        }
     }
 
     private async void AutoOpenMaximize_Toggled(object sender, RoutedEventArgs e)
     {
-        if (sender is ToggleSwitch sw) await _api.SetConfigAsync("autoOpenMaximize", sw.IsOn);
-    }
-
-    //   外观组 (Appearance)-------------------------------------------
-
-    private async void ThemeMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (sender is ComboBox combo && combo.SelectedItem is ComboBoxItem item)
-            await _api.SetConfigAsync("themeMode", item.Tag?.ToString() ?? "light");
-    }
-
-    private async void Language_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (sender is ComboBox combo && combo.SelectedItem is ComboBoxItem item)
-            await _api.SetConfigAsync("language", item.Tag?.ToString() ?? "zh_CN");
-    }
-
-    //   日志组 (Log)------------------------------------------------
-
-    private async void DisableLog_Toggled(object sender, RoutedEventArgs e)
-    {
-        if (sender is not ToggleSwitch sw) return;
-        await _api.SetConfigAsync("disableLog", sw.IsOn);
-
-        // 联动禁用日志级别/数量/天数控件（原 __onDisableLogChanged）
-        LogLevelCombo.IsEnabled = !sw.IsOn;
-        LogMaxCountBox.IsEnabled = !sw.IsOn;
-        LogMaxDaysBox.IsEnabled = !sw.IsOn;
-    }
-
-    private async void LogLevel_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (sender is ComboBox combo && combo.SelectedItem is ComboBoxItem item)
-            await _api.SetConfigAsync("logLevel", item.Tag?.ToString() ?? "info");
-    }
-
-    private async void LogMaxCount_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
-    {
-        if (sender.Value >= sender.Minimum && sender.Value <= sender.Maximum)
-            await _api.SetConfigAsync("logMaxCount", (int)sender.Value);
-    }
-
-    private async void LogMaxDays_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
-    {
-        if (sender.Value >= sender.Minimum && sender.Value <= sender.Maximum)
-            await _api.SetConfigAsync("logMaxDays", (int)sender.Value);
-    }
-
-    private async void ClearLog_Click(object sender, RoutedEventArgs e)
-    {
-        var dialog = new ContentDialog
+        if (sender is ToggleSwitch sw)
         {
-            Title = "清空日志",
-            Content = "确定要清空所有日志文件吗？",
-            PrimaryButtonText = "确定",
-            CloseButtonText = "取消",
-            XamlRoot = this.Content.XamlRoot,
-        };
-
-        var result = await dialog.ShowAsync();
-        if (result == ContentDialogResult.Primary)
-        {
-            // 调用 Python API 清空日志
-            await _api.SetConfigAsync("_action_clear_log", true);
+            AppSettings.Set("autoOpenMaximize", sw.IsOn);
+            _ = AppSettings.SaveAsync();
+            await _api.SetConfigAsync("autoOpenMaximize", sw.IsOn);
         }
     }
 
-    //   其他组 (Other)-----------------------
-
-    private async void CloseAction_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private async void AllowMultipleInstances_Toggled(object sender, RoutedEventArgs e)
     {
-        if (sender is ComboBox combo && combo.SelectedItem is ComboBoxItem item)
-            await _api.SetConfigAsync("closeAction", item.Tag?.ToString() ?? "minimize");
-    }
-
-    private async void AllowMultiInstance_Toggled(object sender, RoutedEventArgs e)
-    {
-        if (sender is ToggleSwitch sw) await _api.SetConfigAsync("allowMultipleInstances", sw.IsOn);
-    }
-
-    private async void GpuAcceleration_Toggled(object sender, RoutedEventArgs e)
-    {
-        if (sender is ToggleSwitch sw) await _api.SetConfigAsync("enableGpuAcceleration", sw.IsOn);
-    }
-
-    private async void ExportConfig_Click(object sender, RoutedEventArgs e)
-    {
-        var picker = new FileSavePicker
+        if (sender is ToggleSwitch sw)
         {
-            SuggestedStartLocation = PickerLocationId.DocumentsLibrary,
-            SuggestedFileName = "ClassLively_config",
-            FileTypeChoices = { { "JSON 文件", new[] { ".json" } } }
-        };
-
-        var hwnd = GetWindowHandle();
-        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-
-        var file = await picker.PickSaveFileAsync();
-        if (file == null) return;
-
-        try
-        {
-            var config = await _api.GetConfigAsync();
-            if (config == null) return;
-
-            var json = System.Text.Json.JsonSerializer.Serialize(config,
-                new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-            await Windows.Storage.FileIO.WriteTextAsync(file, json);
-
-            var dialog = new ContentDialog
-            {
-                Title = "导出成功",
-                Content = $"配置已导出到：{file.Path}",
-                CloseButtonText = "确定",
-                XamlRoot = this.Content.XamlRoot,
-            };
-            await dialog.ShowAsync();
-        }
-        catch (Exception ex)
-        {
-            var dialog = new ContentDialog
-            {
-                Title = "导出失败",
-                Content = ex.Message,
-                CloseButtonText = "确定",
-                XamlRoot = this.Content.XamlRoot,
-            };
-            await dialog.ShowAsync();
-        }
-    }
-
-    private async void ImportConfig_Click(object sender, RoutedEventArgs e)
-    {
-        var picker = new FileOpenPicker
-        {
-            SuggestedStartLocation = PickerLocationId.DocumentsLibrary,
-            FileTypeFilter = { ".json" }
-        };
-
-        var hwnd = GetWindowHandle();
-        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-
-        var file = await picker.PickSingleFileAsync();
-        if (file == null) return;
-
-        var confirm = new ContentDialog
-        {
-            Title = "确认导入",
-            Content = $"将从以下文件导入配置，当前设置将被覆盖：\n{file.Name}",
-            PrimaryButtonText = "导入",
-            CloseButtonText = "取消",
-            XamlRoot = this.Content.XamlRoot,
-        };
-
-        if (await confirm.ShowAsync() != ContentDialogResult.Primary) return;
-
-        try
-        {
-            var json = await Windows.Storage.FileIO.ReadTextAsync(file);
-            var config = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(json);
-            if (config == null) return;
-
-            foreach (var kv in config)
-            {
-                await _api.SetConfigAsync(kv.Key, kv.Value);
-            }
-
-            var dialog = new ContentDialog
-            {
-                Title = "导入成功",
-                Content = $"配置已从 {file.Name} 导入，部分设置可能需要重启应用后生效。",
-                CloseButtonText = "确定",
-                XamlRoot = this.Content.XamlRoot,
-            };
-            await dialog.ShowAsync();
-        }
-        catch (Exception ex)
-        {
-            var dialog = new ContentDialog
-            {
-                Title = "导入失败",
-                Content = ex.Message,
-                CloseButtonText = "确定",
-                XamlRoot = this.Content.XamlRoot,
-            };
-            await dialog.ShowAsync();
-        }
-    }
-
-    private async void ResetDefault_Click(object sender, RoutedEventArgs e)
-    {
-        var dialog = new ContentDialog
-        {
-            Title = "恢复默认设置",
-            Content = "确定要将所有设置恢复到默认值吗？",
-            PrimaryButtonText = "确定",
-            CloseButtonText = "取消",
-            XamlRoot = this.Content.XamlRoot,
-        };
-
-        var result = await dialog.ShowAsync();
-        if (result == ContentDialogResult.Primary)
-        {
-            await _api.SetConfigAsync("_action_reset_default", true);
+            AppSettings.Set("allowMultipleInstances", sw.IsOn);
+            _ = AppSettings.SaveAsync();
+            await _api.SetConfigAsync("allowMultipleInstances", sw.IsOn);
         }
     }
 
     private async void DebugMode_Toggled(object sender, RoutedEventArgs e)
     {
-        if (sender is ToggleSwitch sw) await _api.SetConfigAsync("debugMode", sw.IsOn);
+        if (sender is ToggleSwitch sw)
+        {
+            AppSettings.Set("debugMode", sw.IsOn);
+            _ = AppSettings.SaveAsync();
+            await _api.SetConfigAsync("debugMode", sw.IsOn);
+        }
     }
+
+    private async void CloseAction_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is ComboBox combo && combo.SelectedItem is ComboBoxItem item)
+        {
+            var action = item.Tag?.ToString() ?? "minimize";
+            AppSettings.Set("closeAction", action);
+            _ = AppSettings.SaveAsync();
+            await _api.SetConfigAsync("closeAction", action);
+        }
+    }
+
+    // ──── 外观组 ────
+
+    private async void ThemeMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is ComboBox combo && combo.SelectedItem is ComboBoxItem item)
+        {
+            var modeStr = item.Tag?.ToString() ?? "light";
+            AppSettings.Set("themeMode", modeStr);
+            _ = AppSettings.SaveAsync();
+            await _api.SetConfigAsync("themeMode", modeStr);
+
+            var mode = ThemeHelper.ParseMode(modeStr);
+            if (App.MainWindow != null)
+                ThemeHelper.ApplyTheme(App.MainWindow, mode);
+        }
+    }
+
+    private async void ThemeColor_Click(object sender, RoutedEventArgs e)
+    {
+        var picker = new ColorPicker();
+        var dialog = new ContentDialog
+        {
+            Title = "选择主题色",
+            Content = picker,
+            PrimaryButtonText = "确定",
+            CloseButtonText = "取消",
+            XamlRoot = XamlRoot,
+        };
+
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+        {
+            var color = picker.Color;
+            var hexColor = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+
+            ThemeColorButton.Background = new SolidColorBrush(color);
+
+            AppSettings.Set("themeColor", hexColor);
+            _ = AppSettings.SaveAsync();
+            await _api.SetConfigAsync("themeColor", hexColor);
+        }
+    }
+
+    // ──── 日志组 ────
+
+    private async void LogLevel_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is ComboBox combo && combo.SelectedItem is ComboBoxItem item)
+        {
+            var level = item.Tag?.ToString() ?? "info";
+            AppSettings.Set("logLevel", level);
+            _ = AppSettings.SaveAsync();
+            await _api.SetConfigAsync("logLevel", level);
+        }
+    }
+
+    private async void DisableLog_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleSwitch sw) return;
+
+        AppSettings.Set("disableLog", sw.IsOn);
+        _ = AppSettings.SaveAsync();
+        await _api.SetConfigAsync("disableLog", sw.IsOn);
+
+        LogLevelCombo.IsEnabled = !sw.IsOn;
+        LogMaxCountSlider.IsEnabled = !sw.IsOn;
+        LogMaxDaysSlider.IsEnabled = !sw.IsOn;
+    }
+
+    private async void LogMaxCount_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (sender is Slider slider && slider.Value >= slider.Minimum && slider.Value <= slider.Maximum)
+        {
+            var value = (int)slider.Value;
+            AppSettings.Set("logMaxCount", value);
+            _ = AppSettings.SaveAsync();
+            await _api.SetConfigAsync("logMaxCount", value);
+        }
+    }
+
+    private async void LogMaxDays_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (sender is Slider slider && slider.Value >= slider.Minimum && slider.Value <= slider.Maximum)
+        {
+            var value = (int)slider.Value;
+            AppSettings.Set("logMaxDays", value);
+            _ = AppSettings.SaveAsync();
+            await _api.SetConfigAsync("logMaxDays", value);
+        }
+    }
+
+    // ──── 数据管理组 ────
+
+    private async void ClearCache_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = "清除缓存",
+            Content = "确定要清除应用缓存数据吗？",
+            PrimaryButtonText = "确定",
+            CloseButtonText = "取消",
+            XamlRoot = XamlRoot,
+        };
+
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+        {
+            await _api.SetConfigAsync("_action_clear_cache", true);
+        }
+    }
+
+    private async void ResetSettings_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = "重置所有设置",
+            Content = "确定要将所有设置恢复到默认值吗？此操作不可撤销。",
+            PrimaryButtonText = "重置",
+            CloseButtonText = "取消",
+            XamlRoot = XamlRoot,
+        };
+
+        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+        {
+            await _api.SetConfigAsync("_action_reset_default", true);
+            _ = LoadAllSettings();
+        }
+    }
+
+    private async void OpenConfigFolder_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var configDir = System.IO.Path.Combine(
+                AppContext.BaseDirectory, "config");
+            if (!System.IO.Directory.Exists(configDir))
+                System.IO.Directory.CreateDirectory(configDir);
+
+            var folder = await StorageFolder.GetFolderFromPathAsync(configDir);
+            await Launcher.LaunchFolderAsync(folder);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Settings] 打开配置文件夹失败: {ex.Message}");
+
+            var dialog = new ContentDialog
+            {
+                Title = "打开失败",
+                Content = $"无法打开配置文件夹：{ex.Message}",
+                CloseButtonText = "确定",
+                XamlRoot = XamlRoot,
+            };
+            await dialog.ShowAsync();
+        }
+    }
+
+    //   加载设置到 UI 控件
+
+    private async Task LoadAllSettings()
+    {
+        try
+        {
+            var config = await _api.GetConfigAsync();
+            if (config == null)
+            {
+                Debug.WriteLine("[Settings] 后端不可用，保持默认值");
+                return;
+            }
+
+            ApplyConfig(config, "autoStart", v => AutoStartSwitch.IsOn = ToBool(v));
+            ApplyConfig(config, "autoOpenOnIdle", v => AutoOpenIdleSwitch.IsOn = ToBool(v));
+            ApplyConfig(config, "idleMinutes", v => IdleMinutesSlider.Value = ToInt(v, 5));
+            ApplyConfig(config, "autoOpenMaximize", v => AutoOpenMaximizeSwitch.IsOn = ToBool(v));
+            ApplyConfig(config, "allowMultipleInstances", v => AllowMultipleInstancesSwitch.IsOn = ToBool(v));
+            ApplyConfig(config, "debugMode", v => DebugModeSwitch.IsOn = ToBool(v));
+            ApplyConfig(config, "closeAction", v => SelectCombo(CloseActionCombo, Str(v)));
+
+            ApplyConfig(config, "themeMode", v => SelectCombo(ThemeModeCombo, Str(v)));
+            ApplyConfig(config, "themeColor", v => ApplyThemeColor(Str(v)));
+
+            ApplyConfig(config, "logLevel", v => SelectCombo(LogLevelCombo, Str(v)));
+            ApplyConfig(config, "disableLog", v =>
+            {
+                DisableLogSwitch.IsOn = ToBool(v);
+                LogLevelCombo.IsEnabled = !ToBool(v);
+                LogMaxCountSlider.IsEnabled = !ToBool(v);
+                LogMaxDaysSlider.IsEnabled = !ToBool(v);
+            });
+            ApplyConfig(config, "logMaxCount", v => LogMaxCountSlider.Value = ToInt(v, 100));
+            ApplyConfig(config, "logMaxDays", v => LogMaxDaysSlider.Value = ToInt(v, 30));
+
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Settings] 后端加载失败: {ex.Message}");
+        }
+    }
+
+    // ──── 辅助方法 ────
+
+    private static void ApplyConfig(Dictionary<string, object> config, string key, Action<object> setter)
+    {
+        if (config.TryGetValue(key, out var val) && val != null)
+        {
+            try { setter(val); } catch { }
+        }
+    }
+
+    private static void SelectCombo(ComboBox combo, string? tagValue)
+    {
+        if (string.IsNullOrEmpty(tagValue)) return;
+        foreach (var item in combo.Items)
+        {
+            if (item is ComboBoxItem cbi &&
+                string.Equals(cbi.Tag?.ToString(), tagValue, StringComparison.OrdinalIgnoreCase))
+            {
+                combo.SelectedItem = item;
+                return;
+            }
+        }
+    }
+
+    private void ApplyThemeColor(string? hexColor)
+    {
+        if (string.IsNullOrWhiteSpace(hexColor)) return;
+        try
+        {
+            ThemeColorButton.Background = new SolidColorBrush(ParseHexColor(hexColor));
+        }
+        catch { /* 保持默认色 */ }
+    }
+
+    private static global::Windows.UI.Color ParseHexColor(string hex)
+    {
+        hex = hex.TrimStart('#');
+        if (hex.Length == 6 &&
+            byte.TryParse(hex.AsSpan(0, 2), System.Globalization.NumberStyles.HexNumber, null, out var r) &&
+            byte.TryParse(hex.AsSpan(2, 2), System.Globalization.NumberStyles.HexNumber, null, out var g) &&
+            byte.TryParse(hex.AsSpan(4, 2), System.Globalization.NumberStyles.HexNumber, null, out var b))
+            return global::Windows.UI.Color.FromArgb(255, r, g, b);
+        return global::Windows.UI.Color.FromArgb(255, 0x00, 0x78, 0xD4);
+    }
+
+    private static bool ToBool(object val) => Convert.ToBoolean(val);
+    private static int ToInt(object val, int fallback) => Convert.ToInt32(val);
+    private static string? Str(object val) => val?.ToString();
 }

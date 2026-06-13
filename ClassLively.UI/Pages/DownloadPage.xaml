@@ -4,131 +4,205 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:models="using:ClassLively_UI.Models"
     mc:Ignorable="d">
 
-    <ScrollViewer Padding="40,20">
-        <StackPanel Spacing="24">
+    <Page.Resources>
+        <!-- 软件卡片模板 -->
+        <DataTemplate x:Key="SoftwareCardTemplate" x:DataType="models:SoftwareItemModel">
+            <Border CornerRadius="10"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    Padding="16,12">
+                <Grid ColumnSpacing="14" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
 
-            <!-- 模式  下载源工具栏 -->
-            <Grid ColumnSpacing="16">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
+                    <!-- 图标 -->
+                    <Border Grid.Column="0" Width="56" Height="56" CornerRadius="10"
+                            Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                            VerticalAlignment="Center">
+                        <FontIcon Glyph="&#xEB3C;" FontSize="28"
+                                  Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
 
-                <!-- 左：模式选择 -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                    <TextBlock Text="选择模式:" VerticalAlignment="Center" FontSize="14" />
-                    <RadioButton x:Name="SingleModeRadio"
-                                 Content="单个下载"
-                                 GroupName="DownloadMode"
-                                 IsChecked="True"
-                                 Checked="SingleModeRadio_Checked" />
-                    <RadioButton x:Name="MultiModeRadio"
-                                 Content="批量下载"
-                                 GroupName="DownloadMode"
-                                 Checked="MultiModeRadio_Checked" />
-                    <Button x:Name="SelectAllBtn"
-                            Content="全选"
-                            Click="SelectAllBtn_Click"
-                            Visibility="Collapsed" />
-                </StackPanel>
+                    <!-- 信息区 -->
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+                        <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" FontSize="15"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{x:Bind Description}" FontSize="12"
+                                   Opacity="0.65" TextWrapping="WrapWholeWords"
+                                   MaxLines="2" TextTrimming="WordEllipsis"
+                                   Height="40"/>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE8A7;" FontSize="12"
+                                      Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                      Visibility="{x:Bind HasLink}"/>
+                            <TextBlock Text="{x:Bind Link}" FontSize="11" Opacity="0.5"
+                                       TextTrimming="CharacterEllipsis" MaxWidth="260"
+                                       Visibility="{x:Bind HasLink}"
+                                       ToolTipService.ToolTip="{x:Bind Link}"
+                                       IsTextSelectionEnabled="True"/>
+                        </StackPanel>
+                    </StackPanel>
 
-                <!-- 右：下载源选择 -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" HorizontalAlignment="Right">
-                    <TextBlock Text="下载源:" VerticalAlignment="Center" FontSize="14" />
-                    <ComboBox x:Name="SourceCombo"
-                              Width="180"
-                              SelectionChanged="SourceCombo_SelectionChanged">
-                        <ComboBoxItem Content="GitHub" Tag="github" IsSelected="True" />
-                        <ComboBoxItem Content="Gitee" Tag="gitee" />
-                        <ComboBoxItem Content="官网" Tag="official" />
-                    </ComboBox>
-                </StackPanel>
-            </Grid>
+                    <!-- 操作区：进度环 / 下载按钮 / 复选框 -->
+                    <Grid Grid.Column="2" VerticalAlignment="Center">
+                        <ProgressRing x:Name="ItemProgress" IsActive="False"
+                                      Width="36" Height="36" Visibility="Collapsed"/>
+                        <Button x:Name="DownloadBtn" Content="下载"
+                                Style="{StaticResource AccentButtonStyle}"
+                                MinWidth="72" CornerRadius="6" Padding="16,6"
+                                Tag="{x:Bind Name}"/>
+                        <CheckBox x:Name="ItemCheck" Visibility="Collapsed"
+                                  MinWidth="18" MinHeight="18"/>
+                    </Grid>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <!-- 分类组模板 -->
+        <DataTemplate x:Key="CategoryGroupTemplate">
+            <StackPanel Spacing="8">
+                <TextBlock Text="{Binding CategoryName}" FontWeight="Bold"
+                           FontSize="16" Margin="4,2,0,0"
+                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                <ItemsControl ItemsSource="{Binding Items}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Spacing="6"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <StaticResource ResourceKey="SoftwareCardTemplate"/>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </DataTemplate>
+    </Page.Resources>
+
+    <ScrollViewer Padding="50,24,50,40">
+        <StackPanel Spacing="20">
+
+            <!-- 工具栏：模式选择 下载源 批量操作 -->
+            <Border CornerRadius="12"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" Padding="20,14">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 模式选择 -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="选择模式:" VerticalAlignment="Center"
+                                   FontSize="13" Opacity="0.7" Margin="0,0,10,0"/>
+                        <Border CornerRadius="8"
+                                Background="{ThemeResource ControlStrongStrokeColorDefaultBrush}"
+                                Padding="14,7">
+                            <RadioButton x:Name="SingleModeRadio" Content="单个下载"
+                                         GroupName="DownloadMode"
+                                         Checked="OnSingleModeChecked"/>
+                        </Border>
+                        <Border CornerRadius="8"
+                                Background="{ThemeResource ControlStrongStrokeColorDefaultBrush}"
+                                Padding="14,7">
+                            <RadioButton x:Name="MultiModeRadio" Content="批量多选"
+                                         GroupName="DownloadMode"
+                                         Checked="OnMultiModeChecked"/>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- 右侧：批量按钮 下载源 -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10"
+                                VerticalAlignment="Center">
+                        <Button x:Name="SelectAllBtn" Content="全选"
+                                Click="OnSelectAllClick"
+                                Visibility="Collapsed" CornerRadius="6" Padding="14,6"/>
+                        <Button x:Name="StartDownloadBtn" Content="开始下载"
+                                Click="OnStartBatchDownloadClick"
+                                Visibility="Collapsed"
+                                Style="{StaticResource AccentButtonStyle}"
+                                CornerRadius="6" Padding="16,6"/>
+                        <TextBlock Text="下载源:" VerticalAlignment="Center"
+                                   FontSize="13" Opacity="0.7" Margin="8,0,4,0"/>
+                        <ComboBox x:Name="SourceCombo" Width="140"
+                                  SelectionChanged="OnSourceChanged" CornerRadius="6">
+                            <ComboBoxItem Content="original" Tag="original" IsSelected="True"/>
+                            <ComboBoxItem Content="hk" Tag="hk"/>
+                            <ComboBoxItem Content="cloudflare" Tag="cloudflare"/>
+                            <ComboBoxItem Content="edgeone" Tag="edgeone"/>
+                            <ComboBoxItem Content="geekertao" Tag="geekertao"/>
+                        </ComboBox>
+                    </StackPanel>
+                </Grid>
+            </Border>
 
             <!-- 软件列表 -->
-            <ItemsControl x:Name="SoftwareListUI">
+            <ItemsControl x:Name="CategoryListUI">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <StackPanel Spacing="12" />
+                        <StackPanel Spacing="20"/>
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Border CornerRadius="8"
-                                BorderThickness="1"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                Padding="16,12">
-                            <Grid ColumnSpacing="16">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-
-                                <!-- 图标 -->
-                                <Image Grid.Column="0"
-                                       Width="48"
-                                       Height="48"
-                                       Source="{Binding Icon}"
-                                       Stretch="Uniform" />
-
-                                <!-- 名称 描述 -->
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <TextBlock Text="{Binding Name}"
-                                                   FontWeight="SemiBold"
-                                                   FontSize="15"
-                                                   VerticalAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   MaxWidth="400" />
-                                        <FontIcon x:Name="LinkIcon"
-                                                  Glyph="&#xE8A7;"
-                                                  FontSize="12"
-                                                  Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
-                                                  VerticalAlignment="Center"
-                                                  ToolTipService.ToolTip="{Binding Link}"
-                                                  Tapped="LinkIcon_Tapped" />
-                                    </StackPanel>
-                                    <TextBlock Text="{Binding Description}"
-                                               Opacity="0.7"
-                                               FontSize="13"
-                                               TextWrapping="WrapWholeWords"
-                                               MaxLines="2"
-                                               TextTrimming="CharacterEllipsis" />
-                                </StackPanel>
-
-                                <!-- 进度 / 下载按钮 / 复选框 -->
-                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                                    <ProgressRing x:Name="ItemProgress"
-                                                  IsActive="False"
-                                                  Width="36"
-                                                  Height="36"
-                                                  Visibility="Collapsed" />
-                                    <Button x:Name="DownloadBtn"
-                                            Content="下载"
-                                            Click="DownloadBtn_Click"
-                                            HorizontalContentAlignment="Center"
-                                            MinWidth="72" />
-                                    <CheckBox x:Name="ItemCheck"
-                                              Visibility="Collapsed" />
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-                    </DataTemplate>
+                    <StaticResource ResourceKey="CategoryGroupTemplate"/>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
             <!-- 空状态提示 -->
-            <TextBlock x:Name="EmptyTipText"
-                       Text="暂无软件列表"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       FontSize="18"
-                       Opacity="0.5"
-                       Visibility="Collapsed" />
+            <StackPanel x:Name="EmptyTipPanel"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Spacing="12" Visibility="Collapsed" Margin="0,80,0,80">
+                <FontIcon Glyph="&#xE81C;" FontSize="48"
+                          Foreground="{ThemeResource ControlStrongStrokeColorDefaultBrush}"
+                          HorizontalAlignment="Center"/>
+                <TextBlock x:Name="EmptyTipLabel" Text="暂无软件列表"
+                           HorizontalAlignment="Center" FontSize="18"
+                           FontWeight="SemiBold" Opacity="0.5"/>
+                <TextBlock Text="请检查后端服务是否启动"
+                           HorizontalAlignment="Center" FontSize="13" Opacity="0.35"/>
+            </StackPanel>
+
+            <!-- 批量下载进度面板 -->
+            <Border x:Name="BatchProgressPanel" CornerRadius="12"
+                    BorderThickness="1"
+                    BorderBrush="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                    Padding="24,18" Visibility="Collapsed">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="{ThemeResource SystemAccentColorLight2}" Offset="0"/>
+                        <GradientStop Color="{ThemeResource SystemAccentColorDark1}" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <StackPanel Spacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <ProgressRing x:Name="BatchProgressRing" IsActive="True"
+                                      Width="30" Height="30" Foreground="White"/>
+                        <StackPanel Spacing="4" VerticalAlignment="Center">
+                            <TextBlock x:Name="BatchStatusText" Text="正在准备..."
+                                       FontSize="14" FontWeight="SemiBold"
+                                       Foreground="White"/>
+                            <ProgressBar x:Name="BatchProgressBar"
+                                         Minimum="0" Maximum="100" Value="0"
+                                         Height="6" CornerRadius="3">
+                                <ProgressBar.Foreground>
+                                    <SolidColorBrush Color="White" Opacity="0.85"/>
+                                </ProgressBar.Foreground>
+                            </ProgressBar>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
 
         </StackPanel>
     </ScrollViewer>

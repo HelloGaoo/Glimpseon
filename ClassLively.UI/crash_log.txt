@@ -1,0 +1,771 @@
+[CRASH] 2026-06-12 21:32:14
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.IdleMinutes_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 48
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:32:14
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.ThemeMode_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 63
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:32:14
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.Language_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 80
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:32:14
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.LogLevel_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 99
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:32:14
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.LogMaxCount_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 105
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:32:14
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.LogMaxDays_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 111
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:32:14
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.CloseAction_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 138
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:39:47
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.DownloadPage.SourceCombo_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\DownloadPage.xaml.cs:line 102
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:39:50
+Exception: System.Runtime.InteropServices.COMException
+Message: 某个异步操作没有正常启动。
+
+Only a single ContentDialog can be open at any time.
+StackTrace:    at WinRT.ExceptionHelpers.<ThrowExceptionForHR>g__Throw|38_0(Int32 hr)
+   at ABI.Microsoft.UI.Xaml.Controls.IContentDialogMethods.ShowAsync(IObjectReference _obj)
+   at Microsoft.UI.Xaml.Controls.ContentDialog.ShowAsync()
+   at ClassLively_UI.Pages.DownloadPage.ShowError(String title, String content) in E:\260523\py\ClassLively\ClassLively.UI\Pages\DownloadPage.xaml.cs:line 266
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:40:13
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.IdleMinutes_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 48
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:40:13
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.ThemeMode_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 63
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:40:13
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.Language_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 80
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:40:13
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.LogLevel_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 99
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:40:13
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.LogMaxCount_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 105
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:40:13
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.LogMaxDays_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 111
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:40:13
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.CloseAction_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 138
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:40:17
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.IdleMinutes_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 48
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:40:17
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.ThemeMode_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 63
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:40:17
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.Language_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 80
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:40:17
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.LogLevel_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 99
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:40:17
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.LogMaxCount_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 105
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:40:17
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.LogMaxDays_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 111
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:40:17
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.CloseAction_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 138
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:40:22
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.DownloadPage.SourceCombo_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\DownloadPage.xaml.cs:line 102
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:40:24
+Exception: System.Runtime.InteropServices.COMException
+Message: 某个异步操作没有正常启动。
+
+Only a single ContentDialog can be open at any time.
+StackTrace:    at WinRT.ExceptionHelpers.<ThrowExceptionForHR>g__Throw|38_0(Int32 hr)
+   at ABI.Microsoft.UI.Xaml.Controls.IContentDialogMethods.ShowAsync(IObjectReference _obj)
+   at Microsoft.UI.Xaml.Controls.ContentDialog.ShowAsync()
+   at ClassLively_UI.Pages.DownloadPage.ShowError(String title, String content) in E:\260523\py\ClassLively\ClassLively.UI\Pages\DownloadPage.xaml.cs:line 266
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:42:04
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.DownloadPage.SourceCombo_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\DownloadPage.xaml.cs:line 102
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:42:15
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.DownloadPage.SourceCombo_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\DownloadPage.xaml.cs:line 102
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:42:45
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.IdleMinutes_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 48
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:42:45
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.ThemeMode_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 63
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:42:45
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.Language_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 80
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:42:45
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.LogLevel_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 99
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:42:45
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.LogMaxCount_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 105
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:42:45
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.LogMaxDays_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 111
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 21:42:45
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.CloseAction_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 138
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:03:59
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.DownloadPage.SourceCombo_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\DownloadPage.xaml.cs:line 108
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:04:04
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.IdleMinutes_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 63
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:04:04
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.ThemeMode_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 86
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:04:04
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.Language_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 107
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:04:04
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.LogLevel_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 133
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:04:04
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.LogMaxCount_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 144
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:04:04
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.LogMaxDays_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 155
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:04:04
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.CloseAction_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 187
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:13:25
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.DownloadPage.SourceCombo_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\DownloadPage.xaml.cs:line 108
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:13:26
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.IdleMinutes_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 63
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:13:26
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.ThemeMode_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 86
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:13:26
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.Language_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 107
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:13:27
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.LogLevel_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 133
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:13:27
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.LogMaxCount_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 144
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:13:27
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.LogMaxDays_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 155
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:13:27
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.CloseAction_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 187
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:23:21
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.DownloadPage.SourceCombo_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\DownloadPage.xaml.cs:line 148
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:23:46
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.IdleMinutes_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 67
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:23:46
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.ThemeMode_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 90
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:23:46
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.Language_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 111
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:23:46
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.LogLevel_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 137
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:23:46
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.LogMaxCount_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 148
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:23:46
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.LogMaxDays_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 159
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:23:46
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.SettingsPage.CloseAction_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\SettingsPage.xaml.cs:line 191
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:24:13
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.DownloadPage.SourceCombo_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\DownloadPage.xaml.cs:line 148
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 22:30:39
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.DownloadPage.SourceCombo_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\DownloadPage.xaml.cs:line 148
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 23:04:56
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.DownloadPage.SourceCombo_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\DownloadPage.xaml.cs:line 148
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+[CRASH] 2026-06-12 23:04:57
+Exception: System.NullReferenceException
+Message: Object reference not set to an instance of an object.
+StackTrace:    at ClassLively_UI.Pages.DownloadPage.SourceCombo_SelectionChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\DownloadPage.xaml.cs:line 148
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+Inner: 
+
+
+2026/6/13 9:39:20 System.ArgumentException: Value does not fall within the expected range.
+   at WinRT.ExceptionHelpers.<ThrowExceptionForHR>g__Throw|38_0(Int32 hr)
+   at WinRT.ExceptionHelpers.ThrowExceptionForHR(Int32 hr)
+   at ABI.Microsoft.UI.Xaml.Controls.IContentPresenterMethods.set_Content(IObjectReference _obj, Object value)
+   at Microsoft.UI.Xaml.Controls.ContentPresenter.set_Content(Object value)
+   at ClassLively_UI.Controls.DraggableControl.SetContent(UIElement content) in E:\260523\py\ClassLively\ClassLively.UI\Controls\DraggableControl.cs:line 160
+   at ClassLively_UI.Pages.HomePage.CreateDraggable(String componentId, UIElement content, Double defaultX, Double defaultY) in E:\260523\py\ClassLively\ClassLively.UI\Pages\HomePage.xaml.cs:line 107
+   at ClassLively_UI.Pages.HomePage.InitAllComponents() in E:\260523\py\ClassLively\ClassLively.UI\Pages\HomePage.xaml.cs:line 74
+   at ClassLively_UI.Pages.HomePage..ctor() in E:\260523\py\ClassLively\ClassLively.UI\Pages\HomePage.xaml.cs:line 58
+   at ClassLively_UI.ClassLively_UI_XamlTypeInfo.XamlTypeInfoProvider.Activate_57_HomePage() in E:\260523\py\ClassLively\ClassLively.UI\obj\Debug\net10.0-windows10.0.26100.0\win-x64\XamlTypeInfo.g.cs:line 430
+   at ClassLively_UI.ClassLively_UI_XamlTypeInfo.XamlUserType.ActivateInstance() in E:\260523\py\ClassLively\ClassLively.UI\obj\Debug\net10.0-windows10.0.26100.0\win-x64\XamlTypeInfo.g.cs:line 3031
+   at ABI.Microsoft.UI.Xaml.Markup.IXamlType.Do_Abi_ActivateInstance_13(IntPtr thisPtr, IntPtr* result)
+--- End of stack trace from previous location ---
+   at WinRT.ExceptionHelpers.<ThrowExceptionForHR>g__Throw|38_0(Int32 hr)
+   at WinRT.ExceptionHelpers.ThrowExceptionForHR(Int32 hr)
+   at ABI.Microsoft.UI.Xaml.Controls.INavigateMethods.Navigate(IObjectReference _obj, Type sourcePageType)
+   at Microsoft.UI.Xaml.Controls.Frame.Navigate(Type sourcePageType)
+   at ClassLively_UI.MainWindow..ctor() in E:\260523\py\ClassLively\ClassLively.UI\MainWindow.xaml.cs:line 50
+   at ClassLively_UI.App.InitializeAsync() in E:\260523\py\ClassLively\ClassLively.UI\App.xaml.cs:line 76
+   at ClassLively_UI.App.OnLaunched(LaunchActivatedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\App.xaml.cs:line 51
+
+[CRASH] 2026/6/13 9:39:21
+System.ArgumentException: 参数错误。
+
+This element does not have a XamlRoot. Either set the XamlRoot property or add the element to a tree.
+   at WinRT.ExceptionHelpers.<ThrowExceptionForHR>g__Throw|38_0(Int32 hr)
+   at WinRT.ExceptionHelpers.ThrowExceptionForHR(Int32 hr)
+   at ABI.Microsoft.UI.Xaml.Controls.IContentDialogMethods.ShowAsync(IObjectReference _obj)
+   at Microsoft.UI.Xaml.Controls.ContentDialog.ShowAsync()
+   at ClassLively_UI.MainWindow.NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\MainWindow.xaml.cs:line 237
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+
+
+
+[2026/6/13 9:41:40] 已有实例运行
+2026/6/13 9:43:11 System.ArgumentException: Value does not fall within the expected range.
+   at WinRT.ExceptionHelpers.<ThrowExceptionForHR>g__Throw|38_0(Int32 hr)
+   at WinRT.ExceptionHelpers.ThrowExceptionForHR(Int32 hr)
+   at ABI.Microsoft.UI.Xaml.Controls.IContentPresenterMethods.set_Content(IObjectReference _obj, Object value)
+   at Microsoft.UI.Xaml.Controls.ContentPresenter.set_Content(Object value)
+   at ClassLively_UI.Controls.DraggableControl.SetContent(UIElement content) in E:\260523\py\ClassLively\ClassLively.UI\Controls\DraggableControl.cs:line 160
+   at ClassLively_UI.Pages.HomePage.CreateDraggable(String componentId, UIElement content, Double defaultX, Double defaultY) in E:\260523\py\ClassLively\ClassLively.UI\Pages\HomePage.xaml.cs:line 107
+   at ClassLively_UI.Pages.HomePage.InitAllComponents() in E:\260523\py\ClassLively\ClassLively.UI\Pages\HomePage.xaml.cs:line 74
+   at ClassLively_UI.Pages.HomePage..ctor() in E:\260523\py\ClassLively\ClassLively.UI\Pages\HomePage.xaml.cs:line 58
+   at ClassLively_UI.ClassLively_UI_XamlTypeInfo.XamlTypeInfoProvider.Activate_57_HomePage() in E:\260523\py\ClassLively\ClassLively.UI\obj\Debug\net10.0-windows10.0.26100.0\win-x64\XamlTypeInfo.g.cs:line 430
+   at ClassLively_UI.ClassLively_UI_XamlTypeInfo.XamlUserType.ActivateInstance() in E:\260523\py\ClassLively\ClassLively.UI\obj\Debug\net10.0-windows10.0.26100.0\win-x64\XamlTypeInfo.g.cs:line 3031
+   at ABI.Microsoft.UI.Xaml.Markup.IXamlType.Do_Abi_ActivateInstance_13(IntPtr thisPtr, IntPtr* result)
+--- End of stack trace from previous location ---
+   at WinRT.ExceptionHelpers.<ThrowExceptionForHR>g__Throw|38_0(Int32 hr)
+   at WinRT.ExceptionHelpers.ThrowExceptionForHR(Int32 hr)
+   at ABI.Microsoft.UI.Xaml.Controls.INavigateMethods.Navigate(IObjectReference _obj, Type sourcePageType)
+   at Microsoft.UI.Xaml.Controls.Frame.Navigate(Type sourcePageType)
+   at ClassLively_UI.MainWindow..ctor() in E:\260523\py\ClassLively\ClassLively.UI\MainWindow.xaml.cs:line 50
+   at ClassLively_UI.App.InitializeAsync() in E:\260523\py\ClassLively\ClassLively.UI\App.xaml.cs:line 76
+   at ClassLively_UI.App.OnLaunched(LaunchActivatedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\App.xaml.cs:line 51
+
+[CRASH] 2026/6/13 9:43:11
+System.ArgumentException: 参数错误。
+
+This element does not have a XamlRoot. Either set the XamlRoot property or add the element to a tree.
+   at WinRT.ExceptionHelpers.<ThrowExceptionForHR>g__Throw|38_0(Int32 hr)
+   at WinRT.ExceptionHelpers.ThrowExceptionForHR(Int32 hr)
+   at ABI.Microsoft.UI.Xaml.Controls.IContentDialogMethods.ShowAsync(IObjectReference _obj)
+   at Microsoft.UI.Xaml.Controls.ContentDialog.ShowAsync()
+   at ClassLively_UI.MainWindow.NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\MainWindow.xaml.cs:line 237
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+
+
+
+[2026/6/13 9:44:06] 已有实例运行
+[CRASH] 2026/6/13 9:56:03
+System.NullReferenceException: Object reference not set to an instance of an object.
+   at ClassLively_UI.Pages.DownloadPage.UseFallbackSoftwareList() in E:\260523\py\ClassLively\ClassLively.UI\Pages\DownloadPage.xaml.cs:line 404
+   at ClassLively_UI.Pages.DownloadPage.LoadSoftwareListAsync() in E:\260523\py\ClassLively\ClassLively.UI\Pages\DownloadPage.xaml.cs:line 327
+   at ClassLively_UI.Pages.DownloadPage.OnSourceChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\DownloadPage.xaml.cs:line 135
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+
+
+
+[CRASH] 2026/6/13 9:56:27
+System.InvalidCastException: Failed to create a CCW for object of type 'ClassLively_UI.Pages.WallpaperPage' for interface with IID 'EECDBF0E-BAE9-4CB6-A68E-9598E1CB57BB': the specified cast is not valid.
+   at WinRT.ComWrappersSupport.<CreateCCWForObjectForABI>g__ThrowException|58_0(Object obj, Guid iid, Int32 hr)
+   at WinRT.ComWrappersSupport.CreateCCWForObjectForABI(Object obj, Guid iid)
+   at WinRT.MarshalInspectable`1.CreateMarshaler2(T o, Guid iid, Boolean unwrapObject)
+   at WinRT.Interop.IWindowNativeMethods.get_WindowHandle(Object _obj)
+   at WinRT.Interop.WindowNative.GetWindowHandle(Object target)
+   at ClassLively_UI.Pages.WallpaperPage.GetWindowHandle() in E:\260523\py\ClassLively\ClassLively.UI\Pages\WallpaperPage.xaml.cs:line 1030
+   at ClassLively_UI.Pages.WallpaperPage.SaveAs_Click(Object sender, RoutedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\WallpaperPage.xaml.cs:line 226
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+
+
+
+[CRASH] 2026/6/13 9:56:29
+System.InvalidCastException: Failed to create a CCW for object of type 'ClassLively_UI.Pages.WallpaperPage' for interface with IID 'EECDBF0E-BAE9-4CB6-A68E-9598E1CB57BB': the specified cast is not valid.
+   at WinRT.ComWrappersSupport.<CreateCCWForObjectForABI>g__ThrowException|58_0(Object obj, Guid iid, Int32 hr)
+   at WinRT.ComWrappersSupport.CreateCCWForObjectForABI(Object obj, Guid iid)
+   at WinRT.MarshalInspectable`1.CreateMarshaler2(T o, Guid iid, Boolean unwrapObject)
+   at WinRT.Interop.IWindowNativeMethods.get_WindowHandle(Object _obj)
+   at WinRT.Interop.WindowNative.GetWindowHandle(Object target)
+   at ClassLively_UI.Pages.WallpaperPage.GetWindowHandle() in E:\260523\py\ClassLively\ClassLively.UI\Pages\WallpaperPage.xaml.cs:line 1030
+   at ClassLively_UI.Pages.WallpaperPage.SaveAs_Click(Object sender, RoutedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\WallpaperPage.xaml.cs:line 226
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+
+
+
+2026/6/13 9:57:45 System.ArgumentException: Value does not fall within the expected range.
+   at WinRT.ExceptionHelpers.<ThrowExceptionForHR>g__Throw|38_0(Int32 hr)
+   at WinRT.ExceptionHelpers.ThrowExceptionForHR(Int32 hr)
+   at ABI.Microsoft.UI.Xaml.Controls.IContentPresenterMethods.set_Content(IObjectReference _obj, Object value)
+   at Microsoft.UI.Xaml.Controls.ContentPresenter.set_Content(Object value)
+   at ClassLively_UI.Controls.DraggableControl.SetContent(UIElement content) in E:\260523\py\ClassLively\ClassLively.UI\Controls\DraggableControl.cs:line 160
+   at ClassLively_UI.Pages.HomePage.CreateDraggable(String componentId, UIElement content, Double defaultX, Double defaultY) in E:\260523\py\ClassLively\ClassLively.UI\Pages\HomePage.xaml.cs:line 108
+   at ClassLively_UI.Pages.HomePage.InitAllComponents() in E:\260523\py\ClassLively\ClassLively.UI\Pages\HomePage.xaml.cs:line 75
+   at ClassLively_UI.Pages.HomePage..ctor() in E:\260523\py\ClassLively\ClassLively.UI\Pages\HomePage.xaml.cs:line 58
+   at ClassLively_UI.ClassLively_UI_XamlTypeInfo.XamlTypeInfoProvider.Activate_57_HomePage() in E:\260523\py\ClassLively\ClassLively.UI\obj\Debug\net10.0-windows10.0.26100.0\win-x64\XamlTypeInfo.g.cs:line 430
+   at ClassLively_UI.ClassLively_UI_XamlTypeInfo.XamlUserType.ActivateInstance() in E:\260523\py\ClassLively\ClassLively.UI\obj\Debug\net10.0-windows10.0.26100.0\win-x64\XamlTypeInfo.g.cs:line 3031
+   at ABI.Microsoft.UI.Xaml.Markup.IXamlType.Do_Abi_ActivateInstance_13(IntPtr thisPtr, IntPtr* result)
+--- End of stack trace from previous location ---
+   at WinRT.ExceptionHelpers.<ThrowExceptionForHR>g__Throw|38_0(Int32 hr)
+   at WinRT.ExceptionHelpers.ThrowExceptionForHR(Int32 hr)
+   at ABI.Microsoft.UI.Xaml.Controls.INavigateMethods.Navigate(IObjectReference _obj, Type sourcePageType)
+   at Microsoft.UI.Xaml.Controls.Frame.Navigate(Type sourcePageType)
+   at ClassLively_UI.MainWindow..ctor() in E:\260523\py\ClassLively\ClassLively.UI\MainWindow.xaml.cs:line 60
+   at ClassLively_UI.App.InitializeAsync() in E:\260523\py\ClassLively\ClassLively.UI\App.xaml.cs:line 76
+   at ClassLively_UI.App.OnLaunched(LaunchActivatedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\App.xaml.cs:line 51
+
+[CRASH] 2026/6/13 9:57:45
+System.ArgumentException: 参数错误。
+
+This element does not have a XamlRoot. Either set the XamlRoot property or add the element to a tree.
+   at WinRT.ExceptionHelpers.<ThrowExceptionForHR>g__Throw|38_0(Int32 hr)
+   at WinRT.ExceptionHelpers.ThrowExceptionForHR(Int32 hr)
+   at ABI.Microsoft.UI.Xaml.Controls.IContentDialogMethods.ShowAsync(IObjectReference _obj)
+   at Microsoft.UI.Xaml.Controls.ContentDialog.ShowAsync()
+   at ClassLively_UI.MainWindow.NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\MainWindow.xaml.cs:line 240
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+
+
+
+[CRASH] 2026/6/13 9:59:29
+System.ArgumentException: 参数错误。
+
+This element does not have a XamlRoot. Either set the XamlRoot property or add the element to a tree.
+   at WinRT.ExceptionHelpers.<ThrowExceptionForHR>g__Throw|38_0(Int32 hr)
+   at WinRT.ExceptionHelpers.ThrowExceptionForHR(Int32 hr)
+   at ABI.Microsoft.UI.Xaml.Controls.IContentDialogMethods.ShowAsync(IObjectReference _obj)
+   at Microsoft.UI.Xaml.Controls.ContentDialog.ShowAsync()
+   at ClassLively_UI.MainWindow.NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\MainWindow.xaml.cs:line 246
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+
+
+
+[CRASH] 2026/6/13 9:59:29
+System.ArgumentException: 参数错误。
+
+This element does not have a XamlRoot. Either set the XamlRoot property or add the element to a tree.
+   at WinRT.ExceptionHelpers.<ThrowExceptionForHR>g__Throw|38_0(Int32 hr)
+   at WinRT.ExceptionHelpers.ThrowExceptionForHR(Int32 hr)
+   at ABI.Microsoft.UI.Xaml.Controls.IContentDialogMethods.ShowAsync(IObjectReference _obj)
+   at Microsoft.UI.Xaml.Controls.ContentDialog.ShowAsync()
+   at ClassLively_UI.MainWindow.NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args) in E:\260523\py\ClassLively\ClassLively.UI\MainWindow.xaml.cs:line 246
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+--- End of stack trace from previous location ---
+   at WinRT.ExceptionHelpers.<ThrowExceptionForHR>g__Throw|38_0(Int32 hr)
+   at WinRT.ExceptionHelpers.ThrowExceptionForHR(Int32 hr)
+   at ABI.Microsoft.UI.Xaml.Controls.IContentPresenterMethods.set_Content(IObjectReference _obj, Object value)
+   at Microsoft.UI.Xaml.Controls.ContentPresenter.set_Content(Object value)
+   at ClassLively_UI.Controls.DraggableControl.SetContent(UIElement content) in E:\260523\py\ClassLively\ClassLively.UI\Controls\DraggableControl.cs:line 160
+   at ClassLively_UI.Pages.HomePage.CreateDraggable(String componentId, UIElement content, Double defaultX, Double defaultY) in E:\260523\py\ClassLively\ClassLively.UI\Pages\HomePage.xaml.cs:line 108
+   at ClassLively_UI.Pages.HomePage.InitAllComponents() in E:\260523\py\ClassLively\ClassLively.UI\Pages\HomePage.xaml.cs:line 75
+   at ClassLively_UI.Pages.HomePage..ctor() in E:\260523\py\ClassLively\ClassLively.UI\Pages\HomePage.xaml.cs:line 58
+   at ClassLively_UI.ClassLively_UI_XamlTypeInfo.XamlTypeInfoProvider.Activate_57_HomePage() in E:\260523\py\ClassLively\ClassLively.UI\obj\Debug\net10.0-windows10.0.26100.0\win-x64\XamlTypeInfo.g.cs:line 430
+   at ClassLively_UI.ClassLively_UI_XamlTypeInfo.XamlUserType.ActivateInstance() in E:\260523\py\ClassLively\ClassLively.UI\obj\Debug\net10.0-windows10.0.26100.0\win-x64\XamlTypeInfo.g.cs:line 3031
+   at ABI.Microsoft.UI.Xaml.Markup.IXamlType.Do_Abi_ActivateInstance_13(IntPtr thisPtr, IntPtr* result)
+--- End of stack trace from previous location ---
+   at WinRT.ExceptionHelpers.<ThrowExceptionForHR>g__Throw|38_0(Int32 hr)
+   at WinRT.ExceptionHelpers.ThrowExceptionForHR(Int32 hr)
+   at ABI.Microsoft.UI.Xaml.Controls.INavigateMethods.Navigate(IObjectReference _obj, Type sourcePageType)
+   at Microsoft.UI.Xaml.Controls.Frame.Navigate(Type sourcePageType)
+   at ClassLively_UI.MainWindow.OnFirstActivated(Object sender, WindowActivatedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\MainWindow.xaml.cs:line 66
+   at WinRT._EventSource_global__Windows_Foundation_TypedEventHandler_object__global__Microsoft_UI_Xaml_WindowActivatedEventArgs_.EventState.<GetEventInvoke>b__1_0(Object sender, WindowActivatedEventArgs args)
+   at WinRT.GenericTypeInstantiations.Windows_Foundation_TypedEventHandler_2_object__Microsoft_UI_Xaml_WindowActivatedEventArgs.Do_Abi_Invoke(IntPtr thisPtr, IntPtr sender, IntPtr args)
+
+
+
+[CRASH] 2026/6/13 10:05:08
+System.NullReferenceException: Object reference not set to an instance of an object.
+   at ClassLively_UI.Pages.DownloadPage.UseFallbackSoftwareList() in E:\260523\py\ClassLively\ClassLively.UI\Pages\DownloadPage.xaml.cs:line 404
+   at ClassLively_UI.Pages.DownloadPage.LoadSoftwareListAsync() in E:\260523\py\ClassLively\ClassLively.UI\Pages\DownloadPage.xaml.cs:line 327
+   at ClassLively_UI.Pages.DownloadPage.OnSourceChanged(Object sender, SelectionChangedEventArgs e) in E:\260523\py\ClassLively\ClassLively.UI\Pages\DownloadPage.xaml.cs:line 135
+   at System.Threading.Tasks.Task.<>c.<ThrowAsync>b__124_0(Object state)
+   at Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext.<>c__DisplayClass2_0.<Post>b__0()
+
+
+

@@ -35,6 +35,7 @@
             Grid.Row="1"
             IsBackButtonVisible="Collapsed"
             IsPaneToggleButtonVisible="False"
+            IsSettingsVisible="False"
             SelectionChanged="NavView_SelectionChanged">
             <NavigationView.MenuItems>
                 <NavigationViewItem Content="主页" Tag="home" IsSelected="True">
@@ -67,11 +68,6 @@
                 <NavigationViewItem Content="关于" Tag="about">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xEA3A;" />
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="调试" Tag="debug" Visibility="Collapsed" x:Name="DebugNavItem">
-                    <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE921;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.FooterMenuItems>
