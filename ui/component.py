@@ -347,6 +347,7 @@ class DraggableContainer(DraggableWidget):
         self.inner_layout.setSpacing(5)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         self._content_visible = True
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
     
     def setContentVisible(self, visible: bool):
         """隐藏/显示内容"""

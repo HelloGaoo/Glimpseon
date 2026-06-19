@@ -1,13 +1,50 @@
 /* 主界面 */
 
 #homeBackgroundImage,
-#clockContainer,
-#weatherContainer,
-#schoolInfoContainer,
-#poetryContainer,
-#countdownContainer,
-#mediaContainer,
-#editContainer,
+#editContainer {
+    background-color: transparent;
+}
+
+/* 组件卡片背景 */
+
+#clockContainer {
+    background-color: rgba(18, 18, 22, 0.55);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+#weatherContainer {
+    background-color: rgba(18, 18, 22, 0.55);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+#schoolInfoContainer {
+    background-color: rgba(18, 18, 22, 0.55);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+#poetryContainer {
+    background-color: rgba(18, 18, 22, 0.55);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+#countdownContainer {
+    background-color: rgba(18, 18, 22, 0.55);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+#mediaContainer {
+    background-color: transparent;
+}
+
+#quickLaunchContainer {
+    background-color: transparent;
+}
+
 #quickLaunchDock {
     background-color: transparent;
 }
