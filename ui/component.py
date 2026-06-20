@@ -806,24 +806,6 @@ class MediaWidget(QWidget):
         return None
 
     def _apply_background_style(self):
-        bg_color = cfg.mediaBgColor.value
-        bg_opacity = cfg.mediaBgOpacity.value
-        border_radius = cfg.mediaBorderRadius.value
-        border_width = cfg.mediaBorderWidth.value
-        border_color = cfg.mediaBorderColor.value
-        # 支持将背景颜色设为特殊值 'wallpaper' 来跟随主界面壁纸颜色
-        override_color = None
-        actual_bg_value = bg_color.name() if hasattr(bg_color, 'name') else bg_color
-        if actual_bg_value == 'wallpaper':
-            override_color = self._get_wallpaper_color()
-
-        if override_color:
-            c = QColor(override_color)
-            c.setAlpha(int(255 * bg_opacity / 100))
-        else:
-            c = QColor(actual_bg_value if isinstance(actual_bg_value, str) else bg_color)
-            c.setAlpha(int(255 * bg_opacity / 100))
-
         # 独立处理进度条颜色：支持 'wallpaper' / 'system' / 具体颜色值
         progress_color_val = cfg.mediaProgressColor.value
         actual_progress_value = progress_color_val.name() if hasattr(progress_color_val, 'name') else progress_color_val
@@ -836,51 +818,52 @@ class MediaWidget(QWidget):
         else:
             self._override_progress_color = None
 
-        if c.alpha() == 0:
-            bg_css = "background-color: transparent;"
+        if not cfg.mediaUseCustomBg.value:
+            self.setStyleSheet("")
+            from qfluentwidgets import isDarkTheme
+            text_color = '#FFFFFF' if isDarkTheme() else '#000000'
         else:
-            bg_css = f"background-color: {self._qss_color(c)};"
+            bg_opacity = cfg.mediaBgOpacity.value
+            border_radius = cfg.mediaBorderRadius.value
 
-        if border_width > 0:
-            border_css = f"border: {border_width}px solid {self._qss_color(border_color)};"
-        else:
-            border_css = ""
-
-        self.setStyleSheet(
-            f"#mediaWidget {{"
-            f"{bg_css}"
-            f"border-radius: {border_radius}px;"
-            f"{border_css}"
-            f"}}"
-        )
-
-        # 根据背景色调整文字颜色，保证对比度
-        try:
-            if override_color:
-                text_bg = override_color
+            from qfluentwidgets import isDarkTheme
+            if isDarkTheme():
+                c = QColor(30, 30, 30)
             else:
-                text_bg = QColor(actual_bg_value if isinstance(actual_bg_value, str) else bg_color)
-            bright = (text_bg.red() * 299 + text_bg.green() * 587 + text_bg.blue() * 114) / 1000
+                c = QColor(255, 255, 255)
+            c.setAlpha(int(255 * bg_opacity / 100))
+
+            if c.alpha() == 0:
+                bg_css = "background-color: transparent;"
+            else:
+                bg_css = f"background-color: {self._qss_color(c)};"
+
+            self.setStyleSheet(
+                f"#mediaWidget {{"
+                f"{bg_css}"
+                f"border-radius: {border_radius}px;"
+                f"}}"
+            )
+
+            bright = (c.red() * 299 + c.green() * 587 + c.blue() * 114) / 1000
             text_color = '#000000' if bright > 160 else '#FFFFFF'
-            title_color_hex = text_color
-            artist_color_hex = text_color + '66'
-            time_color_hex = text_color + 'CC'
-            # 只更新颜色部分
-            try:
-                base_title = self._title.styleSheet().split('color:')[0]
-            except Exception:
-                base_title = ''
-            try:
-                base_artist = self._artist.styleSheet().split('color:')[0]
-            except Exception:
-                base_artist = ''
-            self._title.setStyleSheet(base_title + f"color: {title_color_hex};")
-            self._artist.setStyleSheet(base_artist + f"color: {artist_color_hex};")
-            self._time.setStyleSheet(f"color: {time_color_hex};")
-            self._dur.setStyleSheet(f"color: {time_color_hex};")
-            self._lyrics_w.set_lyrics_color(cfg.mediaLyricsColor.value if not override_color else time_color_hex)
+
+        title_color_hex = text_color
+        artist_color_hex = text_color + '66'
+        time_color_hex = text_color + 'CC'
+        try:
+            base_title = self._title.styleSheet().split('color:')[0]
         except Exception:
-            pass
+            base_title = ''
+        try:
+            base_artist = self._artist.styleSheet().split('color:')[0]
+        except Exception:
+            base_artist = ''
+        self._title.setStyleSheet(base_title + f"color: {title_color_hex};")
+        self._artist.setStyleSheet(base_artist + f"color: {artist_color_hex};")
+        self._time.setStyleSheet(f"color: {time_color_hex};")
+        self._dur.setStyleSheet(f"color: {time_color_hex};")
+        self._lyrics_w.set_lyrics_color(cfg.mediaLyricsColor.value)
 
     def _add_cover_shadow(self, pixmap: QPixmap, size: int) -> QPixmap:
         radius = cfg.mediaCoverBorderRadius.value

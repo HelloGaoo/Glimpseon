@@ -84,6 +84,7 @@ from qfluentwidgets import (
     SubtitleLabel,
     SmoothScrollArea,
     CardWidget,
+    isDarkTheme,
 )
 
 from core.config import cfg, save_cfg
@@ -172,6 +173,9 @@ class HomeInterface(QWidget, TranslatableWidget):
 
         self.setStyleSheet(load_qss('home.qss'))
         cfg.themeChanged.connect(self._updateTheme)
+        cfg.componentCardOpacity.valueChanged.connect(self._updateComponentCardStyle)
+        cfg.componentCardRadius.valueChanged.connect(self._updateComponentCardStyle)
+        self._updateComponentCardStyle()
 
         self.setup_translatable_ui()
 
@@ -445,11 +449,11 @@ class HomeInterface(QWidget, TranslatableWidget):
             cfg.mediaLyricsSize.valueChanged.connect(self._onMediaSettingsChanged)
             cfg.mediaLyricsAdvance.valueChanged.connect(self._onMediaSettingsChanged)
             cfg.mediaUpdateInterval.valueChanged.connect(self._onMediaUpdateIntervalChanged)
-            cfg.mediaBgColor.valueChanged.connect(self._onMediaSettingsChanged)
             cfg.mediaBgOpacity.valueChanged.connect(self._onMediaSettingsChanged)
+            cfg.mediaUseCustomBg.valueChanged.connect(self._onMediaSettingsChanged)
             cfg.mediaBorderRadius.valueChanged.connect(self._onMediaSettingsChanged)
-            cfg.mediaBorderWidth.valueChanged.connect(self._onMediaSettingsChanged)
-            cfg.mediaBorderColor.valueChanged.connect(self._onMediaSettingsChanged)
+            cfg.componentCardOpacity.valueChanged.connect(self._onMediaSettingsChanged)
+            cfg.componentCardRadius.valueChanged.connect(self._onMediaSettingsChanged)
             cfg.mediaTitleColor.valueChanged.connect(self._onMediaSettingsChanged)
             cfg.mediaArtistColor.valueChanged.connect(self._onMediaSettingsChanged)
             cfg.mediaTimeColor.valueChanged.connect(self._onMediaSettingsChanged)
@@ -664,7 +668,55 @@ class HomeInterface(QWidget, TranslatableWidget):
             self.weatherContainer.updateSize()
 
     def _updateTheme(self):
-        self.setStyleSheet(load_qss('home.qss'))
+        base_qss = load_qss('home.qss')
+        card_qss = self._buildComponentCardQss()
+        self.setStyleSheet(base_qss + "\n" + card_qss)
+
+    def _buildComponentCardQss(self):
+        opacity = cfg.componentCardOpacity.value / 100.0
+        radius = cfg.componentCardRadius.value
+        dark = isDarkTheme()
+        if dark:
+            bg_color = f"rgba(18, 18, 22, {opacity:.2f})"
+            border_color = "rgba(255, 255, 255, 0.06)"
+        else:
+            bg_color = f"rgba(255, 255, 255, {opacity:.2f})"
+            border_color = "rgba(0, 0, 0, 0.06)"
+        return f"""
+#clockContainer {{
+    background-color: {bg_color};
+    border-radius: {radius}px;
+    border: 1px solid {border_color};
+}}
+#weatherContainer {{
+    background-color: {bg_color};
+    border-radius: {radius}px;
+    border: 1px solid {border_color};
+}}
+#schoolInfoContainer {{
+    background-color: {bg_color};
+    border-radius: {radius}px;
+    border: 1px solid {border_color};
+}}
+#poetryContainer {{
+    background-color: {bg_color};
+    border-radius: {radius}px;
+    border: 1px solid {border_color};
+}}
+#countdownContainer {{
+    background-color: {bg_color};
+    border-radius: {radius}px;
+    border: 1px solid {border_color};
+}}
+#mediaWidget {{
+    background-color: {bg_color};
+    border-radius: {radius}px;
+    border: 1px solid {border_color};
+}}
+"""
+
+    def _updateComponentCardStyle(self):
+        self._updateTheme()
 
     def _updatePoetryInterval(self):
         self.poetryTimer.stop()

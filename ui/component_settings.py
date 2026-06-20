@@ -290,6 +290,61 @@ class ComponentSettingDialog(QDialog, TranslatableWidget):
             target_group.addSettingCard(card)
         return card
 
+    def _addBgOverrideHint(self, group=None, is_advanced=False):
+        """背景跟随提示条"""
+        from qfluentwidgets import FluentIcon as FIF
+        right_widget = QWidget()
+        right_layout = QHBoxLayout(right_widget)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(8)
+
+        action_btn = PushButton(tr("component_settings.bg_use_custom"))
+        action_btn.setFixedHeight(26)
+        right_layout.addWidget(action_btn)
+
+        close_btn = PushButton()
+        close_btn.setFixedSize(28, 28)
+        close_btn.setIcon(FIF.CLOSE)
+        close_btn.setIconSize(QSize(10, 10))
+        right_layout.addWidget(close_btn)
+
+        card = _SettingRow(tr("component_settings.bg_global_override_hint"), right_widget)
+        target_group = self._resolve_group(group, is_advanced)
+        if target_group:
+            target_group.addSettingCard(card)
+
+        def _update():
+            use_custom = cfg.mediaUseCustomBg.value
+            if use_custom:
+                card.titleLabel.setText(tr("component_settings.bg_custom_active_hint"))
+                card.iconLabel.setIcon(FIF.INFO)
+                action_btn.setText(tr("component_settings.bg_restore_global"))
+            else:
+                card.titleLabel.setText(tr("component_settings.bg_global_override_hint"))
+                card.iconLabel.setIcon(FIF.HELP)
+                action_btn.setText(tr("component_settings.bg_use_custom"))
+
+        def _toggle():
+            cfg.mediaUseCustomBg.value = not cfg.mediaUseCustomBg.value
+            _update()
+            self._setBgCardsEnabled(cfg.mediaUseCustomBg.value)
+
+        action_btn.clicked.connect(_toggle)
+        close_btn.clicked.connect(card.hide)
+        _update()
+
+        self._bgInfoBar = card
+        self._bgActionBtn = action_btn
+        return card, action_btn
+
+    def _setBgCardsEnabled(self, enabled):
+        for attr in ['_bgOpacityCard', '_borderRadiusCard']:
+            card = getattr(self, attr, None)
+            if card:
+                card.setEnabled(enabled)
+                for child in card.findChildren(QWidget):
+                    child.setEnabled(enabled)
+
     def _addColorPicker(self, title: str, config_item, presets=None, group=None, is_advanced=False):
         if presets is None:
             presets = ["#FFFFFF", "#000000", "#30c361"]
@@ -744,21 +799,16 @@ class MediaSettingDialog(ComponentSettingDialog):
         self._all_cards.append(card)
 
         g_bg = self._addGroup(tr("component_settings.background"), is_advanced=True)
-        (card, btn) = self._addColorPicker(tr("component_settings.bg_color"), cfg.mediaBgColor, group=g_bg)
-        self._bgColorBtn = btn
-        self._all_cards.append(card)
+        self._bgOverrideRow, self._bgOverrideBtn = self._addBgOverrideHint(group=g_bg)
         (card, spin) = self._addSpinBox(tr("component_settings.bg_opacity"), cfg.mediaBgOpacity, 0, 100, group=g_bg)
         self._bgOpacitySpin = spin
+        self._bgOpacityCard = card
         self._all_cards.append(card)
         (card, spin) = self._addSpinBox(tr("component_settings.border_radius"), cfg.mediaBorderRadius, 0, 30, group=g_bg)
         self._borderRadiusSpin = spin
+        self._borderRadiusCard = card
         self._all_cards.append(card)
-        (card, spin) = self._addSpinBox(tr("component_settings.border_width"), cfg.mediaBorderWidth, 0, 5, group=g_bg)
-        self._borderWidthSpin = spin
-        self._all_cards.append(card)
-        (card, btn) = self._addColorPicker(tr("component_settings.border_color"), cfg.mediaBorderColor, group=g_bg)
-        self._borderColorBtn = btn
-        self._all_cards.append(card)
+        self._setBgCardsEnabled(cfg.mediaUseCustomBg.value)
 
         g_text = self._addGroup(tr("component_settings.text"), is_advanced=True)
         (card, btn) = self._addColorPicker(tr("component_settings.title_color"), cfg.mediaTitleColor, group=g_text)

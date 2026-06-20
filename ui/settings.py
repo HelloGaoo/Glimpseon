@@ -189,6 +189,24 @@ class SettingInterface(ScrollArea, TranslatableWidget):
             tr("wizard.primary_color_desc"),  # 更改应用程序的主要颜色
             parent=self.appearanceGroup
         )
+        self.componentCardOpacityCard = SpinBoxSettingCard(
+            cfg.componentCardOpacity,
+            FIF.PALETTE,
+            tr("settings.component_card_opacity"),  # 组件卡片不透明度
+            tr("settings.component_card_opacity_desc"),  # 调整主界面组件背景的不透明度
+            parent=self.appearanceGroup,
+            min_value=0,
+            max_value=100
+        )
+        self.componentCardRadiusCard = SpinBoxSettingCard(
+            cfg.componentCardRadius,
+            FIF.EDIT,
+            tr("settings.component_card_radius"),  # 组件卡片圆角
+            tr("settings.component_card_radius_desc"),  # 调整主界面组件背景的圆角大小
+            parent=self.appearanceGroup,
+            min_value=0,
+            max_value=30
+        )
         self.languageCard = ComboBoxSettingCard(
             cfg.language,
             FIF.LANGUAGE,
@@ -265,6 +283,8 @@ class SettingInterface(ScrollArea, TranslatableWidget):
         self.basicGroup.addSettingCard(self.autoOpenMaximizeCard)
         self.appearanceGroup.addSettingCard(self.themeCard)
         self.appearanceGroup.addSettingCard(self.themeColorCard)
+        self.appearanceGroup.addSettingCard(self.componentCardOpacityCard)
+        self.appearanceGroup.addSettingCard(self.componentCardRadiusCard)
         self.logGroup.addSettingCard(self.disableLogCard)
         self.logGroup.addSettingCard(self.logLevelCard)
         self.logGroup.addSettingCard(self.logMaxCountCard)

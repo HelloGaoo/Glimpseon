@@ -179,6 +179,12 @@ class Config(QConfig):
     backgroundBlurRadius = RangeConfigItem(
         "Appearance", "BackgroundBlurRadius", 0, RangeValidator(0, 30)
     )
+    componentCardOpacity = RangeConfigItem(
+        "Appearance", "ComponentCardOpacity", 55, RangeValidator(0, 100)
+    )
+    componentCardRadius = RangeConfigItem(
+        "Appearance", "ComponentCardRadius", 16, RangeValidator(0, 30)
+    )
     wallpaperBrightness = RangeConfigItem(
         "Wallpaper", "Brightness", 0, RangeValidator(-100, 0)
     )
@@ -355,17 +361,15 @@ class Config(QConfig):
     mediaLyricsAdvance = RangeConfigItem(
         "Media", "LyricsAdvance", 300, RangeValidator(0, 2000)
     )
-    mediaBgColor = ColorConfigItem("Media", "BgColor", "#000000")
+    mediaUseCustomBg = ConfigItem(
+        "Media", "UseCustomBg", False, BoolValidator()
+    )
     mediaBgOpacity = RangeConfigItem(
         "Media", "BgOpacity", 60, RangeValidator(0, 100)
     )
     mediaBorderRadius = RangeConfigItem(
         "Media", "BorderRadius", 12, RangeValidator(0, 30)
     )
-    mediaBorderWidth = RangeConfigItem(
-        "Media", "BorderWidth", 0, RangeValidator(0, 5)
-    )
-    mediaBorderColor = ColorConfigItem("Media", "BorderColor", "#FFFFFF40")
     mediaTitleColor = ColorConfigItem("Media", "TitleColor", "#FFFFFF")
     mediaArtistColor = ColorConfigItem("Media", "ArtistColor", "#FFFFFF99")
     mediaTimeColor = ColorConfigItem("Media", "TimeColor", "#FFFFFF80")
