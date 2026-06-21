@@ -982,9 +982,27 @@ class MainWindow(FluentWindow):
         logger.info(f"[MW] WallpaperInterface 耗时{time.time()-_t:.2f}s")
 
         _t = time.time()
+        self.linkagePreviewPage = QWidget(objectName="linkage_preview")
+        self.linkagePreviewPage.setLayout(QVBoxLayout())
+        self.linkagePreviewPage.layout().setContentsMargins(60, 80, 60, 40)
+        _lbl = QLabel(tr("navigation.linkage_preview"))
+        _lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        _lbl.setStyleSheet("font-size: 18px; color: #999;")
+        self.linkagePreviewPage.layout().addWidget(_lbl)
+
         self.linkagePage = LinkagePage()
-        self.linkagePage.setObjectName("linkage")
-        self.addSubInterface(self.linkagePage, FIF.LINK, tr("navigation.linkage"))  # 联动
+        self.linkagePage.setObjectName("linkage_ci")
+
+        linkageParent = QWidget(objectName="linkage_parent")
+        self.addSubInterface(linkageParent, FIF.LINK, tr("navigation.linkage"))  # 联动
+        self.addSubInterface(
+            self.linkagePreviewPage, FIF.ALBUM,
+            tr("navigation.linkage_preview"), parent=linkageParent,
+        )
+        self.addSubInterface(
+            self.linkagePage, FIF.APPLICATION,
+            tr("navigation.linkage_classisland"), parent=linkageParent,
+        )
         logger.info(f"[MW] LinkagePage 耗时{time.time()-_t:.2f}s")
 
         _t = time.time()

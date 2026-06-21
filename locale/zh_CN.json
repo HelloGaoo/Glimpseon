@@ -25,7 +25,9 @@
     "update": "更新",
     "about": "关于",
     "debug": "调试",
-    "linkage": "联动"
+    "linkage": "联动",
+    "linkage_preview": "预览",
+    "linkage_classisland": "ClassIsland 联动"
   },
   "wizard": {
     "title": "ClassLively 向导",

@@ -25,7 +25,9 @@
     "update": "Update",
     "about": "About",
     "debug": "Debug",
-    "linkage": "Linkage"
+    "linkage": "Linkage",
+    "linkage_preview": "Preview",
+    "linkage_classisland": "ClassIsland"
   },
   "wizard": {
     "title": "ClassLively Setup Wizard",

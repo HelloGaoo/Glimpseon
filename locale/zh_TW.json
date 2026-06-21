@@ -25,7 +25,9 @@
     "update": "更新",
     "about": "關於",
     "debug": "偵錯",
-    "linkage": "聯動"
+    "linkage": "聯動",
+    "linkage_preview": "預覽",
+    "linkage_classisland": "ClassIsland 聯動"
   },
   "wizard": {
     "title": "ClassLively 設定精靈",
