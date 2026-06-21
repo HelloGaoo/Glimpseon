@@ -24,7 +24,8 @@
     "settings": "Settings",
     "update": "Update",
     "about": "About",
-    "debug": "Debug"
+    "debug": "Debug",
+    "linkage": "Linkage"
   },
   "wizard": {
     "title": "ClassLively Setup Wizard",
@@ -732,5 +733,43 @@
   "date": {
     "format": "{w}, {M} {d}, {y}",
     "lunar_error": "Lunar calendar error: {error}"
+  },
+  "linkage": {
+    "title": "ClassIsland Linkage",
+    "group_connection": "Connection Status",
+    "connection_status": "Connection",
+    "status_connected": "Connected",
+    "status_disconnected": "Disconnected",
+    "btn_test": "Test Connection",
+    "btn_auto_detect": "Auto Detect",
+    "btn_refresh": "Refresh",
+    "test_success": "Connection successful",
+    "test_failed": "Connection failed",
+    "auto_detect_success": "ClassIsland detected",
+    "auto_detect_failed": "ClassIsland not found",
+    "auto_detect_failed_tip": "Make sure ClassIsland is running, or select data directory manually",
+    "enable_first": "Please enable linkage first",
+    "refreshed": "Status refreshed",
+    "group_basic": "Basic Settings",
+    "enable": "Enable Linkage",
+    "poll_interval": "Poll Interval",
+    "unit_seconds": "s",
+    "server_host": "Data Path",
+    "server_host_tip": "ClassIsland data directory path",
+    "data_path": "Data Directory",
+    "data_path_tip": "ClassIsland data directory (contains Profiles/Default.json)",
+    "browse_title": "Select ClassIsland Data Directory",
+    "btn_auto_detect": "Auto Detect",
+    "btn_browse": "Manual Select",
+    "path_empty": "Not set (click Auto Detect or Manual Select)",
+    "req_port": "Poll Interval",
+    "req_port_tip": "State check frequency (seconds)",
+    "group_preview": "Live Preview",
+    "preview_state": "Current state",
+    "preview_subject": "Current subject",
+    "preview_lesson_index": "Period",
+    "preview_next_class": "Next class",
+    "preview_updated": "Updated",
+    "preview_waiting": "Waiting..."
   }
 }

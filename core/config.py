@@ -383,6 +383,16 @@ class Config(QConfig):
         "Media", "CoverBorderRadius", 10, RangeValidator(0, 20)
     )
     mediaCoverBorderColor = ColorConfigItem("Media", "CoverBorderColor", "#FFFFFF20")
+
+    linkageEnabled = ConfigItem(
+        "Linkage", "Enabled", False, BoolValidator()
+    )
+    linkageDataPath = ConfigItem(
+        "Linkage", "DataPath", ""
+    )
+    linkagePollInterval = RangeConfigItem(
+        "Linkage", "PollInterval", 5, RangeValidator(1, 30)
+    )
     
 
 
@@ -540,6 +550,11 @@ def default_cfg():
             "ProgressHeight": 4,
             "CoverBorderRadius": 10,
             "CoverBorderColor": "#FFFFFF20"
+        },
+        "Linkage": {
+            "Enabled": True,
+            "DataPath": "",
+            "PollInterval": 5
         }
     }
 

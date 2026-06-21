@@ -24,7 +24,8 @@
     "settings": "设置",
     "update": "更新",
     "about": "关于",
-    "debug": "调试"
+    "debug": "调试",
+    "linkage": "联动"
   },
   "wizard": {
     "title": "ClassLively 向导",
@@ -732,5 +733,43 @@
   "date": {
     "format": "{y}年{M}月{d}日 {w}",
     "lunar_error": "农历显示错误：{error}"
+  },
+  "linkage": {
+    "title": "ClassIsland 联动",
+    "group_connection": "连接状态",
+    "connection_status": "连接状态",
+    "status_connected": "已连接",
+    "status_disconnected": "未连接",
+    "btn_test": "检测连接",
+    "btn_auto_detect": "自动检测",
+    "btn_refresh": "刷新状态",
+    "test_success": "连接成功",
+    "test_failed": "连接失败",
+    "auto_detect_success": "检测到 ClassIsland",
+    "auto_detect_failed": "未找到 ClassIsland",
+    "auto_detect_failed_tip": "请确保 ClassIsland 正在运行，或手动选择数据目录",
+    "enable_first": "请先启用联动功能",
+    "refreshed": "状态已刷新",
+    "group_basic": "基本设置",
+    "enable": "启用联动",
+    "poll_interval": "轮询间隔",
+    "unit_seconds": "秒",
+    "server_host": "数据目录",
+    "server_host_tip": "ClassIsland 的 data 目录路径",
+    "data_path": "数据目录",
+    "data_path_tip": "ClassIsland 的 data 目录（含 Profiles/Default.json）",
+    "browse_title": "选择 ClassIsland 数据目录",
+    "btn_auto_detect": "自动检测",
+    "btn_browse": "手动选择",
+    "path_empty": "未设置（点击自动检测或手动选择）",
+    "req_port": "轮询间隔",
+    "req_port_tip": "状态检测频率（秒）",
+    "group_preview": "实时预览",
+    "preview_state": "当前状态",
+    "preview_subject": "当前科目",
+    "preview_lesson_index": "第几节",
+    "preview_next_class": "下一节课",
+    "preview_updated": "更新时间",
+    "preview_waiting": "等待数据..."
   }
 }

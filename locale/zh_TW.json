@@ -24,7 +24,8 @@
     "settings": "設定",
     "update": "更新",
     "about": "關於",
-    "debug": "偵錯"
+    "debug": "偵錯",
+    "linkage": "聯動"
   },
   "wizard": {
     "title": "ClassLively 設定精靈",
@@ -732,5 +733,39 @@
   "date": {
     "format": "{y}年{M}月{d}日 {w}",
     "lunar_error": "農曆顯示錯誤：{error}"
+  },
+  "linkage": {
+    "title": "ClassIsland 聯動",
+    "group_connection": "連接狀態",
+    "connection_status": "連接狀態",
+    "status_connected": "已連接",
+    "status_disconnected": "未連接",
+    "btn_test": "檢測連接",
+    "btn_refresh": "重新整理狀態",
+    "test_success": "連接成功",
+    "test_failed": "連接失敗",
+    "enable_first": "請先啟用聯動功能",
+    "refreshed": "狀態已重新整理",
+    "group_basic": "基本設定",
+    "enable": "啟用聯動",
+    "poll_interval": "輪詢間隔",
+    "unit_seconds": "秒",
+    "server_host": "資料目錄",
+    "server_host_tip": "ClassIsland 的 data 目錄路徑",
+    "data_path": "資料目錄",
+    "data_path_tip": "ClassIsland 的 data 目錄（含 Profiles/Default.json）",
+    "browse_title": "選擇 ClassIsland 資料目錄",
+    "btn_auto_detect": "自動偵測",
+    "btn_browse": "手動選擇",
+    "path_empty": "未設定（點擊自動偵測或手動選擇）",
+    "req_port": "輪詢間隔",
+    "req_port_tip": "狀態檢測頻率（秒）",
+    "group_preview": "即時預覽",
+    "preview_state": "目前狀態",
+    "preview_subject": "目前科目",
+    "preview_lesson_index": "第幾節",
+    "preview_next_class": "下一節課",
+    "preview_updated": "更新時間",
+    "preview_waiting": "等待資料..."
   }
 }

@@ -74,6 +74,7 @@ from data.software_list import SOFTWARE_CATEGORIES, get_software_icon_path
 from ui import AboutInterface, DownloadInterface, UpdateInterface
 from ui.home import HomeInterface
 from ui.debug import DebugPanel
+from ui.linkage import LinkagePage
 from ui.settings import SettingInterface
 from ui.wallpaper import WallpaperInterface
 from version import BUILD_DATE, VERSION
@@ -980,6 +981,13 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.wallpaper, FIF.PHOTO, tr("navigation.wallpaper"))  # 壁纸
         logger.info(f"[MW] WallpaperInterface 耗时{time.time()-_t:.2f}s")
 
+        _t = time.time()
+        self.linkagePage = LinkagePage()
+        self.linkagePage.setObjectName("linkage")
+        self.addSubInterface(self.linkagePage, FIF.LINK, tr("navigation.linkage"))  # 联动
+        logger.info(f"[MW] LinkagePage 耗时{time.time()-_t:.2f}s")
+
+        _t = time.time()
         self.downloadInterface = DownloadInterface(parent=self)
         self.addSubInterface(self.downloadInterface, FIF.DOWNLOAD, tr("navigation.download"))  # 软件下载
 
