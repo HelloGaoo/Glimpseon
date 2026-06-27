@@ -194,6 +194,11 @@ class LinkagePage(ScrollArea, TranslatableWidget):
             tr("linkage.poll_interval"), '',
             parent=self.basicGroup, min_value=1, max_value=30
         )
+        self.syncTimeCard = SwitchSettingCard(
+            FIF.DATE_TIME, tr("linkage.sync_time_config"),
+            tr("linkage.sync_time_config_tip"),
+            configItem=cfg.linkageSyncTimeConfig, parent=self.basicGroup
+        )
 
         # 实时预览组
         self.previewGroup = SettingCardGroup(tr("linkage.group_preview"), self.scrollWidget)
@@ -233,6 +238,7 @@ class LinkagePage(ScrollArea, TranslatableWidget):
         self.basicGroup.addSettingCard(self.enableCard)
         self.basicGroup.addSettingCard(self.dataPathCard)
         self.basicGroup.addSettingCard(self.pollIntervalCard)
+        self.basicGroup.addSettingCard(self.syncTimeCard)
         self.previewGroup.addSettingCard(self._previewCard)
 
         self.expandLayout.setSpacing(28)

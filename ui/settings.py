@@ -174,7 +174,7 @@ class AutoOffsetSettingCard(SettingCard):
         self.spinBox = SpinBox(self)
         self.spinBox.setRange(-9999, 9999)
         self.spinBox.setValue(qconfig.get(spinConfigItem))
-        self.spinBox.setFixedWidth(80)
+        self.spinBox.setFixedWidth(140)
 
         self.switchBtn.checkedChanged.connect(self.__onSwitchChanged)
         self.spinBox.valueChanged.connect(self.__onSpinChanged)

@@ -792,6 +792,8 @@
     "preview_lesson_index": "第几节",
     "preview_next_class": "下一节课",
     "preview_updated": "更新时间",
-    "preview_waiting": "等待数据..."
+    "preview_waiting": "等待数据...",
+    "sync_time_config": "时间配置同步",
+    "sync_time_config_tip": "开启后自动将 ClassIsland 的时间偏移配置同步到本软件"
   }
 }

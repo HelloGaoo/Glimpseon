@@ -402,6 +402,9 @@ class Config(QConfig):
     linkagePollInterval = RangeConfigItem(
         "Linkage", "PollInterval", 5, RangeValidator(1, 30)
     )
+    linkageSyncTimeConfig = ConfigItem(
+        "Linkage", "SyncTimeConfig", False, BoolValidator()
+    )
     
     usePreciseTime = ConfigItem(
         "PreciseTime", "UsePreciseTime", False, BoolValidator()
@@ -576,7 +579,8 @@ def default_cfg():
         "Linkage": {
             "Enabled": True,
             "DataPath": "",
-            "PollInterval": 5
+            "PollInterval": 5,
+            "SyncTimeConfig": False
         },
         "PreciseTime": {
             "UsePreciseTime": False,

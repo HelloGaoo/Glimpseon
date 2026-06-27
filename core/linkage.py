@@ -36,12 +36,14 @@ from enum import IntEnum
 from typing import Optional
 
 from core.utils import precise_now
+from qfluentwidgets import qconfig
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
 logger = logging.getLogger("ClassLively.core.linkage")
 
 _PROFILE_FILE = "Profiles\\Default.json"
+_SETTINGS_FILE = "Settings.json"
 
 
 class TimeState(IntEnum):
@@ -261,6 +263,8 @@ class LinkageBridge(QObject):
         self._prev_state = TimeState.NONE
         self._cached_raw: dict = {}
         self._cached_mtime: float = 0
+        self._settings_mtime: float = 0
+        self._settings_cached: dict = {}
         self._slots: list[_TimeSlot] = []
         self._day_plans: dict[int, _DayPlan] = {}
         self._subjects: dict[str, dict] = {}
@@ -350,6 +354,7 @@ class LinkageBridge(QObject):
         """后台轮询主循环"""
         while self._running:
             try:
+                self._sync_time_config()
                 st = self._compute_state()
                 self._commit(st)
             except Exception as e:
@@ -430,6 +435,44 @@ class LinkageBridge(QObject):
                 class_ids=classes,
                 layout_id=plan.get("TimeLayoutId", ""),
             )
+
+    def _sync_time_config(self):
+        """从c同步时间偏移"""
+        from core.config import cfg
+        if not cfg.linkageSyncTimeConfig.value or not self._data_dir:
+            return
+
+        settings_path = os.path.join(self._data_dir, _SETTINGS_FILE)
+        try:
+            mtime = os.path.getmtime(settings_path)
+            if mtime <= self._settings_mtime and self._settings_cached:
+                return
+            with open(settings_path, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+            self._settings_mtime = mtime
+            self._settings_cached = raw
+
+            ci_offset = raw.get("TimeOffsetSeconds")
+            if ci_offset is not None:
+                qconfig.set(cfg.timeOffset, int(ci_offset))
+
+            ci_auto_enabled = raw.get("IsTimeAutoAdjustEnabled")
+            if ci_auto_enabled is not None:
+                qconfig.set(cfg.autoTimeOffsetEnabled, bool(ci_auto_enabled))
+
+            ci_auto_increment = raw.get("TimeAutoAdjustSeconds")
+            if ci_auto_increment is not None:
+                qconfig.set(cfg.autoTimeOffsetIncrement, int(ci_auto_increment))
+
+            logger.info(
+                f"[Linkage] 已同步 ClassIsland 时间配置: "
+                f"TimeOffset={ci_offset}, AutoEnabled={ci_auto_enabled}, "
+                f"AutoIncrement={ci_auto_increment}"
+            )
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            logger.debug(f"[Linkage] 同步时间配置失败: {e}")
 
     def _compute_state(self) -> LinkageState:
         """此时状态"""

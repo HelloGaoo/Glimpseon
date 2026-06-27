@@ -792,6 +792,8 @@
     "preview_lesson_index": "Period",
     "preview_next_class": "Next class",
     "preview_updated": "Updated",
-    "preview_waiting": "Waiting..."
+    "preview_waiting": "Waiting...",
+    "sync_time_config": "Sync Time Config",
+    "sync_time_config_tip": "Automatically sync ClassIsland's time offset settings to this app when enabled"
   }
 }
