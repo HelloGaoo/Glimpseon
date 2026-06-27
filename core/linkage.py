@@ -385,7 +385,6 @@ class LinkageBridge(QObject):
 
     def _try_redetect(self):
         """重新检测路径"""
-        logger.info("[Linkage] 重新检测路径")
         new_path = _find_classisland_data()
         if new_path and new_path != self._data_dir:
             logger.info(f"[Linkage] 新路径: {new_path}")

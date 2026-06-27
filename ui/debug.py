@@ -1119,7 +1119,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             content_layout.addWidget(self._createQuickActionsCard())
             content_layout.addWidget(self._createNetworkDiagCard())
             content_layout.addWidget(self._createAPITestCard())
-            content_layout.addWidget(self._createWeatherDebugCard())
+            content_layout.addWidget(self._createWeatherDebugCardShell())
             content_layout.addWidget(self._createElementCheckCard())
             content_layout.addWidget(self._createBatchWallpaperCard())
 

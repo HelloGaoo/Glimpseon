@@ -30,13 +30,14 @@ if _BASE_DIR not in sys.path:
     sys.path.insert(0, _BASE_DIR)
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPalette, QColor
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QWidget
 from qfluentwidgets import (
     BodyLabel, CardWidget, ExpandLayout, FluentIcon as FIF,
-    InfoBar, InfoBarPosition,
+    InfoBar, InfoBarPosition, isDarkTheme,
     PushButton, ScrollArea, SettingCard,
     SettingCardGroup, SpinBox,
-    StrongBodyLabel, SwitchSettingCard,
+    StrongBodyLabel, SwitchSettingCard, Theme, setTheme,
 )
 from core.config import cfg
 from core.constants import load_qss
@@ -153,6 +154,7 @@ class LinkagePage(ScrollArea, TranslatableWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
+        self.setObjectName("linkage")
 
         self._bridge = LinkageBridge(self)
         self.scrollWidget = QWidget()
@@ -213,7 +215,13 @@ class LinkagePage(ScrollArea, TranslatableWidget):
     def __setQss(self):
         self.scrollWidget.setObjectName('scrollWidget')
         self.settingLabel.setObjectName('settingLabel')
-        self.setStyleSheet(load_qss('setting.qss'))
+        self.viewport().setObjectName("linkageViewport")
+        self.setStyleSheet(load_qss('linkage.qss'))
+
+    def _onThemeChanged(self, theme: Theme):
+        """主题切换时重新加载样式"""
+        setTheme(theme)
+        self.__setQss()
 
     def __initLayout(self):
         self.settingLabel.move(60, 63)
@@ -241,6 +249,9 @@ class LinkagePage(ScrollArea, TranslatableWidget):
         self._bridge.connectedChanged.connect(self._onConnectedChanged)
         self._bridge.errorOccurred.connect(self._onBridgeError)
         self.enableCard.checkedChanged.connect(self._onEnableToggled)
+
+        # 主题切换
+        cfg.themeChanged.connect(self._onThemeChanged)
 
         # 启动时的初始化（启用联动时）
         if cfg.linkageEnabled.value:

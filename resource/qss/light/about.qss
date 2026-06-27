@@ -17,6 +17,7 @@
 #about QLabel#settingLabel {
     font-size: 33px;
     background-color: transparent;
+    color: black;
 }
 
 /* ── 卡片 ── */

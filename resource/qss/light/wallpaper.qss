@@ -16,6 +16,7 @@
 #wallpaper QLabel#settingLabel {
     font-size: 33px;
     background-color: transparent;
+    color: black;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
