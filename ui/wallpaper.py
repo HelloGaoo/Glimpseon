@@ -1308,7 +1308,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
             set_wallpaper(self.current_wallpaper_path)
             
             self.last_sync_path = self.current_wallpaper_path
-            logger.info("壁纸已成功设置为桌面背景")
+            logger.info("壁纸已同步桌面")
             
             if show_notification:
                 InfoBar.success(tr("wizard.success_title"), tr("wallpaper.set_as_desktop"), duration=3000, parent=self)

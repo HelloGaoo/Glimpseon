@@ -1065,7 +1065,7 @@ class Downloader:
         while retry_count < max_retries:
             try:
                 if self.installer_logger:
-                    self.installer_logger.info(f"{software_name}: 发送下载请求 (重试 {retry_count + 1}/{max_retries})")
+                    self.installer_logger.info(f"{software_name}: 请求下载 (重试 {retry_count + 1}/{max_retries})")
                 session = requests.Session()
                 session.headers.update(headers)
 

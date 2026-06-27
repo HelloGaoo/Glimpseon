@@ -1823,7 +1823,7 @@ if __name__ == "__main__":
         if time.time() - t0 > 12:
             loader.cancel()
             loader.wait(5000)
-            # QThread.terminate() 不安全，可能导致资源泄漏
+            # QThread.terminate()
             # if loader.isRunning():
             #     loader.terminate()
             #     loader.wait(1000)
@@ -1849,7 +1849,7 @@ if __name__ == "__main__":
             window.tray_icon.show()
     else:
         window.show()
-        logger.info("正常启动模式：显示主窗口")
+        logger.info("一般启动模式：显示主窗口")
 
     sys.exit(app.exec())
 
