@@ -168,7 +168,11 @@
     "precise_time_sync_now": "手动同步",
     "precise_time_syncing": "同步中",
     "precise_time_sync_success": "时间同步成功 ({time})",
-    "precise_time_sync_failed": "同步失败"
+    "precise_time_sync_failed": "同步失败",
+    "time_offset": "时间偏移",
+    "time_offset_desc": "设定课程时间与实际时间的偏移值（增大偏移以抵消铃声提前，减小偏移以抵消铃声滞后）",
+    "auto_time_offset": "自动时间偏移",
+    "auto_time_offset_desc": "若启用，每天自动以设定的增量值调整时间偏移量"
   },
   "weather": {
     "sunny": "晴",

@@ -204,6 +204,15 @@ class Config(QConfig):
     dateSize = RangeConfigItem(
         "Time", "DateSize", 20, RangeValidator(12, 50)
     )
+    timeOffset = RangeConfigItem(
+        "Time", "TimeOffset", 0, RangeValidator(-9999, 9999)
+    )
+    autoTimeOffsetEnabled = ConfigItem(
+        "Time", "AutoTimeOffsetEnabled", False, BoolValidator()
+    )
+    autoTimeOffsetIncrement = RangeConfigItem(
+        "Time", "AutoTimeOffsetIncrement", 1, RangeValidator(-9999, 9999)
+    )
     showPoetry = ConfigItem(
         "Poetry", "ShowPoetry", True, BoolValidator()
     )
@@ -483,7 +492,10 @@ def default_cfg():
             "ShowLunarCalendar": True,
             "ClockColor": "#FFFFFF",
             "ClockSize": 120,
-            "DateSize": 20
+            "DateSize": 20,
+            "TimeOffset": 0,
+            "AutoTimeOffsetEnabled": False,
+            "AutoTimeOffsetIncrement": 1
         },
         "Poetry": {
             "ShowPoetry": True,

@@ -47,6 +47,7 @@ from qfluentwidgets import (
     SettingCard,
     SettingCardGroup,
     SpinBox,
+    SwitchButton,
     SwitchSettingCard,
     Theme,
     qconfig,
@@ -156,6 +157,46 @@ class SyncStatusSettingCard(SettingCard):
             self.statusLabel.setStyleSheet("color: #999;")
 
 
+class AutoOffsetSettingCard(SettingCard):
+    """带开关+数值框的时间偏移增量卡片"""
+
+    def __init__(self, switchConfigItem, spinConfigItem, icon, title, content=None, parent=None):
+        super().__init__(icon, title, content, parent)
+        self.switchConfigItem = switchConfigItem
+        self.spinConfigItem = spinConfigItem
+
+        self.switchBtn = SwitchButton(self)
+        self.switchBtn.setOnText("")
+        self.switchBtn.setOffText("")
+        self.switchBtn.setChecked(qconfig.get(switchConfigItem))
+
+        self.spinBox = SpinBox(self)
+        self.spinBox.setRange(-9999, 9999)
+        self.spinBox.setValue(qconfig.get(spinConfigItem))
+        self.spinBox.setFixedWidth(80)
+
+        self.switchBtn.checkedChanged.connect(self.__onSwitchChanged)
+        self.spinBox.valueChanged.connect(self.__onSpinChanged)
+        switchConfigItem.valueChanged.connect(lambda v: self.switchBtn.setChecked(v))
+        spinConfigItem.valueChanged.connect(lambda v: self.spinBox.setValue(v))
+
+        from PyQt6.QtWidgets import QHBoxLayout
+        h = QHBoxLayout()
+        h.addWidget(self.switchBtn)
+        h.addSpacing(8)
+        h.addWidget(self.spinBox)
+        container = QWidget()
+        container.setLayout(h)
+        self.hBoxLayout.addWidget(container, 0, Qt.AlignmentFlag.AlignRight)
+        self.hBoxLayout.addSpacing(16)
+
+    def __onSwitchChanged(self, checked):
+        qconfig.set(self.switchConfigItem, checked)
+
+    def __onSpinChanged(self, value):
+        qconfig.set(self.spinConfigItem, value)
+
+
 class ButtonSettingCard(SettingCard):
     """ 按钮设置卡片 """
 
@@ -243,6 +284,23 @@ class SettingInterface(ScrollArea, TranslatableWidget):
             FIF.UPDATE,
             tr("settings.time_sync_status"),  # 时间同步状态
             tr("settings.time_sync_status_desc"),  # 上次从 NTP 服务器同步的时间
+            parent=self.timeGroup
+        )
+        self.timeOffsetCard = SpinBoxSettingCard(
+            cfg.timeOffset,
+            FIF.ZOOM,
+            tr("settings.time_offset"),  # 时间偏移
+            tr("settings.time_offset_desc"),  # 设定课程时间与实际时间的偏移值
+            parent=self.timeGroup,
+            min_value=-9999,
+            max_value=9999
+        )
+        self.autoOffsetCard = AutoOffsetSettingCard(
+            cfg.autoTimeOffsetEnabled,
+            cfg.autoTimeOffsetIncrement,
+            FIF.ADD,
+            tr("settings.auto_time_offset"),  # 自动时间偏移
+            tr("settings.auto_time_offset_desc"),  # 若启用，每天自动以设定的增量值调整时间偏移量
             parent=self.timeGroup
         )
         self.appearanceGroup = SettingCardGroup(tr("settings.appearance"), self.scrollWidget)  # 外观
@@ -356,6 +414,8 @@ class SettingInterface(ScrollArea, TranslatableWidget):
         self.timeGroup.addSettingCard(self.usePreciseTimeCard)
         self.timeGroup.addSettingCard(self.timeServerCard)
         self.timeGroup.addSettingCard(self.timeSyncStatusCard)
+        self.timeGroup.addSettingCard(self.timeOffsetCard)
+        self.timeGroup.addSettingCard(self.autoOffsetCard)
         self.appearanceGroup.addSettingCard(self.themeCard)
         self.appearanceGroup.addSettingCard(self.themeColorCard)
         self.appearanceGroup.addSettingCard(self.componentCardOpacityCard)
