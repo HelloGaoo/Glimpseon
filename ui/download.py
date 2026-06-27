@@ -238,7 +238,7 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
                     # 执行安装的函数
                     def run_install():
                         try:
-                            logger.info(f"{software_name}: 开始调用安装函数 {install_method_name}")
+                            logger.info(f"{software_name}: 调用 {install_method_name}")
                             getattr(self.downloader, install_method_name)(
                                 software_name, 
                                 cache_file, 
