@@ -233,6 +233,8 @@ class SettingInterface(ScrollArea, TranslatableWidget):
         super().__init__(parent=parent)
         self.setObjectName("setting")
         self.scrollWidget = QWidget()
+        self.viewport().setAutoFillBackground(False)
+        self.scrollWidget.setAutoFillBackground(False)
         self.expandLayout = ExpandLayout(self.scrollWidget)
         self.settingLabel = QLabel(tr("settings.title"), self)  # 设置
         self.basicGroup = SettingCardGroup(tr("settings.general"), self.scrollWidget)  # 通用

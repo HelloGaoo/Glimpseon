@@ -158,6 +158,7 @@ class LinkagePage(ScrollArea, TranslatableWidget):
     def __init__(self, parent=None):
         super().__init__(parent=parent)
         self.setObjectName("linkage")
+        self.viewport().setAutoFillBackground(False)
 
         self._bridge = LinkageBridge(self)
         self.scrollWidget = QWidget()

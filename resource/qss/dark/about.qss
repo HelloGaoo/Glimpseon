@@ -1,10 +1,11 @@
 /* 关于界面 */
 
 #about {
-    background-color: rgb(39, 39, 39); border: none;
+    background: transparent;
+    border: none;
 }
-#about #scrollWidget { background-color: rgb(39, 39, 39); }
-#about QScrollArea { border: none; background: rgb(39, 39, 39); }
+#about #scrollWidget { }
+#about QScrollArea { background: transparent; border: none; }
 #about QLabel#settingLabel {
     font-size: 33px; background: transparent; color: white;
 }

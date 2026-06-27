@@ -1,18 +1,17 @@
 /* ClassIsland 联动页面 — 暗色 */
 
 #linkage_ci, #scrollWidget {
-    background-color: rgb(39, 39, 39);
+    background: transparent;
     border: none;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 #linkage_ci QScrollArea {
+    background: transparent;
     border: none;
-    background-color: rgb(39, 39, 39);
 }
 
 #linkageViewport {
-    background-color: rgb(39, 39, 39);
     border: none;
 }
 

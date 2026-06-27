@@ -1016,6 +1016,7 @@ class MainWindow(FluentWindow):
                     icon_path = get_software_icon_path(software["icon"])
                     link = software.get("link")
                     self.downloadInterface.addSoftware(icon_path, software["name"], software["description"], link)
+            self.downloadInterface._finishLoading()
         QTimer.singleShot(0, _populateDownload)
 
         _t = time.time()

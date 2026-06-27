@@ -1,17 +1,16 @@
 /* 更新界面 */
 
 #update {
-    background-color: rgb(249, 249, 249);
+    background: transparent;
     border: none;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 #update #scrollWidget {
-    background-color: rgb(249, 249, 249);
 }
 
 #update QScrollArea {
-    background-color: rgb(249, 249, 249);
+    background: transparent;
     border: none;
 }
 

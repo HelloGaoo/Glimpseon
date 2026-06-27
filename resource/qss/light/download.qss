@@ -1,16 +1,16 @@
 /* 下载界面 */
 
 DownloadInterface {
-    background-color: rgb(249, 249, 249);
+    background: transparent;
+    border: none;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 DownloadInterface #scrollWidget {
-    background-color: rgb(249, 249, 249);
 }
 
 DownloadInterface QScrollArea {
-    background-color: rgb(249, 249, 249);
+    background: transparent;
     border: none;
 }
 
@@ -171,4 +171,36 @@ DownloadInterface ProgressRing {
 DownloadInterface ProgressRing::chunk {
     background-color: #00c853;
     border-radius: 30px;
+}
+
+/* 分页栏 */
+
+DownloadInterface #paginationBar {
+    background-color: transparent;
+    padding: 8px 0px;
+}
+
+DownloadInterface #paginationBar PushButton {
+    font-size: 14px;
+    color: #333333;
+    background-color: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 6px;
+    margin: 0px 4px;
+}
+
+DownloadInterface #paginationBar PushButton:hover {
+    background-color: rgba(255, 255, 255, 1);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+DownloadInterface #paginationBar PushButton[paginationActive="true"] {
+    color: white;
+    background-color: #ff6b9d;
+    border: 1px solid #ff6b9d;
+}
+
+DownloadInterface #paginationBar PushButton[paginationActive="true"]:hover {
+    background-color: #ff8fb3;
+    border: 1px solid #ff8fb3;
 }

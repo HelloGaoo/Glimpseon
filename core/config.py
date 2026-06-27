@@ -275,6 +275,9 @@ class Config(QConfig):
     downloadSource = OptionsConfigItem(
         "Download", "Source", "hk", OptionsValidator(["original", "hk", "cloudflare", "edgeone", "geekertao"])
     )
+    downloadItemsPerPage = RangeConfigItem(
+        "Download", "ItemsPerPage", 8, RangeValidator(4, 40)
+    )
 
     showCountdown = ConfigItem(
         "Countdown", "ShowCountdown", True, BoolValidator()
@@ -521,7 +524,8 @@ def default_cfg():
             "FontFamilies": ["HarmonyOS Sans"]
         },
         "Download": {
-            "Source": "hk"
+            "Source": "hk",
+            "ItemsPerPage": 8
         },
         "Countdown": {
             "ShowCountdown": True,

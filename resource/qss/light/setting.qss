@@ -1,13 +1,13 @@
 /* 设置界面 */
 
 #setting, #scrollWidget {
-    background-color: rgb(249, 249, 249);
+    background: transparent;
     border: none;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 #setting QScrollArea {
-    background-color: rgb(249, 249, 249);
+    background: transparent;
     border: none;
 }
 

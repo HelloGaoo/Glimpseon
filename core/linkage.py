@@ -532,7 +532,7 @@ class LinkageBridge(QObject):
         setattr(st, attr, _fmt_delta(left))
 
         # 日志
-        logger.info(
+        logger.debug(
             f"[Linkage] {TimeState.display_name(st.time_state)} | "
             f"{st.current_subject or '-'} | "
             f"{slot.start_time.strftime('%H:%M')}-{slot.end_time.strftime('%H:%M')} | "

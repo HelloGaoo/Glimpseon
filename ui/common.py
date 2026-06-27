@@ -34,6 +34,9 @@ class BaseScrollAreaInterface(ScrollArea):
         self.setWidget(self.scrollWidget)
         self.setWidgetResizable(True)
 
+        self.viewport().setAutoFillBackground(False)
+        self.scrollWidget.setAutoFillBackground(False)
+
         self.titleLabel.setObjectName('settingLabel')
         self.scrollWidget.setObjectName('scrollWidget')
         self.titleLabel.move(*title_position)

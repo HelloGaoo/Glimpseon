@@ -1,18 +1,17 @@
 /* 更新界面 */
 
 #update {
-    background-color: rgb(39, 39, 39);
+    background: transparent;
     border: none;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 #update #scrollWidget {
-    background-color: rgb(39, 39, 39);
 }
 
 #update QScrollArea {
+    background: transparent;
     border: none;
-    background-color: rgb(39, 39, 39);
 }
 
 /* 标题 */

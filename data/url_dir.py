@@ -40,7 +40,7 @@ url_dir = [
     {"filename": "希沃品课[小组端].exe", "url": "https://cstore-pub-seewo-report-tx.seewo.com/seewo-report_5d829b9cd5e24d5fa1c0a2b5602c9d6e?attname=seewoPincoGroupSetup_1.2.30.1640.exe"},
     {"filename": "希沃品课[教师端].exe", "url": "https://imlizhi-store-https.seewo.com/seewoPincoTeacher_1.2.43.7285(20250530191221).exe"},
     {"filename": "ClassIsland2.exe", "url": "https://get.classisland.tech/d/ClassIsland-Ningbo-S3/classisland/distribution-v2/2.0/2.0.0.2/ClassIsland_app_windows_x64_selfContained_folder.zip"},
-    {"filename": "ClassWidgets.exe", "url": "https://ghfile.geekertao.top/https://github.com/Class-Widgets/Class-Widgets/releases/download/1.2.0.5/ClassWidgets-Windows-x64.zip"},
+    {"filename": "ClassWidgets.exe", "url": "https://ghfile.geekertao.top/https://github.com/Class-Widgets/Class-Widgets/releases/download/v1.2.0.1/ClassWidgets-Windows-x64.zip"},
     {"filename": "微信.exe", "url": "https://dldir1v6.qq.com/weixin/Universal/Windows/WeChatWin.exe"},
     {"filename": "QQ.exe", "url": "https://qqdl.gtimg.cn/qqfile/QQNT/9.9.31/release/092069d7/QQ_9.9.31_260528_x64_01.exe"},
     {"filename": "UU远程.exe", "url": "https://a56.gdl.netease.com/UURemote_Setup_4.21.0.7755_0424202757_gwqd.exe"},

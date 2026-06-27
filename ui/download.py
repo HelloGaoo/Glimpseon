@@ -85,13 +85,25 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
         self.mainLayout.setContentsMargins(60, 0, 60, 40)
         self.mainLayout.setSpacing(16)
         
-        self.softwareList = []
+        # 数据存储（分页用）
+        self._allSoftwareData = []   # flat list: {section, icon_path, name, description, link}
+        self._currentDataSection = None
+        
+        # 分页状态
+        self.currentPage = 1
+        self.totalPages = 1
+        self._pageButtons = []
+        
+        # 运行时状态
+        self.softwareList = []       # 当前页面的 widget dict（给下载逻辑用）
+        self.selectedSoftware = []
+        self._downloadingNames = set()  # 正在下载中的软件名
         self.downloader = Downloader(logger)
-        # 线程池
         self.download_executor = None
         self.futures = []
         
         self.__initWidgets()
+        self.__initPagination()
         self.__initLayout()
         self.__setQss()
         self.__connectSignalToSlot()
@@ -105,6 +117,7 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
         self.startButton.clicked.connect(self.__handleStartDownload)
         self.sourceComboBox.currentTextChanged.connect(self.__handleSourceChange)
         self.selectAllButton.clicked.connect(self.__handleSelectAll)
+        cfg.downloadItemsPerPage.valueChanged.connect(self._onItemsPerPageChanged)
     
     def __handleSourceChange(self, source_name):
         idx = self.sourceComboBox.currentIndex()
@@ -167,6 +180,7 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
                 software_item['checkbox'].hide()
             except Exception:
                 pass
+            self._downloadingNames.add(software_name)
         
         info_bar = InfoBar.success(
             tr("download.starting_download"),  # 开始下载
@@ -317,6 +331,7 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
             parent=self,
             duration=3000
         )
+        self._downloadingNames.discard(software_name)
     
     def __show_download_error(self, software_item, software_name, error_msg):
         """ 显示下载错误 """
@@ -338,6 +353,7 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
             parent=self,
             duration=5000
         )
+        self._downloadingNames.discard(software_name)
 
     @pyqtSlot(str, str)
     def _show_download_error(self, software_name, error_msg):
@@ -448,130 +464,263 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
         self.softwareLayout = QVBoxLayout(self.softwareContainer)
         self.softwareLayout.setContentsMargins(0, 0, 0, 0)
         self.softwareLayout.setSpacing(16)
-        self.currentRow = 0
-        self.currentCol = 0
-        self.minColumns = 2
-        self.currentGridLayout = None
         
         self.selectedSoftware = []
     
     def __initLayout(self):
         """ 初始化布局 """
         self.mainLayout.addWidget(self.modeContainer)
-        self.mainLayout.addWidget(self.softwareContainer)
+        self.mainLayout.addWidget(self.softwareContainer, 1)
+        self.mainLayout.addWidget(self.paginationBar)
     
     def addSection(self, title):
-        """ 添加分区标题 """
+        """ 存储分区标题（数据收集，不创建 widget） """
         if not title:
             title = tr("download.common_software")  # 常用软件
-        sectionLabel = QLabel(title, self.softwareContainer)
-        sectionLabel.setObjectName("sectionTitleLabel")
-        self.softwareLayout.addWidget(sectionLabel)
-        
-        gridWidget = QWidget()
-        self.currentGridLayout = QGridLayout(gridWidget)
-        self.currentGridLayout.setContentsMargins(0, 0, 0, 0)
-        self.currentGridLayout.setSpacing(12)
-        self.currentRow = 0
-        self.currentCol = 0
-        
-        self.softwareLayout.addWidget(gridWidget)
+        self._currentDataSection = title
     
     def addSoftware(self, icon_path, name, description, link=None):
-        """ 添加一个软件到列表 """
-        if self.currentGridLayout is None:
-            self.addSection(tr("download.common_software"))  # 常用软件
-
-        softwareCard = CardWidget(self.softwareContainer)
-        softwareCard.setMinimumHeight(100)
-        softwareCard.setMaximumHeight(100)
-        softwareCard.setMinimumWidth(400)
-
-        cardLayout = QHBoxLayout(softwareCard)
-        cardLayout.setContentsMargins(20, 16, 20, 16)
-        cardLayout.setSpacing(16)
-
-        iconLabel = QLabel(softwareCard)
-        iconLabel.setFixedSize(64, 64)
-        cached_icon = get_cached_icon(icon_path)
-        if cached_icon:iconLabel.setPixmap(cached_icon)
+        """ 存储软件数据（数据收集，不创建 widget） """
+        sec = self._currentDataSection or tr("download.common_software")
+        self._allSoftwareData.append({
+            'section': sec,
+            'icon_path': icon_path,
+            'name': name,
+            'description': description,
+            'link': link
+        })
+    
+    # ==================== 分页相关 ====================
+    
+    def __initPagination(self):
+        """ 初始化分页栏 """
+        self.paginationBar = QWidget(self.scrollWidget)
+        self.paginationBar.setObjectName("paginationBar")
+        self.paginationLayout = QHBoxLayout(self.paginationBar)
+        self.paginationLayout.setContentsMargins(0, 8, 0, 0)
+        self.paginationLayout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    
+    def _calcPerPage(self):
+        """根据可用高度动态计算每页显示数量（不滚动）"""
+        h = self.scrollWidget.height()
+        if h <= 0:
+            return cfg.downloadItemsPerPage.value
+        overhead = 50 + 60 + 80  # 标题 ~50 + modeContainer ~60 + 边距 ~80
+        available = h - overhead
+        row_h = 112  # 卡片 100 + 间距 12
+        rows = max(1, int(available / row_h))
+        return rows * 2  # 2列
+    
+    def _finishLoading(self, start_page=1):
+        """ 所有数据加载完成后调用，渲染第一页 """
+        per_page = self._calcPerPage()
+        total = len(self._allSoftwareData)
+        self.totalPages = max(1, (total + per_page - 1) // per_page)
+        if start_page > self.totalPages:
+            start_page = 1
+        self.currentPage = start_page
+        self._renderPage(start_page)
+    
+    def _clearSoftwareLayout(self):
+        """ 清空 softwareLayout 中的所有 widget """
+        self.softwareList.clear()
+        while self.softwareLayout.count():
+            item = self.softwareLayout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+    
+    def _renderPage(self, page_num):
+        """ 渲染指定页码的软件卡片 """
+        self._clearSoftwareLayout()
+        
+        per_page = self._calcPerPage()
+        start = (page_num - 1) * per_page
+        end = min(start + per_page, len(self._allSoftwareData))
+        page_data = self._allSoftwareData[start:end]
+        
+        is_single = self.singleModeButton.isChecked()
+        shown_sections = set()
+        current_section = None
+        grid_layout = None
+        row, col = 0, 0
+        
+        for item in page_data:
+            sec = item['section']
+            if sec != current_section:
+                if sec not in shown_sections:
+                    label = QLabel(sec, self.softwareContainer)
+                    label.setObjectName("sectionTitleLabel")
+                    self.softwareLayout.addWidget(label)
+                    shown_sections.add(sec)
+                gw = QWidget()
+                gl = QGridLayout(gw)
+                gl.setContentsMargins(0, 0, 0, 0)
+                gl.setSpacing(12)
+                self.softwareLayout.addWidget(gw)
+                current_section = sec
+                grid_layout = gl
+                row, col = 0, 0
+            
+            card, sw_dict = self._createSoftwareCard(item, is_single)
+            grid_layout.addWidget(card, row, col)
+            self.softwareList.append(sw_dict)
+            
+            col += 1
+            if col >= 2:
+                col = 0
+                row += 1
+        
+        self.softwareLayout.addStretch()
+        self.currentPage = page_num
+        self._updatePaginationButtons()
+    
+    def _createSoftwareCard(self, data, is_single_mode):
+        """ 创建一个软件卡片 widget，返回 (card_widget, software_dict) """
+        name = data['name']
+        icon_path = data['icon_path']
+        description = data['description']
+        link = data.get('link')
+        
+        card = CardWidget(self.softwareContainer)
+        card.setMinimumHeight(100)
+        card.setMaximumHeight(100)
+        card.setMinimumWidth(400)
+        
+        layout = QHBoxLayout(card)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(16)
+        
+        # 图标
+        icon_label = QLabel(card)
+        icon_label.setFixedSize(64, 64)
+        cached = get_cached_icon(icon_path)
+        if cached:
+            icon_label.setPixmap(cached)
         else:
-            iconLabel.setText("")
-            iconLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            iconLabel.setObjectName("softwareEmptyIconLabel")
+            icon_label.setText("")
+            icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            icon_label.setObjectName("softwareEmptyIconLabel")
         
-        infoLayout = QVBoxLayout()
-        infoLayout.setSpacing(6)
-        infoLayout.setContentsMargins(0, 0, 0, 0)
+        # 信息区域
+        info_layout = QVBoxLayout()
+        info_layout.setSpacing(6)
+        info_layout.setContentsMargins(0, 0, 0, 0)
         
-        nameLayout = QHBoxLayout()
-        nameLayout.setSpacing(6)
-        nameLayout.setContentsMargins(0, 0, 0, 0)
-        
-        nameLabel = QLabel(name, softwareCard)
-        nameLabel.setObjectName("softwareNameLabel")
-        nameLabel.setWordWrap(False)
-        
-        nameLayout.addWidget(nameLabel)
+        name_layout = QHBoxLayout()
+        name_layout.setSpacing(6)
+        name_layout.setContentsMargins(0, 0, 0, 0)
+        name_label = QLabel(name, card)
+        name_label.setObjectName("softwareNameLabel")
+        name_label.setWordWrap(False)
+        name_layout.addWidget(name_label)
         
         if link:
-            linkButton = QToolButton(softwareCard)
-            linkButton.setIcon(FIF.LINK.icon())
-            linkButton.setFixedSize(20, 20)
-            linkButton.setObjectName("softwareLinkButton")
-            linkButton.setToolTip(tr("download.open_official_website"))  # 打开官网
-            linkButton.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(link)))
-            nameLayout.addWidget(linkButton)
+            link_btn = QToolButton(card)
+            link_btn.setIcon(FIF.LINK.icon())
+            link_btn.setFixedSize(20, 20)
+            link_btn.setObjectName("softwareLinkButton")
+            link_btn.setToolTip(tr("download.open_official_website"))
+            link_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(link)))
+            name_layout.addWidget(link_btn)
         
-        nameLayout.addStretch(1)
+        name_layout.addStretch(1)
+        info_layout.addLayout(name_layout)
         
-        infoLayout.addLayout(nameLayout)
+        desc_label = QLabel(description, card)
+        desc_label.setObjectName("softwareDescLabel")
+        desc_label.setWordWrap(True)
+        desc_label.setFixedHeight(40)
+        info_layout.addWidget(desc_label)
         
-        descLabel = QLabel(description, softwareCard)
-        descLabel.setObjectName("softwareDescLabel")
-        descLabel.setWordWrap(True)
-        descLabel.setFixedHeight(40)
+        # 进度环
+        progress_bar = ProgressRing(card)
+        progress_bar.setFixedSize(60, 60)
+        progress_bar.setValue(0)
+        progress_bar.setTextVisible(True)
+        progress_bar.hide()
         
-        infoLayout.addWidget(descLabel)
+        # 下载按钮 / 复选框
+        btn = PrimaryPushButton(FIF.DOWNLOAD, tr("download.download_btn"), card)
+        btn.setFixedHeight(36)
         
-        # 创建进度环
-        progressBar = ProgressRing(softwareCard)
-        progressBar.setFixedSize(60, 60)
-        progressBar.setValue(0)
-        progressBar.setTextVisible(True)
-        progressBar.hide()
-        
-        # 创建下载按钮或复选框
-        downloadButton = PrimaryPushButton(FIF.DOWNLOAD, tr("download.download_btn"), softwareCard)  # 下载
-        downloadButton.setFixedHeight(36)
-        
-        checkbox = CheckBox(softwareCard)
+        checkbox = CheckBox(card)
         checkbox.setFixedSize(32, 32)
-        checkbox.hide()  # 初始隐藏
+        checkbox.hide()
         
-        cardLayout.addWidget(iconLabel)
-        cardLayout.addLayout(infoLayout, 1)
-        cardLayout.addWidget(progressBar)
-        cardLayout.addWidget(downloadButton)
-        cardLayout.addWidget(checkbox)
+        layout.addWidget(icon_label)
+        layout.addLayout(info_layout, 1)
+        layout.addWidget(progress_bar)
+        layout.addWidget(btn)
+        layout.addWidget(checkbox)
         
-        self.currentGridLayout.addWidget(softwareCard, self.currentRow, self.currentCol)
+        # 如果正在下载中，恢复进度状态
+        is_downloading = name in self._downloadingNames
+        if is_downloading:
+            btn.hide()
+            checkbox.hide()
+            progress_bar.show()
         
-        self.softwareList.append({
-            'card': softwareCard,
-            'name': name,
-            'button': downloadButton,
-            'checkbox': checkbox,
-            'progressBar': progressBar
-        })
-        
-        downloadButton.clicked.connect(lambda: self.__handleDownload(name))
+        btn.clicked.connect(lambda checked, n=name: self.__handleDownload(n))
         checkbox.stateChanged.connect(lambda state, n=name: self.__handleCheckboxChange(n, state))
         
-        self.currentCol += 1
-        if self.currentCol >= self.minColumns:
-            self.currentCol = 0
-            self.currentRow += 1
+        sw_dict = {
+            'card': card,
+            'name': name,
+            'button': btn,
+            'checkbox': checkbox,
+            'progressBar': progress_bar
+        }
+        return card, sw_dict
+    
+    def _updatePaginationButtons(self):
+        """ 更新分页按钮状态 """
+        # 清除旧按钮
+        for btn in self._pageButtons:
+            btn.deleteLater()
+        self._pageButtons.clear()
+        # 清除 layout 中已有的控件
+        while self.paginationLayout.count():
+            item = self.paginationLayout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+        
+        if self.totalPages <= 1:
+            self.paginationBar.hide()
+            return
+        
+        self.paginationBar.show()
+        
+        for i in range(1, self.totalPages + 1):
+            btn = PushButton(str(i), self.paginationBar)
+            btn.setFixedSize(36, 36)
+            btn.setProperty("paginationActive", i == self.currentPage)
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+            btn.clicked.connect(lambda checked, p=i: self._gotoPage(p))
+            self.paginationLayout.addWidget(btn)
+            self._pageButtons.append(btn)
+    
+    def _gotoPage(self, page_num):
+        """ 跳转到指定页 """
+        if page_num < 1 or page_num > self.totalPages:
+            return
+        self._renderPage(page_num)
+    
+    def _onItemsPerPageChanged(self, value):
+        """ 单页数量变更时重新加载 """
+        self._finishLoading()
+    
+    def resizeEvent(self, e):
+        """窗口缩放时重新计算分页"""
+        super().resizeEvent(e)
+        if self._allSoftwareData and self.totalPages > 0:
+            new_per_page = self._calcPerPage()
+            total = len(self._allSoftwareData)
+            new_total = max(1, (total + new_per_page - 1) // new_per_page)
+            if new_total != self.totalPages:
+                self._finishLoading(self.currentPage)
     
     def __handleCheckboxChange(self, software_name, state):
         """ 复选框状态变更 """
@@ -651,6 +800,9 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
             self.startButton.show()
             self.selectAllButton.show()
             self.__updateSelectAllButton()
+        
+        # 重新渲染当前页以更新卡片控件
+        self._renderPage(self.currentPage)
     
     def __handleStartDownload(self):
         """ 处理开始下载按钮点击 """
@@ -694,6 +846,7 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
                         software_item['checkbox'].hide()
                     except Exception:
                         pass
+                    self._downloadingNames.add(software_name)
                     break
         
         if hasattr(self, 'download_executor') and self.download_executor is not None:

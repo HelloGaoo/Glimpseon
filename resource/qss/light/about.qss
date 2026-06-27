@@ -1,16 +1,15 @@
 /* 关于界面 */
 
 #about {
-    background-color: rgb(249, 249, 249);
+    background: transparent;
     border: none;
 }
 
 #about #scrollWidget {
-    background-color: rgb(249, 249, 249);
 }
 
 #about QScrollArea {
-    background-color: rgb(249, 249, 249);
+    background: transparent;
     border: none;
 }
 
