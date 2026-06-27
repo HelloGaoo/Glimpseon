@@ -394,6 +394,16 @@ class Config(QConfig):
         "Linkage", "PollInterval", 5, RangeValidator(1, 30)
     )
     
+    usePreciseTime = ConfigItem(
+        "PreciseTime", "UsePreciseTime", False, BoolValidator()
+    )
+    timeServer = ConfigItem(
+        "PreciseTime", "TimeServer", "ntp.aliyun.com"
+    )
+    lastSyncTime = ConfigItem(
+        "PreciseTime", "LastSyncTime", ""
+    )
+    
 
 
 cfg = Config()
@@ -555,6 +565,11 @@ def default_cfg():
             "Enabled": True,
             "DataPath": "",
             "PollInterval": 5
+        },
+        "PreciseTime": {
+            "UsePreciseTime": False,
+            "TimeServer": "ntp.aliyun.com",
+            "LastSyncTime": ""
         }
     }
 

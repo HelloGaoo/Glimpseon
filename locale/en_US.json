@@ -155,7 +155,20 @@
     "log_dir_not_exist": "Log directory does not exist",
     "clear_log_failed": "Failed to clear logs: {error}",
     "export_config": "Export Config",
-    "json_filter": "JSON Files (*.json);;All Files (*)"
+    "json_filter": "JSON Files (*.json);;All Files (*)",
+    "time": "Time",
+    "use_precise_time": "Use precise time",
+    "use_precise_time_desc": "Fetch precise time from NTP time server, disable to use system time",
+    "time_server": "Time server",
+    "time_server_desc": "NTP time server address",
+    "time_sync_status": "Time sync status",
+    "time_sync_status_desc": "Last sync time from NTP server",
+    "precise_time_synced_at": "Synced at {time}",
+    "precise_time_not_synced": "Not synced",
+    "precise_time_sync_now": "Sync now",
+    "precise_time_syncing": "Syncing",
+    "precise_time_sync_success": "Time sync successful ({time})",
+    "precise_time_sync_failed": "Sync failed"
   },
   "weather": {
     "sunny": "Sunny",

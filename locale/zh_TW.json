@@ -155,7 +155,20 @@
     "log_dir_not_exist": "日誌目錄不存在",
     "clear_log_failed": "清空日誌失敗: {error}",
     "export_config": "匯出設定",
-    "json_filter": "JSON 檔案 (*.json);;所有檔案 (*)"
+    "json_filter": "JSON 檔案 (*.json);;所有檔案 (*)",
+    "time": "時間",
+    "use_precise_time": "使用精確時間",
+    "use_precise_time_desc": "從 NTP 時間伺服器獲取精確時間，關閉則使用系統時間",
+    "time_server": "時間伺服器",
+    "time_server_desc": "NTP 時間伺服器地址",
+    "time_sync_status": "時間同步狀態",
+    "time_sync_status_desc": "上次從 NTP 伺服器同步的時間",
+    "precise_time_synced_at": "已在 {time} 同步了時間",
+    "precise_time_not_synced": "尚未同步時間",
+    "precise_time_sync_now": "手動同步",
+    "precise_time_syncing": "同步中",
+    "precise_time_sync_success": "時間同步成功 ({time})",
+    "precise_time_sync_failed": "同步失敗"
   },
   "weather": {
     "sunny": "晴",

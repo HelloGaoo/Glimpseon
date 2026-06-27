@@ -23,10 +23,13 @@ import json
 import logging
 import os
 import shutil
+import socket
+import struct
 import sys
 import time
 import winreg
 from ctypes import wintypes
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -633,11 +636,96 @@ def tr(key: str, **kwargs) -> str:
     return get_translation_manager().tr(key, **kwargs)
 
 
+# 精确时间同步
+
+_NTP_PORT = 123
+_NTP_VERSION = 3
+_NTP_MODE_CLIENT = 3
+_NTP_PACKET_FORMAT = "!II"
+_NTP_DELTA = 2208988800  # 1900-01-01 到 1970-01-01 的秒数
+_NTP_TIMEOUT = 5
+
+_logger_ts = logging.getLogger("ClassLively.core.time_sync")
 
 
+class TimeSyncService:
+    """NTP 时间同步"""
+
+    def __init__(self):
+        self._offset: timedelta = timedelta(0)
+        self._last_sync_time: Optional[datetime] = None
+        self._last_error: Optional[str] = None
+
+    @property
+    def offset(self) -> timedelta:
+        return self._offset
+
+    @property
+    def last_sync_time(self) -> Optional[datetime]:
+        return self._last_sync_time
+
+    @property
+    def last_error(self) -> Optional[str]:
+        return self._last_error
+
+    def get_precise_now(self) -> datetime:
+        return datetime.now() + self._offset
+
+    def sync(self, server: str = "ntp.aliyun.com") -> bool:
+        try:
+            client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            client.settimeout(_NTP_TIMEOUT)
+            data = b'\x1b' + 47 * b'\x00'
+            client.sendto(data, (server, _NTP_PORT))
+            data, _ = client.recvfrom(1024)
+            client.close()
+
+            if len(data) < 48:
+                raise ValueError(f"NTP 响应数据不足: {len(data)} bytes")
+
+            unpacked = struct.unpack(_NTP_PACKET_FORMAT, data[40:48])
+            ntp_seconds = unpacked[0]
+            ntp_fraction = unpacked[1]
+            ntp_time = ntp_seconds - _NTP_DELTA + ntp_fraction / 2 ** 32
+
+            system_now = time.time()
+            self._offset = timedelta(seconds=ntp_time - system_now)
+            self._last_sync_time = datetime.now()
+            self._last_error = None
+
+            _logger_ts.info(
+                f"[TimeSync] 同步成功: {server} | "
+                f"NTP={datetime.fromtimestamp(ntp_time, tz=timezone.utc).strftime('%H:%M:%S')} | "
+                f"偏移={self._offset.total_seconds():+.3f}s"
+            )
+            return True
+
+        except socket.timeout:
+            self._last_error = f"连接超时: {server}"
+            _logger_ts.warning(f"[TimeSync] {self._last_error}")
+            return False
+        except socket.gaierror as e:
+            self._last_error = f"域名解析失败: {server} ({e})"
+            _logger_ts.warning(f"[TimeSync] {self._last_error}")
+            return False
+        except OSError as e:
+            self._last_error = f"网络错误: {e}"
+            _logger_ts.warning(f"[TimeSync] {self._last_error}")
+            return False
+        except Exception as e:
+            self._last_error = str(e)
+            _logger_ts.warning(f"[TimeSync] 同步失败: {e}")
+            return False
 
 
+_time_sync_service: Optional[TimeSyncService] = None
 
+
+def get_time_sync_service() -> TimeSyncService:
+    global _time_sync_service
+    if _time_sync_service is None:
+        _time_sync_service = TimeSyncService()
+    return _time_sync_service
 
 
 # Mixin

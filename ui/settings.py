@@ -30,7 +30,7 @@ import json
 import os
 from datetime import datetime
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QApplication, QFileDialog, QLabel, QWidget
 from qfluentwidgets import (
     ComboBoxSettingCard,
@@ -56,7 +56,7 @@ from qfluentwidgets import (
 
 from core.config import cfg, default_cfg, ConfigItem, CONFIG_PATH
 from core.constants import BASE_DIR, get_resPath, load_qss
-from core.utils import _load_app_fonts, apply_fonts, tr, TranslatableWidget
+from core.utils import _load_app_fonts, apply_fonts, tr, TranslatableWidget, get_time_sync_service
 from core.logger import log_dir, logger
 
 
@@ -103,6 +103,57 @@ class SpinBoxSettingCard(SettingCard):
 
     def setValue(self, value):
         self.spinBox.setValue(value)
+
+
+class TextLineSettingCard(SettingCard):
+    """带文本框输入的设置卡片"""
+
+    def __init__(self, configItem, icon, title, content=None, parent=None):
+        super().__init__(icon, title, content, parent)
+        self.configItem = configItem
+        self.lineEdit = LineEdit(self)
+        self.lineEdit.setMinimumWidth(200)
+
+        self.hBoxLayout.addWidget(self.lineEdit, 0, Qt.AlignmentFlag.AlignRight)
+        self.hBoxLayout.addSpacing(16)
+
+        self.lineEdit.setText(str(qconfig.get(configItem)))
+        self.lineEdit.textChanged.connect(self.__onTextChanged)
+        configItem.valueChanged.connect(self.setValue)
+
+    def __onTextChanged(self, text):
+        qconfig.set(self.configItem, text)
+
+    def setValue(self, value):
+        self.lineEdit.setText(str(value))
+
+
+class SyncStatusSettingCard(SettingCard):
+    """同步状态卡片"""
+
+    def __init__(self, icon, title, content=None, parent=None):
+        super().__init__(icon, title, content, parent)
+        self.statusLabel = QLabel(tr("settings.precise_time_not_synced"))
+        self.statusLabel.setStyleSheet("color: #999;")
+        self.syncBtn = PushButton(FIF.SYNC, tr("settings.precise_time_sync_now"))
+        self.syncBtn.setFixedHeight(32)
+
+        from PyQt6.QtWidgets import QHBoxLayout
+        h = QHBoxLayout()
+        h.addWidget(self.statusLabel, 1)
+        h.addWidget(self.syncBtn)
+        container = QWidget()
+        container.setLayout(h)
+        self.hBoxLayout.addWidget(container, 0, Qt.AlignmentFlag.AlignRight)
+        self.hBoxLayout.addSpacing(16)
+
+    def set_status(self, sync_time: str):
+        if sync_time:
+            self.statusLabel.setText(tr("settings.precise_time_synced_at").format(time=sync_time))
+            self.statusLabel.setStyleSheet("color: #30c361;")
+        else:
+            self.statusLabel.setText(tr("settings.precise_time_not_synced"))
+            self.statusLabel.setStyleSheet("color: #999;")
 
 
 class ButtonSettingCard(SettingCard):
@@ -172,6 +223,27 @@ class SettingInterface(ScrollArea, TranslatableWidget):
             tr("wizard.auto_open_maximize_desc"),  # 空闲自动打开界面时是否最大化窗口
             configItem=cfg.autoOpenMaximize,
             parent=self.basicGroup
+        )
+        self.timeGroup = SettingCardGroup(tr("settings.time"), self.scrollWidget)  # 时间
+        self.usePreciseTimeCard = SwitchSettingCard(
+            FIF.DATE_TIME,
+            tr("settings.use_precise_time"),  # 使用精确时间
+            tr("settings.use_precise_time_desc"),  # 从时间服务器获取精确时间，关闭则使用系统时间
+            configItem=cfg.usePreciseTime,
+            parent=self.timeGroup
+        )
+        self.timeServerCard = TextLineSettingCard(
+            cfg.timeServer,
+            FIF.CLOUD,
+            tr("settings.time_server"),  # 时间服务器
+            tr("settings.time_server_desc"),  # NTP 时间服务器地址
+            parent=self.timeGroup
+        )
+        self.timeSyncStatusCard = SyncStatusSettingCard(
+            FIF.UPDATE,
+            tr("settings.time_sync_status"),  # 时间同步状态
+            tr("settings.time_sync_status_desc"),  # 上次从 NTP 服务器同步的时间
+            parent=self.timeGroup
         )
         self.appearanceGroup = SettingCardGroup(tr("settings.appearance"), self.scrollWidget)  # 外观
         self.themeCard = ComboBoxSettingCard(
@@ -281,6 +353,9 @@ class SettingInterface(ScrollArea, TranslatableWidget):
         self.basicGroup.addSettingCard(self.autoOpenOnIdleCard)
         self.basicGroup.addSettingCard(self.idleMinutesCard)
         self.basicGroup.addSettingCard(self.autoOpenMaximizeCard)
+        self.timeGroup.addSettingCard(self.usePreciseTimeCard)
+        self.timeGroup.addSettingCard(self.timeServerCard)
+        self.timeGroup.addSettingCard(self.timeSyncStatusCard)
         self.appearanceGroup.addSettingCard(self.themeCard)
         self.appearanceGroup.addSettingCard(self.themeColorCard)
         self.appearanceGroup.addSettingCard(self.componentCardOpacityCard)
@@ -341,6 +416,7 @@ class SettingInterface(ScrollArea, TranslatableWidget):
         self.expandLayout.setSpacing(28)
         self.expandLayout.setContentsMargins(60, 10, 60, 0)
         self.expandLayout.addWidget(self.basicGroup)
+        self.expandLayout.addWidget(self.timeGroup)
         self.expandLayout.addWidget(self.appearanceGroup)
         self.expandLayout.addWidget(self.logGroup)
         self.expandLayout.addWidget(self.otherGroup)
@@ -379,8 +455,78 @@ class SettingInterface(ScrollArea, TranslatableWidget):
         self.clearLogCard.button.clicked.connect(self.__clearLog)
         self.configIOCard.button1.clicked.connect(self.__exportConfig)
         self.configIOCard.button2.clicked.connect(self.__importConfig)
+        self.timeSyncStatusCard.syncBtn.clicked.connect(self.__onManualSync)
+        cfg.usePreciseTime.valueChanged.connect(self.__onUsePreciseTimeChanged)
         self.__onDisableLogChanged(cfg.disableLog.value)
-    
+        self.__updateSyncStatus()
+        self.__initAutoSyncTimer()
+
+    def __initAutoSyncTimer(self):
+        """初始化自动同步定时器（5分钟）"""
+        self._autoSyncTimer = QTimer(self)
+        self._autoSyncTimer.setInterval(5 * 60 * 1000)  # 5 分钟
+        self._autoSyncTimer.timeout.connect(self.__onManualSync)
+        if cfg.usePreciseTime.value:
+            self._autoSyncTimer.start()
+
+    def __onManualSync(self):
+        """手动同步时间"""
+        from PyQt6.QtCore import QThread, pyqtSignal
+
+        class SyncWorker(QThread):
+            finished = pyqtSignal(bool, str)
+
+            def run(self):
+                service = get_time_sync_service()
+                server = cfg.timeServer.value
+                ok = service.sync(server)
+                sync_str = ""
+                if ok and service.last_sync_time:
+                    sync_str = service.last_sync_time.strftime("%H:%M:%S")
+                    cfg.lastSyncTime.value = sync_str
+                self.finished.emit(ok, sync_str)
+
+        self._sync_worker = SyncWorker()
+        self._sync_worker.finished.connect(self._onSyncFinished)
+        self.timeSyncStatusCard.syncBtn.setEnabled(False)
+        self.timeSyncStatusCard.syncBtn.setText(tr("settings.precise_time_syncing"))
+        self._sync_worker.start()
+
+    def _onSyncFinished(self, ok: bool, sync_str: str):
+        self.timeSyncStatusCard.syncBtn.setEnabled(True)
+        self.timeSyncStatusCard.syncBtn.setText(tr("settings.precise_time_sync_now"))
+        self.__updateSyncStatus()
+        if ok:
+            InfoBar.success(
+                tr("wizard.success_title"),
+                tr("settings.precise_time_sync_success").format(time=sync_str),
+                duration=3000,
+                parent=self
+            )
+        else:
+            service = get_time_sync_service()
+            err_msg = service.last_error or tr("settings.precise_time_sync_failed")
+            InfoBar.error(
+                tr("dialog.error"),
+                err_msg,
+                duration=5000,
+                parent=self
+            )
+
+    def __onUsePreciseTimeChanged(self, enabled: bool):
+        """精确时间开关变化"""
+        self.__updateSyncStatus()
+        if enabled and cfg.usePreciseTime.value:
+            self.__onManualSync()
+            self._autoSyncTimer.start()
+        else:
+            self._autoSyncTimer.stop()
+
+    def __updateSyncStatus(self):
+        """更新同步状态显示"""
+        sync_time = cfg.lastSyncTime.value
+        self.timeSyncStatusCard.set_status(sync_time)
+
     def __resetDefaultSettings(self):
         """ 恢复默认设置 """
         msgBox = MessageBox(
