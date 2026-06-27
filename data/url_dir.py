@@ -42,8 +42,8 @@ url_dir = [
     {"filename": "ClassIsland2.exe", "url": "https://get.classisland.tech/d/ClassIsland-Ningbo-S3/classisland/distribution-v2/2.0/2.0.0.2/ClassIsland_app_windows_x64_selfContained_folder.zip"},
     {"filename": "ClassWidgets.exe", "url": "https://ghfile.geekertao.top/https://github.com/Class-Widgets/Class-Widgets/releases/download/1.2.0.5/ClassWidgets-Windows-x64.zip"},
     {"filename": "微信.exe", "url": "https://dldir1v6.qq.com/weixin/Universal/Windows/WeChatWin.exe"},
-    {"filename": "QQ.exe", "url": "https://dldir1v6.qq.com/qqfile/qq/QQNT/Windows/QQ_9.9.21_250822_x64_01.exe"},
+    {"filename": "QQ.exe", "url": "https://qqdl.gtimg.cn/qqfile/QQNT/9.9.31/release/092069d7/QQ_9.9.31_260528_x64_01.exe"},
     {"filename": "UU远程.exe", "url": "https://a56.gdl.netease.com/UURemote_Setup_4.21.0.7755_0424202757_gwqd.exe"},
-    {"filename": "网易云音乐.exe", "url": "https://d8.music.126.net/dmusic2/NeteaseCloudMusic_Music_official_3.1.30.205130_64.exe"},
+    {"filename": "网易云音乐.exe", "url": "https://d8.music.126.net/dmusic2/NeteaseCloudMusic_Music_official_3.1.35.205293_64.exe"},
     {"filename": "office2021.7z", "github_path": "/HelloGaoo/SeevvoDownloader/releases/download/v1.0.0/office2021.7z"},
 ]
