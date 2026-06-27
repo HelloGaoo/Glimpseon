@@ -170,7 +170,7 @@
     "precise_time_sync_success": "Time sync successful ({time})",
     "precise_time_sync_failed": "Sync failed",
     "time_offset": "Time offset",
-    "time_offset_desc": "Offset between class schedule time and actual time (increase to compensate early bell, decrease to compensate late bell)",
+    "time_offset_desc": "Offset between class schedule time and actual time in seconds (increase to compensate early bell, decrease to compensate late bell)",
     "auto_time_offset": "Auto time offset",
     "auto_time_offset_desc": "If enabled, automatically adjusts the time offset by the set increment every day"
   },

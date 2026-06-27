@@ -170,7 +170,7 @@
     "precise_time_sync_success": "時間同步成功 ({time})",
     "precise_time_sync_failed": "同步失敗",
     "time_offset": "時間偏移",
-    "time_offset_desc": "設定課程時間與實際時間的偏移值（增大偏移以抵消鈴聲提前，減小偏移以抵消鈴聲滯後）",
+    "time_offset_desc": "設定課程時間與實際時間的偏移秒數（增大偏移以抵消鈴聲提前，減小偏移以抵消鈴聲滯後）",
     "auto_time_offset": "自動時間偏移",
     "auto_time_offset_desc": "若啟用，每天自動以設定的增量值調整時間偏移量"
   },

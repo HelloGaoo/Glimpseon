@@ -728,22 +728,44 @@ def get_time_sync_service() -> TimeSyncService:
     return _time_sync_service
 
 
+_auto_offset_last_check = None  # type: Optional[date]
+
+
+def _check_auto_time_offset():
+    """自动时间偏移"""
+    global _auto_offset_last_check
+    from core.config import cfg
+    if not cfg.autoTimeOffsetEnabled.value:
+        return
+    today = datetime.now().date()
+    if _auto_offset_last_check is None:
+        _auto_offset_last_check = today
+        return
+    if _auto_offset_last_check != today:
+        current = int(cfg.timeOffset.value)
+        increment = int(cfg.autoTimeOffsetIncrement.value)
+        from qfluentwidgets import qconfig
+        qconfig.set(cfg.timeOffset, current + increment)
+        _auto_offset_last_check = today
+
+
 def precise_now() -> datetime:
-    """获取全局时间："""
+    """全局当前时间"""
     from core.config import cfg
     now = datetime.now()
     if cfg.usePreciseTime.value:
         try:
             service = get_time_sync_service()
             now = service.get_precise_now()
-            now += timedelta(minutes=int(cfg.timeOffset.value))
         except Exception:
             pass
+    _check_auto_time_offset()
+    now += timedelta(seconds=int(cfg.timeOffset.value))
     return now
 
 
 def precise_time_str() -> str:
-    """NTP 精确时间字符串"""
+    """基准时间字符串"""
     from core.config import cfg
     now = datetime.now()
     if cfg.usePreciseTime.value:
