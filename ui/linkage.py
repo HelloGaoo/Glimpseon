@@ -119,11 +119,14 @@ class PreviewCard(CardWidget):
     """实时状态预览卡片"""
 
     FIELDS = [
-        ("state", "preview_state"),
-        ("subject", "preview_subject"),
-        ("lesson_index", "preview_lesson_index"),
-        ("next_class", "preview_next_class"),
-        ("updated", "preview_updated"),
+        ("state", "linkage.preview_state"),
+        ("subject", "linkage.preview_subject"),
+        ("teacher", "linkage.preview_teacher"),
+        ("time_range", "linkage.preview_time_range"),
+        ("left", "linkage.preview_left"),
+        ("lesson_index", "linkage.preview_lesson_index"),
+        ("next_class", "linkage.preview_next_class"),
+        ("updated", "linkage.preview_updated"),
     ]
 
     def __init__(self, labels_dict, parent=None):
@@ -131,7 +134,7 @@ class PreviewCard(CardWidget):
 
         self.labels_dict = labels_dict
 
-        self.setFixedHeight(150)
+        self.setFixedHeight(260)
         layout = self.layout() if self.layout() else None
         if layout is None:
             from PyQt6.QtWidgets import QGridLayout
@@ -327,6 +330,17 @@ class LinkagePage(ScrollArea, TranslatableWidget):
         labels = self.previewLabels
         labels["state"].setText(TimeState.display_name(state.time_state))
         labels["subject"].setText(state.current_subject or "-")
+        # 教师
+        teacher = state.current_lesson.teacher_name if state.current_lesson else ""
+        labels["teacher"].setText(teacher or "-")
+        # 时间范围
+        if state.current_lesson and state.current_lesson.start_time and state.current_lesson.end_time:
+            labels["time_range"].setText(f"{state.current_lesson.start_time} - {state.current_lesson.end_time}")
+        else:
+            labels["time_range"].setText("-")
+        # 剩余时间
+        left = state.on_class_left or state.on_breaking_left or ""
+        labels["left"].setText(left if left else "-")
         labels["lesson_index"].setText(
             str(state.current_lesson.index) if state.current_lesson and state.current_lesson.index >= 0 else "-"
         )
