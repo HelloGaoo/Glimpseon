@@ -35,6 +35,8 @@ from datetime import datetime, time as _dt_time, timedelta
 from enum import IntEnum
 from typing import Optional
 
+from core.utils import precise_now
+
 from PyQt6.QtCore import QObject, pyqtSignal
 
 logger = logging.getLogger("ClassLively.core.linkage")
@@ -431,7 +433,7 @@ class LinkageBridge(QObject):
 
     def _compute_state(self) -> LinkageState:
         """此时状态"""
-        now = datetime.now()
+        now = precise_now()
         today = now.date()
         weekday = today.isoweekday()
         dotnet_wd = _python_weekday_to_dotnet(weekday) 

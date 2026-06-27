@@ -53,7 +53,7 @@ log_dir = os.path.join(BASE_DIR, "logs")
 if not os.path.exists(log_dir): os.makedirs(log_dir)
 
 DEFAULT_LOG_LEVEL = logging.INFO
-LOG_FORMAT = '%(asctime)s|%(levelname)s|%(caller_info)s|%(module)s:%(lineno)d|%(message)s'
+LOG_FORMAT = '%(asctime)s|%(precise_time)s|%(offset_time)s|%(levelname)s|%(caller_info)s|%(module)s:%(lineno)d|%(message)s'
 DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
 LOG_MAX_BYTES = 1 * 1024 * 1024
 
@@ -150,6 +150,13 @@ class CustomLogger(logging.Logger):
                 caller_info = f"{APP_NAME}.Unknown"
             if extra is None: extra = {}
             extra['caller_info'] = caller_info
+            try:
+                from core.utils import precise_time_str, offset_time_str
+                extra['precise_time'] = precise_time_str()
+                extra['offset_time'] = offset_time_str()
+            except Exception:
+                extra['precise_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                extra['offset_time'] = extra['precise_time']
             super()._log(level, msg, args, exc_info, extra, stack_info, stacklevel)
 
 logging.setLoggerClass(CustomLogger)
@@ -222,7 +229,7 @@ class Logger:
         self.console_handler = logging.StreamHandler()
         self.console_handler.setLevel(log_level)
         formatter = logging.Formatter(
-            '%(asctime)s|%(levelname)s|%(caller_info)s|%(module)s:%(lineno)d|%(message)s',
+            LOG_FORMAT,
             datefmt='%Y-%m-%d %H:%M:%S'
         )
         self.file_handler.setFormatter(formatter)

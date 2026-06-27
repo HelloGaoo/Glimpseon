@@ -728,6 +728,38 @@ def get_time_sync_service() -> TimeSyncService:
     return _time_sync_service
 
 
+def precise_now() -> datetime:
+    """获取全局时间："""
+    from core.config import cfg
+    now = datetime.now()
+    if cfg.usePreciseTime.value:
+        try:
+            service = get_time_sync_service()
+            now = service.get_precise_now()
+            now += timedelta(minutes=int(cfg.timeOffset.value))
+        except Exception:
+            pass
+    return now
+
+
+def precise_time_str() -> str:
+    """NTP 精确时间字符串"""
+    from core.config import cfg
+    now = datetime.now()
+    if cfg.usePreciseTime.value:
+        try:
+            service = get_time_sync_service()
+            now = service.get_precise_now()
+        except Exception:
+            pass
+    return now.strftime('%Y-%m-%d %H:%M:%S')
+
+
+def offset_time_str() -> str:
+    """偏移后时间字符串"""
+    return precise_now().strftime('%Y-%m-%d %H:%M:%S')
+
+
 # Mixin
 
 class TranslatableWidget:

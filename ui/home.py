@@ -90,7 +90,7 @@ from qfluentwidgets import (
 from core.config import cfg, save_cfg
 from core.constants import APP_NAME, BASE_DIR, get_resPath, load_qss
 from core.logger import logger
-from core.utils import get_cached_content, save_cache, tr, TranslatableWidget, INTERVAL_MAP
+from core.utils import get_cached_content, save_cache, tr, TranslatableWidget, INTERVAL_MAP, precise_now
 from data.software_list import get_software_icon_path
 from services.weather import WeatherService, RegionDatabase, RegionSelectorDialog, WEATHER_API_URL, WEATHER_API_APPKEY, WEATHER_API_SIGN
 from services.poetry import PoetryService
@@ -591,6 +591,13 @@ class HomeInterface(QWidget, TranslatableWidget):
 
         currentTime = QTime.currentTime()
         currentDate = QDate.currentDate()
+        if cfg.usePreciseTime.value:
+            try:
+                pn = precise_now()
+                currentTime = QTime(pn.hour, pn.minute, pn.second)
+                currentDate = QDate(pn.year, pn.month, pn.day)
+            except Exception:
+                pass
 
         if cfg.showClockSeconds.value:
             timeString = currentTime.toString("HH:mm:ss")
@@ -1037,7 +1044,7 @@ class HomeInterface(QWidget, TranslatableWidget):
             target_time = datetime.datetime.strptime(target_time_str, '%Y-%m-%d %H:%M')
         except ValueError:
             return ""
-        now = datetime.datetime.now()
+        now = precise_now()
         delta = target_time - now
         total_seconds = int(delta.total_seconds())
         target_date = target_time.date()
@@ -2394,7 +2401,7 @@ class EditPanel(QWidget):
     def _formatRemainingTime(self, target_time_str):
         try:
             target = datetime.datetime.strptime(target_time_str, '%Y-%m-%d %H:%M')
-            now = datetime.datetime.now()
+            now = precise_now()
             delta = target - now
             total_seconds = int(delta.total_seconds())
             target_date = target.date()

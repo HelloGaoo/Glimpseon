@@ -94,6 +94,7 @@ class SpinBoxSettingCard(SettingCard):
         self.spinBox = SpinBox(self)
         self.spinBox.setRange(min_value, max_value)
         self.spinBox.setValue(qconfig.get(configItem))
+        self.spinBox.setFixedWidth(140)
         self.hBoxLayout.addWidget(self.spinBox, 0, Qt.AlignmentFlag.AlignRight)
         self.hBoxLayout.addSpacing(16)
         self.spinBox.valueChanged.connect(self.__onValueChanged)
@@ -182,9 +183,9 @@ class AutoOffsetSettingCard(SettingCard):
 
         from PyQt6.QtWidgets import QHBoxLayout
         h = QHBoxLayout()
-        h.addWidget(self.switchBtn)
-        h.addSpacing(8)
         h.addWidget(self.spinBox)
+        h.addSpacing(8)
+        h.addWidget(self.switchBtn)
         container = QWidget()
         container.setLayout(h)
         self.hBoxLayout.addWidget(container, 0, Qt.AlignmentFlag.AlignRight)
