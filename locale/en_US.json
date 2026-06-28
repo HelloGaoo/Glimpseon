@@ -239,6 +239,9 @@
   "home": {
     "edit": "Edit",
     "back_to_desktop": "Back to Desktop",
+    "menu_settings": "Settings",
+    "menu_restart": "Restart",
+    "menu_shutdown": "Shutdown",
     "init_complete": "Home interface initialization complete",
     "edit_panel": "Edit Panel",
     "switch_to_left": "Switch to Left",

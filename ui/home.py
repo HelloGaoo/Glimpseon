@@ -23,6 +23,7 @@ import datetime
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 
@@ -84,6 +85,8 @@ from qfluentwidgets import (
     SubtitleLabel,
     SmoothScrollArea,
     CardWidget,
+    RoundMenu,
+    Action,
     isDarkTheme,
 )
 
@@ -399,6 +402,12 @@ class HomeInterface(QWidget, TranslatableWidget):
 
         barLayout.addStretch()
 
+        self.menuBtn = ToolButton(FIF.MENU, self.bottomBar)
+        self.menuBtn.setObjectName("bottomMenuBtn")
+        self.menuBtn.setFixedSize(36, 36)
+        self.menuBtn.clicked.connect(self._showBottomMenu)
+        barLayout.addWidget(self.menuBtn)
+
         self._updateBottomBarPosition()
 
     def _updateBottomBarPosition(self):
@@ -409,6 +418,28 @@ class HomeInterface(QWidget, TranslatableWidget):
         x = (parent.width() - self.bottomBar.width()) // 2
         y = parent.height() - self.bottomBar.height() - 25
         self.bottomBar.move(x, y)
+
+    def _showBottomMenu(self):
+        """底部菜单按钮的弹出菜单"""
+        menu = RoundMenu(parent=self.menuBtn)
+
+        settings_action = Action(FIF.SETTING, tr("home.menu_settings"))
+        settings_action.triggered.connect(lambda: self.mainWindow.switchTo(self.mainWindow.settingInterface))
+        menu.addAction(settings_action)
+
+        menu.addSeparator()
+
+        restart_action = Action(FIF.UPDATE, tr("home.menu_restart"))
+        restart_action.triggered.connect(lambda: os.system('shutdown /r /t 0'))
+        menu.addAction(restart_action)
+
+        shutdown_action = Action(FIF.CLOSE, tr("home.menu_shutdown"))
+        shutdown_action.triggered.connect(lambda: os.system('shutdown /s /t 0'))
+        menu.addAction(shutdown_action)
+
+        menu.exec(self.menuBtn.mapToGlobal(
+            self.menuBtn.rect().bottomRight()
+        ))
 
     def _initTimers(self):
         self.clockTimer = QTimer(self)

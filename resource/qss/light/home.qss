@@ -130,6 +130,17 @@
     border: none;
 }
 
+#bottomMenuBtn {
+    background-color: transparent;
+    border: none;
+    border-radius: 8px;
+    icon-size: 18px;
+}
+
+#bottomMenuBtn:hover {
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
 /* 编辑面板 */
 
 #EditPanel {

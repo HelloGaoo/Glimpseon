@@ -239,6 +239,9 @@
   "home": {
     "edit": "编辑",
     "back_to_desktop": "回到Windows",
+    "menu_settings": "设置",
+    "menu_restart": "重启",
+    "menu_shutdown": "关机",
     "init_complete": "主界面初始化完成",
     "edit_panel": "编辑面板",
     "switch_to_left": "切换到左侧",
