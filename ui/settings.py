@@ -481,7 +481,6 @@ class SettingInterface(BaseScrollAreaInterface, TranslatableWidget):
 
     def __onThemeChanged(self, theme: Theme):
         """ 主题变更 """
-        setTheme(theme)
         self.__setQss()
 
     def __showRestartTooltip(self):

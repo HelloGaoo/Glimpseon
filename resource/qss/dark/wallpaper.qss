@@ -1,14 +1,14 @@
 /* 壁纸界面 */
 
 #wallpaper, #scrollWidget {
-    background-color: rgb(39, 39, 39);
+    background: transparent;
     border: none;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 #wallpaper QScrollArea {
     border: none;
-    background-color: rgb(39, 39, 39);
+    background: transparent;
 }
 
 /* 标题 */

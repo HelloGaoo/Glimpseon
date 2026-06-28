@@ -37,7 +37,7 @@ from qfluentwidgets import (
     InfoBar, InfoBarPosition, isDarkTheme,
     PushButton, SettingCard,
     SettingCardGroup, SpinBox,
-    StrongBodyLabel, SwitchSettingCard, Theme, setTheme,
+    StrongBodyLabel, SwitchSettingCard, Theme,
 )
 from core.config import cfg
 from core.constants import load_qss
@@ -220,7 +220,6 @@ class LinkagePage(BaseScrollAreaInterface, TranslatableWidget):
 
     def _onThemeChanged(self, theme: Theme):
         """主题切换时重新加载样式"""
-        setTheme(theme)
         self.__setQss()
 
     def __initLayout(self):
@@ -428,7 +427,7 @@ class ClassWidgetsPage(BaseScrollAreaInterface, TranslatableWidget):
         self.setStyleSheet(load_qss('cw_linkage.qss'))
 
     def _onThemeChanged(self, theme: Theme):
-        setTheme(theme)
+        """主题切换时重新加载样式"""
         self.__setQss()
 
     def __initLayout(self):

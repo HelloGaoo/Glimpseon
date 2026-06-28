@@ -16,6 +16,7 @@
 
 import atexit
 import ctypes
+import darkdetect
 import datetime
 import json
 import logging
@@ -42,8 +43,10 @@ from qfluentwidgets import (
     setTheme,
     setThemeColor,
     StrongBodyLabel,
+    Theme,
     isDarkTheme,
 )
+from qfluentwidgets.common.style_sheet import updateStyleSheet
 from pycaw.pycaw import AudioUtilities
 
 from core.config import cfg, save_cfg, Language
@@ -959,6 +962,7 @@ class MainWindow(FluentWindow):
 
         self._initIdleDetection()
         self._initThemeConnections()
+        self._initSystemThemeMonitor()
 
         self.navigationInterface.installEventFilter(self)
 
@@ -1073,6 +1077,38 @@ class MainWindow(FluentWindow):
         cfg.themeChanged.connect(self.wallpaper._onThemeChanged)
         cfg.themeChanged.connect(self.aboutInterface._onThemeChanged)
         cfg.themeChanged.connect(self._onDebugPanelThemeChanged)
+
+    def _initSystemThemeMonitor(self):
+        self._themeCheckTimer = QTimer(self)
+        self._themeCheckTimer.setInterval(5000)
+        self._themeCheckTimer.timeout.connect(self._checkSystemTheme)
+        cfg.themeMode.valueChanged.connect(self._onThemeModeChanged)
+        if cfg.themeMode.value == Theme.AUTO:
+            self._themeCheckTimer.start()
+            self._checkSystemTheme()
+
+    def _onThemeModeChanged(self, mode: Theme):
+        if mode == Theme.AUTO:
+            self._themeCheckTimer.start()
+            self._checkSystemTheme()
+        else:
+            self._themeCheckTimer.stop()
+
+    def _checkSystemTheme(self):
+        """检查系统主题变更"""
+        try:
+            current = darkdetect.theme()
+            if not current:
+                return
+            current_theme = Theme.LIGHT if current == 'Light' else Theme.DARK
+            if cfg.theme != current_theme:
+                logger.info(f"系统主题已变更: {cfg.theme} → {current_theme}")
+                cfg.theme = current_theme
+                updateStyleSheet()
+                cfg.themeChanged.emit(current_theme)
+                self.setStyleSheet(load_qss('app.qss'))
+        except Exception as e:
+            logger.warning(f"检查系统主题时出错: {e}")
 
     def _onDebugModeChanged(self, value):
         self.debugNavItem.setVisible(value)
