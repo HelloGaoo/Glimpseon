@@ -958,7 +958,7 @@ class MediaWidget(QWidget):
             return
         is_new_song = m.title_artist != self._last_ta
         if is_new_song:
-            logger.info(f"媒体组件: 新歌曲 {m.title} - {m.artist}")
+            logger.debug(f"媒体组件: 新歌曲 {m.title} - {m.artist}")
         self._media = m
         if full:
             self._display(m)
