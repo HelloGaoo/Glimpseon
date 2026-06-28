@@ -114,13 +114,7 @@
     border: none;
 }
 
-/* 底部栏 */
-
-#bottomBar {
-    background-color: rgba(255, 255, 255, 0.55);
-    border-radius: 12px;
-    border: 1px solid rgba(0, 0, 0, 0.06);
-}
+/* 底部栏按钮 */
 
 #backToDesktopBtn {
     background-color: rgba(0, 0, 0, 0.06);
