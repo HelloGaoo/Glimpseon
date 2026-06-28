@@ -166,6 +166,7 @@ class HomeInterface(QWidget, TranslatableWidget):
         self._initEditButton()
         self._initMediaWidget()
         self._initLayout()
+        self._initBottomBar()
         self._initTimers()
 
         self.editPanelCreated = False
@@ -175,6 +176,7 @@ class HomeInterface(QWidget, TranslatableWidget):
         cfg.themeChanged.connect(self._updateTheme)
         cfg.componentCardOpacity.valueChanged.connect(self._updateComponentCardStyle)
         cfg.componentCardRadius.valueChanged.connect(self._updateComponentCardStyle)
+        cfg.backgroundBlurRadius.valueChanged.connect(self._computeBlurredBackground)
         self._updateComponentCardStyle()
 
         self.setup_translatable_ui()
@@ -379,6 +381,35 @@ class HomeInterface(QWidget, TranslatableWidget):
         homeLayout.setContentsMargins(0, 0, 0, 0)
         homeLayout.addWidget(self.homeContent)
 
+    def _initBottomBar(self):
+        """底部栏"""
+        self.bottomBar = QWidget(self.homeContent)
+        self.bottomBar.setObjectName("bottomBar")
+        self.bottomBar.setFixedSize(1400, 60)
+        self.bottomBar.show()
+
+        barLayout = QHBoxLayout(self.bottomBar)
+        barLayout.setContentsMargins(16, 0, 16, 0)
+        barLayout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
+        self.backToDesktopBtn = PushButton(tr("home.back_to_desktop"), self.bottomBar)
+        self.backToDesktopBtn.setObjectName("backToDesktopBtn")
+        self.backToDesktopBtn.clicked.connect(self.mainWindow.showMinimized)
+        barLayout.addWidget(self.backToDesktopBtn)
+
+        barLayout.addStretch()
+
+        self._updateBottomBarPosition()
+
+    def _updateBottomBarPosition(self):
+        """距底部25px"""
+        if not hasattr(self, 'bottomBar') or not self.bottomBar:
+            return
+        parent = self.homeContent
+        x = (parent.width() - self.bottomBar.width()) // 2
+        y = parent.height() - self.bottomBar.height() - 25
+        self.bottomBar.move(x, y)
+
     def _initTimers(self):
         self.clockTimer = QTimer(self)
         self.clockTimer.timeout.connect(self._updateClock)
@@ -544,6 +575,8 @@ class HomeInterface(QWidget, TranslatableWidget):
             for widget in self._draggable_widgets:
                 if widget and hasattr(widget, 'onParentResize'):
                     widget.onParentResize()
+
+        self._updateBottomBarPosition()
 
         if hasattr(self, '_guideOverlay') and self._guideOverlay and self._guideOverlay.isVisible():
             self._updateGuideLinesPosition()

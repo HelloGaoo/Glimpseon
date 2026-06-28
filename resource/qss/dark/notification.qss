@@ -1,0 +1,212 @@
+/* 通知页面 */
+
+#notification {
+    background: transparent;
+    border: none;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#notification #scrollWidget {
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#notification QScrollArea {
+    background: transparent;
+    border: none;
+}
+
+/* 标题 */
+
+#notification StrongBodyLabel#notificationTitle {
+    font-size: 33px;
+    background: transparent;
+    color: white;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 卡片 */
+
+#notification CardWidget {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#notification CardWidget:hover {
+    background: rgba(255, 255, 255, 0.09);
+}
+
+/* 标签 */
+
+#notification CardWidget StrongBodyLabel {
+    font-size: 16px;
+    font-weight: 600;
+    color: #ffffff;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#notification CardWidget BodyLabel {
+    font-size: 14px;
+    color: #CCCCCC;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 文本框 */
+
+#notification TextEdit {
+    background: rgba(30, 30, 30, 1);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 14px;
+    color: #CCCCCC;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#notification TextEdit:focus {
+    border: 1px solid rgba(0, 120, 212, 0.6);
+}
+
+#notification BodyLabel {
+    color: #d0d0d0;
+    font-size: 14px;
+}
+
+#notification StrongBodyLabel {
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* 按钮 */
+
+#notification PrimaryPushButton {
+    background-color: #0078d4;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 16px;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+#notification PrimaryPushButton:hover {
+    background-color: #1084d8;
+}
+
+#notification PrimaryPushButton:pressed {
+    background-color: #006cbe;
+}
+
+#notification PushButton {
+    background-color: #3d3d3d;
+    color: #ffffff;
+    border: 1px solid #555555;
+    border-radius: 4px;
+    padding: 6px 16px;
+    font-size: 14px;
+}
+
+#notification PushButton:hover {
+    background-color: #4d4d4d;
+    border-color: #666666;
+}
+
+#notification PushButton:pressed {
+    background-color: #333333;
+}
+
+/* ComboBox */
+
+#notification ComboBox {
+    background-color: #3d3d3d;
+    color: #ffffff;
+    border: 1px solid #555555;
+    border-radius: 4px;
+    padding: 6px 12px;
+    min-width: 120px;
+}
+
+#notification ComboBox:hover {
+    border-color: #0078d4;
+}
+
+#notification ComboBox::drop-down {
+    border: none;
+    width: 24px;
+}
+
+#notification ComboBox::down-arrow {
+    image: none;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid #ffffff;
+    margin-right: 8px;
+}
+
+#notification QComboBox QAbstractItemView {
+    background-color: #2b2b2b;
+    color: #ffffff;
+    border: 1px solid #3d3d3d;
+    selection-background-color: #0078d4;
+    outline: none;
+}
+
+#notification QComboBox QAbstractItemView::item {
+    height: 32px;
+    padding-left: 12px;
+}
+
+#notification QComboBox QAbstractItemView::item:hover {
+    background-color: #3d3d3d;
+}
+
+#notification QComboBox QAbstractItemView::item:selected {
+    background-color: #0078d4;
+}
+
+/* SpinBox */
+
+#notification SpinBox {
+    background-color: #3d3d3d;
+    color: #ffffff;
+    border: 1px solid #555555;
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+
+#notification SpinBox:hover {
+    border-color: #0078d4;
+}
+
+#notification SpinBox::up-button,
+#notification SpinBox::down-button {
+    border: none;
+    width: 16px;
+    background-color: transparent;
+}
+
+#notification SpinBox::up-button:hover,
+#notification SpinBox::down-button:hover {
+    background-color: #4d4d4d;
+}
+
+/* SwitchButton */
+
+#notification SwitchButton:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Pivot 标签导航 */
+
+#notification Pivot {
+    background: transparent;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#notification QLabel#pivotLabel {
+    font-size: 14px;
+    color: #CCCCCC;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}

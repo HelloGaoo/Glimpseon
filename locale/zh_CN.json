@@ -28,7 +28,8 @@
     "linkage": "联动",
     "linkage_preview": "预览",
     "linkage_classisland": "ClassIsland 联动",
-    "linkage_classwidgets": "ClassWidgets 联动"
+    "linkage_classwidgets": "ClassWidgets 联动",
+    "notification": "通知"
   },
   "wizard": {
     "title": "ClassLively 向导",
@@ -237,6 +238,7 @@
   },
   "home": {
     "edit": "编辑",
+    "back_to_desktop": "回到Windows",
     "init_complete": "主界面初始化完成",
     "edit_panel": "编辑面板",
     "switch_to_left": "切换到左侧",
@@ -805,5 +807,23 @@
     "auto_detect_success": "检测到 ClassWidgets",
     "auto_detect_failed": "未找到 ClassWidgets",
     "auto_detect_failed_tip": "请确保 ClassWidgets 正在运行，或手动选择配置目录"
+  },
+  "notification": {
+    "title": "通知",
+    "tab_notifications": "通知",
+    "tab_settings": "设置",
+    "type_label": "通知类型",
+    "type_scroll": "滚动横幅",
+    "type_corner": "右下角弹窗",
+    "type_fullscreen": "全屏通知",
+    "content_label": "通知内容",
+    "content_placeholder": "请输入通知内容…",
+    "time_label": "发送时间",
+    "send_now": "立即发送",
+    "schedule": "定时发送",
+    "settings_general": "通用设置",
+    "settings_enable": "启用通知",
+    "settings_speed": "滚动速度",
+    "settings_duration": "显示时长(秒)"
   }
 }

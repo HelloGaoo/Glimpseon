@@ -28,7 +28,8 @@
     "linkage": "Linkage",
     "linkage_preview": "Preview",
     "linkage_classisland": "ClassIsland",
-    "linkage_classwidgets": "ClassWidgets Linkage"
+    "linkage_classwidgets": "ClassWidgets Linkage",
+    "notification": "Notification"
   },
   "wizard": {
     "title": "ClassLively Setup Wizard",
@@ -237,6 +238,7 @@
   },
   "home": {
     "edit": "Edit",
+    "back_to_desktop": "Back to Desktop",
     "init_complete": "Home interface initialization complete",
     "edit_panel": "Edit Panel",
     "switch_to_left": "Switch to Left",
@@ -805,5 +807,23 @@
     "auto_detect_success": "ClassWidgets detected",
     "auto_detect_failed": "ClassWidgets not found",
     "auto_detect_failed_tip": "Make sure ClassWidgets is running, or select config directory manually"
+  },
+  "notification": {
+    "title": "Notification",
+    "tab_notifications": "Notifications",
+    "tab_settings": "Settings",
+    "type_label": "Notification Type",
+    "type_scroll": "Scrolling Banner",
+    "type_corner": "Corner Popup",
+    "type_fullscreen": "Fullscreen Notice",
+    "content_label": "Content",
+    "content_placeholder": "Enter notification content…",
+    "time_label": "Send Time",
+    "send_now": "Send Now",
+    "schedule": "Schedule",
+    "settings_general": "General Settings",
+    "settings_enable": "Enable Notifications",
+    "settings_speed": "Scroll Speed",
+    "settings_duration": "Display Duration(s)"
   }
 }

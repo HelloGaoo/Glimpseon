@@ -816,6 +816,24 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         )
         self.settingsGroup.addSettingCard(self.autoSyncToDesktopCard)
         
+        self.effectsGroup = SettingCardGroup(tr("wallpaper.background_effects"), self.contentWidget)  # 背景效果
+        self.blurCard = RangeSettingCard(
+            cfg.backgroundBlurRadius,
+            FIF.BRUSH,
+            tr("wallpaper.blur"),  # 背景模糊
+            tr("wallpaper.blur_desc"),  # 设置背景图片的模糊强度（0-30）
+            parent=self.effectsGroup
+        )
+        self.effectsGroup.addSettingCard(self.blurCard)
+        self.brightnessCard = RangeSettingCard(
+            cfg.wallpaperBrightness,
+            FIF.BRUSH,
+            tr("wallpaper.brightness"),  # 亮度/暗化
+            tr("wallpaper.brightness_desc"),  # 调整壁纸暗化程度（0正常 ~ -100最暗）
+            parent=self.effectsGroup
+        )
+        self.effectsGroup.addSettingCard(self.brightnessCard)
+        
         self._initWidget()
         self._connectSignalToSlot()
         self.setup_translatable_ui()
@@ -859,6 +877,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         self.contentLayout.addWidget(self.infoCard)
         self.contentLayout.addSpacing(24)
         self.contentLayout.addWidget(self.settingsGroup)
+        self.contentLayout.addWidget(self.effectsGroup)
         self.contentLayout.addStretch(1)
         
         self.scrollWidget = _ShrinkableWidget()

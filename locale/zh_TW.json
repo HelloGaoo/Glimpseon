@@ -28,7 +28,8 @@
     "linkage": "聯動",
     "linkage_preview": "預覽",
     "linkage_classisland": "ClassIsland 聯動",
-    "linkage_classwidgets": "ClassWidgets 聯動"
+    "linkage_classwidgets": "ClassWidgets 聯動",
+    "notification": "通知"
   },
   "wizard": {
     "title": "ClassLively 設定精靈",
@@ -805,5 +806,23 @@
     "auto_detect_success": "偵測到 ClassWidgets",
     "auto_detect_failed": "未找到 ClassWidgets",
     "auto_detect_failed_tip": "請確保 ClassWidgets 正在運行，或手動選擇配置目錄"
+  },
+  "notification": {
+    "title": "通知",
+    "tab_notifications": "通知",
+    "tab_settings": "設定",
+    "type_label": "通知類型",
+    "type_scroll": "滾動橫幅",
+    "type_corner": "右下角彈窗",
+    "type_fullscreen": "全螢幕通知",
+    "content_label": "通知內容",
+    "content_placeholder": "請輸入通知內容…",
+    "time_label": "發送時間",
+    "send_now": "立即發送",
+    "schedule": "定時發送",
+    "settings_general": "通用設定",
+    "settings_enable": "啟用通知",
+    "settings_speed": "滾動速度",
+    "settings_duration": "顯示時長(秒)"
   }
 }

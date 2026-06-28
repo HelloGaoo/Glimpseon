@@ -25,6 +25,7 @@ from .wallpaper import WallpaperInterface
 from .common import BaseScrollAreaInterface, show_text_file
 from .home import HomeInterface
 from .debug import DebugPanel
+from .notification import NotificationPage
 
 __all__ = [
     'BaseScrollAreaInterface',
@@ -35,4 +36,5 @@ __all__ = [
     'WallpaperInterface',
     'HomeInterface',
     'DebugPanel',
+    'NotificationPage',
 ]

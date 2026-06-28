@@ -114,6 +114,28 @@
     border: none;
 }
 
+/* 底部栏 */
+
+#bottomBar {
+    background-color: rgba(18, 18, 22, 0.55);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+#backToDesktopBtn {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: #FFFFFF;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    padding: 8px 20px;
+}
+
+#backToDesktopBtn:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    border: none;
+}
+
 /* 编辑面板 */
 
 #EditPanel {
