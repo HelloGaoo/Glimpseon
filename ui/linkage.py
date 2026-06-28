@@ -35,7 +35,7 @@ from PyQt6.QtWidgets import QHBoxLayout, QLabel, QWidget
 from qfluentwidgets import (
     BodyLabel, CardWidget, ExpandLayout, FluentIcon as FIF,
     InfoBar, InfoBarPosition, isDarkTheme,
-    PushButton, ScrollArea, SettingCard,
+    PushButton, SettingCard,
     SettingCardGroup, SpinBox,
     StrongBodyLabel, SwitchSettingCard, Theme, setTheme,
 )
@@ -43,6 +43,7 @@ from core.config import cfg
 from core.constants import load_qss
 from core.utils import tr, TranslatableWidget
 from core.linkage import LinkageBridge, ClassWidgetsBridge, LinkageState, TimeState
+from .common import BaseScrollAreaInterface
 
 logger = logging.getLogger("ClassLively.ui.linkage")
 
@@ -152,18 +153,15 @@ class PreviewCard(CardWidget):
 
 
 
-class LinkagePage(ScrollArea, TranslatableWidget):
+class LinkagePage(BaseScrollAreaInterface, TranslatableWidget):
     """ClassIsland 联动设置页面"""
 
     def __init__(self, parent=None):
-        super().__init__(parent=parent)
+        super().__init__(tr("linkage.title"), parent, width=900, height=700)
         self.setObjectName("linkage")
-        self.viewport().setAutoFillBackground(False)
 
         self._bridge = LinkageBridge(self)
-        self.scrollWidget = QWidget()
         self.expandLayout = ExpandLayout(self.scrollWidget)
-        self.settingLabel = QLabel(tr("linkage.title"), self)
 
         # 连接状态组
         self.connGroup = SettingCardGroup(tr("linkage.group_connection"), self.scrollWidget)
@@ -212,18 +210,11 @@ class LinkagePage(ScrollArea, TranslatableWidget):
     # 初始化ui
 
     def __initWidget(self):
-        self.resize(900, 700)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setViewportMargins(0, 120, 0, 20)
-        self.setWidget(self.scrollWidget)
-        self.setWidgetResizable(True)
         self.__setQss()
         self.__initLayout()
         self.setup_translatable_ui()
 
     def __setQss(self):
-        self.scrollWidget.setObjectName('scrollWidget')
-        self.settingLabel.setObjectName('settingLabel')
         self.viewport().setObjectName("linkageViewport")
         self.setStyleSheet(load_qss('linkage.qss'))
 
@@ -233,7 +224,7 @@ class LinkagePage(ScrollArea, TranslatableWidget):
         self.__setQss()
 
     def __initLayout(self):
-        self.settingLabel.move(60, 63)
+        self.titleLabel.move(60, 63)
 
         self.connGroup.addSettingCard(self.connStatusCard)
         self.basicGroup.addSettingCard(self.enableCard)
@@ -378,18 +369,15 @@ class LinkagePage(ScrollArea, TranslatableWidget):
         return self._bridge
 
 
-class ClassWidgetsPage(ScrollArea, TranslatableWidget):
+class ClassWidgetsPage(BaseScrollAreaInterface, TranslatableWidget):
     """ClassWidgets 联动设置页面"""
 
     def __init__(self, parent=None):
-        super().__init__(parent=parent)
+        super().__init__(tr("cw_linkage.title"), parent, width=900, height=700)
         self.setObjectName("cw_linkage")
-        self.viewport().setAutoFillBackground(False)
 
         self._bridge = ClassWidgetsBridge(self)
-        self.scrollWidget = QWidget()
         self.expandLayout = ExpandLayout(self.scrollWidget)
-        self.settingLabel = QLabel(tr("cw_linkage.title"), self)
 
         # 连接状态组
         self.connGroup = SettingCardGroup(tr("linkage.group_connection"), self.scrollWidget)
@@ -431,18 +419,11 @@ class ClassWidgetsPage(ScrollArea, TranslatableWidget):
         self.__connectSignalToSlot()
 
     def __initWidget(self):
-        self.resize(900, 700)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setViewportMargins(0, 120, 0, 20)
-        self.setWidget(self.scrollWidget)
-        self.setWidgetResizable(True)
         self.__setQss()
         self.__initLayout()
         self.setup_translatable_ui()
 
     def __setQss(self):
-        self.scrollWidget.setObjectName('scrollWidget')
-        self.settingLabel.setObjectName('settingLabel')
         self.viewport().setObjectName("cwLinkageViewport")
         self.setStyleSheet(load_qss('cw_linkage.qss'))
 
@@ -451,7 +432,7 @@ class ClassWidgetsPage(ScrollArea, TranslatableWidget):
         self.__setQss()
 
     def __initLayout(self):
-        self.settingLabel.move(60, 63)
+        self.titleLabel.move(60, 63)
 
         self.connGroup.addSettingCard(self.connStatusCard)
         self.basicGroup.addSettingCard(self.enableCard)

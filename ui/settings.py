@@ -43,7 +43,6 @@ from qfluentwidgets import (
     OptionsSettingCard,
     PushButton,
     RangeSettingCard,
-    ScrollArea,
     SettingCard,
     SettingCardGroup,
     SpinBox,
@@ -59,6 +58,7 @@ from core.config import cfg, default_cfg, ConfigItem, CONFIG_PATH
 from core.constants import BASE_DIR, get_resPath, load_qss
 from core.utils import _load_app_fonts, apply_fonts, tr, TranslatableWidget, get_time_sync_service
 from core.logger import log_dir, logger
+from .common import BaseScrollAreaInterface
 
 
 class LineEditSettingCard(SettingCard):
@@ -227,16 +227,12 @@ class DualButtonSettingCard(SettingCard):
         self.hBoxLayout.addSpacing(16)
 
 
-class SettingInterface(ScrollArea, TranslatableWidget):
+class SettingInterface(BaseScrollAreaInterface, TranslatableWidget):
     """ 设置界面 """
     def __init__(self, parent=None):
-        super().__init__(parent=parent)
+        super().__init__(tr("settings.title"), parent)
         self.setObjectName("setting")
-        self.scrollWidget = QWidget()
-        self.viewport().setAutoFillBackground(False)
-        self.scrollWidget.setAutoFillBackground(False)
-        self.expandLayout = ExpandLayout(self.scrollWidget)
-        self.settingLabel = QLabel(tr("settings.title"), self)  # 设置
+        self.expandLayout = ExpandLayout(self.scrollWidget)  # 设置
         self.basicGroup = SettingCardGroup(tr("settings.general"), self.scrollWidget)  # 通用
         self.autoStartCard = SwitchSettingCard(
             FIF.PLAY,
@@ -397,11 +393,6 @@ class SettingInterface(ScrollArea, TranslatableWidget):
 
     def __initWidget(self):
         """ 初始化界面 """
-        self.resize(1000, 800)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setViewportMargins(0, 120, 0, 20)
-        self.setWidget(self.scrollWidget)
-        self.setWidgetResizable(True)
         self.__setQss()
         self.__initLayout()
         self.__connectSignalToSlot()
@@ -409,7 +400,7 @@ class SettingInterface(ScrollArea, TranslatableWidget):
 
     def __initLayout(self):
         """ 初始化布局 """
-        self.settingLabel.move(60, 63)
+        self.titleLabel.move(60, 63)
         self.basicGroup.addSettingCard(self.autoStartCard)
         self.basicGroup.addSettingCard(self.autoOpenOnIdleCard)
         self.basicGroup.addSettingCard(self.idleMinutesCard)
@@ -486,8 +477,6 @@ class SettingInterface(ScrollArea, TranslatableWidget):
 
     def __setQss(self):
         """ 设置样式表 """
-        self.scrollWidget.setObjectName('scrollWidget')
-        self.settingLabel.setObjectName('settingLabel')
         self.setStyleSheet(load_qss('setting.qss'))
 
     def __onThemeChanged(self, theme: Theme):

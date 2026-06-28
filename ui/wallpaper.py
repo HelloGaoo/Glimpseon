@@ -766,7 +766,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         self.contentWidget = QWidget()
         self.contentWidget.setObjectName("wallpaperContent")
         self.contentLayout = QVBoxLayout(self.contentWidget)
-        self.contentLayout.setContentsMargins(60, 20, 60, 40)
+        self.contentLayout.setContentsMargins(60, 0, 60, 40)
         self.contentLayout.setSpacing(16)
         
         self.infoCard = WallpaperInfoCard(self.contentWidget)
@@ -831,7 +831,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
     def _initWidget(self):
         self.resize(1000, 800)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setViewportMargins(0, 0, 0, 0)
+        self.setViewportMargins(0, 120, 0, 20)
         self.setWidgetResizable(True)
         
         self._initLayout()
@@ -845,7 +845,8 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
     
     def _initLayout(self):
         self.wallpaperLabel.setObjectName('settingLabel')
-        
+        self.wallpaperLabel.move(60, 63)
+
         actionRow = QHBoxLayout()
         actionRow.setSpacing(12)
         actionRow.addWidget(self.getButton)
@@ -853,9 +854,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         actionRow.addWidget(self.selectButton)
         actionRow.addStretch(1)
         actionRow.addWidget(self.setWallpaperButton)
-        
-        self.contentLayout.addWidget(self.wallpaperLabel)
-        self.contentLayout.addSpacing(16)
+
         self.contentLayout.addLayout(actionRow)
         self.contentLayout.addWidget(self.infoCard)
         self.contentLayout.addSpacing(24)
