@@ -78,7 +78,6 @@ from ui import AboutInterface, DownloadInterface, UpdateInterface, NotificationP
 from ui.home import HomeInterface
 from ui.debug import DebugPanel
 from ui.linkage import LinkagePage, ClassWidgetsPage
-from ui.settings import SettingInterface
 from ui.wallpaper import WallpaperInterface
 from version import BUILD_DATE, VERSION
 from data.url_dir import url_dir
@@ -943,6 +942,9 @@ class MainWindow(FluentWindow):
 
     def __init__(self):
         super().__init__()
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.FramelessWindowHint)
+        self.setSystemTitleBarButtonVisible(False)
+        self.updateFrameless()
 
         setTheme(cfg.themeMode.value)
 
@@ -1054,12 +1056,6 @@ class MainWindow(FluentWindow):
                     self.downloadInterface.addSoftware(icon_path, software["name"], software["description"], link)
             self.downloadInterface._finishLoading()
         QTimer.singleShot(0, _populateDownload)
-
-        _t = time.time()
-        self.settingInterface = SettingInterface(parent=self)
-        self.settingInterface.setObjectName("setting")
-        self.addSubInterface(self.settingInterface, FIF.SETTING, tr("navigation.settings"), NavigationItemPosition.BOTTOM)  # 设置
-        logger.info(f"[MW] SettingInterface 耗时{time.time()-_t:.2f}s")
 
         _t = time.time()
         self.updateInterface = UpdateInterface(parent=self)

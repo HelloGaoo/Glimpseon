@@ -419,12 +419,21 @@ class HomeInterface(QWidget, TranslatableWidget):
         y = parent.height() - self.bottomBar.height() - 25
         self.bottomBar.move(x, y)
 
+    def _openSettingsWindow(self):
+        """打开设置窗口"""
+        from ui.settings import SettingsWindow
+        if not hasattr(self, '_settings_window') or self._settings_window is None:
+            self._settings_window = SettingsWindow(self.mainWindow)
+        self._settings_window.show()
+        self._settings_window.raise_()
+        self._settings_window.activateWindow()
+
     def _showBottomMenu(self):
         """底部菜单按钮的弹出菜单"""
         menu = RoundMenu(parent=self.menuBtn)
 
         settings_action = Action(FIF.SETTING, tr("home.menu_settings"))
-        settings_action.triggered.connect(lambda: self.mainWindow.switchTo(self.mainWindow.settingInterface))
+        settings_action.triggered.connect(self._openSettingsWindow)
         menu.addAction(settings_action)
 
         menu.addSeparator()

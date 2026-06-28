@@ -100,6 +100,7 @@
     "component_card_opacity_desc": "调整主界面组件背景的不透明度（0=完全透明，100=完全不透明）",
     "component_card_radius": "组件卡片圆角",
     "component_card_radius_desc": "调整主界面组件背景的圆角大小",
+    "log": "日志",
     "advanced": "高级",
     "language": "语言",
     "language_desc": "切换应用显示语言 / Switch application display language",
