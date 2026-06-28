@@ -15,15 +15,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-ClassIsland 联动模块
-
-读取Profiles/Default.json：
-    - 课表 (ClassPlans)
-    - 作息时间表 (TimeLayouts)
-    - 科目列表 (Subjects)
-
+联动模块
 """
 
+import configparser
 import json
 import logging
 import os
@@ -48,11 +43,11 @@ _SETTINGS_FILE = "Settings.json"
 
 class TimeState(IntEnum):
     """时间状态枚举"""
-    NONE = 0              # 无课程
-    PREPARE_ON_CLASS = 1  # 预备上课
-    ON_CLASS = 2          # 上课中
-    BREAKING = 3          # 课间休息
-    AFTER_SCHOOL = 4      # 放学
+    NONE = 0
+    PREPARE_ON_CLASS = 1
+    ON_CLASS = 2
+    BREAKING = 3
+    AFTER_SCHOOL = 4
 
     @classmethod
     def display_name(cls, state):
@@ -119,21 +114,32 @@ class LinkageState:
 
 @dataclass
 class _TimeSlot:
-    """作息时间表中的一个时间段"""
+    """ci 作息时间段"""
     start_time: datetime.time
     end_time: datetime.time
     time_type: int         # 0=上课, 1=课间
-    break_name: str = ""   # 课间名称
+    break_name: str = ""
     index: int = 0
 
 
 @dataclass
 class _DayPlan:
-    """某一天的课表"""
-    week_day: int                    #  0=周日 1=周一 ... 6=周六
-    name: str = ""                   # 名字
-    class_ids: list = field(default_factory=list)  # SubjectId 列表
-    layout_id: str = ""              # 关联的 TimeLayout ID
+    """ci 某天课表"""
+    week_day: int
+    name: str = ""
+    class_ids: list = field(default_factory=list)
+    layout_id: str = ""
+
+
+@dataclass
+class _CWTimeSlot:
+    """cw 解析后的时间段"""
+    start_time: _dt_time
+    end_time: _dt_time
+    subject: str
+    teacher: str
+    index: int
+    is_break: bool
 
 
 
@@ -142,7 +148,7 @@ class _DayPlan:
 
 
 def _time_from_str(s: str) -> Optional[datetime.time]:
-    """HH:MM 或 HH:MM:SS 转 time"""
+    """HH:MM 或 HH:MM:SS → time"""
     if not s:
         return None
     parts = s.strip().split(":")
@@ -156,7 +162,7 @@ def _time_from_str(s: str) -> Optional[datetime.time]:
 
 
 def _fmt_delta(td: timedelta) -> str:
-    """时间差 转HH:MM 或 HH:MM:SS"""
+    """timedelta → "HH:MM" 或 "MM:SS" """
     total_sec = max(0, int(td.total_seconds()))
     h, rem = divmod(total_sec, 3600)
     m, s = divmod(rem, 60)
@@ -165,26 +171,13 @@ def _fmt_delta(td: timedelta) -> str:
 
 def _python_weekday_to_dotnet(weekday: int) -> int:
     """Mon=1..Sun=7 → Sun=0..Sat=6"""
-    # 洋人就是牛逼啊周日为啥是第一天
     return 0 if weekday == 7 else weekday
 
 
 
-def _find_classisland_exe() -> Optional[str]:
-    """查找ClassIsland 进程路径"""
-    process_names = ["ClassIsland.Desktop.exe", "ClassIsland.exe"]
-
-    for proc_name in process_names:
-        path = _try_wmic(proc_name)
-        if path:
-            return path
-    for proc_name in process_names:
-        path = _try_tasklist(proc_name)
-        if path:
-            return path
-    return None
 
 
+# ClassIsland 联动
 def _try_wmic(process_name: str) -> Optional[str]:
     """wmic 获取进程路径"""
     try:
@@ -204,7 +197,7 @@ def _try_wmic(process_name: str) -> Optional[str]:
 
 
 def _try_tasklist(process_name: str) -> Optional[str]:
-    """tasklist 获取进程路径（后备）"""
+    """备tasklist 获取进程路径"""
     try:
         result = subprocess.run(
             ["tasklist", "/FI", f"IMAGENAME eq {process_name}", "/V", "/FO", "CSV"],
@@ -221,12 +214,25 @@ def _try_tasklist(process_name: str) -> Optional[str]:
     return None
 
 
+def _find_classisland_exe() -> Optional[str]:
+    """查找 ci 进程路径"""
+    process_names = ["ClassIsland.Desktop.exe", "ClassIsland.exe"]
+    for proc_name in process_names:
+        path = _try_wmic(proc_name)
+        if path:
+            return path
+    for proc_name in process_names:
+        path = _try_tasklist(proc_name)
+        if path:
+            return path
+    return None
+
+
 def _find_classisland_data() -> str:
-    """自动查找 ClassIsland\data"""
+    """查找 ClassIsland\\data 目录"""
     exe_path = _find_classisland_exe()
     if exe_path:
         base = os.path.dirname(exe_path)
-        # 从 exe 目录往上爬 data/Profiles/Default.json
         for _ in range(3):
             for candidate in [base, os.path.join(base, "data")]:
                 if os.path.isfile(os.path.join(candidate, _PROFILE_FILE)):
@@ -236,24 +242,21 @@ def _find_classisland_data() -> str:
             if parent == base:
                 break
             base = parent
-
     fallback = r"C:\ClassIsland2\data"
     if os.path.isfile(os.path.join(fallback, _PROFILE_FILE)):
         return fallback
-
     return ""
 
 
 class LinkageBridge(QObject):
-    """ClassIsland 配置桥接器"""
+    """ClassIsland 配置桥接"""
 
-    stateChanged = pyqtSignal(object)       # 状态更新
-    connectedChanged = pyqtSignal(bool)     # 连接状态变化
-    errorOccurred = pyqtSignal(str)         # 错误 / 路径重定向消息
+    stateChanged = pyqtSignal(object)
+    connectedChanged = pyqtSignal(bool)
+    errorOccurred = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
-
         self._data_dir = ""
         self._state = LinkageState()
         self._running = False
@@ -271,7 +274,6 @@ class LinkageBridge(QObject):
         self._consecutive_failures = 0
         self._max_failures_before_redetect = 3
 
-
     @property
     def poll_interval(self):
         return self._poll_interval
@@ -284,6 +286,7 @@ class LinkageBridge(QObject):
     def is_running(self):
         return self._running
 
+    # 生命周期
 
     def set_data_path(self, path: str):
         self._data_dir = path.strip()
@@ -296,7 +299,6 @@ class LinkageBridge(QObject):
         return path
 
     def start(self):
-        """启动轮询循环"""
         if self._running:
             return
         self._consecutive_failures = 0
@@ -306,25 +308,23 @@ class LinkageBridge(QObject):
         logger.info(f"[Linkage] 启动 (路径: {self._data_dir or '未设置'})")
 
     def stop(self):
-        """停止轮询循环"""
         self._running = False
         if self._thread:
             self._thread.join(timeout=3)
             self._thread = None
         logger.info("[Linkage] 停止")
 
+    # 对外查询
+
     def get_state(self) -> LinkageState:
-        """获取当前状态副本"""
         with self._lock:
             return self._state
 
     def get_current_lesson(self) -> Optional[LessonInfo]:
-        """获取当前课程信息"""
         with self._lock:
             return self._state.current_lesson
 
     def test_connection(self) -> tuple[bool, str]:
-        """测试路径有效否"""
         profile = os.path.join(self._data_dir, _PROFILE_FILE)
         if not os.path.isfile(profile):
             return False, f"文件不存在: {profile}"
@@ -340,18 +340,16 @@ class LinkageBridge(QObject):
         except Exception as e:
             return False, str(e)
 
+    # 内部
 
     def _clear_cache(self):
-        """清除所有缓存"""
         self._cached_raw = {}
         self._cached_mtime = 0
         self._slots.clear()
         self._day_plans.clear()
         self._subjects.clear()
 
-
     def _loop(self):
-        """后台轮询主循环"""
         while self._running:
             try:
                 self._sync_time_config()
@@ -361,17 +359,14 @@ class LinkageBridge(QObject):
                 logger.debug(f"[Linkage] 循环异常: {e}")
             _time.sleep(self._poll_interval)
 
-
     def _load_file_if_changed(self) -> bool:
-        """检查文件是否有变更"""
         if not self._data_dir:
             return False
-
         profile = os.path.join(self._data_dir, _PROFILE_FILE)
         try:
             mtime = os.path.getmtime(profile)
             if mtime <= self._cached_mtime and self._cached_raw:
-                return True  # 文件未变，使用缓存
+                return True
             with open(profile, "r", encoding="utf-8") as f:
                 raw = json.load(f)
             self._cached_raw = raw
@@ -391,7 +386,6 @@ class LinkageBridge(QObject):
             return False
 
     def _try_redetect(self):
-        """重新检测路径"""
         new_path = _find_classisland_data()
         if new_path and new_path != self._data_dir:
             logger.info(f"[Linkage] 新路径: {new_path}")
@@ -400,10 +394,7 @@ class LinkageBridge(QObject):
             self.errorOccurred.emit(f"REDIRECT:{new_path}")
 
     def _parse_all(self, raw: dict):
-        """解析 json"""
         self._subjects = raw.get("Subjects") or {}
-
-        # 作息时间表
         layouts = raw.get("TimeLayouts") or {}
         self._slots = []
         if layouts:
@@ -414,34 +405,22 @@ class LinkageBridge(QObject):
                         s = _time_from_str(item.get("StartTime", ""))
                         e = _time_from_str(item.get("EndTime", ""))
                         if s and e:
-                            self._slots.append(_TimeSlot(
-                                s, e,
-                                item.get("TimeType", 1),
-                                item.get("BreakName", ""),
-                                i,
-                            ))
+                            self._slots.append(_TimeSlot(s, e, item.get("TimeType", 1),
+                                                         item.get("BreakName", ""), i))
                     except (ValueError, TypeError):
                         pass
-
-        # 课表
         self._day_plans.clear()
         for pid, plan in (raw.get("ClassPlans") or {}).items():
             tr = plan.get("TimeRule", {}) or {}
             wd = tr.get("WeekDay", 0)
             classes = [c["SubjectId"] for c in plan.get("Classes", []) if c.get("IsEnabled", True)]
-            self._day_plans[wd] = _DayPlan(
-                week_day=wd,
-                name=plan.get("Name", ""),
-                class_ids=classes,
-                layout_id=plan.get("TimeLayoutId", ""),
-            )
+            self._day_plans[wd] = _DayPlan(week_day=wd, name=plan.get("Name", ""),
+                                            class_ids=classes, layout_id=plan.get("TimeLayoutId", ""))
 
     def _sync_time_config(self):
-        """从c同步时间偏移"""
         from core.config import cfg
         if not cfg.linkageSyncTimeConfig.value or not self._data_dir:
             return
-
         settings_path = os.path.join(self._data_dir, _SETTINGS_FILE)
         try:
             mtime = os.path.getmtime(settings_path)
@@ -451,64 +430,43 @@ class LinkageBridge(QObject):
                 raw = json.load(f)
             self._settings_mtime = mtime
             self._settings_cached = raw
-
             ci_offset = raw.get("TimeOffsetSeconds")
             if ci_offset is not None:
                 qconfig.set(cfg.timeOffset, int(ci_offset))
-
             ci_auto_enabled = raw.get("IsTimeAutoAdjustEnabled")
             if ci_auto_enabled is not None:
                 qconfig.set(cfg.autoTimeOffsetEnabled, bool(ci_auto_enabled))
-
             ci_auto_increment = raw.get("TimeAutoAdjustSeconds")
             if ci_auto_increment is not None:
                 qconfig.set(cfg.autoTimeOffsetIncrement, int(ci_auto_increment))
-
-            logger.info(
-                f"[Linkage] 已同步 ClassIsland 时间配置: "
-                f"TimeOffset={ci_offset}, AutoEnabled={ci_auto_enabled}, "
-                f"AutoIncrement={ci_auto_increment}"
-            )
+            logger.info(f"[Linkage] 已同步 ClassIsland 时间配置")
         except FileNotFoundError:
             pass
         except Exception as e:
             logger.debug(f"[Linkage] 同步时间配置失败: {e}")
 
     def _compute_state(self) -> LinkageState:
-        """此时状态"""
         now = precise_now()
         today = now.date()
         weekday = today.isoweekday()
-        dotnet_wd = _python_weekday_to_dotnet(weekday) 
+        dotnet_wd = _python_weekday_to_dotnet(weekday)
         t = now.time()
-
         if not self._load_file_if_changed():
             return LinkageState(is_connected=False)
-
         st = LinkageState(is_connected=True, last_update=now)
-
-        # 找到当前时间段
         slot_idx, slot = self._find_slot(t)
         plan = self._day_plans.get(dotnet_wd)
-
-        # 没课表就今天没有课程
         if not plan:
             st.time_state = TimeState.NONE
             return st
-
-        # 不在任何时间段内
         if slot is None:
             st.time_state = TimeState.AFTER_SCHOOL if (self._slots and t >= self._slots[-1].end_time) else TimeState.NONE
             return st
-
-        # 判断状态
         if slot.time_type == 0:
             st.time_state = TimeState.ON_CLASS
         else:
             st.time_state = TimeState.BREAKING
             st.current_subject = slot.break_name or ""
-
-        # 填充科目信息
         class_index = self._slot_to_class_index(slot_idx)
         if 0 <= class_index < len(plan.class_ids):
             sid = plan.class_ids[class_index]
@@ -519,57 +477,371 @@ class LinkageBridge(QObject):
             st.current_lesson.end_time = slot.end_time.strftime("%H:%M")
             st.current_lesson.index = class_index + 1
             st.current_index = class_index + 1
-
-        # 下节课
         next_idx = self._slot_to_class_index(slot_idx, offset=1)
         if 0 <= next_idx < len(plan.class_ids):
             next_sid = plan.class_ids[next_idx]
             st.next_lesson = LessonInfo.from_subject_data(self._subjects.get(next_sid, {}))
-
-        # 剩余时间
         left = datetime.combine(today, slot.end_time) - now
         attr = "on_class_left" if slot.time_type == 0 else "on_breaking_left"
         setattr(st, attr, _fmt_delta(left))
-
-        # 日志
-        logger.debug(
-            f"[Linkage] {TimeState.display_name(st.time_state)} | "
-            f"{st.current_subject or '-'} | "
-            f"{slot.start_time.strftime('%H:%M')}-{slot.end_time.strftime('%H:%M')} | "
-            f"下节:{st.next_lesson.subject_name if st.next_lesson else '-'} | "
-            f"{plan.name}(周{weekday}) 第{slot_idx+1}/{len(self._slots)}段 | 剩余{_fmt_delta(left)}"
-        )
+        logger.debug(f"[Linkage] {TimeState.display_name(st.time_state)} | {st.current_subject or '-'} | "
+                     f"{slot.start_time.strftime('%H:%M')}-{slot.end_time.strftime('%H:%M')} | "
+                     f"下节:{st.next_lesson.subject_name if st.next_lesson else '-'} | "
+                     f"{plan.name}(周{weekday}) 第{slot_idx+1}/{len(self._slots)}段 | 剩余{_fmt_delta(left)}")
         return st
 
     def _find_slot(self, t: datetime.time) -> tuple[int, Optional[_TimeSlot]]:
-        """查找当前进行的时间段"""
         for i, slot in enumerate(self._slots):
             if slot.start_time <= t < slot.end_time:
                 return i, slot
         return -1, None
 
     def _slot_to_class_index(self, slot_idx: int, offset: int = 0) -> int:
-        """TimeLayout slot 索引 到 课表课程序号"""
         n_classes = sum(1 for s in self._slots[:slot_idx + 1] if s.time_type == 0)
         return max(0, n_classes - 1 + offset)
-        # 看不懂啥幌子
-
 
     def _commit(self, new_state: LinkageState) -> bool:
-        """提交新状态"""
-        # return time_state 是否变化
         with self._lock:
             old = self._state
             old_ts = self._prev_state
             self._state = new_state
-
             self.stateChanged.emit(new_state)
-
             if old.is_connected != new_state.is_connected:
                 self.connectedChanged.emit(new_state.is_connected)
-
             changed = new_state.time_state != old_ts
             if changed:
                 self._prev_state = new_state.time_state
                 logger.info(f"[Linkage] {TimeState.display_name(old_ts)} -> {TimeState.display_name(new_state.time_state)}")
+            return changed
+
+
+
+
+
+
+
+# ClassWidgets 联动
+
+def _find_classwidgets_exe() -> str:
+    """查找 ClassWidgets.exe 进程路径"""
+    try:
+        result = subprocess.run(
+            ["tasklist", "/FI", "IMAGENAME eq ClassWidgets.exe", "/FO", "CSV", "/NH"],
+            capture_output=True, text=True, timeout=5, creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        if "ClassWidgets.exe" in result.stdout:
+            result2 = subprocess.run(
+                ["wmic", "process", "where", "name='ClassWidgets.exe'", "get", "ExecutablePath"],
+                capture_output=True, text=True, timeout=5, creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            for line in result2.stdout.splitlines():
+                line = line.strip()
+                if line and line.lower().endswith("classwidgets.exe") and os.path.isfile(line):
+                    return line
+    except Exception:
+        pass
+    return ""
+
+
+def _find_classwidgets_data() -> str:
+    """自动查找 ClassWidgets config 目录"""
+    exe_path = _find_classwidgets_exe()
+    if exe_path:
+        exe_dir = os.path.dirname(exe_path)
+        if os.path.isfile(os.path.join(exe_dir, "config", "config.ini")):
+            logger.info(f"[CW-Linkage] 从进程路径发现 ClassWidgets: {os.path.join(exe_dir, 'config')}")
+            return os.path.join(exe_dir, "config")
+    fixed_exe = r"C:\ClassWidgets\ClassWidgets.exe"
+    if os.path.isfile(fixed_exe):
+        exe_dir = os.path.dirname(fixed_exe)
+        if os.path.isfile(os.path.join(exe_dir, "config", "config.ini")):
+            logger.info(f"[CW-Linkage] 从 C:\\ClassWidgets 发现 ClassWidgets: {os.path.join(exe_dir, 'config')}")
+            return os.path.join(exe_dir, "config")
+    return ""
+
+
+class ClassWidgetsBridge(QObject):
+    """ClassWidgets 配置桥接"""
+
+    stateChanged = pyqtSignal(object)
+    connectedChanged = pyqtSignal(bool)
+    errorOccurred = pyqtSignal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._config_dir = ""
+        self._state = LinkageState()
+        self._running = False
+        self._thread = None
+        self._lock = threading.Lock()
+        self._poll_interval = 5
+        self._prev_state = TimeState.NONE
+        self._consecutive_failures = 0
+        self._max_failures_before_redetect = 3
+
+    @property
+    def poll_interval(self):
+        return self._poll_interval
+
+    @poll_interval.setter
+    def poll_interval(self, v):
+        self._poll_interval = max(1, min(30, v))
+
+    @property
+    def is_running(self):
+        return self._running
+
+    # 生命周期
+
+    def set_data_path(self, path: str):
+        self._config_dir = path.strip()
+
+    def auto_detect(self) -> str:
+        path = _find_classwidgets_data()
+        if path:
+            self.set_data_path(path)
+        return path
+
+    def start(self):
+        if self._running:
+            return
+        self._consecutive_failures = 0
+        self._running = True
+        self._thread = threading.Thread(target=self._loop, daemon=True, name="cw-linkage")
+        self._thread.start()
+        logger.info(f"[CW-Linkage] 启动 (路径: {self._config_dir or '未设置'})")
+
+    def stop(self):
+        self._running = False
+        if self._thread:
+            self._thread.join(timeout=3)
+            self._thread = None
+        logger.info("[CW-Linkage] 停止")
+
+    # 对外查询
+
+    def test_connection(self) -> tuple[bool, str]:
+        sched_file = self._resolve_schedule_path()
+        if sched_file:
+            return True, f"ClassWidgets (课表: {os.path.basename(sched_file)})"
+        return False, "未找到课表文件"
+
+    # 课表文件解析
+
+    def _resolve_schedule_path(self) -> str:
+        """config.ini 读课表名 去 schedule 目录找课表"""
+        config_path = os.path.join(self._config_dir, "config.ini")
+        name = ""
+        if os.path.isfile(config_path):
+            try:
+                cp = configparser.ConfigParser()
+                with open(config_path, "r", encoding="utf-8", errors="ignore") as f:
+                    cp.read_file(f)
+                name = cp.get('General', 'schedule', fallback='').strip()
+            except Exception:
+                try:
+                    with open(config_path, "r", encoding="gbk", errors="ignore") as f:
+                        cp.read_file(f)
+                    name = cp.get('General', 'schedule', fallback='').strip()
+                except Exception:
+                    pass
+        sched_dir = os.path.join(self._config_dir, "schedule")
+        if not os.path.isdir(sched_dir):
+            return ""
+        if name and os.path.isfile(os.path.join(sched_dir, name)):
+            return os.path.join(sched_dir, name)
+        if name and os.path.isfile(os.path.join(sched_dir, f"{name}.json")):
+            return os.path.join(sched_dir, f"{name}.json")
+        logger.warning(f"[CW-Linkage] '{name}' 不存在, 扫描兜底")
+        for f in sorted(os.listdir(sched_dir)):
+            if f.endswith(".json") and os.path.isfile(os.path.join(sched_dir, f)):
+                return os.path.join(sched_dir, f)
+        return ""
+
+    def _read_schedule(self) -> dict:
+        sched_file = self._resolve_schedule_path()
+        if not sched_file:
+            return {}
+        try:
+            with open(sched_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    # 状态计算
+
+    def _loop(self):
+        while self._running:
+            try:
+                st = self._compute_state()
+                self._commit(st)
+            except Exception as e:
+                logger.debug(f"[CW-Linkage] 循环异常: {e}")
+            _time.sleep(self._poll_interval)
+
+    def _compute_state(self) -> LinkageState:
+        now = precise_now()
+        today = now.date()
+        t = now.time()
+        data = self._read_schedule()
+        if not data:
+            self._consecutive_failures += 1
+            if self._consecutive_failures >= self._max_failures_before_redetect:
+                self._try_redetect()
+            return LinkageState(is_connected=False)
+        self._consecutive_failures = 0
+        st = LinkageState(is_connected=True, last_update=now)
+        slots = self._parse_schedule(data, now)
+        if not slots:
+            st.time_state = TimeState.NONE
+            return st
+
+        # 查找当前时间段
+        current_slot = None
+        for slot in slots:
+            if slot.start_time <= t < slot.end_time:
+                current_slot = slot
+                break
+
+        # 当前不在任何时间段内
+        if current_slot is None:
+            if slots and t >= slots[-1].end_time:
+                st.time_state = TimeState.AFTER_SCHOOL
+                return st
+            st.time_state = TimeState.BREAKING
+            st.current_subject = "课间"
+            for next_slot in slots:
+                if not next_slot.is_break and next_slot.start_time > t:
+                    st.next_lesson = LessonInfo(
+                        subject_name=next_slot.subject, teacher_name=next_slot.teacher,
+                        start_time=next_slot.start_time.strftime("%H:%M"),
+                        end_time=next_slot.end_time.strftime("%H:%M"), index=next_slot.index,
+                    )
+                    break
+            if st.next_lesson:
+                try:
+                    ns = _dt_time(int(st.next_lesson.start_time.split(":")[0]),
+                                  int(st.next_lesson.start_time.split(":")[1]))
+                    left = datetime.combine(today, ns) - now
+                    if left.total_seconds() > 0:
+                        st.on_breaking_left = _fmt_delta(left)
+                except Exception:
+                    pass
+            return st
+
+        # 当前在某个时间段内
+        if current_slot.is_break:
+            st.time_state = TimeState.BREAKING
+            st.current_subject = current_slot.subject or "课间"
+        else:
+            st.time_state = TimeState.ON_CLASS
+            st.current_subject = current_slot.subject
+            st.current_lesson = LessonInfo(
+                subject_name=current_slot.subject, teacher_name=current_slot.teacher,
+                start_time=current_slot.start_time.strftime("%H:%M"),
+                end_time=current_slot.end_time.strftime("%H:%M"), index=current_slot.index,
+            )
+            st.current_index = current_slot.index
+
+        left = datetime.combine(today, current_slot.end_time) - now
+        if current_slot.is_break:
+            st.on_breaking_left = _fmt_delta(left)
+        else:
+            st.on_class_left = _fmt_delta(left)
+
+        # 下一节课
+        current_idx = slots.index(current_slot)
+        for next_slot in slots[current_idx + 1:]:
+            if not next_slot.is_break:
+                st.next_lesson = LessonInfo(
+                    subject_name=next_slot.subject, teacher_name=next_slot.teacher,
+                    start_time=next_slot.start_time.strftime("%H:%M"),
+                    end_time=next_slot.end_time.strftime("%H:%M"), index=next_slot.index,
+                )
+                break
+
+        logger.debug(f"[CW-Linkage] {TimeState.display_name(st.time_state)} | {st.current_subject or '-'} | "
+                     f"{current_slot.start_time.strftime('%H:%M')}-{current_slot.end_time.strftime('%H:%M')} | "
+                     f"下节:{st.next_lesson.subject_name if st.next_lesson else '-'}")
+        return st
+
+    def _parse_schedule(self, data: dict, now: datetime) -> list:
+        """解析 cw 课表 json → _CWTimeSlot 列表"""
+        # cw到底怎么想的 这时间段弄得什么幌子啊 为啥按照添加顺序写json 
+        # 为啥cw不整个hh mm ss-hh mm ss写json里 ci那样多好  
+        slots = []
+        week_type = self._get_week_type(data, now)
+        wd_key = str(now.weekday())  # Mon=0 .. Sun=6
+        timeline_key = "timeline_even" if week_type == 1 else "timeline"
+        timeline = data.get(timeline_key, {})
+        day_timeline = timeline.get(wd_key) or timeline.get("default", [])
+        if not day_timeline:
+            return slots
+        sched_key = "schedule_even" if week_type == 1 else "schedule"
+        schedule = data.get(sched_key, {})
+        day_schedule = schedule.get(wd_key, [])
+        parts = data.get("part", {})
+
+        # 首条 timeline 的 part 基准时间初始化
+        current_time = _dt_time(0, 0)
+        if day_timeline and len(day_timeline[0]) >= 2:
+            fp_key = str(day_timeline[0][1])
+            fp_info = parts.get(fp_key)
+            if fp_info and isinstance(fp_info, (list, tuple)) and len(fp_info) >= 2:
+                current_time = _dt_time(int(fp_info[0]), int(fp_info[1]))
+
+        # 顺序衔接
+        class_counter = 0
+        for unit in day_timeline:
+            if not isinstance(unit, (list, tuple)) or len(unit) < 4:
+                continue
+            unit_type = unit[0]
+            duration_min = int(unit[3])
+            start_t = current_time
+            end_h = start_t.hour + (start_t.minute + duration_min) // 60
+            end_m = (start_t.minute + duration_min) % 60
+            end_t = _dt_time(min(end_h, 23), end_m)
+            current_time = end_t
+            if unit_type == 0:  # 上课
+                class_counter += 1
+                cidx = int(unit[2])
+                idx = cidx - 1  # class_idx → schedule 索引
+                subject_name = day_schedule[idx] if 0 <= idx < len(day_schedule) else ""
+                slots.append(_CWTimeSlot(start_t, end_t, subject_name, "", class_counter, False))
+            else:  # 课间
+                slots.append(_CWTimeSlot(start_t, end_t, "课间", "", 0, True))
+        return slots
+
+    def _get_week_type(self, data: dict, now: datetime) -> int:
+        """0=单周, 1=双周"""
+        try:
+            start_date_str = data.get("start_date", "")
+            if start_date_str:
+                start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+                week_num = (now.date() - start_date).days // 7 + 1
+                return 1 if week_num % 2 == 0 else 0
+        except Exception:
+            pass
+        return 0
+
+    def _try_redetect(self):
+        new_path = _find_classwidgets_data()
+        if new_path and new_path != self._config_dir:
+            logger.info(f"[CW-Linkage] 新路径: {new_path}")
+            self.set_data_path(new_path)
+            self._consecutive_failures = 0
+            self.errorOccurred.emit(f"REDIRECT:{new_path}")
+
+    def _commit(self, new_state: LinkageState) -> bool:
+        with self._lock:
+            old = self._state
+            old_ts = self._prev_state
+            self._state = new_state
+            self.stateChanged.emit(new_state)
+            if old.is_connected != new_state.is_connected:
+                self.connectedChanged.emit(new_state.is_connected)
+            changed = new_state.time_state != old_ts
+            if changed:
+                self._prev_state = new_state.time_state
+                logger.info(f"[CW-Linkage] {TimeState.display_name(old_ts)} -> {TimeState.display_name(new_state.time_state)}")
             return changed

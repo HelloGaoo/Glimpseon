@@ -27,7 +27,8 @@
     "debug": "调试",
     "linkage": "联动",
     "linkage_preview": "预览",
-    "linkage_classisland": "ClassIsland 联动"
+    "linkage_classisland": "ClassIsland 联动",
+    "linkage_classwidgets": "ClassWidgets 联动"
   },
   "wizard": {
     "title": "ClassLively 向导",
@@ -795,5 +796,14 @@
     "preview_waiting": "等待数据...",
     "sync_time_config": "时间配置同步",
     "sync_time_config_tip": "开启后自动将 ClassIsland 的时间偏移配置同步到本软件"
+  },
+  "cw_linkage": {
+    "title": "ClassWidgets 联动",
+    "enable": "启用 ClassWidgets 联动",
+    "data_path": "配置目录",
+    "data_path_tip": "ClassWidgets 的配置目录（包含 config.ini 和 schedule/）",
+    "auto_detect_success": "检测到 ClassWidgets",
+    "auto_detect_failed": "未找到 ClassWidgets",
+    "auto_detect_failed_tip": "请确保 ClassWidgets 正在运行，或手动选择配置目录"
   }
 }

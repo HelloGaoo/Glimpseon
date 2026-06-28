@@ -409,6 +409,16 @@ class Config(QConfig):
         "Linkage", "SyncTimeConfig", False, BoolValidator()
     )
     
+    classWidgetsEnabled = ConfigItem(
+        "ClassWidgets", "Enabled", False, BoolValidator()
+    )
+    classWidgetsDataPath = ConfigItem(
+        "ClassWidgets", "DataPath", ""
+    )
+    classWidgetsPollInterval = RangeConfigItem(
+        "ClassWidgets", "PollInterval", 5, RangeValidator(1, 30)
+    )
+    
     usePreciseTime = ConfigItem(
         "PreciseTime", "UsePreciseTime", False, BoolValidator()
     )

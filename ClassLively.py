@@ -74,7 +74,7 @@ from data.software_list import SOFTWARE_CATEGORIES, get_software_icon_path
 from ui import AboutInterface, DownloadInterface, UpdateInterface
 from ui.home import HomeInterface
 from ui.debug import DebugPanel
-from ui.linkage import LinkagePage
+from ui.linkage import LinkagePage, ClassWidgetsPage
 from ui.settings import SettingInterface
 from ui.wallpaper import WallpaperInterface
 from version import BUILD_DATE, VERSION
@@ -993,6 +993,9 @@ class MainWindow(FluentWindow):
         self.linkagePage = LinkagePage()
         self.linkagePage.setObjectName("linkage_ci")
 
+        self.cwLinkagePage = ClassWidgetsPage()
+        self.cwLinkagePage.setObjectName("cw_linkage")
+
         linkageParent = QWidget(objectName="linkage_parent")
         self.addSubInterface(linkageParent, FIF.LINK, tr("navigation.linkage"))  # 联动
         self.addSubInterface(
@@ -1002,6 +1005,10 @@ class MainWindow(FluentWindow):
         self.addSubInterface(
             self.linkagePage, FIF.APPLICATION,
             tr("navigation.linkage_classisland"), parent=linkageParent,
+        )
+        self.addSubInterface(
+            self.cwLinkagePage, FIF.APPLICATION,
+            tr("navigation.linkage_classwidgets"), parent=linkageParent,
         )
         logger.info(f"[MW] LinkagePage 耗时{time.time()-_t:.2f}s")
 
@@ -1774,7 +1781,6 @@ if __name__ == "__main__":
             wp.current_wallpaper_path = path
             wp.current_wallpaper_source = src
             if not wp.current_pixmap.isNull():
-                wp._updateBackground()
                 wp._updateMainWindowBackground()
                 wp._applyEffects()
                 wp.infoCard.updateInfo(path, src)

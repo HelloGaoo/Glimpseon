@@ -755,8 +755,6 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         self.current_wallpaper_path = None
         self.current_wallpaper_source = None
         self.last_sync_path = None
-        self.originalPixmap = QPixmap(1, 1)
-        self.originalPixmap.fill(Qt.GlobalColor.transparent)
         
         self.autoGetTimer = QTimer(self)
         self.autoGetTimer.timeout.connect(self._getWallpaper)
@@ -764,14 +762,6 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         self.autoSyncCheckTimer.timeout.connect(self._checkAutoSync)
 
         self.wallpaperLabel = QLabel(tr("navigation.wallpaper"), self)  # 壁纸
-        
-        self.backgroundImage = QLabel()
-        self.backgroundImage.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.backgroundImage.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
-        
-        self.dimOverlay = QWidget()
-        self.dimOverlay.setObjectName("dimOverlay")
-        self.dimOverlay.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
         
         self.contentWidget = QWidget()
         self.contentWidget.setObjectName("wallpaperContent")
@@ -826,24 +816,6 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         )
         self.settingsGroup.addSettingCard(self.autoSyncToDesktopCard)
         
-        self.effectsGroup = SettingCardGroup(tr("wallpaper.background_effects"), self.contentWidget)  # 背景效果
-        self.backgroundBlurCard = RangeSettingCard(
-            cfg.backgroundBlurRadius,
-            FIF.PHOTO,
-            tr("wallpaper.blur"),  # 模糊
-            tr("wallpaper.blur_desc"),  # 设置壁纸背景的模糊程度
-            parent=self.effectsGroup
-        )
-        self.effectsGroup.addSettingCard(self.backgroundBlurCard)
-        self.brightnessCard = RangeSettingCard(
-            cfg.wallpaperBrightness,
-            FIF.BRIGHTNESS,
-            tr("wallpaper.brightness"),  # 亮度
-            tr("wallpaper.brightness_desc"),  # 设置壁纸背景的亮度
-            parent=self.effectsGroup
-        )
-        self.effectsGroup.addSettingCard(self.brightnessCard)
-        
         self._initWidget()
         self._connectSignalToSlot()
         self.setup_translatable_ui()
@@ -888,21 +860,11 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         self.contentLayout.addWidget(self.infoCard)
         self.contentLayout.addSpacing(24)
         self.contentLayout.addWidget(self.settingsGroup)
-        self.contentLayout.addSpacing(24)
-        self.contentLayout.addWidget(self.effectsGroup)
         self.contentLayout.addStretch(1)
-        
-        gridLayout = QGridLayout()
-        gridLayout.setContentsMargins(0, 0, 0, 0)
-        gridLayout.setSpacing(0)
-        gridLayout.addWidget(self.dimOverlay, 0, 0, 1, 1)
-        gridLayout.addWidget(self.contentWidget, 0, 0, 1, 1)
         
         self.scrollWidget = _ShrinkableWidget()
         self.scrollWidget.setObjectName('scrollWidget')
-        self.scrollWidget.setLayout(gridLayout)
-        self.backgroundImage.setParent(self.scrollWidget)
-        self.backgroundImage.lower()
+        self.scrollWidget.setLayout(self.contentLayout)
         self.setWidget(self.scrollWidget)
         self.scrollWidget.installEventFilter(self)
     
@@ -914,17 +876,10 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
     
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        if self.current_pixmap and not self.current_pixmap.isNull():
-            if not hasattr(self, '_resizeTimer'): self._resizeTimer = QTimer(self); self._resizeTimer.setSingleShot(True); self._resizeTimer.timeout.connect(self._updateBackground)
-            self._resizeTimer.start(100)
     
     def eventFilter(self, obj, event):
         if not hasattr(self, 'scrollWidget'):
             return super().eventFilter(obj, event)
-        if obj is self.scrollWidget and event.type() == QEvent.Type.Resize:
-            if self.current_pixmap and not self.current_pixmap.isNull():
-                if not hasattr(self, '_resizeTimer'): self._resizeTimer = QTimer(self); self._resizeTimer.setSingleShot(True); self._resizeTimer.timeout.connect(self._updateBackground)
-                self._resizeTimer.start(100)
         return super().eventFilter(obj, event)
     
     def _connectSignalToSlot(self):
@@ -935,7 +890,6 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         
         cfg.autoGetInterval.valueChanged.connect(self._updateAutoGetTimer)
         cfg.autoSyncToDesktop.valueChanged.connect(self._updateAutoSyncCheckTimer)
-        cfg.backgroundBlurRadius.valueChanged.connect(self._updateBackgroundBlur)
         cfg.wallpaperSaveLimit.valueChanged.connect(self._onWallpaperSaveLimitChanged)
         cfg.wallpaperBrightness.valueChanged.connect(self._applyEffects)
         
@@ -975,17 +929,6 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         if cfg.autoSyncToDesktop.value:
             self.autoSyncCheckTimer.start(5000)
     
-    def _updateBackgroundBlur(self):
-        logger.info(f"[BLUR-DBG] _updateBackgroundBlur triggered, blur_radius={cfg.backgroundBlurRadius.value}")
-        home = self._getHome()
-        if home and hasattr(home, 'homeBackgroundImage'):
-            if home.originalPixmap is not None and not home.originalPixmap.isNull():
-                home._computeBlurredBackground()  # 一次性模糊原图并缓存
-        self._cachedBgKey = None
-        if hasattr(home, '_blur_cache_key'):
-            delattr(home, '_blur_cache_key')
-        if self.current_pixmap and not self.current_pixmap.isNull():self._updateBackground()
-
     def _onWallpaperSaveLimitChanged(self, new_limit: int):
         wallpaper_dir = WALLPAPER_DIR  # os.path.join(BASE_DIR, 'wallpaper')
         self._manageWallpaperLimit(wallpaper_dir, new_limit)
@@ -995,7 +938,6 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         dim_value = cfg.wallpaperBrightness.value
         alpha = abs(dim_value) / 100.0
         style_str = f"#dimOverlay {{ background-color: rgba(0, 0, 0, {alpha:.2f}); }}"
-        if hasattr(self, 'dimOverlay'):self.dimOverlay.setStyleSheet(style_str)
         home = self._getHome()
         if home and hasattr(home, 'homeDimOverlay'):home.homeDimOverlay.setStyleSheet(style_str)
     
@@ -1023,7 +965,6 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
             logger.error(f"无法加载缓存壁纸图片: {wallpaper_path}")
             return False
         
-        self._updateBackground()
         self._updateMainWindowBackground()
         self._applyEffects()
         self.infoCard.updateInfo(wallpaper_path, cached.get("source", tr("wallpaper.source_cache")))
@@ -1080,7 +1021,6 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
                 save_cache("wallpaper", cache_data, cfg.autoGetInterval.value)
                 
                 if not self.current_pixmap.isNull():
-                    self._updateBackground()
                     self._updateMainWindowBackground()
                     self._applyEffects()
                     
@@ -1125,73 +1065,13 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
             self.current_wallpaper_source = tr("wallpaper.default_source")
             
             if not self.current_pixmap.isNull():
-                self._updateBackground()
                 self._updateMainWindowBackground()
                 self._applyEffects()
-                # self._applyEffects()
                 self.wallpaperChanged.emit()
             
             self.infoCard.updateInfo(default_wallpaper_path, tr("wallpaper.default_source"))
         else:
-            self._setBlankBackground()
             self.infoCard.updateInfo()
-    
-    def _setBlankBackground(self):
-        self.backgroundImage.setPixmap(QPixmap(1, 1))
-        self.backgroundImage.setMinimumSize(100, 100)
-        home = self._getHome()
-        if home and hasattr(home, 'homeBackgroundImage'):
-            available_width = self.mainWindow.width() - 50
-            available_height = self.mainWindow.height()
-            blank_pixmap = QPixmap(available_width, available_height)
-            blank_pixmap.fill(Qt.GlobalColor.transparent)
-            home.originalPixmap = blank_pixmap
-            home.homeBackgroundImage.setPixmap(blank_pixmap)
-            home.homeBackgroundImage.setMinimumSize(available_width, available_height)
-    
-    def _updateBackground(self):
-        if not self.current_pixmap or self.current_pixmap.isNull():
-            return
-
-        self.originalPixmap = self.current_pixmap
-        available_width = self.viewport().width()
-        available_height = max(self.viewport().height(), self.scrollWidget.height() if hasattr(self, 'scrollWidget') else 600, 600)
-
-        blur_radius = cfg.backgroundBlurRadius.value
-        logger.info(f"[BLUR-DBG] _updateBackground called: w={available_width} h={available_height} blur_radius={blur_radius} pixmap={'set' if self.current_pixmap else 'None'}")
-
-        if hasattr(self, '_cachedBgKey') and self._cachedBgKey == (available_width, available_height, id(self.current_pixmap), blur_radius):
-            logger.warning(f"[BLUR-DBG] CACHE HIT! _cachedBgKey={self._cachedBgKey}, skipping blur")
-            return
-        logger.info(f"[BLUR-DBG] Cache miss, proceeding. old_key={getattr(self,'_cachedBgKey',None)}")
-        self._cachedBgKey = (available_width, available_height, id(self.current_pixmap), blur_radius)
-        
-        scaled_pixmap = self.current_pixmap.scaled(
-            available_width, available_height,
-            Qt.AspectRatioMode.IgnoreAspectRatio,
-            Qt.TransformationMode.SmoothTransformation
-        )
-        
-        if blur_radius > 0:
-            logger.info(f"[BLUR-DBG] Running blur, radius={blur_radius}")
-            try:
-                from classlively_native import blur_image
-                qimg = scaled_pixmap.toImage().convertToFormat(QImage.Format.Format_ARGB32)
-                blurred_bytes = blur_image(
-                    qimg.bits().asstring(qimg.sizeInBytes()), qimg.width(), qimg.height(), blur_radius
-                )
-                blurred_qimage = QImage(blurred_bytes, qimg.width(), qimg.height(), QImage.Format.Format_ARGB32)
-                scaled_pixmap = QPixmap.fromImage(blurred_qimage)
-                logger.info(f"[BLUR-DBG] Blur success, result size={scaled_pixmap.width()}x{scaled_pixmap.height()}")
-            except Exception as e:
-                logger.warning(f"高斯模糊失败: {e}")
-            self.backgroundImage.setGraphicsEffect(None)
-        else:
-            self.backgroundImage.setGraphicsEffect(None)
-        
-        self.backgroundImage.setPixmap(scaled_pixmap)
-        self.backgroundImage.setGeometry(0, 0, available_width, available_height)
-        self.backgroundImage.lower()
     
     def _updateMainWindowBackground(self):
         home = self._getHome()
@@ -1275,7 +1155,6 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
             self.current_wallpaper_source = source
             
             if not self.current_pixmap.isNull():
-                self._updateBackground()
                 self._updateMainWindowBackground()
                 self._applyEffects()
                 

@@ -1,0 +1,131 @@
+/* ClassWidgets 联动页面*/
+
+#cw_linkage, #scrollWidget {
+    background: transparent;
+    border: none;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#cw_linkage QScrollArea {
+    background: transparent;
+    border: none;
+}
+
+#cwLinkageViewport {
+    border: none;
+}
+
+/* 标题 */
+
+#cw_linkage QLabel#settingLabel {
+    font-size: 33px;
+    background-color: transparent;
+    color: white;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 分组标题 */
+
+#cw_linkage SettingCardGroup {
+    background-color: transparent;
+    border: none;
+}
+
+#cw_linkage SettingCardGroup QLabel {
+    font-size: 14px;
+    font-weight: bold;
+    color: #DDDDDD;
+    background-color: transparent;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 卡片 */
+
+#cw_linkage CardWidget {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#cw_linkage CardWidget:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+#cw_linkage SettingCard,
+#cw_linkage SpinBoxSettingCard {
+    background-color: transparent;
+    border-radius: 8px;
+}
+
+#cw_linkage SettingCard:hover,
+#cw_linkage SpinBoxSettingCard:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+}
+
+#cw_linkage SwitchSettingCard:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* 控件 */
+
+#cw_linkage PushButton {
+    background-color: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 5px;
+    color: #DDDDDD;
+}
+
+#cw_linkage PushButton:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+#cw_linkage SwitchButton:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+#cw_linkage SpinBox {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 5px;
+    padding: 4px 8px;
+    color: #DDDDDD;
+}
+
+#cw_linkage SpinBox:hover {
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* 文本标签 */
+
+#cw_linkage BodyLabel {
+    color: #CCCCCC;
+    background-color: transparent;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#cw_linkage StrongBodyLabel {
+    color: #EEEEEE;
+    background-color: transparent;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 预览卡片 */
+
+#cw_linkage PreviewCard {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+}
+
+#cw_linkage PreviewCard:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+#cw_linkage PreviewCard BodyLabel {
+    color: #BBBBBB;
+    background-color: transparent;
+}

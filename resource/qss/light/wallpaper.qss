@@ -111,10 +111,6 @@
 
 /* 壁纸特有 */
 
-#wallpaper #dimOverlay {
-    background-color: rgba(0, 0, 0, 100);
-}
-
 #wallpaper #wallpaperContent {
     background-color: transparent;
 }
