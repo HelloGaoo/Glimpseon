@@ -243,6 +243,7 @@
     "menu_settings": "设置",
     "menu_restart": "重启",
     "menu_shutdown": "关机",
+    "menu_component_edit": "组件编辑",
     "init_complete": "主界面初始化完成",
     "edit_panel": "编辑面板",
     "switch_to_left": "切换到左侧",

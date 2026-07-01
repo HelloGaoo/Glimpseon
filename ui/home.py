@@ -163,12 +163,13 @@ class HomeInterface(QWidget, TranslatableWidget):
         self._snapThreshold = 8
 
         self._initBackground()
+        self._draggable_widgets = []
+        self._initLayout()
         self._initLabels()
         self._initContainers()
         self._initQuickLaunch()
         self._initEditButton()
         self._initMediaWidget()
-        self._initLayout()
         self._initBottomBar()
         self._initTimers()
 
@@ -366,18 +367,6 @@ class HomeInterface(QWidget, TranslatableWidget):
 
         self.gridLayout.addWidget(self.homeBackgroundImage, 0, 0, 1, 1)
         self.gridLayout.addWidget(self.homeDimOverlay, 0, 0, 1, 1)
-        self.gridLayout.addWidget(self.editContainer, 0, 0, 1, 1, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
-
-        for widget in self._draggable_widgets:
-            if widget:
-                widget.setParent(self.homeContent)
-                widget.show()
-                if hasattr(widget, 'inner_layout') and widget.inner_layout:
-                    widget.inner_layout.activate()
-                    widget.adjustSize()
-                widget._updatePositionFromPercent()
-                if hasattr(widget, 'settingRequested'):
-                    widget.settingRequested.connect(self._openComponentSetting)
 
         homeLayout = QVBoxLayout(self)
         homeLayout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -428,6 +417,15 @@ class HomeInterface(QWidget, TranslatableWidget):
         self._settings_window.raise_()
         self._settings_window.activateWindow()
 
+    def _openComponentEditWindow(self):
+        """打开组件编辑窗口"""
+        from ui.component_edit import ComponentEditWindow
+        if not hasattr(self, '_component_edit_window') or self._component_edit_window is None:
+            self._component_edit_window = ComponentEditWindow(self.mainWindow)
+        self._component_edit_window.show()
+        self._component_edit_window.raise_()
+        self._component_edit_window.activateWindow()
+
     def _showBottomMenu(self):
         """底部菜单按钮的弹出菜单"""
         menu = RoundMenu(parent=self.menuBtn)
@@ -435,6 +433,10 @@ class HomeInterface(QWidget, TranslatableWidget):
         settings_action = Action(FIF.SETTING, tr("home.menu_settings"))
         settings_action.triggered.connect(self._openSettingsWindow)
         menu.addAction(settings_action)
+
+        edit_action = Action(FIF.EDIT, tr("home.menu_component_edit"))
+        edit_action.triggered.connect(self._openComponentEditWindow)
+        menu.addAction(edit_action)
 
         menu.addSeparator()
 
@@ -1340,18 +1342,8 @@ class HomeInterface(QWidget, TranslatableWidget):
             return 'exe.ico'
 
     def _enterEditMode(self):
-        if self.isEditMode:
-            self.isEditMode = False
-            self.mainWindow.navigationInterface.setEnabled(True)
-            self._setDraggableEnabled(False)
-            self._hideGuideLines()
-        else:
-            self.isEditMode = True
-            self.mainWindow.navigationInterface.setEnabled(False)
-            self._setDraggableEnabled(True)
-            self._showGuideLines()
-            self._updateEditButtonPosition()
-        self._refreshDisabledComponents()
+        self.isEditMode = False
+        return
 
     def _refreshDisabledComponents(self):
         self._updateClock()
@@ -1362,10 +1354,7 @@ class HomeInterface(QWidget, TranslatableWidget):
         self._updateQuickLaunch()
 
     def _openComponentSetting(self, component_id: str):
-        from ui.component_settings import ComponentSettingDialog
-        dialog = ComponentSettingDialog.create(component_id, self)
-        if dialog:
-            dialog.exec()
+        return
 
     def _setDraggableEnabled(self, enabled: bool):
         if hasattr(self, '_draggable_widgets'):

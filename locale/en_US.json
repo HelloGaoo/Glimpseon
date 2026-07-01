@@ -243,6 +243,7 @@
     "menu_settings": "Settings",
     "menu_restart": "Restart",
     "menu_shutdown": "Shutdown",
+    "menu_component_edit": "Component Edit",
     "init_complete": "Home interface initialization complete",
     "edit_panel": "Edit Panel",
     "switch_to_left": "Switch to Left",
