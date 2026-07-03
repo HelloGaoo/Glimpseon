@@ -32,7 +32,6 @@ from PyQt6.QtWidgets import QApplication, QHBoxLayout, QLabel, QMessageBox, QSiz
 from qfluentwidgets import (
     Action,
     BodyLabel,
-    FluentIcon as FIF,
     FluentTranslator,
     FluentWindow,
     InfoBar,
@@ -72,6 +71,7 @@ from core.utils import (
     get_translation_manager,
     LanguageCode,
     TranslatableWidget,
+    FUI,
 )
 from data.software_list import SOFTWARE_CATEGORIES, get_software_icon_path
 from ui import AboutInterface, DownloadInterface, UpdateInterface, NotificationPage
@@ -346,7 +346,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         self.welcomeLabel.setText('<span style="font-family:\'HarmonyOS Sans\',\'Microsoft YaHei\',\'SimHei\',sans-serif; font-weight:900; font-size:34px;">ClassLively</span>')
         self.welcomeLabel.setObjectName("welcomeLabel")
 
-        self.nextButton = PrimaryPushButton(FIF.RIGHT_ARROW, tr("wizard.next"), self.page1)  # 继续
+        self.nextButton = PrimaryPushButton(FUI.RIGHT_ARROW, tr("wizard.next"), self.page1)  # 继续
         self.nextButton.setFixedHeight(36)
 
         self.headerLayout = QHBoxLayout()
@@ -449,7 +449,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         self.privacyCheckBox, privacy_widget = _make_check_with_link(
             "", tr("wizard.privacy_policy"), "")  # 隐私政策
 
-        self.agreeButton = PrimaryPushButton(FIF.ACCEPT, tr("wizard.agree"), self.page2)  # 完成
+        self.agreeButton = PrimaryPushButton(FUI.ACCEPT, tr("wizard.agree"), self.page2)  # 完成
         self.agreeButton.setFixedHeight(36)
         self.agreeButton.setEnabled(False)
 
@@ -503,7 +503,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         settings_layout.setSpacing(12)
 
         self.autoStartSwitch = self._createSwitchCard(
-            FIF.PLAY,
+            FUI.PLAY,
             tr("wizard.auto_start"),
             tr("wizard.auto_start_desc"),
             cfg.autoStart.value
@@ -511,7 +511,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         settings_layout.addWidget(self.autoStartSwitch)
 
         self.autoOpenOnIdleSwitch = self._createSwitchCard(
-            FIF.VIEW,
+            FUI.VIEW,
             tr("wizard.auto_open_idle"),
             tr("wizard.auto_open_idle_desc"),
             cfg.autoOpenOnIdle.value
@@ -519,7 +519,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         settings_layout.addWidget(self.autoOpenOnIdleSwitch)
 
         self.autoOpenMaximizeSwitch = self._createSwitchCard(
-            FIF.FULL_SCREEN,
+            FUI.FULL_SCREEN,
             tr("wizard.auto_open_maximize"),
             tr("wizard.auto_open_maximize_desc"),
             cfg.autoOpenMaximize.value
@@ -527,7 +527,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         settings_layout.addWidget(self.autoOpenMaximizeSwitch)
 
         self.desktopShortcutSwitch = self._createSwitchCard(
-            FIF.LINK,
+            FUI.LINK,
             tr("wizard.desktop_shortcut"),
             tr("wizard.desktop_shortcut_desc"),
             False
@@ -537,7 +537,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         self.page3Layout.addWidget(settings_container, 0, Qt.AlignmentFlag.AlignCenter)
         self.page3Layout.addSpacing(20)
 
-        self.finishButton = PrimaryPushButton(FIF.ACCEPT, tr("wizard.finish"), self.page3)  # 完成
+        self.finishButton = PrimaryPushButton(FUI.ACCEPT, tr("wizard.finish"), self.page3)  # 完成
         self.finishButton.setFixedHeight(36)
         self.page3Layout.addWidget(self.finishButton, 0, Qt.AlignmentFlag.AlignCenter)
 
@@ -578,7 +578,7 @@ class WizardWindow(QDialog, TranslatableWidget):
 
         self.themeCard = ComboBoxSettingCard(
             cfg.themeMode,
-            FIF.BRUSH,
+            FUI.BRUSH,
             tr("wizard.theme_mode"),
             tr("wizard.theme_mode_desc"),
             texts=[tr("wizard.theme_light"), tr("wizard.theme_dark"), tr("wizard.theme_system")],
@@ -589,7 +589,7 @@ class WizardWindow(QDialog, TranslatableWidget):
 
         self.themeColorCard = CustomColorSettingCard(
             cfg.themeColor,
-            FIF.PALETTE,
+            FUI.PALETTE,
             tr("wizard.primary_color"),
             tr("wizard.primary_color_desc"),
             parent=self.page4
@@ -600,7 +600,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         self.page4Layout.addWidget(appearance_container, 0, Qt.AlignmentFlag.AlignCenter)
         self.page4Layout.addSpacing(20)
 
-        self.finishButton2 = PrimaryPushButton(FIF.ACCEPT, tr("wizard.finish"), self.page4)  # 完成
+        self.finishButton2 = PrimaryPushButton(FUI.ACCEPT, tr("wizard.finish"), self.page4)  # 完成
         self.finishButton2.setFixedHeight(36)
         self.page4Layout.addWidget(self.finishButton2, 0, Qt.AlignmentFlag.AlignCenter)
 
@@ -727,7 +727,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         countdown_label.setFixedWidth(120)
         countdown_row_layout.addWidget(countdown_label)
 
-        self.countdownConfigButton = ToolButton(FIF.ADD, self.page5)
+        self.countdownConfigButton = ToolButton(FUI.ADD, self.page5)
         self.countdownConfigButton.setFixedSize(36, 36)
         self.countdownConfigButton.setToolTip(tr("wizard.add_countdown"))  # 添加倒计时
         self.countdownConfigButton.clicked.connect(self._onCountdownConfigClicked)
@@ -739,7 +739,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         self.page5Layout.addWidget(school_info_container, 0, Qt.AlignmentFlag.AlignCenter)
         self.page5Layout.addSpacing(20)
 
-        self.finishButton3 = PrimaryPushButton(FIF.ACCEPT, tr("wizard.finish"), self.page5)  # 完成
+        self.finishButton3 = PrimaryPushButton(FUI.ACCEPT, tr("wizard.finish"), self.page5)  # 完成
         self.finishButton3.setFixedHeight(36)
         self.page5Layout.addWidget(self.finishButton3, 0, Qt.AlignmentFlag.AlignCenter)
 
@@ -997,19 +997,19 @@ class MainWindow(FluentWindow):
         _t = time.time()
         self.homeInterface = HomeInterface(self)
         self.homeInterface.setObjectName("home")
-        self.addSubInterface(self.homeInterface, FIF.HOME, tr("navigation.home"))  # 主界面
+        self.addSubInterface(self.homeInterface, FUI.HOME, tr("navigation.home"))  # 主界面
         logger.info(f"[MW] HomeInterface 耗时{time.time()-_t:.2f}s")
 
         _t = time.time()
         self.wallpaper = WallpaperInterface(mainWindow=self)
         self.wallpaper.setObjectName("wallpaper")
-        self.addSubInterface(self.wallpaper, FIF.PHOTO, tr("navigation.wallpaper"))  # 壁纸
+        self.addSubInterface(self.wallpaper, FUI.PHOTO, tr("navigation.wallpaper"))  # 壁纸
         logger.info(f"[MW] WallpaperInterface 耗时{time.time()-_t:.2f}s")
 
         _t = time.time()
         self.notificationPage = NotificationPage(self)
         self.notificationPage.setObjectName("notification")
-        self.addSubInterface(self.notificationPage, FIF.MESSAGE, tr("navigation.notification"))  # 通知
+        self.addSubInterface(self.notificationPage, FUI.MESSAGE, tr("navigation.notification"))  # 通知
         logger.info(f"[MW] NotificationPage 耗时{time.time()-_t:.2f}s")
 
         _t = time.time()
@@ -1028,24 +1028,24 @@ class MainWindow(FluentWindow):
         self.cwLinkagePage.setObjectName("cw_linkage")
 
         linkageParent = QWidget(objectName="linkage_parent")
-        self.addSubInterface(linkageParent, FIF.LINK, tr("navigation.linkage"))  # 联动
+        self.addSubInterface(linkageParent, FUI.LINK, tr("navigation.linkage"))  # 联动
         self.addSubInterface(
-            self.linkagePreviewPage, FIF.ALBUM,
+            self.linkagePreviewPage, FUI.ALBUM,
             tr("navigation.linkage_preview"), parent=linkageParent,
         )
         self.addSubInterface(
-            self.linkagePage, FIF.APPLICATION,
+            self.linkagePage, FUI.APPLICATION,
             tr("navigation.linkage_classisland"), parent=linkageParent,
         )
         self.addSubInterface(
-            self.cwLinkagePage, FIF.APPLICATION,
+            self.cwLinkagePage, FUI.APPLICATION,
             tr("navigation.linkage_classwidgets"), parent=linkageParent,
         )
         logger.info(f"[MW] LinkagePage 耗时{time.time()-_t:.2f}s")
 
         _t = time.time()
         self.downloadInterface = DownloadInterface(parent=self)
-        self.addSubInterface(self.downloadInterface, FIF.DOWNLOAD, tr("navigation.download"))  # 软件下载
+        self.addSubInterface(self.downloadInterface, FUI.DOWNLOAD, tr("navigation.download"))  # 软件下载
 
         def _populateDownload():
             for category in SOFTWARE_CATEGORIES:
@@ -1059,17 +1059,17 @@ class MainWindow(FluentWindow):
 
         _t = time.time()
         self.updateInterface = UpdateInterface(parent=self)
-        self.addSubInterface(self.updateInterface, FIF.SYNC, tr("navigation.update"), NavigationItemPosition.BOTTOM)  # 更新
+        self.addSubInterface(self.updateInterface, FUI.SYNC, tr("navigation.update"), NavigationItemPosition.BOTTOM)  # 更新
         logger.info(f"[MW] UpdateInterface 耗时{time.time()-_t:.2f}s")
 
         _t = time.time()
         self.aboutInterface = AboutInterface(parent=self)
-        self.addSubInterface(self.aboutInterface, FIF.INFO, tr("navigation.about"), NavigationItemPosition.BOTTOM)  # 关于
+        self.addSubInterface(self.aboutInterface, FUI.INFO, tr("navigation.about"), NavigationItemPosition.BOTTOM)  # 关于
         logger.info(f"[MW] AboutInterface 耗时{time.time()-_t:.2f}s")
 
         _t = time.time()
         self.debugPanel = DebugPanel(self)
-        self.debugNavItem = self.addSubInterface(self.debugPanel, FIF.DEVELOPER_TOOLS, tr("navigation.debug"), NavigationItemPosition.BOTTOM)  # 调试
+        self.debugNavItem = self.addSubInterface(self.debugPanel, FUI.DEVELOPER_TOOLS, tr("navigation.debug"), NavigationItemPosition.BOTTOM)  # 调试
         self.debugNavItem.setVisible(cfg.debugMode.value)
         cfg.debugMode.valueChanged.connect(self._onDebugModeChanged)
 
@@ -1269,15 +1269,15 @@ class MainWindow(FluentWindow):
 
         self.tray_menu = RoundMenu(APP_NAME, self)
 
-        show_action = Action(FIF.HOME, tr("tray.show_window"), self)  # 显示主窗口
+        show_action = Action(FUI.HOME, tr("tray.show_window"), self)  # 显示主窗口
         show_action.triggered.connect(self.showFullScreen)
         self.tray_menu.addAction(show_action)
         if cfg.debugMode.value:
-            dev_action = Action(FIF.DEVELOPER_TOOLS, tr("navigation.debug"), self)  # 调试
+            dev_action = Action(FUI.DEVELOPER_TOOLS, tr("navigation.debug"), self)  # 调试
             dev_action.triggered.connect(lambda: self.switchTo(self.debugPanel))
             self.tray_menu.addAction(dev_action)
 
-        exit_action = Action(FIF.CLOSE, tr("tray.exit"), self)  # 退出
+        exit_action = Action(FUI.CLOSE, tr("tray.exit"), self)  # 退出
         exit_action.triggered.connect(lambda: (release_single_instance(), QApplication.quit()))
         self.tray_menu.addAction(exit_action)
 
@@ -1854,10 +1854,10 @@ if __name__ == "__main__":
         try:
             hi = getattr(window, 'homeInterface', None)
             if not hi: return
-            hi.weatherTempLabel.setText(f"{weather_data['temp']}{weather_data['unit']}")
+            # 更新缓存
+            hi._cached_weather = weather_data
             hi.current_weather_code = weather_data.get('code')
-            hi._updateWeatherIcon()
-            if hasattr(hi, 'weatherContainer'): hi.weatherContainer.updateSize()
+            hi.weather_updated.emit(weather_data)
         except Exception as e:
             logger.error(f"[PRELOAD-UI] wt: {e}")
 
@@ -1865,8 +1865,9 @@ if __name__ == "__main__":
         try:
             hi = getattr(window, 'homeInterface', None)
             if not hi: return
-            hi.poetryLabel.setText(text)
-            if hasattr(hi, 'poetryContainer'): hi.poetryContainer.updateSize()
+            # 更新缓存
+            hi._cached_poetry = text
+            hi.poetry_updated.emit(text)
         except Exception as e:
             logger.error(f"[PRELOAD-UI] po: {e}")
 
