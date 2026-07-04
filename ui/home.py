@@ -43,6 +43,7 @@ from PyQt6.QtCore import (
     QPropertyAnimation,
     QRect,
     QRectF,
+    QSize,
     Qt,
     QTime,
     QTimer,
@@ -522,6 +523,7 @@ class HomeInterface(QWidget, TranslatableWidget):
         self.menuBtn = ToolButton(FUI.MENU, self.bottomBar)
         self.menuBtn.setObjectName("bottomMenuBtn")
         self.menuBtn.setFixedSize(36, 36)
+        self.menuBtn.setIconSize(QSize(28, 28))  # 设置图标尺寸
         self.menuBtn.clicked.connect(self._showBottomMenu)
         barLayout.addWidget(self.menuBtn)
 
@@ -755,8 +757,17 @@ class HomeInterface(QWidget, TranslatableWidget):
 
         # 转换百分比保存
         if self._drag_preview_x > 0 and self._drag_preview_y > 0:
-            pos_x_pct = self._drag_preview_x / self.width() if self.width() > 0 else 0.5
-            pos_y_pct = self._drag_preview_y / self.height() if self.height() > 0 else 0.5
+            # 预览框位置是左上角绝对坐标
+            # setPositionPercent 使用可用空间百分比: x = (parent_w - widget_w) * pct
+            # 所以需要反向计算: pct = x / (parent_w - widget_w)
+            available_width = self.width() - self._drag_preview_width
+            available_height = self.height() - self._drag_preview_height
+            if available_width > 0 and available_height > 0:
+                pos_x_pct = self._drag_preview_x / available_width
+                pos_y_pct = self._drag_preview_y / available_height
+            else:
+                pos_x_pct = 0.5
+                pos_y_pct = 0.5
             width_pct = self._drag_preview_width / self.width() if self.width() > 0 else 0.2
             height_pct = self._drag_preview_height / self.height() if self.height() > 0 else 0.1
         else:
@@ -1833,10 +1844,6 @@ class HomeInterface(QWidget, TranslatableWidget):
         except Exception as e:
             logger.error(f"提取图标失败: {e}")
             return 'exe.ico'
-
-    def _enterEditMode(self):
-        self.isEditMode = False
-        return
 
     def _refreshDisabledComponents(self):
         self._updateClock()
@@ -4089,7 +4096,7 @@ class _GridOverlay(QWidget):
 
         # 网格线样式
         dash_segment = max(2, cell_size * 0.25)
-        grid_color = QColor(100, 100, 100, 60)  # 半透明灰色
+        grid_color = QColor(200, 200, 200, 220)  # 更清晰的灰色
         grid_pen = QPen(grid_color)
         grid_pen.setWidthF(1.0)
         grid_pen.setDashPattern([dash_segment, dash_segment])  # 自适应虚线
@@ -4133,11 +4140,11 @@ class _GridOverlay(QWidget):
                 if self._preview_collision:
                     # 红色 - 碰撞/无效
                     border_color = QColor(255, 59, 48, 255)  # #FF3B30
-                    fill_color = QColor(255, 59, 48, 20)    # #14FF3B30
+                    fill_color = QColor(255, 59, 48, 100)    # 明显的红色填充
                 else:
                     # 蓝色 - 正常
                     border_color = QColor(10, 132, 255, 255)  # #FF0A84FF
-                    fill_color = QColor(10, 132, 255, 20)    # #140A84FF
+                    fill_color = QColor(10, 132, 255, 100)    # 明显的蓝色填充
 
                 # 圆角动态计算
                 min_side = min(rect.width(), rect.height())

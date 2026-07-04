@@ -810,14 +810,20 @@ class _FluentUIIconInstance(FluentIconBase):
         # 深浅色目录
         theme_dir = "light" if icon_color == "black" else "dark"
         
-        # FluentUI 图标命名: ic_fluent_<name>_24_regular.svg
-        icon_filename = f"ic_fluent_{self._icon_name}_24_regular.svg"
-        
-        # 返回路径
         from core.constants import BASE_DIR
-        svg_path = os.path.join(BASE_DIR, "resource", "fluent", theme_dir, icon_filename)
         
-        return svg_path
+        # ic_fluent_<name>_32_regular.svg
+        # 32 > 24
+        icon_filename_32 = f"ic_fluent_{self._icon_name}_32_regular.svg"
+        icon_filename_24 = f"ic_fluent_{self._icon_name}_24_regular.svg"
+        
+        svg_path_32 = os.path.join(BASE_DIR, "resource", "fluent", theme_dir, icon_filename_32)
+        svg_path_24 = os.path.join(BASE_DIR, "resource", "fluent", theme_dir, icon_filename_24)
+        
+        if os.path.exists(svg_path_32):
+            return svg_path_32
+        else:
+            return svg_path_24
     
     def __repr__(self) -> str:
         return f"<FluentUIIcon: {self._icon_name}>"
@@ -843,6 +849,9 @@ _ICON_NAME_MAP = {
     "INFO": "info",
     "FULL_SCREEN": "full_screen_maximize",
     "VIEW": "eye",
+    "MENU": "navigation",  # 汉堡菜单图标
+    "TABLE": "table_simple",  # 表格图标
+    "LIBRARY": "folder",  # 库图标暂用 folder 替代
 
     # 文件类
     "FOLDER": "folder",

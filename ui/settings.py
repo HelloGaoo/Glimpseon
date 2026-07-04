@@ -965,7 +965,7 @@ class GridPage(SettingsSubPage):
     """网格设置页面"""
 
     def __init__(self, main_window, parent=None):
-        super().__init__(tr("settings.grid"), parent)
+        super().__init__(tr("settings.grid.title"), parent)
         self.main_window = main_window
 
         # 网格预览
@@ -1083,7 +1083,7 @@ class SettingsWindow(FluentWindow):
         self.addSubInterface(self.generalPage, FUI.SETTING, tr("settings.general"))
         self.addSubInterface(self.timePage, FUI.DATE_TIME, tr("settings.time"))
         self.addSubInterface(self.appearancePage, FUI.PALETTE, tr("settings.appearance"))
-        self.addSubInterface(self.gridPage, FUI.TABLE, tr("settings.grid"))
+        self.addSubInterface(self.gridPage, FUI.TABLE, tr("settings.grid.title"))
         self.addSubInterface(self.logPage, FUI.INFO, tr("settings.log"))
         self.addSubInterface(self.advancedPage, FUI.LIBRARY, tr("settings.advanced"))
 
