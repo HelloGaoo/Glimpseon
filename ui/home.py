@@ -39,17 +39,21 @@ from PyQt6.QtCore import (
     QEasingCurve,
     QEvent,
     QFileInfo,
+    QPoint,
     QPropertyAnimation,
     QRect,
+    QRectF,
     Qt,
     QTime,
     QTimer,
+    pyqtSignal,
 )
 from PyQt6.QtGui import (
     QColor,
     QIcon,
     QImage,
     QPainter,
+    QPainterPath,
     QPen,
     QPixmap,
 )
@@ -68,7 +72,6 @@ from PyQt6.QtWidgets import (
     QFileIconProvider,
 )
 from qfluentwidgets import (
-    FluentIcon as FIF,
     InfoBar,
     PushButton,
     MessageBoxBase,
@@ -93,7 +96,7 @@ from qfluentwidgets import (
 from core.config import cfg, save_cfg
 from core.constants import APP_NAME, BASE_DIR, get_resPath, load_qss
 from core.logger import logger
-from core.utils import get_cached_content, save_cache, tr, TranslatableWidget, INTERVAL_MAP, precise_now
+from core.utils import get_cached_content, save_cache, tr, TranslatableWidget, INTERVAL_MAP, precise_now, FUI
 from data.software_list import get_software_icon_path
 from services.weather import WeatherService, RegionDatabase, RegionSelectorDialog, WEATHER_API_URL, WEATHER_API_APPKEY, WEATHER_API_SIGN
 from services.poetry import PoetryService
@@ -154,6 +157,10 @@ class GuideLineOverlay(QWidget):
 class HomeInterface(QWidget, TranslatableWidget):
     """主界面"""
 
+    # 数据更新信号
+    weather_updated = pyqtSignal(dict)
+    poetry_updated = pyqtSignal(str)
+
     def __init__(self, mainWindow, parent=None):
         super().__init__(parent)
         self.mainWindow = mainWindow
@@ -161,17 +168,70 @@ class HomeInterface(QWidget, TranslatableWidget):
         self.isEditMode = False
         self._guideOverlay = None
         self._snapThreshold = 8
+        self._drag_hover = False
+
+        # 拖拽预览状态
+        self._drag_preview_visible = False  # 是否显示拖拽预览
+        self._drag_preview_component_id = None  # 正在拖拽的组件ID
+        self._drag_preview_def = None  # 组件定义
+        # 格子坐标模式（旧）
+        self._drag_preview_row = -1  # 预览格子行
+        self._drag_preview_col = -1  # 预览格子列
+        # 像素坐标模式
+        self._drag_preview_x = 0  # 预览x（像素）
+        self._drag_preview_y = 0  # 预览y（像素）
+        self._drag_preview_width = 0  # 预览宽
+        self._drag_preview_height = 0  # 预览高
+        self._drag_preview_collision = False  # 是否碰撞
+
+        # 编辑模式状态
+        self._edit_mode_active = False  # 是否编辑
+        self._edit_show_grid = False  # 是否显示网格
+        self._edit_selected_placement_id = None  # 选中的放置ID
+        self._edit_dragging = False  # 是否正在拖动已有组件
+        self._edit_resizing = False  # 是否正在调整大小
+
+        self.setAcceptDrops(True)
 
         self._initBackground()
         self._draggable_widgets = []
         self._initLayout()
-        self._initLabels()
-        self._initContainers()
-        self._initQuickLaunch()
-        self._initEditButton()
-        self._initMediaWidget()
+        
+        # 数据缓存
+        self._cached_weather = None
+        self._cached_poetry = None
+        self._cached_media = None
+        
+        # 网格系统服务
+        from core.component import GridLayoutService, GridSettings, PlacementService, ComponentRegistry, BUILTIN_COMPONENT_DEFINITIONS
+        self.grid_service = GridLayoutService()
+        # 从配置加载网格设置
+        short_side_cells = cfg.gridShortSideCells.value if hasattr(cfg, 'gridShortSideCells') else 6
+        inset_percent = cfg.gridInsetPercent.value if hasattr(cfg, 'gridInsetPercent') else 5
+        spacing_preset = cfg.gridSpacingPreset.value if hasattr(cfg, 'gridSpacingPreset') else "relaxed"
+        gap_ratio = 0.12 if spacing_preset == "relaxed" else 0.06
+        self.grid_settings = GridSettings(
+            short_side_cells=short_side_cells,
+            gap_ratio=gap_ratio,
+            inset_percent=inset_percent
+        )
+        self._grid_metrics = None
+        
+        # 组件注册
+        self.component_registry = ComponentRegistry(self)
+        self.component_registry.register_batch(BUILTIN_COMPONENT_DEFINITIONS)
+        
+        # 放置服务
+        self.placement_service = PlacementService(self)
+        self.placement_service.load()
+        
+        # 加载组件
+        from ui.component import ComponentManager
+        self.component_manager = ComponentManager(self)
+        self.component_manager.load_components()
+        self._draggable_widgets = self.component_manager.get_all_containers()
+        
         self._initBottomBar()
-        self._initTimers()
 
         self.editPanelCreated = False
         self.editPanel = None  # deprecated
@@ -181,11 +241,73 @@ class HomeInterface(QWidget, TranslatableWidget):
         cfg.componentCardOpacity.valueChanged.connect(self._updateComponentCardStyle)
         cfg.componentCardRadius.valueChanged.connect(self._updateComponentCardStyle)
         cfg.backgroundBlurRadius.valueChanged.connect(self._computeBlurredBackground)
+        # 网格配置变化监听
+        if hasattr(cfg, 'gridShortSideCells'):
+            cfg.gridShortSideCells.valueChanged.connect(self._onGridSettingsChanged)
+        if hasattr(cfg, 'gridInsetPercent'):
+            cfg.gridInsetPercent.valueChanged.connect(self._onGridSettingsChanged)
+        if hasattr(cfg, 'gridSpacingPreset'):
+            cfg.gridSpacingPreset.valueChanged.connect(self._onGridSettingsChanged)
         self._updateComponentCardStyle()
 
         self.setup_translatable_ui()
+        
+        # 加载组件位置
+        self.loadComponentPositions()
 
         logger.info(tr("home.init_complete"))  # 主界面初始化完成
+    
+    def _update_grid_metrics(self):
+        """更新网格尺寸计算"""
+        self._grid_metrics = self.grid_service.calculate_grid_metrics(
+            self.width(), self.height(), self.grid_settings
+        )
+
+    def _onGridSettingsChanged(self):
+        """网格配置变化时更新网格设置"""
+        short_side_cells = cfg.gridShortSideCells.value if hasattr(cfg, 'gridShortSideCells') else 6
+        inset_percent = cfg.gridInsetPercent.value if hasattr(cfg, 'gridInsetPercent') else 5
+        spacing_preset = cfg.gridSpacingPreset.value if hasattr(cfg, 'gridSpacingPreset') else "relaxed"
+        gap_ratio = 0.12 if spacing_preset == "relaxed" else 0.06
+        # 使用已有的 GridSettings 类
+        GridSettings = type(self.grid_settings)
+        self.grid_settings = GridSettings(
+            short_side_cells=short_side_cells,
+            gap_ratio=gap_ratio,
+            inset_percent=inset_percent
+        )
+        self._update_grid_metrics()
+        # 更新网格
+        if hasattr(self, '_grid_overlay') and self._grid_overlay:
+            self._grid_overlay.update_grid_metrics(self._grid_metrics)
+
+    def grid_cell_to_pos(self, row: int, column: int, width_cells: int = 1, height_cells: int = 1) -> tuple:
+        """网格格子坐标转百分比坐标"""
+        if not self._grid_metrics:
+            return (0.5, 0.5)
+        
+        rect = self.grid_service.get_cell_rect(
+            self._grid_metrics, column, row, width_cells, height_cells
+        )
+        
+        # 转百分比
+        x_pct = rect.x() / self.width()
+        y_pct = rect.y() / self.height()
+        
+        return (x_pct, y_pct)
+    
+    def pos_to_grid_cell(self, x_pct: float, y_pct: float) -> tuple:
+        """百分比坐标转网格格子坐标"""
+        if not self._grid_metrics:
+            return (0, 0)
+
+        point = QPoint(int(x_pct * self.width()), int(y_pct * self.height()))
+        row, col = self.grid_service.point_to_cell(self._grid_metrics, point)
+        return (row, col)
+
+    def paintEvent(self, event):
+        """绘制"""
+        super().paintEvent(event)
 
     def _initBackground(self):
         self.homeBackgroundImage = QLabel()
@@ -373,6 +495,12 @@ class HomeInterface(QWidget, TranslatableWidget):
         homeLayout.setContentsMargins(0, 0, 0, 0)
         homeLayout.addWidget(self.homeContent)
 
+        # 网格覆盖层
+        self._grid_overlay = _GridOverlay(self.homeContent)
+        self._grid_overlay.setObjectName("gridOverlay")
+        self._grid_overlay.hide()
+        self._grid_overlay.setup(self)  # 传递 HomeInterface 引用
+
     def _initBottomBar(self):
         """底部栏"""
         self.bottomBar = QWidget(self.homeContent)
@@ -391,7 +519,7 @@ class HomeInterface(QWidget, TranslatableWidget):
 
         barLayout.addStretch()
 
-        self.menuBtn = ToolButton(FIF.MENU, self.bottomBar)
+        self.menuBtn = ToolButton(FUI.MENU, self.bottomBar)
         self.menuBtn.setObjectName("bottomMenuBtn")
         self.menuBtn.setFixedSize(36, 36)
         self.menuBtn.clicked.connect(self._showBottomMenu)
@@ -418,39 +546,401 @@ class HomeInterface(QWidget, TranslatableWidget):
         self._settings_window.activateWindow()
 
     def _openComponentEditWindow(self):
-        """打开组件编辑窗口"""
-        from ui.component_edit import ComponentEditWindow
-        if not hasattr(self, '_component_edit_window') or self._component_edit_window is None:
-            self._component_edit_window = ComponentEditWindow(self.mainWindow)
-        self._component_edit_window.show()
-        self._component_edit_window.raise_()
-        self._component_edit_window.activateWindow()
+        """打开组件库窗口"""
+        from ui.component import ComponentLibraryWindow
+        if not hasattr(self, '_component_library_window') or self._component_library_window is None:
+            # 适配器
+            canvas = _CanvasAdapter(self)
+            self._component_library_window = ComponentLibraryWindow(canvas, self.mainWindow)
+            # 监听窗口事件
+            self._component_library_window.installEventFilter(self)
+
+        # 进入编辑模式
+        self._enterEditMode()
+
+        self._component_library_window.show()
+        self._component_library_window.raise_()
+        self._component_library_window.activateWindow()
+
+    def eventFilter(self, obj, event):
+        """监听组件库窗口关闭"""
+        if obj == self._component_library_window and event.type() == event.Type.Close:
+            self._exitEditMode()
+        return super().eventFilter(obj, event)
+
+    def dragEnterEvent(self, event):
+        """拖拽进入事件"""
+        if event.mimeData().hasFormat("application/x-classlively-component"):
+            event.acceptProposedAction()
+            self._drag_hover = True
+            self._drag_preview_visible = True
+
+            # 获取组件定义
+            data = event.mimeData().data("application/x-classlively-component").data().decode('utf-8')
+            self._drag_preview_component_id = data
+            self._drag_preview_def = self.component_registry.get_definition(data)
+            logger.info(f"dragEnter: component={data}, def={self._drag_preview_def}")
+
+            # 更新网格度量
+            self._update_grid_metrics()
+            logger.info(f"grid_metrics cell_size={self._grid_metrics.cell_size if self._grid_metrics else 'None'}")
+
+            # 显示覆盖层
+            if hasattr(self, '_grid_overlay') and self._grid_overlay:
+                self._grid_overlay.update_grid_metrics(self._grid_metrics)
+                self._grid_overlay.show_preview(False)
+                self._grid_overlay.show()
+
+            self.update()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        """拖拽移动事件"""
+        if event.mimeData().hasFormat("application/x-classlively-component"):
+            event.acceptProposedAction()
+
+            pos = event.position()
+            if self._grid_metrics and self._drag_preview_def:
+                # 从 COMPONENT_STYLES 获取真尺寸
+                from ui.component import COMPONENT_STYLES
+                comp_type, comp_style = self._resolve_component_type_style(self._drag_preview_component_id)
+                style_info = COMPONENT_STYLES.get(comp_type, {}).get(comp_style, {})
+                default_size = style_info.get("default_size", (200, 80))
+                comp_width, comp_height = default_size
+
+                # 计算原始位置
+                raw_x = pos.x() - comp_width / 2
+                raw_y = pos.y() - comp_height / 2
+
+                # 吸附
+                SNAP_THRESHOLD = 20  # 吸附阈值
+
+                # 吸附后的位置
+                snapped_x, snapped_y = self._snap_to_grid(
+                    raw_x, raw_y, comp_width, comp_height, SNAP_THRESHOLD
+                )
+
+                # 限制界面范围
+                snapped_x = max(0, min(snapped_x, self.width() - comp_width))
+                snapped_y = max(0, min(snapped_y, self.height() - comp_height))
+
+                # 保存吸附后位置
+                self._drag_preview_x = snapped_x
+                self._drag_preview_y = snapped_y
+                self._drag_preview_width = comp_width
+                self._drag_preview_height = comp_height
+
+                # 检查碰撞
+                self._drag_preview_collision = self._check_pixel_collision(
+                    snapped_x, snapped_y, comp_width, comp_height
+                )
+
+                # 更新覆盖层预览框
+                if hasattr(self, '_grid_overlay') and self._grid_overlay:
+                    self._grid_overlay.update_preview_pixel(
+                        snapped_x, snapped_y, comp_width, comp_height,
+                        self._drag_preview_collision
+                    )
+                    self._grid_overlay.show()
+        else:
+            event.ignore()
+
+    def _snap_to_grid(self, x: float, y: float, width: float, height: float, threshold: float) -> tuple:
+        """自由吸附"""
+        metrics = self._grid_metrics
+        inset = metrics.edge_inset_px
+        pitch = metrics.pitch
+
+        # 计算组件四个边的位置
+        left = x
+        right = x + width
+        top = y
+        bottom = y + height
+
+        def find_nearest_grid_line(pos, is_vertical: bool):
+            """找最近的线"""
+            if is_vertical:
+                # x
+                for col in range(metrics.column_count + 1):
+                    line_x = inset + col * pitch
+                    if abs(pos - line_x) <= threshold:
+                        return line_x
+            else:
+                # y
+                for row in range(metrics.row_count + 1):
+                    line_y = inset + row * pitch
+                    if abs(pos - line_y) <= threshold:
+                        return line_y
+            return pos  # 不吸附
+
+        snapped_left = find_nearest_grid_line(left, True)
+        snapped_right = find_nearest_grid_line(right, True)
+        snapped_top = find_nearest_grid_line(top, False)
+        snapped_bottom = find_nearest_grid_line(bottom, False)
+
+
+        final_x = snapped_left
+        final_y = snapped_top
+
+        if snapped_right != right:
+            final_x = snapped_right - width
+        if snapped_bottom != bottom:
+            final_y = snapped_bottom - height
+
+        return (final_x, final_y)
+
+    def _check_pixel_collision(self, x: float, y: float, width: float, height: float) -> bool:
+        """检查像素位置的碰撞"""
+        if hasattr(self, 'component_manager') and self.component_manager:
+            containers = self.component_manager.get_all_containers()
+            for container in containers:
+                if container and container.isVisible():
+                    # 检查矩形重叠
+                    cx = container.x()
+                    cy = container.y()
+                    cw = container.width()
+                    ch = container.height()
+
+                    # 矩形重叠检测
+                    if not (x + width < cx or x > cx + cw or
+                            y + height < cy or y > cy + ch):
+                        return True
+        return False
+
+    def dragLeaveEvent(self, event):
+        """拖拽离开事件"""
+        self._drag_hover = False
+        self._drag_preview_visible = False
+        self._drag_preview_component_id = None
+        self._drag_preview_def = None
+        self._drag_preview_row = -1
+        self._drag_preview_col = -1
+
+        # 隐藏覆盖层
+        if hasattr(self, '_grid_overlay') and self._grid_overlay:
+            if not self._edit_mode_active:
+                self._grid_overlay.hide()
+            else:
+                self._grid_overlay.show_preview(False)
+
+        self.update()
+        event.accept()
+
+    def dropEvent(self, event):
+        """放置事件"""
+        if not event.mimeData().hasFormat("application/x-classlively-component"):
+            event.ignore()
+            return
+
+        # 隐藏拖拽预览
+        self._drag_hover = False
+        self._drag_preview_visible = False
+        self._drag_preview_component_id = None
+        self._drag_preview_def = None
+        self._drag_preview_row = -1
+        self._drag_preview_col = -1
+
+        # 隐藏覆盖层预览框
+        if hasattr(self, '_grid_overlay') and self._grid_overlay:
+            if self._edit_mode_active:
+                self._grid_overlay.show_preview(False)
+            else:
+                self._grid_overlay.hide()
+
+        data = event.mimeData().data("application/x-classlively-component").data().decode('utf-8')
+
+        # 解析组件类型和样式
+        component_type, component_style = self._resolve_component_type_style(data)
+
+        # 转换百分比保存
+        if self._drag_preview_x > 0 and self._drag_preview_y > 0:
+            pos_x_pct = self._drag_preview_x / self.width() if self.width() > 0 else 0.5
+            pos_y_pct = self._drag_preview_y / self.height() if self.height() > 0 else 0.5
+            width_pct = self._drag_preview_width / self.width() if self.width() > 0 else 0.2
+            height_pct = self._drag_preview_height / self.height() if self.height() > 0 else 0.1
+        else:
+            # 或使用鼠标位置
+            drop_pos = event.position()
+            pos_x_pct = drop_pos.x() / self.width() if self.width() > 0 else 0.5
+            pos_y_pct = drop_pos.y() / self.height() if self.height() > 0 else 0.5
+            width_pct = 0.2
+            height_pct = 0.1
+
+        # 使用 component_manager 添加组件
+        if hasattr(self, 'component_manager') and self.component_manager:
+            comp_id = self.component_manager.add_component(component_type, component_style)
+            if comp_id:
+                comp = self.component_manager.components.get(comp_id)
+                if comp:
+                    comp.setPositionPercent(pos_x_pct, pos_y_pct)
+                    self.component_manager.save_components()
+                    if comp not in self._draggable_widgets:
+                        self._draggable_widgets.append(comp)
+                    if self._edit_mode_active and hasattr(comp, 'setDraggable'):
+                        comp.setDraggable(True)
+
+                event.acceptProposedAction()
+                self.update()
+
+                from qfluentwidgets import InfoBar, InfoBarPosition
+                InfoBar.success(
+                    tr("component_edit.add_success"),
+                    "",
+                    orient=Qt.Orientation.Horizontal,
+                    position=InfoBarPosition.TOP,
+                    duration=2000,
+                    parent=self
+                )
+                return
+
+        event.acceptProposedAction()
+        self.update()
+
+    def _resolve_component_type_style(self, component_id: str) -> tuple:
+        """从 definition ID 读 component_manager 要的 type style"""
+        try:
+            from ui.component import COMPONENT_STYLES
+            parts = component_id.split('_')
+            for i in range(len(parts), 0, -1):
+                potential_type = '_'.join(parts[:i])
+                potential_style = '_'.join(parts[i:])
+                if potential_type in COMPONENT_STYLES and potential_style in COMPONENT_STYLES[potential_type]:
+                    return (potential_type, potential_style)
+        except Exception:
+            pass
+        # 或取第一部分为 type 其余为 style
+        parts = component_id.split('_')
+        return (parts[0], '_'.join(parts[1:]))
+
+    def _check_placement_collision(self, row: int, col: int, width_cells: int, height_cells: int) -> bool:
+        """检查放置是否与现有组件碰撞"""
+        placements = self.placement_service.get_all_placements()
+        for p in placements:
+            # 检查是否重叠
+            if (p.row <= row + height_cells - 1 and row <= p.row + p.height_cells - 1 and
+                p.column <= col + width_cells - 1 and col <= p.column + p.width_cells - 1):
+                return True
+        return False
+
+    def _create_component_widget(self, placement_id: str):
+        """创建组件 widget"""
+        placement = self.placement_service.get_placement(placement_id)
+        if not placement:
+            return
+
+        definition = self.component_registry.get_definition(placement.component_id)
+        if not definition:
+            return
+
+        # 计算位置和大小
+        if self._grid_metrics:
+            rect = self.grid_service.get_cell_rect(
+                self._grid_metrics,
+                placement.column,
+                placement.row,
+                placement.width_cells,
+                placement.height_cells
+            )
+        else:
+            rect = None
+
+
+        # TODO: 
+        if hasattr(self, 'component_manager') and self.component_manager:
+            comp_id = self.component_manager.add_component(placement.component_id, "default")
+            if comp_id and rect:
+                comp = self.component_manager.components.get(comp_id)
+                if comp:
+                    pos_x = rect.x() / self.width()
+                    pos_y = rect.y() / self.height()
+                    comp.setPositionPercent(pos_x_pct, pos_y_pct)
+                    comp.resize(int(rect.width()), int(rect.height()))
+                    self.component_manager.save_components()
 
     def _showBottomMenu(self):
         """底部菜单按钮的弹出菜单"""
         menu = RoundMenu(parent=self.menuBtn)
 
-        settings_action = Action(FIF.SETTING, tr("home.menu_settings"))
+        settings_action = Action(FUI.SETTING, tr("home.menu_settings"))
         settings_action.triggered.connect(self._openSettingsWindow)
         menu.addAction(settings_action)
 
-        edit_action = Action(FIF.EDIT, tr("home.menu_component_edit"))
+        edit_action = Action(FUI.EDIT, tr("home.menu_component_edit"))
         edit_action.triggered.connect(self._openComponentEditWindow)
         menu.addAction(edit_action)
 
         menu.addSeparator()
 
-        restart_action = Action(FIF.UPDATE, tr("home.menu_restart"))
+        restart_action = Action(FUI.UPDATE, tr("home.menu_restart"))
         restart_action.triggered.connect(lambda: os.system('shutdown /r /t 0'))
         menu.addAction(restart_action)
 
-        shutdown_action = Action(FIF.CLOSE, tr("home.menu_shutdown"))
+        shutdown_action = Action(FUI.CLOSE, tr("home.menu_shutdown"))
         shutdown_action.triggered.connect(lambda: os.system('shutdown /s /t 0'))
         menu.addAction(shutdown_action)
 
         menu.exec(self.menuBtn.mapToGlobal(
             self.menuBtn.rect().bottomRight()
         ))
+
+    def _enterEditMode(self):
+        """进入编辑模式"""
+        self.isEditMode = True
+        self._edit_mode_active = True
+        # 更新网格度量
+        self._update_grid_metrics()
+        logger.info(f"进入编辑模式: grid_metrics={self._grid_metrics}, "
+                    f"cell_size={self._grid_metrics.cell_size if self._grid_metrics else 'None'}")
+        # 显示网格
+        if hasattr(self, '_grid_overlay') and self._grid_overlay:
+            self._grid_overlay.update_grid_metrics(self._grid_metrics)
+            self._grid_overlay.show_preview(False)
+            self._grid_overlay.show()
+        # 设置可拖动
+        self._set_all_draggable(True)
+
+    def _exitEditMode(self):
+        """退出编辑模式"""
+        self.isEditMode = False
+        self._edit_mode_active = False
+        # 隐藏网格
+        if hasattr(self, '_grid_overlay') and self._grid_overlay:
+            self._grid_overlay.hide()
+        # 设置不可拖动
+        self._set_all_draggable(False)
+
+    def _set_all_draggable(self, enabled: bool):
+        """设置可拖动"""
+        if not hasattr(self, '_draggable_widgets'):
+            self._draggable_widgets = []
+
+        if hasattr(self, 'component_manager') and self.component_manager:
+            containers = self.component_manager.get_all_containers()
+            logger.info(f"component_manager 有 {len(containers)} 个容器")
+            for container in containers:
+                if container not in self._draggable_widgets:
+                    self._draggable_widgets.append(container)
+                    logger.info(f"添加新容器到拖拽列表: {container}")
+
+        try:
+            from ui.component import DraggableContainer as DCont
+            for child in self.findChildren(DCont):
+                if child not in self._draggable_widgets:
+                    self._draggable_widgets.append(child)
+                    logger.info(f"findChildren 补充: {child}")
+        except Exception:
+            pass
+
+        logger.info(f"拖拽列表共有 {len(self._draggable_widgets)} 个组件，设置draggable={enabled}")
+
+        for widget in self._draggable_widgets:
+            if widget and hasattr(widget, 'setDraggable'):
+                try:
+                    widget.setDraggable(enabled)
+                    widget.raise_()
+                except Exception as e:
+                    logger.warning(f"设置组件可拖动状态失败: {e}")
 
     def _initTimers(self):
         self.clockTimer = QTimer(self)
@@ -594,6 +1084,9 @@ class HomeInterface(QWidget, TranslatableWidget):
         super().resizeEvent(event)
         available_width = self.width()
         available_height = self.height()
+
+        # 更新网格计算
+        self._update_grid_metrics()
 
         if hasattr(self, 'homeBackgroundImage') and self.homeBackgroundImage:
             try:
@@ -1353,8 +1846,8 @@ class HomeInterface(QWidget, TranslatableWidget):
         self.updateSchoolInfo()
         self._updateQuickLaunch()
 
-    def _openComponentSetting(self, component_id: str):
-        return
+    # def _openComponentSetting(self, component_id: str):  # 弃
+    #     return
 
     def _setDraggableEnabled(self, enabled: bool):
         if hasattr(self, '_draggable_widgets'):
@@ -1517,19 +2010,35 @@ class HomeInterface(QWidget, TranslatableWidget):
         if not hasattr(self, '_draggable_widgets'):
             return
 
-        positions = {}
+        # 收集当前位置
+        current_positions = {}
         for widget in self._draggable_widgets:
             if widget and hasattr(widget, 'component_id') and hasattr(widget, 'getPositionPercent'):
                 comp_id = widget.component_id
                 x, y = widget.getPositionPercent()
-                positions[comp_id] = {"x": round(x, 4), "y": round(y, 4)}
+                current_positions[comp_id] = {"x": round(x, 4), "y": round(y, 4)}
 
         try:
-            config_path = os.path.join(BASE_DIR, 'config', 'component_positions.json')
+            config_path = os.path.join(BASE_DIR, 'config', 'components.json')
             os.makedirs(os.path.dirname(config_path), exist_ok=True)
+
+            # 读配置
+            existing_data = {"components": []}
+            if os.path.exists(config_path):
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    existing_data = json.load(f)
+
+            # 更新位置
+            components_list = existing_data.get('components', [])
+            for comp in components_list:
+                comp_id = comp.get('id')
+                if comp_id in current_positions:
+                    comp['position'] = current_positions[comp_id]
+
+            # 写回
             with open(config_path, 'w', encoding='utf-8') as f:
-                json.dump(positions, f, indent=2, ensure_ascii=False)
-            logger.info(f"组件位置已保存: {positions}")
+                json.dump(existing_data, f, indent=2, ensure_ascii=False)
+            logger.info(f"组件位置已保存: {current_positions}")
         except Exception as e:
             logger.error(f"保存组件位置失败: {e}")
 
@@ -1538,21 +2047,29 @@ class HomeInterface(QWidget, TranslatableWidget):
             return
 
         try:
-            config_path = os.path.join(BASE_DIR, 'config', 'component_positions.json')
+            config_path = os.path.join(BASE_DIR, 'config', 'components.json')
             if not os.path.exists(config_path):
-                logger.info("组件位置配置文件不存在，使用默认位置")
+                logger.info("组件配置文件不存在，使用默认位置")
                 return
 
             with open(config_path, 'r', encoding='utf-8') as f:
-                positions = json.load(f)
+                data = json.load(f)
+
+            components_list = data.get('components', [])
+            positions = {}
+            for comp in components_list:
+                comp_id = comp.get('id')
+                pos = comp.get('position', {})
+                if comp_id and pos:
+                    positions[comp_id] = pos
 
             for widget in self._draggable_widgets:
                 if widget and hasattr(widget, 'component_id') and hasattr(widget, 'setPositionPercent'):
                     comp_id = widget.component_id
                     if comp_id in positions:
                         pos = positions[comp_id]
-                        widget.setPositionPercent(pos['x'], pos['y'])
-                        logger.info(f"已加载 {comp_id} 位置: ({pos['x']}, {pos['y']})")
+                        widget.setPositionPercent(pos.get('x', 0.5), pos.get('y', 0.5))
+                        logger.info(f"已加载 {comp_id} 位置: ({pos.get('x', 0.5)}, {pos.get('y', 0.5)})")
 
             logger.info("所有组件位置已加载完成")
         except Exception as e:
@@ -1596,7 +2113,7 @@ class EditPanel(QWidget):
         self.positionButton = ToolButton(parent=self)
         self.positionButton.setFixedSize(32, 32)
         self.positionButton.setToolTip(tr("home.switch_to_left"))  # 切换到左侧
-        self.positionButton.setIcon(FIF.CARE_LEFT_SOLID)
+        self.positionButton.setIcon(FUI.CARE_LEFT_SOLID)
         self.positionButton.clicked.connect(self._togglePosition)
         titleLayout.addWidget(self.positionButton)
         v.addLayout(titleLayout)
@@ -1629,7 +2146,7 @@ class EditPanel(QWidget):
 
         v.addStretch()
 
-        self.closeButton = PushButton(tr("common.close"), self, icon=FIF.CLOSE)  # 关闭
+        self.closeButton = PushButton(tr("common.close"), self, icon=FUI.CLOSE)  # 关闭
         self.closeButton.setFixedHeight(36)
         v.addWidget(self.closeButton)
         self.closeButton.clicked.connect(self.hidePanel)
@@ -2266,10 +2783,10 @@ class EditPanel(QWidget):
         """切换编辑面板位置"""
         self.isLeftSide = not self.isLeftSide
         if self.isLeftSide:
-            self.positionButton.setIcon(FIF.CARE_RIGHT_SOLID)
+            self.positionButton.setIcon(FUI.CARE_RIGHT_SOLID)
             self.positionButton.setToolTip(tr("home.switch_to_right"))  # 切换到右侧
         else:
-            self.positionButton.setIcon(FIF.CARE_LEFT_SOLID)
+            self.positionButton.setIcon(FUI.CARE_LEFT_SOLID)
             self.positionButton.setToolTip(tr("home.switch_to_left"))  # 切换到左侧
         self.mainWindow.refresh_edit_button_position()
 
@@ -2394,13 +2911,13 @@ class EditPanel(QWidget):
         actionLabel.setFixedWidth(100)
         actionLayout.addWidget(actionLabel)
         actionLayout.addStretch()
-        self.countdownAddButton = PushButton(FIF.ADD, tr("home.add"), self)  # 添加
+        self.countdownAddButton = PushButton(FUI.ADD, tr("home.add"), self)  # 添加
         self.countdownAddButton.clicked.connect(self._onCountdownAddClicked)
         actionLayout.addWidget(self.countdownAddButton)
-        self.countdownEditButton = PushButton(FIF.EDIT, tr("home.edit"), self)  # 编辑
+        self.countdownEditButton = PushButton(FUI.EDIT, tr("home.edit"), self)  # 编辑
         self.countdownEditButton.clicked.connect(self._onCountdownEditClicked)
         actionLayout.addWidget(self.countdownEditButton)
-        self.countdownDeleteButton = PushButton(FIF.DELETE, tr("home.delete"), self)  # 删除
+        self.countdownDeleteButton = PushButton(FUI.DELETE, tr("home.delete"), self)  # 删除
         self.countdownDeleteButton.clicked.connect(self._onCountdownDeleteClicked)
         actionLayout.addWidget(self.countdownDeleteButton)
         actionLayout.addStretch()
@@ -3462,3 +3979,182 @@ class AppEditDialog(MessageBoxBase):
 
     def get_app_data(self):
         return self._result
+
+
+class _CanvasAdapter:
+    """适配器"""
+
+    def __init__(self, home_interface):
+        self._home = home_interface
+
+    def get_registry(self):
+        """获取组件注册中心"""
+        return self._home.component_registry
+
+    def get_placement_service(self):
+        """获取放置服务"""
+        return self._home.placement_service
+
+    def get_grid_metrics(self):
+        """获取网格度量"""
+        return self._home._grid_metrics
+
+    def get_grid_service(self):
+        """获取网格服务"""
+        return self._home.grid_service
+
+    def get_grid_settings(self):
+        """获取网格设置"""
+        return self._home.grid_settings
+
+
+class _GridOverlay(QWidget):
+    """网格覆盖层"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self._home = None
+        self._grid_metrics = None
+        self._preview_visible = False
+        # 格子坐标（旧）
+        self._preview_row = -1
+        self._preview_col = -1
+        self._preview_width_cells = 0
+        self._preview_height_cells = 0
+        # 像素坐标
+        self._preview_x = 0
+        self._preview_y = 0
+        self._preview_width_px = 0
+        self._preview_height_px = 0
+        self._use_pixel_mode = False  # 是否使用
+        self._preview_collision = False
+
+    def setup(self, home_interface):
+        """设置 HomeInterface 引用"""
+        self._home = home_interface
+
+    def update_grid_metrics(self, metrics):
+        """更新网格度量并重绘"""
+        self._grid_metrics = metrics
+        if metrics:
+            self.setGeometry(self.parent().rect())
+        self.update()
+
+    def show_preview(self, visible: bool):
+        """显示/隐藏预览框"""
+        self._preview_visible = visible
+        if not visible:
+            self._preview_row = -1
+            self._preview_col = -1
+            self._preview_x = 0
+            self._preview_y = 0
+        self.update()
+
+    def update_preview(self, row, col, width_cells, height_cells, collision=False):
+        """更新预览框位置和大小（格子坐标）"""
+        self._preview_visible = True
+        self._use_pixel_mode = False
+        self._preview_row = row
+        self._preview_col = col
+        self._preview_width_cells = width_cells
+        self._preview_height_cells = height_cells
+        self._preview_collision = collision
+        self.update()
+
+    def update_preview_pixel(self, x: float, y: float, width: float, height: float, collision=False):
+        """更新预览框位置和大小（像素坐标）"""
+        self._preview_visible = True
+        self._use_pixel_mode = True
+        self._preview_x = x
+        self._preview_y = y
+        self._preview_width_px = width
+        self._preview_height_px = height
+        self._preview_collision = collision
+        self.update()
+
+    def paintEvent(self, event):
+        """绘制网格和预览框"""
+        if not self._grid_metrics or self._grid_metrics.cell_size <= 0:
+            return
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        metrics = self._grid_metrics
+        inset = metrics.edge_inset_px
+        pitch = metrics.pitch
+        cell_size = metrics.cell_size
+
+        # 网格线样式
+        dash_segment = max(2, cell_size * 0.25)
+        grid_color = QColor(100, 100, 100, 60)  # 半透明灰色
+        grid_pen = QPen(grid_color)
+        grid_pen.setWidthF(1.0)
+        grid_pen.setDashPattern([dash_segment, dash_segment])  # 自适应虚线
+        painter.setPen(grid_pen)
+
+        # x
+        for col in range(1, metrics.column_count):
+            x = inset + col * pitch
+            painter.drawLine(int(x), int(inset), int(x), int(inset + metrics.grid_height_px))
+
+        # y
+        for row in range(1, metrics.row_count):
+            y = inset + row * pitch
+            painter.drawLine(int(inset), int(y), int(inset + metrics.grid_width_px), int(y))
+
+        # 绘制预览框
+        if self._preview_visible:
+            if self._use_pixel_mode:
+                # 像素模式 使用像素坐标
+                rect = QRectF(
+                    self._preview_x,
+                    self._preview_y,
+                    self._preview_width_px,
+                    self._preview_height_px
+                )
+            elif self._preview_row >= 0 and self._preview_col >= 0 and self._home:
+                # 格子模式 使用格子坐标
+                rect = self._home.grid_service.get_cell_rect(
+                    metrics,
+                    self._preview_col,
+                    self._preview_row,
+                    max(1, self._preview_width_cells),
+                    max(1, self._preview_height_cells)
+                )
+                rect = QRectF(rect)
+            else:
+                rect = None
+
+            if rect:
+                # 颜色
+                if self._preview_collision:
+                    # 红色 - 碰撞/无效
+                    border_color = QColor(255, 59, 48, 255)  # #FF3B30
+                    fill_color = QColor(255, 59, 48, 20)    # #14FF3B30
+                else:
+                    # 蓝色 - 正常
+                    border_color = QColor(10, 132, 255, 255)  # #FF0A84FF
+                    fill_color = QColor(10, 132, 255, 20)    # #140A84FF
+
+                # 圆角动态计算
+                min_side = min(rect.width(), rect.height())
+                corner_radius = max(14, min(26, min_side * 0.11))
+
+                # 绘制填充
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(fill_color)
+                path = QPainterPath()
+                path.addRoundedRect(rect, corner_radius, corner_radius)
+                painter.drawPath(path)
+
+                # 绘制边框
+                border_pen = QPen(border_color)
+                border_pen.setWidthF(2)
+                painter.setPen(border_pen)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRoundedRect(rect, corner_radius, corner_radius)
+
+        painter.end()

@@ -38,7 +38,6 @@ from PyQt6.QtWidgets import (
 )
 from qfluentwidgets import (
     CardWidget,
-    FluentIcon as FIF,
     IconWidget,
     BodyLabel,
     CaptionLabel,
@@ -52,7 +51,7 @@ from qfluentwidgets import (
 )
 
 from core.constants import get_resPath, load_qss
-from core.utils import tr, TranslatableWidget
+from core.utils import tr, TranslatableWidget, FUI
 from version import BUILD_DATE, VERSION
 
 from .common import BaseScrollAreaInterface, show_text_file
@@ -120,7 +119,7 @@ class AboutInterface(BaseScrollAreaInterface, TranslatableWidget):
 
         verRow = QHBoxLayout()
         verRow.setSpacing(6)
-        verIcon = IconWidget(FIF.UPDATE, card)
+        verIcon = IconWidget(FUI.UPDATE, card)
         verIcon.setFixedSize(14, 14)
         verText = CaptionLabel(f"v{VERSION}  ·  {BUILD_DATE}", card)
         verText.setObjectName("versionLabel")
@@ -166,7 +165,7 @@ class AboutInterface(BaseScrollAreaInterface, TranslatableWidget):
         # 右侧：详情按钮
         right = QVBoxLayout()
         right.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
-        techBtn = PushButton(FIF.INFO, tr("about.thanks"), card)
+        techBtn = PushButton(FUI.INFO, tr("about.thanks"), card)
         techBtn.setFixedHeight(32)
         techBtn.clicked.connect(self._showTechDialog)
         right.addWidget(techBtn)
@@ -188,13 +187,13 @@ class AboutInterface(BaseScrollAreaInterface, TranslatableWidget):
         lay.setSpacing(4)
 
         links = [
-            (FIF.GITHUB, tr("about.github_repo"),
+            (FUI.GITHUB, tr("about.github_repo"),
              "github.com/HelloGaoo/ClassLively",
              "https://github.com/HelloGaoo/ClassLively"),
-            (FIF.PEOPLE, tr("about.author_homepage"),
+            (FUI.PEOPLE, tr("about.author_homepage"),
              "space.bilibili.com/1498602348",
              "https://space.bilibili.com/1498602348"),
-            (FIF.DOCUMENT, tr("about.license"),
+            (FUI.DOCUMENT, tr("about.license"),
              "GNU General Public License v3.0",
              None),  # 点击打开许可证弹窗
         ]
@@ -217,7 +216,7 @@ class AboutInterface(BaseScrollAreaInterface, TranslatableWidget):
             tcol.addWidget(tl)
             tcol.addWidget(dl)
 
-            btn = PushButton(FIF.LINK, tr("about.visit"), card)
+            btn = PushButton(FUI.LINK, tr("about.visit"), card)
             btn.setFixedHeight(30)
             if url:
                 btn.clicked.connect(lambda _, u=url: webbrowser.open(u))
@@ -322,7 +321,7 @@ class _TechDialog(MessageBoxBase):
             lbl = BodyLabel(display, w)
             lbl.setObjectName("depItemLabel")
 
-            btn = PushButton(FIF.LINK, tr("common.link"), w)
+            btn = PushButton(FUI.LINK, tr("common.link"), w)
             btn.setObjectName("depGithubBtn")
             btn.hide()
             btn.clicked.connect(lambda checked, u=url: webbrowser.open(u))

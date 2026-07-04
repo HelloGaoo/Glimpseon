@@ -6,7 +6,6 @@ from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from qfluentwidgets import (
     CardWidget,
     ExpandLayout,
-    FluentIcon as FIF,
     InfoBar,
     MessageBox,
     PrimaryPushButton,
@@ -16,6 +15,7 @@ from qfluentwidgets import (
     TextEdit,
     isDarkTheme,
 )
+from core.utils import FUI
 
 
 class BaseScrollAreaInterface(ScrollArea):

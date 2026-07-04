@@ -43,7 +43,6 @@ from PyQt6.QtWidgets import (
 from qfluentwidgets import (
     BodyLabel,
     CardWidget,
-    FluentIcon as FIF,
     Pivot,
     PushButton,
     ScrollArea,
@@ -58,7 +57,7 @@ from qfluentwidgets import (
 )
 
 from core.constants import load_qss
-from core.utils import tr, TranslatableWidget
+from core.utils import tr, TranslatableWidget, FUI
 
 logger = logging.getLogger("ClassLively.ui.notification")
 
@@ -181,11 +180,11 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         time_row = QHBoxLayout()
         time_row.setSpacing(12)
 
-        self.sendNowBtn = PrimaryPushButton(FIF.SEND, tr("notification.send_now"), time_card)
+        self.sendNowBtn = PrimaryPushButton(FUI.SEND, tr("notification.send_now"), time_card)
         self.sendNowBtn.clicked.connect(self._onSendNow)
         time_row.addWidget(self.sendNowBtn)
 
-        self.scheduleBtn = PushButton(FIF.CALENDAR, tr("notification.schedule"), time_card)
+        self.scheduleBtn = PushButton(FUI.CALENDAR, tr("notification.schedule"), time_card)
         time_row.addWidget(self.scheduleBtn)
         time_row.addStretch()
 

@@ -38,7 +38,6 @@ from qfluentwidgets import (
     CardWidget,
     CheckBox,
     ComboBox,
-    FluentIcon as FIF,
     InfoBar,
     MessageBox,
     PrimaryPushButton,
@@ -54,7 +53,7 @@ from core.config import cfg
 from core.constants import BASE_DIR, get_resPath, load_qss
 from core.downloader import DOWNLOAD_SOURCES, DEFAULT_SOURCE, Downloader, set_download_src, get_source_name
 from data.url_dir import url_dir
-from core.utils import tr, TranslatableWidget
+from core.utils import tr, TranslatableWidget, FUI
 from core.logger import logger
 
 from .common import BaseScrollAreaInterface, show_text_file
@@ -448,7 +447,7 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
         sourceGroupLayout.addWidget(self.sourceLabel)
         sourceGroupLayout.addWidget(self.sourceComboBox)
         
-        self.startButton = PrimaryPushButton(FIF.PLAY, tr("download.start_download"), self.modeContainer)  # 开始下载
+        self.startButton = PrimaryPushButton(FUI.PLAY, tr("download.start_download"), self.modeContainer)  # 开始下载
         self.startButton.setObjectName("startButton")
         self.startButton.setFixedHeight(36)
         self.startButton.hide()
@@ -617,7 +616,7 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
         
         if link:
             link_btn = QToolButton(card)
-            link_btn.setIcon(FIF.LINK.icon())
+            link_btn.setIcon(FUI.LINK.icon())
             link_btn.setFixedSize(20, 20)
             link_btn.setObjectName("softwareLinkButton")
             link_btn.setToolTip(tr("download.open_official_website"))
@@ -641,7 +640,7 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
         progress_bar.hide()
         
         # 下载按钮 / 复选框
-        btn = PrimaryPushButton(FIF.DOWNLOAD, tr("download.download_btn"), card)
+        btn = PrimaryPushButton(FUI.DOWNLOAD, tr("download.download_btn"), card)
         btn.setFixedHeight(36)
         
         checkbox = CheckBox(card)

@@ -787,3 +787,117 @@ def offset_time_str() -> str:
 class TranslatableWidget:
     def setup_translatable_ui(self):
         pass
+
+
+
+# FluentUI System Icons 
+from qfluentwidgets.common.icon import FluentIconBase, Theme, getIconColor
+from PyQt6.QtGui import QIcon
+
+
+class _FluentUIIconInstance(FluentIconBase):
+    """FluentUI 图标载体类"""
+    
+    def __init__(self, icon_name: str):
+        """Parameters"""
+        self._icon_name = icon_name
+    
+    def path(self, theme=Theme.AUTO) -> str:
+        """获取SVG 路径"""
+        # qfluentwidgets 的 getIconColor 函数获取主题色
+        icon_color = getIconColor(theme)
+        
+        # 深浅色目录
+        theme_dir = "light" if icon_color == "black" else "dark"
+        
+        # FluentUI 图标命名: ic_fluent_<name>_24_regular.svg
+        icon_filename = f"ic_fluent_{self._icon_name}_24_regular.svg"
+        
+        # 返回路径
+        from core.constants import BASE_DIR
+        svg_path = os.path.join(BASE_DIR, "resource", "fluent", theme_dir, icon_filename)
+        
+        return svg_path
+    
+    def __repr__(self) -> str:
+        return f"<FluentUIIcon: {self._icon_name}>"
+
+
+_ICON_NAME_MAP = {
+    # 箭头类
+    "RIGHT_ARROW": "arrow_right",
+    "LEFT_ARROW": "arrow_left",
+
+    # 操作类
+    "ACCEPT": "checkmark",
+    "ADD": "add",
+    "DELETE": "delete",
+    "EDIT": "edit",
+    "SAVE": "save",
+    "CLOSE": "dismiss",
+    "PLAY": "play",
+
+    # 界面类
+    "HOME": "home",
+    "SETTING": "settings",
+    "INFO": "info",
+    "FULL_SCREEN": "full_screen_maximize",
+    "VIEW": "eye",
+
+    # 文件类
+    "FOLDER": "folder",
+    "ALBUM": "album",
+    "DOWNLOAD": "arrow_download",
+    "PHOTO": "image",
+
+    # 通讯类
+    "MESSAGE": "chat",
+    "LINK": "link",
+
+    # 时间类
+    "DATE_TIME": "clock",
+    "STOP_WATCH": "timer",
+    "HISTORY": "history",
+    "SYNC": "arrow_sync",
+
+    # 媒体类
+    "VIDEO": "video",
+    "MUSIC": "music_note_2",
+
+    # 其他
+    "APPLICATION": "apps",
+    "BRUSH": "paint_brush",
+    "PALETTE": "color",
+    "CLOUD": "cloud",
+    "BOOK_SHELF": "book",
+    "EDUCATION": "class",
+    "LANGUAGE": "local_language",
+    "TILES": "grid",
+    "LAYOUT": "layout_column_two",
+    "ZOOM": "zoom_fit",
+    "UPDATE": "arrow_sync",
+    "DEVELOPER_TOOLS": "window_dev_tools",
+    "CODE": "code",
+}
+
+
+class _FluentUIIconNamespace:
+    """FluentUI 图标命名空间类"""
+
+    def __getattr__(self, name: str) -> _FluentUIIconInstance:
+        """创建图标实例"""
+        # 查映射表
+        icon_name = _ICON_NAME_MAP.get(name, name.lower())
+
+        # 创建
+        return _FluentUIIconInstance(icon_name)
+
+    def __repr__(self) -> str:
+        return "<FluentUIIconNamespace: 动态图标访问器>"
+
+
+# 全局单例导出
+FUI = _FluentUIIconNamespace()
+
+# 别名
+FluentUIIcon = FUI

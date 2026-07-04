@@ -428,7 +428,19 @@ class Config(QConfig):
     lastSyncTime = ConfigItem(
         "PreciseTime", "LastSyncTime", ""
     )
-    
+
+    gridShortSideCells = RangeConfigItem(
+        "Grid", "ShortSideCells", 6, RangeValidator(6, 96)
+    )
+    gridInsetPercent = RangeConfigItem(
+        "Grid", "InsetPercent", 5, RangeValidator(0, 30)
+    )
+    gridSpacingPreset = OptionsConfigItem(
+        "Grid", "SpacingPreset", "relaxed", OptionsValidator(["relaxed", "compact"])
+    )
+    gridCornerRadiusStyle = OptionsConfigItem(
+        "Grid", "CornerRadiusStyle", "rounded", OptionsValidator(["rounded", "square"])
+    )
 
 
 cfg = Config()
@@ -600,6 +612,12 @@ def default_cfg():
             "UsePreciseTime": False,
             "TimeServer": "ntp.aliyun.com",
             "LastSyncTime": ""
+        },
+        "Grid": {
+            "ShortSideCells": 6,
+            "InsetPercent": 5,
+            "SpacingPreset": "relaxed",
+            "CornerRadiusStyle": "rounded"
         }
     }
 

@@ -35,7 +35,6 @@ from PyQt6.QtGui import QIcon, QPixmap
 from PyQt6.QtWidgets import QApplication, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from qfluentwidgets import (
     CardWidget,
-    FluentIcon as FIF,
     InfoBar,
     PrimaryPushButton,
     PushButton,
@@ -46,7 +45,7 @@ from qfluentwidgets import (
 
 from core.config import cfg
 from core.constants import BASE_DIR, get_resPath, load_qss
-from core.utils import tr, TranslatableWidget
+from core.utils import tr, TranslatableWidget, FUI
 from core.updater import check_github_verison, get_github_changelog, download_update, extract_update, create_update_script
 from version import BUILD_DATE, VERSION
 
@@ -147,7 +146,7 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
         self.updateStatusLayout.addWidget(self.updateStatusLabel)
         
         # 检查更新按钮
-        self.checkUpdateButton = PrimaryPushButton(FIF.SYNC, tr("update.check_update"), self.versionCard)  # 检查更新
+        self.checkUpdateButton = PrimaryPushButton(FUI.SYNC, tr("update.check_update"), self.versionCard)  # 检查更新
         self.checkUpdateButton.setFixedHeight(36)
         self.checkUpdateButton.clicked.connect(self.checkUpdateManual)
         
@@ -176,14 +175,14 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
         
         self.changelogContent.setPlaceholderText(tr("update.changelog_auto_load"))  # 更新日志将在自动检查更新时加载
         self.autoCheckUpdateCard = SwitchSettingCard(
-            FIF.UPDATE,
+            FUI.UPDATE,
             tr("update.auto_check"),  # 自动检查
             tr("update.auto_check_desc"),  # 启用后，应用启动时会自动检查新版本
             configItem=cfg.autoCheckUpdate,
             parent=self.scrollWidget
         )
         self.autoUpdateCard = SwitchSettingCard(
-            FIF.DOWNLOAD,
+            FUI.DOWNLOAD,
             tr("update.auto_update"),  # 自动更新
             tr("update.auto_update_desc"),  # 发现新版本时自动下载并安装
             configItem=cfg.autoUpdate,
@@ -321,7 +320,7 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
 
                 if not auto_check:
                     self.checkUpdateButton.setText(tr("update.download"))
-                    self.checkUpdateButton.setIcon(FIF.DOWNLOAD)
+                    self.checkUpdateButton.setIcon(FUI.DOWNLOAD)
                     self.checkUpdateButton.setEnabled(True)
 
                 if changelog:
@@ -345,7 +344,7 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
     def _updateErrorState(self, msg):
         """统一更新下载错误状态到 UI（在主线程调用）"""
         self.checkUpdateButton.setText(tr("update.retry"))
-        self.checkUpdateButton.setIcon(FIF.SYNC)
+        self.checkUpdateButton.setIcon(FUI.SYNC)
         self.checkUpdateButton.setEnabled(True)
         self.updateStatusLabel.setText(tr("update.failed").format(error=msg))
         self.updateStatusLabel.setStyleSheet("color: #FF0000;")
@@ -445,7 +444,7 @@ class UpdateInterface(BaseScrollAreaInterface, TranslatableWidget):
                     except Exception:
                         pass
                 # QTimer.singleShot(0, lambda: self.checkUpdateButton.setText(tr("update.retry")))  # 重试更新
-                # QTimer.singleShot(0, lambda: self.checkUpdateButton.setIcon(FIF.SYNC))
+                # QTimer.singleShot(0, lambda: self.checkUpdateButton.setIcon(FUI.SYNC))
                 # QTimer.singleShot(0, lambda: self.checkUpdateButton.setEnabled(True))
                 # QTimer.singleShot(0, lambda msg=str(e): self.updateStatusLabel.setText(tr("update.failed").format(error=msg)))  # 更新失败：{error}
                 # QTimer.singleShot(0, lambda: self.updateStatusLabel.setStyleSheet("color: #FF0000;"))

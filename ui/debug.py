@@ -48,7 +48,6 @@ from qfluentwidgets import (
     BodyLabel,
     CardWidget,
     ComboBox,
-    FluentIcon as FIF,
     ImageLabel,
     InfoBar,
     LineEdit,
@@ -65,7 +64,7 @@ from PyQt6.QtCore import pyqtSignal
 
 from core.config import cfg
 from core.constants import BASE_DIR, WALLPAPER_DIR, get_resPath, load_qss
-from core.utils import tr, TranslatableWidget
+from core.utils import tr, TranslatableWidget, FUI
 from core.logger import logger
 from services.weather import WeatherService, RegionDatabase
 
@@ -146,7 +145,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout = QVBoxLayout(card)
         layout.setSpacing(14)
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.addLayout(self._cardTitle(FIF.APPLICATION, tr("debug.system_monitor"), card))  # 系统监控
+        layout.addLayout(self._cardTitle(FUI.APPLICATION, tr("debug.system_monitor"), card))  # 系统监控
 
         grid = QGridLayout()
         grid.setSpacing(12)
@@ -189,9 +188,9 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         btnRow = QHBoxLayout()
         self.debugUpdateToggle = ToggleButton(tr("debug.btn_enable_monitoring"), card)  # 启用监控
         self.debugUpdateToggle.setChecked(True)
-        self.debugUpdateToggle.setIcon(FIF.SYNC)
+        self.debugUpdateToggle.setIcon(FUI.SYNC)
         btnRow.addWidget(self.debugUpdateToggle)
-        self.popOutButton = PushButton(FIF.FULL_SCREEN, tr("debug.btn_popout"), card)  # 弹出面板
+        self.popOutButton = PushButton(FUI.FULL_SCREEN, tr("debug.btn_popout"), card)  # 弹出面板
         self.popOutButton.clicked.connect(self._togglePopOut)
         btnRow.addWidget(self.popOutButton)
         btnRow.addStretch()
@@ -204,37 +203,37 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout = QVBoxLayout(card)
         layout.setSpacing(14)
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.addLayout(self._cardTitle(FIF.MENU, tr("debug.quick_actions"), card))  # 快捷操作
+        layout.addLayout(self._cardTitle(FUI.MENU, tr("debug.quick_actions"), card))  # 快捷操作
 
         row1 = QHBoxLayout()
-        self.reloadThemeBtn = PrimaryPushButton(FIF.PALETTE, tr("debug.btn_refresh_theme"), card)  # 刷新主题
+        self.reloadThemeBtn = PrimaryPushButton(FUI.PALETTE, tr("debug.btn_refresh_theme"), card)  # 刷新主题
         self.reloadThemeBtn.clicked.connect(self._reloadTheme)
         row1.addWidget(self.reloadThemeBtn)
-        self.clearCacheBtn = PushButton(FIF.DELETE, tr("debug.btn_clear_cache"), card)  # 清除缓存
+        self.clearCacheBtn = PushButton(FUI.DELETE, tr("debug.btn_clear_cache"), card)  # 清除缓存
         self.clearCacheBtn.clicked.connect(self._clearCache)
         row1.addWidget(self.clearCacheBtn)
-        self.clearLogsBtn = PushButton(FIF.BROOM, tr("debug.btn_clear_logs"), card)  # 清空日志
+        self.clearLogsBtn = PushButton(FUI.BROOM, tr("debug.btn_clear_logs"), card)  # 清空日志
         self.clearLogsBtn.clicked.connect(self._clearLogs)
         row1.addWidget(self.clearLogsBtn)
         layout.addLayout(row1)
 
         row2 = QHBoxLayout()
-        self.openLogDirBtn = PushButton(FIF.FOLDER, tr("debug.btn_open_log_dir"), card)  # 打开日志目录
+        self.openLogDirBtn = PushButton(FUI.FOLDER, tr("debug.btn_open_log_dir"), card)  # 打开日志目录
         self.openLogDirBtn.clicked.connect(lambda: os.startfile(os.path.join(BASE_DIR, 'logs')))
         row2.addWidget(self.openLogDirBtn)
-        self.openWallpaperDirBtn = PushButton(FIF.FOLDER_ADD, tr("debug.btn_open_wallpaper_dir"), card)  # 打开壁纸目录
+        self.openWallpaperDirBtn = PushButton(FUI.FOLDER_ADD, tr("debug.btn_open_wallpaper_dir"), card)  # 打开壁纸目录
         self.openWallpaperDirBtn.clicked.connect(lambda: os.startfile(WALLPAPER_DIR))  # os.path.join(BASE_DIR, 'wallpaper')
         row2.addWidget(self.openWallpaperDirBtn)
-        self.openConfigDirBtn = PushButton(FIF.SETTING, tr("debug.btn_open_config_dir"), card)  # 打开配置目录
+        self.openConfigDirBtn = PushButton(FUI.SETTING, tr("debug.btn_open_config_dir"), card)  # 打开配置目录
         self.openConfigDirBtn.clicked.connect(lambda: os.startfile(os.path.join(BASE_DIR, 'config')))
         row2.addWidget(self.openConfigDirBtn)
         layout.addLayout(row2)
 
         row3 = QHBoxLayout()
-        self.forceRepaintBtn = PushButton(FIF.SYNC, tr("debug.btn_force_repaint"), card)  # 强制重绘
+        self.forceRepaintBtn = PushButton(FUI.SYNC, tr("debug.btn_force_repaint"), card)  # 强制重绘
         self.forceRepaintBtn.clicked.connect(self._forceRepaint)
         row3.addWidget(self.forceRepaintBtn)
-        self.restartAppBtn = PushButton(FIF.UPDATE, tr("debug.btn_restart_app"), card)  # 重启应用
+        self.restartAppBtn = PushButton(FUI.UPDATE, tr("debug.btn_restart_app"), card)  # 重启应用
         self.restartAppBtn.clicked.connect(self._restartApp)
         row3.addWidget(self.restartAppBtn)
         row3.addStretch()
@@ -247,7 +246,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout = QVBoxLayout(card)
         layout.setSpacing(14)
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.addLayout(self._cardTitle(FIF.GLOBE, tr("debug.title_network_diag"), card))  # 网络诊断
+        layout.addLayout(self._cardTitle(FUI.GLOBE, tr("debug.title_network_diag"), card))  # 网络诊断
 
         targetRow = QHBoxLayout()
         targetRow.addWidget(BodyLabel(tr("debug.label_test_target") + ":", card))  # 测试目标
@@ -280,7 +279,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout.addLayout(resultGrid)
 
         btnRow = QHBoxLayout()
-        self.networkTestBtn = PrimaryPushButton(FIF.PLAY, tr("debug.btn_start_diag"), card)  # 开始诊断
+        self.networkTestBtn = PrimaryPushButton(FUI.PLAY, tr("debug.btn_start_diag"), card)  # 开始诊断
         self.networkTestBtn.clicked.connect(self._runNetworkDiag)
         btnRow.addWidget(self.networkTestBtn)
         self.networkTestAllBtn = PushButton(tr("debug.btn_test_all"), card)  # 测试全部
@@ -302,12 +301,12 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout = QVBoxLayout(card)
         layout.setSpacing(14)
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.addLayout(self._cardTitle(FIF.CODE, tr("debug.title_api_test"), card))  # API测试
+        layout.addLayout(self._cardTitle(FUI.CODE, tr("debug.title_api_test"), card))  # API测试
 
         poetryRow = QHBoxLayout()
         poetryRow.addWidget(StrongBodyLabel(tr("debug.label_poetry_api"), card))  # 诗词API
         poetryRow.addStretch()
-        self.testPoetryButton = PrimaryPushButton(FIF.PLAY, tr("debug.btn_test"), card)  # 测试
+        self.testPoetryButton = PrimaryPushButton(FUI.PLAY, tr("debug.btn_test"), card)  # 测试
         self.testPoetryButton.setFixedHeight(32)
         self.testPoetryButton.clicked.connect(self._testPoetryAPI)
         poetryRow.addWidget(self.testPoetryButton)
@@ -319,7 +318,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         weatherRow = QHBoxLayout()
         weatherRow.addWidget(StrongBodyLabel(tr("debug.label_weather_api"), card))  # 天气API
         weatherRow.addStretch()
-        self.testWeatherButton = PrimaryPushButton(FIF.PLAY, tr("debug.btn_test"), card)  # 测试
+        self.testWeatherButton = PrimaryPushButton(FUI.PLAY, tr("debug.btn_test"), card)  # 测试
         self.testWeatherButton.setFixedHeight(32)
         self.testWeatherButton.clicked.connect(self._testWeatherAPI)
         weatherRow.addWidget(self.testWeatherButton)
@@ -345,7 +344,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout = QVBoxLayout(card)
         layout.setSpacing(12)
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.addLayout(self._cardTitle(FIF.CLOUD, tr("debug.title_weather_sim"), card))  # 天气模拟
+        layout.addLayout(self._cardTitle(FUI.CLOUD, tr("debug.title_weather_sim"), card))  # 天气模拟
 
         # weatherCodeMap = {
         #     0: tr("weather.sunny"), 1: tr("weather.cloudy"), 2: tr("weather.overcast"), 3: tr("weather.shower"), 4: tr("weather.thundershower"),
@@ -399,7 +398,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout.addLayout(tempRow)
 
         buttonRow = QHBoxLayout()
-        self.applyWeatherButton = PrimaryPushButton(FIF.PLAY, tr("debug.btn_apply_weather"), card)  # 应用天气
+        self.applyWeatherButton = PrimaryPushButton(FUI.PLAY, tr("debug.btn_apply_weather"), card)  # 应用天气
         self.applyWeatherButton.clicked.connect(self._applyWeatherToMain)
         buttonRow.addWidget(self.applyWeatherButton)
         self.resetWeatherButton = PushButton(tr("debug.btn_reset"), card)  # 重置
@@ -558,7 +557,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout = QVBoxLayout(card)
         layout.setSpacing(12)
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.addLayout(self._cardTitle(FIF.SEARCH, tr("debug.title_element_check"), card))  # 元素检查
+        layout.addLayout(self._cardTitle(FUI.SEARCH, tr("debug.title_element_check"), card))  # 元素检查
 
         enableRow = QHBoxLayout()
         enableRow.addWidget(BodyLabel(tr("debug.label_enable_hover") + ":", card))  # 启用悬停检查
@@ -581,7 +580,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout = QVBoxLayout(card)
         layout.setSpacing(12)
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.addLayout(self._cardTitle(FIF.DOWNLOAD, tr("debug.title_batch_wallpaper"), card))  # 批量壁纸获取
+        layout.addLayout(self._cardTitle(FUI.DOWNLOAD, tr("debug.title_batch_wallpaper"), card))  # 批量壁纸获取
 
         row = QHBoxLayout()
         row.addWidget(BodyLabel(tr("debug.label_fetch_count") + ":", card))  # 获取数量
@@ -591,7 +590,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         self.batchWallpaperSpin.setFixedWidth(120)
         row.addWidget(self.batchWallpaperSpin)
         row.addSpacing(16)
-        self.batchWallpaperBtn = PrimaryPushButton(FIF.DOWNLOAD, tr("debug.btn_start_fetch"), card)  # 开始获取
+        self.batchWallpaperBtn = PrimaryPushButton(FUI.DOWNLOAD, tr("debug.btn_start_fetch"), card)  # 开始获取
         self.batchWallpaperBtn.setFixedHeight(32)
         self.batchWallpaperBtn.clicked.connect(self._batchGetWallpaper)
         row.addWidget(self.batchWallpaperBtn)

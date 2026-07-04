@@ -52,7 +52,6 @@ from qfluentwidgets import (
     BodyLabel,
     CardWidget,
     ComboBoxSettingCard,
-    FluentIcon as FIF,
     InfoBar,
     MessageBox,
     MaskDialogBase,
@@ -72,7 +71,7 @@ from qfluentwidgets import (
 
 from core.config import cfg
 from core.constants import BASE_DIR, WALLPAPER_DIR, get_resPath, load_qss
-from core.utils import get_cached_content, save_cache, get_cache_info, tr, TranslatableWidget, INTERVAL_MAP
+from core.utils import get_cached_content, save_cache, get_cache_info, tr, TranslatableWidget, INTERVAL_MAP, FUI
 
 logger = logging.getLogger("ClassLively.ui.wallpaper")
 
@@ -405,11 +404,11 @@ class WallpaperPreviewDialog(MessageBoxBase):
         self.infoLabel = BodyLabel(infoText, self)
         self.infoLabel.setWordWrap(True)
         
-        self.useButton = PrimaryPushButton(FIF.ACCEPT, tr("wallpaper.use_this"), self)  # 使用此壁纸
+        self.useButton = PrimaryPushButton(FUI.ACCEPT, tr("wallpaper.use_this"), self)  # 使用此壁纸
         self.useButton.setFixedHeight(36)
         self.useButton.clicked.connect(self._onUse)
 
-        self.deleteButton = PushButton(FIF.DELETE, tr("wallpaper.delete"), self)  # 删除
+        self.deleteButton = PushButton(FUI.DELETE, tr("wallpaper.delete"), self)  # 删除
         self.deleteButton.setFixedHeight(36)
         self.deleteButton.clicked.connect(self._onDelete)
         
@@ -529,7 +528,7 @@ class WallpaperHistoryWidget(QWidget):
         self.countLabel = BodyLabel("", self)
         self.countLabel.setObjectName("historyCount")
         
-        self.clearInvalidBtn = PushButton(FIF.DELETE, tr("wallpaper.clear_all"), self)  # 清空全部
+        self.clearInvalidBtn = PushButton(FUI.DELETE, tr("wallpaper.clear_all"), self)  # 清空全部
         self.clearInvalidBtn.setFixedHeight(36)
         self.clearInvalidBtn.setMinimumWidth(100)
         self.clearInvalidBtn.clicked.connect(self._clearAll)
@@ -550,7 +549,7 @@ class WallpaperHistoryWidget(QWidget):
         loadMoreLayout = QHBoxLayout(self.loadMoreWidget)
         loadMoreLayout.setContentsMargins(0, 8, 0, 20)
         loadMoreLayout.addStretch(1)
-        self.loadMoreBtn = PushButton(FIF.SYNC, tr("wallpaper.load_more"), self)  # 加载更多
+        self.loadMoreBtn = PushButton(FUI.SYNC, tr("wallpaper.load_more"), self)  # 加载更多
         self.loadMoreBtn.setObjectName("loadMoreBtn")
         self.loadMoreBtn.setFixedHeight(36)
         self.loadMoreBtn.setMinimumWidth(140)
@@ -771,19 +770,19 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         
         self.infoCard = WallpaperInfoCard(self.contentWidget)
         
-        self.getButton = PrimaryPushButton(FIF.DOWNLOAD, tr("wallpaper.get_wallpaper"))  # 获取壁纸
+        self.getButton = PrimaryPushButton(FUI.DOWNLOAD, tr("wallpaper.get_wallpaper"))  # 获取壁纸
         self.getButton.setFixedHeight(36)
-        self.saveButton = PushButton(FIF.SAVE, tr("wallpaper.save_as"))  # 另存为
+        self.saveButton = PushButton(FUI.SAVE, tr("wallpaper.save_as"))  # 另存为
         self.saveButton.setFixedHeight(36)
-        self.selectButton = PushButton(FIF.FOLDER, tr("wallpaper.manual_select"))  # 手动选择
+        self.selectButton = PushButton(FUI.FOLDER, tr("wallpaper.manual_select"))  # 手动选择
         self.selectButton.setFixedHeight(36)
-        self.setWallpaperButton = PushButton(FIF.HOME, tr("wallpaper.set_desktop"))  # 设为桌面
+        self.setWallpaperButton = PushButton(FUI.HOME, tr("wallpaper.set_desktop"))  # 设为桌面
         self.setWallpaperButton.setFixedHeight(36)
         
         self.settingsGroup = SettingCardGroup(tr("wallpaper.settings"), self.contentWidget)  # 设置
         self.wallpaperSaveLimitCard = RangeSettingCard(
             cfg.wallpaperSaveLimit,
-            FIF.SAVE,
+            FUI.SAVE,
             tr("wallpaper.save_limit"),  # 保存数量上限
             tr("wallpaper.save_limit_desc"),  # 设置壁纸历史记录的最大保存数量
             parent=self.settingsGroup
@@ -791,7 +790,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         self.settingsGroup.addSettingCard(self.wallpaperSaveLimitCard)
         self.autoGetIntervalCard = ComboBoxSettingCard(
             cfg.autoGetInterval,
-            FIF.SYNC,
+            FUI.SYNC,
             tr("wallpaper.auto_interval"),
             tr("wallpaper.auto_interval_desc"),
             texts=[tr("time.never"), tr("time.minutes_10"), tr("time.minutes_30"), tr("time.hour_1"), tr("wallpaper.interval_2h"), tr("time.hours_6"), tr("time.hours_12"), tr("time.day_1"), tr("wallpaper.interval_3d"), tr("wallpaper.interval_5d"), tr("wallpaper.interval_7d")],
@@ -800,7 +799,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         self.settingsGroup.addSettingCard(self.autoGetIntervalCard)
         self.wallpaperApiCard = ComboBoxSettingCard(
             cfg.wallpaperApi,
-            FIF.LINK,
+            FUI.LINK,
             tr("wallpaper.api"),  # 壁纸 API
             tr("wallpaper.api_desc"),  # 选择获取壁纸的 API 来源
             texts=["wp.upx8.com", "api.ltyuanfang.cn", "imlcd.cn_bg_high", "imlcd.cn_bg_mc", "imlcd.cn_bg_gq"],
@@ -808,7 +807,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         )
         self.settingsGroup.addSettingCard(self.wallpaperApiCard)
         self.autoSyncToDesktopCard = SwitchSettingCard(
-            FIF.HOME,
+            FUI.HOME,
             tr("wallpaper.auto_sync"),  # 自动同步桌面
             tr("wallpaper.auto_sync_desc"),  # 获取壁纸后自动设置为桌面壁纸
             configItem=cfg.autoSyncToDesktop,
@@ -819,7 +818,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         self.effectsGroup = SettingCardGroup(tr("wallpaper.background_effects"), self.contentWidget)  # 背景效果
         self.blurCard = RangeSettingCard(
             cfg.backgroundBlurRadius,
-            FIF.BRUSH,
+            FUI.BRUSH,
             tr("wallpaper.blur"),  # 背景模糊
             tr("wallpaper.blur_desc"),  # 设置背景图片的模糊强度（0-30）
             parent=self.effectsGroup
@@ -827,7 +826,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         self.effectsGroup.addSettingCard(self.blurCard)
         self.brightnessCard = RangeSettingCard(
             cfg.wallpaperBrightness,
-            FIF.BRUSH,
+            FUI.BRUSH,
             tr("wallpaper.brightness"),  # 亮度/暗化
             tr("wallpaper.brightness_desc"),  # 调整壁纸暗化程度（0正常 ~ -100最暗）
             parent=self.effectsGroup

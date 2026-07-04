@@ -18,6 +18,7 @@
 UI组件模块
 """
 
+import json
 import logging
 import os
 import re
@@ -25,7 +26,7 @@ import sys
 import time
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional
+from typing import Optional, Dict
 
 if getattr(sys, 'frozen', False):
     _BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
@@ -48,7 +49,9 @@ from PyQt6.QtCore import (
     pyqtProperty,
     QSize,
     pyqtSignal, QObject,
-    QByteArray, QPropertyAnimation, QEasingCurve
+    QByteArray, QPropertyAnimation, QEasingCurve,
+    QTime, QDate,
+    QMimeData, QDir,
 )
 from PyQt6.QtGui import (
     QBrush,
@@ -60,19 +63,27 @@ from PyQt6.QtGui import (
     QPainter,
     QPainterPath,
     QPen,
-    QPixmap, QIcon
+    QPixmap, QIcon,
+    QDrag, QImage,
 )
 from PyQt6.QtWidgets import (
-    QFileIconProvider, QLabel, QSizePolicy, QWidget, QVBoxLayout, QHBoxLayout, QApplication, QProgressBar, QGraphicsOpacityEffect
+    QFileIconProvider, QLabel, QSizePolicy, QWidget, QVBoxLayout, QHBoxLayout, QApplication, QProgressBar, QGraphicsOpacityEffect,
+    QScrollArea, QStackedWidget, QPushButton, QListWidget, QListWidgetItem, QLineEdit,
 )
-from qfluentwidgets import InfoBar, isDarkTheme, RoundMenu, Action, FluentIcon as FIF
+from qfluentwidgets import InfoBar, isDarkTheme, RoundMenu, Action, FluentWindow, setTheme, ScrollArea, PushButton, ToolButton, StrongBodyLabel, CardWidget, BodyLabel, SubtitleLabel, ComboBox, SpinBox, SwitchButton
 from win32com.shell import shell, shellcon
 
 from core.config import cfg, save_cfg
-from core.utils import tr
+from core.utils import tr, FUI
 from services.media import MediaInfo, Lyrics, get_media_info, fetch_all_info, close as close_media
 from core.constants import BASE_DIR, load_qss
 from data.software_list import get_software_icon_path
+from core.component import (
+    ComponentDefinition,
+    ComponentRegistry,
+    PlacementService,
+    ResizeMode,
+)
 
 logger = logging.getLogger("ClassLively.ui.component")
 
@@ -90,9 +101,234 @@ def get_component_display_name(component_id: str) -> str:
     return name_map.get(component_id, component_id)
 
 
+# 组件系统
+COMPONENT_STYLES = {
+    "clock": {
+        "digital": {
+            "name": "数字时钟",
+            "class": None,  # Phase 2: DigitalClockComponent
+            "default_config": {},
+            "default_size": (280, 100),  # 默认尺寸
+        },
+    },
+    "weather": {
+        "icon_temp": {
+            "name": "图标+温度",
+            "class": None,  # Phase 2: WeatherIconTempComponent
+            "default_config": {},
+            "default_size": (150, 80),
+        },
+    },
+    "poetry": {
+        "one_line": {
+            "name": "一言",
+            "class": None,  # Phase 2: PoetryOneLineComponent
+            "default_config": {},
+            "default_size": (400, 60),
+        },
+    },
+    "countdown": {
+        "event": {
+            "name": "事件倒计时",
+            "class": None,  # Phase 2: CountdownEventComponent
+            "default_config": {},
+            "default_size": (200, 80),
+        },
+    },
+    "school_info": {
+        "class_info": {
+            "name": "课程信息",
+            "class": None,  # Phase 2: SchoolInfoComponent
+            "default_config": {},
+            "default_size": (180, 50),
+        },
+    },
+    "media": {
+        "player": {
+            "name": "播放器",
+            "class": None,  # Phase 2: MediaPlayerComponent
+            "default_config": {},
+            "default_size": (250, 80),
+        },
+    },
+    "quick_launch": {
+        "dock": {
+            "name": "快捷启动栏",
+            "class": None,  # Phase 2: QuickLaunchDockComponent
+            "default_config": {},
+            "default_size": (300, 70),
+        },
+    },
+}
+
+
+COMPONENTS_CONFIG_PATH = os.path.join(BASE_DIR, "config", "components.json")
+
+
+class ComponentManager:
+    """组件管理器"""
+
+    MAX_COMPONENTS = 100
+
+    def __init__(self, home_interface):
+        self.home = home_interface
+        self.components = {}  # id > DraggableContainer 实例
+        self._component_data = {}  # id > 原始配置数据
+
+    def load_components(self):
+        """从 config/components.json 加载组件"""
+        if not os.path.exists(COMPONENTS_CONFIG_PATH):
+            logger.warning(f"组件配置文件不存在: {COMPONENTS_CONFIG_PATH}")
+            return
+
+        try:
+            with open(COMPONENTS_CONFIG_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            logger.error(f"加载组件配置失败: {e}")
+            return
+
+        components_list = data.get("components", [])
+        for comp_data in components_list[:self.MAX_COMPONENTS]:
+            comp_id = comp_data.get("id")
+            comp_type = comp_data.get("type")
+            comp_style = comp_data.get("style")
+
+            if not comp_id or not comp_type or not comp_style:
+                logger.warning(f"组件数据不完整: {comp_data}")
+                continue
+
+            # 获取组件类
+            style_info = COMPONENT_STYLES.get(comp_type, {}).get(comp_style)
+            if not style_info or style_info.get("class") is None:
+                logger.warning(f"组件样式未注册: {comp_type}/{comp_style}")
+                continue
+
+            comp_class = style_info["class"]
+            try:
+                instance = comp_class(self.home, comp_data)
+                instance.setPositionPercent(
+                    comp_data.get("position", {}).get("x", 0.5),
+                    comp_data.get("position", {}).get("y", 0.5)
+                )
+                if comp_data.get("enabled", True):
+                    instance.show()
+                else:
+                    instance.hide()
+
+                self.components[comp_id] = instance
+                self._component_data[comp_id] = comp_data
+                logger.info(f"加载组件: {comp_id} ({comp_type}/{comp_style})")
+            except Exception as e:
+                logger.error(f"创建组件失败 {comp_id}: {e}")
+
+    def save_components(self):
+        """保存到 config/components.json"""
+        data = {"components": []}
+        for comp_id, instance in self.components.items():
+            pos_x, pos_y = instance.getPositionPercent()
+            comp_data = {
+                "id": comp_id,
+                "type": self._component_data.get(comp_id, {}).get("type", "unknown"),
+                "style": self._component_data.get(comp_id, {}).get("style", "unknown"),
+                "position": {"x": pos_x, "y": pos_y},
+                "enabled": instance.isVisible(),
+                "config": self._component_data.get(comp_id, {}).get("config", {}),
+            }
+            pro = self._component_data.get(comp_id, {}).get("pro")
+            if pro is not None:
+                comp_data["pro"] = pro
+
+            data["components"].append(comp_data)
+
+        try:
+            with open(COMPONENTS_CONFIG_PATH, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            logger.info(f"保存组件配置到: {COMPONENTS_CONFIG_PATH}")
+        except Exception as e:
+            logger.error(f"保存组件配置失败: {e}")
+
+    def add_component(self, comp_type: str, comp_style: str, config=None, pro=None) -> str:
+        """添加新组件"""
+        if len(self.components) >= self.MAX_COMPONENTS:
+            logger.warning(f"组件数量已达上限: {self.MAX_COMPONENTS}")
+            return ""
+
+        style_info = COMPONENT_STYLES.get(comp_type, {}).get(comp_style)
+        if not style_info or style_info.get("class") is None:
+            logger.warning(f"组件样式未注册: {comp_type}/{comp_style}")
+            return ""
+
+        comp_id = self._generate_id(comp_type)
+        comp_data = {
+            "id": comp_id,
+            "type": comp_type,
+            "style": comp_style,
+            "position": {"x": 0.5, "y": 0.5},
+            "enabled": True,
+            "config": config or style_info.get("default_config", {}),
+            "pro": pro,
+        }
+
+        comp_class = style_info["class"]
+        try:
+            instance = comp_class(self.home, comp_data)
+            instance.setPositionPercent(0.5, 0.5)
+            instance.show()
+
+            self.components[comp_id] = instance
+            self._component_data[comp_id] = comp_data
+            self.save_components()
+            logger.info(f"添加组件: {comp_id} ({comp_type}/{comp_style})")
+            return comp_id
+        except Exception as e:
+            logger.error(f"创建组件失败: {e}")
+            return ""
+
+    def remove_component(self, comp_id: str):
+        """删除组件"""
+        if comp_id not in self.components:
+            logger.warning(f"组件不存在: {comp_id}")
+            return
+
+        instance = self.components[comp_id]
+        instance.deleteLater()
+        del self.components[comp_id]
+        del self._component_data[comp_id]
+        self.save_components()
+        logger.info(f"删除组件: {comp_id}")
+
+    def get_all_containers(self) -> list:
+        """返回 DraggableContainer 实例"""
+        return list(self.components.values())
+
+    def get_component_data(self, comp_id: str) -> dict:
+        """获取单个组件的配置数据"""
+        return self._component_data.get(comp_id, {})
+
+    def update_component_config(self, comp_id: str, config: dict, pro=None):
+        """更新组件配置"""
+        if comp_id not in self._component_data:
+            logger.warning(f"组件不存在: {comp_id}")
+            return
+
+        self._component_data[comp_id]["config"] = config
+        if pro is not None:
+            self._component_data[comp_id]["pro"] = pro
+        self.save_components()
+
+    def _generate_id(self, comp_type: str) -> str:
+        """生成组件ID"""
+        existing_ids = set(self.components.keys())
+        counter = 1
+        while f"comp_{comp_type}_{counter}" in existing_ids:
+            counter += 1
+        return f"comp_{comp_type}_{counter}"
+
+
 class DraggableWidget(QWidget):
     positionChanged = pyqtSignal(float, float)
-    settingRequested = pyqtSignal(str)
+    # settingRequested = pyqtSignal(str)  # 弃
     def __init__(self, parent=None, component_id: str = ""):
         super().__init__(parent)
         self.component_id = component_id
@@ -260,7 +496,7 @@ class DraggableWidget(QWidget):
         if self._draggable and event.button() == Qt.MouseButton.LeftButton:
             self._dragging = False
             self.setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
-            self.settingRequested.emit(self.component_id)
+            # self.settingRequested.emit(self.component_id)
             event.accept()
             return
         super().mouseDoubleClickEvent(event)
@@ -322,7 +558,8 @@ class DraggableWidget(QWidget):
             if self._draggable and hasattr(self, '_click_start_pos'):
                 delta = event.globalPosition().toPoint() - self._click_start_pos
                 if abs(delta.x()) < 5 and abs(delta.y()) < 5:
-                    self.settingRequested.emit(self.component_id)
+                    # self.settingRequested.emit(self.component_id)
+                    pass
             
             event.accept()
             return
@@ -1585,17 +1822,17 @@ class QuickLaunchDock(QWidget):
         app = self._apps[idx]
         menu = RoundMenu(app.get("name", tr("quick_launch.app")), self)  # 应用
 
-        open_action = Action(FIF.PLAY, tr("quick_launch.open"), self)  # 打开
+        open_action = Action(FUI.PLAY, tr("quick_launch.open"), self)  # 打开
         open_action.triggered.connect(lambda: self._click(idx))
         menu.addAction(open_action)
 
         menu.addSeparator()
 
-        edit_action = Action(FIF.EDIT, tr("quick_launch.edit"), self)  # 编辑
+        edit_action = Action(FUI.EDIT, tr("quick_launch.edit"), self)  # 编辑
         edit_action.triggered.connect(lambda: self._edit_app(idx))
         menu.addAction(edit_action)
 
-        delete_action = Action(FIF.DELETE, tr("quick_launch.delete"), self)  # 删除
+        delete_action = Action(FUI.DELETE, tr("quick_launch.delete"), self)  # 删除
         delete_action.triggered.connect(lambda: self._delete_app(idx))
         menu.addAction(delete_action)
         
@@ -1607,7 +1844,7 @@ class QuickLaunchDock(QWidget):
         else:
             path_info = f"{tr('quick_launch.path')}: {app.get('path', '')}"
         
-        info_action = Action(FIF.INFO, path_info, self)
+        info_action = Action(FUI.INFO, path_info, self)
         info_action.setEnabled(False)
         menu.addAction(info_action)
         
@@ -2111,3 +2348,1804 @@ class QuickLaunchDock(QWidget):
 
     def showEvent(self, e):
         super().showEvent(e)
+
+
+# 组件样式类
+import datetime as py_datetime
+FONT_FAMILY = '"HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif'
+
+class DigitalClockComponent(DraggableContainer):
+    """数字时钟组件"""
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName("clockContainer")
+        self._home = parent  # HomeInterface reference
+        self._setup_ui()
+        self._setup_timer()
+        self._update_time()
+
+    def _setup_ui(self):
+        self.clockLabel = QLabel("00:00:00")
+        self.clockLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.dateLabel = QLabel("")
+        self.dateLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        layout = self.inner_layout
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        layout.setContentsMargins(24, 16, 24, 16)
+        layout.setSpacing(0)
+        layout.addWidget(self.clockLabel)
+        layout.addWidget(self.dateLabel)
+
+        self.setMinimumSize(240, 80)
+        self.adjustSize()
+        self._apply_style()
+
+    def _setup_timer(self):
+        """定时器和信号连接"""
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._update_time)
+        self.timer.start(1000)
+
+        cfg.showClock.valueChanged.connect(self._update_time)
+        cfg.showClockSeconds.valueChanged.connect(self._update_time)
+        cfg.showLunarCalendar.valueChanged.connect(self._update_time)
+        cfg.clockColor.valueChanged.connect(self._apply_style)
+        cfg.clockSize.valueChanged.connect(self._apply_style)
+        cfg.dateSize.valueChanged.connect(self._apply_style)
+
+    def _update_time(self):
+        """更新时钟显示"""
+        if not cfg.showClock.value:
+            self.clockLabel.hide()
+            self.dateLabel.hide()
+            if hasattr(self._home, 'isEditMode') and self._home.isEditMode:
+                self.setContentVisible(False)
+                self.show()
+            else:
+                self.hide()
+            return
+
+        self.setContentVisible(True)
+        self.clockLabel.show()
+        self.dateLabel.show()
+
+        currentTime = QTime.currentTime()
+        currentDate = QDate.currentDate()
+
+        # 精确时间
+        if cfg.usePreciseTime.value:
+            try:
+                from core.utils import precise_now
+                pn = precise_now()
+                currentTime = QTime(pn.hour, pn.minute, pn.second)
+                currentDate = QDate(pn.year, pn.month, pn.day)
+            except Exception:
+                pass
+
+        # 时间格式
+        if cfg.showClockSeconds.value:
+            timeString = currentTime.toString("HH:mm:ss")
+        else:
+            timeString = currentTime.toString("HH:mm")
+        self.clockLabel.setText(timeString)
+
+        # 日期格式
+        _weekday_keys = ["weekday.monday", "weekday.tuesday", "weekday.wednesday",
+                         "weekday.thursday", "weekday.friday", "weekday.saturday", "weekday.sunday"]
+        weekday_name = tr(_weekday_keys[currentDate.dayOfWeek() - 1])
+        solarString = tr("date.format", y=currentDate.year(), M=currentDate.month(),
+                         d=currentDate.day(), w=weekday_name)
+
+        # 农历
+        if cfg.showLunarCalendar.value:
+            try:
+                import cnlunar
+                py_datetime_obj = py_datetime.datetime(currentDate.year(), currentDate.month(), currentDate.day(), 0, 0, 0)
+                lunar = cnlunar.Lunar(py_datetime_obj)
+                lunarMonthCn = lunar.lunarMonthCn.replace("大", "").replace("小", "")
+                lunarDayCn = lunar.lunarDayCn
+                lunarString = f"{lunarMonthCn}{lunarDayCn}"
+                dateString = f"{solarString} {lunarString}"
+            except Exception as e:
+                logger.error(f"农历计算错误: {e}")
+                dateString = solarString
+        else:
+            dateString = solarString
+
+        self.dateLabel.setText(dateString)
+        self.updateSize()
+
+    def _apply_style(self):
+        """应用样式"""
+        clock_color = cfg.clockColor.value
+        color_str = clock_color.name() if hasattr(clock_color, 'name') else str(clock_color)
+        clock_size = cfg.clockSize.value
+        date_size = cfg.dateSize.value
+
+        self.clockLabel.setStyleSheet(f"""
+            color: {color_str};
+            font-size: {clock_size}px;
+            font-weight: bold;
+            font-family: {FONT_FAMILY};
+            background-color: transparent;
+        """)
+
+        self.dateLabel.setStyleSheet(f"""
+            color: {color_str};
+            font-size: {date_size}px;
+            font-family: {FONT_FAMILY};
+            background-color: transparent;
+        """)
+        self.updateSize()
+
+
+class WeatherIconTempComponent(DraggableContainer):
+    """天气组件"""
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="horizontal")
+        self.setObjectName("weatherContainer")
+        self._home = parent
+        self._cached_weather = None
+        self._setup_ui()
+        self._setup_timer()
+
+    def _setup_ui(self):
+        self.tempLabel = QLabel("")
+        self.tempLabel.setObjectName("weatherTempLabel")
+        self.tempLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.iconLabel = QLabel("")
+        self.iconLabel.setObjectName("weatherIconLabel")
+        self.iconLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        layout = self.inner_layout
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setContentsMargins(20, 12, 20, 12)
+        layout.setSpacing(10)
+        layout.addWidget(self.tempLabel)
+        layout.addWidget(self.iconLabel)
+
+        self.setMinimumSize(120, 52)
+        self.adjustSize()
+        self._apply_style()
+
+    def _setup_timer(self):
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._refresh_weather)
+        self.timer.start(1000) 
+
+        cfg.showWeather.valueChanged.connect(self._refresh_weather)
+        cfg.weatherUpdateInterval.valueChanged.connect(self._update_interval)
+        cfg.clockColor.valueChanged.connect(self._apply_style)
+        cfg.weatherSize.valueChanged.connect(self._apply_style)
+        cfg.weatherIconSize.valueChanged.connect(self._update_icon_size)
+
+        if hasattr(self._home, 'weather_updated'):
+            self._home.weather_updated.connect(self._update_display)
+
+        self._update_interval()
+        self._refresh_weather()
+
+    def _update_interval(self):
+        interval_map = {"10s": 10000, "30s": 30000, "1m": 60000, "5m": 300000, "10m": 600000, "30m": 1800000}
+        interval_str = cfg.weatherUpdateInterval.value
+        self.timer.setInterval(interval_map.get(interval_str, 300000))
+
+    def _refresh_weather(self):
+        if not cfg.showWeather.value:
+            self.hide()
+            return
+        self.show()
+
+        # 加载缓存
+        if hasattr(self._home, '_cached_weather') and self._home._cached_weather:
+            data = self._home._cached_weather
+            self._update_display(data)
+        else:
+            self.tempLabel.setText("--°")
+            self.iconLabel.clear()
+
+    def _update_display(self, data):
+        if not data:
+            return
+        temp = data.get("temp", "--")
+        icon_code = data.get("icon", "")
+        self.tempLabel.setText(f"{temp}°")
+
+        # 加载天气图标
+        if icon_code:
+            from services.weather import WeatherService
+            icon_path = WeatherService.get_icon_path(icon_code)
+            if icon_path:
+                icon_size = cfg.weatherIconSize.value
+                pixmap = QPixmap(icon_path)
+                if not pixmap.isNull():
+                    self.iconLabel.setPixmap(pixmap.scaled(icon_size, icon_size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+
+    def _update_icon_size(self):
+        if hasattr(self._home, '_cached_weather') and self._home._cached_weather:
+            self._update_display(self._home._cached_weather)
+
+    def _apply_style(self):
+        color = cfg.weatherColor.value
+        color_str = color.name() if hasattr(color, 'name') else str(color)
+        size = cfg.weatherSize.value
+
+        self.tempLabel.setStyleSheet(f"""
+            color: {color_str};
+            font-size: {size}px;
+            font-family: {FONT_FAMILY};
+            background-color: transparent;
+        """)
+        self.updateSize()
+
+
+class PoetryOneLineComponent(DraggableContainer):
+    """一言组件"""
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName("poetryContainer")
+        self._home = parent
+        self._setup_ui()
+        self._setup_timer()
+
+    def _setup_ui(self):
+        self.poetryLabel = QLabel("")
+        self.poetryLabel.setObjectName("poetryLabel")
+        self.poetryLabel.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter)
+        self.poetryLabel.setWordWrap(False)
+
+        layout = self.inner_layout
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setContentsMargins(24, 14, 24, 14)
+        layout.addWidget(self.poetryLabel)
+
+        self.setMinimumSize(320, 48)
+        self.adjustSize()
+        self._apply_style()
+
+    def _setup_timer(self):
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._refresh_poetry)
+        self.timer.start(1000)
+
+        cfg.showPoetry.valueChanged.connect(self._refresh_poetry)
+        cfg.poetryApiUrl.valueChanged.connect(self._refresh_poetry)
+        cfg.poetryUpdateInterval.valueChanged.connect(self._update_interval)
+        cfg.poetryColor.valueChanged.connect(self._apply_style) 
+        cfg.poetrySize.valueChanged.connect(self._apply_style)
+
+        if hasattr(self._home, 'poetry_updated'):
+            self._home.poetry_updated.connect(self._update_poetry)
+
+        self._update_interval()
+        self._refresh_poetry()
+
+    def _update_poetry(self, text):
+        """收到信号更新显示"""
+        if text:
+            self.poetryLabel.setText(text)
+            self.updateSize()
+
+    def _update_interval(self):
+        interval_map = {"10s": 10000, "30s": 30000, "1m": 60000, "5m": 300000, "10m": 600000, "30m": 1800000, "1h": 3600000}
+        interval_str = cfg.poetryUpdateInterval.value
+        self.timer.setInterval(interval_map.get(interval_str, 60000))
+
+    def _refresh_poetry(self):
+        if not cfg.showPoetry.value:
+            self.hide()
+            return
+        self.show()
+
+        # 缓存获取
+        if hasattr(self._home, '_cached_poetry') and self._home._cached_poetry:
+            self.poetryLabel.setText(self._home._cached_poetry)
+        else:
+            self.poetryLabel.setText("")
+
+    def _apply_style(self):
+        color = cfg.poetryColor.value   
+        color_str = color.name() if hasattr(color, 'name') else str(color)
+        size = cfg.poetrySize.value
+
+        self.poetryLabel.setStyleSheet(f"""
+            color: {color_str};
+            font-size: {size}px;
+            font-family: {FONT_FAMILY};
+            background-color: transparent;
+        """)
+        self.updateSize()
+
+
+class CountdownEventComponent(DraggableContainer):
+    """事件倒计时组件"""
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName("countdownContainer")
+        self._home = parent
+        self._carousel_index = 0
+        self._setup_ui()
+        self._setup_timer()
+
+    def _setup_ui(self):
+        self.countdownLabel = QLabel("")
+        self.countdownLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        layout = self.inner_layout
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setContentsMargins(24, 14, 24, 14)
+        layout.addWidget(self.countdownLabel)
+
+        self.setMinimumSize(280, 56)
+        self.adjustSize()
+        self._apply_style()
+
+    def _setup_timer(self):
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._update_countdown)
+        self.timer.start(1000)
+
+        self.carousel_timer = QTimer(self)
+        self.carousel_timer.timeout.connect(self._next_carousel)
+
+        cfg.showCountdown.valueChanged.connect(self._update_countdown)
+        cfg.countdownDisplayMode.valueChanged.connect(self._update_countdown)
+        cfg.countdownCarouselInterval.valueChanged.connect(self._update_carousel_interval)
+        cfg.countdownList.valueChanged.connect(self._update_countdown)
+        cfg.countdownTextColor.valueChanged.connect(self._apply_style)
+        cfg.countdownTextSize.valueChanged.connect(self._apply_style)
+
+        self._update_carousel_interval()
+        self._update_countdown()
+
+    def _update_carousel_interval(self):
+        interval = cfg.countdownCarouselInterval.value
+        self.carousel_timer.setInterval(interval * 1000)
+        if cfg.countdownDisplayMode.value == "carousel":
+            self.carousel_timer.start()
+        else:
+            self.carousel_timer.stop()
+
+    def _next_carousel(self):
+        countdown_list = cfg.countdownList.value
+        if countdown_list:
+            self._carousel_index = (self._carousel_index + 1) % len(countdown_list)
+            self._update_countdown()
+
+    def _update_countdown(self):
+        if not cfg.showCountdown.value:
+            self.hide()
+            return
+        self.show()
+
+        countdown_list = cfg.countdownList.value
+        if not countdown_list:
+            self.countdownLabel.setText(tr("countdown.no_events"))
+            return
+
+        display_mode = cfg.countdownDisplayMode.value
+
+        if display_mode == "carousel":
+            idx = self._carousel_index % len(countdown_list)
+            event = countdown_list[idx]
+            self._display_event(event)
+        else:
+            # 显示第一个或最近的
+            event = countdown_list[0]
+            self._display_event(event)
+
+    def _display_event(self, event):
+        name = event.get("name", "")
+        target_time = event.get("targetTime")
+        if not target_time:
+            self.countdownLabel.setText(name)
+            return
+
+        try:
+            target_dt = py_datetime.datetime.fromisoformat(target_time)
+            now = py_datetime.datetime.now()
+            delta = target_dt - now
+
+            if delta.total_seconds() > 0:
+                days = delta.days
+                hours, remainder = divmod(delta.seconds, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                text = f"{name}: {days}天 {hours}时 {minutes}分 {seconds}秒"
+            else:
+                text = f"{name}: 已到期"
+
+            self.countdownLabel.setText(text)
+        except Exception:
+            self.countdownLabel.setText(name)
+
+    def _apply_style(self):
+        color = cfg.countdownTextColor.value
+        color_str = color.name() if hasattr(color, 'name') else str(color)
+        size = cfg.countdownTextSize.value
+
+        self.countdownLabel.setStyleSheet(f"""
+            color: {color_str};
+            font-size: {size}px;
+            font-family: {FONT_FAMILY};
+            background-color: transparent;
+        """)
+        self.updateSize()
+
+
+class SchoolInfoComponent(DraggableContainer):
+    """学校信息组件"""
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName("schoolInfoContainer")
+        self._home = parent
+        self._setup_ui()
+
+    def _setup_ui(self):
+        self.classLabel = QLabel("")
+        self.classLabel.setObjectName("schoolClassLabel")
+        self.classLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.nameLabel = QLabel("")
+        self.nameLabel.setObjectName("schoolNameLabel")
+        self.nameLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        layout = self.inner_layout
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setContentsMargins(20, 10, 20, 10)
+        layout.setSpacing(4)
+        layout.addWidget(self.classLabel)
+        layout.addWidget(self.nameLabel)
+
+        self.setMinimumSize(140, 48)
+        self.adjustSize()
+        self._update_info()
+
+    def _update_info(self):
+        # 从 ClassWidgets 数据更新
+        if hasattr(self._home, 'schoolClassLabel') and hasattr(self._home, 'schoolNameLabel'):
+            self.classLabel.setText(self._home.schoolClassLabel.text())
+            self.nameLabel.setText(self._home.schoolNameLabel.text())
+        else:
+            self.classLabel.setText("")
+            self.nameLabel.setText("")
+
+
+class MediaPlayerComponent(DraggableContainer):
+    """媒体播放器组件"""
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName("mediaContainer")
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+        self._home = parent
+        self._setup_ui()
+        self._setup_timer()
+
+    def _setup_ui(self):
+        # 嵌入原有的 MediaWidget
+        self.mediaWidget = MediaWidget(self)
+        self.mediaWidget.setObjectName("mediaWidget")
+
+        layout = self.inner_layout
+        layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self.mediaWidget)
+
+        self.adjustSize()
+
+    def _setup_timer(self):
+        cfg.showMediaInfo.valueChanged.connect(self._on_visibility_changed)
+
+    def _on_visibility_changed(self):
+        if cfg.showMediaInfo.value:
+            self.show()
+        else:
+            self.hide()
+
+
+class QuickLaunchDockComponent(DraggableContainer):
+    """快捷启动栏组件"""
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName("quickLaunchContainer")
+        self._home = parent
+        self._setup_ui()
+        self._setup_signals()
+
+    def _setup_ui(self):
+        self.dock = QuickLaunchDock(self)
+        self.dock.setObjectName("quickLaunchDock")
+
+        layout = self.inner_layout
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.addWidget(self.dock)
+
+        self.setMinimumSize(280, 72)
+        self.adjustSize()
+
+        # 加载应用
+        apps = cfg.quickLaunchApps.value
+        if apps:
+            self.dock.set_apps(apps)
+
+    def _setup_signals(self):
+        cfg.showQuickLaunch.valueChanged.connect(self._on_visibility_changed)
+        cfg.quickLaunchApps.valueChanged.connect(self._update_apps)
+        cfg.quickLaunchIconSize.valueChanged.connect(self._update_apps)
+        cfg.quickLaunchIconSpacing.valueChanged.connect(self._update_apps)
+        cfg.quickLaunchShowLabels.valueChanged.connect(self._update_apps)
+
+    def _on_visibility_changed(self):
+        if cfg.showQuickLaunch.value:
+            self.show()
+            self._update_apps()
+        else:
+            self.hide()
+
+    def _update_apps(self):
+        apps = cfg.quickLaunchApps.value
+        if apps:
+            self.dock.set_apps(apps)
+
+
+# 更新注册表
+
+COMPONENT_STYLES["clock"]["digital"]["class"] = DigitalClockComponent
+COMPONENT_STYLES["weather"]["icon_temp"]["class"] = WeatherIconTempComponent
+COMPONENT_STYLES["poetry"]["one_line"]["class"] = PoetryOneLineComponent
+COMPONENT_STYLES["countdown"]["event"]["class"] = CountdownEventComponent
+COMPONENT_STYLES["school_info"]["class_info"]["class"] = SchoolInfoComponent
+COMPONENT_STYLES["media"]["player"]["class"] = MediaPlayerComponent
+COMPONENT_STYLES["quick_launch"]["dock"]["class"] = QuickLaunchDockComponent
+
+
+
+
+
+
+
+
+# 组件库面板
+
+# 预览图目录
+PREVIEW_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resources", "component_preview")
+
+
+class ComponentCard(CardWidget):
+    """组件卡片"""
+    
+    def __init__(self, definition: ComponentDefinition, parent=None):
+        super().__init__(parent)
+        self.definition = definition
+        self._preview_pixmap = None
+        
+        self._setup_ui()
+        self._load_preview()
+    
+    def _setup_ui(self):
+        """设置 UI"""
+        self.setFixedSize(180, 120)
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
+        
+        # 预览图
+        self.preview_label = QLabel()
+        self.preview_label.setFixedSize(164, 80)
+        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_label.setStyleSheet("background: transparent; border-radius: 6px;")
+        layout.addWidget(self.preview_label)
+        
+        # 名称
+        name_label = BodyLabel(self.definition.display_name)
+        name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(name_label)
+        
+        # 尺寸提示
+        size_hint = f"{self.definition.default_width_cells}×{self.definition.default_height_cells}"
+        size_label = SubtitleLabel(size_hint)
+        size_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(size_label)
+    
+    def _load_preview(self):
+        """加载预览图"""
+        image_name = f"{self.definition.id}.png"
+        image_path = os.path.join(PREVIEW_DIR, image_name)
+        
+        if os.path.exists(image_path):
+            pixmap = QPixmap(image_path)
+            if not pixmap.isNull():
+                scaled = pixmap.scaled(
+                    164, 80,
+                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    Qt.TransformationMode.SmoothTransformation
+                )
+                self.preview_label.setPixmap(scaled)
+                self._preview_pixmap = scaled
+                return
+        
+        # 无图片显示占位
+        self.preview_label.setText(tr("component_library.no_preview"))
+        self.preview_label.setStyleSheet("background: rgba(255,255,255,0.05); border-radius: 6px;")
+    
+    def mousePressEvent(self, event):
+        """鼠标按下"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_start = event.position().toPoint()
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+        super().mousePressEvent(event)
+    
+    def mouseReleaseEvent(self, event):
+        """鼠标释放"""
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        super().mouseReleaseEvent(event)
+    
+    def mouseMoveEvent(self, event):
+        """开始拖拽"""
+        if not (event.buttons() & Qt.MouseButton.LeftButton):
+            return
+        
+        distance = (event.position().toPoint() - self._drag_start).manhattanLength()
+        if distance >= QApplication.startDragDistance():
+            self._start_drag()
+        
+        super().mouseMoveEvent(event)
+    
+    def _start_drag(self):
+        """开始拖拽"""
+        drag = QDrag(self)
+        
+        # 设置 MIME
+        mime = QMimeData()
+        mime.setData("application/x-classlively-component", 
+                    self.definition.id.encode('utf-8'))
+        drag.setMimeData(mime)
+        
+        # 设置拖拽图
+        if self._preview_pixmap:
+            drag.setPixmap(self._preview_pixmap)
+        else:
+            pixmap = self.grab()
+            drag.setPixmap(pixmap.scaled(150, 80, Qt.AspectRatioMode.KeepAspectRatio))
+        
+        drag.setHotSpot(QPoint(90, 60))
+        drag.exec(Qt.DropAction.CopyAction)
+        
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
+
+
+
+class CategoryPage(ScrollArea):
+    """分类页面"""
+    
+    def __init__(self, category: str, registry: ComponentRegistry, parent=None):
+        super().__init__(parent)
+        self.category = category
+        self.registry = registry
+        self.setObjectName(f"category_{category}")
+        
+        self._setup_ui()
+    
+    def _setup_ui(self):
+        """设置 UI"""
+        self.setWidgetResizable(True)
+        self.setStyleSheet("background: transparent;")
+        
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        
+        # 分类标题
+        title = StrongBodyLabel(self.category)
+        layout.addWidget(title)
+        
+        # 组件卡片网格
+        cards_widget = QWidget()
+        cards_layout = QHBoxLayout(cards_widget)
+        cards_layout.setSpacing(12)
+        cards_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        
+        definitions = self.registry.get_definitions_by_category(self.category)
+        for defn in definitions:
+            card = ComponentCard(defn, self)
+            cards_layout.addWidget(card)
+        
+        if not definitions:
+            hint = BodyLabel(tr("component_library.no_components"))
+            cards_layout.addWidget(hint)
+        
+        layout.addWidget(cards_widget)
+        layout.addStretch()
+        
+        self.setWidget(container)
+
+
+class ComponentLibraryWindow(FluentWindow):
+    """组件库窗口"""
+    
+    def __init__(self, canvas, parent=None):
+        super().__init__(parent)
+        self.canvas = canvas
+        self.registry = canvas.get_registry()
+        self.placement_srv = canvas.get_placement_service()
+        
+        self._setup_navigation()
+        self.setWindowTitle(tr("component_library.title"))
+        self.resize(600, 400)
+        
+        if isDarkTheme():
+            setTheme(cfg.themeMode.value)
+        
+        self.setStyleSheet(load_qss('setting.qss'))
+    
+    def _setup_navigation(self):
+        """设置导航"""
+        # 获取分类
+        categories = self.registry.get_categories()
+
+        icon_map = {
+            "Clock": FUI.SYNC,        # 时钟
+            "Weather": FUI.PHOTO,     # 天气
+            "Info": FUI.INFO,         # 信息
+            "Media": FUI.ALBUM,       # 媒体
+            "Launcher": FUI.APPLICATION,  # 启动器
+        }
+        
+        for category in categories:
+            page = CategoryPage(category, self.registry, self)
+            icon = icon_map.get(category, FUI.HOME)
+            self.addSubInterface(page, icon, category)
+
+
+
+class PlacedComponentsPanel(QWidget):
+    """已放置组件列表"""
+    
+    def __init__(self, canvas, parent=None):
+        super().__init__(parent)
+        self.canvas = canvas
+        self.placement_srv = canvas.get_placement_service()
+        self.registry = canvas.get_registry()
+        
+        self._setup_ui()
+        self._refresh_list()
+
+        self.placement_srv.placements_changed.connect(self._refresh_list)
+        self.placement_srv.placement_added.connect(self._refresh_list)
+        self.placement_srv.placement_removed.connect(self._refresh_list)
+    
+    def _setup_ui(self):
+        """设置 UI"""
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+        
+        # 标题
+        title = StrongBodyLabel(tr("component_library.placed_list"))
+        layout.addWidget(title)
+        
+        # 组件列表
+        self.list_area = ScrollArea()
+        self.list_area.setWidgetResizable(True)
+        self.list_area.setStyleSheet("background: transparent;")
+        
+        self.list_container = QWidget()
+        self.list_layout = QVBoxLayout(self.list_container)
+        self.list_layout.setSpacing(4)
+        self.list_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        
+        self.list_area.setWidget(self.list_container)
+        layout.addWidget(self.list_area)
+    
+    def _refresh_list(self):
+        """刷新列表"""
+        # 清空
+        while self.list_layout.count():
+            item = self.list_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        
+        # 添加已放置组件
+        for placement in self.placement_srv.get_all_placements():
+            definition = self.registry.get_definition(placement.component_id)
+            if not definition:
+                continue
+            
+            # 创建卡片
+            item_widget = PlacedComponentItem(
+                placement, definition, self.placement_srv, self
+            )
+            self.list_layout.addWidget(item_widget)
+        
+        if not self.placement_srv.get_all_placements():
+            hint = BodyLabel(tr("component_library.no_placed"))
+            self.list_layout.addWidget(hint)
+
+
+class PlacedComponentItem(CardWidget):
+    """已放置组件条目"""
+    
+    def __init__(
+        self,
+        placement,
+        definition: ComponentDefinition,
+        placement_srv: PlacementService,
+        parent=None
+    ):
+        super().__init__(parent)
+        self.placement = placement
+        self.definition = definition
+        self.placement_srv = placement_srv
+        
+        self._setup_ui()
+    
+    def _setup_ui(self):
+        """设置 UI"""
+        self.setFixedHeight(50)
+        
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 8, 12, 8)
+        
+        # 名称
+        name = BodyLabel(f"{self.definition.display_name} ({self.placement.placement_id})")
+        layout.addWidget(name)
+        
+        layout.addStretch()
+        
+        # 位置信息
+        pos = SubtitleLabel(f"({self.placement.row},{self.placement.column})")
+        layout.addWidget(pos)
+        
+        # 删除按钮
+        delete_btn = ToolButton(FUI.DELETE, self)
+        delete_btn.setFixedSize(28, 28)
+        delete_btn.clicked.connect(self._delete)
+        layout.addWidget(delete_btn)
+    
+    def _delete(self):
+        """删除"""
+        self.placement_srv.remove_placement(self.placement.placement_id)
+
+
+
+class StyleCardWidget(CardWidget):
+    """样式卡片"""
+
+    def __init__(self, component_type: str, style_name: str, style_info: dict, parent=None):
+        super().__init__(parent)
+        self.component_type = component_type
+        self.style_name = style_name
+        self.style_info = style_info
+        self.setFixedSize(260, 180)
+        self._drag_start_pos = None
+        self._preview_pixmap = None
+        self._setup_ui()
+
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(6)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
+
+        # 预览图片区域
+        self.preview_label = QLabel()
+        self.preview_label.setFixedSize(236, 120)
+        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_label.setStyleSheet("""
+            background-color: transparent;
+            border-radius: 8px;
+        """)
+        
+        # 加载预览图片
+        self._load_preview_image()
+        
+        layout.addWidget(self.preview_label)
+
+        # 样式名称
+        name_label = StrongBodyLabel(self.style_info.get("name", self.style_name))
+        name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(name_label)
+
+    def _load_preview_image(self):
+        """加载预览图片，不存在则显示空白"""
+        # resources/component_preview/{type}_{style}.png
+        image_name = f"{self.component_type}_{self.style_name}.png"
+        image_path = os.path.join(PREVIEW_DIR, image_name)
+        
+        if os.path.exists(image_path):
+            pixmap = QPixmap(image_path)
+            if not pixmap.isNull():
+                target_size = QSize(236, 120)
+                scaled = pixmap.scaled(
+                    target_size,
+                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    Qt.TransformationMode.SmoothTransformation
+                )
+                if scaled.width() > target_size.width() or scaled.height() > target_size.height():
+                    x = (scaled.width() - target_size.width()) // 2
+                    y = (scaled.height() - target_size.height()) // 2
+                    scaled = scaled.copy(x, y, target_size.width(), target_size.height())
+                
+                self.preview_label.setPixmap(scaled)
+                self.preview_label.setStyleSheet("border-radius: 8px;")
+                self._preview_pixmap = scaled
+                return
+        
+        self.preview_label.clear()
+        self.preview_label.setStyleSheet("""
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+        """)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_start_pos = event.position().toPoint()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if not (event.buttons() & Qt.MouseButton.LeftButton):
+            return
+        if self._drag_start_pos is None:
+            return
+
+        distance = (event.position().toPoint() - self._drag_start_pos).manhattanLength()
+        if distance >= QApplication.startDragDistance():
+            self._start_drag()
+
+        super().mouseMoveEvent(event)
+
+    def _start_drag(self):
+        drag = QDrag(self)
+
+        # 设置拖拽数组件类型和样式
+        mime_data = QMimeData()
+        mime_data.setData("application/x-classlively-component", 
+                          f"{self.component_type}|{self.style_name}".encode('utf-8'))
+        drag.setMimeData(mime_data)
+
+        # 创建拖拽预览图
+        if self._preview_pixmap and not self._preview_pixmap.isNull():
+            drag.setPixmap(self._preview_pixmap)
+        else:
+            pixmap = self.grab()
+            scaled = pixmap.scaled(200, 100, Qt.AspectRatioMode.KeepAspectRatio, 
+                                   Qt.TransformationMode.SmoothTransformation)
+            drag.setPixmap(scaled)
+        
+        drag.setHotSpot(QPoint(100, 60))
+
+        # 执行拖拽
+        drag.exec(Qt.DropAction.CopyAction)
+        self._drag_start_pos = None
+
+
+class ComponentTypePage(QWidget):
+    """组件类型页面"""
+
+    def __init__(self, component_type: str, styles: dict, edit_window, parent=None):
+        super().__init__(parent)
+        self.component_type = component_type
+        self.styles = styles
+        self.edit_window = edit_window
+        self._current_index = 0
+        self._style_cards = []
+        self._selected_component_id = None  # 当前选中的组件
+        
+        # 必设 objectName os必上b站
+        self.setObjectName(f"componentPage_{component_type}")
+        
+        self._setup_ui()
+        self._refresh_component_list()
+
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(16)
+
+        # 已添加组件列表区域
+        list_header = StrongBodyLabel(tr("component_edit.added_components"))
+        layout.addWidget(list_header)
+
+        self.component_list = QListWidget(self)
+        self.component_list.setFixedHeight(120)
+        self.component_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
+        self.component_list.itemClicked.connect(self._on_component_selected)
+        layout.addWidget(self.component_list)
+
+        # 删除按钮
+        delete_btn = PushButton(FUI.DELETE, tr("component_edit.delete_selected"), self)
+        delete_btn.setFixedHeight(32)
+        delete_btn.clicked.connect(self._delete_selected_component)
+        layout.addWidget(delete_btn, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        # 分隔线
+        separator = QWidget()
+        separator.setFixedHeight(2)
+        separator.setStyleSheet("background-color: rgba(255, 255, 255, 0.1);")
+        layout.addWidget(separator)
+
+        # 样式选择区域
+        style_header = StrongBodyLabel(tr("component_edit.select_style"))
+        layout.addWidget(style_header)
+
+        style_area = QWidget()
+        style_layout = QHBoxLayout(style_area)
+        style_layout.setContentsMargins(0, 0, 0, 0)
+        style_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # 左箭头
+        self.prev_btn = ToolButton(FUI.LEFT_ARROW, self)
+        self.prev_btn.setFixedSize(32, 32)
+        self.prev_btn.clicked.connect(self._prev_style)
+        style_layout.addWidget(self.prev_btn)
+
+        # 样式卡片容器
+        self.card_container = QWidget()
+        self.card_container.setFixedSize(220, 140)
+        self.card_layout = QVBoxLayout(self.card_container)
+        self.card_layout.setContentsMargins(0, 0, 0, 0)
+        style_layout.addWidget(self.card_container)
+
+        # 右箭头
+        self.next_btn = ToolButton(FUI.RIGHT_ARROW, self)
+        self.next_btn.setFixedSize(32, 32)
+        self.next_btn.clicked.connect(self._next_style)
+        style_layout.addWidget(self.next_btn)
+
+        layout.addWidget(style_area)
+
+        # 添加按钮
+        add_btn = PushButton(FUI.ADD, tr("component_edit.add_component"), self)
+        add_btn.setFixedHeight(36)
+        add_btn.clicked.connect(self._add_component)
+        layout.addWidget(add_btn, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        # 配置面板区域
+        self.config_header = StrongBodyLabel(tr("component_edit.component_config"))
+        self.config_header.hide()
+        layout.addWidget(self.config_header)
+
+        self.config_panel = QWidget()
+        self.config_panel_layout = QVBoxLayout(self.config_panel)
+        self.config_panel_layout.setContentsMargins(0, 0, 0, 0)
+        self.config_panel.hide()
+        layout.addWidget(self.config_panel)
+
+        # 初始化样式卡片
+        self._create_style_cards()
+        self._show_current_card()
+
+    def _refresh_component_list(self):
+        """刷新已添加组件列表"""
+        self.component_list.clear()
+        
+        home = self.edit_window.main_window.homeInterface
+        if not home or not hasattr(home, 'component_manager'):
+            return
+        
+        manager = home.component_manager
+        
+        # 获取当前类型的所有组件
+        for comp_id, comp_data in manager._component_data.items():
+            if comp_data.get("type") == self.component_type:
+                style_name = comp_data.get("style", "default")
+                style_info = self.styles.get(style_name, {})
+                display_name = style_info.get("name", style_name)
+                
+                item = QListWidgetItem(f"{display_name} ({comp_id})")
+                item.setData(Qt.ItemDataRole.UserRole, comp_id)
+                self.component_list.addItem(item)
+
+    def _on_component_selected(self, item):
+        """选中组件后显示配置面板"""
+        self._selected_component_id = item.data(Qt.ItemDataRole.UserRole)
+        self._show_config_panel()
+
+    def _show_config_panel(self):
+        """显示选中组件的配置面板"""
+        # 清空配置面板
+        while self.config_panel_layout.count():
+            item = self.config_panel_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        if not self._selected_component_id:
+            self.config_header.hide()
+            self.config_panel.hide()
+            return
+
+        # 获取组件数据
+        home = self.edit_window.main_window.homeInterface
+        if not home:
+            return
+        
+        manager = home.component_manager
+        comp_data = manager._component_data.get(self._selected_component_id)
+        if not comp_data:
+            return
+
+        # 根据组件类型创建配置项
+        config_items = self._get_config_items_for_type(self.component_type)
+        
+        for config_key, config_info in config_items.items():
+            card = self._create_config_card(config_key, config_info, comp_data)
+            if card:
+                self.config_panel_layout.addWidget(card)
+
+        self.config_header.show()
+        self.config_panel.show()
+
+    def _get_config_items_for_type(self, comp_type: str) -> dict:
+        """获取组件类型的配置项定义"""
+        # 基础配置项
+        base_config = {
+            "enabled": {"name": tr("component_edit.config_enabled"), "type": "switch"},
+        }
+        
+        # 类型特定配置
+        type_config = {
+            "clock": {
+                "show_seconds": {"name": tr("component_edit.config_show_seconds"), "type": "switch"},
+                "show_lunar": {"name": tr("component_edit.config_show_lunar"), "type": "switch"},
+                "font_size": {"name": tr("component_edit.config_font_size"), "type": "spinbox", "min": 10, "max": 200},
+            },
+            "weather": {
+                "show_icon": {"name": tr("component_edit.config_show_icon"), "type": "switch"},
+                "font_size": {"name": tr("component_edit.config_font_size"), "type": "spinbox", "min": 10, "max": 100},
+            },
+            "poetry": {
+                "font_size": {"name": tr("component_edit.config_font_size"), "type": "spinbox", "min": 10, "max": 50},
+            },
+            "countdown": {
+                "target_name": {"name": tr("component_edit.config_target_name"), "type": "lineedit"},
+                "target_date": {"name": tr("component_edit.config_target_date"), "type": "lineedit"},
+            },
+            "school_info": {
+                "school_name": {"name": tr("component_edit.config_school"), "type": "lineedit"},
+                "class_name": {"name": tr("component_edit.config_class"), "type": "lineedit"},
+            },
+            "media": {
+                "show_progress": {"name": tr("component_edit.config_show_progress"), "type": "switch"},
+            },
+            "quick_launch": {
+                "icon_size": {"name": tr("component_edit.config_icon_size"), "type": "spinbox", "min": 32, "max": 128},
+            },
+        }
+        
+        return {**base_config, **type_config.get(comp_type, {})}
+
+    def _create_config_card(self, config_key: str, config_info: dict, comp_data: dict) -> QWidget:
+        """创建配置项卡片"""
+        config_type = config_info.get("type", "switch")
+        config_name = config_info.get("name", config_key)
+        current_value = comp_data.get("config", {}).get(config_key)
+
+        card = CardWidget(self.config_panel)
+        card_layout = QHBoxLayout(card)
+        card_layout.setContentsMargins(16, 12, 16, 12)
+
+        # 配置名称
+        name_label = BodyLabel(config_name)
+        card_layout.addWidget(name_label)
+
+        card_layout.addStretch()
+
+        # 配置控件
+        if config_type == "switch":
+            switch = SwitchButton(self)
+            switch.setChecked(bool(current_value) if current_value is not None else True)
+            switch.checkedChanged.connect(lambda checked: self._update_config(config_key, checked))
+            card_layout.addWidget(switch)
+        elif config_type == "spinbox":
+            spinbox = SpinBox(self)
+            spinbox.setRange(config_info.get("min", 1), config_info.get("max", 100))
+            spinbox.setValue(int(current_value) if current_value else config_info.get("min", 1))
+            spinbox.valueChanged.connect(lambda value: self._update_config(config_key, value))
+            card_layout.addWidget(spinbox)
+        elif config_type == "lineedit":
+            lineedit = QLineEdit(self)
+            lineedit.setText(str(current_value) if current_value else "")
+            lineedit.setFixedWidth(200)
+            lineedit.textChanged.connect(lambda text: self._update_config(config_key, text))
+            card_layout.addWidget(lineedit)
+
+        return card
+
+    def _update_config(self, config_key: str, value):
+        """更新组件配置"""
+        if not self._selected_component_id:
+            return
+        
+        home = self.edit_window.main_window.homeInterface
+        if not home:
+            return
+        
+        manager = home.component_manager
+        
+        # 更新配置数据
+        comp_data = manager._component_data.get(self._selected_component_id)
+        if comp_data:
+            if "config" not in comp_data:
+                comp_data["config"] = {}
+            comp_data["config"][config_key] = value
+            
+            manager.save_components()
+
+    def _delete_selected_component(self):
+        """删除选中的组件"""
+        if not self._selected_component_id:
+            return
+        
+        home = self.edit_window.main_window.homeInterface
+        if not home:
+            return
+        
+        manager = home.component_manager
+        
+        # 删除组件
+        if self._selected_component_id in manager.components:
+            widget = manager.components[self._selected_component_id]
+            widget.deleteLater()
+            del manager.components[self._selected_component_id]
+        
+        if self._selected_component_id in manager._component_data:
+            del manager._component_data[self._selected_component_id]
+        
+        # 保存并刷新
+        manager.save_components()
+        self._selected_component_id = None
+        self._refresh_component_list()
+        self._show_config_panel()
+
+    def _create_style_cards(self):
+        for style_name, style_info in self.styles.items():
+            card = StyleCardWidget(self.component_type, style_name, style_info, self)
+            self._style_cards.append(card)
+
+    def _show_current_card(self):
+        # 清空容器
+        while self.card_layout.count():
+            item = self.card_layout.takeAt(0)
+            if item.widget():
+                item.widget().setParent(None)
+
+        if self._style_cards:
+            card = self._style_cards[self._current_index]
+            card.setParent(self.card_container)
+            self.card_layout.addWidget(card)
+
+        # 更新箭头状态
+        self.prev_btn.setEnabled(self._current_index > 0)
+        self.next_btn.setEnabled(self._current_index < len(self._style_cards) - 1)
+
+    def _prev_style(self):
+        if self._current_index > 0:
+            self._current_index -= 1
+            self._show_current_card()
+
+    def _next_style(self):
+        if self._current_index < len(self._style_cards) - 1:
+            self._current_index += 1
+            self._show_current_card()
+
+    def _add_component(self):
+        if self._style_cards:
+            current_style = list(self.styles.keys())[self._current_index]
+            self.edit_window._on_add_component(self.component_type, current_style)
+
+
+class ComponentEditWindow(FluentWindow):
+    """组件编辑窗口"""
+
+    def __init__(self, main_window):
+        super().__init__()
+        self.main_window = main_window
+        self.setObjectName("componentEdit")
+        self.resize(900, 650)
+
+        # 窗口置顶，隐藏最小化和最大化按钮
+        self.setWindowFlags(
+            (self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
+            & ~Qt.WindowType.WindowMinimizeButtonHint
+            & ~Qt.WindowType.WindowMaximizeButtonHint
+        )
+
+        self._type_pages = {}
+        self._setup_pages()
+        self._setup_navigation()
+        self._setup_added_list()
+        self._applyTheme()
+
+        # 中间显示
+        self._centerOnScreen()
+
+    def _setup_pages(self):
+        """创建各类型页面"""
+        self._stack = QStackedWidget(self)
+
+        type_icons = {
+            "clock": FUI.DATE_TIME,
+            "weather": FUI.CLOUD,
+            "poetry": FUI.BOOK_SHELF,
+            "countdown": FUI.STOP_WATCH,
+            "school_info": FUI.EDUCATION,
+            "media": FUI.MUSIC,
+            "quick_launch": FUI.LINK,
+        }
+
+        type_names = {
+            "clock": tr("component.clock"),
+            "weather": tr("component.weather"),
+            "poetry": tr("component.poetry"),
+            "countdown": tr("component.countdown"),
+            "school_info": tr("component.school_info"),
+            "media": tr("component.media"),
+            "quick_launch": tr("component.quick_launch"),
+        }
+
+        for type_name, styles in COMPONENT_STYLES.items():
+            page = ComponentTypePage(type_name, styles, self)
+            self._type_pages[type_name] = page
+            self._stack.addWidget(page)
+
+        self._type_icons = type_icons
+        self._type_names = type_names
+
+    def _setup_navigation(self):
+        """设置导航栏"""
+        for type_name, page in self._type_pages.items():
+            icon = self._type_icons.get(type_name, FUI.SETTING)
+            name = self._type_names.get(type_name, type_name)
+            self.addSubInterface(page, icon, name)
+
+        self.navigationInterface.expand()
+        self.navigationInterface.setReturnButtonVisible(False)
+
+    def _setup_added_list(self):
+        """已添加组件列表"""
+        # 暂时跳过，后续实现
+        pass
+
+    def _centerOnScreen(self):
+        screen = QApplication.primaryScreen()
+        if screen:
+            center = screen.availableGeometry().center()
+            self.move(center.x() - self.width() // 2, center.y() - self.height() // 2)
+
+    def _applyTheme(self):
+        """应用主题"""
+        theme = cfg.themeMode.value
+        setTheme(theme)
+        qss = load_qss('setting.qss')
+        if qss:
+            self.setStyleSheet(qss)
+
+    def _on_add_component(self, component_type: str, component_style: str):
+        """添加组件回调"""
+        from qfluentwidgets import InfoBar
+
+        # 获取 HomeInterface
+        home = None
+        if hasattr(self.main_window, 'homeInterface'):
+            home = self.main_window.homeInterface
+
+        if home and hasattr(home, 'component_manager') and home.component_manager:
+            comp_id = home.component_manager.add_component(component_type, component_style)
+            if comp_id:
+                InfoBar.success(
+                    tr("component_edit.add_success"),
+                    f"{self._type_names.get(component_type, component_type)}: {component_style}",
+                    parent=self,
+                    duration=2000
+                )
+        else:
+            # 组件系统尚未完全整合
+            InfoBar.warning(
+                tr("component_edit.feature_pending"),
+                tr("component_edit.feature_pending_desc"),
+                parent=self,
+                duration=3000
+            )
+
+    def closeEvent(self, event):
+        """释放资源"""
+        event.accept()
+
+
+
+class DragPreviewBox(QWidget):
+    """拖拽时显示的预览框"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.hide()
+
+        self._is_collision = False
+
+    def set_collision(self, collision: bool):
+        """设置是否碰撞状态"""
+        self._is_collision = collision
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # 背景
+        if self._is_collision:
+            color = QColor(255, 100, 100, 80)  # 红色警告
+        else:
+            color = QColor(100, 200, 100, 80)  # 绿色正常
+
+        painter.setBrush(QBrush(color))
+        painter.setPen(QPen(QColor(255, 255, 255, 150), 2))
+        painter.drawRoundedRect(self.rect().adjusted(2, 2, -2, -2), 8, 8)
+
+
+class GridCanvas(QWidget):
+    """网格桌面画布 - 管理组件放置和交互"""
+
+    # 信号
+    component_placed = pyqtSignal(str)       # placement_id
+    component_removed = pyqtSignal(str)      # placement_id
+    edit_mode_changed = pyqtSignal(bool)
+
+    def __init__(self, main_window, parent=None):
+        super().__init__(parent)
+        self.main_window = main_window
+        self.setObjectName("gridCanvas")
+
+        from core.component import (
+            GridLayoutService, ComponentRegistry, PlacementService,
+            BUILTIN_COMPONENT_DEFINITIONS, EditSession, GridMetrics
+        )
+        self.grid_service = GridLayoutService()
+        self.registry = ComponentRegistry(self)
+        self.placement_srv = PlacementService(self)
+
+        # 加载内置组件定义
+        self.registry.register_batch(BUILTIN_COMPONENT_DEFINITIONS)
+
+        # 加载放置配置
+        self.placement_srv.load()
+
+        # 网格计算结果
+        self._metrics: Optional[GridMetrics] = None
+
+        # 编辑状态
+        self._edit_session = EditSession()
+        self._is_edit_mode = False
+
+        # 预览框
+        self._preview_box = DragPreviewBox(self)
+
+        # 组件容器
+        self._component_widgets: Dict[str, QWidget] = {}
+
+        # UI 设置
+        self.setAcceptDrops(True)
+        self._setup_ui()
+
+        # 尺寸计算
+        self._update_grid_metrics()
+
+        # 创建加了的组件
+        self._create_placed_components()
+
+        self.placement_srv.placement_added.connect(self._on_placement_added)
+        self.placement_srv.placement_removed.connect(self._on_placement_removed)
+        self.placement_srv.placement_updated.connect(self._on_placement_updated)
+
+        self.setStyleSheet(load_qss('home.qss'))
+
+    def _setup_ui(self):
+        """设置布局"""
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+    def _update_grid_metrics(self):
+        """更新网格尺寸"""
+        from core.component import GridMetrics
+        settings = self.placement_srv.get_grid_settings()
+        self._metrics = self.grid_service.calculate_grid_metrics(
+            self.width(), self.height(), settings
+        )
+
+    def resizeEvent(self, event):
+        """窗口大小变化时重新计算网格"""
+        super().resizeEvent(event)
+        self._update_grid_metrics()
+
+        # 更新所有组件位置
+        for placement_id, widget in self._component_widgets.items():
+            placement = self.placement_srv.get_placement(placement_id)
+            if placement and self._metrics:
+                rect = self.grid_service.get_cell_rect(
+                    self._metrics,
+                    placement.column,
+                    placement.row,
+                    placement.width_cells,
+                    placement.height_cells
+                )
+                widget.setGeometry(rect)
+
+    def _create_placed_components(self):
+        """创建已放置的组件"""
+        for placement in self.placement_srv.get_all_placements():
+            self._create_component_widget(placement)
+
+    def _create_component_widget(self, placement) -> Optional[QWidget]:
+        """创建单个组件"""
+        from core.component import ComponentPlacement
+        definition = self.registry.get_definition(placement.component_id)
+        if not definition:
+            logger.warning(f"[GridCanvas] 组件定义不存在: {placement.component_id}")
+            return None
+
+        # 获取组件类
+        comp_class = definition.component_class
+        if not comp_class:
+            # 从 COMPONENT_STYLES 获取
+            type_styles = COMPONENT_STYLES.get(placement.component_id.split('_')[0], {})
+            style_name = placement.component_id.split('_')[-1] if '_' in placement.component_id else 'default'
+            style_info = type_styles.get(style_name, {})
+            comp_class = style_info.get('class')
+
+        if not comp_class:
+            logger.warning(f"[GridCanvas] 组件类不存在: {placement.component_id}")
+            return None
+
+        # 计算位置和大小
+        if self._metrics:
+            rect = self.grid_service.get_cell_rect(
+                self._metrics,
+                placement.column,
+                placement.row,
+                placement.width_cells,
+                placement.height_cells
+            )
+        else:
+            rect = QRect(100, 100, 200, 200)
+
+        # 创建组件实例
+        try:
+            widget = comp_class(self, placement.placement_id)
+            widget.setGeometry(rect)
+            widget.show()
+
+            self._component_widgets[placement.placement_id] = widget
+            self.placement_srv.register_widget(placement.placement_id, widget)
+
+            logger.info(f"[GridCanvas] 创建组件: {placement.placement_id}")
+            return widget
+        except Exception as e:
+            logger.error(f"[GridCanvas] 创建组件失败: {e}")
+            return None
+
+    def _on_placement_added(self, placement_id: str):
+        """放置添加时创建组件"""
+        placement = self.placement_srv.get_placement(placement_id)
+        if placement:
+            self._create_component_widget(placement)
+        self.component_placed.emit(placement_id)
+
+    def _on_placement_removed(self, placement_id: str):
+        """放置移除时删除组件"""
+        if placement_id in self._component_widgets:
+            widget = self._component_widgets[placement_id]
+            widget.deleteLater()
+            del self._component_widgets[placement_id]
+        self.component_removed.emit(placement_id)
+
+    def _on_placement_updated(self, placement_id: str):
+        """放置更新时移动/调整组件"""
+        placement = self.placement_srv.get_placement(placement_id)
+        widget = self._component_widgets.get(placement_id)
+
+        if placement and widget and self._metrics:
+            rect = self.grid_service.get_cell_rect(
+                self._metrics,
+                placement.column,
+                placement.row,
+                placement.width_cells,
+                placement.height_cells
+            )
+            widget.setGeometry(rect)
+
+
+    # 拖拽处理
+
+    def dragEnterEvent(self, event):
+        """拖拽进入"""
+        from core.component import EditSessionMode, EditSession
+        mime = event.mimeData()
+        if mime.hasFormat("application/x-classlively-component"):
+            event.acceptProposedAction()
+
+            # 开始编辑会话
+            data = bytes(mime.data("application/x-classlively-component")).decode('utf-8')
+            parts = data.split('|')
+            if len(parts) >= 2:
+                comp_id = parts[0]
+                # 获取组件定义
+                definition = self.registry.get_definition(comp_id)
+                if definition:
+                    self._edit_session = EditSession(
+                        mode=EditSessionMode.DRAGGING_NEW,
+                        component_id=comp_id,
+                        width_cells=definition.default_width_cells,
+                        height_cells=definition.default_height_cells,
+                        start_position=event.position().toPoint(),
+                        current_position=event.position().toPoint(),
+                    )
+                    self._show_preview()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        """拖拽移动"""
+        if self._edit_session.is_dragging_new:
+            pos = event.position().toPoint()
+            self._edit_session.current_position = pos
+
+            # 计算目标格子
+            if self._metrics:
+                row, col = self.grid_service.point_to_cell(self._metrics, pos)
+                self._edit_session.target_row = row
+                self._edit_session.target_column = col
+
+                # 检查碰撞
+                is_collision = self.grid_service.check_collision(
+                    self.placement_srv.get_all_placements(),
+                    row, col,
+                    self._edit_session.width_cells,
+                    self._edit_session.height_cells,
+                )
+
+                self._update_preview_position()
+                self._preview_box.set_collision(is_collision)
+
+            event.acceptProposedAction()
+
+    def dragLeaveEvent(self, event):
+        """拖拽离开"""
+        from core.component import EditSession
+        self._hide_preview()
+        self._edit_session = EditSession()
+
+    def dropEvent(self, event):
+        """放置"""
+        from core.component import EditSession
+        if self._edit_session.is_dragging_new and self._edit_session.has_target:
+            # 检查碰撞
+            is_collision = self.grid_service.check_collision(
+                self.placement_srv.get_all_placements(),
+                self._edit_session.target_row,
+                self._edit_session.target_column,
+                self._edit_session.width_cells,
+                self._edit_session.height_cells,
+            )
+
+            if not is_collision:
+                # 创建放置
+                placement_id = self.placement_srv.add_placement(
+                    self._edit_session.component_id,
+                    self._edit_session.target_row,
+                    self._edit_session.target_column,
+                    self._edit_session.width_cells,
+                    self._edit_session.height_cells,
+                )
+                logger.info(f"[GridCanvas] 放置组件: {placement_id}")
+
+        self._hide_preview()
+        self._edit_session = EditSession()
+        event.acceptProposedAction()
+
+    def _show_preview(self):
+        """显示预览框"""
+        if self._metrics and self._edit_session.is_dragging_new:
+            rect = self.grid_service.get_cell_rect(
+                self._metrics,
+                self._edit_session.target_column,
+                self._edit_session.target_row,
+                self._edit_session.width_cells,
+                self._edit_session.height_cells,
+            )
+            self._preview_box.setGeometry(rect)
+            self._preview_box.show()
+            self._preview_box.raise_()
+
+    def _update_preview_position(self):
+        """更新预览框位置"""
+        if self._metrics and self._edit_session.is_dragging_new:
+            rect = self.grid_service.get_cell_rect(
+                self._metrics,
+                self._edit_session.target_column,
+                self._edit_session.target_row,
+                self._edit_session.width_cells,
+                self._edit_session.height_cells,
+            )
+            self._preview_box.setGeometry(rect)
+
+    def _hide_preview(self):
+        """隐藏预览框"""
+        self._preview_box.hide()
+
+    # 编辑模式
+
+    def enter_edit_mode(self):
+        """进入编辑模式"""
+        self._is_edit_mode = True
+        self.edit_mode_changed.emit(True)
+
+    def exit_edit_mode(self):
+        """退出编辑模式"""
+        self._is_edit_mode = False
+        self.edit_mode_changed.emit(False)
+
+    def is_edit_mode(self) -> bool:
+        return self._is_edit_mode
+
+    # 绘制网格
+
+    def paintEvent(self, event):
+        """绘制"""
+        super().paintEvent(event)
+
+        if self._is_edit_mode and self._metrics:
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+            # 绘制网格线
+            pen = QPen(QColor(255, 255, 255, 30), 1)
+            painter.setPen(pen)
+
+            # 垂直线
+            for col in range(self._metrics.column_count + 1):
+                x = self._metrics.edge_inset_px + col * self._metrics.pitch
+                painter.drawLine(int(x), int(self._metrics.edge_inset_px),
+                                int(x), int(self._metrics.edge_inset_px + self._metrics.grid_height_px))
+
+            # 水平线
+            for row in range(self._metrics.row_count + 1):
+                y = self._metrics.edge_inset_px + row * self._metrics.pitch
+                painter.drawLine(int(self._metrics.edge_inset_px), int(y),
+                                int(self._metrics.edge_inset_px + self._metrics.grid_width_px), int(y))
+
+    # 公共 API
+
+    def get_registry(self):
+        """获取组件注册中心"""
+        return self.registry
+
+    def get_placement_service(self):
+        """获取放置服务"""
+        return self.placement_srv
+
+    def get_grid_metrics(self):
+        """获取网格尺寸"""
+        return self._metrics
+
+    def get_all_components(self) -> Dict[str, QWidget]:
+        """获取所有组件"""
+        return self._component_widgets.copy()

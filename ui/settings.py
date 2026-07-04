@@ -23,11 +23,11 @@ import os
 from datetime import datetime
 
 from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont
 from PyQt6.QtWidgets import QApplication, QFileDialog, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from qfluentwidgets import (
     ComboBoxSettingCard,
     CustomColorSettingCard,
-    FluentIcon as FIF,
     FluentWindow,
     InfoBar,
     LineEdit,
@@ -46,7 +46,7 @@ from qfluentwidgets import (
 
 from core.config import cfg, default_cfg, ConfigItem, CONFIG_PATH
 from core.constants import BASE_DIR, load_qss
-from core.utils import _load_app_fonts, apply_fonts, tr, get_time_sync_service
+from core.utils import _load_app_fonts, apply_fonts, tr, get_time_sync_service, FUI
 from core.logger import log_dir
 
 
@@ -128,7 +128,7 @@ class SyncStatusSettingCard(SettingCard):
         super().__init__(icon, title, content, parent)
         self.statusLabel = QLabel(tr("settings.precise_time_not_synced"))
         self.statusLabel.setStyleSheet("color: #999;")
-        self.syncBtn = PushButton(FIF.SYNC, tr("settings.precise_time_sync_now"))
+        self.syncBtn = PushButton(FUI.SYNC, tr("settings.precise_time_sync_now"))
         self.syncBtn.setFixedHeight(32)
 
         h = QHBoxLayout()
@@ -196,7 +196,7 @@ class ButtonSettingCard(SettingCard):
 
     def __init__(self, icon, title, content=None, parent=None):
         super().__init__(icon, title, content, parent)
-        self.button = PushButton(FIF.EDIT, tr("common.execute"), self)
+        self.button = PushButton(FUI.EDIT, tr("common.execute"), self)
         self.button.setFixedHeight(36)
         self.hBoxLayout.addWidget(self.button, 0, Qt.AlignmentFlag.AlignRight)
         self.hBoxLayout.addSpacing(16)
@@ -205,9 +205,9 @@ class ButtonSettingCard(SettingCard):
 class DualButtonSettingCard(SettingCard):
     def __init__(self, icon, title, content=None, parent=None):
         super().__init__(icon, title, content, parent)
-        self.button1 = PushButton(FIF.SAVE, tr("settings.export_button"), self)
+        self.button1 = PushButton(FUI.SAVE, tr("settings.export_button"), self)
         self.button1.setFixedHeight(32)
-        self.button2 = PushButton(FIF.DOWNLOAD, tr("settings.import_button"), self)
+        self.button2 = PushButton(FUI.DOWNLOAD, tr("settings.import_button"), self)
         self.button2.setFixedHeight(32)
         button_layout = QHBoxLayout()
         button_layout.addWidget(self.button1)
@@ -256,14 +256,14 @@ class GeneralPage(SettingsSubPage):
         self.main_window = main_window
 
         self.autoStartCard = SwitchSettingCard(
-            FIF.PLAY,
+            FUI.PLAY,
             tr("wizard.auto_start"),
             tr("wizard.auto_start_desc"),
             configItem=cfg.autoStart,
             parent=self.scrollWidget,
         )
         self.autoOpenOnIdleCard = SwitchSettingCard(
-            FIF.VIEW,
+            FUI.VIEW,
             tr("wizard.auto_open_idle"),
             tr("wizard.auto_open_idle_desc"),
             configItem=cfg.autoOpenOnIdle,
@@ -271,7 +271,7 @@ class GeneralPage(SettingsSubPage):
         )
         self.idleMinutesCard = SpinBoxSettingCard(
             cfg.idleMinutes,
-            FIF.HISTORY,
+            FUI.HISTORY,
             tr("settings.idle_minutes"),
             tr("settings.idle_minutes_desc"),
             parent=self.scrollWidget,
@@ -279,7 +279,7 @@ class GeneralPage(SettingsSubPage):
             max_value=60,
         )
         self.autoOpenMaximizeCard = SwitchSettingCard(
-            FIF.FULL_SCREEN,
+            FUI.FULL_SCREEN,
             tr("wizard.auto_open_maximize"),
             tr("wizard.auto_open_maximize_desc"),
             configItem=cfg.autoOpenMaximize,
@@ -303,7 +303,7 @@ class TimePage(SettingsSubPage):
         self.main_window = main_window
 
         self.usePreciseTimeCard = SwitchSettingCard(
-            FIF.DATE_TIME,
+            FUI.DATE_TIME,
             tr("settings.use_precise_time"),
             tr("settings.use_precise_time_desc"),
             configItem=cfg.usePreciseTime,
@@ -311,20 +311,20 @@ class TimePage(SettingsSubPage):
         )
         self.timeServerCard = TextLineSettingCard(
             cfg.timeServer,
-            FIF.CLOUD,
+            FUI.CLOUD,
             tr("settings.time_server"),
             tr("settings.time_server_desc"),
             parent=self.scrollWidget,
         )
         self.timeSyncStatusCard = SyncStatusSettingCard(
-            FIF.UPDATE,
+            FUI.UPDATE,
             tr("settings.time_sync_status"),
             tr("settings.time_sync_status_desc"),
             parent=self.scrollWidget,
         )
         self.timeOffsetCard = SpinBoxSettingCard(
             cfg.timeOffset,
-            FIF.ZOOM,
+            FUI.ZOOM,
             tr("settings.time_offset"),
             tr("settings.time_offset_desc"),
             parent=self.scrollWidget,
@@ -334,7 +334,7 @@ class TimePage(SettingsSubPage):
         self.autoOffsetCard = AutoOffsetSettingCard(
             cfg.autoTimeOffsetEnabled,
             cfg.autoTimeOffsetIncrement,
-            FIF.ADD,
+            FUI.ADD,
             tr("settings.auto_time_offset"),
             tr("settings.auto_time_offset_desc"),
             parent=self.scrollWidget,
@@ -424,7 +424,7 @@ class AppearancePage(SettingsSubPage):
 
         self.themeCard = ComboBoxSettingCard(
             cfg.themeMode,
-            FIF.BRUSH,
+            FUI.BRUSH,
             tr("wizard.theme_mode"),
             tr("wizard.theme_mode_desc"),
             texts=[tr("wizard.theme_light"), tr("wizard.theme_dark"), tr("wizard.theme_system")],
@@ -432,14 +432,14 @@ class AppearancePage(SettingsSubPage):
         )
         self.themeColorCard = CustomColorSettingCard(
             cfg.themeColor,
-            FIF.PALETTE,
+            FUI.PALETTE,
             tr("wizard.primary_color"),
             tr("wizard.primary_color_desc"),
             parent=self.scrollWidget,
         )
         self.componentCardOpacityCard = SpinBoxSettingCard(
             cfg.componentCardOpacity,
-            FIF.PALETTE,
+            FUI.PALETTE,
             tr("settings.component_card_opacity"),
             tr("settings.component_card_opacity_desc"),
             parent=self.scrollWidget,
@@ -448,7 +448,7 @@ class AppearancePage(SettingsSubPage):
         )
         self.componentCardRadiusCard = SpinBoxSettingCard(
             cfg.componentCardRadius,
-            FIF.EDIT,
+            FUI.EDIT,
             tr("settings.component_card_radius"),
             tr("settings.component_card_radius_desc"),
             parent=self.scrollWidget,
@@ -457,7 +457,7 @@ class AppearancePage(SettingsSubPage):
         )
         self.languageCard = ComboBoxSettingCard(
             cfg.language,
-            FIF.LANGUAGE,
+            FUI.LANGUAGE,
             tr("settings.language"),
             tr("settings.language_desc"),
             texts=[tr("settings.lang_zh_cn"), tr("settings.lang_zh_tw"), "English", "Auto"],
@@ -500,7 +500,7 @@ class LogPage(SettingsSubPage):
         self.main_window = main_window
 
         self.disableLogCard = SwitchSettingCard(
-            FIF.CLOSE,
+            FUI.CLOSE,
             tr("settings.disable_log"),
             tr("settings.disable_log_desc"),
             configItem=cfg.disableLog,
@@ -508,7 +508,7 @@ class LogPage(SettingsSubPage):
         )
         self.logLevelCard = ComboBoxSettingCard(
             cfg.logLevel,
-            FIF.INFO,
+            FUI.INFO,
             tr("settings.log_level"),
             tr("settings.log_level_desc"),
             texts=["Debug", "Info", "Warning", "Error"],
@@ -516,7 +516,7 @@ class LogPage(SettingsSubPage):
         )
         self.logMaxCountCard = SpinBoxSettingCard(
             cfg.logMaxCount,
-            FIF.INFO,
+            FUI.INFO,
             tr("settings.log_max_count"),
             tr("settings.log_max_count_desc"),
             parent=self.scrollWidget,
@@ -525,7 +525,7 @@ class LogPage(SettingsSubPage):
         )
         self.logMaxDaysCard = SpinBoxSettingCard(
             cfg.logMaxDays,
-            FIF.INFO,
+            FUI.INFO,
             tr("settings.log_max_days"),
             tr("settings.log_max_days_desc"),
             parent=self.scrollWidget,
@@ -533,7 +533,7 @@ class LogPage(SettingsSubPage):
             max_value=365,
         )
         self.clearLogCard = ButtonSettingCard(
-            FIF.DELETE,
+            FUI.DELETE,
             tr("settings.clear_log"),
             tr("settings.clear_log_desc"),
             parent=self.scrollWidget,
@@ -627,7 +627,7 @@ class AdvancedPage(SettingsSubPage):
 
         self.closeActionCard = ComboBoxSettingCard(
             cfg.closeAction,
-            FIF.SETTING,
+            FUI.SETTING,
             tr("settings.close_action"),
             tr("settings.close_action_desc"),
             texts=[tr("settings.minimize_to_tray"), tr("settings.close_directly")],
@@ -635,7 +635,7 @@ class AdvancedPage(SettingsSubPage):
         )
 
         self.allowMultipleInstancesCard = SwitchSettingCard(
-            FIF.SYNC,
+            FUI.SYNC,
             tr("settings.allow_multiple_instances"),
             tr("settings.allow_multiple_instances_desc"),
             configItem=cfg.allowMultipleInstances,
@@ -643,7 +643,7 @@ class AdvancedPage(SettingsSubPage):
         )
 
         self.enableGpuAccelerationCard = SwitchSettingCard(
-            FIF.VIDEO,
+            FUI.VIDEO,
             tr("settings.gpu_acceleration"),
             tr("settings.gpu_acceleration_desc"),
             configItem=cfg.enableGpuAcceleration,
@@ -651,14 +651,14 @@ class AdvancedPage(SettingsSubPage):
         )
 
         self.configIOCard = DualButtonSettingCard(
-            FIF.SYNC,
+            FUI.SYNC,
             tr("settings.config_import_export"),
             tr("settings.config_import_export_desc"),
             parent=self.scrollWidget,
         )
 
         self.resetDefaultCard = ButtonSettingCard(
-            FIF.SETTING,
+            FUI.SETTING,
             tr("settings.reset_default"),
             tr("settings.reset_default_desc"),
             parent=self.scrollWidget,
@@ -666,7 +666,7 @@ class AdvancedPage(SettingsSubPage):
         self.resetDefaultCard.button.setText(tr("settings.reset_default_button"))
 
         self.debugModeCard = SwitchSettingCard(
-            FIF.CODE,
+            FUI.CODE,
             tr("settings.debug_mode"),
             tr("settings.debug_mode_desc"),
             configItem=cfg.debugMode,
@@ -855,6 +855,181 @@ class AdvancedPage(SettingsSubPage):
         cfg.themeChanged.emit(current_theme)
 
 
+# ─────────────────────────── 网格 ───────────────────────────
+
+class _GridPreviewWidget(QWidget):
+    """网格预览组件"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(200, 150)
+        self.short_side_cells = qconfig.get(cfg.gridShortSideCells)
+        self.inset_percent = qconfig.get(cfg.gridInsetPercent)
+        self.spacing_preset = qconfig.get(cfg.gridSpacingPreset)
+
+        cfg.gridShortSideCells.valueChanged.connect(self._on_short_side_cells_changed)
+        cfg.gridInsetPercent.valueChanged.connect(self._on_inset_percent_changed)
+        cfg.gridSpacingPreset.valueChanged.connect(self._on_spacing_preset_changed)
+
+    def _on_short_side_cells_changed(self, value):
+        self.short_side_cells = value
+        self.update()
+
+    def _on_inset_percent_changed(self, value):
+        self.inset_percent = value
+        self.update()
+
+    def _on_spacing_preset_changed(self, value):
+        self.spacing_preset = value
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # 背景
+        painter.fillRect(self.rect(), QColor(40, 40, 40))
+
+        # 计算网格参数
+        w, h = self.width(), self.height()
+        inset = min(w, h) * self.inset_percent / 100.0
+
+        # 间距系数
+        spacing_factor = 1.0 if self.spacing_preset == "relaxed" else 0.5
+
+        # 短边格子数
+        short_side = min(w, h) - 2 * inset
+        cell_size = short_side / self.short_side_cells
+
+        # 长边格子数
+        long_side = max(w, h) - 2 * inset
+        long_cells = int(long_side / (cell_size * spacing_factor))
+
+        # 绘制网格线
+        painter.setPen(QPen(QColor(100, 100, 100), 1))
+
+        # x
+        for i in range(self.short_side_cells + 1):
+            x = inset + i * cell_size * spacing_factor
+            painter.drawLine(int(x), int(inset), int(x), int(h - inset))
+
+        # y
+        for i in range(long_cells + 1):
+            y = inset + i * cell_size * spacing_factor
+            painter.drawLine(int(inset), int(y), int(w - inset), int(y))
+
+
+class _CornerRadiusPreviewWidget(QWidget):
+    """圆角预览组件"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(200, 150)
+        self.corner_radius_style = qconfig.get(cfg.gridCornerRadiusStyle)
+
+        cfg.gridCornerRadiusStyle.valueChanged.connect(self._on_corner_radius_style_changed)
+
+    def _on_corner_radius_style_changed(self, value):
+        self.corner_radius_style = value
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # 背景
+        painter.fillRect(self.rect(), QColor(40, 40, 40))
+
+        # 绘制示例卡片
+        w, h = self.width(), self.height()
+        card_w, card_h = 120, 80
+        card_x = (w - card_w) // 2
+        card_y = (h - card_h) // 2
+
+        # 设置圆角半径
+        radius = 16 if self.corner_radius_style == "rounded" else 2
+
+        # 绘制卡片背景
+        painter.setBrush(QBrush(QColor(60, 60, 60)))
+        painter.setPen(QPen(QColor(80, 80, 80), 1))
+        painter.drawRoundedRect(card_x, card_y, card_w, card_h, radius, radius)
+
+        # 绘制示例文字
+        painter.setPen(QColor(200, 200, 200))
+        font = QFont("Arial", 10)
+        painter.setFont(font)
+        painter.drawText(card_x, card_y, card_w, card_h, Qt.AlignmentFlag.AlignCenter, "Preview")
+
+
+class GridPage(SettingsSubPage):
+    """网格设置页面"""
+
+    def __init__(self, main_window, parent=None):
+        super().__init__(tr("settings.grid"), parent)
+        self.main_window = main_window
+
+        # 网格预览
+        self.gridPreviewWidget = _GridPreviewWidget(self.scrollWidget)
+        preview_container = QWidget(self.scrollWidget)
+        preview_layout = QHBoxLayout(preview_container)
+        preview_layout.setContentsMargins(0, 10, 0, 10)
+        preview_layout.addWidget(QLabel(tr("settings.grid.preview"), self.scrollWidget))
+        preview_layout.addWidget(self.gridPreviewWidget)
+        preview_layout.addStretch()
+
+        # 圆角预览
+        self.cornerRadiusPreviewWidget = _CornerRadiusPreviewWidget(self.scrollWidget)
+        corner_preview_container = QWidget(self.scrollWidget)
+        corner_preview_layout = QHBoxLayout(corner_preview_container)
+        corner_preview_layout.setContentsMargins(0, 10, 0, 10)
+        corner_preview_layout.addWidget(QLabel(tr("settings.grid.cornerRadius_preview"), self.scrollWidget))
+        corner_preview_layout.addWidget(self.cornerRadiusPreviewWidget)
+        corner_preview_layout.addStretch()
+
+        # 设置卡片
+        self.shortSideCellsCard = SpinBoxSettingCard(
+            cfg.gridShortSideCells,
+            FUI.TILES,
+            tr("settings.grid.short_side_cells"),
+            tr("settings.grid.short_side_cells_desc"),
+            parent=self.scrollWidget,
+            min_value=6,
+            max_value=96,
+        )
+        self.insetPercentCard = SpinBoxSettingCard(
+            cfg.gridInsetPercent,
+            FUI.LAYOUT,
+            tr("settings.grid.inset_percent"),
+            tr("settings.grid.inset_percent_desc"),
+            parent=self.scrollWidget,
+            min_value=0,
+            max_value=30,
+        )
+        self.spacingPresetCard = ComboBoxSettingCard(
+            cfg.gridSpacingPreset,
+            FUI.ALIGNMENT,
+            tr("settings.grid.spacing_preset"),
+            tr("settings.grid.spacing_preset_desc"),
+            texts=[tr("settings.grid.spacing_relaxed"), tr("settings.grid.spacing_compact")],
+            parent=self.scrollWidget,
+        )
+        self.cornerRadiusStyleCard = ComboBoxSettingCard(
+            cfg.gridCornerRadiusStyle,
+            FUI.ROBOT,
+            tr("settings.grid.cornerRadius_style"),
+            tr("settings.grid.cornerRadius_style_desc"),
+            texts=[tr("settings.grid.cornerRadius_rounded"), tr("settings.grid.cornerRadius_square")],
+            parent=self.scrollWidget,
+        )
+
+        self.vBoxLayout.addWidget(preview_container)
+        self.vBoxLayout.addWidget(corner_preview_container)
+        self.vBoxLayout.addWidget(self.shortSideCellsCard)
+        self.vBoxLayout.addWidget(self.insetPercentCard)
+        self.vBoxLayout.addWidget(self.spacingPresetCard)
+        self.vBoxLayout.addWidget(self.cornerRadiusStyleCard)
+        self.vBoxLayout.addStretch()
+
 
 class SettingsWindow(FluentWindow):
     """设置窗口"""
@@ -898,15 +1073,19 @@ class SettingsWindow(FluentWindow):
         self.appearancePage = AppearancePage(self.main_window, self)
         self.appearancePage.setObjectName("appearancePage")
 
+        self.gridPage = GridPage(self.main_window, self)
+        self.gridPage.setObjectName("gridPage")
+
         self.advancedPage = AdvancedPage(self.main_window, self)
         self.advancedPage.setObjectName("advancedPage")
 
     def _initNavigation(self):
-        self.addSubInterface(self.generalPage, FIF.SETTING, tr("settings.general"))
-        self.addSubInterface(self.timePage, FIF.DATE_TIME, tr("settings.time"))
-        self.addSubInterface(self.appearancePage, FIF.PALETTE, tr("settings.appearance"))
-        self.addSubInterface(self.logPage, FIF.INFO, tr("settings.log"))
-        self.addSubInterface(self.advancedPage, FIF.LIBRARY, tr("settings.advanced"))
+        self.addSubInterface(self.generalPage, FUI.SETTING, tr("settings.general"))
+        self.addSubInterface(self.timePage, FUI.DATE_TIME, tr("settings.time"))
+        self.addSubInterface(self.appearancePage, FUI.PALETTE, tr("settings.appearance"))
+        self.addSubInterface(self.gridPage, FUI.TABLE, tr("settings.grid"))
+        self.addSubInterface(self.logPage, FUI.INFO, tr("settings.log"))
+        self.addSubInterface(self.advancedPage, FUI.LIBRARY, tr("settings.advanced"))
 
         # 展开导航栏
         self.navigationInterface.expand()

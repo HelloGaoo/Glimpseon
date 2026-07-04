@@ -33,7 +33,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPalette, QColor
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QWidget
 from qfluentwidgets import (
-    BodyLabel, CardWidget, ExpandLayout, FluentIcon as FIF,
+    BodyLabel, CardWidget, ExpandLayout,
     InfoBar, InfoBarPosition, isDarkTheme,
     PushButton, SettingCard,
     SettingCardGroup, SpinBox,
@@ -41,7 +41,7 @@ from qfluentwidgets import (
 )
 from core.config import cfg
 from core.constants import load_qss
-from core.utils import tr, TranslatableWidget
+from core.utils import tr, TranslatableWidget, FUI
 from core.linkage import LinkageBridge, ClassWidgetsBridge, LinkageState, TimeState
 from .common import BaseScrollAreaInterface
 
@@ -80,8 +80,8 @@ class PathSettingCard(SettingCard):
         self.pathLabel = BodyLabel("")
         self.pathLabel.setWordWrap(True)
         self.pathLabel.setMinimumWidth(200)
-        self.autoBtn = PushButton(FIF.FOLDER, tr("linkage.btn_auto_detect"))
-        self.browseBtn = PushButton(FIF.FOLDER, tr("linkage.btn_browse"))
+        self.autoBtn = PushButton(FUI.FOLDER, tr("linkage.btn_auto_detect"))
+        self.browseBtn = PushButton(FUI.FOLDER, tr("linkage.btn_browse"))
         for btn in (self.autoBtn, self.browseBtn):
             btn.setFixedHeight(32)
 
@@ -166,7 +166,7 @@ class LinkagePage(BaseScrollAreaInterface, TranslatableWidget):
         # 连接状态组
         self.connGroup = SettingCardGroup(tr("linkage.group_connection"), self.scrollWidget)
         self.connStatusCard = SettingCard(
-            FIF.LINK, tr("linkage.connection_status"), '', parent=self.connGroup
+            FUI.LINK, tr("linkage.connection_status"), '', parent=self.connGroup
         )
         self._connStatusLabel = StrongBodyLabel(tr("linkage.status_disconnected"))
         self._connStatusLabel.setStyleSheet("color: #d13438; font-weight: bold;")
@@ -180,21 +180,21 @@ class LinkagePage(BaseScrollAreaInterface, TranslatableWidget):
         # 基本设置组
         self.basicGroup = SettingCardGroup(tr("linkage.group_basic"), self.scrollWidget)
         self.enableCard = SwitchSettingCard(
-            FIF.PLAY, tr("linkage.enable"), '',
+            FUI.PLAY, tr("linkage.enable"), '',
             configItem=cfg.linkageEnabled, parent=self.basicGroup
         )
         self.dataPathCard = PathSettingCard(
-            cfg.linkageDataPath, FIF.FOLDER,
+            cfg.linkageDataPath, FUI.FOLDER,
             tr("linkage.data_path"), tr("linkage.data_path_tip"),
             parent=self.basicGroup
         )
         self.pollIntervalCard = SpinBoxSettingCard(
-            cfg.linkagePollInterval, FIF.HISTORY,
+            cfg.linkagePollInterval, FUI.HISTORY,
             tr("linkage.poll_interval"), '',
             parent=self.basicGroup, min_value=1, max_value=30
         )
         self.syncTimeCard = SwitchSettingCard(
-            FIF.DATE_TIME, tr("linkage.sync_time_config"),
+            FUI.DATE_TIME, tr("linkage.sync_time_config"),
             tr("linkage.sync_time_config_tip"),
             configItem=cfg.linkageSyncTimeConfig, parent=self.basicGroup
         )
@@ -381,7 +381,7 @@ class ClassWidgetsPage(BaseScrollAreaInterface, TranslatableWidget):
         # 连接状态组
         self.connGroup = SettingCardGroup(tr("linkage.group_connection"), self.scrollWidget)
         self.connStatusCard = SettingCard(
-            FIF.LINK, tr("linkage.connection_status"), '', parent=self.connGroup
+            FUI.LINK, tr("linkage.connection_status"), '', parent=self.connGroup
         )
         self._connStatusLabel = StrongBodyLabel(tr("linkage.status_disconnected"))
         self._connStatusLabel.setStyleSheet("color: #d13438; font-weight: bold;")
@@ -395,16 +395,16 @@ class ClassWidgetsPage(BaseScrollAreaInterface, TranslatableWidget):
         # 基本设置组
         self.basicGroup = SettingCardGroup(tr("linkage.group_basic"), self.scrollWidget)
         self.enableCard = SwitchSettingCard(
-            FIF.PLAY, tr("cw_linkage.enable"), '',
+            FUI.PLAY, tr("cw_linkage.enable"), '',
             configItem=cfg.classWidgetsEnabled, parent=self.basicGroup
         )
         self.dataPathCard = PathSettingCard(
-            cfg.classWidgetsDataPath, FIF.FOLDER,
+            cfg.classWidgetsDataPath, FUI.FOLDER,
             tr("cw_linkage.data_path"), tr("cw_linkage.data_path_tip"),
             parent=self.basicGroup
         )
         self.pollIntervalCard = SpinBoxSettingCard(
-            cfg.classWidgetsPollInterval, FIF.HISTORY,
+            cfg.classWidgetsPollInterval, FUI.HISTORY,
             tr("linkage.poll_interval"), '',
             parent=self.basicGroup, min_value=1, max_value=30
         )
