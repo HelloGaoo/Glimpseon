@@ -588,7 +588,32 @@ class HomeInterface(QWidget, TranslatableWidget):
             from ui.component import COMPONENT_STYLES
             comp_type, comp_style = self._resolve_component_type_style(data)
             style_info = COMPONENT_STYLES.get(comp_type, {}).get(comp_style, {})
-            self._drag_preview_size = style_info.get("default_size", (200, 80))
+            comp_class = style_info.get("class")
+            if comp_class:
+                try:
+                    import uuid
+                    temp_data = {
+                        "id": f"temp_preview_{uuid.uuid4().hex[:8]}",
+                        "type": comp_type,
+                        "style": comp_style,
+                        "config": style_info.get("default_config", {}),
+                    }
+                    temp_widget = comp_class(self, temp_data)
+                    temp_widget.hide()
+                    temp_widget.adjustSize()
+                    QApplication.processEvents()
+                    temp_widget.adjustSize()
+                    w = max(temp_widget.width(), style_info.get("default_size", (200, 80))[0])
+                    h = max(temp_widget.height(), style_info.get("default_size", (200, 80))[1])
+                    self._drag_preview_size = (w, h)
+                    temp_widget.setParent(None)
+                    temp_widget.deleteLater()
+                    logger.info(f"预览框实际尺寸: {w}x{h} ({comp_type}/{comp_style})")
+                except Exception as e:
+                    logger.warning(f"默认尺寸: {e}")
+                    self._drag_preview_size = style_info.get("default_size", (200, 80))
+            else:
+                self._drag_preview_size = style_info.get("default_size", (200, 80))
 
             # 更新网格度量
             self._update_grid_metrics()
