@@ -176,9 +176,6 @@ class ComponentManager:
 
     def load_components(self):
         """从 config/components.json 加载组件"""
-        # 尝试从旧系统迁移数据
-        self._migrate_from_placements()
-
         if not os.path.exists(COMPONENTS_CONFIG_PATH):
             logger.info(f"组件配置文件不存在，创建默认配置: {COMPONENTS_CONFIG_PATH}")
             default_data = {"components": []}
@@ -344,94 +341,6 @@ class ComponentManager:
         while f"comp_{comp_type}_{counter}" in existing_ids:
             counter += 1
         return f"comp_{comp_type}_{counter}"
-
-    def _migrate_from_placements(self):
-        """从旧的 component_placements.json 迁移数据到 components.json"""
-        placements_path = os.path.join(BASE_DIR, "config", "component_placements.json")
-        if not os.path.exists(placements_path):
-            return
-        if os.path.exists(COMPONENTS_CONFIG_PATH):
-            try:
-                with open(COMPONENTS_CONFIG_PATH, "r", encoding="utf-8") as f:
-                    existing = json.load(f)
-                if existing.get("components"):
-                    return  # 已有数据，不迁移
-            except Exception:
-                pass
-
-        logger.info("检测到旧格式组件数据，开始迁移...")
-        try:
-            with open(placements_path, "r", encoding="utf-8") as f:
-                old_data = json.load(f)
-        except Exception as e:
-            logger.error(f"读取旧格式数据失败: {e}")
-            return
-
-        from core.component import GridSettings, GridLayoutService
-        grid_settings = GridSettings.from_dict(old_data.get("grid_settings", {}))
-        grid_service = GridLayoutService()
-
-        # 用 1920x1080 估算像素位置
-        metrics = grid_service.calculate_grid_metrics(1920, 1080, grid_settings)
-
-        migrated = []
-        for p in old_data.get("placements", []):
-            comp_id_str = p.get("component_id", "")
-            # 解析 type/style
-            comp_type, comp_style = "", ""
-            for t_name in COMPONENT_STYLES:
-                if comp_id_str.startswith(t_name + "_"):
-                    comp_type = t_name
-                    comp_style = comp_id_str[len(t_name) + 1:]
-                    break
-                elif comp_id_str == t_name:
-                    comp_type = t_name
-                    comp_style = next(iter(COMPONENT_STYLES[t_name]))
-                    break
-            if not comp_type:
-                parts = comp_id_str.split("_")
-                comp_type = parts[0]
-                comp_style = "_".join(parts[1:]) if len(parts) > 1 else "default"
-
-            style_info = COMPONENT_STYLES.get(comp_type, {}).get(comp_style, {})
-            if not style_info.get("class"):
-                logger.warning(f"迁移跳过未注册组件: {comp_id_str}")
-                continue
-
-            default_size = style_info.get("default_size", (200, 80))
-            # 计算像素位置
-            rect = grid_service.get_cell_rect(
-                metrics, p.get("column", 0), p.get("row", 0),
-                p.get("width_cells", 2), p.get("height_cells", 2)
-            )
-            # 转百分比
-            avail_w = 1920 - default_size[0]
-            avail_h = 1080 - default_size[1]
-            pos_x = rect.x() / avail_w if avail_w > 0 else 0.5
-            pos_y = rect.y() / avail_h if avail_h > 0 else 0.5
-
-            migrated.append({
-                "id": p.get("placement_id", f"comp_{comp_type}_1"),
-                "type": comp_type,
-                "style": comp_style,
-                "position": {"x": max(0, min(1, pos_x)), "y": max(0, min(1, pos_y))},
-                "size": {"w": default_size[0], "h": default_size[1]},
-                "enabled": p.get("enabled", True),
-                "config": p.get("config", {}),
-            })
-
-        if migrated:
-            data = {"components": migrated}
-            try:
-                with open(COMPONENTS_CONFIG_PATH, "w", encoding="utf-8") as f:
-                    json.dump(data, f, indent=2, ensure_ascii=False)
-                logger.info(f"迁移完成: {len(migrated)} 个组件")
-                # 重命名旧文件
-                bak_path = placements_path + ".bak"
-                os.rename(placements_path, bak_path)
-                logger.info(f"旧文件已重命名为: {bak_path}")
-            except Exception as e:
-                logger.error(f"迁移写入失败: {e}")
 
 
 class DraggableWidget(QWidget):
