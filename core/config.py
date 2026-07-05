@@ -179,12 +179,6 @@ class Config(QConfig):
     backgroundBlurRadius = RangeConfigItem(
         "Appearance", "BackgroundBlurRadius", 0, RangeValidator(0, 30)
     )
-    componentCardOpacity = RangeConfigItem(
-        "Appearance", "ComponentCardOpacity", 55, RangeValidator(0, 100)
-    )
-    componentCardRadius = RangeConfigItem(
-        "Appearance", "ComponentCardRadius", 16, RangeValidator(0, 30)
-    )
     wallpaperBrightness = RangeConfigItem(
         "Wallpaper", "Brightness", 0, RangeValidator(-100, 0)
     )
@@ -309,9 +303,9 @@ class Config(QConfig):
         "School", "Class", ""
     )
     showSchoolInfo = ConfigItem(
-        "School", "ShowSchoolInfo", False
+        "School", "ShowSchoolInfo", False, BoolValidator()
     )
-    schoolInfoTextColor = ConfigItem(
+    schoolInfoTextColor = ColorConfigItem(
         "School", "SchoolInfoTextColor", "#FFFFFF"
     )
     schoolInfoTextSize = RangeConfigItem(
@@ -435,11 +429,11 @@ class Config(QConfig):
     gridInsetPercent = RangeConfigItem(
         "Grid", "InsetPercent", 5, RangeValidator(0, 30)
     )
-    gridSpacingPreset = OptionsConfigItem(
-        "Grid", "SpacingPreset", "relaxed", OptionsValidator(["relaxed", "compact"])
+    componentCardOpacity = RangeConfigItem(
+        "Grid", "ComponentCardOpacity", 55, RangeValidator(0, 100)
     )
-    gridCornerRadiusStyle = OptionsConfigItem(
-        "Grid", "CornerRadiusStyle", "rounded", OptionsValidator(["rounded", "square"])
+    componentCardRadius = RangeConfigItem(
+        "Grid", "ComponentCardRadius", 16, RangeValidator(0, 30)
     )
 
 
@@ -589,9 +583,8 @@ def default_cfg():
             "Height": 130,
             "BgColor": "#000000",
             "BgOpacity": 60,
+            "UseCustomBg": False,
             "BorderRadius": 12,
-            "BorderWidth": 0,
-            "BorderColor": "#FFFFFF40",
             "TitleColor": "#FFFFFF",
             "ArtistColor": "#FFFFFF99",
             "TimeColor": "#FFFFFF80",
@@ -603,10 +596,15 @@ def default_cfg():
             "CoverBorderColor": "#FFFFFF20"
         },
         "Linkage": {
-            "Enabled": True,
+            "Enabled": False,
             "DataPath": "",
             "PollInterval": 5,
             "SyncTimeConfig": False
+        },
+        "ClassWidgets": {
+            "Enabled": False,
+            "DataPath": "",
+            "PollInterval": 5
         },
         "PreciseTime": {
             "UsePreciseTime": False,
@@ -616,8 +614,8 @@ def default_cfg():
         "Grid": {
             "ShortSideCells": 6,
             "InsetPercent": 5,
-            "SpacingPreset": "relaxed",
-            "CornerRadiusStyle": "rounded"
+            "ComponentCardOpacity": 55,
+            "ComponentCardRadius": 16
         }
     }
 
@@ -627,5 +625,24 @@ if not os.path.exists(os.path.join(BASE_DIR, 'config')):
 if not _cfg_loaded and os.path.exists(CONFIG_PATH):
     try:
         qconfig.load(CONFIG_PATH, cfg)
+    except Exception:
+        pass
+
+# 将 Appearance 下的 ComponentCardOpacity/ComponentCardRadius 移到 Grid 下
+if os.path.exists(CONFIG_PATH):
+    try:
+        with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+            _migrate_data = json.load(f)
+        _migrated = False
+        if "Appearance" in _migrate_data:
+            for _key in ("ComponentCardOpacity", "ComponentCardRadius"):
+                if _key in _migrate_data["Appearance"]:
+                    _migrate_data.setdefault("Grid", {})[_key] = _migrate_data["Appearance"].pop(_key)
+                    _migrated = True
+            if not _migrate_data["Appearance"]:
+                del _migrate_data["Appearance"]
+        if _migrated:
+            with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
+                json.dump(_migrate_data, f, indent=4, ensure_ascii=False)
     except Exception:
         pass

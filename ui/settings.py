@@ -437,24 +437,6 @@ class AppearancePage(SettingsSubPage):
             tr("wizard.primary_color_desc"),
             parent=self.scrollWidget,
         )
-        self.componentCardOpacityCard = SpinBoxSettingCard(
-            cfg.componentCardOpacity,
-            FUI.PALETTE,
-            tr("settings.component_card_opacity"),
-            tr("settings.component_card_opacity_desc"),
-            parent=self.scrollWidget,
-            min_value=0,
-            max_value=100,
-        )
-        self.componentCardRadiusCard = SpinBoxSettingCard(
-            cfg.componentCardRadius,
-            FUI.EDIT,
-            tr("settings.component_card_radius"),
-            tr("settings.component_card_radius_desc"),
-            parent=self.scrollWidget,
-            min_value=0,
-            max_value=30,
-        )
         self.languageCard = ComboBoxSettingCard(
             cfg.language,
             FUI.LANGUAGE,
@@ -466,8 +448,6 @@ class AppearancePage(SettingsSubPage):
 
         self.vBoxLayout.addWidget(self.themeCard)
         self.vBoxLayout.addWidget(self.themeColorCard)
-        self.vBoxLayout.addWidget(self.componentCardOpacityCard)
-        self.vBoxLayout.addWidget(self.componentCardRadiusCard)
         self.vBoxLayout.addWidget(self.languageCard)
         self.vBoxLayout.addStretch()
 
@@ -862,14 +842,12 @@ class _GridPreviewWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedSize(200, 150)
+        self.setFixedSize(280, 120)
         self.short_side_cells = qconfig.get(cfg.gridShortSideCells)
         self.inset_percent = qconfig.get(cfg.gridInsetPercent)
-        self.spacing_preset = qconfig.get(cfg.gridSpacingPreset)
 
         cfg.gridShortSideCells.valueChanged.connect(self._on_short_side_cells_changed)
         cfg.gridInsetPercent.valueChanged.connect(self._on_inset_percent_changed)
-        cfg.gridSpacingPreset.valueChanged.connect(self._on_spacing_preset_changed)
 
     def _on_short_side_cells_changed(self, value):
         self.short_side_cells = value
@@ -877,10 +855,6 @@ class _GridPreviewWidget(QWidget):
 
     def _on_inset_percent_changed(self, value):
         self.inset_percent = value
-        self.update()
-
-    def _on_spacing_preset_changed(self, value):
-        self.spacing_preset = value
         self.update()
 
     def paintEvent(self, event):
@@ -892,45 +866,66 @@ class _GridPreviewWidget(QWidget):
 
         # 计算网格参数
         w, h = self.width(), self.height()
-        inset = min(w, h) * self.inset_percent / 100.0
+        cells = max(1, self.short_side_cells)
+        short_side_px = max(1, min(w, h))
+        base_cell = short_side_px / cells
+        inset_ratio = max(0, min(30, self.inset_percent)) / 100.0
+        inset = max(0, min(80, base_cell * inset_ratio))
 
-        # 间距系数
-        spacing_factor = 1.0 if self.spacing_preset == "relaxed" else 0.5
+        gap_ratio = 0.12
 
         # 短边格子数
         short_side = min(w, h) - 2 * inset
-        cell_size = short_side / self.short_side_cells
+        cell_size = short_side / (self.short_side_cells + max(0, self.short_side_cells - 1) * gap_ratio)
+        gap_px = cell_size * gap_ratio
+        pitch = cell_size + gap_px
 
-        # 长边格子数
-        long_side = max(w, h) - 2 * inset
-        long_cells = int(long_side / (cell_size * spacing_factor))
+        # 右/下边缘位置 左对齐
+        right_edge = w - inset
+        bottom_edge = h - inset
 
         # 绘制网格线
         painter.setPen(QPen(QColor(100, 100, 100), 1))
 
         # x
-        for i in range(self.short_side_cells + 1):
-            x = inset + i * cell_size * spacing_factor
-            painter.drawLine(int(x), int(inset), int(x), int(h - inset))
+        i = 0
+        while True:
+            x = inset + i * pitch
+            if x > right_edge:
+                break
+            painter.drawLine(int(x), int(inset), int(x), int(bottom_edge))
+            i += 1
+        painter.drawLine(int(right_edge), int(inset), int(right_edge), int(bottom_edge))
 
         # y
-        for i in range(long_cells + 1):
-            y = inset + i * cell_size * spacing_factor
-            painter.drawLine(int(inset), int(y), int(w - inset), int(y))
+        i = 0
+        while True:
+            y = inset + i * pitch
+            if y > bottom_edge:
+                break
+            painter.drawLine(int(inset), int(y), int(right_edge), int(y))
+            i += 1
+        painter.drawLine(int(inset), int(bottom_edge), int(right_edge), int(bottom_edge))
 
 
 class _CornerRadiusPreviewWidget(QWidget):
-    """圆角预览组件"""
+    """卡片预览组"""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedSize(200, 150)
-        self.corner_radius_style = qconfig.get(cfg.gridCornerRadiusStyle)
+        self.setFixedSize(280, 120)
+        self.card_radius = qconfig.get(cfg.componentCardRadius)
+        self.card_opacity = qconfig.get(cfg.componentCardOpacity)
 
-        cfg.gridCornerRadiusStyle.valueChanged.connect(self._on_corner_radius_style_changed)
+        cfg.componentCardRadius.valueChanged.connect(self._on_card_radius_changed)
+        cfg.componentCardOpacity.valueChanged.connect(self._on_card_opacity_changed)
 
-    def _on_corner_radius_style_changed(self, value):
-        self.corner_radius_style = value
+    def _on_card_radius_changed(self, value):
+        self.card_radius = value
+        self.update()
+
+    def _on_card_opacity_changed(self, value):
+        self.card_opacity = value
         self.update()
 
     def paintEvent(self, event):
@@ -940,19 +935,22 @@ class _CornerRadiusPreviewWidget(QWidget):
         # 背景
         painter.fillRect(self.rect(), QColor(40, 40, 40))
 
-        # 绘制示例卡片
+        # 绘制条纹背景
         w, h = self.width(), self.height()
         card_w, card_h = 120, 80
         card_x = (w - card_w) // 2
         card_y = (h - card_h) // 2
 
-        # 设置圆角半径
-        radius = 16 if self.corner_radius_style == "rounded" else 2
+        stripe_pen = QPen(QColor(60, 60, 60), 6)
+        painter.setPen(stripe_pen)
+        for i in range(-card_h, card_w + card_h, 12):
+            painter.drawLine(card_x + i, card_y, card_x + i + card_h, card_y + card_h)
 
         # 绘制卡片背景
-        painter.setBrush(QBrush(QColor(60, 60, 60)))
+        alpha = int(self.card_opacity / 100.0 * 255)
+        painter.setBrush(QBrush(QColor(60, 60, 60, alpha)))
         painter.setPen(QPen(QColor(80, 80, 80), 1))
-        painter.drawRoundedRect(card_x, card_y, card_w, card_h, radius, radius)
+        painter.drawRoundedRect(card_x, card_y, card_w, card_h, self.card_radius, self.card_radius)
 
         # 绘制示例文字
         painter.setPen(QColor(200, 200, 200))
@@ -968,23 +966,40 @@ class GridPage(SettingsSubPage):
         super().__init__(tr("settings.grid.title"), parent)
         self.main_window = main_window
 
-        # 网格预览
+        # 网格预览  卡片预览
         self.gridPreviewWidget = _GridPreviewWidget(self.scrollWidget)
-        preview_container = QWidget(self.scrollWidget)
-        preview_layout = QHBoxLayout(preview_container)
+        self.cornerRadiusPreviewWidget = _CornerRadiusPreviewWidget(self.scrollWidget)
+
+        preview_row = QWidget(self.scrollWidget)
+        preview_layout = QHBoxLayout(preview_row)
         preview_layout.setContentsMargins(0, 10, 0, 10)
-        preview_layout.addWidget(QLabel(tr("settings.grid.preview"), self.scrollWidget))
-        preview_layout.addWidget(self.gridPreviewWidget)
         preview_layout.addStretch()
 
-        # 圆角预览
-        self.cornerRadiusPreviewWidget = _CornerRadiusPreviewWidget(self.scrollWidget)
-        corner_preview_container = QWidget(self.scrollWidget)
-        corner_preview_layout = QHBoxLayout(corner_preview_container)
-        corner_preview_layout.setContentsMargins(0, 10, 0, 10)
-        corner_preview_layout.addWidget(QLabel(tr("settings.grid.cornerRadius_preview"), self.scrollWidget))
-        corner_preview_layout.addWidget(self.cornerRadiusPreviewWidget)
-        corner_preview_layout.addStretch()
+        # 网格预览项
+        grid_item = QWidget(self.scrollWidget)
+        grid_item_layout = QVBoxLayout(grid_item)
+        grid_item_layout.setContentsMargins(0, 0, 0, 0)
+        grid_item_layout.setSpacing(4)
+        grid_item_layout.addWidget(self.gridPreviewWidget, alignment=Qt.AlignmentFlag.AlignCenter)
+        grid_label = QLabel(tr("settings.grid.preview"), self.scrollWidget)
+        grid_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        grid_item_layout.addWidget(grid_label)
+        preview_layout.addWidget(grid_item)
+
+        preview_layout.addSpacing(24)
+
+        # 卡片预览项
+        card_item = QWidget(self.scrollWidget)
+        card_item_layout = QVBoxLayout(card_item)
+        card_item_layout.setContentsMargins(0, 0, 0, 0)
+        card_item_layout.setSpacing(4)
+        card_item_layout.addWidget(self.cornerRadiusPreviewWidget, alignment=Qt.AlignmentFlag.AlignCenter)
+        card_label = QLabel(tr("settings.grid.cornerRadius_preview"), self.scrollWidget)
+        card_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        card_item_layout.addWidget(card_label)
+        preview_layout.addWidget(card_item)
+
+        preview_layout.addStretch()
 
         # 设置卡片
         self.shortSideCellsCard = SpinBoxSettingCard(
@@ -1005,29 +1020,30 @@ class GridPage(SettingsSubPage):
             min_value=0,
             max_value=30,
         )
-        self.spacingPresetCard = ComboBoxSettingCard(
-            cfg.gridSpacingPreset,
-            FUI.ALIGNMENT,
-            tr("settings.grid.spacing_preset"),
-            tr("settings.grid.spacing_preset_desc"),
-            texts=[tr("settings.grid.spacing_relaxed"), tr("settings.grid.spacing_compact")],
+        self.componentCardOpacityCard = SpinBoxSettingCard(
+            cfg.componentCardOpacity,
+            FUI.PALETTE,
+            tr("settings.grid.component_card_opacity"),
+            tr("settings.grid.component_card_opacity_desc"),
             parent=self.scrollWidget,
+            min_value=0,
+            max_value=100,
         )
-        self.cornerRadiusStyleCard = ComboBoxSettingCard(
-            cfg.gridCornerRadiusStyle,
-            FUI.ROBOT,
-            tr("settings.grid.cornerRadius_style"),
-            tr("settings.grid.cornerRadius_style_desc"),
-            texts=[tr("settings.grid.cornerRadius_rounded"), tr("settings.grid.cornerRadius_square")],
+        self.componentCardRadiusCard = SpinBoxSettingCard(
+            cfg.componentCardRadius,
+            FUI.EDIT,
+            tr("settings.grid.component_card_radius"),
+            tr("settings.grid.component_card_radius_desc"),
             parent=self.scrollWidget,
+            min_value=0,
+            max_value=30,
         )
 
-        self.vBoxLayout.addWidget(preview_container)
-        self.vBoxLayout.addWidget(corner_preview_container)
+        self.vBoxLayout.addWidget(preview_row)
         self.vBoxLayout.addWidget(self.shortSideCellsCard)
         self.vBoxLayout.addWidget(self.insetPercentCard)
-        self.vBoxLayout.addWidget(self.spacingPresetCard)
-        self.vBoxLayout.addWidget(self.cornerRadiusStyleCard)
+        self.vBoxLayout.addWidget(self.componentCardOpacityCard)
+        self.vBoxLayout.addWidget(self.componentCardRadiusCard)
         self.vBoxLayout.addStretch()
 
 

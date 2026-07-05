@@ -822,7 +822,10 @@ class _FluentUIIconInstance(FluentIconBase):
         
         if os.path.exists(svg_path_32):
             return svg_path_32
+        elif os.path.exists(svg_path_24):
+            return svg_path_24
         else:
+            logger.warning(f"FluentUI 图标文件不存在: {svg_path_24}")
             return svg_path_24
     
     def __repr__(self) -> str:
@@ -887,6 +890,10 @@ _ICON_NAME_MAP = {
     "UPDATE": "arrow_sync",
     "DEVELOPER_TOOLS": "window_dev_tools",
     "CODE": "code",
+
+    # 调试面板
+    "GLOBE": "globe",
+    "SEARCH": "search",
 }
 
 

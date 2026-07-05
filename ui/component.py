@@ -81,7 +81,6 @@ from data.software_list import get_software_icon_path
 from core.component import (
     ComponentDefinition,
     ComponentRegistry,
-    PlacementService,
     ResizeMode,
 )
 
@@ -177,9 +176,19 @@ class ComponentManager:
 
     def load_components(self):
         """从 config/components.json 加载组件"""
+        # 尝试从旧系统迁移数据
+        self._migrate_from_placements()
+
         if not os.path.exists(COMPONENTS_CONFIG_PATH):
-            logger.warning(f"组件配置文件不存在: {COMPONENTS_CONFIG_PATH}")
-            return
+            logger.info(f"组件配置文件不存在，创建默认配置: {COMPONENTS_CONFIG_PATH}")
+            default_data = {"components": []}
+            try:
+                os.makedirs(os.path.dirname(COMPONENTS_CONFIG_PATH), exist_ok=True)
+                with open(COMPONENTS_CONFIG_PATH, "w", encoding="utf-8") as f:
+                    json.dump(default_data, f, indent=2, ensure_ascii=False)
+            except Exception as e:
+                logger.error(f"创建默认组件配置失败: {e}")
+                return
 
         try:
             with open(COMPONENTS_CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -211,6 +220,13 @@ class ComponentManager:
                     comp_data.get("position", {}).get("x", 0.5),
                     comp_data.get("position", {}).get("y", 0.5)
                 )
+                # 恢复组件尺寸
+                size_data = comp_data.get("size")
+                if size_data and size_data.get("w") and size_data.get("h"):
+                    instance.resize(size_data["w"], size_data["h"])
+                else:
+                    default_size = style_info.get("default_size", (200, 80))
+                    instance.resize(*default_size)
                 if comp_data.get("enabled", True):
                     instance.show()
                 else:
@@ -232,6 +248,7 @@ class ComponentManager:
                 "type": self._component_data.get(comp_id, {}).get("type", "unknown"),
                 "style": self._component_data.get(comp_id, {}).get("style", "unknown"),
                 "position": {"x": pos_x, "y": pos_y},
+                "size": {"w": instance.width(), "h": instance.height()},
                 "enabled": instance.isVisible(),
                 "config": self._component_data.get(comp_id, {}).get("config", {}),
             }
@@ -260,11 +277,13 @@ class ComponentManager:
             return ""
 
         comp_id = self._generate_id(comp_type)
+        default_size = style_info.get("default_size", (200, 80))
         comp_data = {
             "id": comp_id,
             "type": comp_type,
             "style": comp_style,
             "position": {"x": 0.5, "y": 0.5},
+            "size": {"w": default_size[0], "h": default_size[1]},
             "enabled": True,
             "config": config or style_info.get("default_config", {}),
             "pro": pro,
@@ -273,6 +292,7 @@ class ComponentManager:
         comp_class = style_info["class"]
         try:
             instance = comp_class(self.home, comp_data)
+            instance.resize(*default_size)
             instance.setPositionPercent(0.5, 0.5)
             instance.show()
 
@@ -324,6 +344,94 @@ class ComponentManager:
         while f"comp_{comp_type}_{counter}" in existing_ids:
             counter += 1
         return f"comp_{comp_type}_{counter}"
+
+    def _migrate_from_placements(self):
+        """从旧的 component_placements.json 迁移数据到 components.json"""
+        placements_path = os.path.join(BASE_DIR, "config", "component_placements.json")
+        if not os.path.exists(placements_path):
+            return
+        if os.path.exists(COMPONENTS_CONFIG_PATH):
+            try:
+                with open(COMPONENTS_CONFIG_PATH, "r", encoding="utf-8") as f:
+                    existing = json.load(f)
+                if existing.get("components"):
+                    return  # 已有数据，不迁移
+            except Exception:
+                pass
+
+        logger.info("检测到旧格式组件数据，开始迁移...")
+        try:
+            with open(placements_path, "r", encoding="utf-8") as f:
+                old_data = json.load(f)
+        except Exception as e:
+            logger.error(f"读取旧格式数据失败: {e}")
+            return
+
+        from core.component import GridSettings, GridLayoutService
+        grid_settings = GridSettings.from_dict(old_data.get("grid_settings", {}))
+        grid_service = GridLayoutService()
+
+        # 用 1920x1080 估算像素位置
+        metrics = grid_service.calculate_grid_metrics(1920, 1080, grid_settings)
+
+        migrated = []
+        for p in old_data.get("placements", []):
+            comp_id_str = p.get("component_id", "")
+            # 解析 type/style
+            comp_type, comp_style = "", ""
+            for t_name in COMPONENT_STYLES:
+                if comp_id_str.startswith(t_name + "_"):
+                    comp_type = t_name
+                    comp_style = comp_id_str[len(t_name) + 1:]
+                    break
+                elif comp_id_str == t_name:
+                    comp_type = t_name
+                    comp_style = next(iter(COMPONENT_STYLES[t_name]))
+                    break
+            if not comp_type:
+                parts = comp_id_str.split("_")
+                comp_type = parts[0]
+                comp_style = "_".join(parts[1:]) if len(parts) > 1 else "default"
+
+            style_info = COMPONENT_STYLES.get(comp_type, {}).get(comp_style, {})
+            if not style_info.get("class"):
+                logger.warning(f"迁移跳过未注册组件: {comp_id_str}")
+                continue
+
+            default_size = style_info.get("default_size", (200, 80))
+            # 计算像素位置
+            rect = grid_service.get_cell_rect(
+                metrics, p.get("column", 0), p.get("row", 0),
+                p.get("width_cells", 2), p.get("height_cells", 2)
+            )
+            # 转百分比
+            avail_w = 1920 - default_size[0]
+            avail_h = 1080 - default_size[1]
+            pos_x = rect.x() / avail_w if avail_w > 0 else 0.5
+            pos_y = rect.y() / avail_h if avail_h > 0 else 0.5
+
+            migrated.append({
+                "id": p.get("placement_id", f"comp_{comp_type}_1"),
+                "type": comp_type,
+                "style": comp_style,
+                "position": {"x": max(0, min(1, pos_x)), "y": max(0, min(1, pos_y))},
+                "size": {"w": default_size[0], "h": default_size[1]},
+                "enabled": p.get("enabled", True),
+                "config": p.get("config", {}),
+            })
+
+        if migrated:
+            data = {"components": migrated}
+            try:
+                with open(COMPONENTS_CONFIG_PATH, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+                logger.info(f"迁移完成: {len(migrated)} 个组件")
+                # 重命名旧文件
+                bak_path = placements_path + ".bak"
+                os.rename(placements_path, bak_path)
+                logger.info(f"旧文件已重命名为: {bak_path}")
+            except Exception as e:
+                logger.error(f"迁移写入失败: {e}")
 
 
 class DraggableWidget(QWidget):
@@ -387,17 +495,17 @@ class DraggableWidget(QWidget):
         if available_width > 0 and available_height > 0:
             x = int(available_width * self._percent_x)
             y = int(available_height * self._percent_y)
-            
+
             if self._anchor_mode == "topright":
-                x = int(parent_rect.width() - widget_size.width() * (1 + (1 - self._percent_x)))
+                x = int(available_width * (1 - self._percent_x))
             elif self._anchor_mode == "bottomleft":
-                y = int(parent_rect.height() - widget_size.height() * (1 + (1 - self._percent_y)))
+                y = int(available_height * (1 - self._percent_y))
             elif self._anchor_mode == "bottomright":
-                x = int(parent_rect.width() - widget_size.width() * (1 + (1 - self._percent_x)))
-                y = int(parent_rect.height() - widget_size.height() * (1 + (1 - self._percent_y)))
+                x = int(available_width * (1 - self._percent_x))
+                y = int(available_height * (1 - self._percent_y))
             elif self._anchor_mode == "center":
-                x = int((parent_rect.width() - widget_size.width()) / 2)
-                y = int((parent_rect.height() - widget_size.height()) / 2)
+                x = int(available_width / 2)
+                y = int(available_height / 2)
             
             self.move(x, y)
     
@@ -561,6 +669,14 @@ class DraggableWidget(QWidget):
                     # self.settingRequested.emit(self.component_id)
                     pass
             
+            # 保存拖拽后的位置
+            self._percent_x, self._percent_y = self._calculatePercentFromPosition()
+            main_win = self._getMainWindow()
+            if main_win and hasattr(main_win, 'homeInterface') and main_win.homeInterface:
+                mgr = main_win.homeInterface.component_manager if hasattr(main_win.homeInterface, 'component_manager') else None
+                if mgr:
+                    mgr.save_components()
+
             event.accept()
             return
         
@@ -726,6 +842,7 @@ class LyricsWidget(QWidget):
         p.setRenderHint(QPainter.RenderHint.TextAntialiasing)
 
         if not self._original_text:
+            p.end()
             return
 
         font = QFont("HarmonyOS Sans", self._text_size)
@@ -807,13 +924,13 @@ class _MediaFetchWorker(QObject):
         self._full = full
 
     def run(self):
+        m = None
         try:
             m = get_media_info()
             if not m or not m.is_valid():
-                logger.debug("媒体组件: 无效信息")
+                m = None
         except Exception as e:
             logger.error(f"媒体信息获取异常: {e}")
-            m = None
         self.finished.emit(m, self._full)
 
 
@@ -1348,19 +1465,19 @@ class MediaWidget(QWidget):
             self._info_cache[cache_key] = info  # 插入到末尾（LRU）
             self._apply_fetched_info(info)
             return
-        
-        if self._fetching:
+
+        if getattr(self, '_detail_fetching', False):
             return
-        self._fetching = True
-        
-        self._worker = FetchWorker(title, artist)
-        self._thread = QThread()
-        self._worker.moveToThread(self._thread)
-        self._thread.started.connect(self._worker.run)
-        self._worker.finished.connect(self._on_fetch_finished)
-        self._worker.finished.connect(self._thread.quit)
-        self._thread.finished.connect(self._cleanup_thread)
-        self._thread.start()
+        self._detail_fetching = True
+
+        self._detail_worker = FetchWorker(title, artist)
+        self._detail_thread = QThread()
+        self._detail_worker.moveToThread(self._detail_thread)
+        self._detail_thread.started.connect(self._detail_worker.run)
+        self._detail_worker.finished.connect(self._on_fetch_finished)
+        self._detail_worker.finished.connect(self._detail_thread.quit)
+        self._detail_thread.finished.connect(self._cleanup_detail_thread)
+        self._detail_thread.start()
     
     def _on_fetch_finished(self, info: dict):
         cache_key = f"{self._media.title} - {self._media.artist}" if self._media else ""
@@ -1382,7 +1499,8 @@ class MediaWidget(QWidget):
             logger.debug(f"应用歌曲信息失败: {e}")
         finally:
             self._fetching = False
-    
+            self._detail_fetching = False
+
     def _cleanup_thread(self):
         if self._thread:
             self._thread.deleteLater()
@@ -1390,6 +1508,14 @@ class MediaWidget(QWidget):
         if self._worker:
             self._worker.deleteLater()
             self._worker = None
+
+    def _cleanup_detail_thread(self):
+        if hasattr(self, '_detail_thread') and self._detail_thread:
+            self._detail_thread.deleteLater()
+            self._detail_thread = None
+        if hasattr(self, '_detail_worker') and self._detail_worker:
+            self._detail_worker.deleteLater()
+            self._detail_worker = None
 
     def _fetch_kugou_thumbnail(self):
         # import threading
@@ -1429,7 +1555,7 @@ class MediaWidget(QWidget):
         self.update()
 
     def clear_cache(self):
-        self._cache.clear()
+        self._info_cache.clear()
         close_media()
 
 
@@ -1873,7 +1999,7 @@ class QuickLaunchDock(QWidget):
         app_name = self._apps[idx].get("name", tr("quick_launch.this_app"))  # 此应用
         
         mw = self.window()
-        mask = QWidget(mw)
+        mask = QWidget()
         mask.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         mask.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         mask.setGeometry(0, 0, mw.width(), mw.height())
@@ -2135,9 +2261,6 @@ class QuickLaunchDock(QWidget):
         except Exception as e:
             self._launch_result.emit(name, str(e), False)
 
-    def _launch_app_thread(self, app_path, app_name):
-        self._launch_thread(app_path, app_name, "app")
-
     def _on_launch_result(self, app_name, info, success):
         if success:
             logger.info(f"已启动：{app_name} ({info})")
@@ -2339,6 +2462,8 @@ class QuickLaunchDock(QWidget):
         p.end()
 
     def minimumSizeHint(self):
+        if not self._apps:
+            return QSize(40, 40)
         bg = self._bg_rect()
         return QSize(int(bg.width()), int(bg.height()))
 
@@ -2824,6 +2949,7 @@ class MediaPlayerComponent(DraggableContainer):
     def __init__(self, parent, component_data: dict):
         super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
         self.setObjectName("mediaContainer")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         self._home = parent
@@ -2954,12 +3080,6 @@ class ComponentCard(CardWidget):
         name_label = BodyLabel(self.definition.display_name)
         name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(name_label)
-        
-        # 尺寸提示
-        size_hint = f"{self.definition.default_width_cells}×{self.definition.default_height_cells}"
-        size_label = SubtitleLabel(size_hint)
-        size_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(size_label)
     
     def _load_preview(self):
         """加载预览图"""
@@ -2998,21 +3118,37 @@ class ComponentCard(CardWidget):
         """开始拖拽"""
         if not (event.buttons() & Qt.MouseButton.LeftButton):
             return
-        
+
+        if not hasattr(self, '_drag_start'):
+            return
         distance = (event.position().toPoint() - self._drag_start).manhattanLength()
         if distance >= QApplication.startDragDistance():
             self._start_drag()
-        
+
         super().mouseMoveEvent(event)
-    
+
     def _start_drag(self):
         """开始拖拽"""
         drag = QDrag(self)
-        
-        # 设置 MIME
+
+        # 解析 definition.id 为 type|style 格式
+        def_id = self.definition.id
+        comp_type, comp_style = "", ""
+        for t_name in COMPONENT_STYLES:
+            if def_id.startswith(t_name + "_"):
+                comp_type = t_name
+                comp_style = def_id[len(t_name) + 1:]
+                break
+            elif def_id == t_name:
+                comp_type = t_name
+                comp_style = list(COMPONENT_STYLES[t_name].keys())[0]
+                break
+        if not comp_type:
+            comp_type, comp_style = def_id.split("_", 1) if "_" in def_id else (def_id, "default")
+
         mime = QMimeData()
-        mime.setData("application/x-classlively-component", 
-                    self.definition.id.encode('utf-8'))
+        mime.setData("application/x-classlively-component",
+                    f"{comp_type}|{comp_style}".encode('utf-8'))
         drag.setMimeData(mime)
         
         # 设置拖拽图
@@ -3079,11 +3215,9 @@ class CategoryPage(ScrollArea):
 class ComponentLibraryWindow(FluentWindow):
     """组件库窗口"""
     
-    def __init__(self, canvas, parent=None):
+    def __init__(self, registry, parent=None):
         super().__init__(parent)
-        self.canvas = canvas
-        self.registry = canvas.get_registry()
-        self.placement_srv = canvas.get_placement_service()
+        self.registry = registry
         
         self._setup_navigation()
         self.setWindowTitle(tr("component_library.title"))
@@ -3111,116 +3245,6 @@ class ComponentLibraryWindow(FluentWindow):
             page = CategoryPage(category, self.registry, self)
             icon = icon_map.get(category, FUI.HOME)
             self.addSubInterface(page, icon, category)
-
-
-
-class PlacedComponentsPanel(QWidget):
-    """已放置组件列表"""
-    
-    def __init__(self, canvas, parent=None):
-        super().__init__(parent)
-        self.canvas = canvas
-        self.placement_srv = canvas.get_placement_service()
-        self.registry = canvas.get_registry()
-        
-        self._setup_ui()
-        self._refresh_list()
-
-        self.placement_srv.placements_changed.connect(self._refresh_list)
-        self.placement_srv.placement_added.connect(self._refresh_list)
-        self.placement_srv.placement_removed.connect(self._refresh_list)
-    
-    def _setup_ui(self):
-        """设置 UI"""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
-        
-        # 标题
-        title = StrongBodyLabel(tr("component_library.placed_list"))
-        layout.addWidget(title)
-        
-        # 组件列表
-        self.list_area = ScrollArea()
-        self.list_area.setWidgetResizable(True)
-        self.list_area.setStyleSheet("background: transparent;")
-        
-        self.list_container = QWidget()
-        self.list_layout = QVBoxLayout(self.list_container)
-        self.list_layout.setSpacing(4)
-        self.list_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        
-        self.list_area.setWidget(self.list_container)
-        layout.addWidget(self.list_area)
-    
-    def _refresh_list(self):
-        """刷新列表"""
-        # 清空
-        while self.list_layout.count():
-            item = self.list_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-        
-        # 添加已放置组件
-        for placement in self.placement_srv.get_all_placements():
-            definition = self.registry.get_definition(placement.component_id)
-            if not definition:
-                continue
-            
-            # 创建卡片
-            item_widget = PlacedComponentItem(
-                placement, definition, self.placement_srv, self
-            )
-            self.list_layout.addWidget(item_widget)
-        
-        if not self.placement_srv.get_all_placements():
-            hint = BodyLabel(tr("component_library.no_placed"))
-            self.list_layout.addWidget(hint)
-
-
-class PlacedComponentItem(CardWidget):
-    """已放置组件条目"""
-    
-    def __init__(
-        self,
-        placement,
-        definition: ComponentDefinition,
-        placement_srv: PlacementService,
-        parent=None
-    ):
-        super().__init__(parent)
-        self.placement = placement
-        self.definition = definition
-        self.placement_srv = placement_srv
-        
-        self._setup_ui()
-    
-    def _setup_ui(self):
-        """设置 UI"""
-        self.setFixedHeight(50)
-        
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 8, 12, 8)
-        
-        # 名称
-        name = BodyLabel(f"{self.definition.display_name} ({self.placement.placement_id})")
-        layout.addWidget(name)
-        
-        layout.addStretch()
-        
-        # 位置信息
-        pos = SubtitleLabel(f"({self.placement.row},{self.placement.column})")
-        layout.addWidget(pos)
-        
-        # 删除按钮
-        delete_btn = ToolButton(FUI.DELETE, self)
-        delete_btn.setFixedSize(28, 28)
-        delete_btn.clicked.connect(self._delete)
-        layout.addWidget(delete_btn)
-    
-    def _delete(self):
-        """删除"""
-        self.placement_srv.remove_placement(self.placement.placement_id)
 
 
 
@@ -3591,24 +3615,16 @@ class ComponentTypePage(QWidget):
         """删除选中的组件"""
         if not self._selected_component_id:
             return
-        
+
         home = self.edit_window.main_window.homeInterface
         if not home:
             return
-        
+
         manager = home.component_manager
-        
-        # 删除组件
-        if self._selected_component_id in manager.components:
-            widget = manager.components[self._selected_component_id]
-            widget.deleteLater()
-            del manager.components[self._selected_component_id]
-        
-        if self._selected_component_id in manager._component_data:
-            del manager._component_data[self._selected_component_id]
-        
-        # 保存并刷新
-        manager.save_components()
+
+        # 通过 manager 的方法删除，确保清理逻辑一致
+        manager.remove_component(self._selected_component_id)
+
         self._selected_component_id = None
         self._refresh_component_list()
         self._show_config_panel()
@@ -3646,7 +3662,9 @@ class ComponentTypePage(QWidget):
 
     def _add_component(self):
         if self._style_cards:
-            current_style = list(self.styles.keys())[self._current_index]
+            style_keys = list(self.styles.keys())
+            idx = min(self._current_index, len(style_keys) - 1)
+            current_style = style_keys[idx]
             self.edit_window._on_add_component(self.component_type, current_style)
 
 
@@ -3768,39 +3786,6 @@ class ComponentEditWindow(FluentWindow):
         event.accept()
 
 
-
-class DragPreviewBox(QWidget):
-    """拖拽时显示的预览框"""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        self.hide()
-
-        self._is_collision = False
-
-    def set_collision(self, collision: bool):
-        """设置是否碰撞状态"""
-        self._is_collision = collision
-        self.update()
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        # 背景
-        if self._is_collision:
-            color = QColor(255, 100, 100, 80)  # 红色警告
-        else:
-            color = QColor(100, 200, 100, 80)  # 绿色正常
-
-        painter.setBrush(QBrush(color))
-        painter.setPen(QPen(QColor(255, 255, 255, 150), 2))
-        painter.drawRoundedRect(self.rect().adjusted(2, 2, -2, -2), 8, 8)
-
-
 class GridCanvas(QWidget):
     """网格桌面画布 - 管理组件放置和交互"""
 
@@ -3905,11 +3890,19 @@ class GridCanvas(QWidget):
         # 获取组件类
         comp_class = definition.component_class
         if not comp_class:
-            # 从 COMPONENT_STYLES 获取
-            type_styles = COMPONENT_STYLES.get(placement.component_id.split('_')[0], {})
-            style_name = placement.component_id.split('_')[-1] if '_' in placement.component_id else 'default'
-            style_info = type_styles.get(style_name, {})
-            comp_class = style_info.get('class')
+            # 从 COMPONENT_STYLES 获取 - 支持多词类型 (school_info, quick_launch_dock)
+            comp_id = placement.component_id
+            for type_name in COMPONENT_STYLES:
+                if comp_id.startswith(type_name + "_"):
+                    style_name = comp_id[len(type_name) + 1:]
+                    style_info = COMPONENT_STYLES[type_name].get(style_name, {})
+                    comp_class = style_info.get('class')
+                    break
+                elif comp_id == type_name:
+                    first_style = next(iter(COMPONENT_STYLES[type_name]))
+                    style_info = COMPONENT_STYLES[type_name][first_style]
+                    comp_class = style_info.get('class')
+                    break
 
         if not comp_class:
             logger.warning(f"[GridCanvas] 组件类不存在: {placement.component_id}")
@@ -3927,9 +3920,10 @@ class GridCanvas(QWidget):
         else:
             rect = QRect(100, 100, 200, 200)
 
-        # 创建组件实例
+        # 构造函数期望 component_data: dict
         try:
-            widget = comp_class(self, placement.placement_id)
+            component_data = {"id": placement.component_id, **placement.config}
+            widget = comp_class(self, component_data)
             widget.setGeometry(rect)
             widget.show()
 
@@ -3982,12 +3976,12 @@ class GridCanvas(QWidget):
         if mime.hasFormat("application/x-classlively-component"):
             event.acceptProposedAction()
 
-            # 开始编辑会话
+            # 编辑会话
             data = bytes(mime.data("application/x-classlively-component")).decode('utf-8')
             parts = data.split('|')
             if len(parts) >= 2:
                 comp_id = parts[0]
-                # 获取组件定义
+                # 组件定义
                 definition = self.registry.get_definition(comp_id)
                 if definition:
                     self._edit_session = EditSession(
@@ -4117,7 +4111,8 @@ class GridCanvas(QWidget):
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
             # 绘制网格线
-            pen = QPen(QColor(255, 255, 255, 30), 1)
+            grid_color = QColor(200, 200, 200, 220) if not isDarkTheme() else QColor(255, 255, 255, 30)
+            pen = QPen(grid_color, 1)
             painter.setPen(pen)
 
             # 垂直线

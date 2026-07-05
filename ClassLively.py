@@ -649,6 +649,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         city_label = BodyLabel(tr("wizard.weather_city"), self.page5)  # 天气城市
         city_label_font = city_label.font()
         city_label_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
+        city_label_font.setPointSize(city_label_font.pointSize() if city_label_font.pointSize() > 0 else 10)
         city_label.setFont(city_label_font)
         city_label.setFixedWidth(120)
         city_row_layout.addWidget(city_label)
@@ -677,6 +678,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         school_label = BodyLabel(tr("wizard.school_name"), self.page5)  # 学校名称
         school_label_font = school_label.font()
         school_label_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
+        school_label_font.setPointSize(school_label_font.pointSize() if school_label_font.pointSize() > 0 else 10)
         school_label.setFont(school_label_font)
         school_label.setFixedWidth(120)
         school_row_layout.addWidget(school_label)
@@ -700,6 +702,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         class_label = BodyLabel(tr("wizard.class_name"), self.page5)  # 班级
         class_label_font = class_label.font()
         class_label_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
+        class_label_font.setPointSize(class_label_font.pointSize() if class_label_font.pointSize() > 0 else 10)
         class_label.setFont(class_label_font)
         class_label.setFixedWidth(120)
         class_row_layout.addWidget(class_label)
@@ -723,6 +726,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         countdown_label = BodyLabel(tr("wizard.countdown_config"), self.page5)  # 倒计时配置
         countdown_label_font = countdown_label.font()
         countdown_label_font.setFamily('HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif')
+        countdown_label_font.setPointSize(countdown_label_font.pointSize() if countdown_label_font.pointSize() > 0 else 10)
         countdown_label.setFont(countdown_label_font)
         countdown_label.setFixedWidth(120)
         countdown_row_layout.addWidget(countdown_label)
@@ -942,6 +946,7 @@ class MainWindow(FluentWindow):
 
     def __init__(self):
         super().__init__()
+        self.setWindowTitle(APP_NAME)
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.FramelessWindowHint)
         self.setSystemTitleBarButtonVisible(False)
         self.updateFrameless()
@@ -1399,8 +1404,12 @@ class MainWindow(FluentWindow):
                 if msg.message == 0x0112:  # WM_SYSCOMMAND
                     low_word = msg.wParam & 0xFFFF
                     # 阻止: SC_MAXIMIZE=0xF030(最大化) SC_MOVE=0xF010(拖拽移动) SC_SIZE=0xF000(调整大小)
-                    # SC_RESTORE=0xF120 不能阻止，不然没法最小化再打开了
-                    if low_word in (0xF030,) or (low_word & 0xFFF0) in (0xF010, 0xF000):
+                    # SC_RESTORE=0xF120 win古早化石
+                    if low_word == 0xF120:  # SC_RESTORE
+                        if self.isMinimized():
+                            self.setWindowState(Qt.WindowState.WindowFullScreen)
+                            return True, 0
+                    elif low_word in (0xF030,) or (low_word & 0xFFF0) in (0xF010, 0xF000):
                         return True, 0
         except Exception:
             pass
@@ -1910,7 +1919,6 @@ if __name__ == "__main__":
     splash.close()
     logger.info(f"[BOOT] 总启动耗时{time.time()-_boot_t0:.2f}s")
 
-    window.show()
     window.showFullScreen()
     if hasattr(window, 'tray_icon') and window.tray_icon:
         window.tray_icon.show()

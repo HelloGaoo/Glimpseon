@@ -24,8 +24,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional, Type, Any
 
-from PyQt6.QtCore import QObject, pyqtSignal, QPoint, QRect, QSize
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtCore import QObject, pyqtSignal, QPoint, QRect
 
 logger = logging.getLogger("ClassLively")
 
@@ -85,47 +84,6 @@ class ComponentDefinition:
 
 
 @dataclass
-class ComponentPlacement:
-    """组件放置实例 - 描述一个已放置的组件"""
-    placement_id: str                  # 放置ID
-    component_id: str                  # 组件定义ID
-    row: int                           # 起始行
-    column: int                        # 资始列
-    width_cells: int                   # 当前宽度格子数
-    height_cells: int                  # 当前高度格子数
-    page_index: int = 0                # 页面索引
-    enabled: bool = True               # 是否启用
-    config: Dict = field(default_factory=dict)  # 组件配置
-    
-    def to_dict(self) -> dict:
-        return {
-            "placement_id": self.placement_id,
-            "component_id": self.component_id,
-            "row": self.row,
-            "column": self.column,
-            "width_cells": self.width_cells,
-            "height_cells": self.height_cells,
-            "page_index": self.page_index,
-            "enabled": self.enabled,
-            "config": self.config,
-        }
-    
-    @classmethod
-    def from_dict(cls, data: dict) -> 'ComponentPlacement':
-        return cls(
-            placement_id=data["placement_id"],
-            component_id=data["component_id"],
-            row=data["row"],
-            column=data["column"],
-            width_cells=data.get("width_cells", 2),
-            height_cells=data.get("height_cells", 2),
-            page_index=data.get("page_index", 0),
-            enabled=data.get("enabled", True),
-            config=data.get("config", {}),
-        )
-
-
-@dataclass
 class GridSettings:
     """网格设置"""
     short_side_cells: int = 6          # 短边格子数
@@ -156,8 +114,8 @@ class GridMetrics:
     cell_size: float                   # 格子大小
     gap_px: float                      # 间隙大小
     edge_inset_px: float               # 边距
-    grid_width_px: float               # 网格总宽度
-    grid_height_px: float              # 网格总高度
+    grid_width_px: float               # 网格总宽度（完整格子部分）
+    grid_height_px: float              # 网格总高度（完整格子部分）
     
     @property
     def pitch(self) -> float:
@@ -166,53 +124,6 @@ class GridMetrics:
 
 
 
-
-
-
-
-
-class EditSessionMode(Enum):
-    """编辑会话模式"""
-    NONE = 0
-    PENDING_NEW = 1 # 准备添加新组件
-    DRAGGING_NEW = 2 # 拖拽新组件到桌面
-    DRAGGING_EXISTING = 3 # 拖拽已有组件
-    RESIZING_EXISTING = 4 # 调整已有组件大小
-
-
-@dataclass
-class EditSession:
-    """编辑会话状态"""
-    mode: EditSessionMode = EditSessionMode.NONE
-    component_id: Optional[str] = None
-    placement_id: Optional[str] = None
-    width_cells: int = 2
-    height_cells: int = 2
-    start_position: QPoint = field(default_factory=lambda: QPoint(0, 0))
-    current_position: QPoint = field(default_factory=lambda: QPoint(0, 0))
-    offset: QPoint = field(default_factory=lambda: QPoint(0, 0))
-    target_row: int = -1
-    target_column: int = -1
-    
-    @property
-    def is_active(self) -> bool:
-        return self.mode != EditSessionMode.NONE
-    
-    @property
-    def is_dragging_new(self) -> bool:
-        return self.mode == EditSessionMode.DRAGGING_NEW
-    
-    @property
-    def is_dragging_existing(self) -> bool:
-        return self.mode == EditSessionMode.DRAGGING_EXISTING
-    
-    @property
-    def is_resizing(self) -> bool:
-        return self.mode == EditSessionMode.RESIZING_EXISTING
-    
-    @property
-    def has_target(self) -> bool:
-        return self.target_row >= 0 and self.target_column >= 0
 
 
 
@@ -317,18 +228,30 @@ class GridLayoutService:
         metrics: GridMetrics,
         point: QPoint
     ) -> tuple:
-        """屏幕坐标转格子坐标"""
+        """屏幕坐标转格子坐标 网格外返回 (-1, -1)"""
         if metrics.cell_size <= 0:
             return (-1, -1)
-        
+
         # 相对于网格起点
         rel_x = point.x() - metrics.edge_inset_px
         rel_y = point.y() - metrics.edge_inset_px
-        
+
+        # 完全在网格之外
+        if rel_x < 0 or rel_y < 0:
+            return (-1, -1)
+        if rel_x > metrics.grid_width_px or rel_y > metrics.grid_height_px:
+            return (-1, -1)
+
         # 格子索引
         column = int(rel_x / metrics.pitch)
         row = int(rel_y / metrics.pitch)
-        
+
+        # 检查是否在间隙中
+        cell_local_x = rel_x - column * metrics.pitch
+        cell_local_y = rel_y - row * metrics.pitch
+        if cell_local_x > metrics.cell_size or cell_local_y > metrics.cell_size:
+            return (-1, -1)  # 在间隙中
+
         # 边界检查
         column = max(0, min(column, metrics.column_count - 1))
         row = max(0, min(row, metrics.row_count - 1))
@@ -337,7 +260,7 @@ class GridLayoutService:
     
     def check_collision(
         self,
-        placements: List[ComponentPlacement],
+        placements: list,
         target_row: int,
         target_column: int,
         width_cells: int,
@@ -440,201 +363,21 @@ class ComponentRegistry(QObject):
                 data = json.load(f)
             
             for comp_data in data.get("components", []):
-                comp_class = None
-                if component_classes:
-                    comp_class = component_classes.get(comp_data["id"])
-                
-                definition = ComponentDefinition.from_dict(comp_data, comp_class)
-                self.register(definition)
+                try:
+                    comp_class = None
+                    if component_classes:
+                        comp_class = component_classes.get(comp_data.get("id"))
+
+                    definition = ComponentDefinition.from_dict(comp_data, comp_class)
+                    self.register(definition)
+                except Exception as e:
+                    logger.warning(f"[ComponentRegistry] 跳过无效组件定义: {e}, data={comp_data}")
             
             logger.info(f"[ComponentRegistry] 从 {path} 加载 {len(self._definitions)} 个组件定义")
         except FileNotFoundError:
             logger.warning(f"[ComponentRegistry] 文件不存在: {path}")
         except Exception as e:
             logger.error(f"[ComponentRegistry] 加载失败: {e}")
-
-
-class PlacementService(QObject):
-    """放置管理"""
-    
-    placements_changed = pyqtSignal()
-    placement_added = pyqtSignal(str)      # placement_id
-    placement_removed = pyqtSignal(str)    # placement_id
-    placement_updated = pyqtSignal(str)    # placement_id
-    
-    CONFIG_PATH = "config/component_placements.json"
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._placements: Dict[str, ComponentPlacement] = {}
-        self._grid_settings = GridSettings()
-        self._widgets: Dict[str, QWidget] = {}  # placement_id -> widget
-    
-    def get_grid_settings(self) -> GridSettings:
-        return self._grid_settings
-    
-    def set_grid_settings(self, settings: GridSettings):
-        self._grid_settings = settings
-        self.placements_changed.emit()
-    
-    def get_placement(self, placement_id: str) -> Optional[ComponentPlacement]:
-        return self._placements.get(placement_id)
-    
-    def get_all_placements(self) -> List[ComponentPlacement]:
-        return list(self._placements.values())
-    
-    def get_placements_by_page(self, page_index: int) -> List[ComponentPlacement]:
-        return [p for p in self._placements.values() if p.page_index == page_index]
-    
-    def add_placement(
-        self,
-        component_id: str,
-        row: int,
-        column: int,
-        width_cells: int,
-        height_cells: int,
-        page_index: int = 0,
-        config: Optional[Dict] = None
-    ) -> str:
-        """添加新放置"""
-        placement_id = self._generate_id()
-        
-        placement = ComponentPlacement(
-            placement_id=placement_id,
-            component_id=component_id,
-            row=row,
-            column=column,
-            width_cells=width_cells,
-            height_cells=height_cells,
-            page_index=page_index,
-            enabled=True,
-            config=config or {},
-        )
-        
-        self._placements[placement_id] = placement
-        self.save()
-        self.placement_added.emit(placement_id)
-        
-        return placement_id
-    
-    def remove_placement(self, placement_id: str):
-        """删除放置"""
-        if placement_id in self._placements:
-            del self._placements[placement_id]
-            
-            # 删除对应的 widget
-            if placement_id in self._widgets:
-                widget = self._widgets[placement_id]
-                widget.deleteLater()
-                del self._widgets[placement_id]
-            
-            self.save()
-            self.placement_removed.emit(placement_id)
-    
-    def update_placement(
-        self,
-        placement_id: str,
-        row: Optional[int] = None,
-        column: Optional[int] = None,
-        width_cells: Optional[int] = None,
-        height_cells: Optional[int] = None,
-        config: Optional[Dict] = None
-    ):
-        """更新放置"""
-        placement = self._placements.get(placement_id)
-        if not placement:
-            return
-        
-        if row is not None:
-            placement.row = row
-        if column is not None:
-            placement.column = column
-        if width_cells is not None:
-            placement.width_cells = width_cells
-        if height_cells is not None:
-            placement.height_cells = height_cells
-        if config is not None:
-            placement.config = config
-        
-        self.save()
-        self.placement_updated.emit(placement_id)
-    
-    def register_widget(self, placement_id: str, widget: QWidget):
-        """注册放置对应的 widget"""
-        self._widgets[placement_id] = widget
-    
-    def get_widget(self, placement_id: str) -> Optional[QWidget]:
-        """获取放置对应的 widget"""
-        return self._widgets.get(placement_id)
-    
-    def _generate_id(self) -> str:
-        """生成唯一 ID"""
-        import time
-        return f"place_{int(time.time() * 1000) % 1000000}"
-    
-    def load(self):
-        """从文件加载"""
-        try:
-            with open(self.CONFIG_PATH, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            self._grid_settings = GridSettings.from_dict(data.get("grid_settings", {}))
-            
-            self._placements.clear()
-            for p_data in data.get("placements", []):
-                placement = ComponentPlacement.from_dict(p_data)
-                self._placements[placement.placement_id] = placement
-            
-            self.placements_changed.emit()
-            logger.info(f"[PlacementService] 加载 {len(self._placements)} 个放置配置")
-        except FileNotFoundError:
-            logger.info(f"[PlacementService] 配置文件不存在，使用默认设置")
-            self._create_default_placements()
-        except Exception as e:
-            logger.error(f"[PlacementService] 加载失败: {e}")
-    
-    def save(self):
-        """保存"""
-        try:
-            data = {
-                "grid_settings": self._grid_settings.to_dict(),
-                "placements": [p.to_dict() for p in self._placements.values()],
-            }
-            
-            with open(self.CONFIG_PATH, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-            
-            logger.debug(f"[PlacementService] 保存 {len(self._placements)} 个放置配置")
-        except Exception as e:
-            logger.error(f"[PlacementService] 保存失败: {e}")
-    
-    def _create_default_placements(self):
-        """创建默认放置"""
-        defaults = [
-            ("clock_digital", 1, 2, 2, 2),
-            ("weather_icon_temp", 0, 5, 2, 1),
-            ("poetry_one_line", 4, 1, 4, 1),
-            ("countdown_event", 2, 3, 2, 2),
-            ("school_info_class", 0, 0, 2, 1),
-            ("media_player", 5, 0, 2, 1),
-            ("quick_launch_dock", 5, 2, 4, 1),
-        ]
-        
-        for i, (comp_id, row, col, w, h) in enumerate(defaults):
-            placement_id = f"place_{i+1:03d}"
-            self._placements[placement_id] = ComponentPlacement(
-                placement_id=placement_id,
-                component_id=comp_id,
-                row=row,
-                column=col,
-                width_cells=w,
-                height_cells=h,
-            )
-        
-        self.save()
-        self.placements_changed.emit()
-
-
 
 
 BUILTIN_COMPONENT_DEFINITIONS = [
@@ -686,7 +429,7 @@ BUILTIN_COMPONENT_DEFINITIONS = [
         default_config={"target_name": "", "target_date": ""},
     ),
     ComponentDefinition(
-        id="school_info_class",
+        id="school_info_class_info",
         display_name="学校信息",
         category="Info",
         icon="Education",
