@@ -184,12 +184,14 @@ class HomeInterface(QWidget, TranslatableWidget):
         self._drag_preview_width = 0  # 预览宽
         self._drag_preview_height = 0  # 预览高
         self._drag_preview_collision = False  # 是否碰撞
+        self._drag_preview_size = (200, 80)  # 预览尺寸缓存
 
         # 编辑模式状态
         self._edit_mode_active = False  # 是否编辑
         self._edit_show_grid = False  # 是否显示网格
         self._edit_selected_placement_id = None  # 选中的放置ID
         self._edit_dragging = False  # 是否正在拖动已有组件
+        self.current_weather_code = None
         self._edit_resizing = False  # 是否正在调整大小
 
         self.setAcceptDrops(True)
@@ -619,6 +621,11 @@ class HomeInterface(QWidget, TranslatableWidget):
             self._update_grid_metrics()
             logger.info(f"grid_metrics cell_size={self._grid_metrics.cell_size if self._grid_metrics else 'None'}")
 
+            # 同步预览到 _width/_height
+            if hasattr(self, '_drag_preview_size') and self._drag_preview_size:
+                self._drag_preview_width = self._drag_preview_size[0]
+                self._drag_preview_height = self._drag_preview_size[1]
+
             # 显示覆盖层
             if hasattr(self, '_grid_overlay') and self._grid_overlay:
                 self._grid_overlay.update_grid_metrics(self._grid_metrics)
@@ -635,45 +642,45 @@ class HomeInterface(QWidget, TranslatableWidget):
             event.acceptProposedAction()
 
             pos = event.position()
+            # 使用缓存尺寸
+            default_size = getattr(self, '_drag_preview_size', (200, 80))
+            comp_width, comp_height = default_size
+
+            # 原始位置
+            raw_x = pos.x() - comp_width / 2
+            raw_y = pos.y() - comp_height / 2
+
+            # 吸附
             if self._grid_metrics and self._drag_preview_def:
-                # 使用缓存尺寸
-                default_size = getattr(self, '_drag_preview_size', (200, 80))
-                comp_width, comp_height = default_size
-
-                # 原始位置
-                raw_x = pos.x() - comp_width / 2
-                raw_y = pos.y() - comp_height / 2
-
-                # 吸附
                 SNAP_THRESHOLD = 20  # 吸附阈值
-
-                # 吸附后的位置
                 snapped_x, snapped_y = self._snap_to_grid(
                     raw_x, raw_y, comp_width, comp_height, SNAP_THRESHOLD
                 )
+            else:
+                snapped_x, snapped_y = raw_x, raw_y
 
-                # 限制界面范围
-                snapped_x = max(0, min(snapped_x, self.width() - comp_width))
-                snapped_y = max(0, min(snapped_y, self.height() - comp_height))
+            # 限制界面范围
+            snapped_x = max(0, min(snapped_x, self.width() - comp_width))
+            snapped_y = max(0, min(snapped_y, self.height() - comp_height))
 
-                # 保存吸附后位置
-                self._drag_preview_x = snapped_x
-                self._drag_preview_y = snapped_y
-                self._drag_preview_width = comp_width
-                self._drag_preview_height = comp_height
+            # 保存吸附后位置
+            self._drag_preview_x = snapped_x
+            self._drag_preview_y = snapped_y
+            self._drag_preview_width = comp_width
+            self._drag_preview_height = comp_height
 
-                # 检查碰撞
-                self._drag_preview_collision = self._check_pixel_collision(
-                    snapped_x, snapped_y, comp_width, comp_height
+            # 检查碰撞
+            self._drag_preview_collision = self._check_pixel_collision(
+                snapped_x, snapped_y, comp_width, comp_height
+            )
+
+            # 更新覆盖层预览框
+            if hasattr(self, '_grid_overlay') and self._grid_overlay:
+                self._grid_overlay.update_preview_pixel(
+                    snapped_x, snapped_y, comp_width, comp_height,
+                    self._drag_preview_collision
                 )
-
-                # 更新覆盖层预览框
-                if hasattr(self, '_grid_overlay') and self._grid_overlay:
-                    self._grid_overlay.update_preview_pixel(
-                        snapped_x, snapped_y, comp_width, comp_height,
-                        self._drag_preview_collision
-                    )
-                    self._grid_overlay.show()
+                self._grid_overlay.show()
         else:
             event.ignore()
 
@@ -742,6 +749,11 @@ class HomeInterface(QWidget, TranslatableWidget):
         self._drag_preview_def = None
         self._drag_preview_row = -1
         self._drag_preview_col = -1
+        self._drag_preview_x = 0
+        self._drag_preview_y = 0
+        self._drag_preview_width = 0
+        self._drag_preview_height = 0
+        self._drag_preview_collision = False
 
         # 隐藏覆盖层
         if hasattr(self, '_grid_overlay') and self._grid_overlay:
@@ -759,13 +771,26 @@ class HomeInterface(QWidget, TranslatableWidget):
             event.ignore()
             return
 
-        # 隐藏拖拽预览
+        # 保存放置位置
+        saved_x = self._drag_preview_x
+        saved_y = self._drag_preview_y
+        saved_w = self._drag_preview_width
+        saved_h = self._drag_preview_height
+        # 是否有效的拖拽移动位置
+        has_valid_preview = saved_w > 0 and saved_h > 0
+
+        # 清除拖拽预览
         self._drag_hover = False
         self._drag_preview_visible = False
         self._drag_preview_component_id = None
         self._drag_preview_def = None
         self._drag_preview_row = -1
         self._drag_preview_col = -1
+        self._drag_preview_x = 0
+        self._drag_preview_y = 0
+        self._drag_preview_width = 0
+        self._drag_preview_height = 0
+        self._drag_preview_collision = False
 
         # 隐藏覆盖层预览框
         if hasattr(self, '_grid_overlay') and self._grid_overlay:
@@ -779,24 +804,25 @@ class HomeInterface(QWidget, TranslatableWidget):
         # 组件类型和样式
         component_type, component_style = self._resolve_component_type_style(data)
 
-        # 转换百分比保存
-        if self._drag_preview_x >= 0 and self._drag_preview_y >= 0:
-            # 预览框位置是左上角绝对坐标
-            # setPositionPercent 可用空间百分比: x = (parent_w - widget_w) * pct
-            # 所以计算: pct = x / (parent_w - widget_w)
-            available_width = self.width() - self._drag_preview_width
-            available_height = self.height() - self._drag_preview_height
+        # 计算放置百分比位置
+        drop_pos = event.position()
+        if has_valid_preview:
+            # 使用预览框位置
+            available_width = self.width() - saved_w
+            available_height = self.height() - saved_h
             if available_width > 0 and available_height > 0:
-                pos_x_pct = self._drag_preview_x / available_width
-                pos_y_pct = self._drag_preview_y / available_height
+                pos_x_pct = saved_x / available_width
+                pos_y_pct = saved_y / available_height
             else:
-                pos_x_pct = 0.5
-                pos_y_pct = 0.5
+                pos_x_pct = drop_pos.x() / self.width() if self.width() > 0 else 0.5
+                pos_y_pct = drop_pos.y() / self.height() if self.height() > 0 else 0.5
         else:
-            # 或鼠标位置
-            drop_pos = event.position()
+            # 没有就局长
             pos_x_pct = drop_pos.x() / self.width() if self.width() > 0 else 0.5
             pos_y_pct = drop_pos.y() / self.height() if self.height() > 0 else 0.5
+
+        logger.info(f"dropEvent: saved=({saved_x},{saved_y},{saved_w},{saved_h}), "
+                    f"has_valid_preview={has_valid_preview}, pct=({pos_x_pct:.3f},{pos_y_pct:.3f})")
 
         # 添加组件
         if hasattr(self, 'component_manager') and self.component_manager:
@@ -804,18 +830,29 @@ class HomeInterface(QWidget, TranslatableWidget):
             if comp_id:
                 comp = self.component_manager.components.get(comp_id)
                 if comp:
-                    # 重计算
-                    if self._drag_preview_x >= 0 and self._drag_preview_y >= 0:
-                        comp_width = comp.width()
-                        comp_height = comp.height()
+                    # 组件实际尺寸重新计算
+                    comp_width = comp.width()
+                    comp_height = comp.height()
+                    if has_valid_preview:
                         available_width = self.width() - comp_width
                         available_height = self.height() - comp_height
                         if available_width > 0 and available_height > 0:
-                            pos_x_pct = self._drag_preview_x / available_width
-                            pos_y_pct = self._drag_preview_y / available_height
-                            comp.setPositionPercent(pos_x_pct, pos_y_pct)
+                            pos_x_pct = saved_x / available_width
+                            pos_y_pct = saved_y / available_height
                     else:
-                        comp.setPositionPercent(pos_x_pct, pos_y_pct)
+                        # 没有就鼠标位置减半宽高居中
+                        if comp_width > 0 and comp_height > 0:
+                            center_x = drop_pos.x() - comp_width / 2
+                            center_y = drop_pos.y() - comp_height / 2
+                            available_width = self.width() - comp_width
+                            available_height = self.height() - comp_height
+                            if available_width > 0 and available_height > 0:
+                                pos_x_pct = center_x / available_width
+                                pos_y_pct = center_y / available_height
+
+                    pos_x_pct = max(0.0, min(1.0, pos_x_pct))
+                    pos_y_pct = max(0.0, min(1.0, pos_y_pct))
+                    comp.setPositionPercent(pos_x_pct, pos_y_pct)
                     self.component_manager.save_components()
                     if comp not in self._draggable_widgets:
                         self._draggable_widgets.append(comp)
@@ -905,10 +942,52 @@ class HomeInterface(QWidget, TranslatableWidget):
         # 设置可拖动
         self._set_all_draggable(True)
 
+    def _selectComponent(self, component_id: str):
+        """选中组件"""
+        self._deselectAll()
+        self._edit_selected_placement_id = component_id
+        container = self.component_manager.components.get(component_id)
+        if container:
+            container.setSelected(True)
+            container.showEditControls(True)
+
+    def _deselectAll(self):
+        """取消所有组件选中"""
+        if self._edit_selected_placement_id:
+            old = self.component_manager.components.get(self._edit_selected_placement_id)
+            if old:
+                old.setSelected(False)
+                old.showEditControls(False)
+        self._edit_selected_placement_id = None
+
+    def deleteSelectedComponent(self, component_id: str):
+        """删除指定组件"""
+        self._deselectAll()
+        self.component_manager.remove_component(component_id)
+        self._draggable_widgets = [
+            w for w in self._draggable_widgets
+            if not (hasattr(w, 'component_id') and w.component_id == component_id)
+        ]
+
+    def mousePressEvent(self, event):
+        """点击空白取消选中"""
+        if self.isEditMode and event.button() == Qt.MouseButton.LeftButton:
+            self._deselectAll()
+        super().mousePressEvent(event)
+
+    def keyPressEvent(self, event):
+        """Delete 键删除选中组件"""
+        if self.isEditMode and self._edit_selected_placement_id:
+            if event.key() == Qt.Key.Key_Delete:
+                self.deleteSelectedComponent(self._edit_selected_placement_id)
+                return
+        super().keyPressEvent(event)
+
     def _exitEditMode(self):
         """退出编辑模式"""
         self.isEditMode = False
         self._edit_mode_active = False
+        self._deselectAll()
         # 隐藏网格
         if hasattr(self, '_grid_overlay') and self._grid_overlay:
             self._grid_overlay.hide()
@@ -946,6 +1025,12 @@ class HomeInterface(QWidget, TranslatableWidget):
                 try:
                     widget.setDraggable(enabled)
                     widget.raise_()
+                    try:
+                        widget.selected.disconnect(self._selectComponent)
+                    except Exception:
+                        pass
+                    if enabled:
+                        widget.selected.connect(self._selectComponent)
                 except Exception as e:
                     logger.warning(f"设置组件可拖动状态失败: {e}")
 
@@ -1275,6 +1360,11 @@ class HomeInterface(QWidget, TranslatableWidget):
     border-radius: {radius}px;
     border: 1px solid {border_color};
 }}
+#weatherHourlyContainer {{
+    background-color: {bg_color};
+    border-radius: {radius}px;
+    border: 1px solid {border_color};
+}}
 #schoolInfoContainer {{
     background-color: {bg_color};
     border-radius: {radius}px;
@@ -1436,6 +1526,8 @@ class HomeInterface(QWidget, TranslatableWidget):
                     logger.info(f"使用缓存天气：{weather_text}")
                     if hasattr(self, 'weatherContainer'):
                         self.weatherContainer.updateSize()
+                    self._cached_weather = cached
+                    self.weather_updated.emit(cached)
             except Exception as e:
                 logger.warning(f"读取缓存天气数据失败：{e}")
 
@@ -1526,6 +1618,8 @@ class HomeInterface(QWidget, TranslatableWidget):
                         "weather": weather,
                     }
                     save_cache("weather", cache_data, cfg.weatherUpdateInterval.value)
+                    self._cached_weather = cache_data
+                    self.weather_updated.emit(cache_data)
                     success = True
             else:
                 logger.error(f"天气 API 请求失败，状态码：{response.status_code}")

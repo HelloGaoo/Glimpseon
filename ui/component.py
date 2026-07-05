@@ -42,6 +42,7 @@ from PyQt6.QtCore import (
     QFileInfo,
     QPointF,
     QPoint,
+    QRect,
     QRectF,
     Qt,
     QThread,
@@ -64,7 +65,7 @@ from PyQt6.QtGui import (
     QPainterPath,
     QPen,
     QPixmap, QIcon,
-    QDrag, QImage,
+    QDrag, QImage, QPolygonF,
 )
 from PyQt6.QtWidgets import (
     QFileIconProvider, QLabel, QSizePolicy, QWidget, QVBoxLayout, QHBoxLayout, QApplication, QProgressBar, QGraphicsOpacityEffect,
@@ -105,57 +106,63 @@ COMPONENT_STYLES = {
     "clock": {
         "digital": {
             "name": "数字时钟",
-            "class": None,  # Phase 2: DigitalClockComponent
+            "class": None,
             "default_config": {},
-            "default_size": (280, 100),  # 默认尺寸
+            "default_size": (200, 200),
         },
     },
     "weather": {
         "icon_temp": {
-            "name": "图标+温度",
-            "class": None,  # Phase 2: WeatherIconTempComponent
+            "name": "极简",
+            "class": None,
             "default_config": {},
-            "default_size": (150, 80),
+            "default_size": (200, 200),
+        },
+        "hourly": {
+            "name": "逐小时天气",
+            "class": None,
+            "default_config": {},
+            "default_size": (400, 200),
         },
     },
     "poetry": {
         "one_line": {
             "name": "一言",
-            "class": None,  # Phase 2: PoetryOneLineComponent
+            "class": None,
             "default_config": {},
-            "default_size": (400, 60),
+            "default_size": (400, 200),
         },
     },
     "countdown": {
         "event": {
             "name": "事件倒计时",
-            "class": None,  # Phase 2: CountdownEventComponent
+            "class": None,
             "default_config": {},
-            "default_size": (200, 80),
+            "default_size": (200, 200),
         },
     },
     "school_info": {
         "class_info": {
             "name": "课程信息",
-            "class": None,  # Phase 2: SchoolInfoComponent
+            "class": None,
             "default_config": {},
-            "default_size": (180, 50),
+            "default_size": (200, 200),
         },
     },
     "media": {
         "player": {
             "name": "播放器",
-            "class": None,  # Phase 2: MediaPlayerComponent
+            "class": None,
             "default_config": {},
-            "default_size": (250, 80),
+            "default_size": (400, 200),
         },
     },
     "quick_launch": {
         "dock": {
             "name": "快捷启动栏",
-            "class": None,  # Phase 2: QuickLaunchDockComponent
+            "class": None,
             "default_config": {},
-            "default_size": (300, 70),
+            "default_size": (400, 200),
         },
     },
 }
@@ -177,14 +184,13 @@ class ComponentManager:
     def load_components(self):
         """从 config/components.json 加载组件"""
         if not os.path.exists(COMPONENTS_CONFIG_PATH):
-            logger.info(f"组件配置文件不存在，创建默认配置: {COMPONENTS_CONFIG_PATH}")
             default_data = {"components": []}
             try:
                 os.makedirs(os.path.dirname(COMPONENTS_CONFIG_PATH), exist_ok=True)
                 with open(COMPONENTS_CONFIG_PATH, "w", encoding="utf-8") as f:
                     json.dump(default_data, f, indent=2, ensure_ascii=False)
             except Exception as e:
-                logger.error(f"创建默认组件配置失败: {e}")
+                logger.error(f"创建组件配置失败: {e}")
                 return
 
         try:
@@ -213,21 +219,23 @@ class ComponentManager:
             comp_class = style_info["class"]
             try:
                 instance = comp_class(self.home, comp_data)
-                instance.setPositionPercent(
-                    comp_data.get("position", {}).get("x", 0.5),
-                    comp_data.get("position", {}).get("y", 0.5)
-                )
-                # 恢复组件尺寸
+                # 恢复组件尺寸 show() 设位置
                 size_data = comp_data.get("size")
                 if size_data and size_data.get("w") and size_data.get("h"):
                     instance.resize(size_data["w"], size_data["h"])
                 else:
                     default_size = style_info.get("default_size", (200, 80))
                     instance.resize(*default_size)
+                instance._size_explicitly_set = True
                 if comp_data.get("enabled", True):
                     instance.show()
                 else:
                     instance.hide()
+                # show() 触发 showEvent 但 _size_explicitly_set=True 不会 adjustSize
+                instance.setPositionPercent(
+                    comp_data.get("position", {}).get("x", 0.5),
+                    comp_data.get("position", {}).get("y", 0.5)
+                )
 
                 self.components[comp_id] = instance
                 self._component_data[comp_id] = comp_data
@@ -265,7 +273,7 @@ class ComponentManager:
     def add_component(self, comp_type: str, comp_style: str, config=None, pro=None) -> str:
         """添加新组件"""
         if len(self.components) >= self.MAX_COMPONENTS:
-            logger.warning(f"组件数量已达上限: {self.MAX_COMPONENTS}")
+            logger.warning(f"组件数量上限: {self.MAX_COMPONENTS}")
             return ""
 
         style_info = COMPONENT_STYLES.get(comp_type, {}).get(comp_style)
@@ -290,8 +298,11 @@ class ComponentManager:
         try:
             instance = comp_class(self.home, comp_data)
             instance.resize(*default_size)
-            instance.setPositionPercent(0.5, 0.5)
+            instance._size_explicitly_set = True
             instance.show()
+            # show() 触发 showEvent > adjustSize() 可能改变尺寸
+            # 目的防止加载数据之后布局变了
+            instance.setPositionPercent(0.5, 0.5)
 
             self.components[comp_id] = instance
             self._component_data[comp_id] = comp_data
@@ -345,28 +356,30 @@ class ComponentManager:
 
 class DraggableWidget(QWidget):
     positionChanged = pyqtSignal(float, float)
+    selected = pyqtSignal(str)
     # settingRequested = pyqtSignal(str)  # 弃
     def __init__(self, parent=None, component_id: str = ""):
         super().__init__(parent)
         self.component_id = component_id
-        
         self._dragging = False
         self._drag_start_pos = QPoint()
         self._widget_start_pos = QPoint()
         self._click_start_pos = QPoint()
-        
         self._percent_x = 0.5
         self._percent_y = 0.5
-        
         self._draggable = False
         self._anchor_mode = "topleft"
-        
+        self._selected = False
+        self._resizing = False
+        self._resize_start_pos = QPoint()
+        self._resize_start_size = QSize()
+        self._resize_start_geo = QRect()
         self._show_border = False
         self._border_color = QColor(120, 120, 120)
         self._hovered = False
         self._cached_primary_color = QColor(48, 195, 97)
         self._cached_hover_color = QColor(108, 255, 157)
-        
+
         self.setMouseTracking(True)
         self.setAutoFillBackground(False)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
@@ -380,6 +393,13 @@ class DraggableWidget(QWidget):
             self.raise_()
         else:
             self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+
+    def setSelected(self, selected: bool):
+        self._selected = selected
+        self.update()
+
+    def isSelected(self) -> bool:
+        return self._selected
     
     def setPositionPercent(self, x: float, y: float):
         self._percent_x = max(0.0, min(1.0, x))
@@ -439,32 +459,85 @@ class DraggableWidget(QWidget):
     
     def paintEvent(self, event):
         super().paintEvent(event)
-        
-        if self._dragging:return
-        if self._show_border or self._hovered:
+
+        if getattr(self, '_dragging', False): return
+
+        # 选中后
+        if getattr(self, '_selected', False):
             painter = QPainter(self)
             painter.setRenderHint(painter.RenderHint.Antialiasing)
-            
-            if self._hovered:
-                border_color = QColor(self._cached_primary_color)
+            color = QColor(getattr(self, '_cached_primary_color', QColor(48, 195, 97)))
+
+            # 外发光
+            glow_color = QColor(color)
+            glow_color.setAlpha(60)
+            for i in range(4, 0, -1):
+                glow_pen = QPen(glow_color)
+                glow_pen.setWidthF(i * 2)
+                painter.setPen(glow_pen)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRoundedRect(QRectF(self.rect()).adjusted(3, 3, -3, -3), 8, 8)
+
+            # 选中边框
+            color.setAlpha(200)
+            pen = QPen(color)
+            pen.setWidthF(2)
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRoundedRect(QRectF(self.rect()).adjusted(3, 3, -3, -3), 8, 8)
+
+            # 弧线
+            w = self.width()
+            h = self.height()
+            arc_r = 18
+            arc_cx = w - 1
+            arc_cy = h - 1
+            arc_rect = QRectF(arc_cx - arc_r, arc_cy - arc_r, arc_r * 2, arc_r * 2)
+
+            outer_color = color.darker(150)
+            outer_color.setAlpha(220)
+            outer_pen = QPen(outer_color)
+            outer_pen.setWidthF(7)
+            outer_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            painter.setPen(outer_pen)
+            painter.drawArc(arc_rect, int(-30 * 16), int(-60 * 16))
+
+            # 内层弧线
+            inner_color = QColor(color)
+            inner_color.setAlpha(230)
+            inner_pen = QPen(inner_color)
+            inner_pen.setWidthF(4)
+            inner_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            painter.setPen(inner_pen)
+            painter.drawArc(arc_rect, int(-30 * 16), int(-60 * 16))
+
+            painter.end()
+            return
+
+        if getattr(self, '_show_border', False) or getattr(self, '_hovered', False):
+            painter = QPainter(self)
+            painter.setRenderHint(painter.RenderHint.Antialiasing)
+
+            if getattr(self, '_hovered', False):
+                border_color = QColor(getattr(self, '_cached_primary_color', QColor(48, 195, 97)))
                 border_color.setAlpha(160)
             else:
                 border_color = QColor(0, 0, 0, 30) if not isDarkTheme() else QColor(255, 255, 255, 30)
-            
+
             pen = QPen(border_color)
             pen.setWidthF(1)
             pen.setStyle(Qt.PenStyle.DashLine)
             painter.setPen(pen)
             painter.drawRoundedRect(QRectF(self.rect()).adjusted(1, 1, -1, -1), 4, 4)
-            
-            if self._show_border:
-                display_name = get_component_display_name(self.component_id)
+
+            if getattr(self, '_show_border', False):
+                display_name = get_component_display_name(getattr(self, 'component_id', ''))
                 font = QFont("HarmonyOS Sans,Microsoft YaHei,sans-serif")
                 font.setPixelSize(14)
                 painter.setFont(font)
                 painter.setPen(QColor(0, 0, 0, 100) if not isDarkTheme() else QColor(255, 255, 255, 100))
                 painter.drawText(8, 16, display_name)
-            
+
             painter.end()
     
     def updateThemeColor(self):
@@ -484,7 +557,10 @@ class DraggableWidget(QWidget):
     def enterEvent(self, event):
         if self._draggable:
             self._hovered = True
-            self.setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
+            if self._selected and self._hitResizeHandle(self.mapFromGlobal(QCursor.pos())):
+                self.setCursor(QCursor(Qt.CursorShape.SizeFDiagCursor))
+            else:
+                self.setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
             self.update()
         super().enterEvent(event)
     
@@ -495,8 +571,26 @@ class DraggableWidget(QWidget):
         self.update()
         super().leaveEvent(event)
     
+    def _hitResizeHandle(self, pos) -> bool:
+        """检测点击位置是否在右下角缩放"""
+        if not self._selected:
+            return False
+        handle_zone = 24
+        return (pos.x() >= self.width() - handle_zone and
+                pos.y() >= self.height() - handle_zone)
+
     def mousePressEvent(self, event):
         if self._draggable and event.button() == Qt.MouseButton.LeftButton:
+            # 选中状态
+            if self._selected and self._hitResizeHandle(event.position().toPoint()):
+                self._resizing = True
+                self._resize_start_pos = event.globalPosition().toPoint()
+                self._resize_start_size = self.size()
+                self._resize_start_geo = self.geometry()
+                self.setCursor(QCursor(Qt.CursorShape.SizeFDiagCursor))
+                event.accept()
+                return
+
             self._dragging = True
             self._drag_start_pos = event.globalPosition().toPoint()
             self._widget_start_pos = self.pos()
@@ -519,6 +613,28 @@ class DraggableWidget(QWidget):
         super().mouseDoubleClickEvent(event)
     
     def mouseMoveEvent(self, event):
+        # 缩放模式
+        if self._resizing and self._draggable:
+            delta = event.globalPosition().toPoint() - self._resize_start_pos
+            orig_w = self._resize_start_size.width()
+            orig_h = self._resize_start_size.height()
+            # 等比缩放
+            new_w = max(self.minimumWidth() or 80, orig_w + delta.x())
+            new_h = max(self.minimumHeight() or 40, orig_h + delta.y())
+            scale_w = new_w / orig_w if orig_w > 0 else 1.0
+            scale_h = new_h / orig_h if orig_h > 0 else 1.0
+            scale = max(scale_w, scale_h)
+            new_w = int(orig_w * scale)
+            new_h = int(orig_h * scale)
+            parent = self.parentWidget()
+            if parent:
+                new_w = min(new_w, parent.width() - self.x())
+                new_h = min(new_h, parent.height() - self.y())
+            self.resize(new_w, new_h)
+            event.accept()
+            return
+
+        # 拖动模式
         if self._dragging and self._draggable:
             current_pos = event.globalPosition().toPoint()
             delta = current_pos - self._drag_start_pos
@@ -559,12 +675,33 @@ class DraggableWidget(QWidget):
         return None
     
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton and self._dragging:
-            self._dragging = False
-            if self._draggable:
+        if event.button() == Qt.MouseButton.LeftButton:
+            # 缩放结束
+            if self._resizing:
+                self._resizing = False
                 self.setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
-            else:
-                self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+                # 保存
+                home = self._getMainWindow()
+                if home and hasattr(home, 'homeInterface') and home.homeInterface:
+                    mgr = getattr(home.homeInterface, 'component_manager', None)
+                    if mgr:
+                        mgr.save_components()
+                event.accept()
+                return
+
+            # 拖动结束
+            if self._dragging:
+                self._dragging = False
+                if self._draggable:
+                    self.setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
+                else:
+                    self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+                # 保存
+                home = self._getMainWindow()
+                if home and hasattr(home, 'homeInterface') and home.homeInterface:
+                    mgr = getattr(home.homeInterface, 'component_manager', None)
+                    if mgr:
+                        mgr.save_components()
             
             self.update()
 
@@ -575,10 +712,11 @@ class DraggableWidget(QWidget):
             if self._draggable and hasattr(self, '_click_start_pos'):
                 delta = event.globalPosition().toPoint() - self._click_start_pos
                 if abs(delta.x()) < 5 and abs(delta.y()) < 5:
-                    # self.settingRequested.emit(self.component_id)
-                    pass
+                    self.selected.emit(self.component_id)
+                    event.accept()
+                    return
             
-            # 保存拖拽后的位置
+            # 保存
             self._percent_x, self._percent_y = self._calculatePercentFromPosition()
             main_win = self._getMainWindow()
             if main_win and hasattr(main_win, 'homeInterface') and main_win.homeInterface:
@@ -595,20 +733,58 @@ class DraggableWidget(QWidget):
         self._updatePositionFromPercent()
 
 
+class _DeleteButton(QPushButton):
+    """删除按钮"""
+
+    def __init__(self, parent_widget):
+        self._fui_icon = FUI.DELETE
+        super().__init__(parent_widget)
+        self._parent_widget = parent_widget
+        self.setFixedSize(24, 24)
+        self.setIcon(self._fui_icon.icon())
+        self.setIconSize(QSize(14, 14))
+        self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+        self.setObjectName("deleteOverlayButton")
+        self.setStyleSheet("""
+            QPushButton#deleteOverlayButton {
+                border: none;
+                border-radius: 12px;
+                background-color: rgba(0, 0, 0, 0.45);
+            }
+            QPushButton#deleteOverlayButton:hover {
+                background-color: rgba(220, 30, 30, 0.75);
+            }
+            QPushButton#deleteOverlayButton:pressed {
+                background-color: rgba(180, 0, 0, 0.9);
+            }
+        """)
+        self.hide()
+
+    def reposition(self):
+        parent = self._parent_widget
+        x = parent.width() - self.width() // 2
+        y = parent.height() - self.height() // 2
+        self.move(x, y)
+
+
 class DraggableContainer(DraggableWidget):
     
     def __init__(self, parent=None, component_id: str = "", layout_direction: str = "vertical"):
         super().__init__(parent, component_id)
-        
+
+        self._content_visible = True
+        self._delete_button = None
+        self._scale_factor = 1.0
+        self._size_explicitly_set = False  # 是否已显式设置尺寸
+
         if layout_direction == "vertical":
             self.inner_layout = QVBoxLayout(self)
         else:
             self.inner_layout = QHBoxLayout(self)
-        
+
         self.inner_layout.setContentsMargins(10, 10, 10, 10)
         self.inner_layout.setSpacing(5)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
-        self._content_visible = True
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
     
     def setContentVisible(self, visible: bool):
@@ -644,19 +820,94 @@ class DraggableContainer(DraggableWidget):
     
     def updateSize(self):
         self.inner_layout.activate()
-        self.adjustSize()
+        if not getattr(self, '_size_explicitly_set', False):
+            self.adjustSize()
         self.updateGeometry()
+
+    def _ensureEditControls(self):
+        if self._delete_button is None:
+            self._delete_button = _DeleteButton(self)
+            self._delete_button.clicked.connect(self._onDeleteClicked)
+            self._delete_button.hide()
+
+    def showEditControls(self, visible: bool):
+        self._ensureEditControls()
+        self._delete_button.setVisible(visible)
+        if visible:
+            self._delete_button.reposition()
+            self._delete_button.raise_()
+
+    def _onDeleteClicked(self):
+        home = self._getHomeInterface()
+        if home:
+            home.deleteSelectedComponent(self.component_id)
+
+    def _getHomeInterface(self):
+        widget = self.parentWidget()
+        while widget:
+            if hasattr(widget, 'component_manager'):
+                return widget
+            widget = widget.parentWidget()
+        return None
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self._delete_button and self._delete_button.isVisible():
+            self._delete_button.reposition()
+        self._applyUniformScale()
+
+    def _applyUniformScale(self):
+        """缩放所有子控件的字体和间距"""
+        if not getattr(self, '_content_visible', True):
+            return
+        # adjustSize 后的 preferred size
+        natural_size = self.sizeHint()
+        if natural_size.width() <= 0 or natural_size.height() <= 0:
+            return
+        current_w = self.width()
+        if current_w <= 0:
+            return
+        new_scale = current_w / natural_size.width()
+        if abs(new_scale - self._scale_factor) < 0.01:
+            return
+        self._scale_factor = new_scale
+
+        for child in self.findChildren(QWidget):
+            font = child.font()
+            if not hasattr(child, '_orig_font_size'):
+                child._orig_font_size = font.pointSizeF() if font.pointSizeF() > 0 else font.pixelSize()
+                child._orig_is_pixel = font.pointSizeF() <= 0
+            orig = child._orig_font_size
+            if child._orig_is_pixel:
+                font.setPixelSize(max(1, int(orig * new_scale)))
+            else:
+                font.setPointSizeF(orig * new_scale)
+            child.setFont(font)
+
+        if hasattr(self, 'inner_layout'):
+            if not hasattr(self, '_orig_margins'):
+                self._orig_margins = self.inner_layout.contentsMargins()
+                self._orig_spacing = self.inner_layout.spacing()
+            m = self._orig_margins
+            self.inner_layout.setContentsMargins(
+                int(m.left() * new_scale), int(m.top() * new_scale),
+                int(m.right() * new_scale), int(m.bottom() * new_scale)
+            )
+            self.inner_layout.setSpacing(int(self._orig_spacing * new_scale))
     
     def showEvent(self, event):
         super().showEvent(event)
-        if self.inner_layout:
+        if getattr(self, 'inner_layout', None):
             self.inner_layout.activate()
-            self.adjustSize()
+            if not getattr(self, '_size_explicitly_set', False):
+                self.adjustSize()
     
     def sizeHint(self) -> QSize:
-        if self.inner_layout:self.inner_layout.activate()
+        if getattr(self, '_size_explicitly_set', False):
+            return self.size()
+        if getattr(self, 'inner_layout', None):self.inner_layout.activate()
         base_size = super().sizeHint()
-        if not self._content_visible:
+        if not getattr(self, '_content_visible', True):
             display_name = get_component_display_name(self.component_id)
             text = f"⚙ {display_name} {tr('component.click_to_settings')}"
             font = QFont()
@@ -666,12 +917,12 @@ class DraggableContainer(DraggableWidget):
         return base_size
     
     def minimumSizeHint(self) -> QSize:
-        if not self._content_visible:
+        if not getattr(self, '_content_visible', True):
             return self.sizeHint()
         return QSize(80, 40)
     
     def paintEvent(self, event):
-        if not self._content_visible:
+        if not getattr(self, '_content_visible', True):
             painter = QPainter(self)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
             
@@ -767,6 +1018,7 @@ class LyricsWidget(QWidget):
         p.drawText(0, 0, self.width(), self.height(),
                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                    elided)
+        p.end()
 
     def clear(self):
         self._original_text = ""
@@ -806,6 +1058,8 @@ class MediaProgressBar(QProgressBar):
                 progress_color = parent_widget._override_progress_color
             p.setBrush(progress_color)
             p.drawRoundedRect(0, 1, w, h - 2, 3, 3)
+
+        p.end()
 
 
 class FetchWorker(QObject):
@@ -1407,7 +1661,6 @@ class MediaWidget(QWidget):
         except Exception as e:
             logger.debug(f"应用歌曲信息失败: {e}")
         finally:
-            self._fetching = False
             self._detail_fetching = False
 
     def _cleanup_thread(self):
@@ -2407,14 +2660,15 @@ class DigitalClockComponent(DraggableContainer):
         self.dateLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         layout = self.inner_layout
-        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        layout.setContentsMargins(24, 16, 24, 16)
-        layout.setSpacing(0)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(4)
         layout.addWidget(self.clockLabel)
         layout.addWidget(self.dateLabel)
 
-        self.setMinimumSize(240, 80)
-        self.adjustSize()
+        self.setMinimumSize(200, 200)
+        self._size_explicitly_set = True
+        self.resize(200, 200)
         self._apply_style()
 
     def _setup_timer(self):
@@ -2538,13 +2792,14 @@ class WeatherIconTempComponent(DraggableContainer):
 
         layout = self.inner_layout
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.setContentsMargins(20, 12, 20, 12)
-        layout.setSpacing(10)
-        layout.addWidget(self.tempLabel)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(12)
         layout.addWidget(self.iconLabel)
+        layout.addWidget(self.tempLabel)
 
-        self.setMinimumSize(120, 52)
-        self.adjustSize()
+        self.setMinimumSize(200, 200)
+        self._size_explicitly_set = True
+        self.resize(200, 200)
         self._apply_style()
 
     def _setup_timer(self):
@@ -2605,7 +2860,7 @@ class WeatherIconTempComponent(DraggableContainer):
             self._update_display(self._home._cached_weather)
 
     def _apply_style(self):
-        color = cfg.weatherColor.value
+        color = cfg.weatherTextColor.value
         color_str = color.name() if hasattr(color, 'name') else str(color)
         size = cfg.weatherSize.value
 
@@ -2615,6 +2870,348 @@ class WeatherIconTempComponent(DraggableContainer):
             font-family: {FONT_FAMILY};
             background-color: transparent;
         """)
+        self.updateSize()
+
+
+class WeatherHourlyComponent(DraggableContainer):
+    """逐小时天气卡片"""
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName("weatherHourlyContainer")
+        self._home = parent
+        self._hourly_data = None
+        self._setup_ui()
+        self._setup_timer()
+
+    def _setup_ui(self):
+        layout = self.inner_layout
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        layout.setContentsMargins(28, 18, 28, 18)
+        layout.setSpacing(6)
+
+        # 上侧：城市 温度 图标 预警
+        self._top_row = QWidget()
+        self._top_row.setStyleSheet("background-color: transparent;")
+        top_layout = QHBoxLayout(self._top_row)
+        top_layout.setContentsMargins(0, 0, 0, 0)
+        top_layout.setSpacing(0)
+
+        # 左侧：城市 温度
+        left_col = QWidget()
+        left_col.setStyleSheet("background-color: transparent;")
+        left_layout = QVBoxLayout(left_col)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(0)
+
+        self.cityLabel = QLabel("--")
+        self.cityLabel.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.cityLabel.setStyleSheet("padding-bottom: 2px;")
+
+        self.currentTempLabel = QLabel("--°")
+        self.currentTempLabel.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        left_layout.addWidget(self.cityLabel)
+        left_layout.addWidget(self.currentTempLabel)
+
+        # 右侧：图标 预警
+        right_col = QWidget()
+        right_col.setStyleSheet("background-color: transparent;")
+        right_layout = QVBoxLayout(right_col)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(2)
+
+        self.currentIconLabel = QLabel()
+        self.currentIconLabel.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.currentIconLabel.setFixedSize(36, 36)
+
+        self.alertLabel = QLabel("")
+        self.alertLabel.setAlignment(Qt.AlignmentFlag.AlignRight)
+
+        right_layout.addWidget(self.currentIconLabel)
+        right_layout.addWidget(self.alertLabel)
+
+        top_layout.addWidget(left_col)
+        top_layout.addStretch()
+        top_layout.addWidget(right_col)
+
+        # 下侧：6小时逐时预报
+        self._bottom_row = QWidget()
+        self._bottom_row.setStyleSheet("background-color: transparent;")
+        bottom_layout = QHBoxLayout(self._bottom_row)
+        bottom_layout.setContentsMargins(0, 0, 0, 0)
+        bottom_layout.setSpacing(0)
+
+        self._hourly_widgets = []
+        for i in range(6):
+            col = QWidget()
+            col.setStyleSheet("background-color: transparent;")
+            col_layout = QVBoxLayout(col)
+            col_layout.setContentsMargins(0, 0, 0, 0)
+            col_layout.setSpacing(3)
+            col_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            time_label = QLabel("--:00")
+            time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            time_label.setObjectName(f"hourlyTime_{i}")
+
+            icon_label = QLabel()
+            icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            icon_label.setFixedSize(28, 28)
+            icon_label.setObjectName(f"hourlyIcon_{i}")
+
+            temp_label = QLabel("--°")
+            temp_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            temp_label.setObjectName(f"hourlyTemp_{i}")
+
+            col_layout.addWidget(time_label)
+            col_layout.addWidget(icon_label)
+            col_layout.addWidget(temp_label)
+
+            bottom_layout.addWidget(col, 1)
+            self._hourly_widgets.append((time_label, icon_label, temp_label))
+
+        layout.addWidget(self._top_row)
+        layout.addWidget(self._bottom_row)
+
+        self.setMinimumSize(400, 200)
+        self._size_explicitly_set = True
+        self.resize(400, 200)
+        self._top_row.setMinimumHeight(100)
+        self._apply_style()
+
+    def _setup_timer(self):
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._refresh_weather)
+        self.timer.start(1000)
+
+        cfg.showWeather.valueChanged.connect(self._refresh_weather)
+        cfg.weatherUpdateInterval.valueChanged.connect(self._update_interval)
+        cfg.weatherTextColor.valueChanged.connect(self._apply_style)
+        cfg.weatherSize.valueChanged.connect(self._apply_style)
+        cfg.weatherIconSize.valueChanged.connect(self._update_icon_size)
+
+        if hasattr(self._home, 'weather_updated'):
+            self._home.weather_updated.connect(self._update_display)
+
+        self._update_interval()
+        self._refresh_weather()
+
+    def _update_interval(self):
+        interval_map = {
+            "10s": 10000, "30s": 30000, "1m": 60000,
+            "5m": 300000, "10m": 600000, "30m": 1800000,
+        }
+        interval_str = cfg.weatherUpdateInterval.value
+        self.timer.setInterval(interval_map.get(interval_str, 300000))
+
+    def _refresh_weather(self):
+        if not cfg.showWeather.value:
+            self.hide()
+            return
+        self.show()
+
+        if hasattr(self._home, '_cached_weather') and self._home._cached_weather:
+            self._update_display(self._home._cached_weather)
+        else:
+            self.currentTempLabel.setText("--°")
+            self.currentIconLabel.clear()
+
+    def _update_display(self, data):
+        if not data:
+            return
+
+        # 当前天气
+        temp = data.get("temp", data.get("current_temp", "--"))
+        temp_unit = data.get("unit", data.get("temp_unit", "℃"))
+        if temp_unit in ("℃", "°C", "C", "c"):
+            temp_unit = "℃"
+        elif temp_unit in ("℉", "°F", "F", "f"):
+            temp_unit = "℉"
+        self.currentTempLabel.setText(f"{temp}°")
+
+        # 城市
+        city = data.get("city", cfg.city.value)
+        self.cityLabel.setText(city)
+
+        icon_code = data.get("icon", data.get("weather_code"))
+        if icon_code is not None and icon_code != "":
+            from services.weather import WeatherService
+            try:
+                code_int = int(icon_code)
+            except (ValueError, TypeError):
+                code_int = 0
+            icon_path = WeatherService.get_weather_icon_path(
+                WeatherService.ICON_MAP.get(code_int, f"{code_int}.svg")
+            )
+            if icon_path and os.path.exists(icon_path):
+                icon_size = cfg.weatherIconSize.value
+                pixmap = QPixmap(icon_path)
+                if not pixmap.isNull():
+                    self.currentIconLabel.setPixmap(
+                        pixmap.scaled(icon_size, icon_size,
+                                      Qt.AspectRatioMode.KeepAspectRatio,
+                                      Qt.TransformationMode.SmoothTransformation)
+                    )
+
+        # 逐小时数据
+        self._fetch_hourly()
+
+    def _fetch_hourly(self):
+        """获取逐小时天气数据"""
+        try:
+            from services.weather import RegionDatabase, WEATHER_API_URL, WEATHER_API_APPKEY, WEATHER_API_SIGN
+            import requests as _requests
+
+            city = cfg.city.value
+            city_db = RegionDatabase()
+            city_code = city_db.get_code(city)
+            if not city_code:
+                city_code = "101010100"
+            location_key = f"weathercn:{city_code}"
+
+            api_url = (
+                f"{WEATHER_API_URL}?locationKey={location_key}"
+                f"&latitude=39.9042&longitude=116.4074"
+                f"&appKey={WEATHER_API_APPKEY}&sign={WEATHER_API_SIGN}"
+                f"&isGlobal=false&locale=zh_cn"
+            )
+            from threading import Thread
+
+            def _fetch():
+                try:
+                    resp = _requests.get(api_url, timeout=10)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        hourly = data.get("forecastHourly", {})
+                        temps = hourly.get("temperature", {})
+                        weathers = hourly.get("weather", {})
+                        temp_values = temps.get("value", [])
+                        weather_values = weathers.get("value", [])
+                        temp_unit = temps.get("unit", "℃")
+                        pub_time = temps.get("pubTime", "")
+                        if temp_values and weather_values:
+                            self._hourly_data = {
+                                "temps": temp_values,
+                                "weather_codes": weather_values,
+                                "unit": temp_unit,
+                                "pub_time": pub_time,
+                            }
+                            QTimer.singleShot(0, self._update_hourly_display)
+                except Exception as e:
+                    logger.warning(f"逐小时天气获取失败: {e}")
+
+            Thread(target=_fetch, daemon=True).start()
+        except Exception as e:
+            logger.warning(f"逐小时天气请求异常: {e}")
+
+    def _update_hourly_display(self):
+        if not self._hourly_data:
+            return
+
+        from services.weather import WeatherService
+
+        temps = self._hourly_data["temps"]
+        weather_codes = self._hourly_data["weather_codes"]
+        unit = self._hourly_data["unit"]
+        pub_time = self._hourly_data.get("pub_time", "")
+
+        if unit in ("℃", "°C", "C", "c"):
+            disp_unit = "℃"
+        elif unit in ("℉", "°F", "F", "f"):
+            disp_unit = "℉"
+        else:
+            disp_unit = "℃"
+
+        # 起始小时
+        start_hour = 0
+        try:
+            if pub_time:
+                from datetime import datetime
+                dt = datetime.fromisoformat(pub_time)
+                start_hour = dt.hour
+        except Exception:
+            pass
+
+        # 更新 6 个小时
+        for i in range(6):
+            time_label, icon_label, temp_label = self._hourly_widgets[i]
+            if i < len(temps) and i < len(weather_codes):
+                hour = (start_hour + i) % 24
+                time_label.setText(f"{hour:02d}:00")
+
+                code = int(weather_codes[i])
+                icon_name = WeatherService.ICON_MAP.get(code, "2.svg")
+                icon_path = WeatherService.get_weather_icon_path(icon_name)
+                if icon_path and os.path.exists(icon_path):
+                    pixmap = QPixmap(icon_path)
+                    if not pixmap.isNull():
+                        icon_label.setPixmap(
+                    pixmap.scaled(28, 28,
+                                  Qt.AspectRatioMode.KeepAspectRatio,
+                                  Qt.TransformationMode.SmoothTransformation)
+                )
+                else:
+                    icon_label.clear()
+
+                temp_label.setText(f"{temps[i]}°")
+            else:
+                time_label.setText("--:00")
+                icon_label.clear()
+                temp_label.setText("--°")
+
+        self._apply_style()
+
+    def _update_icon_size(self):
+        self._update_display(
+            {"temp": self.currentTempLabel.text().rstrip("°℃"),
+             "weather_code": 0}
+        )
+
+    def _apply_style(self):
+        color = cfg.weatherTextColor.value
+        color_str = color.name() if hasattr(color, 'name') else str(color)
+
+        self.cityLabel.setStyleSheet(f"""
+            color: {color_str};
+            font-size: 14px;
+            font-family: {FONT_FAMILY};
+            background-color: transparent;
+            opacity: 0.7;
+            padding-bottom: 2px;
+        """)
+
+        self.currentTempLabel.setStyleSheet(f"""
+            color: {color_str};
+            font-size: 52px;
+            font-weight: 300;
+            font-family: {FONT_FAMILY};
+            background-color: transparent;
+            line-height: 1.0;
+        """)
+
+        self.alertLabel.setStyleSheet(f"""
+            color: #ff6b6b;
+            font-size: 12px;
+            font-family: {FONT_FAMILY};
+            background-color: transparent;
+        """)
+
+        for time_label, icon_label, temp_label in self._hourly_widgets:
+            time_label.setStyleSheet(f"""
+                color: {color_str};
+                font-size: 12px;
+                font-family: {FONT_FAMILY};
+                background-color: transparent;
+                opacity: 0.7;
+            """)
+            temp_label.setStyleSheet(f"""
+                color: {color_str};
+                font-size: 12px;
+                font-family: {FONT_FAMILY};
+                background-color: transparent;
+            """)
+
         self.updateSize()
 
 
@@ -2636,11 +3233,12 @@ class PoetryOneLineComponent(DraggableContainer):
 
         layout = self.inner_layout
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.setContentsMargins(24, 14, 24, 14)
+        layout.setContentsMargins(24, 20, 24, 20)
         layout.addWidget(self.poetryLabel)
 
-        self.setMinimumSize(320, 48)
-        self.adjustSize()
+        self.setMinimumSize(400, 200)
+        self._size_explicitly_set = True
+        self.resize(400, 200)
         self._apply_style()
 
     def _setup_timer(self):
@@ -2651,7 +3249,7 @@ class PoetryOneLineComponent(DraggableContainer):
         cfg.showPoetry.valueChanged.connect(self._refresh_poetry)
         cfg.poetryApiUrl.valueChanged.connect(self._refresh_poetry)
         cfg.poetryUpdateInterval.valueChanged.connect(self._update_interval)
-        cfg.poetryColor.valueChanged.connect(self._apply_style) 
+        cfg.poetryTextColor.valueChanged.connect(self._apply_style) 
         cfg.poetrySize.valueChanged.connect(self._apply_style)
 
         if hasattr(self._home, 'poetry_updated'):
@@ -2684,7 +3282,7 @@ class PoetryOneLineComponent(DraggableContainer):
             self.poetryLabel.setText("")
 
     def _apply_style(self):
-        color = cfg.poetryColor.value   
+        color = cfg.poetryTextColor.value   
         color_str = color.name() if hasattr(color, 'name') else str(color)
         size = cfg.poetrySize.value
 
@@ -2714,11 +3312,12 @@ class CountdownEventComponent(DraggableContainer):
 
         layout = self.inner_layout
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.setContentsMargins(24, 14, 24, 14)
+        layout.setContentsMargins(24, 20, 24, 20)
         layout.addWidget(self.countdownLabel)
 
-        self.setMinimumSize(280, 56)
-        self.adjustSize()
+        self.setMinimumSize(200, 200)
+        self._size_explicitly_set = True
+        self.resize(200, 200)
         self._apply_style()
 
     def _setup_timer(self):
@@ -2833,13 +3432,14 @@ class SchoolInfoComponent(DraggableContainer):
 
         layout = self.inner_layout
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.setContentsMargins(20, 10, 20, 10)
-        layout.setSpacing(4)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(6)
         layout.addWidget(self.classLabel)
         layout.addWidget(self.nameLabel)
 
-        self.setMinimumSize(140, 48)
-        self.adjustSize()
+        self.setMinimumSize(200, 200)
+        self._size_explicitly_set = True
+        self.resize(200, 200)
         self._update_info()
 
     def _update_info(self):
@@ -2872,11 +3472,13 @@ class MediaPlayerComponent(DraggableContainer):
 
         layout = self.inner_layout
         layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(0)
         layout.addWidget(self.mediaWidget)
 
-        self.adjustSize()
+        self.setMinimumSize(400, 200)
+        self._size_explicitly_set = True
+        self.resize(400, 200)
 
     def _setup_timer(self):
         cfg.showMediaInfo.valueChanged.connect(self._on_visibility_changed)
@@ -2904,11 +3506,12 @@ class QuickLaunchDockComponent(DraggableContainer):
 
         layout = self.inner_layout
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setContentsMargins(20, 16, 20, 16)
         layout.addWidget(self.dock)
 
-        self.setMinimumSize(280, 72)
-        self.adjustSize()
+        self.setMinimumSize(400, 200)
+        self._size_explicitly_set = True
+        self.resize(400, 200)
 
         # 加载应用
         apps = cfg.quickLaunchApps.value
@@ -2939,6 +3542,7 @@ class QuickLaunchDockComponent(DraggableContainer):
 
 COMPONENT_STYLES["clock"]["digital"]["class"] = DigitalClockComponent
 COMPONENT_STYLES["weather"]["icon_temp"]["class"] = WeatherIconTempComponent
+COMPONENT_STYLES["weather"]["hourly"]["class"] = WeatherHourlyComponent
 COMPONENT_STYLES["poetry"]["one_line"]["class"] = PoetryOneLineComponent
 COMPONENT_STYLES["countdown"]["event"]["class"] = CountdownEventComponent
 COMPONENT_STYLES["school_info"]["class_info"]["class"] = SchoolInfoComponent

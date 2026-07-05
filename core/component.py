@@ -406,6 +406,18 @@ BUILTIN_COMPONENT_DEFINITIONS = [
         default_config={"show_icon": True},
     ),
     ComponentDefinition(
+        id="weather_hourly",
+        display_name="逐小时天气",
+        category="Weather",
+        icon="WeatherSunny",
+        min_width_cells=4,
+        min_height_cells=2,
+        default_width_cells=4,
+        default_height_cells=2,
+        resize_mode=ResizeMode.HORIZONTAL,
+        default_config={},
+    ),
+    ComponentDefinition(
         id="poetry_one_line",
         display_name="一言",
         category="Info",
