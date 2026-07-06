@@ -2923,12 +2923,11 @@ class WeatherHourlyComponent(DraggableContainer):
         left_col.setStyleSheet("background-color: transparent;")
         left_layout = QVBoxLayout(left_col)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(0)
+        left_layout.setSpacing(2)
 
         # 能点击城市标签
         self.cityLabel = QLabel("--")
         self.cityLabel.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        self.cityLabel.setStyleSheet("padding-bottom: 2px;")
         self.cityLabel.setCursor(Qt.CursorShape.PointingHandCursor)
         self.cityLabel.setToolTip(tr("weather_service.select_region"))
 
@@ -2937,6 +2936,7 @@ class WeatherHourlyComponent(DraggableContainer):
 
         left_layout.addWidget(self.cityLabel)
         left_layout.addWidget(self.currentTempLabel)
+        left_layout.addStretch()
 
         # 右侧：图标 预警
         right_col = QWidget()
@@ -2947,13 +2947,15 @@ class WeatherHourlyComponent(DraggableContainer):
 
         self.currentIconLabel = QLabel()
         self.currentIconLabel.setAlignment(Qt.AlignmentFlag.AlignRight)
-        self.currentIconLabel.setFixedSize(36, 36)
+        #TODO
+        self.currentIconLabel.setFixedSize(60, 60)
 
         self.alertLabel = QLabel("")
         self.alertLabel.setAlignment(Qt.AlignmentFlag.AlignRight)
 
         right_layout.addWidget(self.currentIconLabel)
         right_layout.addWidget(self.alertLabel)
+        right_layout.addStretch()
 
         top_layout.addWidget(left_col)
         top_layout.addStretch()
@@ -3070,7 +3072,7 @@ class WeatherHourlyComponent(DraggableContainer):
             pixmap = QPixmap(icon_path)
             if not pixmap.isNull():
                 self.currentIconLabel.setPixmap(
-                    pixmap.scaled(36, 36,
+                    pixmap.scaled(42, 42,
                                   Qt.AspectRatioMode.KeepAspectRatio,
                                   Qt.TransformationMode.SmoothTransformation)
                 )
@@ -3199,11 +3201,10 @@ class WeatherHourlyComponent(DraggableContainer):
 
         self.cityLabel.setStyleSheet(f"""
             color: {color_str};
-            font-size: 14px;
+            font-size: 16px;
             font-family: {FONT_FAMILY};
             background-color: transparent;
             opacity: 0.7;
-            padding-bottom: 2px;
         """)
 
         self.currentTempLabel.setStyleSheet(f"""
