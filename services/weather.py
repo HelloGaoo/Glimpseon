@@ -19,6 +19,7 @@
 这个有参考classisland和classwidgets
 """
 
+import json
 import logging
 import os
 import sqlite3
@@ -157,17 +158,20 @@ class WeatherService:
     def set_city_code(self, city_code: str):
         self.city_code = city_code
 
-    def get_weather(self) -> Optional[Dict[str, Any]]:
+    def fetch_all(self) -> Optional[Dict[str, Any]]:
+        """请求天气数据"""
         try:
             location_key = f"weathercn:{self.city_code}"
+            lat = cfg.latitude.value if cfg.latitude.value else 39.9042
+            lon = cfg.longitude.value if cfg.longitude.value else 116.4074
             params = {
                 **self.api_params,
                 "locationKey": location_key,
-                "latitude": "39.9042",
-                "longitude": "116.4074"
+                "latitude": str(lat),
+                "longitude": str(lon)
             }
 
-            logger.info(f"正在请求天气数据，城市代码：{self.city_code}")
+            logger.info(f"请求天气API，城市代码：{self.city_code}")
             response = requests.get(self.base_url, params=params, timeout=10)
 
             if response.status_code != 200:
@@ -175,9 +179,10 @@ class WeatherService:
                 return None
 
             data = response.json()
+            logger.info(f"[API] {json.dumps(data, ensure_ascii=False)}")
 
             if 'current' not in data:
-                logger.error("天气数据中缺少 current 字段")
+                logger.error("天气返回不完整")
                 return None
 
             current = data['current']
@@ -193,17 +198,10 @@ class WeatherService:
                 weather_code = 0
                 logger.warning(f"天气代码无效：{weather_code}")
 
-            weather_text, weather_icon = self.WEATHER_MAP.get(weather_code, ("未知", "2.svg"))
+            weather_text, _ = self.WEATHER_MAP.get(weather_code, ("未知", "2.svg"))
 
-            result = {
-                'temperature': f"{temp_value}{temp_unit}",
-                'weather_text': weather_text,
-                'weather_code': weather_code,
-                'weather_icon': weather_icon
-            }
-
-            logger.info(f"天气数据获取成功：{result}")
-            return result
+            logger.info(f"天气数据获取成功")
+            return data
 
         except requests.exceptions.Timeout:
             logger.error("天气 API 请求超时")
@@ -224,6 +222,105 @@ class WeatherService:
             base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
         return os.path.join(base_dir, 'resource', 'icons', 'weather', icon_name)
+
+    @staticmethod
+    def parse_hourly(hourly: dict) -> Optional[Dict[str, Any]]:
+        """解析 forecastHourly"""
+        if not hourly:
+            return None
+
+        temps_obj = hourly.get("temperature", {})
+        weathers_obj = hourly.get("weather", {})
+        temp_values = temps_obj.get("value", [])
+        weather_values = weathers_obj.get("value", [])
+        temp_unit = temps_obj.get("unit", "℃")
+        pub_time = temps_obj.get("pubTime", "")
+
+        hours = []
+        for i in range(min(24, len(temp_values))):
+            weather_code = 0
+            if i < len(weather_values):
+                val = weather_values[i]
+                try:
+                    weather_code = int(val)
+                except (ValueError, TypeError):
+                    if isinstance(val, dict):
+                        weather_code = int(val.get("day", val.get("night", 0)))
+                    elif isinstance(val, list) and len(val) > 0:
+                        weather_code = int(val[0])
+
+            icon_name = WeatherService.ICON_MAP.get(weather_code, "2.svg")
+            hours.append({
+                "temp": temp_values[i] if i < len(temp_values) else "--",
+                "weather_code": weather_code,
+                "icon": icon_name,
+            })
+
+        return {
+            "hours": hours,
+            "unit": temp_unit,
+            "pub_time": pub_time,
+        }
+
+    @staticmethod
+    def parse_daily(daily: dict) -> Optional[Dict[str, Any]]:
+        """解析 forecastDaily"""
+        if not daily:
+            return None
+
+        weather_obj = daily.get("weather", {})
+        weather_values = weather_obj.get("value", [])
+
+        temp_obj = daily.get("temperature", {})
+        temp_values = temp_obj.get("value", [])
+
+        days = []
+        for i in range(min(15, len(temp_values))):
+            weather_code = 0
+            if i < len(weather_values):
+                val = weather_values[i]
+                try:
+                    weather_code = int(val)
+                except (ValueError, TypeError):
+                    if isinstance(val, dict):
+                        # API 返回 {'from': 白天code, 'to': 夜间code} 或 {'day': ..., 'night': ...}
+                        weather_code = int(val.get("from", val.get("day", val.get("night", 0))))
+                    elif isinstance(val, list) and len(val) > 0:
+                        weather_code = int(val[0])
+
+            high = "--"
+            low = "--"
+            if i < len(temp_values):
+                val = temp_values[i]
+                if isinstance(val, dict):
+                    # API 返回 {'from': 高温, 'to': 低温} (与常识相反)
+                    from_val = val.get("from", val.get("value", "--"))
+                    to_val = val.get("to", val.get("value", "--"))
+                    # 根据数值大小判断高低
+                    try:
+                        from_num = float(from_val)
+                        to_num = float(to_val)
+                        high = str(max(from_num, to_num))
+                        low = str(min(from_num, to_num))
+                    except (ValueError, TypeError):
+                        high = str(from_val)
+                        low = str(to_val)
+                elif isinstance(val, (list, tuple)):
+                    low = str(val[0]) if len(val) > 0 else "--"
+                    high = str(val[1]) if len(val) > 1 else str(val[0])
+                else:
+                    high = str(val)
+                    low = str(val)
+
+            icon_name = WeatherService.ICON_MAP.get(weather_code, "2.svg")
+            days.append({
+                "weather_code": weather_code,
+                "icon": icon_name,
+                "high": high,
+                "low": low,
+            })
+
+        return {"days": days}
 
 
 class RegionDatabase:

@@ -332,7 +332,7 @@ def save_cache(cache_name: str, content: Any, interval_str: str = "30分钟"):
         return False
 
 
-def load_cache(cache_name: str) -> Optional[dict]:
+def load_cache(cache_name: str, ignore_expiry: bool = False) -> Optional[dict]:
     cache_path = get_cache_path(cache_name)
 
     if not os.path.exists(cache_path):
@@ -350,8 +350,12 @@ def load_cache(cache_name: str) -> Optional[dict]:
             return cache_data
 
         if now >= expires_at:
-            logger.debug(f"缓存已过期: {cache_name}")
-            return None
+            if ignore_expiry:
+                logger.info(f"缓存过期临时使用: {cache_name}")
+                return cache_data
+            else:
+                logger.debug(f"缓存过期: {cache_name}")
+                return None
 
         logger.debug(f"读取缓存成功: {cache_name}, 剩余有效期: {int(expires_at - now)}秒")
         return cache_data
@@ -360,11 +364,23 @@ def load_cache(cache_name: str) -> Optional[dict]:
         return None
 
 
-def get_cached_content(cache_name: str) -> Optional[Any]:
-    cache_data = load_cache(cache_name)
+def get_cached_content(cache_name: str, ignore_expiry: bool = False) -> Optional[Any]:
+    cache_data = load_cache(cache_name, ignore_expiry)
     if cache_data:
         return cache_data.get("content")
     return None
+
+
+def is_cache_expired(cache_name: str) -> bool:
+    """检查缓存是否过期"""
+    cache_data = load_cache(cache_name, ignore_expiry=True)
+    if not cache_data:
+        return True  # 不存在视为过期
+    now = time.time()
+    expires_at = cache_data.get("expires_at", 0)
+    if expires_at == float('inf'):
+        return False
+    return now >= expires_at
 
 
 def is_cache_valid(cache_name: str) -> bool:

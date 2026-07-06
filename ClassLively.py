@@ -1587,7 +1587,7 @@ class Preloader(QThread):
 
         from core.utils import get_cached_content, save_cache
 
-        cached = get_cached_content("wallpaper")
+        cached = get_cached_content("wallpaper", ignore_expiry=True)  # 过期也显示旧的
         if cached and os.path.exists(cached.get('path', '')):
             self.sig_wp.emit(cached['path'], cached.get('source', ''), cached.get('url', ''))
             return
@@ -1629,26 +1629,31 @@ class Preloader(QThread):
 
         from core.utils import get_cached_content, save_cache
         import requests
-        from services.weather import RegionDatabase, WEATHER_API_URL, WEATHER_API_APPKEY, WEATHER_API_SIGN
+        from services.weather import RegionDatabase, WeatherService, WEATHER_API_URL, WEATHER_API_APPKEY, WEATHER_API_SIGN
 
         cached = get_cached_content("weather")
         if cached:
             if not self._stop:
-                self.sig_wt.emit({'temp': cached.get('current_temp', '?'), 'unit': cached.get('temp_unit', '°C'), 'code': cached.get('weather_code')})
+                data = {
+                    'current_temp': cached.get('current_temp', cached.get('temp', '?')),
+                    'temp_unit': cached.get('temp_unit', cached.get('unit', '°C')),
+                    'weather_code': cached.get('weather_code', cached.get('code')),
+                    'forecast_hourly': cached.get('forecast_hourly', {}),
+                    'forecast_daily': cached.get('forecast_daily', {}),
+                }
+                self.sig_wt.emit(data)
             return
 
         if self._stop: return
-        code = RegionDatabase().get_code(cfg.city.value) or "101010100"
-        resp = requests.get(
-            f"{WEATHER_API_URL}?locationKey=weathercn:{code}&latitude=39.9042&longitude=116.4074&appKey={WEATHER_API_APPKEY}&sign={WEATHER_API_SIGN}&isGlobal=false&locale=zh_cn",
-            timeout=10
-        )
-        if resp.status_code == 200:
-            c = resp.json().get('current', {})
-            t = c.get('temperature', {})
-            data = {'temp': t.get('value', 0), 'unit': t.get('unit', '°C'), 'code': c.get('weather', 0)}
-            save_cache("weather", data, cfg.weatherUpdateInterval.value)
-            if not self._stop: self.sig_wt.emit(data)
+        code = RegionDatabase().get_code(cfg.city.value) or cfg.cityCode.value or "101010100"
+        try:
+            ws = WeatherService(code)
+            data = ws.fetch_all()
+            if data:
+                save_cache("weather", data, cfg.weatherUpdateInterval.value)
+                if not self._stop: self.sig_wt.emit(data)
+        except Exception as e:
+            logger.error(f"[PRELOAD] 天气预加载失败: {e}")
 
     def _load_po(self):
         if self._stop: return
@@ -1865,7 +1870,7 @@ if __name__ == "__main__":
             if not hi: return
             # 更新缓存
             hi._cached_weather = weather_data
-            hi.current_weather_code = weather_data.get('code')
+            hi.current_weather_code = weather_data.get('weather_code')
             hi.weather_updated.emit(weather_data)
         except Exception as e:
             logger.error(f"[PRELOAD-UI] wt: {e}")

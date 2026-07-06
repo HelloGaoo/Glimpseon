@@ -662,13 +662,13 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
                         wallpaper.historyWidget.refresh()
                 wallpaper.infoCard.updateInfo(wallpaper_path, source)
                 self._batchSuccess += 1
-                self.batchWallpaperLog.append(f"[{idx}/{total}] ✓ 成功 - {source}")
+                self.batchWallpaperLog.append(f"[{idx}/{total}] 成功 - {source}")
             else:
                 self._batchFail += 1
-                self.batchWallpaperLog.append(f"[{idx}/{total}] ✗ 失败 - HTTP {response.status_code}")
+                self.batchWallpaperLog.append(f"[{idx}/{total}] 失败 - HTTP {response.status_code}")
         except Exception as e:
             self._batchFail += 1
-            self.batchWallpaperLog.append(f"[{idx}/{total}] ✗ 错误 - {str(e)}")
+            self.batchWallpaperLog.append(f"[{idx}/{total}] 错误 - {str(e)}")
         self._batchWallpaperIndex += 1
         self._updateBatchProgress()
         QTimer.singleShot(800, self._batchGetNextWallpaper)
@@ -779,16 +779,16 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
                     elif r[0] == "dns_fail":
                         self.networkDnsLabel.setText(f"失败 ({r[1]})")
                     elif r[0] == "conn_ok":
-                        self.networkConnectLabel.setText("✓ 正常")
+                        self.networkConnectLabel.setText("正常")
                         self.networkLatencyLabel.setText(f"{r[1]:.0f} ms")
                     elif r[0] == "conn_timeout":
-                        self.networkConnectLabel.setText("✗ 超时")
+                        self.networkConnectLabel.setText("超时")
                         self.networkLatencyLabel.setText(">5000ms")
                     elif r[0] == "conn_fail":
-                        self.networkConnectLabel.setText("✗ 失败")
+                        self.networkConnectLabel.setText("失败")
                         self.networkLatencyLabel.setText("-")
                     elif r[0] == "poetry_ok":
-                        self.networkPoetryLabel.setText(f"✓ {r[1]:.0f}ms")
+                        self.networkPoetryLabel.setText(f"{r[1]:.0f}ms")
                     elif r[0] == "poetry_http":
                         self.networkPoetryLabel.setText(f"HTTP {r[1]}")
                     elif r[0] == "poetry_fail":
@@ -952,12 +952,12 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             api_url = cfg.poetryApiUrl.value
             response = requests.get(api_url, timeout=10)
             elapsed = (time.time() - start_time) * 1000
-            self.poetryResultLabel.setText(f"✓ 成功 ({elapsed:.0f}ms): {response.text[:50]}")
+            self.poetryResultLabel.setText(f"成功 ({elapsed:.0f}ms): {response.text[:50]}")
             self.rawDataEdit.setText(response.text)
             InfoBar.success(title=tr("debug.api_test"), content=tr("debug.poetry_api_success"), parent=self, duration=2000)
         except Exception as e:
             elapsed = (time.time() - start_time) * 1000
-            self.poetryResultLabel.setText(f"✗ 失败 ({elapsed:.0f}ms): {str(e)}")
+            self.poetryResultLabel.setText(f"失败 ({elapsed:.0f}ms): {str(e)}")
             logger.error(f"一言 API 测试失败：{e}")
             InfoBar.error(title=tr("debug.api_test"), content=tr("debug.poetry_api_failed").format(error=str(e)), parent=self, duration=3000)
 
@@ -969,19 +969,19 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             city_code = city_db.get_code(city_name)
             if not city_code: city_code = "101010100"
             weather_service = WeatherService(city_code)
-            weather_data = weather_service.get_weather()
+            weather_data = weather_service.fetch_all()
             elapsed = (time.time() - start_time) * 1000
             if weather_data:
-                self.weatherResultLabel.setText(f"✓ 成功 ({elapsed:.0f}ms): {weather_data['weather_text']} {weather_data['temperature']}")
-                self.rawDataEdit.setText(f"温度：{weather_data['temperature']}\n天气：{weather_data['weather_text']}\n代码：{weather_data['weather_code']}\n图标：{weather_data['weather_icon']}")
-                InfoBar.success(title=tr("debug.api_test"), content=tr("debug.weather_api_success").format(weather=weather_data['weather_text'], temp=weather_data['temperature']), parent=self, duration=2000)
+                self.weatherResultLabel.setText(f"成功 ({elapsed:.0f}ms): {weather_data['weather']} {weather_data['current_temp']}{weather_data['temp_unit']}")
+                self.rawDataEdit.setText(f"温度：{weather_data['current_temp']}{weather_data['temp_unit']}\n天气：{weather_data['weather']}\n代码：{weather_data['weather_code']}\n逐小时：{len(weather_data.get('forecast_hourly', {}).get('temperature', {}).get('value', []))}条\n每日：{len(weather_data.get('forecast_daily', {}).get('temperature', {}).get('value', []))}条")
+                InfoBar.success(title=tr("debug.api_test"), content=tr("debug.weather_api_success").format(weather=weather_data['weather'], temp=f"{weather_data['current_temp']}{weather_data['temp_unit']}"), parent=self, duration=2000)
             else:
-                self.weatherResultLabel.setText(f"✗ 失败 ({elapsed:.0f}ms): 未获取到数据")
+                self.weatherResultLabel.setText(f"失败 ({elapsed:.0f}ms): 未获取到数据")
                 self.rawDataEdit.setText(tr("debug.status_empty_data"))  # 暂无数据
                 InfoBar.warning(title=tr("debug.api_test"), content=tr("debug.weather_no_data"), parent=self, duration=3000)
         except Exception as e:
             elapsed = (time.time() - start_time) * 1000
-            self.weatherResultLabel.setText(f"✗ 失败 ({elapsed:.0f}ms): {str(e)}")
+            self.weatherResultLabel.setText(f"失败 ({elapsed:.0f}ms): {str(e)}")
             logger.error(f"天气 API 测试失败：{e}")
             InfoBar.error(title=tr("debug.api_test"), content=tr("debug.weather_api_failed").format(error=str(e)), parent=self, duration=3000)
 

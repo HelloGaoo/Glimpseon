@@ -28,7 +28,6 @@ import sys
 import time
 
 import cnlunar
-import requests
 import win32gui
 import win32ui
 from PIL import Image
@@ -97,9 +96,9 @@ from qfluentwidgets import (
 from core.config import cfg, save_cfg
 from core.constants import APP_NAME, BASE_DIR, get_resPath, load_qss
 from core.logger import logger
-from core.utils import get_cached_content, save_cache, tr, TranslatableWidget, INTERVAL_MAP, precise_now, FUI
+from core.utils import get_cached_content, save_cache, tr, TranslatableWidget, INTERVAL_MAP, precise_now, FUI, is_cache_expired
 from data.software_list import get_software_icon_path
-from services.weather import WeatherService, RegionDatabase, RegionSelectorDialog, WEATHER_API_URL, WEATHER_API_APPKEY, WEATHER_API_SIGN
+from services.weather import WeatherService, RegionDatabase, RegionSelectorDialog
 from services.poetry import PoetryService
 from ui.component import DraggableContainer, DraggableWidget, MediaWidget, QuickLaunchDock, resolve_app_from_path
 
@@ -375,6 +374,9 @@ class HomeInterface(QWidget, TranslatableWidget):
         weatherLayout.setSpacing(10)
         self.weatherTempLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.weatherIconLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # 点击天气区域弹出城市选择
+        self.weatherTempLabel.mousePressEvent = self._onWeatherClicked
+        self.weatherIconLabel.mousePressEvent = self._onWeatherClicked
         weatherLayout.addWidget(self.weatherTempLabel)
         weatherLayout.addWidget(self.weatherIconLabel)
         self.weatherContainer.setMinimumSize(120, 52)
@@ -1076,7 +1078,7 @@ class HomeInterface(QWidget, TranslatableWidget):
         self.countdownRefreshTimer.start(1000)
 
         self.weatherTimer = QTimer(self)
-        self.weatherTimer.timeout.connect(self._refreshWeather)
+        self.weatherTimer.timeout.connect(self._checkAndRefreshWeather)
         cfg.weatherUpdateInterval.valueChanged.connect(self._updateWeatherInterval)
         cfg.showWeather.valueChanged.connect(self._refreshWeather)
         self._updateWeatherInterval()
@@ -1092,6 +1094,11 @@ class HomeInterface(QWidget, TranslatableWidget):
         QTimer.singleShot(0, self.loadComponentPositions)
         QTimer.singleShot(0, self._checkAndRefreshQuickLaunchIcons)
 
+    def _checkAndRefreshWeather(self):
+        """定时器回调"""
+        if is_cache_expired("weather"):
+            logger.info("定时检测：天气缓存过期 刷新")
+            self._refreshWeather()
 
     def _initMediaWidgetTimers(self):
         try:
@@ -1365,6 +1372,11 @@ class HomeInterface(QWidget, TranslatableWidget):
     border-radius: {radius}px;
     border: 1px solid {border_color};
 }}
+#weatherWeeklyContainer {{
+    background-color: {bg_color};
+    border-radius: {radius}px;
+    border: 1px solid {border_color};
+}}
 #schoolInfoContainer {{
     background-color: {bg_color};
     border-radius: {radius}px;
@@ -1407,13 +1419,51 @@ class HomeInterface(QWidget, TranslatableWidget):
 
     def _updateWeatherInterval(self):
         self.weatherTimer.stop()
-        # 先显示缓存天气
+        # 先显示缓存天气 过期了先临时显示旧数据
         self._showCachedWeather()
+
+        # 如果城市未设置，弹出选择对话框
+        city = cfg.city.value
+        if not city or city.strip() == "":
+            QTimer.singleShot(2000, self._promptCitySelection)
+            return
+
         interval_str = cfg.weatherUpdateInterval.value
         interval = self._parseInterval(interval_str)
         if interval == 0:
             return
+
+        if is_cache_expired("weather"):
+            logger.info("天气缓存过期 刷新")
+            self._refreshWeather()
+        else:
+            pass
+
         self.weatherTimer.start(interval)
+
+    def _promptCitySelection(self):
+        """弹出城市选择对话框"""
+        from services.weather import RegionSelectorDialog, RegionDatabase
+        dialog = RegionSelectorDialog(self.mainWindow)
+        if dialog.exec():
+            selected_region = dialog.get_selected_region()
+            if selected_region:
+                # 获取城市代码
+                db = RegionDatabase()
+                city_code = db.get_code(selected_region)
+
+                # 保存城市名称和城市代码
+                cfg.city.value = selected_region
+                if city_code:
+                    cfg.cityCode.value = city_code
+                    logger.info(f"天气设置：城市={selected_region}, 代码={city_code}")
+
+                self._refreshWeather()
+                # 启动定时器
+                interval_str = cfg.weatherUpdateInterval.value
+                interval = self._parseInterval(interval_str)
+                if interval > 0:
+                    self.weatherTimer.start(interval)
 
     def _showCachedPoetry(self):
         """缓存读取诗词显示"""
@@ -1430,7 +1480,7 @@ class HomeInterface(QWidget, TranslatableWidget):
             self.poetryContainer.setContentVisible(True)
         self.poetryLabel.show()
 
-        cached = get_cached_content("poetry")
+        cached = get_cached_content("poetry", ignore_expiry=True)  # 过期也显示旧的
         text = cached if cached else ""
         self.poetryLabel.setText(text)
         if hasattr(self, 'poetryContainer'):
@@ -1512,12 +1562,19 @@ class HomeInterface(QWidget, TranslatableWidget):
         self.weatherTempLabel.show()
         self.weatherIconLabel.show()
 
-        cached = get_cached_content("weather")
+        cached = get_cached_content("weather", ignore_expiry=True)  # 过期也显示旧的
         if cached:
             try:
-                current_temp = cached.get('current_temp') or cached.get('temp')
-                temp_unit = cached.get('temp_unit') or cached.get('unit', '°C')
-                weather_code = cached.get('weather_code') or cached.get('code')
+                current = cached.get("current", {})
+                temp_obj = current.get("temperature", {})
+                current_temp = temp_obj.get("value")
+                temp_unit = temp_obj.get("unit", "°C")
+                weather_code = current.get("weather", 0)
+                try:
+                    weather_code = int(weather_code)
+                except (ValueError, TypeError):
+                    weather_code = 0
+
                 if current_temp is not None:
                     weather_text = f"{current_temp}{temp_unit}"
                     self.weatherTempLabel.setText(weather_text)
@@ -1558,71 +1615,35 @@ class HomeInterface(QWidget, TranslatableWidget):
 
         success = False
         try:
-            city = cfg.city.value
-            logger.info(f"正在更新天气，使用城市：{city}")
+            # 优先使用配置中的城市代码
+            city_code = cfg.cityCode.value
+            if not city_code:
+                city = cfg.city.value
+                if city:
+                    city_db = RegionDatabase()
+                    city_code = city_db.get_code(city)
+            if not city_code:
+                city_code = "101010100"
 
-            city_db = RegionDatabase()
-            city_code = city_db.get_code(city)
+            ws = WeatherService(city_code)
+            cache_data = ws.fetch_all()
 
-            if city_code:
-                location_key = f"weathercn:{city_code}"
-            else:
-                location_key = "weathercn:101010100"
-                logger.warning(f"未找到城市 {city} 的代码，使用默认值")
+            if cache_data:
+                current_temp = cache_data["current_temp"]
+                temp_unit = cache_data["temp_unit"]
+                weather_code = cache_data["weather_code"]
 
-            logger.info(f"城市 {city} 对应的 locationKey: {location_key}")
+                self.weatherTempLabel.setText(f"{current_temp}{temp_unit}")
+                if hasattr(self, 'weatherContainer'):
+                    self.weatherContainer.updateSize()
 
-            api_url = f"{WEATHER_API_URL}?locationKey={location_key}&latitude=39.9042&longitude=116.4074&appKey={WEATHER_API_APPKEY}&sign={WEATHER_API_SIGN}&isGlobal=false&locale=zh_cn"
-            response = requests.get(api_url, timeout=10)
+                self.current_weather_code = weather_code
+                self._updateWeatherIcon()
 
-            if response.status_code == 200:
-                data = response.json()
-                if 'current' in data:
-                    current = data['current']
-
-                    temperature = current.get('temperature', {})
-                    current_temp = temperature.get('value', 0)
-                    temp_unit = temperature.get('unit', '°C')
-
-                    weather_code = current.get('weather', 0)
-                    try:
-                        weather_code = int(weather_code)
-                    except (ValueError, TypeError):
-                        weather_code = 0
-
-                    # weather_map = {
-                    #     0: tr("weather.sunny"), 1: tr("weather.cloudy"), 2: tr("weather.overcast"),
-                    #     3: tr("weather.shower"), 4: tr("weather.thundershower"),
-                    #     5: tr("weather.thundershower_with_hail"), 6: tr("weather.sleet"),
-                    #     7: tr("weather.light_rain"), 8: tr("weather.moderate_rain"),
-                    #     9: tr("weather.heavy_rain"), 10: tr("weather.rainstorm"),
-                    #     11: tr("weather.heavy_rainstorm"), 12: tr("weather.extreme_rainstorm"),
-                    #     13: tr("weather.snow_flurry"), 14: tr("weather.light_snow"),
-                    #     15: tr("weather.moderate_snow"), 16: tr("weather.heavy_snow"),
-                    #     17: tr("weather.snowstorm"), 18: tr("weather.fog"),
-                    #     19: tr("weather.freezing_rain"), 20: tr("weather.sandstorm"),
-                    # }
-                    weather = WeatherService.WEATHER_MAP.get(weather_code, (tr("common.unknown"),))[0]
-                    weather_text = f"{current_temp}{temp_unit}"
-                    self.weatherTempLabel.setText(weather_text)
-                    if hasattr(self, 'weatherContainer'):
-                        self.weatherContainer.updateSize()
-
-                    self.current_weather_code = weather_code
-                    self._updateWeatherIcon()
-
-                    cache_data = {
-                        "current_temp": current_temp,
-                        "temp_unit": temp_unit,
-                        "weather_code": weather_code,
-                        "weather": weather,
-                    }
-                    save_cache("weather", cache_data, cfg.weatherUpdateInterval.value)
-                    self._cached_weather = cache_data
-                    self.weather_updated.emit(cache_data)
-                    success = True
-            else:
-                logger.error(f"天气 API 请求失败，状态码：{response.status_code}")
+                save_cache("weather", cache_data, cfg.weatherUpdateInterval.value)
+                self._cached_weather = cache_data
+                self.weather_updated.emit(cache_data)
+                success = True
         except Exception as e:
             logger.error(f"天气更新失败：{e}")
 
@@ -2918,6 +2939,22 @@ class EditPanel(QWidget):
         cfg.weatherUpdateInterval.value = text
         self.mainWindow.refresh_weather_interval()
         logger.info(f"天气设置：更新间隔={text}")
+
+    def _onWeatherClicked(self, event):
+        """点击天气区域弹出城市选择"""
+        from services.weather import RegionSelectorDialog, RegionDatabase
+        dialog = RegionSelectorDialog(self.mainWindow)
+        if dialog.exec():
+            selected_region = dialog.get_selected_region()
+            if selected_region:
+                # 保存城市名称和代码
+                db = RegionDatabase()
+                city_code = db.get_code(selected_region)
+                cfg.city.value = selected_region
+                if city_code:
+                    cfg.cityCode.value = city_code
+                    logger.info(f"天气设置：城市={selected_region}, 代码={city_code}")
+                self._refreshWeather()
 
     def _onCityButtonClicked(self):
         """城市选择按钮点击"""

@@ -236,6 +236,9 @@ class Config(QConfig):
     city = ConfigItem(
         "Weather", "City", ""
     )
+    cityCode = ConfigItem(
+        "Weather", "CityCode", ""
+    )
     latitude = ConfigItem(
         "Weather", "Latitude", 39.9042
     )

@@ -75,7 +75,7 @@ from qfluentwidgets import InfoBar, isDarkTheme, RoundMenu, Action, FluentWindow
 from win32com.shell import shell, shellcon
 
 from core.config import cfg, save_cfg
-from core.utils import tr, FUI
+from core.utils import tr, FUI, get_cached_content, save_cache
 from services.media import MediaInfo, Lyrics, get_media_info, fetch_all_info, close as close_media
 from core.constants import BASE_DIR, load_qss
 from data.software_list import get_software_icon_path
@@ -123,6 +123,12 @@ COMPONENT_STYLES = {
             "class": None,
             "default_config": {},
             "default_size": (400, 200),
+        },
+        "weekly": {
+            "name": "逐日天气",
+            "class": None,
+            "default_config": {},
+            "default_size": (200, 200),
         },
     },
     "poetry": {
@@ -2814,7 +2820,7 @@ class WeatherIconTempComponent(DraggableContainer):
         cfg.weatherIconSize.valueChanged.connect(self._update_icon_size)
 
         if hasattr(self._home, 'weather_updated'):
-            self._home.weather_updated.connect(self._update_display)
+            self._home.weather_updated.connect(self._refresh_weather)
 
         self._update_interval()
         self._refresh_weather()
@@ -2830,10 +2836,9 @@ class WeatherIconTempComponent(DraggableContainer):
             return
         self.show()
 
-        # 加载缓存
-        if hasattr(self._home, '_cached_weather') and self._home._cached_weather:
-            data = self._home._cached_weather
-            self._update_display(data)
+        cached = get_cached_content("weather", ignore_expiry=True)  # 过期也显示旧数据
+        if cached:
+            self._update_display(cached)
         else:
             self.tempLabel.setText("--°")
             self.iconLabel.clear()
@@ -2841,23 +2846,39 @@ class WeatherIconTempComponent(DraggableContainer):
     def _update_display(self, data):
         if not data:
             return
-        temp = data.get("temp", "--")
-        icon_code = data.get("icon", "")
+
+        from services.weather import WeatherService
+
+        current = data.get("current", {})
+        temp_obj = current.get("temperature", {})
+        raw = temp_obj.get("value", "--")
+        try:
+            temp = int(round(float(raw)))
+        except (ValueError, TypeError):
+            temp = raw
         self.tempLabel.setText(f"{temp}°")
 
-        # 加载天气图标
-        if icon_code:
-            from services.weather import WeatherService
-            icon_path = WeatherService.get_icon_path(icon_code)
-            if icon_path:
-                icon_size = cfg.weatherIconSize.value
-                pixmap = QPixmap(icon_path)
-                if not pixmap.isNull():
-                    self.iconLabel.setPixmap(pixmap.scaled(icon_size, icon_size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        weather_code = current.get("weather", 0)
+        try:
+            weather_code = int(weather_code)
+        except (ValueError, TypeError):
+            weather_code = 0
+        icon_name = WeatherService.ICON_MAP.get(weather_code, "2.svg")
+        icon_path = WeatherService.get_weather_icon_path(icon_name)
+
+        weather_text = WeatherService.WEATHER_MAP.get(weather_code, ("未知", "2.svg"))[0]
+        logger.info(f"[WeatherComponent] 当前温度:{temp}° 天气代码:{weather_code} 天气:{weather_text} 图标:{icon_name}")
+
+        if icon_path and os.path.exists(icon_path):
+            icon_size = cfg.weatherIconSize.value
+            pixmap = QPixmap(icon_path)
+            if not pixmap.isNull():
+                self.iconLabel.setPixmap(pixmap.scaled(icon_size, icon_size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
 
     def _update_icon_size(self):
-        if hasattr(self._home, '_cached_weather') and self._home._cached_weather:
-            self._update_display(self._home._cached_weather)
+        cached = get_cached_content("weather")
+        if cached:
+            self._update_display(cached)
 
     def _apply_style(self):
         color = cfg.weatherTextColor.value
@@ -2904,9 +2925,12 @@ class WeatherHourlyComponent(DraggableContainer):
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(0)
 
+        # 能点击城市标签
         self.cityLabel = QLabel("--")
         self.cityLabel.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self.cityLabel.setStyleSheet("padding-bottom: 2px;")
+        self.cityLabel.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.cityLabel.setToolTip(tr("weather_service.select_region"))
 
         self.currentTempLabel = QLabel("--°")
         self.currentTempLabel.setAlignment(Qt.AlignmentFlag.AlignLeft)
@@ -2953,16 +2977,13 @@ class WeatherHourlyComponent(DraggableContainer):
 
             time_label = QLabel("--:00")
             time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            time_label.setObjectName(f"hourlyTime_{i}")
 
             icon_label = QLabel()
             icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             icon_label.setFixedSize(28, 28)
-            icon_label.setObjectName(f"hourlyIcon_{i}")
 
             temp_label = QLabel("--°")
             temp_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            temp_label.setObjectName(f"hourlyTemp_{i}")
 
             col_layout.addWidget(time_label)
             col_layout.addWidget(icon_label)
@@ -2988,11 +3009,9 @@ class WeatherHourlyComponent(DraggableContainer):
         cfg.showWeather.valueChanged.connect(self._refresh_weather)
         cfg.weatherUpdateInterval.valueChanged.connect(self._update_interval)
         cfg.weatherTextColor.valueChanged.connect(self._apply_style)
-        cfg.weatherSize.valueChanged.connect(self._apply_style)
-        cfg.weatherIconSize.valueChanged.connect(self._update_icon_size)
 
         if hasattr(self._home, 'weather_updated'):
-            self._home.weather_updated.connect(self._update_display)
+            self._home.weather_updated.connect(self._on_weather_updated)
 
         self._update_interval()
         self._refresh_weather()
@@ -3010,100 +3029,62 @@ class WeatherHourlyComponent(DraggableContainer):
             self.hide()
             return
         self.show()
+        self._update_from_cache()
 
-        if hasattr(self._home, '_cached_weather') and self._home._cached_weather:
-            self._update_display(self._home._cached_weather)
+    def _on_weather_updated(self):
+        """天气数据更新回调"""
+        self._update_from_cache()
+
+    def _update_from_cache(self):
+        from services.weather import WeatherService
+
+        wd = get_cached_content("weather", ignore_expiry=True)  # 过期也显示旧的
+
+        current_temp = "--"
+        current_icon_code = 0
+        if wd:
+            current = wd.get("current", {})
+            temp_obj = current.get("temperature", {})
+            raw = temp_obj.get("value", "--")
+            try:
+                current_temp = int(round(float(raw)))
+            except (ValueError, TypeError):
+                current_temp = raw
+            current_icon_code = current.get("weather", 0)
+            try:
+                current_icon_code = int(current_icon_code)
+            except (ValueError, TypeError):
+                current_icon_code = 0
+
+        self.cityLabel.setText(cfg.city.value)
+        self.currentTempLabel.setText(f"{current_temp}°")
+
+        icon_name = WeatherService.ICON_MAP.get(current_icon_code, "2.svg")
+        icon_path = WeatherService.get_weather_icon_path(icon_name)
+
+        # 日志 当前天气
+        weather_text = WeatherService.WEATHER_MAP.get(current_icon_code, ("未知", "2.svg"))[0]
+        logger.info(f"[WeatherHourly] 城市:{cfg.city.value} 当前温度:{current_temp}° 天气代码:{current_icon_code} 天气:{weather_text} 图标:{icon_name}")
+
+        if icon_path and os.path.exists(icon_path):
+            pixmap = QPixmap(icon_path)
+            if not pixmap.isNull():
+                self.currentIconLabel.setPixmap(
+                    pixmap.scaled(36, 36,
+                                  Qt.AspectRatioMode.KeepAspectRatio,
+                                  Qt.TransformationMode.SmoothTransformation)
+                )
+            else:
+                self.currentIconLabel.clear()
         else:
-            self.currentTempLabel.setText("--°")
             self.currentIconLabel.clear()
 
-    def _update_display(self, data):
-        if not data:
-            return
-
-        # 当前天气
-        temp = data.get("temp", data.get("current_temp", "--"))
-        temp_unit = data.get("unit", data.get("temp_unit", "℃"))
-        if temp_unit in ("℃", "°C", "C", "c"):
-            temp_unit = "℃"
-        elif temp_unit in ("℉", "°F", "F", "f"):
-            temp_unit = "℉"
-        self.currentTempLabel.setText(f"{temp}°")
-
-        # 城市
-        city = data.get("city", cfg.city.value)
-        self.cityLabel.setText(city)
-
-        icon_code = data.get("icon", data.get("weather_code"))
-        if icon_code is not None and icon_code != "":
-            from services.weather import WeatherService
-            try:
-                code_int = int(icon_code)
-            except (ValueError, TypeError):
-                code_int = 0
-            icon_path = WeatherService.get_weather_icon_path(
-                WeatherService.ICON_MAP.get(code_int, f"{code_int}.svg")
-            )
-            if icon_path and os.path.exists(icon_path):
-                icon_size = cfg.weatherIconSize.value
-                pixmap = QPixmap(icon_path)
-                if not pixmap.isNull():
-                    self.currentIconLabel.setPixmap(
-                        pixmap.scaled(icon_size, icon_size,
-                                      Qt.AspectRatioMode.KeepAspectRatio,
-                                      Qt.TransformationMode.SmoothTransformation)
-                    )
-
-        # 逐小时数据
-        self._fetch_hourly()
-
-    def _fetch_hourly(self):
-        """获取逐小时天气数据"""
-        try:
-            from services.weather import RegionDatabase, WEATHER_API_URL, WEATHER_API_APPKEY, WEATHER_API_SIGN
-            import requests as _requests
-
-            city = cfg.city.value
-            city_db = RegionDatabase()
-            city_code = city_db.get_code(city)
-            if not city_code:
-                city_code = "101010100"
-            location_key = f"weathercn:{city_code}"
-
-            api_url = (
-                f"{WEATHER_API_URL}?locationKey={location_key}"
-                f"&latitude=39.9042&longitude=116.4074"
-                f"&appKey={WEATHER_API_APPKEY}&sign={WEATHER_API_SIGN}"
-                f"&isGlobal=false&locale=zh_cn"
-            )
-            from threading import Thread
-
-            def _fetch():
-                try:
-                    resp = _requests.get(api_url, timeout=10)
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        hourly = data.get("forecastHourly", {})
-                        temps = hourly.get("temperature", {})
-                        weathers = hourly.get("weather", {})
-                        temp_values = temps.get("value", [])
-                        weather_values = weathers.get("value", [])
-                        temp_unit = temps.get("unit", "℃")
-                        pub_time = temps.get("pubTime", "")
-                        if temp_values and weather_values:
-                            self._hourly_data = {
-                                "temps": temp_values,
-                                "weather_codes": weather_values,
-                                "unit": temp_unit,
-                                "pub_time": pub_time,
-                            }
-                            QTimer.singleShot(0, self._update_hourly_display)
-                except Exception as e:
-                    logger.warning(f"逐小时天气获取失败: {e}")
-
-            Thread(target=_fetch, daemon=True).start()
-        except Exception as e:
-            logger.warning(f"逐小时天气请求异常: {e}")
+        if wd and wd.get("forecastHourly"):
+            parsed = WeatherService.parse_hourly(wd["forecastHourly"])
+            if parsed:
+                self._hourly_data = parsed
+                logger.info(f"[WeatherHourly] 逐小时解析结果: {json.dumps(parsed, ensure_ascii=False)}")
+                self._update_hourly_display()
 
     def _update_hourly_display(self):
         if not self._hourly_data:
@@ -3111,9 +3092,8 @@ class WeatherHourlyComponent(DraggableContainer):
 
         from services.weather import WeatherService
 
-        temps = self._hourly_data["temps"]
-        weather_codes = self._hourly_data["weather_codes"]
-        unit = self._hourly_data["unit"]
+        hours = self._hourly_data.get("hours", [])
+        unit = self._hourly_data.get("unit", "℃")
         pub_time = self._hourly_data.get("pub_time", "")
 
         if unit in ("℃", "°C", "C", "c"):
@@ -3123,7 +3103,6 @@ class WeatherHourlyComponent(DraggableContainer):
         else:
             disp_unit = "℃"
 
-        # 起始小时
         start_hour = 0
         try:
             if pub_time:
@@ -3133,28 +3112,30 @@ class WeatherHourlyComponent(DraggableContainer):
         except Exception:
             pass
 
-        # 更新 6 个小时
         for i in range(6):
             time_label, icon_label, temp_label = self._hourly_widgets[i]
-            if i < len(temps) and i < len(weather_codes):
+            if i < len(hours):
+                hour_data = hours[i]
                 hour = (start_hour + i) % 24
                 time_label.setText(f"{hour:02d}:00")
 
-                code = int(weather_codes[i])
-                icon_name = WeatherService.ICON_MAP.get(code, "2.svg")
+                icon_name = hour_data.get("icon", "2.svg")
                 icon_path = WeatherService.get_weather_icon_path(icon_name)
                 if icon_path and os.path.exists(icon_path):
                     pixmap = QPixmap(icon_path)
                     if not pixmap.isNull():
                         icon_label.setPixmap(
-                    pixmap.scaled(28, 28,
-                                  Qt.AspectRatioMode.KeepAspectRatio,
-                                  Qt.TransformationMode.SmoothTransformation)
-                )
+                            pixmap.scaled(28, 28,
+                                          Qt.AspectRatioMode.KeepAspectRatio,
+                                          Qt.TransformationMode.SmoothTransformation)
+                        )
+                    else:
+                        icon_label.clear()
                 else:
                     icon_label.clear()
 
-                temp_label.setText(f"{temps[i]}°")
+                temp = hour_data.get("temp", "--")
+                temp_label.setText(f"{temp}°")
             else:
                 time_label.setText("--:00")
                 icon_label.clear()
@@ -3162,11 +3143,55 @@ class WeatherHourlyComponent(DraggableContainer):
 
         self._apply_style()
 
-    def _update_icon_size(self):
-        self._update_display(
-            {"temp": self.currentTempLabel.text().rstrip("°℃"),
-             "weather_code": 0}
-        )
+    def mousePressEvent(self, event):
+        """城市标签单击打开选择城市"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            # 将事件坐标转换为城市标签的本地坐标进行检测
+            local_pos = self.cityLabel.mapFrom(self, event.pos())
+            if self.cityLabel.rect().contains(local_pos):
+                self._onCityLabelClicked()
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def _onCityLabelClicked(self):
+        """打开框"""
+        from services.weather import RegionSelectorDialog, RegionDatabase, WeatherService
+
+        # 主窗口
+        parent = getattr(self._home, 'mainWindow', None) or self._home
+
+        dialog = RegionSelectorDialog(parent)
+        if dialog.exec():
+            region = dialog.get_selected_region()
+            if not region:
+                return
+
+            # 保存城市名称和代码
+            db = RegionDatabase()
+            code = db.get_code(region)
+            cfg.city.value = region
+            if code:
+                cfg.cityCode.value = code
+                logger.info(f"[天气组件] 选择城市: {region} (code={code})")
+
+            self.cityLabel.setText(region)
+
+            # 请求
+            if not code:
+                code = "101010100"
+            try:
+                ws = WeatherService(code)
+                data = ws.fetch_all()
+                if data:
+                    if not save_cache("weather", data, cfg.weatherUpdateInterval.value):
+                        logger.warning("[天气组件] 缓存保存失败")
+                    if hasattr(self._home, '_cached_weather'):
+                        self._home._cached_weather = data
+                    self._home.weather_updated.emit(data)
+                    logger.info(f"[天气组件] 新城市天气获取成功")
+            except Exception as e:
+                logger.error(f"[天气组件] 新城市天气获取失败: {e}")
 
     def _apply_style(self):
         color = cfg.weatherTextColor.value
@@ -3208,6 +3233,406 @@ class WeatherHourlyComponent(DraggableContainer):
             temp_label.setStyleSheet(f"""
                 color: {color_str};
                 font-size: 12px;
+                font-family: {FONT_FAMILY};
+                background-color: transparent;
+            """)
+
+        self.updateSize()
+
+
+class WeatherWeeklyComponent(DraggableContainer):
+    """逐日天气组件"""
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName("weatherWeeklyContainer")
+        self._home = parent
+        self._daily_data = None
+        self._setup_ui()
+        self._setup_timer()
+
+    def _setup_ui(self):
+        layout = self.inner_layout
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(0)
+
+        # 上边：当前天气
+        top = QWidget()
+        top.setStyleSheet("background-color: transparent;")
+        top_layout = QHBoxLayout(top)
+        top_layout.setContentsMargins(0, 0, 0, 0)
+        top_layout.setSpacing(0)
+
+        # 左上：城市 当前温度
+        top_left = QWidget()
+        top_left.setStyleSheet("background-color: transparent;")
+        tl_layout = QVBoxLayout(top_left)
+        tl_layout.setContentsMargins(0, 0, 0, 0)
+        tl_layout.setSpacing(0)
+
+        self.city_row = QWidget()
+        self.city_row.setStyleSheet("background-color: transparent;")
+        city_layout = QHBoxLayout(self.city_row)
+        city_layout.setContentsMargins(0, 0, 0, 0)
+        city_layout.setSpacing(3)
+
+        self.cityLabel = QLabel("--")
+        self.cityLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
+        self.cityLabel.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.cityLabel.setToolTip(tr("weather_service.select_region"))
+
+        self.locationIcon = QLabel()
+        self.locationIcon.setFixedSize(12, 12)
+        self.locationIcon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.locationIcon.setStyleSheet("background-color: transparent;")
+
+        city_layout.addWidget(self.cityLabel)
+        city_layout.addWidget(self.locationIcon)
+        city_layout.addStretch()
+
+        self.currentTempLabel = QLabel("--°")
+        self.currentTempLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+
+        tl_layout.addWidget(self.city_row)
+        tl_layout.addSpacing(2)
+        tl_layout.addWidget(self.currentTempLabel)
+        tl_layout.addStretch()
+
+        # 右上：图标 高温 低温
+        top_right = QWidget()
+        top_right.setStyleSheet("background-color: transparent;")
+        tr_layout = QVBoxLayout(top_right)
+        tr_layout.setContentsMargins(0, 0, 0, 0)
+        tr_layout.setSpacing(0)
+        tr_layout.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
+
+        self.currentIconLabel = QLabel()
+        self.currentIconLabel.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.currentIconLabel.setFixedSize(30, 30)
+
+        self.highTempLabel = QLabel("--°")
+        self.highTempLabel.setAlignment(Qt.AlignmentFlag.AlignRight)
+
+        self.lowTempLabel = QLabel("--°")
+        self.lowTempLabel.setAlignment(Qt.AlignmentFlag.AlignRight)
+
+        tr_layout.addWidget(self.currentIconLabel, 0, Qt.AlignmentFlag.AlignRight)
+        tr_layout.addSpacing(1)
+        tr_layout.addWidget(self.highTempLabel, 0, Qt.AlignmentFlag.AlignRight)
+        tr_layout.addWidget(self.lowTempLabel, 0, Qt.AlignmentFlag.AlignRight)
+        tr_layout.addStretch()
+
+        top_layout.addWidget(top_left, 1)
+        top_layout.addWidget(top_right, 0)
+
+        # 下边：4天天气预报
+        bottom = QWidget()
+        bottom.setStyleSheet("background-color: transparent;")
+        bottom_layout = QVBoxLayout(bottom)
+        bottom_layout.setContentsMargins(0, 0, 0, 0)
+        bottom_layout.setSpacing(0)
+
+        self._forecast_rows = []
+        for i in range(4):
+            row = QWidget()
+            row.setStyleSheet("background-color: transparent;")
+            row.setFixedHeight(28)
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(0)
+
+            day_label = QLabel("--")
+            day_label.setFixedWidth(50)
+            day_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+
+            icon_label = QLabel()
+            icon_label.setFixedSize(22, 22)
+            icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            spacer1 = QLabel()
+            spacer1.setFixedWidth(8)
+
+            low_label = QLabel("--")
+            low_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            low_label.setObjectName(f"weeklyLow_{i}")
+
+            spacer2 = QLabel()
+            spacer2.setFixedWidth(10)
+
+            high_label = QLabel("--°")
+            high_label.setFixedWidth(32)
+            high_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            high_label.setObjectName(f"weeklyHigh_{i}")
+
+            row_layout.addWidget(day_label)
+            row_layout.addStretch()
+            row_layout.addWidget(icon_label)
+            row_layout.addStretch()
+            row_layout.addWidget(low_label)
+            row_layout.addWidget(spacer2)
+            row_layout.addWidget(high_label)
+
+            self._forecast_rows.append((day_label, icon_label, low_label, high_label))
+            bottom_layout.addWidget(row)
+
+        layout.addWidget(top)
+        layout.addStretch()
+        layout.addWidget(bottom)
+
+        self.setMinimumSize(200, 200)
+        self._size_explicitly_set = True
+        self.resize(200, 200)
+        self._apply_style()
+
+    def _setup_timer(self):
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._refresh_weather)
+        self.timer.start(1000)
+
+        cfg.showWeather.valueChanged.connect(self._refresh_weather)
+        cfg.weatherUpdateInterval.valueChanged.connect(self._update_interval)
+        cfg.weatherTextColor.valueChanged.connect(self._apply_style)
+
+        if hasattr(self._home, 'weather_updated'):
+            self._home.weather_updated.connect(self._on_weather_updated)
+
+        self._update_interval()
+        self._refresh_weather()
+
+    def _update_interval(self):
+        interval_map = {
+            "10s": 10000, "30s": 30000, "1m": 60000,
+            "5m": 300000, "10m": 600000, "30m": 1800000,
+        }
+        interval_str = cfg.weatherUpdateInterval.value
+        self.timer.setInterval(interval_map.get(interval_str, 300000))
+
+    def _refresh_weather(self):
+        if not cfg.showWeather.value:
+            self.hide()
+            return
+        self.show()
+        self._update_from_cache()
+
+    def _on_weather_updated(self):
+        """天气数据更新回调"""
+        self._update_from_cache()
+
+    def _update_from_cache(self):
+        from services.weather import WeatherService
+
+        wd = get_cached_content("weather", ignore_expiry=True)  # 过期也显示旧的
+
+        # 当前天气
+        current_temp = "--"
+        current_icon_code = 0
+        if wd:
+            current = wd.get("current", {})
+            temp_obj = current.get("temperature", {})
+            raw = temp_obj.get("value", "--")
+            try:
+                current_temp = int(round(float(raw)))
+            except (ValueError, TypeError):
+                current_temp = raw
+            current_icon_code = current.get("weather", 0)
+            try:
+                current_icon_code = int(current_icon_code)
+            except (ValueError, TypeError):
+                current_icon_code = 0
+
+        self.cityLabel.setText(cfg.city.value)
+        self.currentTempLabel.setText(f"{current_temp}°")
+
+        icon_name = WeatherService.ICON_MAP.get(current_icon_code, "2.svg")
+        icon_path = WeatherService.get_weather_icon_path(icon_name)
+
+        # 日志：当前天气
+        weather_text = WeatherService.WEATHER_MAP.get(current_icon_code, ("未知", "2.svg"))[0]
+        logger.info(f"[WeatherWeekly] 城市:{cfg.city.value} 当前温度:{current_temp}° 天气代码:{current_icon_code} 天气:{weather_text} 图标:{icon_name}")
+
+        if icon_path and os.path.exists(icon_path):
+            pixmap = QPixmap(icon_path)
+            if not pixmap.isNull():
+                self.currentIconLabel.setPixmap(
+                    pixmap.scaled(30, 30,
+                                  Qt.AspectRatioMode.KeepAspectRatio,
+                                  Qt.TransformationMode.SmoothTransformation)
+                )
+            else:
+                self.currentIconLabel.clear()
+        else:
+            self.currentIconLabel.clear()
+
+        # 每日预报
+        if wd and wd.get("forecastDaily"):
+            parsed = WeatherService.parse_daily(wd["forecastDaily"])
+            if parsed:
+                self._daily_data = parsed
+                logger.info(f"[WeatherWeekly] 每日预报解析结果: {json.dumps(parsed, ensure_ascii=False)}")
+                if parsed.get("days"):
+                    d0 = parsed["days"][0]
+                    logger.info(f"[WeatherWeekly] 今日 高温:{d0.get('high')}° 低温:{d0.get('low')}° 天气代码:{d0.get('weather_code')} 图标:{d0.get('icon')}")
+                self._update_daily_display()
+
+    def _update_daily_display(self):
+        if not self._daily_data:
+            return
+
+        from services.weather import WeatherService
+        from datetime import datetime, timedelta
+
+        days = self._daily_data.get("days", [])
+
+        if days:
+            self.highTempLabel.setText(f"{days[0]['high']}°")
+            self.lowTempLabel.setText(f"{days[0]['low']}°")
+
+        now = datetime.now()
+        num_days = min(4, len(self._forecast_rows), len(days))
+
+        for i in range(num_days):
+            day_label, icon_label, low_label, high_label = self._forecast_rows[i]
+            d = now + timedelta(days=i)
+            day_data = days[i]
+
+            if i == 0:
+                day_label.setText("今日")
+            else:
+                weekday_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+                day_label.setText(weekday_names[d.weekday()])
+
+            icon_name = day_data.get("icon", "2.svg")
+            icon_path = WeatherService.get_weather_icon_path(icon_name)
+            if icon_path and os.path.exists(icon_path):
+                pixmap = QPixmap(icon_path)
+                if not pixmap.isNull():
+                    icon_label.setPixmap(
+                        pixmap.scaled(22, 22,
+                                      Qt.AspectRatioMode.KeepAspectRatio,
+                                      Qt.TransformationMode.SmoothTransformation)
+                    )
+                else:
+                    icon_label.clear()
+            else:
+                icon_label.clear()
+
+            low_label.setText(day_data.get("low", "--"))
+            high_label.setText(f"{day_data.get('high', '--')}°")
+
+        self._apply_style()
+
+    def mousePressEvent(self, event):
+        """城市标签单击打开框"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            # 将事件坐标转换为城市行的本地坐标进行检测
+            local_pos = self.city_row.mapFrom(self, event.pos())
+            if self.city_row.rect().contains(local_pos):
+                self._onCityLabelClicked()
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def _onCityLabelClicked(self):
+        """打开框"""
+        from services.weather import RegionSelectorDialog, RegionDatabase, WeatherService
+
+        # 主窗口
+        parent = getattr(self._home, 'mainWindow', None) or self._home
+
+        dialog = RegionSelectorDialog(parent)
+        if dialog.exec():
+            region = dialog.get_selected_region()
+            if not region:
+                return
+
+            # 保存城市名称和代码
+            db = RegionDatabase()
+            code = db.get_code(region)
+            cfg.city.value = region
+            if code:
+                cfg.cityCode.value = code
+                logger.info(f"[天气组件] 选择城市: {region} (code={code})")
+
+            self.cityLabel.setText(region)
+
+            # 请求
+            if not code:
+                code = "101010100"
+            try:
+                ws = WeatherService(code)
+                data = ws.fetch_all()
+                if data:
+                    if not save_cache("weather", data, cfg.weatherUpdateInterval.value):
+                        logger.warning("[天气组件] 缓存保存失败")
+                    if hasattr(self._home, '_cached_weather'):
+                        self._home._cached_weather = data
+                    self._home.weather_updated.emit(data)
+                    logger.info(f"[天气组件] 新城市天气获取成功")
+            except Exception as e:
+                logger.error(f"[天气组件] 新城市天气获取失败: {e}")
+
+    def _apply_style(self):
+        color = cfg.weatherTextColor.value
+        color_str = color.name() if hasattr(color, 'name') else str(color)
+
+        # 城市名
+        self.cityLabel.setStyleSheet(f"""
+            color: {color_str};
+            font-size: 15px;
+            font-weight: 600;
+            font-family: {FONT_FAMILY};
+            background-color: transparent;
+        """)
+
+        # 大温度
+        self.currentTempLabel.setStyleSheet(f"""
+            color: {color_str};
+            font-size: 62px;
+            font-weight: 300;
+            font-family: {FONT_FAMILY};
+            background-color: transparent;
+            line-height: 62px;
+        """)
+
+        # 顶部高低温
+        self.highTempLabel.setStyleSheet(f"""
+            color: {color_str};
+            font-size: 15px;
+            font-weight: 500;
+            font-family: {FONT_FAMILY};
+            background-color: transparent;
+        """)
+        self.lowTempLabel.setStyleSheet(f"""
+            color: {color_str};
+            font-size: 15px;
+            font-weight: 400;
+            opacity: 0.6;
+            font-family: {FONT_FAMILY};
+            background-color: transparent;
+        """)
+
+        # 预报行
+        for day_label, icon_label, low_label, high_label in self._forecast_rows:
+            day_label.setStyleSheet(f"""
+                color: {color_str};
+                font-size: 14px;
+                font-weight: 500;
+                font-family: {FONT_FAMILY};
+                background-color: transparent;
+            """)
+            low_label.setStyleSheet(f"""
+                color: {color_str};
+                font-size: 14px;
+                font-weight: 400;
+                opacity: 0.6;
+                font-family: {FONT_FAMILY};
+                background-color: transparent;
+            """)
+            high_label.setStyleSheet(f"""
+                color: {color_str};
+                font-size: 14px;
+                font-weight: 600;
                 font-family: {FONT_FAMILY};
                 background-color: transparent;
             """)
@@ -3543,6 +3968,7 @@ class QuickLaunchDockComponent(DraggableContainer):
 COMPONENT_STYLES["clock"]["digital"]["class"] = DigitalClockComponent
 COMPONENT_STYLES["weather"]["icon_temp"]["class"] = WeatherIconTempComponent
 COMPONENT_STYLES["weather"]["hourly"]["class"] = WeatherHourlyComponent
+COMPONENT_STYLES["weather"]["weekly"]["class"] = WeatherWeeklyComponent
 COMPONENT_STYLES["poetry"]["one_line"]["class"] = PoetryOneLineComponent
 COMPONENT_STYLES["countdown"]["event"]["class"] = CountdownEventComponent
 COMPONENT_STYLES["school_info"]["class_info"]["class"] = SchoolInfoComponent

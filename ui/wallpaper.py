@@ -959,29 +959,29 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         if home and hasattr(home, 'homeDimOverlay'):home.homeDimOverlay.setStyleSheet(style_str)
     
     def _loadWallpaperFromCache(self) -> bool:
-        cached = get_cached_content("wallpaper")
+        cached = get_cached_content("wallpaper", ignore_expiry=True)  # 过期也显示旧的
         if not cached:
             logger.debug("壁纸缓存不存在")
             return False
-        
+
         wallpaper_path = cached.get("path", "")
         if not wallpaper_path:
             logger.warning("壁纸缓存数据异常：缺少路径信息")
             return False
-        
+
         if not os.path.exists(wallpaper_path):
             logger.warning(f"缓存壁纸文件不存在: {wallpaper_path}")
             return False
-        
+
         logger.info(f"使用缓存壁纸: {wallpaper_path}")
         self.current_pixmap = QPixmap(wallpaper_path)
         self.current_wallpaper_path = wallpaper_path
         self.current_wallpaper_source = cached.get("source", tr("wallpaper.source_cache"))
-        
+
         if self.current_pixmap.isNull():
             logger.error(f"无法加载缓存壁纸图片: {wallpaper_path}")
             return False
-        
+
         self._updateMainWindowBackground()
         self._applyEffects()
         self.infoCard.updateInfo(wallpaper_path, cached.get("source", tr("wallpaper.source_cache")))

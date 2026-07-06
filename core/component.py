@@ -418,6 +418,18 @@ BUILTIN_COMPONENT_DEFINITIONS = [
         default_config={},
     ),
     ComponentDefinition(
+        id="weather_weekly",
+        display_name="逐日天气",
+        category="Weather",
+        icon="WeatherSunny",
+        min_width_cells=2,
+        min_height_cells=2,
+        default_width_cells=2,
+        default_height_cells=2,
+        resize_mode=ResizeMode.FIXED,
+        default_config={},
+    ),
+    ComponentDefinition(
         id="poetry_one_line",
         display_name="一言",
         category="Info",
