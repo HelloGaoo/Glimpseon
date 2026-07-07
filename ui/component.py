@@ -67,6 +67,7 @@ from PyQt6.QtGui import (
     QPixmap, QIcon,
     QDrag, QImage, QPolygonF,
 )
+from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QFileIconProvider, QLabel, QSizePolicy, QWidget, QVBoxLayout, QHBoxLayout, QApplication, QProgressBar, QGraphicsOpacityEffect,
     QScrollArea, QStackedWidget, QPushButton, QListWidget, QListWidgetItem, QLineEdit,
@@ -2647,6 +2648,24 @@ class QuickLaunchDock(QWidget):
 import datetime as py_datetime
 FONT_FAMILY = '"HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif'
 
+
+def render_svg_icon(icon_path: str, size: int, dpr: float = 1.0) -> QPixmap:
+    """SVG图标"""
+    renderer = QSvgRenderer(icon_path)
+    if not renderer.isValid():
+        return QPixmap()
+    actual_size = int(size * dpr)
+    pm = QPixmap(actual_size, actual_size)
+    pm.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+    renderer.render(p)
+    p.end()
+    pm.setDevicePixelRatio(dpr)
+    return pm
+
+
 class DigitalClockComponent(DraggableContainer):
     """数字时钟组件"""
 
@@ -2871,9 +2890,10 @@ class WeatherIconTempComponent(DraggableContainer):
 
         if icon_path and os.path.exists(icon_path):
             icon_size = cfg.weatherIconSize.value
-            pixmap = QPixmap(icon_path)
-            if not pixmap.isNull():
-                self.iconLabel.setPixmap(pixmap.scaled(icon_size, icon_size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+            pm = render_svg_icon(icon_path, icon_size, dpr)
+            if not pm.isNull():
+                self.iconLabel.setPixmap(pm)
 
     def _update_icon_size(self):
         cached = get_cached_content("weather")
@@ -2947,7 +2967,6 @@ class WeatherHourlyComponent(DraggableContainer):
 
         self.currentIconLabel = QLabel()
         self.currentIconLabel.setAlignment(Qt.AlignmentFlag.AlignRight)
-        #TODO
         self.currentIconLabel.setFixedSize(60, 60)
 
         self.alertLabel = QLabel("")
@@ -3069,13 +3088,10 @@ class WeatherHourlyComponent(DraggableContainer):
         logger.info(f"[WeatherHourly] 城市:{cfg.city.value} 当前温度:{current_temp}° 天气代码:{current_icon_code} 天气:{weather_text} 图标:{icon_name}")
 
         if icon_path and os.path.exists(icon_path):
-            pixmap = QPixmap(icon_path)
-            if not pixmap.isNull():
-                self.currentIconLabel.setPixmap(
-                    pixmap.scaled(42, 42,
-                                  Qt.AspectRatioMode.KeepAspectRatio,
-                                  Qt.TransformationMode.SmoothTransformation)
-                )
+            dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+            pm = render_svg_icon(icon_path, 60, dpr)
+            if not pm.isNull():
+                self.currentIconLabel.setPixmap(pm)
             else:
                 self.currentIconLabel.clear()
         else:
@@ -3124,13 +3140,10 @@ class WeatherHourlyComponent(DraggableContainer):
                 icon_name = hour_data.get("icon", "2.svg")
                 icon_path = WeatherService.get_weather_icon_path(icon_name)
                 if icon_path and os.path.exists(icon_path):
-                    pixmap = QPixmap(icon_path)
-                    if not pixmap.isNull():
-                        icon_label.setPixmap(
-                            pixmap.scaled(28, 28,
-                                          Qt.AspectRatioMode.KeepAspectRatio,
-                                          Qt.TransformationMode.SmoothTransformation)
-                        )
+                    dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+                    pm = render_svg_icon(icon_path, 28, dpr)
+                    if not pm.isNull():
+                        icon_label.setPixmap(pm)
                     else:
                         icon_label.clear()
                 else:
@@ -3255,8 +3268,8 @@ class WeatherWeeklyComponent(DraggableContainer):
     def _setup_ui(self):
         layout = self.inner_layout
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        layout.setContentsMargins(18, 16, 18, 16)
-        layout.setSpacing(0)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(4)
 
         # 上边：当前天气
         top = QWidget()
@@ -3270,62 +3283,37 @@ class WeatherWeeklyComponent(DraggableContainer):
         top_left.setStyleSheet("background-color: transparent;")
         tl_layout = QVBoxLayout(top_left)
         tl_layout.setContentsMargins(0, 0, 0, 0)
-        tl_layout.setSpacing(0)
-
-        self.city_row = QWidget()
-        self.city_row.setStyleSheet("background-color: transparent;")
-        city_layout = QHBoxLayout(self.city_row)
-        city_layout.setContentsMargins(0, 0, 0, 0)
-        city_layout.setSpacing(3)
+        tl_layout.setSpacing(2)
 
         self.cityLabel = QLabel("--")
-        self.cityLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
+        self.cityLabel.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self.cityLabel.setCursor(Qt.CursorShape.PointingHandCursor)
         self.cityLabel.setToolTip(tr("weather_service.select_region"))
 
-        self.locationIcon = QLabel()
-        self.locationIcon.setFixedSize(12, 12)
-        self.locationIcon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.locationIcon.setStyleSheet("background-color: transparent;")
-
-        city_layout.addWidget(self.cityLabel)
-        city_layout.addWidget(self.locationIcon)
-        city_layout.addStretch()
-
         self.currentTempLabel = QLabel("--°")
-        self.currentTempLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        self.currentTempLabel.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
-        tl_layout.addWidget(self.city_row)
-        tl_layout.addSpacing(2)
+        tl_layout.addWidget(self.cityLabel)
         tl_layout.addWidget(self.currentTempLabel)
         tl_layout.addStretch()
 
-        # 右上：图标 高温 低温
+        # 右上：图标
         top_right = QWidget()
         top_right.setStyleSheet("background-color: transparent;")
         tr_layout = QVBoxLayout(top_right)
         tr_layout.setContentsMargins(0, 0, 0, 0)
         tr_layout.setSpacing(0)
-        tr_layout.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
 
         self.currentIconLabel = QLabel()
         self.currentIconLabel.setAlignment(Qt.AlignmentFlag.AlignRight)
-        self.currentIconLabel.setFixedSize(30, 30)
+        self.currentIconLabel.setFixedSize(48, 48)
 
-        self.highTempLabel = QLabel("--°")
-        self.highTempLabel.setAlignment(Qt.AlignmentFlag.AlignRight)
-
-        self.lowTempLabel = QLabel("--°")
-        self.lowTempLabel.setAlignment(Qt.AlignmentFlag.AlignRight)
-
-        tr_layout.addWidget(self.currentIconLabel, 0, Qt.AlignmentFlag.AlignRight)
-        tr_layout.addSpacing(1)
-        tr_layout.addWidget(self.highTempLabel, 0, Qt.AlignmentFlag.AlignRight)
-        tr_layout.addWidget(self.lowTempLabel, 0, Qt.AlignmentFlag.AlignRight)
+        tr_layout.addWidget(self.currentIconLabel)
         tr_layout.addStretch()
 
-        top_layout.addWidget(top_left, 1)
-        top_layout.addWidget(top_right, 0)
+        top_layout.addWidget(top_left)
+        top_layout.addStretch()
+        top_layout.addWidget(top_right)
 
         # 下边：4天天气预报
         bottom = QWidget()
@@ -3338,31 +3326,28 @@ class WeatherWeeklyComponent(DraggableContainer):
         for i in range(4):
             row = QWidget()
             row.setStyleSheet("background-color: transparent;")
-            row.setFixedHeight(28)
+            row.setFixedHeight(20)
             row_layout = QHBoxLayout(row)
             row_layout.setContentsMargins(0, 0, 0, 0)
             row_layout.setSpacing(0)
 
             day_label = QLabel("--")
-            day_label.setFixedWidth(50)
+            day_label.setFixedWidth(40)
             day_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
             icon_label = QLabel()
-            icon_label.setFixedSize(22, 22)
+            icon_label.setFixedSize(18, 18)
             icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-            spacer1 = QLabel()
-            spacer1.setFixedWidth(8)
 
             low_label = QLabel("--")
             low_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             low_label.setObjectName(f"weeklyLow_{i}")
 
-            spacer2 = QLabel()
-            spacer2.setFixedWidth(10)
+            spacer = QLabel()
+            spacer.setFixedWidth(8)
 
             high_label = QLabel("--°")
-            high_label.setFixedWidth(32)
+            high_label.setFixedWidth(28)
             high_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             high_label.setObjectName(f"weeklyHigh_{i}")
 
@@ -3371,14 +3356,13 @@ class WeatherWeeklyComponent(DraggableContainer):
             row_layout.addWidget(icon_label)
             row_layout.addStretch()
             row_layout.addWidget(low_label)
-            row_layout.addWidget(spacer2)
+            row_layout.addWidget(spacer)
             row_layout.addWidget(high_label)
 
             self._forecast_rows.append((day_label, icon_label, low_label, high_label))
             bottom_layout.addWidget(row)
 
         layout.addWidget(top)
-        layout.addStretch()
         layout.addWidget(bottom)
 
         self.setMinimumSize(200, 200)
@@ -3453,13 +3437,10 @@ class WeatherWeeklyComponent(DraggableContainer):
         logger.info(f"[WeatherWeekly] 城市:{cfg.city.value} 当前温度:{current_temp}° 天气代码:{current_icon_code} 天气:{weather_text} 图标:{icon_name}")
 
         if icon_path and os.path.exists(icon_path):
-            pixmap = QPixmap(icon_path)
-            if not pixmap.isNull():
-                self.currentIconLabel.setPixmap(
-                    pixmap.scaled(30, 30,
-                                  Qt.AspectRatioMode.KeepAspectRatio,
-                                  Qt.TransformationMode.SmoothTransformation)
-                )
+            dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+            pm = render_svg_icon(icon_path, 48, dpr)
+            if not pm.isNull():
+                self.currentIconLabel.setPixmap(pm)
             else:
                 self.currentIconLabel.clear()
         else:
@@ -3485,10 +3466,6 @@ class WeatherWeeklyComponent(DraggableContainer):
 
         days = self._daily_data.get("days", [])
 
-        if days:
-            self.highTempLabel.setText(f"{days[0]['high']}°")
-            self.lowTempLabel.setText(f"{days[0]['low']}°")
-
         now = datetime.now()
         num_days = min(4, len(self._forecast_rows), len(days))
 
@@ -3506,13 +3483,10 @@ class WeatherWeeklyComponent(DraggableContainer):
             icon_name = day_data.get("icon", "2.svg")
             icon_path = WeatherService.get_weather_icon_path(icon_name)
             if icon_path and os.path.exists(icon_path):
-                pixmap = QPixmap(icon_path)
-                if not pixmap.isNull():
-                    icon_label.setPixmap(
-                        pixmap.scaled(22, 22,
-                                      Qt.AspectRatioMode.KeepAspectRatio,
-                                      Qt.TransformationMode.SmoothTransformation)
-                    )
+                dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+                pm = render_svg_icon(icon_path, 18, dpr)
+                if not pm.isNull():
+                    icon_label.setPixmap(pm)
                 else:
                     icon_label.clear()
             else:
@@ -3526,9 +3500,9 @@ class WeatherWeeklyComponent(DraggableContainer):
     def mousePressEvent(self, event):
         """城市标签单击打开框"""
         if event.button() == Qt.MouseButton.LeftButton:
-            # 将事件坐标转换为城市行的本地坐标进行检测
-            local_pos = self.city_row.mapFrom(self, event.pos())
-            if self.city_row.rect().contains(local_pos):
+            # 检测城市标签点击
+            local_pos = self.cityLabel.mapFrom(self, event.pos())
+            if self.cityLabel.rect().contains(local_pos):
                 self._onCityLabelClicked()
                 event.accept()
                 return
@@ -3580,60 +3554,41 @@ class WeatherWeeklyComponent(DraggableContainer):
         # 城市名
         self.cityLabel.setStyleSheet(f"""
             color: {color_str};
-            font-size: 15px;
-            font-weight: 600;
+            font-size: 14px;
             font-family: {FONT_FAMILY};
             background-color: transparent;
+            opacity: 0.7;
         """)
 
         # 大温度
         self.currentTempLabel.setStyleSheet(f"""
             color: {color_str};
-            font-size: 62px;
+            font-size: 48px;
             font-weight: 300;
             font-family: {FONT_FAMILY};
             background-color: transparent;
-            line-height: 62px;
-        """)
-
-        # 顶部高低温
-        self.highTempLabel.setStyleSheet(f"""
-            color: {color_str};
-            font-size: 15px;
-            font-weight: 500;
-            font-family: {FONT_FAMILY};
-            background-color: transparent;
-        """)
-        self.lowTempLabel.setStyleSheet(f"""
-            color: {color_str};
-            font-size: 15px;
-            font-weight: 400;
-            opacity: 0.6;
-            font-family: {FONT_FAMILY};
-            background-color: transparent;
+            line-height: 1.0;
         """)
 
         # 预报行
         for day_label, icon_label, low_label, high_label in self._forecast_rows:
             day_label.setStyleSheet(f"""
                 color: {color_str};
-                font-size: 14px;
-                font-weight: 500;
+                font-size: 11px;
                 font-family: {FONT_FAMILY};
                 background-color: transparent;
+                opacity: 0.7;
             """)
             low_label.setStyleSheet(f"""
                 color: {color_str};
-                font-size: 14px;
-                font-weight: 400;
+                font-size: 11px;
                 opacity: 0.6;
                 font-family: {FONT_FAMILY};
                 background-color: transparent;
             """)
             high_label.setStyleSheet(f"""
                 color: {color_str};
-                font-size: 14px;
-                font-weight: 600;
+                font-size: 11px;
                 font-family: {FONT_FAMILY};
                 background-color: transparent;
             """)
