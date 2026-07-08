@@ -52,7 +52,8 @@ from PyQt6.QtCore import (
     pyqtSignal, QObject,
     QByteArray, QPropertyAnimation, QEasingCurve,
     QTime, QDate,
-    QMimeData, QDir,
+    QMimeData,
+    QEvent
 )
 from PyQt6.QtGui import (
     QBrush,
@@ -64,13 +65,13 @@ from PyQt6.QtGui import (
     QPainter,
     QPainterPath,
     QPen,
-    QPixmap, QIcon,
-    QDrag, QImage, QPolygonF,
+    QPixmap, 
+    QDrag
 )
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QFileIconProvider, QGridLayout, QLabel, QSizePolicy, QWidget, QVBoxLayout, QHBoxLayout, QApplication, QProgressBar, QGraphicsOpacityEffect,
-    QScrollArea, QStackedWidget, QPushButton, QListWidget, QListWidgetItem, QLineEdit,
+    QScrollArea, QStackedWidget, QPushButton, QListWidget, QListWidgetItem, QLineEdit
 )
 from qfluentwidgets import InfoBar, isDarkTheme, RoundMenu, Action, FluentWindow, setTheme, ScrollArea, PushButton, ToolButton, TransparentToolButton, StrongBodyLabel, CardWidget, BodyLabel, SubtitleLabel, ComboBox, SpinBox, SwitchButton
 from win32com.shell import shell, shellcon
@@ -4381,6 +4382,7 @@ class TimetablePreviewComponent(DraggableContainer):
         self._schedule_rows = []
         self._current_row_data = None  # start_time, end_time 用于算进度
         self._past_skip_groups = 0  # 已跳过多少组5节
+        self._last_user_scroll_time = 0   # 上一次用户操作滚动条的时间戳
         self._setup_ui()
         self._connect_bridge()
         self._refresh_schedule()
@@ -4433,6 +4435,19 @@ class TimetablePreviewComponent(DraggableContainer):
         self._progress_timer.timeout.connect(self._update_progress)
         self._progress_timer.start(1000)
 
+        # 监听用户手动滚动
+        self._scroll.verticalScrollBar().sliderReleased.connect(self._on_user_scroll_action)
+        # 监听滚轮事件
+        self._scroll.installEventFilter(self)
+    def _on_user_scroll_action(self):
+        """手动拖动最后时间"""
+        self._last_user_scroll_time = time.time()
+
+    def eventFilter(self, obj, event):
+        """监听滚轮事件"""
+        if obj == self._scroll and event.type() == QEvent.Type.Wheel:
+            self._last_user_scroll_time = time.time()
+        return super().eventFilter(obj, event)
     def _connect_bridge(self):
         """联动 Bridge"""
         try:
@@ -4468,8 +4483,35 @@ class TimetablePreviewComponent(DraggableContainer):
         if not self._bridge:
             self._connect_bridge()
         self._refresh_schedule()
+        # 计算目标滚动行
+        past_count = sum(1 for r in self._schedule_rows
+                        if isinstance(r, _TimetableRow) and r._is_past)
+        target_groups = past_count // 5
+        if target_groups > self._past_skip_groups:
+            self._past_skip_groups = target_groups
+        skip_rows = self._past_skip_groups * 5
+
+        scroll_idx = skip_rows
+        # 滚到当前课程
+        for i, r in enumerate(self._schedule_rows):
+            if isinstance(r, _TimetableRow) and r._is_current:
+                scroll_idx = i
+                break
+            # 否则使用跳过行后第一个未过去的行
+            if isinstance(r, _TimetableRow) and not r._is_past and i >= skip_rows:
+                if scroll_idx == skip_rows:
+                    scroll_idx = i
+                break
+
+        import time as _time
+        now = _time.time()
+        elapsed = now - self._last_user_scroll_time
+
+        if 0 <= scroll_idx < len(self._schedule_rows):
+            if elapsed > 15:
+                self._scroll_to_row(scroll_idx)
+
         self._update_progress()
-        self._auto_scroll()
 
     def _refresh_schedule(self):
         """刷新课表内容"""
@@ -4480,7 +4522,6 @@ class TimetablePreviewComponent(DraggableContainer):
                 item.widget().deleteLater()
         self._schedule_rows.clear()
         self._current_row_data = None
-        self._past_skip_groups = 0
 
         # 获取课表数据
         schedule = []
@@ -4526,9 +4567,9 @@ class TimetablePreviewComponent(DraggableContainer):
                 self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, row)
                 self._schedule_rows.append(row)
 
-        # 自动滚到当前课程
-        if current_idx >= 0:
-            QTimer.singleShot(100, lambda: self._scroll_to_row(current_idx))
+        # # 自动滚到当前课程
+        # if current_idx >= 0:
+        #     QTimer.singleShot(100, lambda: self._scroll_to_row(current_idx))
 
         self._update_progress()
 
@@ -4614,15 +4655,28 @@ class TimetablePreviewComponent(DraggableContainer):
         except Exception as e:
             logger.debug(f"[Timetable] 进度计算失败: {e}")
 
-    def _scroll_to_row(self, idx):
-        if 0 <= idx < len(self._schedule_rows):
-            row = self._schedule_rows[idx]
-            y = row.pos().y()
-            self._scroll.verticalScrollBar().setValue(y)
+    def _scroll_to_row(self, idx, viewport_offset_ratio=0.3):
+        """
+        滚动到第 idx 行 位于视口上方ratio 处
+        """
+        if not (0 <= idx < len(self._schedule_rows)):
+            return
+        row = self._schedule_rows[idx]
+        QTimer.singleShot(50, lambda: self._do_scroll(row, viewport_offset_ratio))
+
+    def _do_scroll(self, row, ratio):
+        # 目标行在 scroll_content 上的 y 坐标
+        row_y = row.mapTo(self._scroll_content, QPoint(0, 0)).y()
+        sb = self._scroll.verticalScrollBar()
+        viewport_h = self._scroll.viewport().height()
+        # 让此行在视口上方 ratio 处
+        target_y = row_y - int(viewport_h * ratio)
+        # 限制范围
+        target_y = max(sb.minimum(), min(target_y, sb.maximum()))
+        sb.setValue(target_y)
 
     def _auto_scroll(self):
-        """自动滚动：大于10节时上完5节往下翻"""
-        # TODO: 优化滚动逻辑
+        """自动滚动 大于10节时上完5节往下翻"""
         if not self._bridge:
             return
         # 统计
@@ -4648,7 +4702,8 @@ class TimetablePreviewComponent(DraggableContainer):
                     scroll_idx = i
                 break
         if 0 <= scroll_idx < len(self._schedule_rows):
-            self._scroll_to_row(scroll_idx)
+            if time.time() - self._last_user_scroll_time > 15:
+                self._scroll_to_row(scroll_idx)
 
     def _apply_style(self, *args):
         """跟随组件系统的背景"""
@@ -4658,17 +4713,17 @@ class TimetablePreviewComponent(DraggableContainer):
 
         is_dark = isDarkTheme()
         if is_dark:
-            row_bg = f"rgba(255, 255, 255, {opacity * 0.08:.3f})"
-            # 当前行高亮
-            current_row_bg = f"rgba(255, 255, 255, {opacity * 0.18:.3f})"
-            # 上完的课淡化
-            past_row_bg = f"rgba(255, 255, 255, {opacity * 0.04:.3f})"
-            text = "#e0e0e0"
-            text_sub = "#888888"
-            past_text = "#999999"
-            accent = "#4cc2ff"
-            progress_bg = "rgba(255, 255, 255, 0.06)"
+            # 暗
+            row_bg = f"rgba(255, 255, 255, {opacity * 0.08:.3f})"          # 普通行背景
+            current_row_bg = f"rgba(255, 255, 255, {opacity * 0.18:.3f})"  # 当前课程行高亮
+            past_row_bg = f"rgba(255, 255, 255, {opacity * 0.04:.3f})"     # 已上课淡化
+            text = "#e0e0e0"          # 主文字颜色
+            text_sub = "#888888"      # 次要文字颜色
+            past_text = "#999999"     # 已上课文字颜色
+            accent = "#4cc2ff"        # 强调色
+            progress_bg = "rgba(255, 255, 255, 0.06)"  # 进度条背景
         else:
+            # 亮
             row_bg = f"rgba(0, 0, 0, {opacity * 0.04:.3f})"
             current_row_bg = f"rgba(0, 0, 0, {opacity * 0.10:.3f})"
             past_row_bg = f"rgba(0, 0, 0, {opacity * 0.02:.3f})"
@@ -4679,6 +4734,7 @@ class TimetablePreviewComponent(DraggableContainer):
             progress_bg = "rgba(0, 0, 0, 0.05)"
 
         self.setStyleSheet(f"""
+            /* 滚动区域 */
             #timetableScroll {{
                 background: transparent;
                 border: none;
@@ -4686,6 +4742,8 @@ class TimetablePreviewComponent(DraggableContainer):
             #timetableScrollContent {{
                 background: transparent;
             }}
+
+            /* 标题 */
             #timetableTitle {{
                 color: {text};
                 font-size: 17px;
@@ -4694,16 +4752,20 @@ class TimetablePreviewComponent(DraggableContainer):
                 background: transparent;
                 padding-bottom: 2px;
             }}
+
+            /* 普通行样式 */
             #timetableRow {{
                 background-color: {row_bg};
                 border-radius: {radius}px;
                 border: none;
             }}
+            /* 当前课程行 */
             #timetableRowCurrent {{
                 background-color: {current_row_bg};
                 border-radius: {radius}px;
                 border: none;
             }}
+            /* 已过去课程行 */
             #timetableRowPast {{
                 background-color: {past_row_bg};
                 border-radius: {radius}px;
@@ -4712,32 +4774,38 @@ class TimetablePreviewComponent(DraggableContainer):
             #timetableRowInner {{
                 background: transparent;
             }}
+
+            /* 第几节 */
             #timetableIdx {{
                 color: {text};
-                font-size: 14px;
+                font-size: 15px;
                 font-family: {FONT_FAMILY};
                 background: transparent;
             }}
             #timetableIdxPast {{
                 color: {past_text};
-                font-size: 14px;
+                font-size: 15px;
                 font-family: {FONT_FAMILY};
                 background: transparent;
             }}
+
+            /* 课程名 */
             #timetableSubj {{
                 color: {text};
-                font-size: 16px;
+                font-size: 20px;
                 font-weight: 500;
                 font-family: {FONT_FAMILY};
                 background: transparent;
             }}
             #timetableSubjPast {{
                 color: {past_text};
-                font-size: 16px;
+                font-size: 20px;
                 font-weight: 500;
                 font-family: {FONT_FAMILY};
                 background: transparent;
             }}
+
+            /* 任课老师 */
             #timetableTeacher {{
                 color: {text};
                 font-size: 14px;
@@ -4750,18 +4818,22 @@ class TimetablePreviewComponent(DraggableContainer):
                 font-family: {FONT_FAMILY};
                 background: transparent;
             }}
+
+            /* 时间 */
             #timetableTime {{
                 color: {text};
-                font-size: 13px;
+                font-size: 15px;
                 font-family: {FONT_FAMILY};
                 background: transparent;
             }}
             #timetableTimePast {{
                 color: {past_text};
-                font-size: 13px;
+                font-size: 15px;
                 font-family: {FONT_FAMILY};
                 background: transparent;
             }}
+
+            /* 课间休息 */
             #timetableBreakLabel {{
                 color: {accent};
                 font-size: 15px;
@@ -4769,12 +4841,16 @@ class TimetablePreviewComponent(DraggableContainer):
                 font-family: {FONT_FAMILY};
                 background: transparent;
             }}
+
+            /* 空状态 */
             #timetableEmpty {{
                 color: {text_sub};
                 font-size: 15px;
                 font-family: {FONT_FAMILY};
                 background: transparent;
             }}
+
+            /* 进度条 */
             #timetableProgress {{
                 background-color: {progress_bg};
                 border: none;
@@ -5913,3 +5989,36 @@ class GridCanvas(QWidget):
     def get_all_components(self) -> Dict[str, QWidget]:
         """获取所有组件"""
         return self._component_widgets.copy()
+
+
+class DragPreviewBox(QWidget):
+    """拖拽放置预览框"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self._collision = False
+        self.hide()
+
+    def set_collision(self, is_collision: bool):
+        """设置碰撞状态"""
+        self._collision = is_collision
+        self.update()
+
+    def paintEvent(self, event):
+        """绘制预览框"""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        if self._collision:
+            color = QColor(255, 0, 0, 80)
+            border_color = QColor(255, 0, 0, 180)
+        else:
+            color = QColor(0, 180, 255, 60)
+            border_color = QColor(0, 180, 255, 160)
+
+        painter.setBrush(QBrush(color))
+        pen = QPen(border_color, 2)
+        painter.setPen(pen)
+        painter.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 4, 4)
