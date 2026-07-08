@@ -4367,7 +4367,24 @@ class _TimetableRow(QWidget):
         if self._is_current:
             self._progress.show()
             self._progress.setValue(int(max(0, min(100, pct))))
-
+    def set_current(self, active: bool):
+        self._is_current = active
+        if active:
+            self.setObjectName("timetableRowCurrent")
+            # 有进度条就显示
+            if hasattr(self, '_progress_bar'):
+                self._progress_bar.show()
+        else:
+            if self._is_past:
+                self.setObjectName("timetableRowPast")
+            else:
+                self.setObjectName("timetableRow")
+            # 隐藏进度条
+            if hasattr(self, '_progress_bar'):
+                self._progress_bar.hide()
+        # 刷新样式
+        self.style().unpolish(self)
+        self.style().polish(self)
 
 class TimetablePreviewComponent(DraggableContainer):
     """今日课表预览"""
@@ -4514,7 +4531,6 @@ class TimetablePreviewComponent(DraggableContainer):
         self._update_progress()
 
     def _refresh_schedule(self):
-        """刷新课表内容"""
         # 清空旧行
         while self._scroll_layout.count() > 1:
             item = self._scroll_layout.takeAt(0)
@@ -4523,7 +4539,6 @@ class TimetablePreviewComponent(DraggableContainer):
         self._schedule_rows.clear()
         self._current_row_data = None
 
-        # 获取课表数据
         schedule = []
         if self._bridge:
             try:
@@ -4531,45 +4546,52 @@ class TimetablePreviewComponent(DraggableContainer):
             except Exception:
                 pass
 
-        current_idx = -1
         if schedule:
             from datetime import datetime as _dt, time as _time
             now_time = _dt.now().time()
+
+            last_current_row = None
+            last_current_times = None
+
             for row_data in schedule:
                 subject, teacher, start, end, index, is_current, is_break, break_name = row_data
-                # 判断是否上完了
+
+                # 计算是否已过
                 try:
                     eh, em = map(int, end.split(":"))
-                    is_past = (not is_current and not is_break
-                              and _time(eh, em) <= now_time)
+                    is_past = (not is_current and not is_break and _time(eh, em) <= now_time)
                 except Exception:
                     is_past = False
-                # 课间默认隐藏 只显示当前正在进行的课间
+
+                # 非当前课间直接跳过
                 if is_break and not is_current:
                     continue
+
+                # 构建行 先 is_current=False
                 if is_break and is_current:
-                    row = self._build_break_row(start, end, break_name)
-                    self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, row)
-                    self._schedule_rows.append(row)
-                    current_idx = len(self._schedule_rows) - 1
-                    self._current_row_data = (start, end)
+                    row = self._build_break_row(start, end, break_name, is_current=False)
                 else:
-                    row = self._build_class_row(index, subject, teacher, start, end, is_current, is_past)
-                    self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, row)
-                    self._schedule_rows.append(row)
-                    if is_current:
-                        current_idx = len(self._schedule_rows) - 1
-                        self._current_row_data = (start, end)
+                    row = self._build_class_row(index, subject, teacher, start, end,
+                                                is_current=False, is_past=is_past)
+
+                self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, row)
+                self._schedule_rows.append(row)
+
+                # 记录最后一个 is_current 的行
+                if is_current:
+                    last_current_row = row
+                    last_current_times = (start, end)
+
+            # 最后只激活一个当前行
+            if last_current_row:
+                last_current_row.set_current(True)
+                self._current_row_data = last_current_times
+
         else:
-            # 没有课表数据
             for _ in range(8):
                 row = self._build_empty_row()
                 self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, row)
                 self._schedule_rows.append(row)
-
-        # # 自动滚到当前课程
-        # if current_idx >= 0:
-        #     QTimer.singleShot(100, lambda: self._scroll_to_row(current_idx))
 
         self._update_progress()
 
@@ -4606,9 +4628,8 @@ class TimetablePreviewComponent(DraggableContainer):
 
         return row
 
-    def _build_break_row(self, start, end, break_name):
-        """构建课间行"""
-        row = _TimetableRow(is_current=True, is_break=True, parent=self)
+    def _build_break_row(self, start, end, break_name, is_current=True):
+        row = _TimetableRow(is_current=is_current, is_break=True, parent=self)
 
         lbl = QLabel(break_name or "课间")
         lbl.setObjectName("timetableBreakLabel")
