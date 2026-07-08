@@ -4651,7 +4651,7 @@ class TimetablePreviewComponent(DraggableContainer):
             self._scroll_to_row(scroll_idx)
 
     def _apply_style(self, *args):
-        """行背景遵循组件系统的统一不透明度和圆角设置，组件背景交给 _buildComponentCardQss"""
+        """跟随组件系统的背景"""
         from core.config import cfg
         opacity = cfg.componentCardOpacity.value / 100.0
         radius = cfg.componentCardRadius.value
