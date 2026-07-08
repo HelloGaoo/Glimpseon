@@ -500,4 +500,16 @@ BUILTIN_COMPONENT_DEFINITIONS = [
         resize_mode=ResizeMode.HORIZONTAL,
         default_config={"icon_size": 64},
     ),
+    ComponentDefinition(
+        id="linkage_timetable_preview",
+        display_name="今日课表",
+        category="Linkage",
+        icon="Education",
+        min_width_cells=2,
+        min_height_cells=3,
+        default_width_cells=2,
+        default_height_cells=5,
+        resize_mode=ResizeMode.FREE,
+        default_config={},
+    ),
 ]

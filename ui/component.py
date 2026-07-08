@@ -178,6 +178,14 @@ COMPONENT_STYLES = {
             "default_size": (400, 200),
         },
     },
+    "linkage": {
+        "timetable_preview": {
+            "name": "今日课表",
+            "class": None,
+            "default_config": {},
+            "default_size": (300, 550),
+        },
+    },
 }
 
 
@@ -4310,6 +4318,479 @@ class CalendarMonthComponent(DraggableContainer):
         """)
 
 
+class _TimetableRow(QWidget):
+    """单行课程/课间"""
+    progressChanged = None 
+
+    def __init__(self, is_current=False, is_break=False, is_past=False, parent=None):
+        super().__init__(parent)
+        self._is_current = is_current
+        self._is_break = is_break
+        self._is_past = is_past
+        if is_current:
+            self.setObjectName("timetableRowCurrent")
+        elif is_past:
+            self.setObjectName("timetableRowPast")
+        else:
+            self.setObjectName("timetableRow")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+
+        self._main_layout = QVBoxLayout(self)
+        self._main_layout.setContentsMargins(0, 0, 0, 0)
+        self._main_layout.setSpacing(0)
+
+        # 内容行
+        self._content = QWidget()
+        self._content.setObjectName("timetableRowInner")
+        self._content_layout = QHBoxLayout(self._content)
+        self._content_layout.setContentsMargins(10, 7, 10, 7)
+        self._content_layout.setSpacing(12)
+        self._main_layout.addWidget(self._content)
+
+        # 进度条 当前行显示
+        self._progress = QProgressBar(self)
+        self._progress.setObjectName("timetableProgress")
+        self._progress.setFixedHeight(3)
+        self._progress.setTextVisible(False)
+        self._progress.setRange(0, 100)
+        self._progress.setValue(0)
+        if not is_current:
+            self._progress.hide()
+        self._main_layout.addWidget(self._progress)
+
+    def addWidget(self, w, stretch=0):
+        self._content_layout.addWidget(w, stretch)
+
+    def setProgress(self, pct):
+        """0~100"""
+        if self._is_current:
+            self._progress.show()
+            self._progress.setValue(int(max(0, min(100, pct))))
+
+
+class TimetablePreviewComponent(DraggableContainer):
+    """今日课表预览"""
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName("timetableContainer")
+        self._home = parent
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+        self._bridge = None
+        self._schedule_rows = []
+        self._current_row_data = None  # start_time, end_time 用于算进度
+        self._past_skip_groups = 0  # 已跳过多少组5节
+        self._setup_ui()
+        self._connect_bridge()
+        self._refresh_schedule()
+
+    def _setup_ui(self):
+        layout = self.inner_layout
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(6)
+
+        # 标题
+        self._title_label = QLabel("今日课表")
+        self._title_label.setObjectName("timetableTitle")
+        layout.addWidget(self._title_label)
+
+        # 滚动区域
+        self._scroll = QScrollArea(self)
+        self._scroll.setObjectName("timetableScroll")
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+
+        self._scroll_content = QWidget()
+        self._scroll_content.setObjectName("timetableScrollContent")
+        self._scroll_layout = QVBoxLayout(self._scroll_content)
+        self._scroll_layout.setContentsMargins(0, 0, 0, 0)
+        self._scroll_layout.setSpacing(4)
+        self._scroll_layout.addStretch()
+
+        self._scroll.setWidget(self._scroll_content)
+        layout.addWidget(self._scroll, 1)
+
+        self.setMinimumSize(300, 550)
+        self._size_explicitly_set = True
+        self.resize(300, 550)
+        self._apply_style()
+
+        # 监听卡片设置变化
+        from core.config import cfg
+        cfg.componentCardOpacity.valueChanged.connect(self._apply_style)
+        cfg.componentCardRadius.valueChanged.connect(self._apply_style)
+
+        # 定时刷新 自动滚动
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.timeout.connect(self._on_timer)
+        self._refresh_timer.start(5000)
+
+        # 进度条更新
+        self._progress_timer = QTimer(self)
+        self._progress_timer.timeout.connect(self._update_progress)
+        self._progress_timer.start(1000)
+
+    def _connect_bridge(self):
+        """联动 Bridge"""
+        try:
+            mw = None
+            for w in QApplication.topLevelWidgets():
+                if hasattr(w, 'linkagePage') and hasattr(w, 'cwLinkagePage'):
+                    mw = w
+                    break
+            if not mw:
+                return
+            for page_name in ('linkagePage', 'cwLinkagePage'):
+                page = getattr(mw, page_name, None)
+                if page and hasattr(page, 'bridge'):
+                    bridge = page.bridge
+                    if bridge:
+                        self._bridge = bridge
+                        bridge.stateChanged.connect(self._on_state_changed)
+                        bridge.connectedChanged.connect(self._on_connected_changed)
+                        logger.info(f"[Timetable] 已连接 Bridge: {page_name}")
+                        return
+        except Exception as e:
+            logger.debug(f"[Timetable] 连接 Bridge 失败: {e}")
+
+    def _on_state_changed(self, state):
+        self._refresh_schedule()
+
+    def _on_connected_changed(self, connected):
+        if connected:
+            self._refresh_schedule()
+
+    def _on_timer(self):
+        """刷新课表 更新进度条 自动滚动"""
+        if not self._bridge:
+            self._connect_bridge()
+        self._refresh_schedule()
+        self._update_progress()
+        self._auto_scroll()
+
+    def _refresh_schedule(self):
+        """刷新课表内容"""
+        # 清空旧行
+        while self._scroll_layout.count() > 1:
+            item = self._scroll_layout.takeAt(0)
+            if item and item.widget():
+                item.widget().deleteLater()
+        self._schedule_rows.clear()
+        self._current_row_data = None
+        self._past_skip_groups = 0
+
+        # 获取课表数据
+        schedule = []
+        if self._bridge:
+            try:
+                schedule = self._bridge.get_today_schedule()
+            except Exception:
+                pass
+
+        current_idx = -1
+        if schedule:
+            from datetime import datetime as _dt, time as _time
+            now_time = _dt.now().time()
+            for row_data in schedule:
+                subject, teacher, start, end, index, is_current, is_break, break_name = row_data
+                # 判断是否上完了
+                try:
+                    eh, em = map(int, end.split(":"))
+                    is_past = (not is_current and not is_break
+                              and _time(eh, em) <= now_time)
+                except Exception:
+                    is_past = False
+                # 课间默认隐藏 只显示当前正在进行的课间
+                if is_break and not is_current:
+                    continue
+                if is_break and is_current:
+                    row = self._build_break_row(start, end, break_name)
+                    self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, row)
+                    self._schedule_rows.append(row)
+                    current_idx = len(self._schedule_rows) - 1
+                    self._current_row_data = (start, end)
+                else:
+                    row = self._build_class_row(index, subject, teacher, start, end, is_current, is_past)
+                    self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, row)
+                    self._schedule_rows.append(row)
+                    if is_current:
+                        current_idx = len(self._schedule_rows) - 1
+                        self._current_row_data = (start, end)
+        else:
+            # 没有课表数据
+            for _ in range(8):
+                row = self._build_empty_row()
+                self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, row)
+                self._schedule_rows.append(row)
+
+        # 自动滚到当前课程
+        if current_idx >= 0:
+            QTimer.singleShot(100, lambda: self._scroll_to_row(current_idx))
+
+        self._update_progress()
+
+    def _build_class_row(self, index, subject, teacher, start, end, is_current, is_past=False):
+        """课程行: [第几节] [课程] [老师姓氏]老师 [HH:MM]~[HH:MM]"""
+        row = _TimetableRow(is_current=is_current, is_break=False, is_past=is_past, parent=self)
+        past_suffix = "Past" if is_past else ""
+
+        # 第几节
+        idx_lbl = QLabel(f"第{index}节")
+        idx_lbl.setObjectName("timetableIdx" + past_suffix)
+        idx_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        row.addWidget(idx_lbl)
+
+        # 课程名
+        subj_lbl = QLabel(subject or "—")
+        subj_lbl.setObjectName("timetableSubj" + past_suffix)
+        row.addWidget(subj_lbl, 1)
+
+        # 任课老师
+        teacher_text = ""
+        if teacher:
+            teacher_text = f"{teacher[0]}老师"
+        t_lbl = QLabel(teacher_text)
+        t_lbl.setObjectName("timetableTeacher" + past_suffix)
+        t_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        row.addWidget(t_lbl)
+
+        # 时间
+        time_lbl = QLabel(f"{start}~{end}")
+        time_lbl.setObjectName("timetableTime" + past_suffix)
+        time_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        row.addWidget(time_lbl)
+
+        return row
+
+    def _build_break_row(self, start, end, break_name):
+        """构建课间行"""
+        row = _TimetableRow(is_current=True, is_break=True, parent=self)
+
+        lbl = QLabel(break_name or "课间")
+        lbl.setObjectName("timetableBreakLabel")
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        row.addWidget(lbl, 1)
+
+        time_lbl = QLabel(f"{start}~{end}")
+        time_lbl.setObjectName("timetableTime")
+        time_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        row.addWidget(time_lbl)
+
+        return row
+
+    def _build_empty_row(self):
+        """空行"""
+        row = _TimetableRow(is_current=False, is_break=False, parent=self)
+        lbl = QLabel("今天没有课程")
+        lbl.setObjectName("timetableEmpty")
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        row.addWidget(lbl, 1)
+        return row
+
+    def _update_progress(self):
+        """更新当前行的进度条"""
+        if not self._current_row_data or not self._schedule_rows:
+            return
+        start_s, end_s = self._current_row_data
+        from datetime import datetime as _dt, time as _time
+        now = _dt.now()
+        today = now.date()
+        try:
+            sh, sm = map(int, start_s.split(":"))
+            eh, em = map(int, end_s.split(":"))
+            start_t = _dt.combine(today, _time(sh, sm))
+            end_t = _dt.combine(today, _time(eh, em))
+            total = (end_t - start_t).total_seconds()
+            if total > 0:
+                elapsed = (now - start_t).total_seconds()
+                pct = max(0, min(100, elapsed / total * 100))
+                for r in self._schedule_rows:
+                    if isinstance(r, _TimetableRow) and r._is_current:
+                        r.setProgress(pct)
+                        return
+        except Exception as e:
+            logger.debug(f"[Timetable] 进度计算失败: {e}")
+
+    def _scroll_to_row(self, idx):
+        if 0 <= idx < len(self._schedule_rows):
+            row = self._schedule_rows[idx]
+            y = row.pos().y()
+            self._scroll.verticalScrollBar().setValue(y)
+
+    def _auto_scroll(self):
+        """自动滚动：大于10节时上完5节往下翻"""
+        # TODO: 优化滚动逻辑
+        if not self._bridge:
+            return
+        # 统计
+        past_count = 0
+        for r in self._schedule_rows:
+            if isinstance(r, _TimetableRow) and r._is_past:
+                past_count += 1
+            else:
+                break
+        target_groups = past_count // 5
+        if target_groups > self._past_skip_groups:
+            self._past_skip_groups = target_groups
+        # 计算到哪行
+        skip_rows = self._past_skip_groups * 5
+
+        scroll_idx = skip_rows
+        for i, r in enumerate(self._schedule_rows):
+            if isinstance(r, _TimetableRow) and r._is_current:
+                scroll_idx = i
+                break
+            if isinstance(r, _TimetableRow) and not r._is_past and i >= skip_rows:
+                if scroll_idx == skip_rows:
+                    scroll_idx = i
+                break
+        if 0 <= scroll_idx < len(self._schedule_rows):
+            self._scroll_to_row(scroll_idx)
+
+    def _apply_style(self, *args):
+        """行背景遵循组件系统的统一不透明度和圆角设置，组件背景交给 _buildComponentCardQss"""
+        from core.config import cfg
+        opacity = cfg.componentCardOpacity.value / 100.0
+        radius = cfg.componentCardRadius.value
+
+        is_dark = isDarkTheme()
+        if is_dark:
+            row_bg = f"rgba(255, 255, 255, {opacity * 0.08:.3f})"
+            # 当前行高亮
+            current_row_bg = f"rgba(255, 255, 255, {opacity * 0.18:.3f})"
+            # 上完的课淡化
+            past_row_bg = f"rgba(255, 255, 255, {opacity * 0.04:.3f})"
+            text = "#e0e0e0"
+            text_sub = "#888888"
+            past_text = "#999999"
+            accent = "#4cc2ff"
+            progress_bg = "rgba(255, 255, 255, 0.06)"
+        else:
+            row_bg = f"rgba(0, 0, 0, {opacity * 0.04:.3f})"
+            current_row_bg = f"rgba(0, 0, 0, {opacity * 0.10:.3f})"
+            past_row_bg = f"rgba(0, 0, 0, {opacity * 0.02:.3f})"
+            text = "#1a1a1a"
+            text_sub = "#888888"
+            past_text = "#999999"
+            accent = "#4cc2ff"
+            progress_bg = "rgba(0, 0, 0, 0.05)"
+
+        self.setStyleSheet(f"""
+            #timetableScroll {{
+                background: transparent;
+                border: none;
+            }}
+            #timetableScrollContent {{
+                background: transparent;
+            }}
+            #timetableTitle {{
+                color: {text};
+                font-size: 17px;
+                font-weight: 600;
+                font-family: {FONT_FAMILY};
+                background: transparent;
+                padding-bottom: 2px;
+            }}
+            #timetableRow {{
+                background-color: {row_bg};
+                border-radius: {radius}px;
+                border: none;
+            }}
+            #timetableRowCurrent {{
+                background-color: {current_row_bg};
+                border-radius: {radius}px;
+                border: none;
+            }}
+            #timetableRowPast {{
+                background-color: {past_row_bg};
+                border-radius: {radius}px;
+                border: none;
+            }}
+            #timetableRowInner {{
+                background: transparent;
+            }}
+            #timetableIdx {{
+                color: {text};
+                font-size: 14px;
+                font-family: {FONT_FAMILY};
+                background: transparent;
+            }}
+            #timetableIdxPast {{
+                color: {past_text};
+                font-size: 14px;
+                font-family: {FONT_FAMILY};
+                background: transparent;
+            }}
+            #timetableSubj {{
+                color: {text};
+                font-size: 16px;
+                font-weight: 500;
+                font-family: {FONT_FAMILY};
+                background: transparent;
+            }}
+            #timetableSubjPast {{
+                color: {past_text};
+                font-size: 16px;
+                font-weight: 500;
+                font-family: {FONT_FAMILY};
+                background: transparent;
+            }}
+            #timetableTeacher {{
+                color: {text};
+                font-size: 14px;
+                font-family: {FONT_FAMILY};
+                background: transparent;
+            }}
+            #timetableTeacherPast {{
+                color: {past_text};
+                font-size: 14px;
+                font-family: {FONT_FAMILY};
+                background: transparent;
+            }}
+            #timetableTime {{
+                color: {text};
+                font-size: 13px;
+                font-family: {FONT_FAMILY};
+                background: transparent;
+            }}
+            #timetableTimePast {{
+                color: {past_text};
+                font-size: 13px;
+                font-family: {FONT_FAMILY};
+                background: transparent;
+            }}
+            #timetableBreakLabel {{
+                color: {accent};
+                font-size: 15px;
+                font-weight: 500;
+                font-family: {FONT_FAMILY};
+                background: transparent;
+            }}
+            #timetableEmpty {{
+                color: {text_sub};
+                font-size: 15px;
+                font-family: {FONT_FAMILY};
+                background: transparent;
+            }}
+            #timetableProgress {{
+                background-color: {progress_bg};
+                border: none;
+                border-radius: 1px;
+            }}
+            #timetableProgress::chunk {{
+                background-color: {accent};
+                border-radius: 1px;
+            }}
+        """)
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        self._apply_style()
+
+
 # 更新注册表
 
 COMPONENT_STYLES["clock"]["digital"]["class"] = DigitalClockComponent
@@ -4322,6 +4803,7 @@ COMPONENT_STYLES["school_info"]["class_info"]["class"] = SchoolInfoComponent
 COMPONENT_STYLES["media"]["player"]["class"] = MediaPlayerComponent
 COMPONENT_STYLES["quick_launch"]["dock"]["class"] = QuickLaunchDockComponent
 COMPONENT_STYLES["clock"]["calendar_month"]["class"] = CalendarMonthComponent
+COMPONENT_STYLES["linkage"]["timetable_preview"]["class"] = TimetablePreviewComponent
 
 
 

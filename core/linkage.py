@@ -22,7 +22,6 @@ import configparser
 import json
 import logging
 import os
-import subprocess
 import threading
 import time as _time
 from dataclasses import dataclass, field
@@ -178,54 +177,27 @@ def _python_weekday_to_dotnet(weekday: int) -> int:
 
 
 # ClassIsland 联动
-def _try_wmic(process_name: str) -> Optional[str]:
-    """wmic 获取进程路径"""
+def _find_exe_by_psutil(process_names: list[str]) -> Optional[str]:
+    """查找进程的路径"""
     try:
-        result = subprocess.run(
-            ["wmic", "process", 'where', f"name='{process_name}'",
-             "get", "ExecutablePath", "/format:csv"],
-            capture_output=True, text=True, timeout=5,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
-        for line in result.stdout.strip().splitlines():
-            line = line.strip()
-            if line and line.lower().endswith(".exe") and "executablepath" not in line.lower():
-                return line
-    except (subprocess.SubprocessError, FileNotFoundError, OSError):
-        pass
-    return None
-
-
-def _try_tasklist(process_name: str) -> Optional[str]:
-    """备tasklist 获取进程路径"""
-    try:
-        result = subprocess.run(
-            ["tasklist", "/FI", f"IMAGENAME eq {process_name}", "/V", "/FO", "CSV"],
-            capture_output=True, text=True, timeout=5,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
-        for line in result.stdout.splitlines():
-            if process_name in line and "Window Title" not in line:
-                parts = [p.strip('"') for p in line.split('","')]
-                if len(parts) >= 8 and parts[7] and parts[7].endswith(".exe"):
-                    return parts[7]
-    except (subprocess.SubprocessError, OSError):
+        import psutil
+        for proc in psutil.process_iter(['name', 'exe']):
+            try:
+                name = proc.info['name']
+                if name and name in process_names:
+                    exe = proc.info['exe']
+                    if exe:
+                        return exe
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+    except ImportError:
         pass
     return None
 
 
 def _find_classisland_exe() -> Optional[str]:
     """查找 ci 进程路径"""
-    process_names = ["ClassIsland.Desktop.exe", "ClassIsland.exe"]
-    for proc_name in process_names:
-        path = _try_wmic(proc_name)
-        if path:
-            return path
-    for proc_name in process_names:
-        path = _try_tasklist(proc_name)
-        if path:
-            return path
-    return None
+    return _find_exe_by_psutil(["ClassIsland.Desktop.exe", "ClassIsland.exe"])
 
 
 def _find_classisland_data() -> str:
@@ -324,6 +296,53 @@ class LinkageBridge(QObject):
         with self._lock:
             return self._state.current_lesson
 
+    def get_today_schedule(self) -> list:
+        """返回今日课表"""
+        import datetime as _dt
+        with self._lock:
+            if not self._slots or not self._day_plans:
+                return []
+            now = precise_now()
+            t = now.time()
+            dotnet_wd = _python_weekday_to_dotnet(now.isoweekday())
+            plan = self._day_plans.get(dotnet_wd)
+            if not plan:
+                return []
+            current_idx = self._state.current_index
+            is_breaking = self._state.time_state == TimeState.BREAKING
+            result = []
+            class_counter = 0
+            for slot in self._slots:
+                if slot.time_type == 0:  # 上课
+                    class_counter += 1
+                    ci = class_counter - 1
+                    if ci >= len(plan.class_ids):
+                        break
+                    sid = plan.class_ids[ci]
+                    subj = self._subjects.get(sid, {})
+                    result.append((
+                        subj.get("Name", ""),
+                        subj.get("TeacherName", ""),
+                        slot.start_time.strftime("%H:%M"),
+                        slot.end_time.strftime("%H:%M"),
+                        class_counter,
+                        class_counter == current_idx,
+                        False,
+                        "",
+                    ))
+                else:  # 课间
+                    in_this_break = is_breaking and slot.start_time <= t < slot.end_time
+                    result.append((
+                        "", "",
+                        slot.start_time.strftime("%H:%M"),
+                        slot.end_time.strftime("%H:%M"),
+                        0,
+                        in_this_break,
+                        True,
+                        slot.break_name or "课间",
+                    ))
+            return result
+
     def test_connection(self) -> tuple[bool, str]:
         profile = os.path.join(self._data_dir, _PROFILE_FILE)
         if not os.path.isfile(profile):
@@ -352,12 +371,28 @@ class LinkageBridge(QObject):
     def _loop(self):
         while self._running:
             try:
+                # 没有路径时自动检测
+                if not self._data_dir:
+                    self._auto_detect_silent()
                 self._sync_time_config()
                 st = self._compute_state()
                 self._commit(st)
             except Exception as e:
                 logger.debug(f"[Linkage] 循环异常: {e}")
             _time.sleep(self._poll_interval)
+
+    def _auto_detect_silent(self):
+        """静默检测 成功则保存路径"""
+        path = _find_classisland_data()
+        if path:
+            self.set_data_path(path)
+            self._consecutive_failures = 0
+            try:
+                from core.config import cfg
+                cfg.linkageDataPath.value = path
+            except Exception:
+                pass
+            logger.info(f"[Linkage] 检测到: {path}")
 
     def _load_file_if_changed(self) -> bool:
         if not self._data_dir:
@@ -377,20 +412,27 @@ class LinkageBridge(QObject):
             return True
         except FileNotFoundError:
             self._consecutive_failures += 1
-            if self._consecutive_failures >= self._max_failures_before_redetect:
+            if self._consecutive_failures >= 2:
                 self._try_redetect()
             return False
         except Exception as e:
             self._consecutive_failures += 1
             logger.warning(f"[Linkage] 读取文件失败: {e}")
+            if self._consecutive_failures >= 3:
+                self._try_redetect()
             return False
 
     def _try_redetect(self):
         new_path = _find_classisland_data()
         if new_path and new_path != self._data_dir:
-            logger.info(f"[Linkage] 新路径: {new_path}")
+            logger.info(f"[Linkage] 重检测到新路径: {new_path}")
             self.set_data_path(new_path)
             self._consecutive_failures = 0
+            try:
+                from core.config import cfg
+                cfg.linkageDataPath.value = new_path
+            except Exception:
+                pass
             self.errorOccurred.emit(f"REDIRECT:{new_path}")
 
     def _parse_all(self, raw: dict):
@@ -524,23 +566,8 @@ class LinkageBridge(QObject):
 
 def _find_classwidgets_exe() -> str:
     """查找 ClassWidgets.exe 进程路径"""
-    try:
-        result = subprocess.run(
-            ["tasklist", "/FI", "IMAGENAME eq ClassWidgets.exe", "/FO", "CSV", "/NH"],
-            capture_output=True, text=True, timeout=5, creationflags=subprocess.CREATE_NO_WINDOW,
-        )
-        if "ClassWidgets.exe" in result.stdout:
-            result2 = subprocess.run(
-                ["wmic", "process", "where", "name='ClassWidgets.exe'", "get", "ExecutablePath"],
-                capture_output=True, text=True, timeout=5, creationflags=subprocess.CREATE_NO_WINDOW,
-            )
-            for line in result2.stdout.splitlines():
-                line = line.strip()
-                if line and line.lower().endswith("classwidgets.exe") and os.path.isfile(line):
-                    return line
-    except Exception:
-        pass
-    return ""
+    path = _find_exe_by_psutil(["ClassWidgets.exe"])
+    return path or ""
 
 
 def _find_classwidgets_data() -> str:
@@ -626,6 +653,45 @@ class ClassWidgetsBridge(QObject):
             return True, f"ClassWidgets (课表: {os.path.basename(sched_file)})"
         return False, "未找到课表文件"
 
+    def get_today_schedule(self) -> list:
+        """返回今日课表"""
+        now = precise_now()
+        t = now.time()
+        data = self._read_schedule()
+        if not data:
+            return []
+        slots = self._parse_schedule(data, now)
+        current_idx = -1
+        is_breaking = False
+        with self._lock:
+            current_idx = self._state.current_index
+            is_breaking = self._state.time_state == TimeState.BREAKING
+        result = []
+        for slot in slots:
+            if slot.is_break:
+                in_this_break = is_breaking and slot.start_time <= t < slot.end_time
+                result.append((
+                    "", "",
+                    slot.start_time.strftime("%H:%M"),
+                    slot.end_time.strftime("%H:%M"),
+                    0,
+                    in_this_break,
+                    True,
+                    slot.subject or "课间",
+                ))
+            else:
+                result.append((
+                    slot.subject,
+                    slot.teacher,
+                    slot.start_time.strftime("%H:%M"),
+                    slot.end_time.strftime("%H:%M"),
+                    slot.index,
+                    slot.index == current_idx,
+                    False,
+                    "",
+                ))
+        return result
+
     # 课表文件解析
 
     def _resolve_schedule_path(self) -> str:
@@ -673,11 +739,27 @@ class ClassWidgetsBridge(QObject):
     def _loop(self):
         while self._running:
             try:
+                # 没有路径时自动检测
+                if not self._config_dir:
+                    self._auto_detect_silent()
                 st = self._compute_state()
                 self._commit(st)
             except Exception as e:
                 logger.debug(f"[CW-Linkage] 循环异常: {e}")
             _time.sleep(self._poll_interval)
+
+    def _auto_detect_silent(self):
+        """静默检测 成功则保存路径"""
+        path = _find_classwidgets_data()
+        if path:
+            self.set_data_path(path)
+            self._consecutive_failures = 0
+            try:
+                from core.config import cfg
+                cfg.classWidgetsDataPath.value = path
+            except Exception:
+                pass
+            logger.info(f"[CW-Linkage] 检测到: {path}")
 
     def _compute_state(self) -> LinkageState:
         now = precise_now()
@@ -686,7 +768,7 @@ class ClassWidgetsBridge(QObject):
         data = self._read_schedule()
         if not data:
             self._consecutive_failures += 1
-            if self._consecutive_failures >= self._max_failures_before_redetect:
+            if self._consecutive_failures >= 2:
                 self._try_redetect()
             return LinkageState(is_connected=False)
         self._consecutive_failures = 0
@@ -827,9 +909,14 @@ class ClassWidgetsBridge(QObject):
     def _try_redetect(self):
         new_path = _find_classwidgets_data()
         if new_path and new_path != self._config_dir:
-            logger.info(f"[CW-Linkage] 新路径: {new_path}")
+            logger.info(f"[CW-Linkage] 检测到新路径: {new_path}")
             self.set_data_path(new_path)
             self._consecutive_failures = 0
+            try:
+                from core.config import cfg
+                cfg.classWidgetsDataPath.value = new_path
+            except Exception:
+                pass
             self.errorOccurred.emit(f"REDIRECT:{new_path}")
 
     def _commit(self, new_state: LinkageState) -> bool:
