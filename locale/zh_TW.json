@@ -749,7 +749,16 @@
     "thursday": "週四",
     "friday": "週五",
     "saturday": "週六",
-    "sunday": "週日"
+    "sunday": "週日",
+    "short": {
+      "monday": "一",
+      "tuesday": "二",
+      "wednesday": "三",
+      "thursday": "四",
+      "friday": "五",
+      "saturday": "六",
+      "sunday": "日"
+    }
   },
   "date": {
     "format": "{y}年{M}月{d}日 {w}",

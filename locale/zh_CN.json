@@ -801,7 +801,16 @@
     "thursday": "星期四",
     "friday": "星期五",
     "saturday": "星期六",
-    "sunday": "星期日"
+    "sunday": "星期日",
+    "short": {
+      "monday": "一",
+      "tuesday": "二",
+      "wednesday": "三",
+      "thursday": "四",
+      "friday": "五",
+      "saturday": "六",
+      "sunday": "日"
+    }
   },
   "date": {
     "format": "{y}年{M}月{d}日 {w}",

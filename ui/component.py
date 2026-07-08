@@ -69,10 +69,10 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
-    QFileIconProvider, QLabel, QSizePolicy, QWidget, QVBoxLayout, QHBoxLayout, QApplication, QProgressBar, QGraphicsOpacityEffect,
+    QFileIconProvider, QGridLayout, QLabel, QSizePolicy, QWidget, QVBoxLayout, QHBoxLayout, QApplication, QProgressBar, QGraphicsOpacityEffect,
     QScrollArea, QStackedWidget, QPushButton, QListWidget, QListWidgetItem, QLineEdit,
 )
-from qfluentwidgets import InfoBar, isDarkTheme, RoundMenu, Action, FluentWindow, setTheme, ScrollArea, PushButton, ToolButton, StrongBodyLabel, CardWidget, BodyLabel, SubtitleLabel, ComboBox, SpinBox, SwitchButton
+from qfluentwidgets import InfoBar, isDarkTheme, RoundMenu, Action, FluentWindow, setTheme, ScrollArea, PushButton, ToolButton, TransparentToolButton, StrongBodyLabel, CardWidget, BodyLabel, SubtitleLabel, ComboBox, SpinBox, SwitchButton
 from win32com.shell import shell, shellcon
 
 from core.config import cfg, save_cfg
@@ -109,7 +109,13 @@ COMPONENT_STYLES = {
             "name": "数字时钟",
             "class": None,
             "default_config": {},
-            "default_size": (200, 200),
+            "default_size": (400, 200),
+        },
+        "calendar_month": {
+            "name": "月历",
+            "class": None,
+            "default_config": {},
+            "default_size": (300, 300),
         },
     },
     "weather": {
@@ -475,6 +481,9 @@ class DraggableWidget(QWidget):
             painter.setRenderHint(painter.RenderHint.Antialiasing)
             color = QColor(getattr(self, '_cached_primary_color', QColor(48, 195, 97)))
 
+            # 选中框在组件边缘向内缩进4px
+            border_rect = QRectF(self.rect()).adjusted(4, 4, -4, -4)
+
             # 外发光
             glow_color = QColor(color)
             glow_color.setAlpha(60)
@@ -483,7 +492,7 @@ class DraggableWidget(QWidget):
                 glow_pen.setWidthF(i * 2)
                 painter.setPen(glow_pen)
                 painter.setBrush(Qt.BrushStyle.NoBrush)
-                painter.drawRoundedRect(QRectF(self.rect()).adjusted(3, 3, -3, -3), 8, 8)
+                painter.drawRoundedRect(border_rect, 8, 8)
 
             # 选中边框
             color.setAlpha(200)
@@ -539,7 +548,7 @@ class DraggableWidget(QWidget):
 
             if getattr(self, '_show_border', False):
                 display_name = get_component_display_name(getattr(self, 'component_id', ''))
-                font = QFont("HarmonyOS Sans,Microsoft YaHei,sans-serif")
+                font = QFont("HarmonyOS Sans")
                 font.setPixelSize(14)
                 painter.setFont(font)
                 painter.setPen(QColor(0, 0, 0, 100) if not isDarkTheme() else QColor(255, 255, 255, 100))
@@ -740,38 +749,24 @@ class DraggableWidget(QWidget):
         self._updatePositionFromPercent()
 
 
-class _DeleteButton(QPushButton):
-    """删除按钮"""
+def _create_delete_button(parent_widget, component_widget, on_clicked):
+    """创建删除按钮"""
+    btn = ToolButton(FUI.DELETE, parent_widget)
+    btn.setFixedSize(28, 28)
+    btn.setIconSize(QSize(14, 14))
+    btn.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+    btn.hide()
+    btn.clicked.connect(on_clicked)
 
-    def __init__(self, parent_widget):
-        self._fui_icon = FUI.DELETE
-        super().__init__(parent_widget)
-        self._parent_widget = parent_widget
-        self.setFixedSize(24, 24)
-        self.setIcon(self._fui_icon.icon())
-        self.setIconSize(QSize(14, 14))
-        self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
-        self.setObjectName("deleteOverlayButton")
-        self.setStyleSheet("""
-            QPushButton#deleteOverlayButton {
-                border: none;
-                border-radius: 12px;
-                background-color: rgba(0, 0, 0, 0.45);
-            }
-            QPushButton#deleteOverlayButton:hover {
-                background-color: rgba(220, 30, 30, 0.75);
-            }
-            QPushButton#deleteOverlayButton:pressed {
-                background-color: rgba(180, 0, 0, 0.9);
-            }
-        """)
-        self.hide()
+    # 绑定定位方法
+    def _reposition():
+        comp_pos = component_widget.mapTo(parent_widget, QPoint(0, 0))
+        x = comp_pos.x() + component_widget.width() - btn.width() + 4
+        y = comp_pos.y() + component_widget.height() + 4
+        btn.move(x, y)
 
-    def reposition(self):
-        parent = self._parent_widget
-        x = parent.width() - self.width() // 2
-        y = parent.height() - self.height() // 2
-        self.move(x, y)
+    btn.reposition = _reposition
+    return btn
 
 
 class DraggableContainer(DraggableWidget):
@@ -833,9 +828,12 @@ class DraggableContainer(DraggableWidget):
 
     def _ensureEditControls(self):
         if self._delete_button is None:
-            self._delete_button = _DeleteButton(self)
-            self._delete_button.clicked.connect(self._onDeleteClicked)
-            self._delete_button.hide()
+            home = self._getHomeInterface()
+            # 按钮放在 home 上
+            parent_widget = home if home else self
+            self._delete_button = _create_delete_button(
+                parent_widget, self, self._onDeleteClicked
+            )
 
     def showEditControls(self, visible: bool):
         self._ensureEditControls()
@@ -941,7 +939,7 @@ class DraggableContainer(DraggableWidget):
             painter.drawRoundedRect(QRectF(self.rect()).adjusted(1, 1, -1, -1), 4, 4)
 
             display_name = get_component_display_name(self.component_id)
-            font = QFont("HarmonyOS Sans,Microsoft YaHei,sans-serif")
+            font = QFont("HarmonyOS Sans")
             font.setPixelSize(14)
             painter.setFont(font)
             painter.setPen(QColor(0, 0, 0, 100) if not isDarkTheme() else QColor(255, 255, 255, 100))
@@ -2686,14 +2684,14 @@ class DigitalClockComponent(DraggableContainer):
 
         layout = self.inner_layout
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(4)
+        layout.setContentsMargins(32, 24, 32, 24)
+        layout.setSpacing(8)
         layout.addWidget(self.clockLabel)
         layout.addWidget(self.dateLabel)
 
-        self.setMinimumSize(200, 200)
+        self.setMinimumSize(400, 200)
         self._size_explicitly_set = True
-        self.resize(200, 200)
+        self.resize(400, 200)
         self._apply_style()
 
     def _setup_timer(self):
@@ -3919,6 +3917,399 @@ class QuickLaunchDockComponent(DraggableContainer):
             self.dock.set_apps(apps)
 
 
+SOLAR_TERMS_CN = [
+    "小寒", "大寒", "立春", "雨水", "惊蛰", "春分",
+    "清明", "谷雨", "立夏", "小满", "芒种", "夏至",
+    "小暑", "大暑", "立秋", "处暑", "白露", "秋分",
+    "寒露", "霜降", "立冬", "小雪", "大雪", "冬至",
+]
+
+MONTH_NAMES_CN = ["一月", "二月", "三月", "四月", "五月", "六月",
+                  "七月", "八月", "九月", "十月", "十一月", "十二月"]
+
+HOLIDAY_SHORT_MAP = {
+    # 法定节假日
+    "元旦节": "元旦",
+    "春节": "春节",
+    "清明节": "清明",
+    "国际劳动节": "劳动",
+    "端午节": "端午",
+    "中秋节": "中秋",
+    "国庆节": "国庆",
+    # 传统节日
+    "元宵节": "元宵",
+    "小年": "小年",
+    "七夕-魁星诞": "七夕",
+    "中元节": "中元",
+    "重阳节-酆都大帝诞": "重阳",
+    "腊八节-释迦如来成佛之辰": "腊八",
+    "春龙节-福德土地正神诞": "龙抬头",
+    # 其他节日
+    "情人节": "情人",
+    "国际劳动妇女节": "妇女",
+    "中国植树节": "植树",
+    "孙中山逝世纪念日,中国植树节": "植树",
+    "国际愚人节": "愚人",
+    "中国青年节": "青年",
+    "母亲节": "母亲",
+    "国际儿童节": "儿童",
+    "父亲节": "父亲",
+    "中国共产党诞生日,香港回归纪念日": "建党",
+    "中国人民解放军建军节": "建军",
+    "中国教师节": "教师",
+    "平安夜": "平安夜",
+    "圣诞节": "圣诞",
+    "国际和平日": "和平",
+    "中国人民抗日战争纪念日": "抗日",
+    "中国抗日战争胜利纪念日": "抗日",
+    "抗美援朝纪念日": "抗美",
+    "南京大屠杀纪念日": "公祭",
+    "上海解放日": "解放",
+    # 二十四节气
+    "小寒": "小寒",
+    "大寒": "大寒",
+    "立春": "立春",
+    "雨水": "雨水",
+    "惊蛰": "惊蛰",
+    "春分": "春分",
+    "清明": "清明",
+    "谷雨": "谷雨",
+    "立夏": "立夏",
+    "小满": "小满",
+    "芒种": "芒种",
+    "夏至": "夏至",
+    "小暑": "小暑",
+    "大暑": "大暑",
+    "立秋": "立秋",
+    "处暑": "处暑",
+    "白露": "白露",
+    "秋分": "秋分",
+    "寒露": "寒露",
+    "霜降": "霜降",
+    "立冬": "立冬",
+    "小雪": "小雪",
+    "大雪": "大雪",
+    "冬至": "冬至",
+}
+
+
+def _short_holiday(name: str) -> str:
+    """节日名称简写"""
+    if not name:
+        return ""
+    if "," in name:
+        parts = [p.strip() for p in name.split(",")]
+        for p in parts:
+            if p in HOLIDAY_SHORT_MAP:
+                return HOLIDAY_SHORT_MAP[p]
+        return ""
+    return HOLIDAY_SHORT_MAP.get(name, "")
+
+
+def _get_day_info(year: int, month: int, day: int) -> tuple:
+    """→ (holiday, solar_term, lunar_day)"""
+    holiday = ""
+    solar_term = ""
+    lunar_day = ""
+    try:
+        import cnlunar
+        dt = py_datetime.datetime(year, month, day, 0, 0, 0)
+        lunar = cnlunar.Lunar(dt)
+        term = lunar.todaySolarTerms
+        if term and term in SOLAR_TERMS_CN:
+            solar_term = term
+        legal = lunar.get_legalHolidays().strip()
+        if legal:
+            holiday = legal
+        else:
+            other = lunar.get_otherHolidays().strip()
+            if other:
+                holiday = other
+            else:
+                other_lunar = lunar.get_otherLunarHolidays().strip()
+                if other_lunar:
+                    holiday = other_lunar
+        # 农历日（初一显示月名，其他显示日）
+        day_num = lunar.day
+        lunar_day = lunar.getDayInChinese()
+    except Exception:
+        pass
+    return holiday, solar_term, lunar_day
+
+
+class _DayCell(QWidget):
+    """单个日期格子"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("calCell")
+        self._day = 0
+        self._is_current_month = True
+        self._is_today = False
+        self._is_weekend = False
+        self._sub_text = ""
+
+    def set_data(self, day: int, sub_text: str, is_current_month: bool,
+                 is_today: bool, is_weekend: bool):
+        self._day = day
+        self._sub_text = sub_text
+        self._is_current_month = is_current_month
+        self._is_today = is_today
+        self._is_weekend = is_weekend
+        self.update()
+
+    def clear(self):
+        self._day = 0
+        self._sub_text = ""
+        self._is_current_month = True
+        self._is_today = False
+        self._is_weekend = False
+        self.update()
+
+    def paintEvent(self, e):
+        if self._day == 0:
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        r = self.rect()
+        w, h = r.width(), r.height()
+        sz = min(w, h)
+
+        mid = h * 0.62  # 分割线位置 62% 给日期
+
+        # 日期数字
+        day_font = QFont("HarmonyOS Sans")
+        day_font.setPixelSize(int(sz * 0.46))
+        painter.setFont(day_font)
+
+        if self._is_today:
+            cx = r.center().x() + int(w * 0.02)
+            cy = int(mid / 2)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor("#00b7c3"))
+            painter.drawEllipse(QPoint(cx, cy), int(sz * 0.40), int(sz * 0.40))
+
+        if self._is_today:
+            painter.setPen(QColor("#ffffff"))
+        elif not self._is_current_month:
+            painter.setPen(QColor("#555555"))
+        elif self._is_weekend:
+            painter.setPen(QColor("#9a9a9a"))
+        else:
+            painter.setPen(QColor("#e8e8e8"))
+
+        day_rect = QRect(r.left() + int(w * 0.04), 0, w, int(mid))
+        painter.drawText(day_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, str(self._day))
+
+        # 节日文字
+        if self._sub_text and self._is_current_month:
+            sub_font = QFont("HarmonyOS Sans")
+            sub_font.setPixelSize(int(sz * 0.26))
+            painter.setFont(sub_font)
+            painter.setPen(QColor("#ffffff") if self._is_today else QColor("#c0c0c0"))
+            sub_rect = QRect(r.left(), int(mid), w, int(h - mid))
+            painter.drawText(sub_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, self._sub_text)
+
+
+class CalendarMonthComponent(DraggableContainer):
+    """月历"""
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName("calendarContainer")
+        self._home = parent
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+        today = QDate.currentDate()
+        self._display_year = today.year()
+        self._display_month = today.month()
+
+        self._cells = []
+        self._setup_ui()
+        self._setup_timer()
+        self._refresh_calendar()
+
+    def _setup_ui(self):
+        layout = self.inner_layout
+        layout.setContentsMargins(12, 10, 12, 8)
+        layout.setSpacing(4)
+
+        # 标题栏
+        title_layout = QHBoxLayout()
+        title_layout.setContentsMargins(0, 0, 0, 0)
+        title_layout.setSpacing(0)
+
+        self._title_label = QLabel("")
+        self._title_label.setObjectName("calTitle")
+        title_layout.addWidget(self._title_label)
+        title_layout.addStretch()
+
+        btn_layout = QVBoxLayout()
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+        btn_layout.setSpacing(0)
+
+        self._up_btn = TransparentToolButton(self)
+        self._up_btn.setIcon(FUI.CHEVRON_UP.icon())
+        self._up_btn.setFixedSize(28, 18)
+        self._up_btn.clicked.connect(self._go_prev_month)
+
+        self._down_btn = TransparentToolButton(self)
+        self._down_btn.setIcon(FUI.CHEVRON_DOWN.icon())
+        self._down_btn.setFixedSize(28, 18)
+        self._down_btn.clicked.connect(self._go_next_month)
+
+        btn_layout.addWidget(self._up_btn)
+        btn_layout.addWidget(self._down_btn)
+        title_layout.addLayout(btn_layout)
+
+        layout.addLayout(title_layout)
+
+        # 星期标题
+        wk_names = ["日", "一", "二", "三", "四", "五", "六"]
+        wk_layout = QHBoxLayout()
+        wk_layout.setContentsMargins(0, 0, 0, 0)
+        wk_layout.setSpacing(0)
+        for i, n in enumerate(wk_names):
+            lbl = QLabel(n)
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl.setObjectName("calWk")
+            if i == 0 or i == 6:
+                lbl.setProperty("wkend", True)
+            wk_layout.addWidget(lbl)
+        layout.addLayout(wk_layout)
+
+        # 5行日期
+        grid_w = QWidget()
+        grid = QGridLayout(grid_w)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setSpacing(0)
+        for c in range(7):
+            grid.setColumnStretch(c, 1)
+        for r in range(5):
+            grid.setRowStretch(r, 1)
+
+        self._cells = []
+        for r in range(5):
+            row = []
+            for c in range(7):
+                cell = _DayCell(self)
+                grid.addWidget(cell, r, c)
+                row.append(cell)
+            self._cells.append(row)
+
+        self._grid = grid
+
+        layout.addWidget(grid_w, 1)
+
+        self.setMinimumSize(300, 300)
+        self._size_explicitly_set = True
+        self.resize(300, 300)
+        self._apply_style()
+
+    def _setup_timer(self):
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._check_day_change)
+        self._timer.start(60000)
+
+    def _check_day_change(self):
+        t = QDate.currentDate()
+        if t.year() == self._display_year and t.month() == self._display_month:
+            self._refresh_calendar()
+
+    def _go_prev_month(self):
+        self._display_month -= 1
+        if self._display_month < 1:
+            self._display_month = 12
+            self._display_year -= 1
+        self._refresh_calendar()
+
+    def _go_next_month(self):
+        self._display_month += 1
+        if self._display_month > 12:
+            self._display_month = 1
+            self._display_year += 1
+        self._refresh_calendar()
+
+    def _refresh_calendar(self):
+        import calendar as cal
+        year, month = self._display_year, self._display_month
+        today = QDate.currentDate()
+
+        # 标题
+        self._title_label.setText(f"{MONTH_NAMES_CN[month-1]} {year}")
+
+        first_wd = cal.monthrange(year, month)[0]  # 0=Monday
+        dim = cal.monthrange(year, month)[1]
+
+        # 上月天数
+        prev_month = month - 1 if month > 1 else 12
+        prev_year = year if month > 1 else year - 1
+        prev_dim = cal.monthrange(prev_year, prev_month)[1]
+
+        # 清空
+        for r in range(5):
+            for c in range(7):
+                self._cells[r][c].clear()
+
+        # 填充上月末尾日期
+        for i in range(first_wd):
+            col = i
+            day_num = prev_dim - first_wd + 1 + i
+            self._cells[0][col].set_data(
+                day=day_num, sub_text="", is_current_month=False,
+                is_today=False, is_weekend=(col == 0 or col == 6)
+            )
+
+        # 填充本月
+        day = 1
+        for r in range(5):
+            for c in range(7):
+                if r == 0 and c < first_wd:
+                    continue
+                if day > dim:
+                    break
+
+                is_today = (year == today.year() and month == today.month() and day == today.day())
+                is_wkend = (c == 0 or c == 6)
+
+                holiday, term, _ = _get_day_info(year, month, day)
+                sub = ""
+                if holiday:
+                    sub = _short_holiday(holiday)
+                elif term:
+                    sub = _short_holiday(term)
+
+                self._cells[r][c].set_data(
+                    day=day, sub_text=sub, is_current_month=True,
+                    is_today=is_today, is_weekend=is_wkend
+                )
+
+                day += 1
+
+        self.updateSize()
+
+    def _apply_style(self):
+        self.setStyleSheet(f"""
+            #calTitle {{
+                color: #f0f0f0;
+                font-size: 20px;
+                font-weight: 600;
+                font-family: {FONT_FAMILY};
+                background: transparent;
+            }}
+            #calWk {{
+                color: #d0d0d0;
+                font-size: 13px;
+                font-family: {FONT_FAMILY};
+                background: transparent;
+            }}
+            #calWk[wkend="true"] {{
+                color: #b0b0b0;
+            }}
+        """)
+
+
 # 更新注册表
 
 COMPONENT_STYLES["clock"]["digital"]["class"] = DigitalClockComponent
@@ -3930,6 +4321,7 @@ COMPONENT_STYLES["countdown"]["event"]["class"] = CountdownEventComponent
 COMPONENT_STYLES["school_info"]["class_info"]["class"] = SchoolInfoComponent
 COMPONENT_STYLES["media"]["player"]["class"] = MediaPlayerComponent
 COMPONENT_STYLES["quick_launch"]["dock"]["class"] = QuickLaunchDockComponent
+COMPONENT_STYLES["clock"]["calendar_month"]["class"] = CalendarMonthComponent
 
 
 

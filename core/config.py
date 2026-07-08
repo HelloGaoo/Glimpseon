@@ -193,10 +193,10 @@ class Config(QConfig):
     )
     clockColor = ColorConfigItem("Time", "ClockColor", "#FFFFFF")
     clockSize = RangeConfigItem(
-        "Time", "ClockSize", 120, RangeValidator(80, 200)
+        "Time", "ClockSize", 80, RangeValidator(40, 120)
     )
     dateSize = RangeConfigItem(
-        "Time", "DateSize", 20, RangeValidator(12, 50)
+        "Time", "DateSize", 16, RangeValidator(10, 40)
     )
     timeOffset = RangeConfigItem(
         "Time", "TimeOffset", 0, RangeValidator(-9999, 9999)

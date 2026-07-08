@@ -394,6 +394,18 @@ BUILTIN_COMPONENT_DEFINITIONS = [
         default_config={"show_seconds": True, "show_lunar": True},
     ),
     ComponentDefinition(
+        id="clock_calendar_month",
+        display_name="月历",
+        category="Clock",
+        icon="Calendar",
+        min_width_cells=2,
+        min_height_cells=2,
+        default_width_cells=2,
+        default_height_cells=3,
+        resize_mode=ResizeMode.FREE,
+        default_config={},
+    ),
+    ComponentDefinition(
         id="weather_icon_temp",
         display_name="天气",
         category="Weather",
