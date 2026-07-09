@@ -884,6 +884,11 @@
     "settings_general": "General Settings",
     "settings_enable": "Enable Notifications",
     "settings_speed": "Scroll Speed",
-    "settings_duration": "Display Duration(s)"
+    "settings_duration": "Display Duration(s)",
+    "date_label": "Date",
+    "schedule_set_log": "Scheduled notification set: {time}",
+    "schedule_cancelled_disabled": "Scheduled notification cancelled (notifications disabled)",
+    "schedule_data_missing": "Scheduled notification data missing",
+    "sending_scheduled": "Sending scheduled notification: {data}"
   }
 }

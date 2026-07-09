@@ -841,7 +841,7 @@ class _FluentUIIconInstance(FluentIconBase):
         elif os.path.exists(svg_path_24):
             return svg_path_24
         else:
-            logger.warning(f"FluentUI 图标文件不存在: {svg_path_24}")
+            # logger.warning(f"FluentUI 图标文件不存在: {svg_path_24}")
             return svg_path_24
     
     def __repr__(self) -> str:

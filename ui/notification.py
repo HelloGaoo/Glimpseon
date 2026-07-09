@@ -1,27 +1,10 @@
-# ClassLively
-# Copyright (C) 2026 HelloGaoo
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 """
-通知页面模块
+通知页面
 """
 
 import os
 import logging
 import sys
-
 
 if getattr(sys, 'frozen', False):
     _BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
@@ -30,15 +13,17 @@ else:
 if _BASE_DIR not in sys.path:
     sys.path.insert(0, _BASE_DIR)
 
-import os
-
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QDateTime, QDate, QTime
 from PyQt6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
+    QDateTimeEdit,
     QHBoxLayout,
     QLabel,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
+    QMessageBox,
 )
 from qfluentwidgets import (
     BodyLabel,
@@ -49,21 +34,28 @@ from qfluentwidgets import (
     StrongBodyLabel,
     Theme,
     ComboBox,
-    LineEdit,
     PrimaryPushButton,
     SpinBox,
     SwitchButton,
     TextEdit,
+    CalendarPicker,
+    TimePicker,
+    InfoBar,
+    InfoBarPosition,
 )
 
 from core.constants import load_qss
 from core.utils import tr, TranslatableWidget, FUI
+from core.notification import NotifType
+from qfluentwidgets import MessageBox
 
 logger = logging.getLogger("ClassLively.ui.notification")
 
 
 class NotificationPage(ScrollArea, TranslatableWidget):
     """通知页面"""
+
+    send_notification = pyqtSignal(dict)
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
@@ -75,32 +67,26 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
-        # 主布局
         self.mainLayout = QVBoxLayout(self.scrollWidget)
         self.mainLayout.setContentsMargins(40, 20, 40, 20)
         self.mainLayout.setSpacing(16)
 
-        # 页面标题
         self.titleLabel = StrongBodyLabel(tr("notification.title"), self.scrollWidget)
         self.titleLabel.setObjectName("notificationTitle")
         self.mainLayout.addWidget(self.titleLabel)
 
-        # ---- 顶部标签导航栏 ----
         self.pivot = Pivot(self)
         self.stackedWidget = QStackedWidget(self)
 
-        # 通知标签页
         self.notificationTab = QWidget()
         self._build_notification_tab()
 
-        # 设置标签页
         self.settingsTab = QWidget()
         self._build_settings_tab()
 
         self.stackedWidget.addWidget(self.notificationTab)
         self.stackedWidget.addWidget(self.settingsTab)
 
-        # 注册 Pivot 路由
         self.pivot.addItem(
             routeKey="notificationTab",
             text=tr("notification.tab_notifications"),
@@ -112,25 +98,26 @@ class NotificationPage(ScrollArea, TranslatableWidget):
             onClick=lambda: self.stackedWidget.setCurrentWidget(self.settingsTab),
         )
 
-        # 默认选中通知标签
         self.stackedWidget.setCurrentWidget(self.notificationTab)
         self.pivot.setCurrentItem("notificationTab")
 
-        # Pivot + StackedWidget 放入布局
         self.mainLayout.addWidget(self.pivot)
         self.mainLayout.addWidget(self.stackedWidget)
         self.mainLayout.addStretch()
 
         self.setStyleSheet(load_qss("notification.qss"))
 
+        self._scheduled_timer = QTimer(self)
+        self._scheduled_timer.setSingleShot(True)
+        self._scheduled_timer.timeout.connect(self._sendScheduledNotification)
+
     def _build_notification_tab(self):
-        """构建「通知」标签页内容"""
         layout = QVBoxLayout(self.notificationTab)
         layout.setContentsMargins(0, 12, 0, 0)
         layout.setSpacing(16)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        # --- 通知类型选择 ---
+        # 通知类型选择
         type_card = CardWidget(self.notificationTab)
         type_layout = QVBoxLayout(type_card)
         type_layout.setContentsMargins(20, 16, 20, 16)
@@ -142,18 +129,17 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         type_row = QHBoxLayout()
         type_row.setSpacing(12)
         self.typeCombo = ComboBox(type_card)
-        self.typeCombo.addItems([
-            tr("notification.type_scroll"),
-            tr("notification.type_corner"),
-            tr("notification.type_fullscreen"),
-        ])
+        self.typeCombo.addItem(tr("notification.type_scroll"), userData=NotifType.SCROLL)
+        self.typeCombo.addItem(tr("notification.type_corner"), userData=NotifType.CORNER)
+        self.typeCombo.addItem(tr("notification.type_fullscreen"), userData=NotifType.FULLSCREEN)
+        self.typeCombo.setCurrentIndex(0)
         self.typeCombo.setMinimumWidth(200)
         type_row.addWidget(self.typeCombo)
         type_row.addStretch()
         type_layout.addLayout(type_row)
         layout.addWidget(type_card)
 
-        # --- 通知内容 ---
+        # 通知内容
         content_card = CardWidget(self.notificationTab)
         content_layout = QVBoxLayout(content_card)
         content_layout.setContentsMargins(20, 16, 20, 16)
@@ -168,7 +154,7 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         content_layout.addWidget(self.contentEdit)
         layout.addWidget(content_card)
 
-        # --- 发送时间和发送按钮 ---
+        # 发送按钮
         time_card = CardWidget(self.notificationTab)
         time_layout = QVBoxLayout(time_card)
         time_layout.setContentsMargins(20, 16, 20, 16)
@@ -185,23 +171,21 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         time_row.addWidget(self.sendNowBtn)
 
         self.scheduleBtn = PushButton(FUI.CALENDAR, tr("notification.schedule"), time_card)
+        self.scheduleBtn.clicked.connect(self._onScheduleClicked)
         time_row.addWidget(self.scheduleBtn)
         time_row.addStretch()
 
         time_layout.addLayout(time_row)
         layout.addWidget(time_card)
 
-        # 底部预留
         layout.addStretch()
 
     def _build_settings_tab(self):
-        """构建「设置」标签页内容"""
         layout = QVBoxLayout(self.settingsTab)
         layout.setContentsMargins(0, 12, 0, 0)
         layout.setSpacing(16)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        # --- 通知开关 ---
         general_card = CardWidget(self.settingsTab)
         general_layout = QVBoxLayout(general_card)
         general_layout.setContentsMargins(20, 16, 20, 16)
@@ -210,7 +194,6 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         general_title = StrongBodyLabel(tr("notification.settings_general"), general_card)
         general_layout.addWidget(general_title)
 
-        # 启用通知
         enable_row = QHBoxLayout()
         enable_row.setSpacing(12)
         enable_label = BodyLabel(tr("notification.settings_enable"), general_card)
@@ -222,7 +205,6 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         enable_row.addWidget(self.enableSwitch)
         general_layout.addLayout(enable_row)
 
-        # 滚动速度
         speed_row = QHBoxLayout()
         speed_row.setSpacing(12)
         speed_label = BodyLabel(tr("notification.settings_speed"), general_card)
@@ -234,7 +216,6 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         speed_row.addWidget(self.speedSpin)
         general_layout.addLayout(speed_row)
 
-        # 显示时长
         duration_row = QHBoxLayout()
         duration_row.setSpacing(12)
         duration_label = BodyLabel(tr("notification.settings_duration"), general_card)
@@ -247,13 +228,119 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         general_layout.addLayout(duration_row)
 
         layout.addWidget(general_card)
-
-        # 底部预留
         layout.addStretch()
 
-    @staticmethod
-    def _onSendNow():
-        logger.info("发送通知 (未实现)")
+    def _onSendNow(self):
+        """立即发送通知"""
+        if not self.enableSwitch.isChecked():
+            w = MessageBox(tr("common.tip"), tr("notification.not_enabled"), self.window())
+            w.exec()
+            return
+
+        content = self.contentEdit.toPlainText().strip()
+        if not content:
+            w = MessageBox(tr("common.tip"), tr("notification.empty_content"), self.window())
+            w.exec()
+            return
+        notif_data = {
+            "type": self.typeCombo.currentData(),
+            "content": content,
+            "speed": self.speedSpin.value(),
+            "duration": self.durationSpin.value(),
+        }
+        logger.info(f"立即发送通知: {notif_data}")
+        self.send_notification.emit(notif_data)
+
+    def _onScheduleClicked(self):
+        """定时发送通知"""
+        w = MessageBox(tr("notification.schedule_title"), tr("notification.select_time"), self.window())
+        w.setMinimumWidth(400)
+        w.setMinimumHeight(300)
+        
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setSpacing(16)
+        content_layout.setContentsMargins(8, 8, 8, 8)
+        
+        # 日期
+        date_label = BodyLabel(tr("notification.date_label"), content_widget)
+        date_picker = CalendarPicker(content_widget)
+        date_picker.setDate(QDate.currentDate())
+        date_picker.setMinimumWidth(300)
+        content_layout.addWidget(date_label)
+        content_layout.addWidget(date_picker)
+        
+        # 时间
+        time_label = BodyLabel(tr("notification.time_label"), content_widget)
+        time_picker = TimePicker(content_widget)
+        time_picker.setTime(QTime.currentTime().addSecs(60))
+        time_picker.setMinimumWidth(300)
+        content_layout.addWidget(time_label)
+        content_layout.addWidget(time_picker)
+        
+        content_layout.addStretch()
+        
+        # 添加到 MessageBox
+        w.textLayout.addWidget(content_widget)
+        
+        # 按钮
+        w.yesButton.setText(tr("common.confirm"))
+        w.cancelButton.setText(tr("common.cancel"))
+        
+        if not w.exec():
+            return
+        
+        sel_date = date_picker.date()
+        sel_time = time_picker.time()
+        selected_datetime = QDateTime(sel_date, sel_time)
+        current_datetime = QDateTime.currentDateTime()
+        
+        if selected_datetime <= current_datetime:
+            InfoBar.error(
+                title=tr("common.tip"),
+                content=tr("notification.invalid_schedule_time"),
+                parent=self.window(),
+                position=InfoBarPosition.TOP,
+                duration=3000,
+            )
+            return
+        
+        self._scheduled_notif_data = {
+            "type": self.typeCombo.currentData(),
+            "content": self.contentEdit.toPlainText().strip(),
+            "speed": self.speedSpin.value(),
+            "duration": self.durationSpin.value(),
+        }
+        
+        msecs = current_datetime.msecsTo(selected_datetime)
+        self._scheduled_timer.start(msecs)
+        
+        InfoBar.success(
+            title=tr("common.tip"),
+            content=tr("notification.schedule_set").format(
+                time=selected_datetime.toString("yyyy-MM-dd hh:mm:ss")
+            ),
+            parent=self.window(),
+            position=InfoBarPosition.TOP,
+            duration=3000,
+        )
+        logger.info(tr("notification.schedule_set_log").format(
+            time=selected_datetime.toString("yyyy-MM-dd hh:mm:ss")
+        ))
+
+    def _sendScheduledNotification(self):
+        """到点发送通知"""
+        if not self.enableSwitch.isChecked():
+            logger.info(tr("notification.schedule_cancelled_disabled"))
+            return
+
+        notif_data = getattr(self, "_scheduled_notif_data", None)
+        if not notif_data or not notif_data.get("content"):
+            logger.warning(tr("notification.schedule_data_missing"))
+            return
+
+        logger.info(tr("notification.sending_scheduled").format(data=notif_data))
+        self.send_notification.emit(notif_data)
 
     def _onThemeChanged(self, theme: Theme):
         self.setStyleSheet(load_qss("notification.qss"))

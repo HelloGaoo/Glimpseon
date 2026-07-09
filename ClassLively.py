@@ -25,6 +25,8 @@ import platform
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, wait
+import win32gui
+import win32con
 
 from PyQt6.QtCore import QEvent, QLocale, Qt, QThread, QTime, QTimer, QTranslator, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QIcon, QPixmap, QFont
@@ -73,6 +75,7 @@ from core.utils import (
     TranslatableWidget,
     FUI,
 )
+from core.notification import NotificationManager
 from data.software_list import SOFTWARE_CATEGORIES, get_software_icon_path
 from ui import AboutInterface, DownloadInterface, UpdateInterface, NotificationPage
 from ui.home import HomeInterface
@@ -947,9 +950,9 @@ class MainWindow(FluentWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(APP_NAME)
-        self.setWindowFlags(self.windowFlags() | Qt.WindowType.FramelessWindowHint)
-        self.setSystemTitleBarButtonVisible(False)
-        self.updateFrameless()
+        # self.setWindowFlags(self.windowFlags() | Qt.WindowType.FramelessWindowHint)
+        # self.setSystemTitleBarButtonVisible(False)
+        # self.updateFrameless()
 
         setTheme(cfg.themeMode.value)
 
@@ -970,10 +973,10 @@ class MainWindow(FluentWindow):
         logger.info(f"[MW] _initNavigation 总耗时{time.time()-_t_nav:.2f}s")
 
         self._normal_size = (1050, 750)
-        self._is_fullscreen = False
+        self._is_maximized = False
         self._resize_timer = QTimer(self)
         self._resize_timer.setSingleShot(True)
-        self._resize_timer.timeout.connect(self._checkWindowSize)
+        # self._resize_timer.timeout.connect(self._checkWindowSize)
         self.resize(*self._normal_size)
         self.setMinimumSize(*self._normal_size)
         if not self._loadWindowPosition():
@@ -997,7 +1000,32 @@ class MainWindow(FluentWindow):
         # _t_i18n = time.time()
         # self._initTranslation()
         # logger.info(f"[MW] 翻译系统初始化 耗时{time.time()-_t_i18n:.2f}s")
+ 
+    def disable_restore_button(self):
+        """禁用系统菜单中的 还原/移动/大小 选项"""
+        try:
+            hwnd = int(self.winId())
+            hMenu = ctypes.windll.user32.GetSystemMenu(hwnd, False)
+            if hMenu:
+                # 灰化还原 (SC_RESTORE)
+                ctypes.windll.user32.EnableMenuItem(hMenu, 0xF120,
+                                                    win32con.MF_BYCOMMAND | win32con.MF_GRAYED)
+                # 灰化移动 (SC_MOVE)
+                ctypes.windll.user32.EnableMenuItem(hMenu, 0xF010,
+                                                    win32con.MF_BYCOMMAND | win32con.MF_GRAYED)
+                # 灰化大小 (SC_SIZE)
+                ctypes.windll.user32.EnableMenuItem(hMenu, 0xF000,
+                                                    win32con.MF_BYCOMMAND | win32con.MF_GRAYED)
+        except Exception:
+            pass
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        # 窗口首次显示时灰化系统菜单
+        if not hasattr(self, '_menu_disabled'):
+            self._menu_disabled = True
+            QTimer.singleShot(100, self.disable_restore_button)  # 延迟确保菜单已创建
+            
     def _initNavigation(self):
         _t = time.time()
         self.homeInterface = HomeInterface(self)
@@ -1015,6 +1043,8 @@ class MainWindow(FluentWindow):
         self.notificationPage = NotificationPage(self)
         self.notificationPage.setObjectName("notification")
         self.addSubInterface(self.notificationPage, FUI.MESSAGE, tr("navigation.notification"))  # 通知
+        self.notifManager = NotificationManager(self)
+        self.notificationPage.send_notification.connect(self.notifManager.handle_notification)
         logger.info(f"[MW] NotificationPage 耗时{time.time()-_t:.2f}s")
 
         _t = time.time()
@@ -1236,27 +1266,32 @@ class MainWindow(FluentWindow):
                     return True
         return super().eventFilter(obj, event)
 
-    def _checkWindowSize(self):
-        if not hasattr(self, '_normal_size'):
-            return
-        if self.isFullScreen():
-            return
-        self.showFullScreen()
+    # def _checkWindowSize(self):
+    #     if not hasattr(self, '_normal_size'):
+    #         return
+    #     if self.isFullScreen():
+    #         return
+    #     self.showMaximized()
 
     def changeEvent(self, event):
+        # super().changeEvent(event)
+        # if event.type() == QEvent.Type.WindowStateChange:
+        #     if not self.isMinimized() and not self.isFullScreen():
+        #         QTimer.singleShot(0, self._forceFullScreen)
         super().changeEvent(event)
         if event.type() == QEvent.Type.WindowStateChange:
-            if not self.isMinimized() and not self.isFullScreen():
-                QTimer.singleShot(0, self._forceFullScreen)
+            # 立刻最大化回去
+            if not self.isMaximized() and not self.isMinimized():
+                QTimer.singleShot(0, self.showMaximized)
 
     def _forceFullScreen(self):
-        if not self.isMinimized() and not self.isFullScreen():
-            self.showFullScreen()
+        if not self.isMinimized():
+            self.showMaximized()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        if hasattr(self, '_normal_size') and hasattr(self, '_resize_timer'):
-            self._resize_timer.start(50)
+        # if hasattr(self, '_normal_size') and hasattr(self, '_resize_timer'):
+        #     self._resize_timer.start(50)
 
     def moveToCenter(self):
         screen = QApplication.primaryScreen()
@@ -1275,7 +1310,7 @@ class MainWindow(FluentWindow):
         self.tray_menu = RoundMenu(APP_NAME, self)
 
         show_action = Action(FUI.HOME, tr("tray.show_window"), self)  # 显示主窗口
-        show_action.triggered.connect(self.showFullScreen)
+        show_action.triggered.connect(self.showMaximized)
         self.tray_menu.addAction(show_action)
         if cfg.debugMode.value:
             dev_action = Action(FUI.DEVELOPER_TOOLS, tr("navigation.debug"), self)  # 调试
@@ -1293,7 +1328,7 @@ class MainWindow(FluentWindow):
     def _onTrayIconActivated(self, reason):
         if reason in (QSystemTrayIcon.ActivationReason.DoubleClick, QSystemTrayIcon.ActivationReason.Trigger):
             if self.isMinimized() or not self.isVisible():
-                self.showFullScreen()
+                self.showMaximized()
             else:
                 self.hide()
 
@@ -1362,7 +1397,7 @@ class MainWindow(FluentWindow):
 
     def _autoOpenFromMinimized(self):
         self.stackedWidget.setCurrentIndex(0)
-        self.showFullScreen()
+        self.showMaximized()
         self.activateWindow()
 
     def _installGlobalHooks(self):
@@ -1375,9 +1410,9 @@ class MainWindow(FluentWindow):
     def setVideoPlaying(self, playing):
         self.isVideoPlaying = playing
 
-    def showFullScreen(self):
-        self._is_fullscreen = True
-        super().showFullScreen()
+    def showMaximized(self):
+        self._is_maximized = True
+        super().showMaximized()
 
     def showNormal(self):
         self._forceFullScreen()
@@ -1403,13 +1438,14 @@ class MainWindow(FluentWindow):
                 msg = _MSG.from_address(int(message))
                 if msg.message == 0x0112:  # WM_SYSCOMMAND
                     low_word = msg.wParam & 0xFFFF
-                    # 阻止: SC_MAXIMIZE=0xF030(最大化) SC_MOVE=0xF010(拖拽移动) SC_SIZE=0xF000(调整大小)
-                    # SC_RESTORE=0xF120 win古早化石
-                    if low_word == 0xF120:  # SC_RESTORE
+                    # 阻止拖拽移动 (0xF010) 和调整大小 (0xF000 系列)
+                    if (low_word & 0xFFF0) in (0xF010, 0xF000):
+                        return True, 0
+                    # 拦截还原 (SC_RESTORE)，仅允许从最小化恢复
+                    if low_word == 0xF120:
                         if self.isMinimized():
-                            self.setWindowState(Qt.WindowState.WindowFullScreen)
-                            return True, 0
-                    elif low_word in (0xF030,) or (low_word & 0xFFF0) in (0xF010, 0xF000):
+                            self.setWindowState(Qt.WindowState.WindowMaximized)
+                        # 返回 True 阻止系统处理，还原按钮无任何效果
                         return True, 0
         except Exception:
             pass
@@ -1477,10 +1513,10 @@ class MainWindow(FluentWindow):
                 return False
             window_pos = positions["window"]
             if window_pos.get("maximized", False):
-                self._is_fullscreen = True
+                self._is_maximized = True
                 self.setMinimumSize(0, 0)
                 self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-                QTimer.singleShot(100, self.showFullScreen)
+                QTimer.singleShot(100, self.showMaximized)
                 return True
             screen = QApplication.primaryScreen()
             if not screen:
@@ -1924,7 +1960,7 @@ if __name__ == "__main__":
     splash.close()
     logger.info(f"[BOOT] 总启动耗时{time.time()-_boot_t0:.2f}s")
 
-    window.showFullScreen()
+    window.showMaximized()
     if hasattr(window, 'tray_icon') and window.tray_icon:
         window.tray_icon.show()
     if _auto_start_launch:
