@@ -342,7 +342,45 @@ class LinkageBridge(QObject):
                         slot.break_name or "课间",
                     ))
             return result
-
+    def get_schedule_by_weekday(self, dotnet_weekday: int) -> list:
+        """取指定日的课表。"""
+        with self._lock:
+            if not self._slots or not self._day_plans:
+                return []
+            plan = self._day_plans.get(dotnet_weekday)
+            if not plan:
+                return []
+            result = []
+            class_counter = 0
+            for slot in self._slots:
+                if slot.time_type == 0:          # 上课
+                    class_counter += 1
+                    ci = class_counter - 1
+                    if ci >= len(plan.class_ids):
+                        break
+                    sid = plan.class_ids[ci]
+                    subj = self._subjects.get(sid, {})
+                    result.append((
+                        subj.get("Name", ""),
+                        subj.get("TeacherName", ""),
+                        slot.start_time.strftime("%H:%M"),
+                        slot.end_time.strftime("%H:%M"),
+                        class_counter,
+                        False,   # is_current
+                        False,   # is_break
+                        "",
+                    ))
+                else:                            # 课间
+                    result.append((
+                        "", "",
+                        slot.start_time.strftime("%H:%M"),
+                        slot.end_time.strftime("%H:%M"),
+                        0,
+                        False,
+                        True,
+                        slot.break_name or "课间",
+                    ))
+            return result
     def test_connection(self) -> tuple[bool, str]:
         profile = os.path.join(self._data_dir, _PROFILE_FILE)
         if not os.path.isfile(profile):

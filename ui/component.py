@@ -4400,6 +4400,17 @@ class TimetablePreviewComponent(DraggableContainer):
         self._current_row_data = None  # start_time, end_time 用于算进度
         self._past_skip_groups = 0  # 已跳过多少组5节
         self._last_user_scroll_time = 0   # 上一次用户操作滚动条的时间戳
+        self._after_school_mode = False          # 是否已进入放学预览状态
+        self._preview_timer = QTimer(self)       # 控制 30 秒预览
+        self._preview_timer.setSingleShot(True)
+        self._preview_timer.timeout.connect(self._exit_preview)
+
+        self._scroll_animation_timer = QTimer(self)  # 逐帧滚动
+        self._scroll_direction = 1               # 1向下，-1向上
+        self._scroll_step = 2                    # 每次滚动像素数
+        self._preview_elapsed = 0                # 已滚动时间（s）
+        self._scroll_animation_timer = QTimer(self)
+        self._scroll_animation_timer.timeout.connect(self._animate_scroll)
         self._setup_ui()
         self._connect_bridge()
         self._refresh_schedule()
@@ -4465,6 +4476,88 @@ class TimetablePreviewComponent(DraggableContainer):
         if obj == self._scroll and event.type() == QEvent.Type.Wheel:
             self._last_user_scroll_time = time.time()
         return super().eventFilter(obj, event)
+    def _scroll_to_top(self):
+        """滚动到列表顶部"""
+        self._scroll.verticalScrollBar().setValue(0)
+    def _exit_preview(self):
+        """停止滚动 显示明日课表"""
+        self._scroll_animation_timer.stop()
+        self._preview_timer.stop()
+        self._after_school_mode = False
+        self._title_label.setText("明日课表")
+        self._scroll_to_top()
+
+    def _animate_scroll(self):
+        """上下自动滚动"""
+        sb = self._scroll.verticalScrollBar()
+        val = sb.value()
+        max_val = sb.maximum()
+        new_val = val + self._scroll_direction * self._scroll_step
+        if new_val >= max_val:
+            new_val = max_val
+            self._scroll_direction = -1
+        elif new_val <= sb.minimum():
+            new_val = sb.minimum()
+            self._scroll_direction = 1
+        sb.setValue(new_val)
+
+    def _rebuild_schedule(self, schedule):
+        """用给定课表数据重建UI"""
+        while self._scroll_layout.count() > 1:
+            item = self._scroll_layout.takeAt(0)
+            if item and item.widget():
+                item.widget().deleteLater()
+        self._schedule_rows.clear()
+        self._current_row_data = None
+
+        if not schedule:
+            # 无课表时显示空行
+            row = self._build_empty_row()
+            self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, row)
+            self._schedule_rows.append(row)
+            return
+
+
+        from datetime import datetime as _dt, time as _time
+        now_time = _dt.now().time()
+
+        last_current_row = None
+        last_current_times = None
+
+        for row_data in schedule:
+            subject, teacher, start, end, index, is_current, is_break, break_name = row_data
+
+            if self._after_school_mode:
+                is_past = False
+            else:
+                try:
+                    eh, em = map(int, end.split(":"))
+                    is_past = (not is_current and not is_break and _time(eh, em) <= now_time)
+                except Exception:
+                    is_past = False
+
+            if is_break and not is_current:
+                continue
+
+            # 构建行
+            if is_break and is_current:
+                row = self._build_break_row(start, end, break_name, is_current=False)
+            else:
+                row = self._build_class_row(index, subject, teacher, start, end,
+                                            is_current=False, is_past=is_past)
+
+            self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, row)
+            self._schedule_rows.append(row)
+
+            if is_current:
+                last_current_row = row
+                last_current_times = (start, end)
+
+        if last_current_row:
+            last_current_row.set_current(True)
+            self._current_row_data = last_current_times
+
+        self._update_progress()    
     def _connect_bridge(self):
         """联动 Bridge"""
         try:
@@ -4496,11 +4589,24 @@ class TimetablePreviewComponent(DraggableContainer):
             self._refresh_schedule()
 
     def _on_timer(self):
-        """刷新课表 更新进度条 自动滚动"""
         if not self._bridge:
             self._connect_bridge()
+
+        # 检查是否放学
+        try:
+            from core.linkage import TimeState 
+            state = self._bridge.get_state()
+            if state and state.time_state == TimeState.AFTER_SCHOOL:
+                if not self._after_school_mode:
+                    self._enter_preview_mode()
+                return 
+        except Exception:
+            pass
+
+        # 正常模式下刷新今日课表
         self._refresh_schedule()
-        # 计算目标滚动行
+
+        # 自动滚动逻辑 有15分钟保护
         past_count = sum(1 for r in self._schedule_rows
                         if isinstance(r, _TimetableRow) and r._is_past)
         target_groups = past_count // 5
@@ -4509,35 +4615,46 @@ class TimetablePreviewComponent(DraggableContainer):
         skip_rows = self._past_skip_groups * 5
 
         scroll_idx = skip_rows
-        # 滚到当前课程
         for i, r in enumerate(self._schedule_rows):
             if isinstance(r, _TimetableRow) and r._is_current:
                 scroll_idx = i
                 break
-            # 否则使用跳过行后第一个未过去的行
             if isinstance(r, _TimetableRow) and not r._is_past and i >= skip_rows:
                 if scroll_idx == skip_rows:
                     scroll_idx = i
                 break
 
-        import time as _time
-        now = _time.time()
-        elapsed = now - self._last_user_scroll_time
-
         if 0 <= scroll_idx < len(self._schedule_rows):
-            if elapsed > 15:
+            if time.time() - self._last_user_scroll_time > 15:
                 self._scroll_to_row(scroll_idx)
 
         self._update_progress()
+    def _enter_preview_mode(self):
+        self._after_school_mode = True
+        self._title_label.setText("明日课表")
 
+        import datetime as _dt
+        tomorrow = _dt.date.today() + _dt.timedelta(days=1)
+        dotnet_wd = tomorrow.isoweekday() % 7 
+        schedule = self._bridge.get_schedule_by_weekday(dotnet_wd) if self._bridge else []
+
+        self._rebuild_schedule(schedule)
+        self._scroll_to_top()
+
+        self._scroll_animation_timer.start(50)
+        self._preview_timer.start(30000)
     def _refresh_schedule(self):
-        # 清空旧行
-        while self._scroll_layout.count() > 1:
-            item = self._scroll_layout.takeAt(0)
-            if item and item.widget():
-                item.widget().deleteLater()
-        self._schedule_rows.clear()
-        self._current_row_data = None
+        """刷新课表内容"""
+        if self._after_school_mode:
+            return 
+
+        try:
+            from core.linkage import TimeState
+            state = self._bridge.get_state() if self._bridge else None
+            if state and state.time_state == TimeState.AFTER_SCHOOL:
+                return   # 放学了不刷新今天课表
+        except Exception:
+            pass
 
         schedule = []
         if self._bridge:
@@ -4546,55 +4663,7 @@ class TimetablePreviewComponent(DraggableContainer):
             except Exception:
                 pass
 
-        if schedule:
-            from datetime import datetime as _dt, time as _time
-            now_time = _dt.now().time()
-
-            last_current_row = None
-            last_current_times = None
-
-            for row_data in schedule:
-                subject, teacher, start, end, index, is_current, is_break, break_name = row_data
-
-                # 计算是否已过
-                try:
-                    eh, em = map(int, end.split(":"))
-                    is_past = (not is_current and not is_break and _time(eh, em) <= now_time)
-                except Exception:
-                    is_past = False
-
-                # 非当前课间直接跳过
-                if is_break and not is_current:
-                    continue
-
-                # 构建行 先 is_current=False
-                if is_break and is_current:
-                    row = self._build_break_row(start, end, break_name, is_current=False)
-                else:
-                    row = self._build_class_row(index, subject, teacher, start, end,
-                                                is_current=False, is_past=is_past)
-
-                self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, row)
-                self._schedule_rows.append(row)
-
-                # 记录最后一个 is_current 的行
-                if is_current:
-                    last_current_row = row
-                    last_current_times = (start, end)
-
-            # 最后只激活一个当前行
-            if last_current_row:
-                last_current_row.set_current(True)
-                self._current_row_data = last_current_times
-
-        else:
-            for _ in range(8):
-                row = self._build_empty_row()
-                self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, row)
-                self._schedule_rows.append(row)
-
-        self._update_progress()
-
+        self._rebuild_schedule(schedule)
     def _build_class_row(self, index, subject, teacher, start, end, is_current, is_past=False):
         """课程行: [第几节] [课程] [老师姓氏]老师 [HH:MM]~[HH:MM]"""
         row = _TimetableRow(is_current=is_current, is_break=False, is_past=is_past, parent=self)
@@ -4610,15 +4679,6 @@ class TimetablePreviewComponent(DraggableContainer):
         subj_lbl = QLabel(subject or "—")
         subj_lbl.setObjectName("timetableSubj" + past_suffix)
         row.addWidget(subj_lbl, 1)
-
-        # 任课老师
-        teacher_text = ""
-        if teacher:
-            teacher_text = f"{teacher[0]}老师"
-        t_lbl = QLabel(teacher_text)
-        t_lbl.setObjectName("timetableTeacher" + past_suffix)
-        t_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        row.addWidget(t_lbl)
 
         # 时间
         time_lbl = QLabel(f"{start}~{end}")
@@ -4822,20 +4882,6 @@ class TimetablePreviewComponent(DraggableContainer):
                 color: {past_text};
                 font-size: 20px;
                 font-weight: 500;
-                font-family: {FONT_FAMILY};
-                background: transparent;
-            }}
-
-            /* 任课老师 */
-            #timetableTeacher {{
-                color: {text};
-                font-size: 14px;
-                font-family: {FONT_FAMILY};
-                background: transparent;
-            }}
-            #timetableTeacherPast {{
-                color: {past_text};
-                font-size: 14px;
                 font-family: {FONT_FAMILY};
                 background: transparent;
             }}
