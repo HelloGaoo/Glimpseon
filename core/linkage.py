@@ -326,7 +326,7 @@ class LinkageBridge(QObject):
                         slot.start_time.strftime("%H:%M"),
                         slot.end_time.strftime("%H:%M"),
                         class_counter,
-                        class_counter == current_idx,
+                        class_counter == current_idx and not is_breaking,
                         False,
                         "",
                     ))
