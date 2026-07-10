@@ -512,4 +512,15 @@ BUILTIN_COMPONENT_DEFINITIONS = [
         resize_mode=ResizeMode.FREE,
         default_config={},
     ),
+    ComponentDefinition(
+        id="linkage_timetable_nowlesson",
+        display_name="当前课程",
+        category="Linkage",
+        icon="Education",
+        min_width_cells=2,
+        min_height_cells=2,
+        default_width_cells=2,
+        default_height_cells=2,
+        resize_mode=ResizeMode.FIXED,
+    ),
 ]

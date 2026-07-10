@@ -346,7 +346,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         self.welcomeLabel = StrongBodyLabel(tr("wizard.welcome"), self.page1)  # ClassLively
         self.welcomeLabel.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
         self.welcomeLabel.setTextFormat(Qt.TextFormat.RichText)
-        self.welcomeLabel.setText('<span style="font-family:\'HarmonyOS Sans\',\'Microsoft YaHei\',\'SimHei\',sans-serif; font-weight:900; font-size:34px;">ClassLively</span>')
+        self.welcomeLabel.setText('<span style="font-family: HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif; font-weight:900; font-size:34px;">ClassLively</span>')
         self.welcomeLabel.setObjectName("welcomeLabel")
 
         self.nextButton = PrimaryPushButton(FUI.RIGHT_ARROW, tr("wizard.next"), self.page1)  # 继续

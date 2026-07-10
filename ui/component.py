@@ -24,6 +24,7 @@ import os
 import re
 import sys
 import time
+import datetime
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict
@@ -71,7 +72,7 @@ from PyQt6.QtGui import (
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QFileIconProvider, QGridLayout, QLabel, QSizePolicy, QWidget, QVBoxLayout, QHBoxLayout, QApplication, QProgressBar, QGraphicsOpacityEffect,
-    QScrollArea, QStackedWidget, QPushButton, QListWidget, QListWidgetItem, QLineEdit
+    QScrollArea, QStackedWidget, QPushButton, QListWidget, QListWidgetItem, QLineEdit, QProgressBar
 )
 from qfluentwidgets import InfoBar, isDarkTheme, RoundMenu, Action, FluentWindow, setTheme, ScrollArea, PushButton, ToolButton, TransparentToolButton, StrongBodyLabel, CardWidget, BodyLabel, SubtitleLabel, ComboBox, SpinBox, SwitchButton
 from win32com.shell import shell, shellcon
@@ -185,6 +186,12 @@ COMPONENT_STYLES = {
             "class": None,
             "default_config": {},
             "default_size": (300, 550),
+        },
+        "timetable_nowlesson": {
+            "name": "当前课程",
+            "class": None,
+            "default_config": {},
+            "default_size": (400, 200),
         },
     },
 }
@@ -4934,8 +4941,256 @@ class TimetablePreviewComponent(DraggableContainer):
         self._apply_style()
 
 
-# 更新注册表
 
+class TimetableNowLessonComponent(DraggableContainer):
+    """当前课程组件"""
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName("nowLessonContainer")
+        self._home = parent
+        self.setFixedSize(400, 200)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+
+        self._bridge = None
+        self._current_row_data = None
+
+        self._setup_ui()
+        self._connect_bridge()
+
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._refresh)
+        self._timer.start(5000)
+        self._refresh()
+
+    def _setup_ui(self):
+        layout = self.inner_layout
+        layout.setContentsMargins(14, 10, 14, 8)
+        layout.setSpacing(0)
+
+        # 左右分栏
+        main = QWidget()
+        main_layout = QHBoxLayout(main)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(14)
+
+        # 左侧：课程名 进度
+        left = QWidget()
+        left.setFixedWidth(170)
+        left_layout = QVBoxLayout(left)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(6)
+
+        self._subject_label = QLabel("--")
+        self._subject_label.setObjectName("miniSubject")
+        self._subject_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self._subject_label.setWordWrap(True)
+        self._subject_label.setMinimumHeight(60)
+        left_layout.addWidget(self._subject_label, 1)
+
+        self._time_progress_label = QLabel("-- min / -- min")
+        self._time_progress_label.setObjectName("miniTimeLabel")
+        self._time_progress_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self._time_progress_label.setMinimumHeight(36)
+        left_layout.addWidget(self._time_progress_label)
+
+        main_layout.addWidget(left)
+
+        # 右侧：老师 时间段 下节课
+        right = QWidget()
+        right_layout = QVBoxLayout(right)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(8)
+
+        self._teacher_label = QLabel("--")
+        self._teacher_label.setObjectName("miniTeacher")
+        self._teacher_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        right_layout.addWidget(self._teacher_label,1)
+
+        self._time_label = QLabel("--:-- ~ --:--")
+        self._time_label.setObjectName("miniTime")
+        self._time_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        right_layout.addWidget(self._time_label,1)
+
+        self._next_label = QLabel("下节课：--")
+        self._next_label.setObjectName("miniNext")
+        self._next_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        right_layout.addWidget(self._next_label,1)
+
+        right_layout.addStretch()
+        main_layout.addWidget(right, 1)
+
+        layout.addWidget(main, 1)
+
+        self._bottom_progress = QProgressBar(self)
+        self._bottom_progress.setObjectName("miniBottomProgress")
+        self._bottom_progress.setFixedHeight(8)
+        self._bottom_progress.setRange(0, 100)
+        self._bottom_progress.setTextVisible(False)
+        self._bottom_progress.setValue(0)
+        layout.addWidget(self._bottom_progress)
+
+        self._apply_style()
+
+        # 监听主题变化
+        from core.config import cfg
+        cfg.componentCardOpacity.valueChanged.connect(self._apply_style)
+        cfg.componentCardRadius.valueChanged.connect(self._apply_style)
+
+    def _apply_style(self):
+        from core.config import cfg
+        is_dark = isDarkTheme()
+
+        if is_dark:
+            text = "#e0e0e0"
+            sub_text = "#aaaaaa"
+            accent = "#4cc2ff"
+        else:
+            text = "#1a1a1a"
+            sub_text = "#777777"
+            accent = "#4cc2ff"
+
+        # 课程名
+        self._subject_label.setStyleSheet(f"""
+            color: {text};
+            font-size: 45px;
+            font-weight: 600;
+            font-family: {FONT_FAMILY};
+            background: transparent;
+            padding: 4px 0;
+        """)
+
+        # 时间进度
+        self._time_progress_label.setStyleSheet(f"""
+            color: {text};
+            font-size: 16px;
+            font-weight: 600;
+            font-family: {FONT_FAMILY};
+            background: transparent;
+            padding: 2px 0;
+        """)
+
+        # 老师
+        self._teacher_label.setStyleSheet(f"""
+            color: {text};
+            font-size: 20px;
+            font-weight: 600;
+            font-family: {FONT_FAMILY};
+            background: transparent;
+            padding: 2px 0;
+        """)
+
+        # 时间段
+        self._time_label.setStyleSheet(f"""
+            color: {text};
+            font-size: 20px;
+            font-weight: 600;
+            font-family: {FONT_FAMILY};
+            background: transparent;
+            padding: 2px 0;
+        """)
+
+        # 下节课
+        self._next_label.setStyleSheet(f"""
+            color: {sub_text};
+            font-size: 20px;
+            font-weight: 600;
+            font-family: {FONT_FAMILY};
+            background: transparent;
+            padding: 2px 0;
+        """)
+
+    def _connect_bridge(self):
+        try:
+            mw = None
+            for w in QApplication.topLevelWidgets():
+                if hasattr(w, 'linkagePage') and hasattr(w, 'cwLinkagePage'):
+                    mw = w
+                    break
+            if not mw:
+                return
+            for page_name in ('linkagePage', 'cwLinkagePage'):
+                page = getattr(mw, page_name, None)
+                if page and hasattr(page, 'bridge'):
+                    self._bridge = page.bridge
+                    return
+        except Exception:
+            pass
+
+    def _refresh(self):
+        if not self._bridge:
+            self._connect_bridge()
+            if not self._bridge:
+                return
+        try:
+            schedule = self._bridge.get_today_schedule()
+        except Exception:
+            return
+
+        current_row = None
+        next_row = None
+        found_current = False
+        for row in schedule:
+            subject, teacher, start, end, idx, is_current, is_break, break_name = row
+            if is_current:
+                current_row = row
+                found_current = True
+            elif found_current and not is_break:
+                next_row = row
+                break
+
+        if current_row:
+            subject, teacher, start, end, idx, is_current, is_break, break_name = current_row
+
+            # 更新课程名
+            if is_break:
+                self._subject_label.setText(break_name or "课间休息")
+            else:
+                self._subject_label.setText(subject or "--")
+
+            # 老师显示
+            teacher_display = (teacher[0] + "老师") if teacher else ""
+            self._teacher_label.setText(teacher_display)
+
+            # 时间段
+            self._time_label.setText(f"{start}~{end}")
+
+            # 下节课
+            if next_row:
+                next_subject = next_row[0]
+                self._next_label.setText(f"下节课：{next_subject}" if next_subject else "下节课：--")
+            else:
+                self._next_label.setText("下节课：--")
+
+            # 时间进度
+            now = datetime.datetime.now().time()
+            try:
+                sh, sm = map(int, start.split(":"))
+                eh, em = map(int, end.split(":"))
+                start_min = sh * 60 + sm
+                end_min = eh * 60 + em
+                now_min = now.hour * 60 + now.minute
+                total = end_min - start_min
+                elapsed = max(0, now_min - start_min)
+                pct = min(100, int(elapsed / total * 100)) if total > 0 else 0
+                self._time_progress_label.setText(f"{elapsed}min / {total}min")
+                self._bottom_progress.setValue(pct)
+            except Exception:
+                self._time_progress_label.setText("-- min / -- min")
+                self._bottom_progress.setValue(0)
+        else:
+            self._subject_label.setText("--")
+            self._teacher_label.setText("--")
+            self._time_label.setText("--:-- ~ --:--")
+            self._next_label.setText("下节课：--")
+            self._time_progress_label.setText("-- min / -- min")
+            self._bottom_progress.setValue(0)
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        self._apply_style()
+
+# 更新注册表
 COMPONENT_STYLES["clock"]["digital"]["class"] = DigitalClockComponent
 COMPONENT_STYLES["weather"]["icon_temp"]["class"] = WeatherIconTempComponent
 COMPONENT_STYLES["weather"]["hourly"]["class"] = WeatherHourlyComponent
@@ -4947,7 +5202,7 @@ COMPONENT_STYLES["media"]["player"]["class"] = MediaPlayerComponent
 COMPONENT_STYLES["quick_launch"]["dock"]["class"] = QuickLaunchDockComponent
 COMPONENT_STYLES["clock"]["calendar_month"]["class"] = CalendarMonthComponent
 COMPONENT_STYLES["linkage"]["timetable_preview"]["class"] = TimetablePreviewComponent
-
+COMPONENT_STYLES["linkage"]["timetable_nowlesson"]["class"] = TimetableNowLessonComponent
 
 
 
