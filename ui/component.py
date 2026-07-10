@@ -4120,8 +4120,9 @@ class _DayCell(QWidget):
 
         # 节日文字
         if self._sub_text and self._is_current_month:
-            sub_font = QFont("HarmonyOS Sans")
-            sub_font.setPixelSize(int(sz * 0.26))
+            sub_font = QFont('Microsoft YaHei')
+            sub_font.setPixelSize(int(sz * 0.35)) # 节日字号
+            sub_font.setText(f'<span style="font-family: HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif; font-weight:900;">{self._sub_text}</span>')
             painter.setFont(sub_font)
             painter.setPen(QColor("#ffffff") if self._is_today else QColor("#c0c0c0"))
             sub_rect = QRect(r.left(), int(mid), w, int(h - mid))
@@ -4909,8 +4910,8 @@ class TimetablePreviewComponent(DraggableContainer):
 
             /* 课间休息 */
             #timetableBreakLabel {{
-                color: {accent};
-                font-size: 15px;
+                color: {text};
+                font-size: 20px;
                 font-weight: 500;
                 font-family: {FONT_FAMILY};
                 background: transparent;
@@ -5053,11 +5054,11 @@ class TimetableNowLessonComponent(DraggableContainer):
         # 课程名
         self._subject_label.setStyleSheet(f"""
             color: {text};
-            font-size: 45px;
+            font-size: 40px;
             font-weight: 600;
             font-family: {FONT_FAMILY};
             background: transparent;
-            padding: 4px 0;
+            padding: 25px 0 4px 0;
         """)
 
         # 时间进度
@@ -5068,6 +5069,7 @@ class TimetableNowLessonComponent(DraggableContainer):
             font-family: {FONT_FAMILY};
             background: transparent;
             padding: 2px 0;
+            padding-left: 8px;
         """)
 
         # 老师
@@ -5149,8 +5151,11 @@ class TimetableNowLessonComponent(DraggableContainer):
                 self._subject_label.setText(subject or "--")
 
             # 老师显示
-            teacher_display = (teacher[0] + "老师") if teacher else ""
-            self._teacher_label.setText(teacher_display)
+            if is_break:
+                self._teacher_label.setText("课间休息")
+            else:
+                teacher_display = (teacher[0] + "老师") if teacher else ""
+                self._teacher_label.setText(teacher_display)
 
             # 时间段
             self._time_label.setText(f"{start}~{end}")
