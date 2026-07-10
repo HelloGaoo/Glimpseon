@@ -194,6 +194,14 @@ COMPONENT_STYLES = {
             "default_size": (400, 200),
         },
     },
+    "Math": {
+        "calculator": {
+            "name": "计算器",
+            "class": None,
+            "default_config": {},
+            "default_size": (280, 420),
+        },
+    },
 }
 
 
@@ -4121,8 +4129,8 @@ class _DayCell(QWidget):
         # 节日文字
         if self._sub_text and self._is_current_month:
             sub_font = QFont('Microsoft YaHei')
-            sub_font.setPixelSize(int(sz * 0.35)) # 节日字号
-            sub_font.setText(f'<span style="font-family: HarmonyOS Sans, Microsoft YaHei, SimHei, sans-serif; font-weight:900;">{self._sub_text}</span>')
+            sub_font.setPixelSize(int(sz * 0.35))  # 节日字号
+            sub_font.setBold(True)
             painter.setFont(sub_font)
             painter.setPen(QColor("#ffffff") if self._is_today else QColor("#c0c0c0"))
             sub_rect = QRect(r.left(), int(mid), w, int(h - mid))
@@ -5195,6 +5203,448 @@ class TimetableNowLessonComponent(DraggableContainer):
         super().showEvent(e)
         self._apply_style()
 
+
+class CalculatorComponent(DraggableContainer):
+    """计算器"""
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName("calculatorContainer")
+        self._home = parent
+        self._expression = ""
+        self._result_shown = False
+
+        self._setup_ui()
+        self._apply_style()
+
+        cfg.componentCardOpacity.valueChanged.connect(self._apply_style)
+        cfg.componentCardRadius.valueChanged.connect(self._apply_style)
+        cfg.themeChanged.connect(self._apply_style)
+
+    def _setup_ui(self):
+        # 历史表达式行
+        self.history_display = QLabel("")
+        self.history_display.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.history_display.setWordWrap(False)
+        self.history_display.setTextFormat(Qt.TextFormat.RichText)
+        self.history_display.setObjectName("calculatorHistory")
+        self.history_display.setMinimumHeight(24)
+        self.history_display.setMaximumHeight(36)
+        self.history_display.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.history_display.setStyleSheet("color: rgba(255, 255, 255, 0.5); font-size: 14px; background: transparent; border: none; padding: 0 8px;")
+
+        # 显示区
+        self.display = QLabel("0")
+        self.display.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.display.setWordWrap(False)
+        self.display.setTextFormat(Qt.TextFormat.RichText)
+        self.display.setObjectName("calculatorDisplay")
+        self.display.setMinimumHeight(80)
+        self.display.setMaximumHeight(140)
+        self.display.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        # 按钮网格
+        buttons_layout = QGridLayout()
+        buttons_layout.setSpacing(8)
+        buttons_layout.setContentsMargins(0, 0, 0, 0)
+
+        button_specs = [
+            ("⌫", 0, 0), ("C", 0, 1), ("%", 0, 2), ("÷", 0, 3),
+            ("7", 1, 0), ("8", 1, 1), ("9", 1, 2), ("×", 1, 3),
+            ("4", 2, 0), ("5", 2, 1), ("6", 2, 2), ("−", 2, 3),
+            ("1", 3, 0), ("2", 3, 1), ("3", 3, 2), ("+", 3, 3),
+            ("±", 4, 0), ("0", 4, 1), (".", 4, 2), ("=", 4, 3),
+        ]
+
+        self.buttons = {}
+        for text, row, col in button_specs:
+            btn = QPushButton(text)
+            btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            btn.setObjectName(f"calcBtn_{text}")
+            btn.clicked.connect(lambda _, t=text: self._on_button_click(t))
+            buttons_layout.addWidget(btn, row, col)
+            self.buttons[text] = btn
+
+        # 主布局
+        main_layout = self.inner_layout
+        main_layout.setContentsMargins(12, 20, 12, 12)
+        main_layout.setSpacing(10)
+        main_layout.addWidget(self.history_display)
+        main_layout.addWidget(self.display)
+        main_layout.addLayout(buttons_layout)
+
+        self.setMinimumSize(300, 480)
+        self._size_explicitly_set = True
+        self.resize(300, 480)
+
+    def _format_number(self, num_str: str) -> str:
+        """格式化"""
+        if not num_str:
+            return num_str
+
+        if 'e' in num_str or 'E' in num_str:
+            return num_str
+
+        is_negative = num_str.startswith('-')
+        if is_negative:
+            num_str = num_str[1:]
+
+        def as_scientific(value):
+            sci = f"{value:.15e}".replace('E', 'e')
+            return sci.rstrip('0').rstrip('.') if '.' in sci else sci
+
+        if '.' in num_str:
+            integer_part, decimal_part = num_str.split('.', 1)
+            if len(integer_part) > 15 or len(integer_part + decimal_part) > 18:
+                try:
+                    return ('-' if is_negative else '') + as_scientific(float(f"{integer_part}.{decimal_part}"))
+                except ValueError:
+                    pass
+            try:
+                integer_part = "{:,}".format(int(integer_part))
+            except ValueError:
+                return num_str
+            formatted = ('-' if is_negative else '') + integer_part + '.' + decimal_part
+            return formatted
+        else:
+            if len(num_str) > 15:
+                try:
+                    return ('-' if is_negative else '') + as_scientific(int(num_str))
+                except ValueError:
+                    return num_str
+            try:
+                integer_part = "{:,}".format(int(num_str))
+                return ('-' if is_negative else '') + integer_part
+            except ValueError:
+                return num_str
+
+    def _prepare_display_expr(self, expression: str) -> str:
+        if expression.startswith('-') and re.fullmatch(r'-\d+\.?\d*', expression):
+            return expression.replace('-', ' − ', 1)
+
+        display_expr = re.sub(r'(^|[+\-*/])-(\d+\.?\d*)', lambda m: f"{m.group(1)}(-{m.group(2)})", expression)
+        display_text = display_expr.replace("/", " ÷ ")
+        display_text = display_text.replace("*", " × ")
+        display_text = display_text.replace("-", " − ")
+        display_text = display_text.replace("+", " + ")
+        return display_text
+
+    def _fit_label_font(self, label: QLabel, text: str, base_size: int, min_size: int = 12):
+        raw_text = re.sub(r'<[^>]+>', '', text)
+        raw_text = raw_text.replace('\r', '').replace('\n', '').replace('<br/>', ' ')
+        font = label.font()
+        size = base_size
+        font.setPixelSize(size)
+        if label.width() <= 0:
+            label.setFont(font)
+            return
+
+        while size >= min_size:
+            font.setPixelSize(size)
+            metrics = QFontMetrics(font)
+            if metrics.horizontalAdvance(raw_text) <= label.width() - 16:
+                break
+            size -= 1
+        label.setFont(font)
+
+    def _split_expression(self):
+        if not self._expression:
+            return "", ""
+
+        if self._expression.endswith(tuple('+-*/')):
+            return self._expression, ""
+
+        match = re.search(r'(.+?[+\-*/])(-?\d*\.?\d*)$', self._expression)
+        if match:
+            return match.group(1), match.group(2)
+        return "", self._expression
+
+    def _apply_style(self):
+        opacity = cfg.componentCardOpacity.value / 100.0
+        radius = cfg.componentCardRadius.value
+
+        is_dark = isDarkTheme()
+        if is_dark:
+            base_color = QColor(0, 0, 0)
+            border_color = "rgba(255,255,255,0.05)"
+            display_text = "#ffffff"
+            btn_num_color = QColor(51, 51, 51)
+            btn_num_press_color = QColor(77, 77, 77)
+            btn_op_color = QColor(255, 159, 10)
+            btn_op_text = "#ffffff"
+        else:
+            base_color = QColor(255, 255, 255)
+            border_color = "rgba(0,0,0,0.05)"
+            display_text = "#000000"
+            btn_num_color = QColor(229, 229, 234)
+            btn_num_press_color = QColor(209, 209, 214)
+            btn_op_color = QColor(255, 159, 10)
+            btn_op_text = "#ffffff"
+
+        base_color.setAlpha(int(255 * opacity))
+        bg_rgba = f"rgba({base_color.red()}, {base_color.green()}, {base_color.blue()}, {opacity:.2f})"
+
+        button_opacity = min(1.0, opacity * 0.8 + 0.15)
+        press_opacity = min(1.0, opacity * 0.95 + 0.1)
+        btn_op_alpha = max(0.55, min(1.0, opacity * 0.9 + 0.1))
+
+        btn_num_color.setAlpha(int(255 * button_opacity))
+        btn_num_press_color.setAlpha(int(255 * press_opacity))
+        btn_op_color.setAlpha(int(255 * btn_op_alpha))
+
+        btn_num_bg = f"rgba({btn_num_color.red()}, {btn_num_color.green()}, {btn_num_color.blue()}, {btn_num_color.alpha() / 255:.2f})"
+        btn_num_press = f"rgba({btn_num_press_color.red()}, {btn_num_press_color.green()}, {btn_num_press_color.blue()}, {btn_num_press_color.alpha() / 255:.2f})"
+        btn_op_bg = f"rgba({btn_op_color.red()}, {btn_op_color.green()}, {btn_op_color.blue()}, {btn_op_color.alpha() / 255:.2f})"
+
+        self.setStyleSheet(f"""
+            #calculatorContainer {{
+                background-color: {bg_rgba};
+                border-radius: {radius}px;
+                border: 1px solid {border_color};
+            }}
+        """)
+
+        self.display.setTextFormat(Qt.TextFormat.RichText)
+        self.display.setStyleSheet(f"""
+            color: {display_text};
+            font-size: 24px;
+            font-family: {FONT_FAMILY};
+            font-weight: 300;
+            background-color: transparent;
+            border: none;
+            padding: 6px 8px;
+            line-height: 1.2;
+            white-space: nowrap;
+        """)
+
+        operator_keys = {"÷", "×", "−", "+", "="}
+        for text, btn in self.buttons.items():
+            if text in operator_keys:
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        color: {btn_op_text};
+                        font-size: 28px;
+                        font-family: {FONT_FAMILY};
+                        background-color: {btn_op_bg};
+                        border: none;
+                        border-radius: {radius}px;
+                    }}
+                    QPushButton:pressed {{
+                        background-color: rgba(255, 159, 10, 0.7);
+                    }}
+                """)
+            else:
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        color: #ffffff;
+                        font-size: 24px;
+                        font-family: {FONT_FAMILY};
+                        background-color: {btn_num_bg};
+                        border: none;
+                        border-radius: {radius}px;
+                    }}
+                    QPushButton:pressed {{
+                        background-color: {btn_num_press};
+                    }}
+                """)
+
+        self.updateSize()
+
+    def _is_operator(self, ch: str) -> bool:
+        return ch in {"+", "-", "*", "/"}
+
+    def _current_number_has_decimal(self) -> bool:
+        match = re.search(r'(-?\d+\.?\d*)$', self._expression)
+        return bool(match and "." in match.group(1))
+
+    def _current_number_length(self) -> int:
+        match = re.search(r'(-?\d+\.?\d*)$', self._expression)
+        if not match:
+            return 0
+        number = match.group(1).lstrip('-')
+        return len(number.replace('.', ''))
+
+    def _append_operator(self, operator: str):
+        if not self._expression:
+            if operator == "-":
+                self._expression = "-"
+            return
+
+        if self._expression[-1] in "+-*/":
+            if operator == "-" and self._expression[-1] in "+*/":
+                self._expression += "-"
+            else:
+                self._expression = re.sub(r'[+\-*/]+$', "", self._expression) + operator
+        else:
+            self._expression += operator
+
+    # 计算逻辑
+    def _on_button_click(self, key):
+        calc_key = key
+        if key == "÷":
+            calc_key = "/"
+        elif key == "×":
+            calc_key = "*"
+        elif key == "−":
+            calc_key = "-"
+
+        if key == "C":
+            self._expression = ""
+            self.display.setText("0")
+            self._result_shown = False
+            return
+
+        if key == "⌫":
+            if self._result_shown:
+                self._expression = ""
+                self._result_shown = False
+            else:
+                self._expression = self._expression[:-1]
+            self._update_display()
+            return
+
+        if key == "=":
+            self._calculate()
+            return
+
+        if key == "±":
+            self._toggle_sign()
+            return
+
+        if key == "%":
+            self._apply_percent()
+            return
+
+        if key == ".":
+            if self._result_shown:
+                self._expression = "0."
+                self._result_shown = False
+            elif not self._current_number_has_decimal():
+                if not self._expression or self._expression[-1] in "+-*/":
+                    self._expression += "0."
+                else:
+                    self._expression += "."
+            self._update_display()
+            return
+
+        if key.isdigit():
+            if self._result_shown:
+                self._expression = calc_key
+                self._result_shown = False
+                self._update_display()
+                return
+
+            if self._current_number_length() >= 15:
+                return
+
+            self._expression += calc_key
+            self._update_display()
+            return
+
+        if calc_key in "+-*/":
+            self._append_operator(calc_key)
+            self._result_shown = False
+            self._update_display()
+            return
+
+        self._expression += calc_key
+        self._update_display()
+
+    def _update_display(self):
+        """刷新显示内容"""
+        if not self._expression:
+            self.history_display.setText("")
+            self.display.setText("0")
+            self._fit_label_font(self.display, "0", 24, 12)
+            return
+
+        head, current = self._split_expression()
+        if head:
+            self.history_display.setText(f'<span style="color: rgba(255,255,255,0.5);">{self._prepare_display_expr(head)}</span>')
+            self._fit_label_font(self.history_display, self.history_display.text(), 14, 10)
+        else:
+            self.history_display.setText("")
+
+        if not current:
+            if self._result_shown:
+                return
+            self.display.setText("0")
+            self._fit_label_font(self.display, "0", 24, 12)
+            return
+
+        display_text = self._prepare_display_expr(current)
+        self.display.setText(display_text)
+        self._fit_label_font(self.display, display_text, 24, 12)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_display()
+
+    def _calculate(self):
+        """表达式计算并显示结果"""
+        if not self._expression:
+            return
+
+        expr = self._expression.rstrip('+-*/')
+        expr = re.sub(r'\.$', '', expr)
+        if not expr:
+            self.display.setText("0")
+            self._expression = ""
+            self._result_shown = False
+            return
+
+        try:
+            expr = re.sub(r'(-?\d+\.?\d*)%', r'(\1/100)', expr)
+            result = eval(expr)
+
+            if isinstance(result, float) and result.is_integer():
+                result = int(result)
+            elif isinstance(result, float):
+                result = round(result, 10)
+
+            result_str = str(result)
+            self.history_display.setText(f'<span style="color: rgba(255,255,255,0.5);">{self._prepare_display_expr(expr)} =</span>')
+            self.display.setText(self._format_number(result_str))
+            self._expression = result_str
+            self._result_shown = True
+            self._fit_label_font(self.display, self.display.text(), 24, 12)
+            self._fit_label_font(self.history_display, self.history_display.text(), 14, 10)
+        except Exception as e:
+            logger.error(f"计算错误: {e}")
+            self.display.setText("错误")
+            self._expression = ""
+            self._result_shown = False
+
+    def _toggle_sign(self):
+        """切换正负"""
+        if not self._expression:
+            return
+        if self._expression[-1] in '+-*/':
+            return
+
+        match = re.search(r'([+\-*/])(-?\d+\.?\d*)$', self._expression)
+        if match:
+            start, number = match.start(2), match.group(2)
+            if number.startswith('-'):
+                number = number[1:]
+            else:
+                number = '-' + number
+            self._expression = self._expression[:start] + number
+        else:
+            if self._expression.startswith('-'):
+                self._expression = self._expression[1:]
+            else:
+                self._expression = '-' + self._expression
+
+        self._update_display()
+
+    def _apply_percent(self):
+        """转换为百分数"""
+        m = re.search(r'(-?\d+\.?\d*)$', self._expression)
+        if m:
+            n = m.group(1)
+            self._expression = self._expression[:m.start()] + f"({n}/100)"
+            self._update_display()
 # 更新注册表
 COMPONENT_STYLES["clock"]["digital"]["class"] = DigitalClockComponent
 COMPONENT_STYLES["weather"]["icon_temp"]["class"] = WeatherIconTempComponent
@@ -5208,8 +5658,7 @@ COMPONENT_STYLES["quick_launch"]["dock"]["class"] = QuickLaunchDockComponent
 COMPONENT_STYLES["clock"]["calendar_month"]["class"] = CalendarMonthComponent
 COMPONENT_STYLES["linkage"]["timetable_preview"]["class"] = TimetablePreviewComponent
 COMPONENT_STYLES["linkage"]["timetable_nowlesson"]["class"] = TimetableNowLessonComponent
-
-
+COMPONENT_STYLES["Math"]["calculator"]["class"] = CalculatorComponent
 
 
 

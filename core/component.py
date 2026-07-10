@@ -523,4 +523,15 @@ BUILTIN_COMPONENT_DEFINITIONS = [
         default_height_cells=2,
         resize_mode=ResizeMode.FIXED,
     ),
+    ComponentDefinition(
+        id="Math_calculator",
+        display_name="计算器",
+        category="Math",
+        icon="Calculator",
+        min_width_cells=2,
+        min_height_cells=2,
+        default_width_cells=2,
+        default_height_cells=2,
+        resize_mode=ResizeMode.FIXED,
+    ),
 ]
