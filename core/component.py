@@ -588,5 +588,16 @@ BUILTIN_COMPONENT_DEFINITIONS = [
         default_width_cells=4,
         default_height_cells=2,
         resize_mode=ResizeMode.HORIZONTAL,
-    )
+    ),
+    ComponentDefinition(
+        id="writing_pad",
+        display_name="书写板",
+        category="Tools",
+        icon="Edit",
+        min_width_cells=4,
+        min_height_cells=1,
+        default_width_cells=4,
+        default_height_cells=1,
+        resize_mode=ResizeMode.FIXED,
+    ),
 ]

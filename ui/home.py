@@ -1432,6 +1432,11 @@ class HomeInterface(QWidget, TranslatableWidget):
     border-radius: {radius}px;
     border: 1px solid {border_color};
 }}
+#writingPadContainer {{
+    background-color: {bg_color};
+    border-radius: {radius}px;
+    border: 1px solid {border_color};
+}}
 """
 
     def _updateComponentCardStyle(self):

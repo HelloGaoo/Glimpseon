@@ -18,6 +18,7 @@
 UI组件模块
 """
 
+import ctypes
 import json
 import logging
 import os
@@ -29,6 +30,12 @@ import webbrowser
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict
+import queue
+import threading
+from collections import deque
+
+from comtypes import GUID
+from ctypes import wintypes
 
 if getattr(sys, 'frozen', False):
     _BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
@@ -55,7 +62,7 @@ from PyQt6.QtCore import (
     QByteArray, QPropertyAnimation, QEasingCurve,
     QTime, QDate,
     QMimeData,
-    QEvent
+    QEvent,
 )
 from PyQt6.QtGui import (
     QBrush,
@@ -63,17 +70,19 @@ from PyQt6.QtGui import (
     QCursor,
     QFont,
     QFontMetrics,
+    QIcon,
     QLinearGradient,
+    QMouseEvent,
     QPainter,
     QPainterPath,
     QPen,
     QPixmap, 
-    QDrag
+    QDrag,
 )
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QFileIconProvider, QGridLayout, QLabel, QSizePolicy, QWidget, QVBoxLayout, QHBoxLayout, QApplication, QProgressBar, QGraphicsOpacityEffect,
-    QScrollArea, QStackedWidget, QPushButton, QListWidget, QListWidgetItem, QLineEdit, QProgressBar
+    QScrollArea, QStackedWidget, QPushButton, QListWidget, QListWidgetItem, QLineEdit, QSlider
 )
 from qfluentwidgets import InfoBar, isDarkTheme, RoundMenu, Action, FluentWindow, setTheme, ScrollArea, PushButton, ToolButton, TransparentToolButton, StrongBodyLabel, CardWidget, BodyLabel, SubtitleLabel, ComboBox, SpinBox, SwitchButton
 from win32com.shell import shell, shellcon
@@ -234,6 +243,14 @@ COMPONENT_STYLES = {
             "class": None,
             "default_config": {},
             "default_size": (280, 420),
+        },
+    },
+    "writing": {
+        "pad": {
+            "name": "书写板",
+            "class": None,
+            "default_config": {},
+            "default_size": (400, 100),
         },
     },
 }
@@ -6165,6 +6182,1621 @@ class CalculatorComponent(DraggableContainer):
             n = m.group(1)
             self._expression = self._expression[:m.start()] + f"({n}/100)"
             self._update_display()
+
+
+class _OverToolBtn(QWidget):
+    """按钮"""
+
+    clicked = pyqtSignal()
+
+    def __init__(self, icon_pm: QPixmap, text: str, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(56, 72)
+        self._checked = False
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(2, 4, 2, 2)
+        layout.setSpacing(2)
+
+        self._icon_label = QLabel(self)
+        self._icon_label.setPixmap(icon_pm)
+        self._icon_label.setFixedSize(28, 28)
+        self._icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._icon_label, 0, Qt.AlignmentFlag.AlignCenter)
+
+        self._text_label = QLabel(text, self)
+        self._text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._text_label.setStyleSheet("font-size:11px;color:#cccccc;border:none;background:transparent;")
+        layout.addWidget(self._text_label, 0, Qt.AlignmentFlag.AlignCenter)
+
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self._update_style()
+
+    def _update_style(self):
+        if self._checked:
+            self.setStyleSheet(
+                "_OverToolBtn{background:rgba(0,95,184,180);border-radius:6px;}"
+            )
+            self._text_label.setStyleSheet("font-size:11px;color:#ffffff;border:none;background:transparent;")
+        else:
+            self.setStyleSheet(
+                "_OverToolBtn{background:rgba(60,60,60,160);border-radius:6px;}"
+            )
+            self._text_label.setStyleSheet("font-size:11px;color:#aaaaaa;border:none;background:transparent;")
+
+    def setChecked(self, v: bool):
+        self._checked = v
+        self._update_style()
+
+    def isChecked(self):
+        return self._checked
+
+    def mousePressEvent(self, event):
+        self.clicked.emit()
+        super().mousePressEvent(event)
+
+
+# RealTimeStylus COM 定义
+
+# RTS CLSID & IIDs
+CLSID_RealTimeStylus = GUID("{E5757EA0-CEFB-11D2-A5D7-0000F8054F0C}")
+IID_IRealTimeStylus = GUID("{A3DC27C8-269D-4E43-B0F9-78F5C114FE4B}")
+IID_IRealTimeStylus2 = GUID("{A64CB03D-8E2E-4A4B-BD5C-6A9C90B99474}")
+IID_IRealTimeStylus3 = GUID("{B9F17D8A-DD08-4E22-B0B0-D5905F7CF82C}")
+IID_IStylusSyncPlugin = GUID("{D67A9CDA-C2D9-4C8D-BF6F-560DB4254E40}")
+
+# 数据包属性 GUID
+GUID_X = GUID("{598A6A85-3C4F-4E50-AF0E-9C42B42A4888}")
+GUID_Y = GUID("{B9F0B728-BF01-45F4-91CC-3640C02B059A}")
+GUID_NORMAL_PRESSURE = GUID("{4B2F21EA-0DF3-4E43-9F6B-C6D41DEB0C1A}")
+GUID_WIDTH = GUID("{7359E68C-0C0D-4392-B2F1-9D17CF61ECF6}")
+GUID_HEIGHT = GUID("{4803AC82-FA13-4F5D-86B0-50591453E2AB}")
+
+# RealTimeStylus 数据兴趣标志
+RTSDI_StylusDown = 0x00000020
+RTSDI_Packets = 0x00000080
+RTSDI_StylusUp = 0x00000010
+
+# HRESULT 在部分中缺失
+if not hasattr(wintypes, 'HRESULT'):
+    wintypes.HRESULT = wintypes.LONG
+
+S_OK = 0
+E_NOINTERFACE = 0x80004002
+
+# IID_IUnknown
+IID_IUnknown = GUID("{00000000-0000-0000-C000-000000000046}")
+
+# SUCCEEDED / FAILED 宏
+def SUCCEEDED(hr):
+    return hr >= 0
+def FAILED(hr):
+    return hr < 0
+
+# WM_POINTER 常量与结构──
+WM_POINTERDOWN   = 0x0246
+WM_POINTERUPDATE = 0x0245
+WM_POINTERUP     = 0x0247
+
+POINTER_FLAG_NEW      = 0x00000001
+POINTER_FLAG_INRANGE  = 0x00000002
+POINTER_FLAG_INCONTACT = 0x00000004
+POINTER_FLAG_FIRSTBUTTON = 0x00000010
+POINTER_FLAG_SECONDBUTTON = 0x00000020
+POINTER_FLAG_PRIMARY  = 0x00000040
+POINTER_FLAG_CONFIDENCE = 0x00000080
+POINTER_FLAG_CANCELLED = 0x00000100
+POINTER_FLAG_DOWN     = 0x00010000
+POINTER_FLAG_UPDATE   = 0x00020000
+POINTER_FLAG_UP       = 0x00040000
+
+class _POINT(ctypes.Structure):
+    _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
+
+PT_TOUCH = 2
+
+_GetPointerType = ctypes.windll.user32.GetPointerType
+_GetPointerType.restype = wintypes.BOOL
+_GetPointerType.argtypes = [ctypes.c_uint32, ctypes.POINTER(ctypes.c_uint32)]
+
+# WM_POINTER 常量与结构
+
+# StylusInfo 结构
+class _StylusInfo(ctypes.Structure):
+    _fields_ = [
+        ("tcid", wintypes.UINT),
+        ("cid", wintypes.UINT),
+        ("bIsInvertedCursor", wintypes.BOOL),
+    ]
+
+class _PropertyMetrics(ctypes.Structure):
+    _fields_ = [
+        ("nLogicalMin", wintypes.UINT),
+        ("nLogicalMax", wintypes.UINT),
+        ("nUnits", wintypes.UINT),
+        ("fResolution", ctypes.c_float),
+    ]
+
+class _PacketProperty(ctypes.Structure):
+    _fields_ = [
+        ("guid", GUID),
+        ("metrics", _PropertyMetrics),
+    ]
+
+# IStylusSyncPlugin 回调
+
+# 注册表：COM 对象地址 到 _WritingOverlay 实例
+_rts_plugin_registry = {}
+_rts_plugin_lock = threading.Lock()
+
+# 事件队列：RTS 线程 到 Qt 主线程
+_rts_event_queue = deque()
+_rts_event_lock = threading.Lock()
+
+def _rts_push_event(ev_type, x, y, cid):
+    """推送触控事件到队列"""
+    with _rts_event_lock:
+        _rts_event_queue.append((ev_type, x, y, cid))
+
+# IStylusSyncPlugin 回调函数
+
+# StylusInfo 指针解引用辅助
+def _rts_read_stylus_info(p_stylus_info):
+    si = ctypes.cast(p_stylus_info, ctypes.POINTER(_StylusInfo))
+    return si.contents
+
+# 从 LONG* 包数据中提取第 nth 个 LONG
+def _rts_packet_long(packet, index):
+    arr = ctypes.cast(packet, ctypes.POINTER(wintypes.LONG))
+    return arr[index]
+
+@ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)
+def _plugin_QueryInterface(self_ptr, riid, ppv_out):
+    """IUnknown::QueryInterface — 只暴露 IStylusSyncPlugin 和 IUnknown"""
+    ppv = ctypes.cast(ppv_out, ctypes.POINTER(ctypes.c_void_p))
+    with _rts_plugin_lock:
+        ctx = _rts_plugin_registry.get(self_ptr)
+        if not ctx:
+            ppv[0] = None
+            return 0x80004003  # E_POINTER
+    riid_buf = ctypes.string_at(riid, 16)
+    riid_g = GUID(bytes=riid_buf)
+    if riid_g == IID_IStylusSyncPlugin or riid_g == IID_IUnknown:
+        obj = ctypes.cast(self_ptr, ctypes.POINTER(_RtsPluginObject))
+        obj.contents.refcount += 1
+        ppv[0] = self_ptr
+        return S_OK
+    ppv[0] = None
+    return E_NOINTERFACE
+
+@ctypes.WINFUNCTYPE(wintypes.ULONG, ctypes.c_void_p)
+def _plugin_AddRef(self_ptr):
+    obj = ctypes.cast(self_ptr, ctypes.POINTER(_RtsPluginObject))
+    obj.contents.refcount += 1
+    return obj.contents.refcount
+
+@ctypes.WINFUNCTYPE(wintypes.ULONG, ctypes.c_void_p)
+def _plugin_Release(self_ptr):
+    obj = ctypes.cast(self_ptr, ctypes.POINTER(_RtsPluginObject))
+    obj.contents.refcount -= 1
+    ref = obj.contents.refcount
+    if ref == 0:
+        with _rts_plugin_lock:
+            _rts_plugin_registry.pop(self_ptr, None)
+    return ref
+
+@ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, ctypes.c_void_p, wintypes.UINT, ctypes.c_void_p)
+def _plugin_RealTimeStylusEnabled(self_ptr, piRtsSrc, cTcid, pTcids):
+    return S_OK
+
+@ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, ctypes.c_void_p, wintypes.UINT, ctypes.c_void_p)
+def _plugin_RealTimeStylusDisabled(self_ptr, piRtsSrc, cTcid, pTcids):
+    return S_OK
+
+@ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, ctypes.c_void_p, wintypes.UINT, wintypes.UINT)
+def _plugin_StylusInRange(self_ptr, piRtsSrc, tcid, cid):
+    return S_OK
+
+@ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, ctypes.c_void_p, wintypes.UINT, wintypes.UINT)
+def _plugin_StylusOutOfRange(self_ptr, piRtsSrc, tcid, cid):
+    return S_OK
+
+@ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, wintypes.UINT, ctypes.c_void_p, ctypes.c_void_p)
+def _plugin_StylusDown(self_ptr, piRtsSrc, pStylusInfo, cPktCount, pPacket, ppInOutPkts):
+    """StylusDown — 触摸按下"""
+    si = _rts_read_stylus_info(pStylusInfo)
+    with _rts_plugin_lock:
+        ctx = _rts_plugin_registry.get(self_ptr)
+    if ctx is None:
+        return S_OK
+    
+    overlay = ctx[0]  # ctx = (overlay, obj)
+    scale_x = ctypes.c_float(1.0)
+    scale_y = ctypes.c_float(1.0)
+    try:
+        # 获取 inkToDeviceScale 缓存在 overlay 上
+        rts = overlay._rts
+        if rts:
+            cProps = wintypes.UINT(0)
+            ppProps = ctypes.c_void_p(0)
+            hr = rts.GetPacketDescriptionData(si.tcid,
+                ctypes.byref(scale_x), ctypes.byref(scale_y),
+                ctypes.byref(cProps), ctypes.byref(ppProps))
+            if SUCCEEDED(hr):
+                overlay._rts_scale_x = scale_x.value
+                overlay._rts_scale_y = scale_y.value
+                if ppProps.value:
+                    ctypes.windll.ole32.CoTaskMemFree(ppProps.value)
+    except Exception:
+        pass
+    
+    x = _rts_packet_long(pPacket, 0) * scale_x.value
+    y = _rts_packet_long(pPacket, 1) * scale_y.value
+    _rts_push_event("down", x, y, si.cid)
+    return S_OK
+
+@ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, wintypes.UINT, ctypes.c_void_p, ctypes.c_void_p)
+def _plugin_StylusUp(self_ptr, piRtsSrc, pStylusInfo, cPktCount, pPacket, ppInOutPkts):
+    """StylusUp — 触摸抬起"""
+    si = _rts_read_stylus_info(pStylusInfo)
+    with _rts_plugin_lock:
+        ctx = _rts_plugin_registry.get(self_ptr)
+    if ctx is None:
+        return S_OK
+    _rts_push_event("up", 0.0, 0.0, si.cid)
+    return S_OK
+
+@ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, wintypes.UINT, wintypes.UINT, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)
+def _plugin_Packets(self_ptr, piRtsSrc, pStylusInfo, cPktCount, cPktBuffLength, pPacket, pcInOutPkts, ppInOutPkts):
+    """Packets — 触摸移动"""
+    si = _rts_read_stylus_info(pStylusInfo)
+    with _rts_plugin_lock:
+        ctx = _rts_plugin_registry.get(self_ptr)
+    if ctx is None:
+        return S_OK
+    
+    overlay = ctx[0]
+    try:
+        sx = overlay._rts_scale_x if hasattr(overlay, '_rts_scale_x') else 1.0
+        sy = overlay._rts_scale_y if hasattr(overlay, '_rts_scale_y') else 1.0
+    except Exception:
+        sx = sy = 1.0
+    
+    x = _rts_packet_long(pPacket, 0) * sx
+    y = _rts_packet_long(pPacket, 1) * sy
+    _rts_push_event("move", x, y, si.cid)
+    return S_OK
+
+# 其余 IStylusSyncPlugin 返回 S_OK
+@ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, ctypes.c_void_p, wintypes.UINT, ctypes.c_void_p, ctypes.c_void_p)
+def _plugin_StylusButtonUp(self_ptr, piRtsSrc, stylusId, pGuid, pPt):
+    return S_OK
+
+@ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, ctypes.c_void_p, wintypes.UINT, ctypes.c_void_p, ctypes.c_void_p)
+def _plugin_StylusButtonDown(self_ptr, piRtsSrc, stylusId, pGuid, pPt):
+    return S_OK
+
+@ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, wintypes.UINT, wintypes.UINT, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)
+def _plugin_InAirPackets(self_ptr, piRtsSrc, pStylusInfo, cPktCount, cPktBuffLength, pPacket, pcInOutPkts, ppInOutPkts):
+    return S_OK
+
+@ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, ctypes.c_void_p, wintypes.UINT, wintypes.UINT, wintypes.UINT, ctypes.c_void_p)
+def _plugin_SystemEvent(self_ptr, piRtsSrc, tcid, cid, event, data):
+    return S_OK
+
+@ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)
+def _plugin_TabletAdded(self_ptr, piRtsSrc, pTablet):
+    return S_OK
+
+@ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, ctypes.c_void_p, wintypes.LONG)
+def _plugin_TabletRemoved(self_ptr, piRtsSrc, lid):
+    return S_OK
+
+@ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, wintypes.UINT, ctypes.c_void_p)
+def _plugin_CustomStylusDataAdded(self_ptr, piRtsSrc, pGuid, data, pData):
+    return S_OK
+
+@ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, wintypes.HRESULT, ctypes.c_void_p)
+def _plugin_Error(self_ptr, piRtsSrc, pPlugin, dataInterest, hrError, ptr):
+    return S_OK
+
+@ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, ctypes.c_void_p)
+def _plugin_UpdateMapping(self_ptr, piRtsSrc):
+    return S_OK
+
+@ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, ctypes.c_void_p)
+def _plugin_DataInterest(self_ptr, pDataInterest):
+    """DataInterest — 声明感兴趣的事件类型"""
+    di = ctypes.cast(pDataInterest, ctypes.POINTER(wintypes.UINT))
+    di[0] = RTSDI_StylusDown | RTSDI_Packets | RTSDI_StylusUp
+    return S_OK
+
+# IStylusSyncPlugin vtable 表
+_rts_plugin_vtable = (ctypes.c_void_p * 20)(
+    ctypes.cast(_plugin_QueryInterface, ctypes.c_void_p),
+    ctypes.cast(_plugin_AddRef, ctypes.c_void_p),
+    ctypes.cast(_plugin_Release, ctypes.c_void_p),
+    ctypes.cast(_plugin_RealTimeStylusEnabled, ctypes.c_void_p),
+    ctypes.cast(_plugin_RealTimeStylusDisabled, ctypes.c_void_p),
+    ctypes.cast(_plugin_StylusInRange, ctypes.c_void_p),
+    ctypes.cast(_plugin_StylusOutOfRange, ctypes.c_void_p),
+    ctypes.cast(_plugin_StylusDown, ctypes.c_void_p),
+    ctypes.cast(_plugin_StylusUp, ctypes.c_void_p),
+    ctypes.cast(_plugin_StylusButtonUp, ctypes.c_void_p),
+    ctypes.cast(_plugin_StylusButtonDown, ctypes.c_void_p),
+    ctypes.cast(_plugin_InAirPackets, ctypes.c_void_p),
+    ctypes.cast(_plugin_Packets, ctypes.c_void_p),
+    ctypes.cast(_plugin_SystemEvent, ctypes.c_void_p),
+    ctypes.cast(_plugin_TabletAdded, ctypes.c_void_p),
+    ctypes.cast(_plugin_TabletRemoved, ctypes.c_void_p),
+    ctypes.cast(_plugin_CustomStylusDataAdded, ctypes.c_void_p),
+    ctypes.cast(_plugin_Error, ctypes.c_void_p),
+    ctypes.cast(_plugin_UpdateMapping, ctypes.c_void_p),
+    ctypes.cast(_plugin_DataInterest, ctypes.c_void_p),
+)
+
+class _RtsPluginObject(ctypes.Structure):
+    """COM 对象布局：vtable 指针 refcount"""
+    _fields_ = [
+        ("lpVtbl", ctypes.POINTER(ctypes.c_void_p)),
+        ("refcount", ctypes.c_long),
+    ]
+
+def _rts_create_plugin(overlay):
+    """创建IStylusSyncPlugin COM 对象返回其地址指针值"""
+    obj = _RtsPluginObject()
+    obj.lpVtbl = ctypes.pointer(_rts_plugin_vtable)
+    obj.refcount = 1
+    addr = ctypes.addressof(obj)
+    # obj 保存在注册表中
+    with _rts_plugin_lock:
+        _rts_plugin_registry[addr] = (overlay, obj)
+    return addr
+
+# IRealTimeStylus COM 接口辅助
+
+# IClassFactory IID
+_ICLASS_FACTORY_IID = GUID("{00000001-0000-0000-C000-000000000046}")
+# RTS WinSxS 搜索模式（64-bit）
+_WIN32_WINNT_RTS_WXSXS = "C:\\Windows\\WinSxS\\amd64_microsoft-windows-t..platform-comruntime*\\rtscom.dll"
+
+def _find_rtscom():
+    """查找rtscom.dll"""
+    try:
+        import glob as _glob
+        paths = [p for p in _glob.glob(_WIN32_WINNT_RTS_WXSXS)
+                 if '\\r\\' not in p and '\\r\\' not in p]
+        if paths:
+            # 按版本号排序取最新
+            paths.sort(key=lambda p: _extract_version(p), reverse=True)
+            logger.info("[RTS] 选择 rtscom.dll: %s", paths[0])
+            return paths[0]
+        logger.warning("[RTS] 未找到非-stub 的 rtscom.dll, 全部路径: %s",
+                       _glob.glob(_WIN32_WINNT_RTS_WXSXS))
+    except Exception as e:
+        logger.warning("[RTS] _find_rtscom 异常: %s", e)
+    return None
+
+def _extract_version(path):
+    """取版本号"""
+    import re as _re
+    m = _re.search(r'_10\.(\d+\.\d+\.\d+)_', path)
+    if m:
+        parts = m.group(1).split('.')
+        return tuple(int(x) for x in parts)
+    return (0, 0, 0)
+
+def _find_manifest(dll_path):
+    """根据 rtscom.dll 找WinSxS manifest"""
+    try:
+        # 路径格式: ...\amd64_..._<hash>\rtscom.dll
+        import os as _os
+        dir_name = _os.path.basename(_os.path.dirname(dll_path))
+        manifest_name = dir_name + ".manifest"
+        manifest_path = _os.path.join(
+            r"C:\Windows\WinSxS\Manifests", manifest_name)
+        if _os.path.exists(manifest_path):
+            return manifest_path
+    except Exception:
+        pass
+    return None
+
+
+def _rts_create(hwnd):
+    """加载 rtscom.dll 创建 IRealTimeStylus"""
+    try:
+        # 在 WinSxS 中找到 rtscom.dll
+        dll_path = _find_rtscom()
+        if not dll_path:
+            logger.warning("[RTS] 未在 WinSxS 中找到 rtscom.dll")
+            return None
+
+        kernel32 = ctypes.windll.kernel32
+
+        # 创建 Activation Context 让 WinSxS assembly 注册 COM 类
+        manifest_path = _find_manifest(dll_path)
+        act_ctx = None
+        cookie = None
+        if manifest_path:
+            class ACTCTX(ctypes.Structure):
+                _fields_ = [
+                    ("cbSize", wintypes.DWORD),
+                    ("dwFlags", wintypes.DWORD),
+                    ("lpSource", wintypes.LPCWSTR),
+                    ("wProcessorArchitecture", wintypes.WORD),
+                    ("wLangId", wintypes.WORD),
+                    ("lpAssemblyDirectory", wintypes.LPCWSTR),
+                    ("lpResourceName", wintypes.LPCWSTR),
+                    ("lpApplicationName", wintypes.LPCWSTR),
+                    ("hModule", wintypes.HMODULE),
+                ]
+            actctx = ACTCTX()
+            actctx.cbSize = ctypes.sizeof(ACTCTX)
+            actctx.dwFlags = 0
+            actctx.lpSource = manifest_path
+
+            kernel32.CreateActCtxW.restype = ctypes.c_void_p
+            kernel32.CreateActCtxW.argtypes = [ctypes.POINTER(ACTCTX)]
+            act_ctx = kernel32.CreateActCtxW(ctypes.byref(actctx))
+            if act_ctx and act_ctx != ctypes.c_void_p(-1).value:
+                # ActivateActCtx 返回 cookie 用于后续 DeactivateActCtx
+                cookie = ctypes.c_ulong_ptr(0)
+                kernel32.ActivateActCtx.restype = wintypes.BOOL
+                kernel32.ActivateActCtx.argtypes = [
+                    ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong_ptr)]
+                if not kernel32.ActivateActCtx(act_ctx, ctypes.byref(cookie)):
+                    cookie = None
+            else:
+                act_ctx = None
+        else:
+            logger.warning("[RTS] 未找到匹配的 manifest 文件")
+
+        # 加载 rtscom.dll
+        kernel32.LoadLibraryExW.restype = wintypes.HMODULE
+        kernel32.LoadLibraryExW.argtypes = [wintypes.LPCWSTR, wintypes.HANDLE, wintypes.DWORD]
+        hmod = kernel32.LoadLibraryExW(dll_path, None, 0)
+        if not hmod:
+            logger.warning("[RTS] LoadLibraryExW 失败, err=%d",
+                          ctypes.windll.kernel32.GetLastError())
+            if cookie:
+                kernel32.DeactivateActCtx.restype = wintypes.BOOL
+                kernel32.DeactivateActCtx.argtypes = [wintypes.DWORD, ctypes.c_ulong_ptr]
+                kernel32.DeactivateActCtx(0, cookie)
+            if act_ctx:
+                kernel32.ReleaseActCtx(ctypes.c_void_p(act_ctx))
+            return None
+
+        # 获取 DllGetClassObject
+        kernel32.GetProcAddress.restype = ctypes.c_void_p
+        kernel32.GetProcAddress.argtypes = [wintypes.HMODULE, ctypes.c_char_p]
+        dll_get_class_obj = kernel32.GetProcAddress(hmod, b"DllGetClassObject")
+        if not dll_get_class_obj:
+            logger.warning("[RTS] GetProcAddress(DllGetClassObject) 失败, err=%d",
+                          ctypes.windll.kernel32.GetLastError())
+            kernel32.FreeLibrary.restype = wintypes.BOOL
+            kernel32.FreeLibrary.argtypes = [wintypes.HMODULE]
+            kernel32.FreeLibrary(hmod)
+            if cookie:
+                kernel32.DeactivateActCtx(0, cookie)
+            if act_ctx:
+                kernel32.ReleaseActCtx(ctypes.c_void_p(act_ctx))
+            return None
+
+        # DllGetClassObject(rclsid, riid, ppv)
+        DllGetClassObjectType = ctypes.WINFUNCTYPE(
+            wintypes.HRESULT,
+            ctypes.POINTER(GUID),           # REFCLSID
+            ctypes.POINTER(GUID),           # REFIID
+            ctypes.POINTER(ctypes.c_void_p) # void**
+        )
+        fn_dll_get_class_obj = ctypes.cast(dll_get_class_obj, DllGetClassObjectType)
+
+        # 获取 IClassFactory
+        factory_ptr = ctypes.c_void_p(0)
+        hr = fn_dll_get_class_obj(
+            ctypes.byref(CLSID_RealTimeStylus),
+            ctypes.byref(_ICLASS_FACTORY_IID),
+            ctypes.byref(factory_ptr))
+
+        if hr != S_OK or not factory_ptr.value:
+            logger.warning("[RTS] DllGetClassObject 失败: HRESULT=0x%08X", hr & 0xFFFFFFFF)
+            kernel32.FreeLibrary.restype = wintypes.BOOL
+            kernel32.FreeLibrary.argtypes = [wintypes.HMODULE]
+            kernel32.FreeLibrary(hmod)
+            if cookie:
+                kernel32.DeactivateActCtx(0, cookie)
+            if act_ctx:
+                kernel32.ReleaseActCtx(ctypes.c_void_p(act_ctx))
+            return None
+
+        # IClassFactory::CreateInstance(pUnkOuter, riid, ppv) — vtable slot 3
+        factory_vtable = ctypes.cast(factory_ptr.value, ctypes.POINTER(ctypes.c_void_p))
+        CreateInstanceType = ctypes.WINFUNCTYPE(
+            wintypes.HRESULT,
+            ctypes.c_void_p,                # this
+            ctypes.c_void_p,                # pUnkOuter (NULL)
+            ctypes.POINTER(GUID),           # riid
+            ctypes.POINTER(ctypes.c_void_p) # ppv
+        )
+        fn_create_instance = ctypes.cast(factory_vtable[3], CreateInstanceType)
+
+        rts_ptr = ctypes.c_void_p(0)
+        hr = fn_create_instance(
+            factory_ptr.value,
+            None,                           # pUnkOuter = NULL
+            ctypes.byref(IID_IRealTimeStylus),
+            ctypes.byref(rts_ptr))
+
+        # 释放 IClassFactory
+        ReleaseType = ctypes.WINFUNCTYPE(wintypes.ULONG, ctypes.c_void_p)
+        fn_release = ctypes.cast(factory_vtable[2], ReleaseType)
+        fn_release(factory_ptr.value)
+
+        if hr != S_OK or not rts_ptr.value:
+            logger.warning("[RTS] CreateInstance 失败: HRESULT=0x%08X", hr & 0xFFFFFFFF)
+            kernel32.FreeLibrary.restype = wintypes.BOOL
+            kernel32.FreeLibrary.argtypes = [wintypes.HMODULE]
+            kernel32.FreeLibrary(hmod)
+            if cookie:
+                kernel32.DeactivateActCtx(0, cookie)
+            if act_ctx:
+                kernel32.ReleaseActCtx(ctypes.c_void_p(act_ctx))
+            return None
+
+        # 释放激活上下文（DLL 已加载，COM 服务器已运行，清理上下文）
+        if cookie:
+            kernel32.DeactivateActCtx.restype = wintypes.BOOL
+            kernel32.DeactivateActCtx.argtypes = [wintypes.DWORD, ctypes.c_ulong_ptr]
+            kernel32.DeactivateActCtx(0, cookie)
+        if act_ctx:
+            kernel32.ReleaseActCtx(ctypes.c_void_p(act_ctx))
+
+        wrapper = _RealTimeStylusWrapper(rts_ptr.value)
+        wrapper._hmod = hmod  # 保持 DLL 在内存中不卸载
+        logger.info("[RTS] 成功创建 RTS 对象 (WinSxS)")
+        return wrapper
+
+    except Exception as e:
+        logger.warning("[RTS] 创建异常: %s", e)
+        import traceback
+        logger.warning("[RTS] traceback: %s", traceback.format_exc())
+        return None
+
+class _RealTimeStylusWrapper:
+    """IRealTimeStylus 的轻量级 ctypes 包装"""
+    def __init__(self, ptr):
+        self.ptr = ptr
+        ppv = ctypes.cast(ptr, ctypes.POINTER(ctypes.c_void_p))
+        self.vtable = ctypes.cast(ppv[0], ctypes.POINTER(ctypes.c_void_p))
+
+    def put_HWND(self, hwnd):
+        func_type = ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, wintypes.HANDLE)
+        func = ctypes.cast(self.vtable[6], func_type)
+        return func(self.ptr, hwnd)
+
+    def put_Enabled(self, enabled):
+        func_type = ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, wintypes.BOOL)
+        func = ctypes.cast(self.vtable[8], func_type)
+        return func(self.ptr, enabled)
+
+    def AddStylusSyncPlugin(self, index, plugin_ptr):
+        func_type = ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, wintypes.UINT, ctypes.c_void_p)
+        func = ctypes.cast(self.vtable[10], func_type)
+        return func(self.ptr, index, plugin_ptr)
+
+    def SetDesiredPacketDescription(self, count, guids_ptr):
+        func_type = ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, wintypes.UINT, ctypes.c_void_p)
+        func = ctypes.cast(self.vtable[26], func_type)
+        return func(self.ptr, count, guids_ptr)
+
+    def GetPacketDescriptionData(self, tcid, pScaleX, pScaleY, pPropCount, ppProps):
+        func_type = ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, wintypes.UINT,
+            ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)
+        func = ctypes.cast(self.vtable[25], func_type)
+        return func(self.ptr, tcid, pScaleX, pScaleY, pPropCount, ppProps)
+
+    def GetAllTabletContextIds(self, pCount, ppTcids):
+        func_type = ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)
+        func = ctypes.cast(self.vtable[24], func_type)
+        return func(self.ptr, pCount, ppTcids)
+
+    def GetTabletFromTabletContextId(self, tcid, ppTablet):
+        func_type = ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, wintypes.UINT, ctypes.c_void_p)
+        func = ctypes.cast(self.vtable[22], func_type)
+        return func(self.ptr, tcid, ppTablet)
+
+    def QueryInterface(self, riid, ppv):
+        func_type = ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)
+        func = ctypes.cast(self.vtable[0], func_type)
+        return func(self.ptr, riid, ppv)
+
+    def Release(self):
+        func_type = ctypes.WINFUNCTYPE(wintypes.ULONG, ctypes.c_void_p)
+        func = ctypes.cast(self.vtable[2], func_type)
+        return func(self.ptr)
+
+    def get_ptr(self):
+        return self.ptr
+
+def _rts_query_interface(rts_ptr, iid):
+    """在 IRealTimeStylus 指针上执行 QueryInterface"""
+    ppv = ctypes.c_void_p(0)
+    wrapper = _RealTimeStylusWrapper(rts_ptr)
+    hr = wrapper.QueryInterface(ctypes.byref(iid), ctypes.byref(ppv))
+    if hr == S_OK and ppv.value:
+        return ppv.value
+    return 0
+
+def _rts_is2_put_flicks_enabled(rts2_ptr, enabled):
+    """通过 IRealTimeStylus2 vtable 调用 put_FlicksEnabled"""
+    ppv = ctypes.cast(rts2_ptr, ctypes.POINTER(ctypes.c_void_p))
+    vtable = ctypes.cast(ppv[0], ctypes.POINTER(ctypes.c_void_p))
+    func_type = ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, wintypes.BOOL)
+    func = ctypes.cast(vtable[31], func_type)
+    return func(rts2_ptr, enabled)
+
+def _rts_is3_put_multi_touch_enabled(rts3_ptr, enabled):
+    """通过 IRealTimeStylus3 vtable 调用 put_MultiTouchEnabled"""
+    ppv = ctypes.cast(rts3_ptr, ctypes.POINTER(ctypes.c_void_p))
+    vtable = ctypes.cast(ppv[0], ctypes.POINTER(ctypes.c_void_p))
+    func_type = ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, wintypes.BOOL)
+    func = ctypes.cast(vtable[31], func_type)
+    return func(rts3_ptr, enabled)
+
+def _rts_com_release(ptr):
+    """通过 IUnknown::Release 释放 COM 接口指针"""
+    if not ptr:
+        return
+    try:
+        ppv = ctypes.cast(ptr, ctypes.POINTER(ctypes.c_void_p))
+        vtable = ctypes.cast(ppv[0], ctypes.POINTER(ctypes.c_void_p))
+        func_type = ctypes.WINFUNCTYPE(wintypes.ULONG, ctypes.c_void_p)
+        func = ctypes.cast(vtable[2], func_type)
+        func(ptr)
+    except Exception:
+        pass
+
+def _disable_edge_gestures(hwnd):
+    """通过 SHGetPropertyStoreForWindow 禁用边缘手势"""
+    try:
+        # SHGetPropertyStoreForWindow(HWND, REFIID, void**) → HRESULT
+        try:
+            shgppfw = ctypes.windll.shell32.SHGetPropertyStoreForWindow
+            shgppfw.argtypes = [wintypes.HWND, ctypes.c_void_p, ctypes.c_void_p]
+            shgppfw.restype = wintypes.HRESULT
+        except AttributeError:
+            return False
+
+        IID_IPropertyStore = GUID("{886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99}")
+        pStore = ctypes.c_void_p(0)
+        hr = shgppfw(hwnd, ctypes.byref(IID_IPropertyStore), ctypes.byref(pStore))
+        if hr != S_OK or not pStore.value:
+            return False
+
+        # PKEY_EdgeGestureEnable = {32CE38B2-2C9A-41B1-9BC5-B3784394AA44}, pid=2
+        class PROPERTYKEY(ctypes.Structure):
+            _fields_ = [
+                ("fmtid", GUID),
+                ("pid", wintypes.UINT),
+            ]
+
+        pk = PROPERTYKEY()
+        pk.fmtid = GUID("{32CE38B2-2C9A-41B1-9BC5-B3784394AA44}")
+        pk.pid = 2
+
+        # PROPVARIANT: vt=VT_BOOL (11), boolVal=VARIANT_FALSE (0)
+        # PROPVARIANT 大小为 72 字节，对齐为 8 字节
+        buf = ctypes.create_string_buffer(72)
+        ctypes.memset(buf, 0, 72)
+        ctypes.cast(buf, ctypes.POINTER(wintypes.USHORT))[0] = 11           # vt = VT_BOOL
+        ctypes.cast(ctypes.addressof(buf) + 8, ctypes.POINTER(wintypes.SHORT))[0] = 0  # boolVal = VARIANT_FALSE
+
+        # IPropertyStore vtable: 0=QI,1=AddRef,2=Release,3=GetCount,4=GetAt,5=GetValue,6=SetValue,7=Commit
+        ppvStore = ctypes.cast(pStore.value, ctypes.POINTER(ctypes.c_void_p))
+        vtableStore = ctypes.cast(ppvStore[0], ctypes.POINTER(ctypes.c_void_p))
+
+        setvalue_type = ctypes.WINFUNCTYPE(wintypes.HRESULT, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)
+        setvalue = ctypes.cast(vtableStore[6], setvalue_type)
+        hr = setvalue(pStore.value, ctypes.byref(pk), ctypes.byref(buf))
+
+        # Release IPropertyStore
+        release_type = ctypes.WINFUNCTYPE(wintypes.ULONG, ctypes.c_void_p)
+        release = ctypes.cast(vtableStore[2], release_type)
+        release(pStore.value)
+
+        return hr == S_OK
+    except Exception:
+        return False
+
+
+class _WritingOverlay(QWidget):
+    """书写覆盖层"""
+
+    STROKE_TOLERANCE = 15.0
+
+    def __init__(self, component):
+        """component: WritingPadComponent that owns this overlay"""
+        super().__init__()
+        self._component = component
+        # 默认窗透明模式 TODO
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+        self.setMouseTracking(True)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+        # 计算全屏区域
+        screen_rect = QRect()
+        for screen in QApplication.screens():
+            screen_rect = screen_rect.united(screen.geometry())
+        self._screen_rect = screen_rect
+        self.setGeometry(screen_rect)
+
+        # 绘图状态
+        self._buffer = QPixmap(screen_rect.size())
+        self._buffer.fill(Qt.GlobalColor.transparent)
+        self._temp_pixmap = QPixmap(screen_rect.size())
+        self._temp_pixmap.fill(Qt.GlobalColor.transparent)
+        self._temp_pixmaps = {} 
+        self._strokes = []
+        self._current_strokes = {}
+        self._whiteboard = False
+        self._mode = 1  # 0=mouse, 1=pen, 2=eraser
+        self._painting = False 
+        self._touch_active = False  
+        self._active_touch_ids = set() 
+
+        # 笔设置
+        self._pen_color = QColor(component._pen_color)
+        self._pen_width = component._pen_width
+        self._draw_mode = component._draw_mode
+
+        # 悬浮工具栏
+        self._float_bar = None
+        self._create_floating_toolbar()
+
+        # 主窗口位置追踪
+        self._main_win = None
+
+        # WM_POINTER 多点触控
+        self._rts = None
+        self._rts_plugin_addr = 0
+
+        # 触控事件队列
+        self._touch_queue = deque()
+        self._touch_queue_lock = threading.Lock()
+        self._touch_timer = QTimer(self)
+        self._touch_timer.setInterval(8)  # ~120fps，降低延迟
+        self._touch_timer.timeout.connect(self._process_touch_queue)
+        self._touch_timer.start()
+
+    def _push_touch_event(self, ev_type, tid, pos):
+        """将触控事件推入队列"""
+        with self._touch_queue_lock:
+            self._touch_queue.append((ev_type, tid, pos.x(), pos.y()))
+
+    def _process_touch_queue(self):
+        """在主事件循环中异步处理触控事件队列"""
+        if self._painting:
+            return
+        # 取出所有待处理事件
+        batch = []
+        with self._touch_queue_lock:
+            while self._touch_queue:
+                batch.append(self._touch_queue.popleft())
+        if not batch:
+            return
+        for ev_type, tid, x, y in batch:
+            pos = QPointF(x, y)
+            if ev_type == 0:  # DOWN
+                if self._mode == 2:
+                    self._erase_at(pos, tid)
+                elif self._mode == 1:
+                    self._start_stroke(pos, tid)
+            elif ev_type == 1:  # UPDATE
+                if self._mode == 2:
+                    self._erase_at(pos, tid)
+                elif self._mode == 1:
+                    self._update_stroke(pos, tid)
+            elif ev_type == 2:  # UP
+                if self._mode == 1:
+                    self._end_stroke(pos, tid)
+
+    def nativeEvent(self, eventType, message):
+        """WM_POINTER 只读采集"""
+        if eventType != b"windows_generic_MSG":
+            return False, 0
+        if not self.isVisible() or not self.isEnabled():
+            return False, 0
+        try:
+            msg = ctypes.wintypes.MSG.from_address(int(message))
+
+            # WM_POINTER 触控
+            if msg.message in (WM_POINTERDOWN, WM_POINTERUPDATE, WM_POINTERUP):
+                pointerId = msg.wParam & 0xFFFF
+
+                # WM_POINTER 的 HIWORD(wParam) 包含 pointer flags
+                ptr_flags = (msg.wParam >> 16) & 0xFFFF
+
+                # PT_TOUCH=2
+                ptrType = ctypes.c_uint32(0)
+                if not _GetPointerType(pointerId, ctypes.byref(ptrType)):
+                    return False, 0
+                if ptrType.value != PT_TOUCH:
+                    return False, 0
+
+                # 从 WM_POINTER 消息提取坐标
+                x = ctypes.c_short(msg.lParam & 0xFFFF).value
+                y = ctypes.c_short((msg.lParam >> 16) & 0xFFFF).value
+                pos = QPoint(x, y)
+                if pos.x() < -10000 or pos.x() > 100000 or pos.y() < -10000 or pos.y() > 100000:
+                    return False, 0
+
+                # 确定事件类型
+                if msg.message == WM_POINTERDOWN:
+                    ev_type = 0  # DOWN
+                    self._active_touch_ids.add(pointerId)
+                elif msg.message == WM_POINTERUP:
+                    ev_type = 2  # UP
+                    self._active_touch_ids.discard(pointerId)
+                else:  # WM_POINTERUPDATE
+                    # 过滤悬停
+                    if not (ptr_flags & POINTER_FLAG_INCONTACT):
+                        return False, 0
+                    ev_type = 1  # MOVE
+
+                self._touch_active = True
+                self._push_touch_event(ev_type, int(pointerId), pos)
+
+                # 抬起延迟清除 _touch_active
+                if not self._active_touch_ids:
+                    QTimer.singleShot(300, self._maybe_clear_touch_active)
+
+                return False, 0
+
+            return False, 0
+
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            return False, 0
+
+    def _make_icon_pm(self, draw_func, size=24):
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        draw_func(p)
+        p.end()
+        return pm
+
+    # 图标绘制函数
+    @staticmethod
+    def _draw_cursor(p):
+        p.setPen(QPen(QColor(200, 200, 200), 2))
+        p.drawLine(12, 17, 12, 5); p.drawLine(12, 5, 8, 10); p.drawLine(12, 5, 16, 10)
+        p.drawLine(12, 12, 18, 18)
+
+    @staticmethod
+    def _draw_pen(p):
+        p.setPen(QPen(QColor(200, 200, 200), 2))
+        p.drawLine(5, 19, 14, 5); p.drawLine(14, 5, 19, 10); p.drawLine(5, 19, 5, 22)
+
+    @staticmethod
+    def _draw_eraser(p):
+        p.setPen(QPen(QColor(200, 200, 200), 2))
+        p.drawRect(4, 7, 18, 12)
+
+    @staticmethod
+    def _draw_trans(p):
+        p.fillRect(2, 2, 20, 20, QColor(80, 80, 80, 120))
+
+    @staticmethod
+    def _draw_white(p):
+        p.fillRect(2, 2, 20, 20, Qt.GlobalColor.white)
+
+    # 悬浮工具栏
+    def _create_floating_toolbar(self):
+        self._float_bar = QWidget(self)
+        self._float_bar.setObjectName("writingFloatBar")
+        self._float_bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self._float_bar.setStyleSheet(
+            "#writingFloatBar{background:rgba(30,30,30,210);border-radius:10px;}"
+        )
+
+        layout = QHBoxLayout(self._float_bar)
+        layout.setContentsMargins(8, 4, 8, 4)
+        layout.setSpacing(6)
+
+        def make_btn(draw_func, text):
+            pm = self._make_icon_pm(draw_func, 24)
+            btn = _OverToolBtn(pm, text, self._float_bar)
+            return btn
+
+        self._f_mouse = make_btn(self._draw_cursor, "鼠标")
+        self._f_pen = make_btn(self._draw_pen, "画笔")
+        self._f_eraser = make_btn(self._draw_eraser, "擦除")
+
+        self._f_mouse.clicked.connect(lambda: self._set_tool_mode(0))
+        self._f_pen.clicked.connect(self._on_float_pen_clicked)
+        self._f_eraser.clicked.connect(lambda: self._set_tool_mode(2))
+
+        layout.addWidget(self._f_mouse)
+        layout.addWidget(self._f_pen)
+        layout.addWidget(self._f_eraser)
+
+        # 分隔
+        sep = QLabel("│", self._float_bar)
+        sep.setStyleSheet("color:#555;font-size:18px;border:none;background:transparent;")
+        sep.setFixedWidth(16)
+        sep.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(sep)
+
+        self._f_trans = make_btn(self._draw_trans, "透明")
+        self._f_white = make_btn(self._draw_white, "白板")
+        self._f_trans.clicked.connect(lambda: self._set_float_whiteboard(False))
+        self._f_white.clicked.connect(lambda: self._set_float_whiteboard(True))
+        layout.addWidget(self._f_trans)
+        layout.addWidget(self._f_white)
+
+        # 关闭
+        close_btn = QLabel("✕", self._float_bar)
+        close_btn.setFixedSize(40, 40)
+        close_btn.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        close_btn.setStyleSheet(
+            "color:#ff6666;font-size:20px;border:none;background:transparent;"
+            "font-weight:bold;"
+        )
+        close_btn.mousePressEvent = lambda ev: self._close_overlay()
+        layout.addWidget(close_btn)
+
+        self._float_bar.adjustSize()
+        self._update_float_buttons()
+
+    def _update_float_buttons(self):
+        self._f_mouse.setChecked(self._mode == 0)
+        self._f_pen.setChecked(self._mode == 1)
+        self._f_eraser.setChecked(self._mode == 2)
+        self._f_trans.setChecked(not self._whiteboard)
+        self._f_white.setChecked(self._whiteboard)
+
+    def _set_tool_mode(self, mode):
+        self._mode = mode
+        self._update_float_buttons()
+        self._component._set_mode(mode, from_overlay=True)
+
+    def _on_float_pen_clicked(self):
+        if self._mode == 1:
+            self._component._show_pen_settings(overlay=self)
+        else:
+            self._set_tool_mode(1)
+
+    def _set_float_whiteboard(self, on):
+        self.show_overlay(on)
+        self._component._set_whiteboard(on, from_overlay=True)
+
+    def _cleanup_state(self):
+        """清理触控和绘制状态"""
+        self._touch_active = False
+        self._active_touch_ids.clear()
+        with self._touch_queue_lock:
+            self._touch_queue.clear()
+        self._current_strokes.clear()
+        for tp in self._temp_pixmaps.values():
+            tp.fill(Qt.GlobalColor.transparent)
+        self._temp_pixmaps.clear()
+        self._strokes.clear()
+
+    def _maybe_clear_touch_active(self):
+        """无新触控清除 _touch_active 恢复鼠标事件"""
+        if not self._active_touch_ids and not self._current_strokes:
+            self._touch_active = False
+
+    def _close_overlay(self):
+        if self._main_win:
+            try:
+                self._main_win.removeEventFilter(self)
+            except:
+                pass
+            self._main_win = None
+        self._cleanup_state()
+        self._component._close_overlay()
+
+    def hideEvent(self, event):
+        self._cleanup_state()
+        super().hideEvent(event)
+
+    def closeEvent(self, event):
+        self._touch_timer.stop()
+        self._cleanup_state()
+        super().closeEvent(event)
+
+    # 覆盖层显示/隐藏
+    def show_overlay(self, whiteboard):
+        self.hide()  # 切换窗口标志前隐藏
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+
+        if whiteboard:
+            # 白板模式
+            self.setWindowFlags(
+                Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
+            )
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
+            # 移除旧过滤器
+            if self._main_win:
+                try:
+                    self._main_win.removeEventFilter(self)
+                except:
+                    pass
+            self._main_win = self._component.window()
+            if self._main_win:
+                self.setGeometry(self._main_win.geometry())
+                self._main_win.installEventFilter(self)
+        else:
+            # 透明模式：全屏置顶
+            self.setWindowFlags(
+                Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint
+            )
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+            self.setGeometry(self._screen_rect)
+            if self._main_win:
+                try:
+                    self._main_win.removeEventFilter(self)
+                except:
+                    pass
+                self._main_win = None
+
+        self._whiteboard = whiteboard
+        self._update_float_buttons()
+        # 定位工具栏顶部居中
+        fb_w = self._float_bar.width()
+        x = (self.width() - fb_w) // 2
+        self._float_bar.move(max(0, x), 10)
+        self._float_bar.raise_()
+        self.show()
+        # 窗口显示后禁用边缘手势
+        hwnd = int(self.winId())
+        if hwnd:
+            _disable_edge_gestures(hwnd)
+            logger.info("[WM_POINTER] 触控准备完成 (hwnd=%s)", hwnd)
+
+    def eventFilter(self, obj, event):
+        if self._whiteboard and obj is self._main_win:
+            if event.type() in (QEvent.Type.Move, QEvent.Type.Resize):
+                self.setGeometry(self._main_win.geometry())
+        return super().eventFilter(obj, event)
+
+    def clear_all(self):
+        self._strokes.clear()
+        self._current_strokes.clear()
+        self._buffer.fill(Qt.GlobalColor.transparent)
+        self._temp_pixmap.fill(Qt.GlobalColor.transparent)
+        for tp in self._temp_pixmaps.values():
+            tp.fill(Qt.GlobalColor.transparent)
+        self._temp_pixmaps.clear()
+        self.update()
+
+    # 设置同步
+    def setPenColor(self, color):
+        self._pen_color = QColor(color)
+
+    def setPenWidth(self, w):
+        self._pen_width = max(1, w)
+
+    def setDrawMode(self, mode):
+        self._draw_mode = mode
+
+    def _safe_paint(self, pixmap, callback):
+        """QPixmap绘制操作"""
+        if self._painting:
+            return
+        self._painting = True
+        try:
+            painter = QPainter(pixmap)
+            callback(painter)
+            painter.end()
+        except Exception:
+            pass
+        finally:
+            self._painting = False
+
+    # 绘图
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if self._whiteboard:
+            painter.fillRect(self.rect(), Qt.GlobalColor.white)
+        painter.drawPixmap(0, 0, self._buffer)
+        if not self._temp_pixmap.isNull():
+            painter.drawPixmap(0, 0, self._temp_pixmap)
+        # 绘制各 touch tid 的独立临时预览
+        for tid, tp in list(self._temp_pixmaps.items()):
+            if tp and not tp.isNull():
+                painter.drawPixmap(0, 0, tp)
+
+    def _paint_stroke(self, painter, s):
+        pts = s["points"]
+        if not pts:
+            return
+        painter.setPen(QPen(s["color"], s["width"],
+                           Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        mode = s.get("mode", "free")
+        if mode == "free" and len(pts) > 1:
+            for i in range(1, len(pts)):
+                painter.drawLine(pts[i - 1], pts[i])
+        elif mode == "line" and len(pts) >= 2:
+            painter.drawLine(pts[0], pts[-1])
+        elif mode == "rect" and len(pts) >= 2:
+            r = QRectF(pts[0], pts[-1]).normalized()
+            painter.drawRect(r)
+
+    def _start_stroke(self, pos, tid=0):
+        if self._mode != 1:
+            return
+        stroke = {
+            "points": [pos],
+            "color": QColor(self._pen_color),
+            "width": self._pen_width,
+            "mode": self._draw_mode,
+        }
+        self._current_strokes[tid] = stroke
+
+    def _update_stroke(self, pos, tid=0):
+        if self._mode != 1:
+            return
+        stroke = self._current_strokes.get(tid)
+        if not stroke:
+            return
+        if "points" not in stroke:
+            self._current_strokes.pop(tid, None)
+            return
+        pts = stroke["points"]
+        mode = stroke.get("mode", "free")
+
+        if mode == "free":
+            if len(pts) >= 1:
+                # 绘制到 buffer
+                self._safe_paint(self._buffer, lambda painter: (
+                    painter.setRenderHint(QPainter.RenderHint.Antialiasing),
+                    painter.setPen(QPen(stroke["color"], stroke["width"],
+                                        Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)),
+                    painter.drawLine(pts[-1], pos),
+                ))
+                # 保存所有点
+                pts.append(pos)
+                self.update()
+        else:
+            pts.append(pos)
+            if len(pts) >= 2:
+                # 每个 tid 使用临时绘图面
+                if tid not in self._temp_pixmaps:
+                    tp = QPixmap(self._screen_rect.size())
+                    tp.fill(Qt.GlobalColor.transparent)
+                    self._temp_pixmaps[tid] = tp
+                else:
+                    tp = self._temp_pixmaps[tid]
+                    tp.fill(Qt.GlobalColor.transparent)
+                self._safe_paint(tp, lambda painter: (
+                    painter.setRenderHint(QPainter.RenderHint.Antialiasing),
+                    painter.setPen(QPen(stroke["color"], stroke["width"],
+                                       Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)),
+                    painter.drawLine(pts[0], pos) if mode == "line"
+                    else painter.drawRect(QRectF(pts[0], pos).normalized()),
+                ))
+                self.update()
+
+    def _end_stroke(self, pos, tid=0):
+        stroke = self._current_strokes.pop(tid, None)
+        if not stroke:
+            self._temp_pixmaps.pop(tid, None)
+            return
+        pts = stroke["points"]
+        mode = stroke.get("mode", "free")
+
+        if mode == "free":
+            if pts:
+                pts.append(pos)
+            self._strokes.append(stroke)
+        else:
+            if len(pts) >= 2:
+                self._safe_paint(self._buffer, lambda painter: (
+                    painter.setRenderHint(QPainter.RenderHint.Antialiasing),
+                    painter.setPen(QPen(stroke["color"], stroke["width"],
+                                        Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)),
+                    painter.drawLine(pts[0], pts[-1]) if mode == "line"
+                    else painter.drawRect(QRectF(pts[0], pts[-1]).normalized()),
+                ))
+                stroke["points"] = [pts[0], pts[-1]]
+                self._strokes.append(stroke)
+        # 清理该 tid 的独立绘制表面
+        self._temp_pixmaps.pop(tid, None)
+        self._temp_pixmap.fill(Qt.GlobalColor.transparent)
+        self.update()
+
+    def _erase_at(self, pos, tid=0):
+        if self._mode != 2:
+            return
+        tol = self.STROKE_TOLERANCE
+        to_remove = []
+        for s in self._strokes:
+            for pt in s["points"]:
+                if (pt - pos).manhattanLength() < tol:
+                    to_remove.append(s)
+                    break
+        if not to_remove:
+            return
+        for s in to_remove:
+            self._strokes.remove(s)
+        self._buffer.fill(Qt.GlobalColor.transparent)
+        self._safe_paint(self._buffer, lambda painter: (
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing),
+            [self._paint_stroke(painter, s) for s in self._strokes],
+        ))
+        self.update()
+
+    # 鼠标事件
+    def mousePressEvent(self, event):
+        if self._touch_active or self._current_strokes:
+            return
+        if self._mode == 2:
+            self._erase_at(event.position())
+        elif self._mode == 1:
+            self._start_stroke(event.position())
+
+    def mouseMoveEvent(self, event):
+        if self._touch_active or self._current_strokes:
+            return
+        if self._mode == 2:
+            self._erase_at(event.position())
+        elif self._mode == 1:
+            self._update_stroke(event.position())
+
+    def mouseReleaseEvent(self, event):
+        if self._touch_active or self._current_strokes:
+            return
+        if self._mode == 1:
+            self._end_stroke(event.position())
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape:
+            self._close_overlay()
+        super().keyPressEvent(event)
+
+
+class _PenSettingsPopup(QWidget):
+    """画笔设置弹出面板"""
+
+    COLORS = [
+        ("#FF0000", "红"), ("#FFA500", "橙"), ("#FFFF00", "黄"),
+        ("#00AA00", "绿"), ("#0000FF", "蓝"), ("#800080", "紫"),
+        ("#000000", "黑"), ("#FFFFFF", "白"),
+    ]
+
+    def __init__(self, component, overlay=None, parent=None):
+        super().__init__(parent)
+        self._component = component
+        self._overlay = overlay
+        self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setObjectName("penSettingsPopup")
+        self.setFixedSize(300, 230)
+        self._setup_ui()
+
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(10)
+
+        # 颜色
+        cl = QLabel("颜色")
+        cl.setStyleSheet("font-size:13px;color:#cccccc;border:none;background:transparent;")
+        layout.addWidget(cl)
+        cr = QHBoxLayout()
+        cr.setSpacing(6)
+        for hex_c, _ in self.COLORS:
+            btn = QPushButton()
+            btn.setFixedSize(30, 30)
+            c = QColor(hex_c)
+            border = "2px solid #555" if c.lightness() > 200 else "2px solid #888"
+            btn.setStyleSheet(
+                f"QPushButton{{background:{hex_c};border:{border};border-radius:15px;}}"
+                f"QPushButton:hover{{border:2px solid white;}}"
+            )
+            btn.clicked.connect(lambda _, h=hex_c: self._pick_color(h))
+            cr.addWidget(btn)
+        cr.addStretch()
+        layout.addLayout(cr)
+
+        # 粗细
+        tl = QLabel("粗细")
+        tl.setStyleSheet("font-size:13px;color:#cccccc;border:none;background:transparent;")
+        layout.addWidget(tl)
+        self._slider = QSlider(Qt.Orientation.Horizontal)
+        self._slider.setRange(1, 12)
+        self._slider.setValue(self._component._pen_width)
+        self._slider.valueChanged.connect(self._pick_width)
+        layout.addWidget(self._slider)
+
+        # 模式
+        ml = QLabel("模式")
+        ml.setStyleSheet("font-size:13px;color:#cccccc;border:none;background:transparent;")
+        layout.addWidget(ml)
+        mr = QHBoxLayout()
+        mr.setSpacing(8)
+        self._mode_btns = {}
+        for name, display in [("free", "自由"), ("line", "直线"), ("rect", "矩形")]:
+            btn = QPushButton(display)
+            btn.setCheckable(True)
+            btn.setFixedHeight(32)
+            btn.setStyleSheet(
+                "QPushButton{background:#333;color:#fff;border-radius:6px;padding:0 14px;font-size:13px;}"
+                "QPushButton:checked{background:#005fb8;}"
+                "QPushButton:hover{background:#444;}"
+            )
+            btn.clicked.connect(lambda _, n=name: self._pick_mode(n))
+            mr.addWidget(btn)
+            self._mode_btns[name] = btn
+        mr.addStretch()
+        layout.addLayout(mr)
+        layout.addStretch()
+
+        d = self._mode_btns.get(self._component._draw_mode)
+        if d:
+            d.setChecked(True)
+
+    def _pick_color(self, hex_c):
+        self._component._pen_color = hex_c
+        if self._overlay:
+            self._overlay.setPenColor(hex_c)
+
+    def _pick_width(self, w):
+        self._component._pen_width = w
+        if self._overlay:
+            self._overlay.setPenWidth(w)
+
+    def _pick_mode(self, mode):
+        for n, btn in self._mode_btns.items():
+            btn.setChecked(n == mode)
+        self._component._draw_mode = mode
+        if self._overlay:
+            self._overlay.setDrawMode(mode)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setBrush(QColor(40, 40, 40, 235))
+        painter.setPen(QPen(QColor(80, 80, 80), 1))
+        painter.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 12, 12)
+
+
+class WritingPadComponent(DraggableContainer):
+    """书写板组件"""
+
+    MODE_MOUSE = 0
+    MODE_PEN = 1
+    MODE_ERASER = 2
+
+    BTN_W = 60
+    BTN_H = 88
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="horizontal")
+        self.setObjectName("writingPadContainer")
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._mode = self.MODE_PEN
+        self._whiteboard = False
+        self._pen_color = "#FF0000"
+        self._pen_width = 3
+        self._draw_mode = "free"
+        self._pen_popup = None
+        self._overlay = None
+        self._setup_ui()
+        self._apply_style()
+
+    # 图标绘制
+    @staticmethod
+    def _make_icon_pm(draw_func, size=28):
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        draw_func(p)
+        p.end()
+        return pm
+
+    @staticmethod
+    def _draw_cursor(p):
+        p.setPen(QPen(QColor(200, 200, 200), 2))
+        p.drawLine(14, 20, 14, 6); p.drawLine(14, 6, 10, 11); p.drawLine(14, 6, 18, 11)
+        p.drawLine(14, 14, 21, 21)
+
+    @staticmethod
+    def _draw_pen(p):
+        p.setPen(QPen(QColor(200, 200, 200), 2))
+        p.drawLine(6, 22, 16, 6); p.drawLine(16, 6, 22, 12); p.drawLine(6, 22, 6, 26)
+
+    @staticmethod
+    def _draw_eraser(p):
+        p.setPen(QPen(QColor(200, 200, 200), 2))
+        p.drawRect(5, 8, 20, 14)
+
+    @staticmethod
+    def _draw_trans(p):
+        p.fillRect(3, 3, 22, 22, QColor(80, 80, 80, 120))
+
+    @staticmethod
+    def _draw_white(p):
+        p.fillRect(3, 3, 22, 22, Qt.GlobalColor.white)
+
+    # 按钮
+    def _build_tool_btn(self, icon_func, text, checkable=True, checked=False):
+        """返回 (QWidget, clicked_signal)"""
+        container = QWidget(self)
+        container.setFixedSize(self.BTN_W, self.BTN_H)
+        container.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(2, 4, 2, 2)
+        layout.setSpacing(2)
+
+        icon_lb = QLabel(container)
+        icon_lb.setPixmap(self._make_icon_pm(icon_func, 28))
+        icon_lb.setFixedSize(32, 32)
+        icon_lb.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(icon_lb, 0, Qt.AlignmentFlag.AlignCenter)
+
+        text_lb = QLabel(text, container)
+        text_lb.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        text_lb.setObjectName("_toolBtnText")
+        layout.addWidget(text_lb, 0, Qt.AlignmentFlag.AlignCenter)
+
+        container._checked = checked
+        container._checkable = checkable
+        container._icon_lb = icon_lb
+        container._text_lb = text_lb
+        container._update_style = lambda: self._style_tool_btn(container)
+        container.setCheckState = lambda v: setattr(container, '_checked', v) or container._update_style()
+        container.isChecked = lambda: container._checked
+        container._update_style()
+        return container
+
+    def _style_tool_btn(self, container):
+        if container._checked:
+            container.setStyleSheet(
+                "QWidget{background:rgba(0,95,184,100);border-radius:8px;}"
+            )
+            container._icon_lb.setStyleSheet("border:none;background:transparent;")
+            container._text_lb.setStyleSheet(
+                "font-size:11px;color:#ffffff;border:none;background:transparent;"
+            )
+        else:
+            container.setStyleSheet(
+                "QWidget{background:transparent;border-radius:8px;}"
+                "QWidget:hover{background:rgba(255,255,255,20);}"
+            )
+            container._icon_lb.setStyleSheet("border:none;background:transparent;")
+            container._text_lb.setStyleSheet(
+                "font-size:11px;color:#aaaaaa;border:none;background:transparent;"
+            )
+
+    def _setup_ui(self):
+        layout = self.inner_layout
+        layout.setContentsMargins(8, 4, 8, 4)
+        layout.setSpacing(8)
+        layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+
+        # 鼠标
+        self._mouse_box = self._build_tool_btn(self._draw_cursor, "鼠标")
+        layout.addWidget(self._mouse_box)
+        self._mouse_box.mousePressEvent = lambda ev: self._set_mode(self.MODE_MOUSE)
+
+        # 画笔
+        self._pen_box = self._build_tool_btn(self._draw_pen, "画笔")
+        self._pen_box.setCheckState(True)
+        layout.addWidget(self._pen_box)
+        self._pen_box.mousePressEvent = lambda ev: self._on_pen_clicked()
+
+        # 擦除
+        self._eraser_box = self._build_tool_btn(self._draw_eraser, "擦除")
+        layout.addWidget(self._eraser_box)
+        self._eraser_box.mousePressEvent = lambda ev: self._set_mode(self.MODE_ERASER)
+
+        # 分隔
+        sep = QLabel("│", self)
+        sep.setStyleSheet("color:#444;font-size:20px;border:none;background:transparent;")
+        sep.setFixedWidth(20)
+        sep.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(sep)
+
+        # 透明
+        self._trans_box = self._build_tool_btn(self._draw_trans, "透明")
+        self._trans_box.setCheckState(True)
+        layout.addWidget(self._trans_box)
+        self._trans_box.mousePressEvent = lambda ev: self._set_whiteboard(False)
+
+        # 白板
+        self._white_box = self._build_tool_btn(self._draw_white, "白板")
+        layout.addWidget(self._white_box)
+        self._white_box.mousePressEvent = lambda ev: self._set_whiteboard(True)
+
+        layout.addStretch()
+
+        self.setMinimumSize(400, 96)
+        self._size_explicitly_set = True
+        self.resize(400, 100)
+        self._update_button_states()
+
+    # 按钮状态
+    def _update_button_states(self):
+        self._mouse_box.setCheckState(self._mode == self.MODE_MOUSE)
+        self._pen_box.setCheckState(self._mode == self.MODE_PEN)
+        self._eraser_box.setCheckState(self._mode == self.MODE_ERASER)
+
+    # 模式切换
+    def _set_mode(self, mode, from_overlay=False):
+        self._mode = mode
+        self._update_button_states()
+        if self._pen_popup and self._pen_popup.isVisible():
+            self._pen_popup.close()
+        if mode == self.MODE_MOUSE:
+            self._hide_overlay()
+        elif mode in (self.MODE_PEN, self.MODE_ERASER) and not from_overlay:
+            self._show_overlay()
+
+    def _on_pen_clicked(self):
+        if self._mode == self.MODE_PEN:
+            if self._overlay and self._overlay.isVisible():
+                self._show_pen_settings()
+            else:
+                self._show_overlay()
+        else:
+            self._set_mode(self.MODE_PEN)
+
+    def _show_pen_settings(self, overlay=None):
+        if self._pen_popup is None:
+            self._pen_popup = _PenSettingsPopup(self, overlay)
+        else:
+            self._pen_popup._overlay = overlay or self._overlay
+        src = self._pen_box
+        pos = src.mapToGlobal(QPoint(src.width() + 4, 0))
+        self._pen_popup.move(pos)
+        self._pen_popup.show()
+
+    def _set_whiteboard(self, on, from_overlay=False):
+        self._whiteboard = on
+        self._white_box.setCheckState(on)
+        self._trans_box.setCheckState(not on)
+        if self._overlay and self._overlay.isVisible():
+            if not from_overlay:
+                # 从组件工具栏切换模式 重新创建覆盖层
+                self._overlay.show_overlay(on)
+            else:
+                self._overlay._whiteboard = on
+                self._overlay._update_float_buttons()
+                self._overlay.update()
+
+    # 覆盖层
+    def _show_overlay(self):
+        if self._overlay is None:
+            self._overlay = _WritingOverlay(self)
+        self._overlay.show_overlay(self._whiteboard)
+        self._overlay._mode = self._mode
+        self._overlay._update_float_buttons()
+
+    def _hide_overlay(self):
+        if self._overlay and self._overlay.isVisible():
+            self._overlay.hide()
+
+    def _close_overlay(self):
+        self._hide_overlay()
+        self._mode = self.MODE_MOUSE
+        self._update_button_states()
+        if self._pen_popup and self._pen_popup.isVisible():
+            self._pen_popup.close()
+
+    def _apply_style(self):
+        self.updateSize()
+
+
 # 更新注册表
 COMPONENT_STYLES["clock"]["digital"]["class"] = DigitalClockComponent
 COMPONENT_STYLES["weather"]["icon_temp"]["class"] = WeatherIconTempComponent
@@ -6184,6 +7816,7 @@ COMPONENT_STYLES["clock"]["calendar_month"]["class"] = CalendarMonthComponent
 COMPONENT_STYLES["linkage"]["timetable_preview"]["class"] = TimetablePreviewComponent
 COMPONENT_STYLES["linkage"]["timetable_nowlesson"]["class"] = TimetableNowLessonComponent
 COMPONENT_STYLES["Math"]["calculator"]["class"] = CalculatorComponent
+COMPONENT_STYLES["writing"]["pad"]["class"] = WritingPadComponent
 
 
 
