@@ -436,7 +436,7 @@ class Config(QConfig):
         "Grid", "ComponentCardOpacity", 55, RangeValidator(0, 100)
     )
     componentCardRadius = RangeConfigItem(
-        "Grid", "ComponentCardRadius", 16, RangeValidator(0, 30)
+        "Grid", "ComponentCardRadius", 16, RangeValidator(0, 29)
     )
 
 

@@ -1407,6 +1407,31 @@ class HomeInterface(QWidget, TranslatableWidget):
     border-radius: {radius}px;
     border: 1px solid {border_color};
 }}
+#newsBaiduContainer {{
+    background-color: {bg_color};
+    border-radius: {radius}px;
+    border: 1px solid {border_color};
+}}
+#newsWeiboContainer {{
+    background-color: {bg_color};
+    border-radius: {radius}px;
+    border: 1px solid {border_color};
+}}
+#newsJinritoutiaoContainer {{
+    background-color: {bg_color};
+    border-radius: {radius}px;
+    border: 1px solid {border_color};
+}}
+#newsTenxunwangContainer {{
+    background-color: {bg_color};
+    border-radius: {radius}px;
+    border: 1px solid {border_color};
+}}
+#newsCCTVContainer {{
+    background-color: {bg_color};
+    border-radius: {radius}px;
+    border: 1px solid {border_color};
+}}
 """
 
     def _updateComponentCardStyle(self):

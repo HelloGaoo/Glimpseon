@@ -25,6 +25,7 @@ import re
 import sys
 import time
 import datetime
+import webbrowser
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict
@@ -80,6 +81,7 @@ from win32com.shell import shell, shellcon
 from core.config import cfg, save_cfg
 from core.utils import tr, FUI, get_cached_content, save_cache
 from services.media import MediaInfo, Lyrics, get_media_info, fetch_all_info, close as close_media
+from services.news import NewsService
 from core.constants import BASE_DIR, load_qss
 from data.software_list import get_software_icon_path
 from core.component import (
@@ -178,6 +180,38 @@ COMPONENT_STYLES = {
             "class": None,
             "default_config": {},
             "default_size": (400, 200),
+        },
+    },
+    "news": {
+        "baidu": {
+            "name": "百度热搜",
+            "class": None,
+            "default_config": {},
+            "default_size": (360, 220),
+        },
+        "weibo": {
+            "name": "微博热搜",
+            "class": None,
+            "default_config": {},
+            "default_size": (360, 220),
+        },
+        "jinritoutiao": {
+            "name": "今日头条",
+            "class": None,
+            "default_config": {},
+            "default_size": (360, 220),
+        },
+        "tenxunwang": {
+            "name": "腾讯网",
+            "class": None,
+            "default_config": {},
+            "default_size": (360, 220),
+        },
+        "xcvts": {
+            "name": "央视新闻",
+            "class": None,
+            "default_config": {},
+            "default_size": (360, 220),
         },
     },
     "linkage": {
@@ -3698,6 +3732,492 @@ class PoetryOneLineComponent(DraggableContainer):
         self.updateSize()
 
 
+def _render_svg_logo(icon_path, height=30):
+    """显示SVG logo"""
+    renderer = QSvgRenderer(icon_path)
+    if not renderer.isValid():
+        return QPixmap()
+    default_size = renderer.defaultSize()
+    if default_size.isValid() and default_size.height() > 0:
+        ratio = default_size.width() / default_size.height()
+        width = int(height * ratio)
+    else:
+        width = height
+    pm = QPixmap(width, height)
+    pm.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+    renderer.render(p)
+    p.end()
+    return pm
+
+
+class NewsBaiduComponent(DraggableContainer):
+    """百度热搜组件"""
+
+    _ICON_PATH = os.path.join(BASE_DIR, "resource", "icons", "news", "baidu.svg")
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName("newsBaiduContainer")
+        self._home = parent
+        self._source = "baidu"
+        self._items = []
+        self._setup_ui()
+        self._setup_timer()
+
+    def _setup_ui(self):
+        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+        pm = _render_svg_logo(self._ICON_PATH, 30)
+        pm.setDevicePixelRatio(dpr)
+
+        self.iconLabel = QLabel()
+        self.iconLabel.setPixmap(pm)
+        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
+        self.iconLabel.setObjectName("newsHeaderIcon")
+
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.addWidget(self.iconLabel)
+        header_layout.addStretch()
+
+        self.itemWidgets = []
+        self._news_urls = [""] * 4
+        for i in range(4):
+            item_label = QLabel("--")
+            item_label.setWordWrap(True)
+            item_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+            item_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            item_label.setObjectName("newsItemLabel")
+            item_label.mousePressEvent = lambda e, idx=i: self._on_news_clicked(idx)
+            item_label.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.itemWidgets.append(item_label)
+
+        layout = self.inner_layout
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(6)
+        layout.addLayout(header_layout)
+        for widget in self.itemWidgets:
+            layout.addWidget(widget, 1)
+
+        self.setMinimumSize(360, 220)
+        self._size_explicitly_set = True
+        self.resize(360, 220)
+        self._apply_style()
+
+    def _setup_timer(self):
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._refresh_news)
+        self.timer.start(300000)
+        self._refresh_news()
+
+    def _refresh_news(self):
+        cache_name = f"news_{self._source}"
+        data = NewsService.fetch_daily_news(self._source, use_cache=True)
+        if not data:
+            data = get_cached_content(cache_name, ignore_expiry=True)
+        self._update_display(data)
+
+    def _update_display(self, data):
+        titles = ["--"] * 4
+        urls = [""] * 4
+        if isinstance(data, list) and data:
+            for index in range(4):
+                if index < len(data):
+                    item = data[index] or {}
+                    title = item.get("title") or item.get("name") or "--"
+                    titles[index] = title
+                    urls[index] = item.get("url") or item.get("link") or ""
+        self._news_urls = urls
+
+        for i, (label, text) in enumerate(zip(self.itemWidgets, titles)):
+            label.setText(
+                f"<span style='font-size:12px;color:#2932e1;font-family:{FONT_FAMILY};'>"
+                f"{i+1}.</span> "
+                f"<span style='font-size:15px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
+            )
+
+    def _on_news_clicked(self, index):
+        if 0 <= index < len(self._news_urls) and self._news_urls[index]:
+            webbrowser.open(self._news_urls[index])
+
+    def _apply_style(self):
+        self.updateSize()
+
+
+class NewsWeiboComponent(DraggableContainer):
+    """微博热搜组件"""
+
+    _ICON_PATH = os.path.join(BASE_DIR, "resource", "icons", "news", "weibo.svg")
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName("newsWeiboContainer")
+        self._home = parent
+        self._source = "weibo"
+        self._items = []
+        self._setup_ui()
+        self._setup_timer()
+
+    def _setup_ui(self):
+        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+        pm = _render_svg_logo(self._ICON_PATH, 30)
+        pm.setDevicePixelRatio(dpr)
+
+        self.iconLabel = QLabel()
+        self.iconLabel.setPixmap(pm)
+        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
+        self.iconLabel.setObjectName("newsHeaderIcon")
+
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.addWidget(self.iconLabel)
+        header_layout.addStretch()
+
+        self.itemWidgets = []
+        self._news_urls = [""] * 4
+        for i in range(4):
+            item_label = QLabel("--")
+            item_label.setWordWrap(True)
+            item_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+            item_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            item_label.setObjectName("newsItemLabel")
+            item_label.mousePressEvent = lambda e, idx=i: self._on_news_clicked(idx)
+            item_label.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.itemWidgets.append(item_label)
+
+        layout = self.inner_layout
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(6)
+        layout.addLayout(header_layout)
+        for widget in self.itemWidgets:
+            layout.addWidget(widget, 1)
+
+        self.setMinimumSize(360, 220)
+        self._size_explicitly_set = True
+        self.resize(360, 220)
+        self._apply_style()
+
+    def _setup_timer(self):
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._refresh_news)
+        self.timer.start(300000)
+        self._refresh_news()
+
+    def _refresh_news(self):
+        cache_name = f"news_{self._source}"
+        data = NewsService.fetch_daily_news(self._source, use_cache=True)
+        if not data:
+            data = get_cached_content(cache_name, ignore_expiry=True)
+        self._update_display(data)
+
+    def _update_display(self, data):
+        titles = ["--"] * 4
+        urls = [""] * 4
+        if isinstance(data, list) and data:
+            for index in range(4):
+                if index < len(data):
+                    item = data[index] or {}
+                    title = item.get("title") or item.get("name") or "--"
+                    titles[index] = title
+                    urls[index] = item.get("url") or item.get("link") or ""
+        self._news_urls = urls
+
+        for i, (label, text) in enumerate(zip(self.itemWidgets, titles)):
+            label.setText(
+                f"<span style='font-size:12px;color:#e89214;font-family:{FONT_FAMILY};'>"
+                f"{i+1}.</span> "
+                f"<span style='font-size:15px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
+            )
+
+    def _on_news_clicked(self, index):
+        if 0 <= index < len(self._news_urls) and self._news_urls[index]:
+            webbrowser.open(self._news_urls[index])
+
+    def _apply_style(self):
+        self.updateSize()
+
+
+class NewsJinritoutiaoComponent(DraggableContainer):
+    """今日头条组件"""
+
+    _ICON_PATH = os.path.join(BASE_DIR, "resource", "icons", "news", "jinritoutiao.svg")
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName("newsJinritoutiaoContainer")
+        self._home = parent
+        self._source = "jinritoutiao"
+        self._items = []
+        self._setup_ui()
+        self._setup_timer()
+
+    def _setup_ui(self):
+        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+        pm = _render_svg_logo(self._ICON_PATH, 40)
+        pm.setDevicePixelRatio(dpr)
+
+        self.iconLabel = QLabel()
+        self.iconLabel.setPixmap(pm)
+        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
+        self.iconLabel.setObjectName("newsHeaderIcon")
+
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.addWidget(self.iconLabel)
+        header_layout.addStretch()
+
+        self.itemWidgets = []
+        self._news_urls = [""] * 4
+        for i in range(4):
+            item_label = QLabel("--")
+            item_label.setWordWrap(True)
+            item_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+            item_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            item_label.setObjectName("newsItemLabel")
+            item_label.mousePressEvent = lambda e, idx=i: self._on_news_clicked(idx)
+            item_label.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.itemWidgets.append(item_label)
+
+        layout = self.inner_layout
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(6)
+        layout.addLayout(header_layout)
+        for widget in self.itemWidgets:
+            layout.addWidget(widget, 1)
+
+        self.setMinimumSize(360, 220)
+        self._size_explicitly_set = True
+        self.resize(360, 220)
+        self._apply_style()
+
+    def _setup_timer(self):
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._refresh_news)
+        self.timer.start(300000)
+        self._refresh_news()
+
+    def _refresh_news(self):
+        cache_name = f"news_{self._source}"
+        data = NewsService.fetch_daily_news(self._source, use_cache=True)
+        if not data:
+            data = get_cached_content(cache_name, ignore_expiry=True)
+        self._update_display(data)
+
+    def _update_display(self, data):
+        titles = ["--"] * 4
+        urls = [""] * 4
+        if isinstance(data, list) and data:
+            for index in range(4):
+                if index < len(data):
+                    item = data[index] or {}
+                    title = item.get("title") or item.get("name") or "--"
+                    titles[index] = title
+                    urls[index] = item.get("url") or item.get("link") or ""
+        self._news_urls = urls
+
+        for i, (label, text) in enumerate(zip(self.itemWidgets, titles)):
+            label.setText(
+                f"<span style='font-size:12px;color:#ff353c;font-family:{FONT_FAMILY};'>"
+                f"{i+1}.</span> "
+                f"<span style='font-size:15px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
+            )
+
+    def _on_news_clicked(self, index):
+        if 0 <= index < len(self._news_urls) and self._news_urls[index]:
+            webbrowser.open(self._news_urls[index])
+
+    def _apply_style(self):
+        self.updateSize()
+
+
+class NewsTenxunwangComponent(DraggableContainer):
+    """腾讯网组件"""
+
+    _ICON_PATH = os.path.join(BASE_DIR, "resource", "icons", "news", "tencent.svg")
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName("newsTenxunwangContainer")
+        self._home = parent
+        self._source = "tenxunwang"
+        self._items = []
+        self._setup_ui()
+        self._setup_timer()
+
+    def _setup_ui(self):
+        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+        pm = _render_svg_logo(self._ICON_PATH, 30)
+        pm.setDevicePixelRatio(dpr)
+
+        self.iconLabel = QLabel()
+        self.iconLabel.setPixmap(pm)
+        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
+        self.iconLabel.setObjectName("newsHeaderIcon")
+
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.addWidget(self.iconLabel)
+        header_layout.addStretch()
+
+        self.itemWidgets = []
+        self._news_urls = [""] * 4
+        for i in range(4):
+            item_label = QLabel("--")
+            item_label.setWordWrap(True)
+            item_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+            item_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            item_label.setObjectName("newsItemLabel")
+            item_label.mousePressEvent = lambda e, idx=i: self._on_news_clicked(idx)
+            item_label.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.itemWidgets.append(item_label)
+
+        layout = self.inner_layout
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(6)
+        layout.addLayout(header_layout)
+        for widget in self.itemWidgets:
+            layout.addWidget(widget, 1)
+
+        self.setMinimumSize(360, 220)
+        self._size_explicitly_set = True
+        self.resize(360, 220)
+        self._apply_style()
+
+    def _setup_timer(self):
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._refresh_news)
+        self.timer.start(300000)
+        self._refresh_news()
+
+    def _refresh_news(self):
+        cache_name = f"news_{self._source}"
+        data = NewsService.fetch_daily_news(self._source, use_cache=True)
+        if not data:
+            data = get_cached_content(cache_name, ignore_expiry=True)
+        self._update_display(data)
+
+    def _update_display(self, data):
+        titles = ["--"] * 4
+        urls = [""] * 4
+        if isinstance(data, list) and data:
+            for index in range(4):
+                if index < len(data):
+                    item = data[index] or {}
+                    title = item.get("title") or item.get("name") or "--"
+                    titles[index] = title
+                    urls[index] = item.get("url") or item.get("link") or ""
+        self._news_urls = urls
+
+        for i, (label, text) in enumerate(zip(self.itemWidgets, titles)):
+            label.setText(
+                f"<span style='font-size:12px;color:#106eb0;font-family:{FONT_FAMILY};'>"
+                f"{i+1}.</span> "
+                f"<span style='font-size:14px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
+            )
+
+    def _on_news_clicked(self, index):
+        if 0 <= index < len(self._news_urls) and self._news_urls[index]:
+            webbrowser.open(self._news_urls[index])
+
+    def _apply_style(self):
+        self.updateSize()
+
+
+class NewsCCTVComponent(DraggableContainer):
+    """央视新闻组件"""
+
+    _ICON_PATH = os.path.join(BASE_DIR, "resource", "icons", "news", "cctv.svg")
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName("newsCCTVContainer")
+        self._home = parent
+        self._source = "xcvts"
+        self._items = []
+        self._setup_ui()
+        self._setup_timer()
+
+    def _setup_ui(self):
+        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+        pm = _render_svg_logo(self._ICON_PATH, 20)
+        pm.setDevicePixelRatio(dpr)
+
+        self.iconLabel = QLabel()
+        self.iconLabel.setPixmap(pm)
+        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
+        self.iconLabel.setObjectName("newsHeaderIcon")
+
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.addWidget(self.iconLabel)
+        header_layout.addStretch()
+
+        self.itemWidgets = []
+        self._news_urls = [""] * 3
+        for i in range(3):
+            item_label = QLabel("--")
+            item_label.setWordWrap(True)
+            item_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+            item_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            item_label.setObjectName("newsItemLabel")
+            item_label.mousePressEvent = lambda e, idx=i: self._on_news_clicked(idx)
+            item_label.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.itemWidgets.append(item_label)
+
+        layout = self.inner_layout
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(6)
+        layout.addLayout(header_layout)
+        for widget in self.itemWidgets:
+            layout.addWidget(widget, 1)
+
+        self.setMinimumSize(360, 220)
+        self._size_explicitly_set = True
+        self.resize(360, 220)
+        self._apply_style()
+
+    def _setup_timer(self):
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._refresh_news)
+        self.timer.start(300000)
+        self._refresh_news()
+
+    def _refresh_news(self):
+        cache_name = f"news_{self._source}"
+        data = NewsService.fetch_cctv_news(use_cache=True)
+        if not data:
+            data = get_cached_content(cache_name, ignore_expiry=True)
+        self._update_display(data)
+
+    def _update_display(self, data):
+        titles = ["--"] * 3
+        urls = [""] * 3
+        if isinstance(data, list) and data:
+            for index in range(3):
+                if index < len(data):
+                    item = data[index] or {}
+                    title = item.get("title") or item.get("name") or "--"
+                    titles[index] = title
+                    urls[index] = item.get("url") or item.get("link") or ""
+        self._news_urls = urls
+
+        for i, (label, text) in enumerate(zip(self.itemWidgets, titles)):
+            label.setText(
+                f"<span style='font-size:12px;color:#e53928;font-family:{FONT_FAMILY};'>"
+                f"{i+1}.</span> "
+                f"<span style='font-size:15px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
+            )
+
+    def _on_news_clicked(self, index):
+        if 0 <= index < len(self._news_urls) and self._news_urls[index]:
+            webbrowser.open(self._news_urls[index])
+
+    def _apply_style(self):
+        self.updateSize()
+
+
 class CountdownEventComponent(DraggableContainer):
     """事件倒计时组件"""
 
@@ -5651,6 +6171,11 @@ COMPONENT_STYLES["weather"]["icon_temp"]["class"] = WeatherIconTempComponent
 COMPONENT_STYLES["weather"]["hourly"]["class"] = WeatherHourlyComponent
 COMPONENT_STYLES["weather"]["weekly"]["class"] = WeatherWeeklyComponent
 COMPONENT_STYLES["poetry"]["one_line"]["class"] = PoetryOneLineComponent
+COMPONENT_STYLES["news"]["baidu"]["class"] = NewsBaiduComponent
+COMPONENT_STYLES["news"]["weibo"]["class"] = NewsWeiboComponent
+COMPONENT_STYLES["news"]["jinritoutiao"]["class"] = NewsJinritoutiaoComponent
+COMPONENT_STYLES["news"]["tenxunwang"]["class"] = NewsTenxunwangComponent
+COMPONENT_STYLES["news"]["xcvts"]["class"] = NewsCCTVComponent
 COMPONENT_STYLES["countdown"]["event"]["class"] = CountdownEventComponent
 COMPONENT_STYLES["school_info"]["class_info"]["class"] = SchoolInfoComponent
 COMPONENT_STYLES["media"]["player"]["class"] = MediaPlayerComponent

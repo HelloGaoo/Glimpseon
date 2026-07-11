@@ -1036,7 +1036,7 @@ class GridPage(SettingsSubPage):
             tr("settings.grid.component_card_radius_desc"),
             parent=self.scrollWidget,
             min_value=0,
-            max_value=30,
+            max_value=29,
         )
 
         self.vBoxLayout.addWidget(preview_row)
