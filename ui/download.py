@@ -84,14 +84,15 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
         self.mainLayout.setContentsMargins(60, 0, 60, 40)
         self.mainLayout.setSpacing(16)
         
-        # 数据存储（分页用）
+        # 数据存储
         self._allSoftwareData = []   # flat list: {section, icon_path, name, description, link}
         self._currentDataSection = None
         
-        # 分页状态
-        self.currentPage = 1
-        self.totalPages = 1
-        self._pageButtons = []
+        self._currentCols = 2
+        self._resizeTimer = QTimer(self)
+        self._resizeTimer.setSingleShot(True)
+        self._resizeTimer.timeout.connect(self._onResizeDebounced)
+        self._pendingLayout = False
         
         # 运行时状态
         self.softwareList = []       # 当前页面的 widget dict（给下载逻辑用）
@@ -102,7 +103,6 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
         self.futures = []
         
         self.__initWidgets()
-        self.__initPagination()
         self.__initLayout()
         self.__setQss()
         self.__connectSignalToSlot()
@@ -116,7 +116,6 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
         self.startButton.clicked.connect(self.__handleStartDownload)
         self.sourceComboBox.currentTextChanged.connect(self.__handleSourceChange)
         self.selectAllButton.clicked.connect(self.__handleSelectAll)
-        cfg.downloadItemsPerPage.valueChanged.connect(self._onItemsPerPageChanged)
     
     def __handleSourceChange(self, source_name):
         idx = self.sourceComboBox.currentIndex()
@@ -470,7 +469,6 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
         """ 初始化布局 """
         self.mainLayout.addWidget(self.modeContainer)
         self.mainLayout.addWidget(self.softwareContainer, 1)
-        self.mainLayout.addWidget(self.paginationBar)
     
     def addSection(self, title):
         """ 存储分区标题（数据收集，不创建 widget） """
@@ -489,37 +487,27 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
             'link': link
         })
     
-    # ==================== 分页相关 ====================
-    
-    def __initPagination(self):
-        """ 初始化分页栏 """
-        self.paginationBar = QWidget(self.scrollWidget)
-        self.paginationBar.setObjectName("paginationBar")
-        self.paginationLayout = QHBoxLayout(self.paginationBar)
-        self.paginationLayout.setContentsMargins(0, 8, 0, 0)
-        self.paginationLayout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    
-    def _calcPerPage(self):
-        """根据可用高度动态计算每页显示数量（不滚动）"""
-        h = self.scrollWidget.height()
-        if h <= 0:
-            return cfg.downloadItemsPerPage.value
-        overhead = 50 + 60 + 80  # 标题 ~50 + modeContainer ~60 + 边距 ~80
-        available = h - overhead
-        row_h = 112  # 卡片 100 + 间距 12
-        rows = max(1, int(available / row_h))
-        return rows * 2  # 2列
-    
-    def _finishLoading(self, start_page=1):
-        """ 所有数据加载完成后调用，渲染第一页 """
-        per_page = self._calcPerPage()
-        total = len(self._allSoftwareData)
-        self.totalPages = max(1, (total + per_page - 1) // per_page)
-        if start_page > self.totalPages:
-            start_page = 1
-        self.currentPage = start_page
-        self._renderPage(start_page)
-    
+
+    def _calcColumns(self):
+        """计算卡片列数"""
+        margins = self.mainLayout.getContentsMargins()
+        available = self.scrollWidget.width() - margins[0] - margins[2]
+        spacing = 12
+        CARD_MIN_W = 380
+        CARD_MAX_W = 520
+
+        if available <= CARD_MIN_W + spacing:
+            return 1
+
+        cols = max(1, int(available / (CARD_MAX_W + spacing)))
+        while True:
+            card_w = (available - (cols - 1) * spacing) / cols
+            if card_w > CARD_MAX_W:
+                cols += 1
+            else:
+                break
+        return cols
+
     def _clearSoftwareLayout(self):
         """ 清空 softwareLayout 中的所有 widget """
         self.softwareList.clear()
@@ -528,23 +516,21 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
             w = item.widget()
             if w:
                 w.deleteLater()
-    
-    def _renderPage(self, page_num):
-        """ 渲染指定页码的软件卡片 """
+
+    def _layoutAllSoftware(self):
+        """ 渲染软件卡片 """
         self._clearSoftwareLayout()
-        
-        per_page = self._calcPerPage()
-        start = (page_num - 1) * per_page
-        end = min(start + per_page, len(self._allSoftwareData))
-        page_data = self._allSoftwareData[start:end]
-        
+
+        cols = self._calcColumns()
+        self._currentCols = cols
+
         is_single = self.singleModeButton.isChecked()
         shown_sections = set()
         current_section = None
         grid_layout = None
         row, col = 0, 0
-        
-        for item in page_data:
+
+        for item in self._allSoftwareData:
             sec = item['section']
             if sec != current_section:
                 if sec not in shown_sections:
@@ -557,23 +543,40 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
                 gl.setContentsMargins(0, 0, 0, 0)
                 gl.setSpacing(12)
                 self.softwareLayout.addWidget(gw)
+
+                # 拉伸填满宽度
+                for c in range(cols):
+                    gl.setColumnStretch(c, 1)
+
                 current_section = sec
                 grid_layout = gl
                 row, col = 0, 0
-            
+
             card, sw_dict = self._createSoftwareCard(item, is_single)
             grid_layout.addWidget(card, row, col)
             self.softwareList.append(sw_dict)
-            
+
             col += 1
-            if col >= 2:
+            if col >= cols:
                 col = 0
                 row += 1
-        
+
         self.softwareLayout.addStretch()
-        self.currentPage = page_num
-        self._updatePaginationButtons()
-    
+
+    def showEvent(self, event):
+        """首次显示触发"""
+        super().showEvent(event)
+        if self._pendingLayout and self._allSoftwareData:
+            self._pendingLayout = False
+            self._layoutAllSoftware()
+
+    def _onDataPopulated(self):
+        """数据加载完成后调用"""
+        if self.isVisible():
+            self._layoutAllSoftware()
+        else:
+            self._pendingLayout = True
+
     def _createSoftwareCard(self, data, is_single_mode):
         """ 创建一个软件卡片 widget，返回 (card_widget, software_dict) """
         name = data['name']
@@ -584,7 +587,8 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
         card = CardWidget(self.softwareContainer)
         card.setMinimumHeight(100)
         card.setMaximumHeight(100)
-        card.setMinimumWidth(400)
+        card.setMinimumWidth(380)
+        card.setMaximumWidth(520)
         
         layout = QHBoxLayout(card)
         layout.setContentsMargins(20, 16, 20, 16)
@@ -672,54 +676,17 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
         }
         return card, sw_dict
     
-    def _updatePaginationButtons(self):
-        """ 更新分页按钮状态 """
-        # 清除旧按钮
-        for btn in self._pageButtons:
-            btn.deleteLater()
-        self._pageButtons.clear()
-        # 清除 layout 中已有的控件
-        while self.paginationLayout.count():
-            item = self.paginationLayout.takeAt(0)
-            w = item.widget()
-            if w:
-                w.deleteLater()
-        
-        if self.totalPages <= 1:
-            self.paginationBar.hide()
-            return
-        
-        self.paginationBar.show()
-        
-        for i in range(1, self.totalPages + 1):
-            btn = PushButton(str(i), self.paginationBar)
-            btn.setFixedSize(36, 36)
-            btn.setProperty("paginationActive", i == self.currentPage)
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
-            btn.clicked.connect(lambda checked, p=i: self._gotoPage(p))
-            self.paginationLayout.addWidget(btn)
-            self._pageButtons.append(btn)
-    
-    def _gotoPage(self, page_num):
-        """ 跳转到指定页 """
-        if page_num < 1 or page_num > self.totalPages:
-            return
-        self._renderPage(page_num)
-    
-    def _onItemsPerPageChanged(self, value):
-        """ 单页数量变更时重新加载 """
-        self._finishLoading()
-    
     def resizeEvent(self, e):
-        """窗口缩放时重新计算分页"""
+        """窗口缩放时启动定时器 再重新布局"""
         super().resizeEvent(e)
-        if self._allSoftwareData and self.totalPages > 0:
-            new_per_page = self._calcPerPage()
-            total = len(self._allSoftwareData)
-            new_total = max(1, (total + new_per_page - 1) // new_per_page)
-            if new_total != self.totalPages:
-                self._finishLoading(self.currentPage)
+        self._resizeTimer.start(150)
+
+    def _onResizeDebounced(self):
+        """防抖"""
+        if self._allSoftwareData:
+            new_cols = self._calcColumns()
+            if new_cols != self._currentCols:
+                self._layoutAllSoftware()
     
     def __handleCheckboxChange(self, software_name, state):
         """ 复选框状态变更 """
@@ -799,9 +766,6 @@ class DownloadInterface(BaseScrollAreaInterface, TranslatableWidget):
             self.startButton.show()
             self.selectAllButton.show()
             self.__updateSelectAllButton()
-        
-        # 重新渲染当前页以更新卡片控件
-        self._renderPage(self.currentPage)
     
     def __handleStartDownload(self):
         """ 处理开始下载按钮点击 """
