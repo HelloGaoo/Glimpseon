@@ -1045,6 +1045,7 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.notificationPage, FUI.MESSAGE, tr("navigation.notification"))  # 通知
         self.notifManager = NotificationManager(self)
         self.notificationPage.send_notification.connect(self.notifManager.handle_notification)
+        self.notifManager.notification_finished.connect(self.notificationPage._on_notification_shown)
         logger.info(f"[MW] NotificationPage 耗时{time.time()-_t:.2f}s")
 
         _t = time.time()

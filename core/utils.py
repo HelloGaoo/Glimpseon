@@ -852,6 +852,8 @@ _ICON_NAME_MAP = {
     # 箭头类
     "RIGHT_ARROW": "arrow_right",
     "LEFT_ARROW": "arrow_left",
+    "UP": "chevron_up",
+    "DOWN": "chevron_down",
 
     # 操作类
     "ACCEPT": "checkmark",

@@ -19,6 +19,7 @@
 """
 
 import logging
+import json
 import os
 import sys
 from enum import Enum
@@ -298,6 +299,12 @@ class Config(QConfig):
     )
     minimizeNotificationCount = ConfigItem(
         "Other", "MinimizeNotificationCount", 0, validator=None
+    )
+    scrollBannerBgHeight = RangeConfigItem(
+        "Other", "ScrollBannerBgHeight", 80, RangeValidator(40, 300)
+    )
+    scrollBannerMouseThrough = ConfigItem(
+        "Other", "ScrollBannerMouseThrough", True, BoolValidator()
     )
     school = ConfigItem(
         "School", "School", ""

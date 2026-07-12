@@ -26,7 +26,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtWidgets import (
     QFrame, QLabel, QApplication, QVBoxLayout, QGraphicsOpacityEffect,
 )
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QColor, QFont
 from plyer import notification as plyer_notification
 
 from core.utils import tr
@@ -60,8 +60,9 @@ except ImportError:
 class _BasePopup(QFrame):
     """无边框置顶弹窗"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, mouse_through=False):
         super().__init__(parent)
+        self._mouse_through = mouse_through
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
@@ -69,6 +70,21 @@ class _BasePopup(QFrame):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        if mouse_through:
+            self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+
+    def _apply_mouse_through(self):
+        """鼠标穿透"""
+        if not self._mouse_through:
+            return
+        try:
+            hwnd = int(self.winId())
+            # WS_EX_TRANSPARENT = 0x20
+            GWL_EXSTYLE = -20
+            current = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, current | 0x20)
+        except Exception:
+            pass
 
     def show(self):
         super().show()
@@ -78,6 +94,7 @@ class _BasePopup(QFrame):
                 hwnd, -1, 0, 0, 0, 0,  # HWND_TOPMOST = -1
                 0x0002 | 0x0001 | 0x0040  # SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW
             )
+            self._apply_mouse_through()
         except Exception:
             pass
 
@@ -85,33 +102,47 @@ class _BasePopup(QFrame):
 class ScrollBanner(_BasePopup):
     finished = pyqtSignal()
 
-    def __init__(self, text: str, pixels_per_second: int, duration: int):
-        super().__init__()
+    def __init__(self, text: str, pixels_per_second: int, duration: int,
+                 bg_color="#000000", bg_alpha=180, text_color="#ffffff",
+                 font_size=24, font_weight=0, bg_height=80, mouse_through=True):
+        super().__init__(mouse_through=mouse_through)
         self.text = text
         self.pixels_per_second = pixels_per_second
         self.duration = duration
+        self._bg_color = bg_color
+        self._bg_alpha = bg_alpha
+        self._text_color = text_color
+        self._font_size = font_size
+        self._font_weight = font_weight  # 0 = Normal, 1 = Bold, 2 = Black
+        self._bg_height = bg_height
         self._scroll_offset = 0.0
         self._timer = QTimer(self)
         self._last_time = None
         self._must_finish = False
-        self._completed_loops = 0     # 已完整滚动次数
+        self._completed_loops = 0
         self._setup_ui()
         self._start_animation()
 
     def _setup_ui(self):
         screen = QApplication.primaryScreen().availableGeometry()
-        banner_height = 80
+        banner_height = self._bg_height
         self.setGeometry(0, 60, screen.width(), banner_height)
 
         self.label = QLabel(self.text, self)
-        self.label.setStyleSheet("color: white; font-size: 36px; font-weight: bold; background: transparent;")
-        font = QFont()
-        font.setPointSize(24)
+        # 用 QFont 控制字重
+        weight_map = {0: QFont.Weight.Normal, 1: QFont.Weight.Bold, 2: QFont.Weight.Black}
+        weight = weight_map.get(self._font_weight, QFont.Weight.Bold)
+        font = QFont("HarmonyOS Sans", self._font_size)
+        font.setWeight(weight)
         self.label.setFont(font)
+        self.label.setStyleSheet(
+            f"color: {self._text_color}; background: transparent;"
+        )
         self.label.adjustSize()
 
         self._scroll_offset = float(self.width())
-        self.label.move(int(self._scroll_offset), (self.height() - self.label.height()) // 2)
+        v_offset = max(0, (banner_height - self.label.height()) // 2)
+        self.label.move(int(self._scroll_offset), v_offset)
 
     def _start_animation(self):
         self.show()
@@ -133,14 +164,10 @@ class ScrollBanner(_BasePopup):
 
         if self._scroll_offset + self.label.width() <= 0:
             self._completed_loops += 1
-
-            # 如果时间已到 且 已完成至少两圈： 关闭
             if self._must_finish and self._completed_loops >= 2:
                 self._timer.stop()
                 self.close()
                 return
-
-            # 否则开始下一圈
             self._scroll_offset = float(self.width())
 
         self.label.move(int(self._scroll_offset), self.label.y())
@@ -149,7 +176,9 @@ class ScrollBanner(_BasePopup):
         from PyQt6.QtGui import QPainter, QColor
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setBrush(QColor(0, 0, 0, 180))
+        bg = QColor(self._bg_color)
+        bg.setAlpha(self._bg_alpha)
+        painter.setBrush(bg)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRect(self.rect())
 
@@ -158,21 +187,28 @@ class ScrollBanner(_BasePopup):
         force_topmost(int(self.winId()))
 
     def _fade_out(self):
-        """时间到标记结束"""
         self._must_finish = True
 
     def closeEvent(self, event):
         self.finished.emit()
         super().closeEvent(event)
 
+
 class FullScreenPopup(_BasePopup):
 
-    finished = pyqtSignal()     
+    finished = pyqtSignal()
 
-    def __init__(self, text, duration):
+    def __init__(self, text, duration,
+                 bg_color="#000000", bg_alpha=180, text_color="#ffffff",
+                 font_size=24, font_weight=0):
         super().__init__()
         self.text = text
         self.duration = duration
+        self._bg_color = bg_color
+        self._bg_alpha = bg_alpha
+        self._text_color = text_color
+        self._font_size = font_size
+        self._font_weight = font_weight
         self._setup_ui()
         self._show_and_close()
 
@@ -181,23 +217,27 @@ class FullScreenPopup(_BasePopup):
         self.setGeometry(screen)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
 
-        layout = QVBoxLayout(self) 
+        layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.label = QLabel(self.text, self)
-        self.label.setStyleSheet("color: white; font-size: 36px; font-weight: bold; background: transparent;")
+        weight_map = {0: QFont.Weight.Normal, 1: QFont.Weight.Bold, 2: QFont.Weight.Black}
+        weight = weight_map.get(self._font_weight, QFont.Weight.Bold)
+        font = QFont("HarmonyOS Sans", self._font_size)
+        font.setWeight(weight)
+        self.label.setFont(font)
+        self.label.setStyleSheet(
+            f"color: {self._text_color}; background: transparent;"
+        )
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label.setWordWrap(True)
-        font = QFont()
-        font.setPointSize(24)
-        self.label.setFont(font)
         layout.addWidget(self.label)
 
     def paintEvent(self, event):
         from PyQt6.QtGui import QPainter, QColor
         painter = QPainter(self)
-        painter.setBrush(QColor(0, 0, 0, 180))
+        painter.setBrush(QColor(self._bg_color))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRect(self.rect())
 
@@ -213,8 +253,11 @@ class FullScreenPopup(_BasePopup):
         self.finished.emit()
         super().closeEvent(event)
 
+
 class NotificationManager(QObject):
     """通知排队"""
+
+    notification_finished = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -228,6 +271,11 @@ class NotificationManager(QObject):
         content = data.get("content", "")
         speed = data.get("speed", 5)
         duration = data.get("duration", 5)
+        bg_color = data.get("bg_color", "#000000")
+        bg_alpha = data.get("bg_alpha", 180)
+        text_color = data.get("text_color", "#ffffff")
+        font_size = data.get("font_size", 24)
+        font_weight = data.get("font_weight", 1)
 
         if not content:
             logger.warning("通知内容为空")
@@ -243,24 +291,29 @@ class NotificationManager(QObject):
             self._queue.append(data)
         else:
             if notif_type == NotifType.SCROLL:
-                self._show_scroll(content, speed, duration)
+                self._show_scroll(content, speed, duration, bg_color, bg_alpha, text_color, font_size, font_weight)
             elif notif_type == NotifType.FULLSCREEN:
-                self._show_fullscreen(content, duration)
+                self._show_fullscreen(content, duration, bg_color, bg_alpha, text_color, font_size, font_weight)
             else:
                 logger.warning(f"未知通知类型: {notif_type}")
 
-    def _show_scroll(self, text, speed, duration):
-        # speed: 1~20 即 30 ~ 400px/s
+    def _show_scroll(self, text, speed, duration, bg_color, bg_alpha, text_color, font_size, font_weight):
         pixels_per_second = 30 + (speed - 1) * 20
-        banner = ScrollBanner(text, pixels_per_second, duration)
+        from core.config import cfg
+        bg_height = cfg.get(cfg.scrollBannerBgHeight)
+        mouse_through = cfg.get(cfg.scrollBannerMouseThrough)
+        banner = ScrollBanner(text, pixels_per_second, duration,
+                              bg_color, bg_alpha, text_color, font_size, font_weight,
+                              bg_height=bg_height, mouse_through=mouse_through)
         banner.finished.connect(self._on_notification_finished)
         banner.destroyed.connect(lambda: self._active_windows.remove(banner))
         self._active_windows.append(banner)
         self._is_showing = True
         banner.show()
 
-    def _show_fullscreen(self, text, duration):
-        popup = FullScreenPopup(text, duration)
+    def _show_fullscreen(self, text, duration, bg_color, bg_alpha, text_color, font_size, font_weight):
+        popup = FullScreenPopup(text, duration,
+                                 bg_color, bg_alpha, text_color, font_size, font_weight)
         popup.finished.connect(self._on_notification_finished)
         popup.destroyed.connect(lambda: self._active_windows.remove(popup))
         self._active_windows.append(popup)
@@ -277,6 +330,7 @@ class NotificationManager(QObject):
     def _on_notification_finished(self):
         """当前通知结束 下一个"""
         self._is_showing = False
+        self.notification_finished.emit()
         if self._queue:
             next_data = self._queue.pop(0)
             self.handle_notification(next_data)

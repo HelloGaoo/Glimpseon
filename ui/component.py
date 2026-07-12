@@ -853,6 +853,9 @@ class DraggableContainer(DraggableWidget):
         self._delete_button = None
         self._scale_factor = 1.0
         self._size_explicitly_set = False  # 是否已显式设置尺寸
+        self._resize_debounce_timer = QTimer(self)
+        self._resize_debounce_timer.setSingleShot(True)
+        self._resize_debounce_timer.timeout.connect(self._applyUniformScale)
 
         if layout_direction == "vertical":
             self.inner_layout = QVBoxLayout(self)
@@ -896,6 +899,12 @@ class DraggableContainer(DraggableWidget):
         self.updateGeometry()
     
     def updateSize(self):
+        if not getattr(self, '_update_pending', False):
+            self._update_pending = True
+            QTimer.singleShot(0, self._doUpdateSize)
+
+    def _doUpdateSize(self):
+        self._update_pending = False
         self.inner_layout.activate()
         if not getattr(self, '_size_explicitly_set', False):
             self.adjustSize()
@@ -934,7 +943,7 @@ class DraggableContainer(DraggableWidget):
         super().resizeEvent(event)
         if self._delete_button and self._delete_button.isVisible():
             self._delete_button.reposition()
-        self._applyUniformScale()
+        self._resize_debounce_timer.start(100)
 
     def _applyUniformScale(self):
         """缩放所有子控件的字体和间距"""
@@ -1557,6 +1566,8 @@ class MediaWidget(QWidget):
         if is_new_song:
             logger.debug(f"媒体组件: 新歌曲 {m.title} - {m.artist}")
         self._media = m
+        if not self._prog_timer.isActive():
+            self._prog_timer.start(1000)
         if full:
             self._display(m)
             self.show()
@@ -1608,6 +1619,7 @@ class MediaWidget(QWidget):
         self._has_gstmtc_cover = False
         self._playing = False
         self._duration = 0
+        self._prog_timer.stop()
         if cfg.showMediaInfo.value:
             self.show()
 

@@ -203,6 +203,8 @@ class HomeInterface(QWidget, TranslatableWidget):
         self._cached_weather = None
         self._cached_poetry = None
         self._cached_media = None
+        self._last_lunar_date = None
+        self._cached_lunar_string = ""
         
         # 网格系统服务
         from core.component import GridLayoutService, GridSettings, ComponentRegistry, BUILTIN_COMPONENT_DEFINITIONS
@@ -1060,7 +1062,10 @@ class HomeInterface(QWidget, TranslatableWidget):
 
         self.countdownTimer = QTimer(self)
         self.countdownTimer.timeout.connect(self._updateCountdown)
+        self.countdownTimer.start(1000)
         self.countdownCarouselIndex = 0
+        self._countdown_carousel_interval = cfg.countdownCarouselInterval.value
+        self._countdown_last_switch_time = 0
         cfg.showCountdown.valueChanged.connect(self._updateCountdown)
         cfg.countdownTextColor.valueChanged.connect(self._onCountdownStyleChanged)
         cfg.countdownTextSize.valueChanged.connect(self._onCountdownStyleChanged)
@@ -1071,11 +1076,7 @@ class HomeInterface(QWidget, TranslatableWidget):
         cfg.countdownList.valueChanged.connect(self._updateCountdown)
         self.updateCountdownStyle()
 
-        self._updateCountdownCarouselInterval()
         self._updateCountdown()
-        self.countdownRefreshTimer = QTimer(self)
-        self.countdownRefreshTimer.timeout.connect(self._refreshCountdownDisplay)
-        self.countdownRefreshTimer.start(1000)
 
         self.weatherTimer = QTimer(self)
         self.weatherTimer.timeout.connect(self._checkAndRefreshWeather)
@@ -1280,13 +1281,16 @@ class HomeInterface(QWidget, TranslatableWidget):
 
         if cfg.showLunarCalendar.value:
             try:
-                py_datetime = datetime.datetime(currentDate.year(), currentDate.month(), currentDate.day(), 0, 0, 0)
-                lunar = cnlunar.Lunar(py_datetime)
-                lunarMonthCn = lunar.lunarMonthCn
-                lunarDayCn = lunar.lunarDayCn
-                lunarMonthCn = lunarMonthCn.replace("大", "").replace("小", "")
-                lunarString = f"{lunarMonthCn}{lunarDayCn}"
-                dateString = f"{solarString} {lunarString}"
+                today_key = (currentDate.year(), currentDate.month(), currentDate.day())
+                if today_key != self._last_lunar_date:
+                    py_datetime = datetime.datetime(*today_key, 0, 0, 0)
+                    lunar = cnlunar.Lunar(py_datetime)
+                    lunarMonthCn = lunar.lunarMonthCn
+                    lunarDayCn = lunar.lunarDayCn
+                    lunarMonthCn = lunarMonthCn.replace("大", "").replace("小", "")
+                    self._cached_lunar_string = f"{lunarMonthCn}{lunarDayCn}"
+                    self._last_lunar_date = today_key
+                dateString = f"{solarString} {self._cached_lunar_string}"
             except Exception as e:
                 logger.error(tr("date.lunar_error", error=e))
                 dateString = solarString
@@ -1724,38 +1728,12 @@ class HomeInterface(QWidget, TranslatableWidget):
             self.weatherContainer.updateSize()
 
     def _updateCountdownCarouselInterval(self):
-        self.countdownTimer.stop()
-        interval = cfg.countdownCarouselInterval.value * 1000
-        self.countdownTimer.start(interval)
+        self._countdown_carousel_interval = cfg.countdownCarouselInterval.value
+        self._countdown_last_switch_time = 0
         self._updateCountdown()
 
-    def _refreshCountdownDisplay(self):
-        """每秒刷新倒计时显示（不切换轮播）"""
-        if not cfg.showCountdown.value:
-            return
-        countdown_list = cfg.countdownList.value or []
-        if not countdown_list:
-            return
-        display_mode = cfg.countdownDisplayMode.value
-        if display_mode == "simultaneous":
-            texts = []
-            for cd in countdown_list:
-                text = self._formatCountdown(cd)
-                if text:
-                    texts.append(text)
-            self.countdownLabel.setText("<br>".join(texts))
-        else:
-            idx = getattr(self, 'countdownCarouselIndex', 0)
-            if idx >= len(countdown_list):
-                idx = 0
-            cd = countdown_list[idx]
-            text = self._formatCountdown(cd)
-            if text:
-                self.countdownLabel.setText(text)
-        if hasattr(self, 'countdownContainer'):
-            self.countdownContainer.updateSize()
-
     def _updateCountdown(self):
+        """倒计时更新"""
         if not cfg.showCountdown.value:
             if self.isEditMode:
                 self.countdownContainer.setContentVisible(False)
@@ -1776,18 +1754,23 @@ class HomeInterface(QWidget, TranslatableWidget):
                 text = self._formatCountdown(cd)
                 if text:
                     texts.append(text)
-            self.countdownLabel.setText("<br>".join(texts))
+            new_text = "<br>".join(texts)
         else:
+            # 轮播模式
+            now = time.time()
+            interval = getattr(self, '_countdown_carousel_interval', cfg.countdownCarouselInterval.value)
+            last_switch = getattr(self, '_countdown_last_switch_time', 0)
             if not hasattr(self, 'countdownCarouselIndex'):
                 self.countdownCarouselIndex = 0
+            if now - last_switch >= interval or last_switch == 0:
+                self.countdownCarouselIndex += 1
+                self._countdown_last_switch_time = now
             if self.countdownCarouselIndex >= len(countdown_list):
                 self.countdownCarouselIndex = 0
             cd = countdown_list[self.countdownCarouselIndex]
-            text = self._formatCountdown(cd)
-            if text:
-                self.countdownLabel.setText(text)
-            self.countdownCarouselIndex += 1
-
+            new_text = self._formatCountdown(cd) or ""
+        if new_text != self.countdownLabel.text():
+            self.countdownLabel.setText(new_text)
         if hasattr(self, 'countdownContainer'):
             self.countdownContainer.updateSize()
 
