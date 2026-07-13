@@ -57,11 +57,12 @@ from core.timetable import (
 from core.utils import tr, TranslatableWidget, FUI
 
 DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-SUBJECT_SHORT = ["语", "数", "英", "政", "史", "地", "生", "科", "通", "劳", "班", "社", "心", "信", "考", "体"]
+SUBJECT_SHORT = ["语", "数", "英", "政", "史", "地", "生", "物", "化", "科", "通", "劳", "班", "社", "心", "信", "考", "体", "早", "自"]
 SUBJECT_FULL = {
     "语": "语文", "数": "数学", "英": "英语", "政": "政治", "史": "历史",
-    "地": "地理", "生": "生物", "科": "科学", "通": "通用技术", "劳": "劳动",
-    "班": "班会", "社": "社会", "心": "心理", "信": "信息技术", "考": "考试", "体": "体育"
+    "地": "地理", "生": "生物", "物": "物理", "化": "化学", "科": "科学", "通": "通用技术", "劳": "劳动",
+    "班": "班会", "社": "社团", "心": "心理", "信": "信息技术", "考": "考试", "体": "体育",
+    "早": "早读", "自": "自习"
 }
 
 
@@ -1097,6 +1098,44 @@ class TimetablePage(ScrollArea, TranslatableWidget):
 
         return result
 
+    def get_schedule_by_weekday(self, weekday: int) -> list:
+        """返回指定星期课表"""
+        from datetime import time as _time
+
+        if self._activeBridge:
+            try:
+                # ci 0=周日..6=周六  cw 0=周一..6=周日
+                if self._activeBridge is self._ciBridge:
+                    dotnet_wd = (weekday + 1) % 7  # Mon=1..Sun=7 → Sun=0..Sat=6
+                else:
+                    dotnet_wd = weekday
+                return self._activeBridge.get_schedule_by_weekday(dotnet_wd)
+            except Exception:
+                return []
+
+        if not self._profile or not self._profile.periods:
+            return []
+
+        day_name = DAYS[weekday]  # weekday: 0=monday..6=sunday
+
+        result = []
+        class_counter = 0
+        for i, p in enumerate(self._profile.periods):
+            start = p.get("start", "")
+            end = p.get("end", "")
+            ptype = p.get("type", "")
+
+            if ptype in ("课间", "活动"):
+                break_name = ptype if ptype == "活动" else "课间"
+                result.append(("", "", start, end, 0, False, True, break_name))
+            else:
+                class_counter += 1
+                courses = self._profile.courses.get(str(i), {})
+                subject = courses.get(day_name, "")
+                result.append((subject, "", start, end, class_counter, False, False, ""))
+
+        return result
+
     def _onSourceChanged(self, index: int):
         """档案来源切换"""
         source_map = {0: "classlively", 1: "classisland", 2: "classwidgets"}
@@ -1243,7 +1282,9 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             schedules = [week_data.get(i, []) for i in range(7)]
 
         # 构建时间表
-        today_schedule = schedules[0] if schedules else []
+        import datetime as _dt
+        today_wd = _dt.date.today().weekday()  # 0=周一..6=周日
+        today_schedule = schedules[today_wd] if today_wd < len(schedules) else []
         self.timeTable.setRowCount(0)
         self.timeTable.setRowCount(len(today_schedule))
         for i, row in enumerate(today_schedule):
@@ -1262,9 +1303,9 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         self.courseTable.setRowCount(0)
         self.courseTable.setRowCount(max_rows)
         for table_row in range(max_rows):
-            # 第0列时间段：用第一天的
-            if table_row < len(non_break_counts[0]):
-                _, _, start, end, _, _, _, _ = non_break_counts[0][table_row]
+            # 第0列时间段：用今天的数据
+            if table_row < len(non_break_counts[today_wd]):
+                _, _, start, end, _, _, _, _ = non_break_counts[today_wd][table_row]
                 range_item = QTableWidgetItem(f"{start}~{end}")
                 range_item.setFlags(range_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.courseTable.setItem(table_row, 0, range_item)

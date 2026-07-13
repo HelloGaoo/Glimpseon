@@ -5196,7 +5196,15 @@ class TimetablePreviewComponent(DraggableContainer):
         import datetime as _dt
         tomorrow = _dt.date.today() + _dt.timedelta(days=1)
         dotnet_wd = tomorrow.isoweekday() % 7 
-        schedule = self._bridge.get_schedule_by_weekday(dotnet_wd) if self._bridge else []
+
+        schedule = []
+        if self._timetable_page:
+            try:
+                schedule = self._timetable_page.get_schedule_by_weekday(tomorrow.isoweekday())
+            except Exception:
+                pass
+        elif self._bridge:
+            schedule = self._bridge.get_schedule_by_weekday(dotnet_wd)
 
         self._rebuild_schedule(schedule)
         self._scroll_to_top()
