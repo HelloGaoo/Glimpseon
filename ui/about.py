@@ -397,8 +397,14 @@ class AboutInterface(ScrollArea, TranslatableWidget):
 
     @pyqtSlot(str)
     def _on_changelog_loaded(self, changelog_text: str):
-        # setMarkdown 提示 Markdown
-        self.changelogContent.setMarkdown(changelog_text)
+        self._setChangelogContent(changelog_text)
+
+    def _setChangelogContent(self, text: str):
+        """md渲染方式"""
+        if '<div' in text or '<img' in text or '<a ' in text:
+            self.changelogContent.setHtml(text)
+        else:
+            self.changelogContent.setMarkdown(text)
 
     # 检查更新
 
@@ -478,7 +484,7 @@ class AboutInterface(ScrollArea, TranslatableWidget):
                     self.checkUpdateButton.setEnabled(True)
 
                 if changelog:
-                    self.changelogContent.setMarkdown(changelog)
+                    self._setChangelogContent(changelog)
 
                 if auto_check and cfg.autoUpdate.value:
                     logger.info("自动检查：启用自动更新，开始下载")
@@ -491,7 +497,7 @@ class AboutInterface(ScrollArea, TranslatableWidget):
                 if not auto_check:
                     self.checkUpdateButton.setEnabled(True)
                 if changelog:
-                    self.changelogContent.setMarkdown(changelog)
+                    self._setChangelogContent(changelog)
         except Exception as e:
             logger.error(f"更新 UI 失败：{e}")
 
@@ -612,7 +618,7 @@ class AboutInterface(ScrollArea, TranslatableWidget):
     def resizeEvent(self, event):
         """调整图标大小"""
         super().resizeEvent(event)
-        if hasattr(self, '_appIconPixmap') and self._appIconPixmap and self._appIconPixmap and not self._appIconPixmap.isNull():
+        if hasattr(self, '_appIconPixmap') and self._appIconPixmap and not self._appIconPixmap.isNull():
             card_height = self._headerCard.height() if hasattr(self, '_headerCard') and self._headerCard else 200
             icon_size = min(128, max(64, card_height // 3))
             scaled_pixmap = self._appIconPixmap.scaled(
