@@ -5128,21 +5128,18 @@ class TimetablePreviewComponent(DraggableContainer):
         try:
             mw = None
             for w in QApplication.topLevelWidgets():
-                if hasattr(w, 'linkagePage') and hasattr(w, 'cwLinkagePage'):
+                if hasattr(w, 'timetablePage'):
                     mw = w
                     break
             if not mw:
                 return
-            for page_name in ('linkagePage', 'cwLinkagePage'):
-                page = getattr(mw, page_name, None)
-                if page and hasattr(page, 'bridge'):
-                    bridge = page.bridge
-                    if bridge:
-                        self._bridge = bridge
-                        bridge.stateChanged.connect(self._on_state_changed)
-                        bridge.connectedChanged.connect(self._on_connected_changed)
-                        logger.info(f"[Timetable] 已连接 Bridge: {page_name}")
-                        return
+            tp = mw.timetablePage
+            if hasattr(tp, 'bridge') and tp.bridge:
+                bridge = tp.bridge
+                self._bridge = bridge
+                bridge.stateChanged.connect(self._on_state_changed)
+                bridge.connectedChanged.connect(self._on_connected_changed)
+                logger.info("[Timetable] 已连接 Bridge: timetablePage")
         except Exception as e:
             logger.debug(f"[Timetable] 连接 Bridge 失败: {e}")
 
@@ -5663,16 +5660,14 @@ class TimetableNowLessonComponent(DraggableContainer):
         try:
             mw = None
             for w in QApplication.topLevelWidgets():
-                if hasattr(w, 'linkagePage') and hasattr(w, 'cwLinkagePage'):
+                if hasattr(w, 'timetablePage'):
                     mw = w
                     break
             if not mw:
                 return
-            for page_name in ('linkagePage', 'cwLinkagePage'):
-                page = getattr(mw, page_name, None)
-                if page and hasattr(page, 'bridge'):
-                    self._bridge = page.bridge
-                    return
+            tp = mw.timetablePage
+            if hasattr(tp, 'bridge') and tp.bridge:
+                self._bridge = tp.bridge
         except Exception:
             pass
 

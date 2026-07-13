@@ -24,7 +24,10 @@ from PyQt6.QtWidgets import (
 from qfluentwidgets import (
     BodyLabel,
     CardWidget,
+    ComboBox,
     FlowLayout,
+    InfoBar,
+    InfoBarPosition,
     LineEdit,
     MessageBox,
     PushButton,
@@ -37,7 +40,9 @@ from qfluentwidgets import (
     TransparentToolButton,
 )
 
+from core.config import cfg
 from core.constants import load_qss
+from core.linkage import LinkageBridge, ClassWidgetsBridge
 from core.timetable import (
     TimetableProfile,
     delete_profile,
@@ -79,6 +84,12 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         self._block_picker_change = False
         self._activeTable = None  # None | "time" | "course"
         self._block_course_edit = False
+
+        # 联动 Bridge
+        self._ciBridge = LinkageBridge(self)
+        self._cwBridge = ClassWidgetsBridge(self)
+        self._activeBridge = None
+        self._linkageMode = False  # 当前是否为联动模式
 
         # 布局
         self.scrollWidget = QWidget()
@@ -187,6 +198,26 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         self._config_layout = QVBoxLayout(config_card)
         self._config_layout.setContentsMargins(16, 12, 16, 12)
         self._config_layout.setSpacing(8)
+
+        # 档案来源选择
+        source_row = QWidget()
+        source_row.setObjectName("sourceRow")
+        sr_layout = QHBoxLayout(source_row)
+        sr_layout.setContentsMargins(0, 0, 0, 0)
+        sr_layout.setSpacing(8)
+        source_label = BodyLabel(tr("timetable.profile_source"))
+        self._sourceCombo = ComboBox()
+        self._sourceCombo.setObjectName("sourceCombo")
+        self._sourceCombo.addItems(["ClassLively", "ClassIsland", "ClassWidgets"])
+        self._sourceCombo.setCurrentIndex(
+            {"classlively": 0, "classisland": 1, "classwidgets": 2}.get(
+                cfg.profileSource.value, 0
+            )
+        )
+        self._sourceCombo.currentIndexChanged.connect(self._onSourceChanged)
+        sr_layout.addWidget(source_label)
+        sr_layout.addWidget(self._sourceCombo, stretch=1)
+        self._config_layout.insertWidget(0, source_row)
 
         # 档案配置标题
         config_title = BodyLabel(tr("timetable.profile_config"))
@@ -420,8 +451,26 @@ class TimetablePage(ScrollArea, TranslatableWidget):
 
         self.setStyleSheet(load_qss("timetable.qss"))
 
+        # Bridge 信号
+        self._ciBridge.stateChanged.connect(self._onLinkageStateChanged)
+        self._ciBridge.connectedChanged.connect(self._onLinkageConnectedChanged)
+        self._ciBridge.errorOccurred.connect(self._onLinkageError)
+        self._cwBridge.stateChanged.connect(self._onLinkageStateChanged)
+        self._cwBridge.connectedChanged.connect(self._onLinkageConnectedChanged)
+        self._cwBridge.errorOccurred.connect(self._onLinkageError)
+
+        # 联动模式刷新
+        self._linkageRefreshTimer = QTimer(self)
+        self._linkageRefreshTimer.setInterval(1000)
+        self._linkageRefreshTimer.timeout.connect(self._onLinkageRefreshTimer)
+
         # 加载档案
         self._loadProfile(ensure_default_profile())
+        current_source = cfg.profileSource.value
+        if current_source != "classlively":
+            self._sourceCombo.setCurrentIndex(
+                {"classisland": 1, "classwidgets": 2}.get(current_source, 0)
+            )
 
 
     def _loadProfile(self, name: str):
@@ -868,7 +917,11 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         self._loadProfile(new_name)
 
     def _onImportProfile(self):
-        """导入档案"""
+        """导入档案 / 自动检测"""
+        if self._linkageMode:
+            source = "classisland" if self._activeBridge is self._ciBridge else "classwidgets"
+            self._onAutoDetect(source)
+            return
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             tr("timetable.profile_import"),
@@ -889,7 +942,17 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         self._loadProfile(name)
 
     def _onExportProfile(self):
-        """导出档案"""
+        """导出档案 / 打开数据目录"""
+        if self._linkageMode:
+            if self._activeBridge is self._ciBridge:
+                path = cfg.linkageDataPath.value
+            elif self._activeBridge is self._cwBridge:
+                path = cfg.classWidgetsDataPath.value
+            else:
+                return
+            if path and os.path.isdir(path):
+                os.startfile(path)
+            return
         if self._profile is None:
             return
         file_path, _ = QFileDialog.getSaveFileName(
@@ -905,7 +968,25 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         shutil.copy(src_path, file_path)
 
     def _onOpenFolder(self):
-        """选择档案加载"""
+        """选择档案 / 手动选择数据目录"""
+        if self._linkageMode:
+            dir_path = QFileDialog.getExistingDirectory(
+                self,
+                tr("timetable.select_data_dir"),
+                ""
+            )
+            if not dir_path:
+                return
+            if self._activeBridge is self._ciBridge:
+                cfg.linkageDataPath.value = dir_path
+                self._ciBridge.set_data_path(dir_path)
+                self._ciBridge.start()
+            elif self._activeBridge is self._cwBridge:
+                cfg.classWidgetsDataPath.value = dir_path
+                self._cwBridge.set_data_path(dir_path)
+                self._cwBridge.start()
+            self._updateLinkagePathLabel()
+            return
         import os
         os.makedirs(PROFILES_DIR, exist_ok=True)
         file_path, _ = QFileDialog.getOpenFileName(
@@ -933,6 +1014,232 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         self._profile.default_break_duration = self._breakDurSpin.value()
         self._saveProfile()
         self._syncTimePickers()
+
+
+    # 联动方法
+    @property
+    def bridge(self):
+        return self._activeBridge
+
+    @property
+    def ciBridge(self):
+        return self._ciBridge
+
+    @property
+    def cwBridge(self):
+        return self._cwBridge
+
+    def _onSourceChanged(self, index: int):
+        """档案来源切换"""
+        source_map = {0: "classlively", 1: "classisland", 2: "classwidgets"}
+        source = source_map.get(index, "classlively")
+        cfg.profileSource.value = source
+        self._applySourceMode(source)
+
+    def _applySourceMode(self, source: str):
+        """根据来源模式切换 UI  Bridge"""
+        if source == "classlively":
+            self._linkageMode = False
+            self._activeBridge = None
+            self._ciBridge.stop()
+            self._cwBridge.stop()
+            self._linkageRefreshTimer.stop()
+            self._setEditModeEnabled(True)
+            self._profileLabel.setText(self._current_profile_name)
+            self._profileLabel.setStyleSheet("")
+            self._importBtn.setToolTip(tr("timetable.profile_import"))
+            self._exportBtn.setToolTip(tr("timetable.profile_export"))
+            self._openFolderBtn.setToolTip(tr("timetable.profile_open_folder"))
+            self._refreshTables()
+        elif source == "classisland":
+            self._linkageMode = True
+            self._activeBridge = self._ciBridge
+            self._cwBridge.stop()
+            self._ciBridge.set_data_path(cfg.linkageDataPath.value)
+            self._ciBridge.poll_interval = 1
+            if not cfg.linkageDataPath.value:
+                self._onAutoDetect("classisland")
+            else:
+                self._ciBridge.start()
+            self._setEditModeEnabled(False)
+            self._updateLinkagePathLabel()
+            self._refreshLinkageTables()
+            self._linkageRefreshTimer.start()
+            self._importBtn.setToolTip(tr("timetable.btn_auto_detect"))
+            self._exportBtn.setToolTip(tr("timetable.btn_open_data_dir"))
+            self._openFolderBtn.setToolTip(tr("timetable.btn_select_dir"))
+        elif source == "classwidgets":
+            self._linkageMode = True
+            self._activeBridge = self._cwBridge
+            self._ciBridge.stop()
+            self._cwBridge.set_data_path(cfg.classWidgetsDataPath.value)
+            self._cwBridge.poll_interval = 1
+            if not cfg.classWidgetsDataPath.value:
+                self._onAutoDetect("classwidgets")
+            else:
+                self._cwBridge.start()
+            self._setEditModeEnabled(False)
+            self._updateLinkagePathLabel()
+            self._refreshLinkageTables()
+            self._linkageRefreshTimer.start()
+            self._importBtn.setToolTip(tr("timetable.btn_auto_detect"))
+            self._exportBtn.setToolTip(tr("timetable.btn_open_data_dir"))
+            self._openFolderBtn.setToolTip(tr("timetable.btn_select_dir"))
+
+    def _setEditModeEnabled(self, enabled: bool):
+        """禁用/启用手动编辑控件"""
+        triggers = (TableWidget.EditTrigger.DoubleClicked | TableWidget.EditTrigger.EditKeyPressed) if enabled else TableWidget.EditTrigger.NoEditTriggers
+        self.courseTable.setEditTriggers(triggers)
+        for btn in [self._btnClass, self._btnBreak, self._btnActivity, self._btnDeleteRow,
+                     self._addBtn, self._renameBtn, self._delBtn]:
+            btn.setEnabled(enabled)
+        self._subjectBtnWidget.setEnabled(enabled)
+        self._csSubjectEdit.setEnabled(enabled)
+        self._startTimePicker.setEnabled(enabled)
+        self._endTimePicker.setEnabled(enabled)
+        self._classDurSpin.setEnabled(enabled)
+        self._breakDurSpin.setEnabled(enabled)
+
+    def _updateLinkagePathLabel(self):
+        """联动模式更新档案名称为路径"""
+        if self._activeBridge is self._ciBridge:
+            path = cfg.linkageDataPath.value
+        elif self._activeBridge is self._cwBridge:
+            path = cfg.classWidgetsDataPath.value
+        else:
+            path = ""
+        if path and os.path.isdir(path):
+            self._profileLabel.setText(path)
+            self._profileLabel.setStyleSheet("color: #30c361; font-size: 11px;")
+        elif path:
+            self._profileLabel.setText(path)
+            self._profileLabel.setStyleSheet("color: #d13438; font-size: 11px;")
+        else:
+            self._profileLabel.setText(tr("linkage.path_empty"))
+            self._profileLabel.setStyleSheet("color: #999; font-size: 11px;")
+
+    def _onAutoDetect(self, source: str):
+        """自动检测联动路径"""
+        if source == "classisland":
+            path = self._ciBridge.auto_detect()
+            if path:
+                cfg.linkageDataPath.value = path
+                self._ciBridge.start()
+                self._updateLinkagePathLabel()
+                InfoBar.success(
+                    title=tr("timetable.auto_detect"), content=path,
+                    parent=self, position=InfoBarPosition.TOP, duration=3000,
+                )
+            else:
+                InfoBar.error(
+                    title=tr("timetable.auto_detect"),
+                    content="ClassIsland not found",
+                    parent=self, position=InfoBarPosition.TOP, duration=3000,
+                )
+        elif source == "classwidgets":
+            path = self._cwBridge.auto_detect()
+            if path:
+                cfg.classWidgetsDataPath.value = path
+                self._cwBridge.start()
+                self._updateLinkagePathLabel()
+                InfoBar.success(
+                    title=tr("timetable.auto_detect"), content=path,
+                    parent=self, position=InfoBarPosition.TOP, duration=3000,
+                )
+            else:
+                InfoBar.error(
+                    title=tr("timetable.auto_detect"),
+                    content="ClassWidgets not found",
+                    parent=self, position=InfoBarPosition.TOP, duration=3000,
+                )
+
+    def _refreshLinkageTables(self):
+        """获取一周数据"""
+        if not self._activeBridge:
+            return
+        self._block_save = True
+
+        week_data = self._activeBridge.get_week_schedule()
+
+        # ci 返回 {1=Mon..7=Sun} ci 返回 {0=Mon..6=Sun}
+        # 统一为 0=Mon..6=Sun
+        if self._activeBridge is self._ciBridge:
+            # ci
+            schedules = [week_data.get(i + 1, []) for i in range(7)]
+        else:
+            # cw
+            schedules = [week_data.get(i, []) for i in range(7)]
+
+        # 构建时间表
+        today_schedule = schedules[0] if schedules else []
+        self.timeTable.setRowCount(0)
+        self.timeTable.setRowCount(len(today_schedule))
+        for i, row in enumerate(today_schedule):
+            subject, teacher, start, end, idx, is_current, is_break, break_name = row
+            ptype = break_name if is_break else "上课"
+            self._setTimeRow(i, {"type": ptype, "start": start, "end": end})
+
+        # 课程表
+        # 找出最大行数
+        non_break_counts = []
+        for day_sched in schedules:
+            non_break = [r for r in day_sched if not r[6]]  # r[6]=is_break
+            non_break_counts.append(non_break)
+        max_rows = max((len(c) for c in non_break_counts), default=0)
+
+        self.courseTable.setRowCount(0)
+        self.courseTable.setRowCount(max_rows)
+        for table_row in range(max_rows):
+            # 第0列时间段：用第一天的
+            if table_row < len(non_break_counts[0]):
+                _, _, start, end, _, _, _, _ = non_break_counts[0][table_row]
+                range_item = QTableWidgetItem(f"{start}~{end}")
+                range_item.setFlags(range_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.courseTable.setItem(table_row, 0, range_item)
+            else:
+                range_item = QTableWidgetItem("")
+                range_item.setFlags(range_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.courseTable.setItem(table_row, 0, range_item)
+
+            # 第1-7列：每天对应科目
+            for col_idx, day_sched in enumerate(non_break_counts):
+                if table_row < len(day_sched):
+                    subject = day_sched[table_row][0]
+                    item = QTableWidgetItem(subject)
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    self.courseTable.setItem(table_row, col_idx + 1, item)
+                else:
+                    item = QTableWidgetItem("")
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    self.courseTable.setItem(table_row, col_idx + 1, item)
+
+        self._block_save = False
+
+    def _onLinkageStateChanged(self, state):
+        if self._activeBridge is not self.sender():
+            return
+        self._refreshLinkageTables()
+
+    def _onLinkageConnectedChanged(self, connected):
+        if self._activeBridge is not self.sender():
+            return
+        if connected and not self._linkageRefreshTimer.isActive():
+            self._linkageRefreshTimer.start()
+        self._updateLinkagePathLabel()
+
+    def _onLinkageError(self, msg: str):
+        if msg.startswith("REDIRECT:"):
+            new_path = msg[len("REDIRECT:"):]
+            if self._activeBridge is self._ciBridge:
+                cfg.linkageDataPath.value = new_path
+            elif self._activeBridge is self._cwBridge:
+                cfg.classWidgetsDataPath.value = new_path
+            self._updateLinkagePathLabel()
+
+    def _onLinkageRefreshTimer(self):
+        """定时刷新联动表格"""
+        if self._activeBridge and self._linkageMode:
+            self._refreshLinkageTables()
 
 
 

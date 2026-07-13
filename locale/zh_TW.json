@@ -72,11 +72,20 @@
     "subject_placeholder": "輸入科目名稱",
     "day": "星期",
     "empty_state": "空空如也",
-    "empty_hint": "請先添加時間段",
+    "empty_hint": "o(≧口≦)o",
     "profile_import": "導入",
     "profile_export": "導出",
     "profile_open_folder": "選擇檔案",
-    "profile_select": "選擇檔案文件"
+    "profile_select": "選擇檔案文件",
+    "profile_source": "檔案來源",
+    "auto_detect": "自動偵測",
+    "auto_detect_success": "偵測成功",
+    "auto_detect_failed": "偵測失敗",
+    "linkage_readonly": "聯動模式下表格為唯讀",
+    "select_data_dir": "選擇資料目錄",
+    "btn_auto_detect": "自動偵測",
+    "btn_open_data_dir": "開啟資料目錄",
+    "btn_select_dir": "手動選擇目錄"
   },
   "wizard": {
     "title": "ClassLively 設定精靈",

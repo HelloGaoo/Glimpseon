@@ -381,6 +381,16 @@ class LinkageBridge(QObject):
                         slot.break_name or "课间",
                     ))
             return result
+
+    def get_week_schedule(self) -> dict:
+        """返回一周课表"""
+        result = {}
+        for py_wd in range(1, 8):
+            dotnet_wd = _python_weekday_to_dotnet(py_wd)
+            sched = self.get_schedule_by_weekday(dotnet_wd)
+            result[py_wd] = sched
+        return result
+
     def test_connection(self) -> tuple[bool, str]:
         profile = os.path.join(self._data_dir, _PROFILE_FILE)
         if not os.path.isfile(profile):
@@ -728,6 +738,44 @@ class ClassWidgetsBridge(QObject):
                     False,
                     "",
                 ))
+        return result
+
+    def get_schedule_by_weekday(self, python_weekday: int) -> list:
+        """取指定日的课表"""
+        data = self._read_schedule()
+        if not data:
+            return []
+        now = precise_now()
+        today = now.date()
+        today_wd = today.weekday()  # Mon=0
+        delta = python_weekday - today_wd
+        target_date = today + timedelta(days=delta)
+        target_dt = datetime.combine(target_date, _dt_time(0, 0))
+        slots = self._parse_schedule(data, target_dt)
+        result = []
+        for slot in slots:
+            if slot.is_break:
+                result.append((
+                    "", "",
+                    slot.start_time.strftime("%H:%M"),
+                    slot.end_time.strftime("%H:%M"),
+                    0, False, True,
+                    slot.subject or "课间",
+                ))
+            else:
+                result.append((
+                    slot.subject, slot.teacher,
+                    slot.start_time.strftime("%H:%M"),
+                    slot.end_time.strftime("%H:%M"),
+                    slot.index, False, False, "",
+                ))
+        return result
+
+    def get_week_schedule(self) -> dict:
+        """返回一周课表"""
+        result = {}
+        for py_wd in range(7):
+            result[py_wd] = self.get_schedule_by_weekday(py_wd)
         return result
 
     # 课表文件解析

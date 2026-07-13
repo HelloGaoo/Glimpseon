@@ -72,11 +72,20 @@
     "subject_placeholder": "Enter subject name",
     "day": "Day",
     "empty_state": "Nothing here",
-    "empty_hint": "Add time periods first",
+    "empty_hint": "o(≧口≦)o",
     "profile_import": "Import",
     "profile_export": "Export",
     "profile_open_folder": "Select Profile",
-    "profile_select": "Select Profile File"
+    "profile_select": "Select Profile File",
+    "profile_source": "Profile Source",
+    "auto_detect": "Auto Detect",
+    "auto_detect_success": "Detection successful",
+    "auto_detect_failed": "Detection failed",
+    "linkage_readonly": "Read-only in linkage mode",
+    "select_data_dir": "Select Data Directory",
+    "btn_auto_detect": "Auto Detect",
+    "btn_open_data_dir": "Open Data Directory",
+    "btn_select_dir": "Select Directory Manually"
   },
   "wizard": {
     "title": "ClassLively Setup Wizard",

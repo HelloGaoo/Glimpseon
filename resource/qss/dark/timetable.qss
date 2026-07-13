@@ -168,3 +168,17 @@
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
     padding: 4px 12px;
 }
+
+/* ── 档案来源选择器 ── */
+
+#timetable #sourceRow BodyLabel {
+    font-size: 13px;
+    color: #ffffff;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#timetable #sourceCombo {
+    font-size: 12px;
+    min-height: 28px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}

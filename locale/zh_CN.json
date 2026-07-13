@@ -72,11 +72,20 @@
     "subject_placeholder": "输入科目名称",
     "day": "星期",
     "empty_state": "空空如也",
-    "empty_hint": "请先添加时间段",
+    "empty_hint": "o(≧口≦)o",
     "profile_import": "导入",
     "profile_export": "导出",
     "profile_open_folder": "选择档案",
-    "profile_select": "选择档案文件"
+    "profile_select": "选择档案文件",
+    "profile_source": "档案来源",
+    "auto_detect": "自动检测",
+    "auto_detect_success": "检测成功",
+    "auto_detect_failed": "检测失败",
+    "linkage_readonly": "联动模式下表格为只读",
+    "select_data_dir": "选择数据目录",
+    "btn_auto_detect": "自动检测",
+    "btn_open_data_dir": "打开数据目录",
+    "btn_select_dir": "手动选择目录"
   },
   "wizard": {
     "title": "ClassLively 向导",

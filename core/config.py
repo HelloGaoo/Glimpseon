@@ -422,6 +422,11 @@ class Config(QConfig):
     classWidgetsPollInterval = RangeConfigItem(
         "ClassWidgets", "PollInterval", 5, RangeValidator(1, 30)
     )
+
+    profileSource = OptionsConfigItem(
+        "Timetable", "ProfileSource", "classlively",
+        OptionsValidator(["classlively", "classisland", "classwidgets"])
+    )
     
     usePreciseTime = ConfigItem(
         "PreciseTime", "UsePreciseTime", False, BoolValidator()
