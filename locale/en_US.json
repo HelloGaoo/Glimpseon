@@ -70,7 +70,13 @@
     "subject": "Subject",
     "custom_subject": "Custom",
     "subject_placeholder": "Enter subject name",
-    "day": "Day"
+    "day": "Day",
+    "empty_state": "Nothing here",
+    "empty_hint": "Add time periods first",
+    "profile_import": "Import",
+    "profile_export": "Export",
+    "profile_open_folder": "Select Profile",
+    "profile_select": "Select Profile File"
   },
   "wizard": {
     "title": "ClassLively Setup Wizard",

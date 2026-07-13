@@ -70,7 +70,13 @@
     "subject": "科目",
     "custom_subject": "自定义",
     "subject_placeholder": "输入科目名称",
-    "day": "星期"
+    "day": "星期",
+    "empty_state": "空空如也",
+    "empty_hint": "请先添加时间段",
+    "profile_import": "导入",
+    "profile_export": "导出",
+    "profile_open_folder": "选择档案",
+    "profile_select": "选择档案文件"
   },
   "wizard": {
     "title": "ClassLively 向导",

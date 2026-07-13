@@ -14,6 +14,7 @@ if _BASE_DIR not in sys.path:
 
 from PyQt6.QtCore import Qt, QTime, QTimer
 from PyQt6.QtWidgets import (
+    QFileDialog,
     QHBoxLayout,
     QHeaderView,
     QTableWidgetItem,
@@ -32,6 +33,8 @@ from qfluentwidgets import (
     StrongBodyLabel,
     TableWidget,
     TimePicker,
+    ToolButton,
+    TransparentToolButton,
 )
 
 from core.constants import load_qss
@@ -42,12 +45,18 @@ from core.timetable import (
     get_profile_path,
     list_profiles,
     next_profile_name,
+    PROFILES_DIR,
     rename_profile,
 )
-from core.utils import tr, TranslatableWidget
+from core.utils import tr, TranslatableWidget, FUI
 
 DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-SUBJECTS = ["语", "数", "英", "政", "史", "地", "生", "科", "通", "劳", "班", "社", "心", "信", "考", "体"]
+SUBJECT_SHORT = ["语", "数", "英", "政", "史", "地", "生", "科", "通", "劳", "班", "社", "心", "信", "考", "体"]
+SUBJECT_FULL = {
+    "语": "语文", "数": "数学", "英": "英语", "政": "政治", "史": "历史",
+    "地": "地理", "生": "生物", "科": "科学", "通": "通用技术", "劳": "劳动",
+    "班": "班会", "社": "社会", "心": "心理", "信": "信息技术", "考": "考试", "体": "体育"
+}
 
 
 def _add_minutes(time_str: str, minutes: int) -> str:
@@ -68,7 +77,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         self._current_profile_name = ""
         self._block_save = False
         self._block_picker_change = False
-        self._activeTable = "time"  # "time" | "course"
+        self._activeTable = None  # None | "time" | "course"
         self._block_course_edit = False
 
         # 布局
@@ -125,8 +134,8 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             tr("timetable.sunday"),
         ])
         self.courseTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.courseTable.verticalHeader().setDefaultSectionSize(30)
-        self.courseTable.verticalHeader().setMinimumSectionSize(24)
+        self.courseTable.verticalHeader().setDefaultSectionSize(36)
+        self.courseTable.verticalHeader().setMinimumSectionSize(28)
         self.courseTable.setSelectionMode(TableWidget.SelectionMode.SingleSelection)
         self.courseTable.setSelectionBehavior(TableWidget.SelectionBehavior.SelectItems)
         self.courseTable.setShowGrid(True)
@@ -134,7 +143,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         self.courseTable.itemSelectionChanged.connect(self._onCourseTableSelection)
         course_layout.addWidget(self.courseTable)
 
-        left_layout.addWidget(course_card, stretch=2)
+        left_layout.addWidget(course_card, stretch=1)
 
         # 时间表
         time_card = CardWidget(left_widget)
@@ -155,8 +164,8 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             tr("timetable.end_time"),
         ])
         self.timeTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.timeTable.verticalHeader().setDefaultSectionSize(30)
-        self.timeTable.verticalHeader().setMinimumSectionSize(24)
+        self.timeTable.verticalHeader().setDefaultSectionSize(36)
+        self.timeTable.verticalHeader().setMinimumSectionSize(28)
         self.timeTable.setEditTriggers(TableWidget.EditTrigger.NoEditTriggers)
         self.timeTable.setSelectionMode(TableWidget.SelectionMode.SingleSelection)
         self.timeTable.setSelectionBehavior(TableWidget.SelectionBehavior.SelectRows)
@@ -189,29 +198,47 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         profile_header.setObjectName("profileHeader")
         ph_layout = QHBoxLayout(profile_header)
         ph_layout.setContentsMargins(0, 0, 0, 0)
-        ph_layout.setSpacing(4)
+        ph_layout.setSpacing(6)
 
         self._profileLabel = StrongBodyLabel("")
         self._profileLabel.setObjectName("profileNameLabel")
         ph_layout.addWidget(self._profileLabel, stretch=1)
 
-        self._addBtn = PushButton(tr("timetable.profile_add"))
-        self._addBtn.setObjectName("profileAddBtn")
-        self._addBtn.setFixedWidth(48)
+        # 添加按钮
+        self._addBtn = ToolButton(FUI.ADD, config_card)
+        self._addBtn.setToolTip(tr("timetable.profile_add"))
         self._addBtn.clicked.connect(self._onAddProfile)
         ph_layout.addWidget(self._addBtn)
 
-        self._renameBtn = PushButton(tr("timetable.profile_rename"))
-        self._renameBtn.setObjectName("profileRenameBtn")
-        self._renameBtn.setFixedWidth(48)
+        # 重命名按钮
+        self._renameBtn = ToolButton(FUI.EDIT, config_card)
+        self._renameBtn.setToolTip(tr("timetable.profile_rename"))
         self._renameBtn.clicked.connect(self._onRenameProfile)
         ph_layout.addWidget(self._renameBtn)
 
-        self._delBtn = PushButton(tr("timetable.profile_delete"))
-        self._delBtn.setObjectName("profileDelBtn")
-        self._delBtn.setFixedWidth(48)
+        # 删除按钮
+        self._delBtn = ToolButton(FUI.DELETE, config_card)
+        self._delBtn.setToolTip(tr("timetable.profile_delete"))
         self._delBtn.clicked.connect(self._onDeleteProfile)
         ph_layout.addWidget(self._delBtn)
+
+        # 导入按钮
+        self._importBtn = ToolButton(FUI.DOWNLOAD, config_card)
+        self._importBtn.setToolTip(tr("timetable.profile_import"))
+        self._importBtn.clicked.connect(self._onImportProfile)
+        ph_layout.addWidget(self._importBtn)
+
+        # 导出按钮
+        self._exportBtn = ToolButton(FUI.SAVE, config_card)
+        self._exportBtn.setToolTip(tr("timetable.profile_export"))
+        self._exportBtn.clicked.connect(self._onExportProfile)
+        ph_layout.addWidget(self._exportBtn)
+
+        # 选择按钮
+        self._openFolderBtn = ToolButton(FUI.FOLDER, config_card)
+        self._openFolderBtn.setToolTip(tr("timetable.profile_open_folder"))
+        self._openFolderBtn.clicked.connect(self._onOpenFolder)
+        ph_layout.addWidget(self._openFolderBtn)
 
         self._config_layout.addWidget(profile_header)
 
@@ -260,9 +287,33 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         ss_layout.setContentsMargins(0, 0, 0, 0)
         ss_layout.setSpacing(0)
 
+        # 空状态占位
+        self._emptyState = QWidget()
+        self._emptyState.setObjectName("emptyState")
+        empty_layout = QVBoxLayout(self._emptyState)
+        empty_layout.setContentsMargins(0, 16, 0, 16)
+        empty_layout.setSpacing(8)
+        empty_icon = BodyLabel(None)
+        empty_icon.setObjectName("emptyIcon")
+        empty_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_icon.setStyleSheet("font-size: 32px;")
+        empty_layout.addWidget(empty_icon)
+        empty_text = BodyLabel(tr("timetable.empty_state"))
+        empty_text.setObjectName("emptyText")
+        empty_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_layout.addWidget(empty_text)
+        empty_hint = BodyLabel(tr("timetable.empty_hint"))
+        empty_hint.setObjectName("emptyHint")
+        empty_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_hint.setStyleSheet("color: #888; font-size: 11px;")
+        empty_layout.addWidget(empty_hint)
+        empty_layout.addStretch()
+        ss_layout.addWidget(self._emptyState)
+
         # 时间表设置
         self._timeSettings = QWidget()
         self._timeSettings.setObjectName("timeSettings")
+        self._timeSettings.hide()
         ts_layout = QVBoxLayout(self._timeSettings)
         ts_layout.setContentsMargins(0, 0, 0, 0)
         ts_layout.setSpacing(6)
@@ -292,17 +343,15 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         # 课程表设置
         self._courseSettings = QWidget()
         self._courseSettings.setObjectName("courseSettings")
+        self._courseSettings.hide()
         cs_layout = QVBoxLayout(self._courseSettings)
         cs_layout.setContentsMargins(0, 0, 0, 0)
         cs_layout.setSpacing(6)
 
-        self._csPeriodLabel = BodyLabel("")
-        self._csPeriodLabel.setObjectName("csPeriodLabel")
-        cs_layout.addWidget(self._csPeriodLabel)
-
-        self._csDayLabel = BodyLabel("")
-        self._csDayLabel.setObjectName("csDayLabel")
-        cs_layout.addWidget(self._csDayLabel)
+        # 时间段 星期 
+        self._csInfoLabel = StrongBodyLabel("")
+        self._csInfoLabel.setObjectName("csInfoLabel")
+        cs_layout.addWidget(self._csInfoLabel)
 
         # 科目选择按钮
         self._subjectBtnWidget = QWidget()
@@ -310,7 +359,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         flow_layout = FlowLayout(self._subjectBtnWidget, needAni=False)
         flow_layout.setContentsMargins(0, 0, 0, 0)
         self._subjectBtns = []
-        for subj in SUBJECTS:
+        for subj in SUBJECT_SHORT:
             btn = PushButton(subj)
             btn.setObjectName("subjectBtn")
             btn.clicked.connect(lambda checked, s=subj: self._onSubjectBtnClicked(s))
@@ -332,50 +381,37 @@ class TimetablePage(ScrollArea, TranslatableWidget):
 
         ss_layout.addWidget(self._courseSettings)
         self._config_layout.addWidget(self._settingsStack)
-
-        # 分隔线
-        self._settingsSep2 = CardWidget(config_card)
-        self._settingsSep2.setObjectName("profileSeparator")
-        self._settingsSep2.setFixedHeight(1)
-        self._config_layout.addWidget(self._settingsSep2)
-
-        # 配置项
-        config_section = QWidget()
-        config_section.setObjectName("configSection")
-        cfg_layout = QVBoxLayout(config_section)
-        cfg_layout.setContentsMargins(0, 0, 0, 0)
-        cfg_layout.setSpacing(6)
-
-        # 默认上课时间
-        class_dur_row = QHBoxLayout()
-        class_dur_row.setSpacing(8)
-        class_dur_label = BodyLabel(tr("timetable.default_class_duration"))
-        self._classDurSpin = SpinBox()
-        self._classDurSpin.setRange(1, 120)
-        self._classDurSpin.setValue(40)
-        self._classDurSpin.setSuffix(f" {tr('timetable.minutes')}")
-        self._classDurSpin.valueChanged.connect(self._onDurationChanged)
-        class_dur_row.addWidget(class_dur_label)
-        class_dur_row.addWidget(self._classDurSpin, stretch=1)
-        cfg_layout.addLayout(class_dur_row)
-
-        # 默认课间时间
-        break_dur_row = QHBoxLayout()
-        break_dur_row.setSpacing(8)
-        break_dur_label = BodyLabel(tr("timetable.default_break_duration"))
-        self._breakDurSpin = SpinBox()
-        self._breakDurSpin.setRange(1, 60)
-        self._breakDurSpin.setValue(10)
-        self._breakDurSpin.setSuffix(f" {tr('timetable.minutes')}")
-        self._breakDurSpin.valueChanged.connect(self._onDurationChanged)
-        break_dur_row.addWidget(break_dur_label)
-        break_dur_row.addWidget(self._breakDurSpin, stretch=1)
-        cfg_layout.addLayout(break_dur_row)
-
-        self._config_layout.addWidget(config_section)
         self._config_layout.addStretch()
 
         right_layout.addWidget(config_card, stretch=1)
+
+        # 默认时间配置项
+        bottom_card = CardWidget(right_widget)
+        bottom_card.setObjectName("bottomCard")
+        bottom_layout = QVBoxLayout(bottom_card)
+        bottom_layout.setContentsMargins(16, 8, 16, 8)
+        bottom_layout.setSpacing(6)
+
+        # 默认上课时间 默认课间时间
+        dur_row = QHBoxLayout()
+        dur_row.setSpacing(8)
+        self._classDurSpin = SpinBox()
+        self._classDurSpin.setRange(1, 120)
+        self._classDurSpin.setValue(40)
+        self._classDurSpin.setSuffix(tr("timetable.minutes"))
+        self._classDurSpin.valueChanged.connect(self._onDurationChanged)
+        self._breakDurSpin = SpinBox()
+        self._breakDurSpin.setRange(1, 60)
+        self._breakDurSpin.setValue(10)
+        self._breakDurSpin.setSuffix(tr("timetable.minutes"))
+        self._breakDurSpin.valueChanged.connect(self._onDurationChanged)
+        dur_row.addWidget(BodyLabel(tr("timetable.default_class_duration")))
+        dur_row.addWidget(self._classDurSpin)
+        dur_row.addWidget(BodyLabel(tr("timetable.default_break_duration")))
+        dur_row.addWidget(self._breakDurSpin)
+        bottom_layout.addLayout(dur_row)
+
+        right_layout.addWidget(bottom_card)
 
         # 组装分栏
         split_layout.addWidget(left_widget, 7)
@@ -409,7 +445,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
     @staticmethod
     def _nonBreakIndices(periods):
         """返回课程"""
-        return [i for i, p in enumerate(periods) if p["type"] != "课间"]
+        return [i for i, p in enumerate(periods) if p["type"] not in ("课间", "活动")]
 
     def _refreshTables(self):
         """刷新两个表格"""
@@ -489,26 +525,46 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         if self._profile is None or self._profile.period_count() == 0:
             return
 
-        # 要删除的 periods
+        # 要删除的 periods 和来源表格
         period_idx = -1
+        source_table = None  # "time" or "course"
+        original_row = -1
+
         sel_time = self.timeTable.selectedItems()
         if sel_time:
-            period_idx = sel_time[0].row()
+            source_table = "time"
+            original_row = sel_time[0].row()
+            period_idx = original_row
         else:
             sel_course = self.courseTable.selectedItems()
             if sel_course:
-                ct_row = sel_course[0].row()
+                source_table = "course"
+                original_row = sel_course[0].row()
                 nb = self._nonBreakIndices(self._profile.periods)
-                if ct_row < len(nb):
-                    period_idx = nb[ct_row]
+                if original_row < len(nb):
+                    period_idx = nb[original_row]
 
         if period_idx < 0 or period_idx >= self._profile.period_count():
             return
 
+        # 删除前记录下一行
+        total_rows = self._profile.period_count()
+        next_row = original_row if original_row < total_rows - 1 else total_rows - 2
+
+        # 删除
         self._profile.remove_period(period_idx)
         self._refreshTables()
         self._saveProfile()
         self._syncTimePickers()
+
+        # 删除后选中下一行
+        if next_row >= 0:
+            if source_table == "time":
+                self.timeTable.selectRow(next_row)
+            elif source_table == "course":
+                nb = self._nonBreakIndices(self._profile.periods)
+                if next_row < len(nb):
+                    self.courseTable.setCurrentCell(next_row, 1)
 
 
     def _syncTimePickers(self):
@@ -552,16 +608,32 @@ class TimetablePage(ScrollArea, TranslatableWidget):
 
     def _onTimeTableSelection(self):
         """时间表选中切换到时间设置"""
+        sel = self.timeTable.selectedItems()
+        if not sel or self._profile is None or self._profile.period_count() == 0:
+            # 无内容显示空状态
+            self._activeTable = None
+            self._emptyState.show()
+            self._timeSettings.hide()
+            self._courseSettings.hide()
+            return
         self._activeTable = "time"
+        self._emptyState.hide()
         self._timeSettings.show()
         self._courseSettings.hide()
-        sel = self.timeTable.selectedItems()
-        if sel:
-            self._pickersFromRow(sel[0].row())
+        self._pickersFromRow(sel[0].row())
 
     def _onCourseTableSelection(self):
         """课程表选中切换到课程设置"""
+        sel = self.courseTable.selectedItems()
+        if not sel or self._profile is None or self._profile.period_count() == 0:
+            # 无内容显示空状态
+            self._activeTable = None
+            self._emptyState.show()
+            self._timeSettings.hide()
+            self._courseSettings.hide()
+            return
         self._activeTable = "course"
+        self._emptyState.hide()
         self._timeSettings.hide()
         self._courseSettings.show()
         QTimer.singleShot(0, self._updateCourseSettings)
@@ -572,8 +644,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             return
         sel = self.courseTable.selectedItems()
         if not sel:
-            self._csPeriodLabel.setText("")
-            self._csDayLabel.setText("")
+            self._csInfoLabel.setText("")
             self._block_course_edit = True
             self._csSubjectEdit.clear()
             self._block_course_edit = False
@@ -586,17 +657,16 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         period_idx = nb[row]
         p = self._profile.periods[period_idx]
         time_range = f"{p['start']}~{p['end']}"
-        self._csPeriodLabel.setText(f"{tr('timetable.time_range')}: {time_range}")
 
         if col == 0:
-            self._csDayLabel.setText("")
+            self._csInfoLabel.setText(f"第{row + 1}节  ·  {time_range}")
             self._block_course_edit = True
             self._csSubjectEdit.clear()
             self._block_course_edit = False
             self._highlightSubjectBtn(None)
             return
         day = tr(f"timetable.{DAYS[col - 1]}")
-        self._csDayLabel.setText(f"{tr('timetable.day')}: {day}")
+        self._csInfoLabel.setText(f"第{row + 1}节  ·  {time_range}  ·  {day}")
         courses = self._profile.courses.get(str(period_idx), {})
         current = courses.get(DAYS[col - 1], "")
         self._block_course_edit = True
@@ -606,12 +676,19 @@ class TimetablePage(ScrollArea, TranslatableWidget):
 
     def _highlightSubjectBtn(self, subject: str | None):
         """高亮选中的科目按钮"""
+        short_name = None
+        if subject:
+            for short, full in SUBJECT_FULL.items():
+                if full == subject:
+                    short_name = short
+                    break
         for btn in self._subjectBtns:
-            btn.setChecked(btn.text() == subject) if hasattr(btn, 'setChecked') else None
-            if btn.text() == subject:
-                btn.setStyleSheet("background-color: rgba(0, 120, 212, 0.15); border: 1px solid rgba(0, 120, 212, 0.4);")
+            if btn.text() == short_name:
+                btn.setProperty("selected", True)
             else:
-                btn.setStyleSheet("")
+                btn.setProperty("selected", False)
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
 
     def _onSubjectBtnClicked(self, subject: str):
         """科目按钮点击设置"""
@@ -628,30 +705,35 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             return
         period_idx = nb[row]
 
-        # 如果再次点击同一科目则清除？
+        # 录入科目
+        full_name = SUBJECT_FULL.get(subject, subject)
         key = str(period_idx)
         day = DAYS[col - 1]
-        current = self._profile.courses.get(key, {}).get(day, "")
-        text = "" if current == subject else subject
-
-        # 更新 profile
-        if key not in self._profile.courses:
-            self._profile.courses[key] = {}
-        self._profile.courses[key][day] = text
+        self._profile.courses.setdefault(key, {})[day] = full_name
         self._saveProfile()
 
         # 同步到表格
         self._block_save = True
         item = self.courseTable.item(row, col)
         if item:
-            item.setText(text)
+            item.setText(full_name)
         self._block_save = False
 
-        # 更新右侧面板
-        self._block_course_edit = True
-        self._csSubjectEdit.setText(text)
-        self._block_course_edit = False
-        self._highlightSubjectBtn(text)
+        # 跳到当天的下一时间段 录完当天跳下一天
+        next_row = row + 1  # 同一天的下一时间段
+        next_col = col
+
+        if next_row >= len(nb):  
+            next_row = 0
+            next_col = col + 1
+            if next_col > 7: 
+                return
+
+        # 有下一格子 选中它
+        if next_row < len(nb) and next_col <= 7:
+            self.courseTable.setCurrentCell(next_row, next_col)
+
+            QTimer.singleShot(0, self._updateCourseSettings)
 
     def _onCourseSubjectChanged(self, text: str):
         """课程设置的科目输入变更"""
@@ -764,7 +846,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             "",
             self
         )
-        w.textLayout.insertRow(1, le)
+        w.textLayout.insertWidget(1, le)
         le.setMinimumWidth(200)
 
         if not w.exec():
@@ -784,6 +866,64 @@ class TimetablePage(ScrollArea, TranslatableWidget):
 
         rename_profile(self._current_profile_name, new_name)
         self._loadProfile(new_name)
+
+    def _onImportProfile(self):
+        """导入档案"""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            tr("timetable.profile_import"),
+            "",
+            "JSON (*.json)"
+        )
+        if not file_path:
+            return
+        import shutil
+        import os
+        filename = os.path.basename(file_path)
+        name = os.path.splitext(filename)[0]
+        dest_path = os.path.join(PROFILES_DIR, filename)
+        src_dir = os.path.normcase(os.path.dirname(file_path))
+        dst_dir = os.path.normcase(PROFILES_DIR)
+        if src_dir != dst_dir:
+            shutil.copy(file_path, dest_path)
+        self._loadProfile(name)
+
+    def _onExportProfile(self):
+        """导出档案"""
+        if self._profile is None:
+            return
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            tr("timetable.profile_export"),
+            f"{self._current_profile_name}.json",
+            "JSON (*.json)"
+        )
+        if not file_path:
+            return
+        import shutil
+        src_path = get_profile_path(self._current_profile_name)
+        shutil.copy(src_path, file_path)
+
+    def _onOpenFolder(self):
+        """选择档案加载"""
+        import os
+        os.makedirs(PROFILES_DIR, exist_ok=True)
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            tr("timetable.profile_select"),
+            PROFILES_DIR,
+            "JSON (*.json)"
+        )
+        if not file_path:
+            return
+        name = os.path.splitext(os.path.basename(file_path))[0]
+        src_dir = os.path.normcase(os.path.dirname(file_path))
+        dst_dir = os.path.normcase(PROFILES_DIR)
+        if src_dir != dst_dir:
+            import shutil
+            dest_path = os.path.join(PROFILES_DIR, os.path.basename(file_path))
+            shutil.copy(file_path, dest_path)
+        self._loadProfile(name)
 
     def _onDurationChanged(self):
         """默认时长变更"""

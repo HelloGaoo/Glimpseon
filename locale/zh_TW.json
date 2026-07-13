@@ -70,7 +70,13 @@
     "subject": "科目",
     "custom_subject": "自訂",
     "subject_placeholder": "輸入科目名稱",
-    "day": "星期"
+    "day": "星期",
+    "empty_state": "空空如也",
+    "empty_hint": "請先添加時間段",
+    "profile_import": "導入",
+    "profile_export": "導出",
+    "profile_open_folder": "選擇檔案",
+    "profile_select": "選擇檔案文件"
   },
   "wizard": {
     "title": "ClassLively 設定精靈",
