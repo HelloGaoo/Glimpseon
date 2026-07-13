@@ -1,0 +1,162 @@
+/* 课程表页面 - 浅色主题 */
+
+#timetable, #scrollWidget {
+    background: transparent;
+    border: none;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#timetable QScrollArea {
+    background: transparent;
+    border: none;
+}
+
+/* ── 页面标题 ── */
+
+#timetable BodyLabel#timetableTitle {
+    font-size: 22px;
+    font-weight: 600;
+    background: transparent;
+    color: #1a1a1a;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    padding-bottom: 2px;
+}
+
+/* ── 卡片通用 ── */
+
+#timetable CardWidget {
+    background: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 8px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#timetable CardWidget:hover {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(0, 0, 0, 0.10);
+}
+
+/* ── 卡片标题 ── */
+
+#timetable CardWidget BodyLabel {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1a1a1a;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* ── 表格 ── */
+
+#timetable TableWidget {
+    background: transparent;
+    border: none;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#timetable TableWidget::item {
+    padding: 4px 8px;
+    color: #333333;
+    font-size: 13px;
+}
+
+#timetable TableWidget::item:selected {
+    background-color: rgba(0, 120, 212, 0.15);
+    color: #000000;
+}
+
+#timetable TableWidget QHeaderView::section {
+    background-color: #f0f0f0;
+    color: #555555;
+    font-weight: 600;
+    font-size: 12px;
+    border: none;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    padding: 4px 8px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#timetable TableWidget QHeaderView::section:hover {
+    background-color: #e8e8e8;
+}
+
+/* ── 档案配置面板 ── */
+
+#timetable #configCard {
+    background: rgba(255, 255, 255, 0.8);
+}
+
+#timetable #configTitle {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1a1a1a;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 档案名称 */
+#timetable StrongBodyLabel#profileNameLabel {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1a1a1a;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 档案管理按钮 */
+#timetable PushButton#profileAddBtn,
+#timetable PushButton#profileRenameBtn,
+#timetable PushButton#profileDelBtn {
+    font-size: 11px;
+    padding: 2px 4px;
+    min-height: 22px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 分隔线 */
+#timetable CardWidget#profileSeparator {
+    background: rgba(0, 0, 0, 0.08);
+    border: none;
+    border-radius: 0;
+    margin: 0;
+}
+
+/* 操作按钮区 */
+#timetable PushButton {
+    font-size: 12px;
+    padding: 4px 8px;
+    min-height: 28px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 配置区标签 */
+#timetable #configSection BodyLabel {
+    font-size: 12px;
+    color: #555555;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* SpinBox */
+#timetable SpinBox {
+    font-size: 12px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* ── 课程设置面板 ── */
+
+#timetable #csPeriodLabel,
+#timetable #csDayLabel {
+    font-size: 12px;
+    color: #333333;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#timetable #csSubjectEdit {
+    font-size: 12px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* ── 科目快捷按钮 ── */
+
+#timetable #subjectBtn {
+    font-size: 13px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+    padding: 4px 12px;
+}

@@ -1,12 +1,8 @@
 /* 通知页面 - 深色主题 */
 
-#notification {
+#notification, #scrollWidget {
     background: transparent;
     border: none;
-    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
-}
-
-#notification #scrollWidget {
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 

@@ -1,12 +1,8 @@
 /* 通知页面 - 浅色主题 */
 
-#notification {
+#notification, #scrollWidget {
     background: transparent;
     border: none;
-    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
-}
-
-#notification #scrollWidget {
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
@@ -28,14 +24,14 @@
 /* ── 卡片通用 ── */
 
 #notification CardWidget {
-    background: #ffffff;
+    background: rgba(255, 255, 255, 0.8);
     border: 1px solid rgba(0, 0, 0, 0.06);
     border-radius: 10px;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
 
 #notification CardWidget:hover {
-    background: #fafafa;
+    background: rgba(255, 255, 255, 0.95);
     border-color: rgba(0, 0, 0, 0.10);
 }
 
