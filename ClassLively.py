@@ -77,7 +77,7 @@ from core.utils import (
 )
 from core.notification import NotificationManager
 from data.software_list import SOFTWARE_CATEGORIES, get_software_icon_path
-from ui import AboutInterface, DownloadInterface, UpdateInterface, NotificationPage
+from ui import AboutInterface, DownloadInterface, NotificationPage
 from ui.home import HomeInterface
 from ui.debug import DebugPanel
 from ui.timetable import TimetablePage
@@ -1081,11 +1081,6 @@ class MainWindow(FluentWindow):
         QTimer.singleShot(0, _populateDownload)
 
         _t = time.time()
-        self.updateInterface = UpdateInterface(parent=self)
-        self.addSubInterface(self.updateInterface, FUI.SYNC, tr("navigation.update"), NavigationItemPosition.BOTTOM)  # 更新
-        logger.info(f"[MW] UpdateInterface 耗时{time.time()-_t:.2f}s")
-
-        _t = time.time()
         self.aboutInterface = AboutInterface(parent=self)
         self.addSubInterface(self.aboutInterface, FUI.INFO, tr("navigation.about"), NavigationItemPosition.BOTTOM)  # 关于
         logger.info(f"[MW] AboutInterface 耗时{time.time()-_t:.2f}s")
@@ -1116,7 +1111,6 @@ class MainWindow(FluentWindow):
         self._installGlobalHooks()
 
     def _initThemeConnections(self):
-        cfg.themeChanged.connect(self.updateInterface._onThemeChanged)
         cfg.themeChanged.connect(self.downloadInterface._onThemeChanged)
         cfg.themeChanged.connect(self.wallpaper._onThemeChanged)
         cfg.themeChanged.connect(self.notificationPage._onThemeChanged)
@@ -1927,7 +1921,7 @@ if __name__ == "__main__":
     loader.start()
 
     if cfg.autoCheckUpdate.value:
-        window.updateInterface.checkUpdateAuto()
+        window.aboutInterface.checkUpdateAuto()
 
     splash.updateStatus(tr("splash.completing_startup"))  # 正在完成启动
     t0 = time.time()

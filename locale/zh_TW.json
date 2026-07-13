@@ -525,7 +525,7 @@
     "image_filter": "圖片檔案 (*.jpg *.jpeg *.png *.bmp *.gif)"
   },
   "about": {
-    "description": "班級教學輔助工具",
+    "description": "驚鴻一面 面面俱到",
     "current_version": "目前版本",
     "build_date": "建構日期",
     "author": "開發作者",
@@ -540,7 +540,8 @@
     "app_info": "應用資訊",
     "changelog": "更新日誌",
     "changelog_unavailable": "暫無更新日誌",
-    "thanks": "鳴謝"
+    "thanks": "鳴謝",
+    "thanks_desc": "開源依賴與致謝"
   },
   "common": {
     "close": "關閉",

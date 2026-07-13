@@ -577,7 +577,7 @@
     "image_filter": "Image Files (*.jpg *.jpeg *.png *.bmp *.gif)"
   },
   "about": {
-    "description": "Classroom Teaching Assistant Tool",
+    "description": "A Glance, All-around",
     "current_version": "Current Version",
     "build_date": "Build Date",
     "author": "Author",
@@ -592,7 +592,8 @@
     "app_info": "App Info",
     "changelog": "Changelog",
     "changelog_unavailable": "Changelog not available",
-    "thanks": "Credits"
+    "thanks": "Credits",
+    "thanks_desc": "Open source dependencies"
   },
   "common": {
     "close": "Close",

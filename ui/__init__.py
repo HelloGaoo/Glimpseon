@@ -18,7 +18,6 @@
 UI 模块
 """
 
-from .update import UpdateInterface
 from .about import AboutInterface
 from .download import DownloadInterface
 from .wallpaper import WallpaperInterface
@@ -30,7 +29,6 @@ from .notification import NotificationPage
 __all__ = [
     'BaseScrollAreaInterface',
     'show_text_file',
-    'UpdateInterface',
     'AboutInterface',
     'DownloadInterface',
     'WallpaperInterface',

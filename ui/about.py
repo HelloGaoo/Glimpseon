@@ -15,10 +15,11 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-关于界面模块
+关于界面
 """
 
 import json
+import logging
 import os
 import sys
 if getattr(sys, 'frozen', False):
@@ -27,14 +28,16 @@ else:
     _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _BASE_DIR not in sys.path:sys.path.insert(0, _BASE_DIR)
 
+import shutil
+import subprocess
+import threading
 import webbrowser
-import platform
 
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtCore import Qt, QSize, QTimer, pyqtSignal, pyqtSlot
+from PyQt6.QtGui import QPixmap, QFont
 from PyQt6.QtWidgets import (
-    QHBoxLayout, QLabel, QVBoxLayout, QWidget,
-    QGridLayout, QListWidget, QListWidgetItem,
+    QApplication, QHBoxLayout, QLabel, QVBoxLayout, QWidget,
+    QGridLayout, QListWidget, QListWidgetItem, QTextBrowser,
 )
 from qfluentwidgets import (
     CardWidget,
@@ -45,147 +48,161 @@ from qfluentwidgets import (
     StrongBodyLabel,
     TextEdit,
     PushButton,
+    PrimaryPushButton,
+    SwitchSettingCard,
     Theme,
     ListWidget,
     MessageBoxBase,
+    ScrollArea,
 )
 
-from core.constants import get_resPath, load_qss
+from core.config import cfg
+from core.constants import BASE_DIR, get_resPath, load_qss
 from core.utils import tr, TranslatableWidget, FUI
+from core.updater import check_github_verison, get_github_changelog, download_update, extract_update, create_update_script
 from version import BUILD_DATE, VERSION
 
-from .common import BaseScrollAreaInterface, show_text_file
+from .common import show_text_file
+
+logger = logging.getLogger("ClassLively.ui.about")
 
 
-class AboutInterface(BaseScrollAreaInterface, TranslatableWidget):
+class AboutInterface(ScrollArea, TranslatableWidget):
     """关于界面"""
 
+    _check_result_signal = pyqtSignal(object)
+    _changelog_loaded_signal = pyqtSignal(str)
+
     def __init__(self, parent=None):
-        super().__init__(tr("navigation.about"), parent)
+        super().__init__(parent=parent)
         self.setObjectName("about")
+        self.setWindowTitle(tr("navigation.about"))
 
-        # 在基类的 scrollWidget 上建立布局
-        self.vbox = QVBoxLayout(self.scrollWidget)
-        self.vbox.setSpacing(10)
-        self.vbox.setContentsMargins(60, 12, 60, 24)
-        self.vbox.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-
-        # 头部：图标 名称  版本  描述
-        self._addHeader()
-
-        # 应用信息
-        self._addInfoSection()
-
-        # 相关链接
-        self._addLinksSection()
-
-        # 更新日志
-        self._addChangelogSection()
-
-        # 底部版权
-        self._addFooter()
-
+        self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        self.setViewportMargins(60, 120, 60, 20)
+
+        self._container = QWidget()
+        self._container.setObjectName("scrollWidget")
+        self.setWidget(self._container)
+        self.viewport().setAutoFillBackground(False)
+        self._container.setAutoFillBackground(False)
+
+        self._topLayout = QVBoxLayout(self._container)
+        self._topLayout.setContentsMargins(0, 0, 0, 0)
+        self._topLayout.setSpacing(0)
+
+        self._splitLayout = QHBoxLayout()
+        self._splitLayout.setContentsMargins(0, 0, 0, 0)
+        self._splitLayout.setSpacing(20)
+
+        self._initLeftPanel(self._container)
+        self._initRightPanel(self._container)
+
+        self._splitLayout.addWidget(self._leftPanel, 1)
+        self._splitLayout.addWidget(self._rightPanel, 1)
+
+        self._topLayout.addLayout(self._splitLayout)
+
+        self._footerLabel = CaptionLabel("© 2025 AzeLightStudios. All rights reserved.", self._container)
+        self._footerLabel.setObjectName("copyrightLabel")
+        self._footerLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._topLayout.addSpacing(16)
+        self._topLayout.addWidget(self._footerLabel)
+
+        self.titleLabel = QLabel(tr("navigation.about"), self)
+        self.titleLabel.setObjectName('settingLabel')
+        self.titleLabel.move(60, 63)
+
+        self._connectSignalToSlot()
+        self._check_result_signal.connect(self._on_check_result)
+        self._changelog_loaded_signal.connect(self._on_changelog_loaded)
         self.setStyleSheet(load_qss('about.qss'))
         self.setup_translatable_ui()
 
+    # 左栏
 
-    def _addHeader(self):
-        card = CardWidget(self.scrollWidget)
-        card.setObjectName("headerCard")
-        lay = QVBoxLayout(card)
-        lay.setContentsMargins(32, 20, 32, 16)
-        lay.setSpacing(6)
-        lay.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+    def _initLeftPanel(self, parent):
+        self._leftPanel = QWidget(parent)
+        self._leftPanel.setObjectName("leftPanel")
 
-        icon = QLabel(card)
-        icon.setFixedSize(64, 64)
-        icon.setObjectName("appIconLabel")
-        icon.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        layout = QVBoxLayout(self._leftPanel)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        self._addHeaderCard(layout)
+        self._addInfoCard(layout)
+        self._addLinksCard(layout)
+
+    def _addHeaderCard(self, layout):
+        """头部卡片"""
+        self._headerCard = CardWidget(self._leftPanel)
+        self._headerCard.setObjectName("headerCard")
+        self._headerLay = QVBoxLayout(self._headerCard)
+        self._headerLay.setContentsMargins(32, 24, 32, 24)
+        self._headerLay.setSpacing(8)
+        self._headerLay.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self._appIconLabel = QLabel(self._headerCard)
+        self._appIconLabel.setObjectName("appIconLabel")
+        self._appIconLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._appIconLabel.setMinimumSize(64, 64)
         p = get_resPath(os.path.join('resource', 'icons', 'CY.png'))
         if os.path.exists(p):
-            icon.setPixmap(QPixmap(p).scaled(
+            self._appIconPixmap = QPixmap(p)
+            self._appIconLabel.setPixmap(self._appIconPixmap.scaled(
                 64, 64, Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation))
+        else:
+            self._appIconPixmap = None
 
-        name = TitleLabel("ClassLively", card)
-        name.setObjectName("appNameLabel")
-        name.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self._appNameLabel = TitleLabel("ClassLively", self._headerCard)
+        self._appNameLabel.setObjectName("appNameLabel")
+        self._appNameLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        desc = BodyLabel(tr("about.description"), card)
-        desc.setObjectName("descriptionLabel")
-        desc.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        desc.setWordWrap(True)
+        self._descLabel = BodyLabel(tr("about.description"), self._headerCard)
+        self._descLabel.setObjectName("descriptionLabel")
+        self._descLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._descLabel.setWordWrap(True)
 
-        verRow = QHBoxLayout()
-        verRow.setSpacing(6)
-        verIcon = IconWidget(FUI.UPDATE, card)
-        verIcon.setFixedSize(14, 14)
-        verText = CaptionLabel(f"v{VERSION}  ·  {BUILD_DATE}", card)
-        verText.setObjectName("versionLabel")
-        verRow.addWidget(verIcon)
-        verRow.addWidget(verText)
+        self._headerLay.addStretch()
+        self._headerLay.addWidget(self._appIconLabel, 0, Qt.AlignmentFlag.AlignCenter)
+        self._headerLay.addWidget(self._appNameLabel, 0, Qt.AlignmentFlag.AlignCenter)
+        self._headerLay.addWidget(self._descLabel, 0, Qt.AlignmentFlag.AlignCenter)
+        self._headerLay.addStretch()
 
-        lay.addWidget(icon, 0, Qt.AlignmentFlag.AlignLeft)
-        lay.addWidget(name, 0, Qt.AlignmentFlag.AlignLeft)
-        lay.addSpacing(1)
-        lay.addWidget(desc, 0, Qt.AlignmentFlag.AlignLeft)
-        lay.addSpacing(4)
-        lay.addLayout(verRow)
+        layout.addWidget(self._headerCard, 1)  # stretch=1
 
-        self.vbox.addWidget(card)
-
-    def _addInfoSection(self):
-        """应用信息：版本 作者"""
-        title = StrongBodyLabel(tr("about.app_info"), self.scrollWidget)
-        title.setObjectName("sectionTitle")
-        self.vbox.addWidget(title)
-
-        card = CardWidget(self.scrollWidget)
-        card.setObjectName("contentCard")
-        lay = QHBoxLayout(card)
-        lay.setContentsMargins(20, 14, 20, 14)
-        lay.setSpacing(24)
-
-        # 左侧：版本信息
-        left = QVBoxLayout()
-        left.setSpacing(4)
-        verLabel = BodyLabel(f"v{VERSION}", card)
-        verLabel.setObjectName("infoVersionLabel")
-        dateLabel = CaptionLabel(
-            f"{tr('about.build_date')}: {BUILD_DATE}", card)
-        dateLabel.setObjectName("infoDateLabel")
-        authorLabel = CaptionLabel(
-            f"{tr('about.author')}: HelloGaoo", card)
-        authorLabel.setObjectName("infoAuthorLabel")
-        left.addWidget(verLabel)
-        left.addWidget(dateLabel)
-        left.addWidget(authorLabel)
-
-        # 右侧：详情按钮
-        right = QVBoxLayout()
-        right.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
-        techBtn = PushButton(FUI.INFO, tr("about.thanks"), card)
-        techBtn.setFixedHeight(32)
-        techBtn.clicked.connect(self._showTechDialog)
-        right.addWidget(techBtn)
-
-        lay.addLayout(left, 1)
-        lay.addLayout(right)
-
-        self.vbox.addWidget(card)
-
-    def _addLinksSection(self):
-        title = StrongBodyLabel(tr("about.related_links"), self.scrollWidget)
-        title.setObjectName("sectionTitle")
-        self.vbox.addWidget(title)
-
-        card = CardWidget(self.scrollWidget)
+    def _addInfoCard(self, layout):
+        card = CardWidget(self._leftPanel)
         card.setObjectName("contentCard")
         lay = QVBoxLayout(card)
-        lay.setContentsMargins(16, 10, 16, 10)
+        lay.setContentsMargins(20, 16, 20, 16)
         lay.setSpacing(4)
 
+        verLabel = BodyLabel(f"v{VERSION}", card)
+        verLabel.setObjectName("infoVersionLabel")
+        dateLabel = CaptionLabel(f"{tr('about.build_date')}: {BUILD_DATE}", card)
+        dateLabel.setObjectName("infoDateLabel")
+        authorLabel = CaptionLabel(f"{tr('about.author')}: HelloGaoo", card)
+        authorLabel.setObjectName("infoAuthorLabel")
+
+        lay.addWidget(verLabel)
+        lay.addWidget(dateLabel)
+        lay.addWidget(authorLabel)
+
+        layout.addWidget(card)
+
+    def _addLinksCard(self, layout):
+        """链接卡片"""
+        card = CardWidget(self._leftPanel)
+        card.setObjectName("contentCard")
+        lay = QVBoxLayout(card)
+        lay.setContentsMargins(16, 12, 16, 12)
+        lay.setSpacing(4)
+
+        # 链接数据
         links = [
             (FUI.GITHUB, tr("about.github_repo"),
              "github.com/HelloGaoo/ClassLively",
@@ -195,10 +212,13 @@ class AboutInterface(BaseScrollAreaInterface, TranslatableWidget):
              "https://space.bilibili.com/1498602348"),
             (FUI.DOCUMENT, tr("about.license"),
              "GNU General Public License v3.0",
-             None),  # 点击打开许可证弹窗
+             None),  # 许可证用回调
+            (FUI.HEART, tr("about.thanks"),
+             tr("about.thanks_desc"),
+             "thanks"),  # 鸣谢特殊标记
         ]
 
-        for icon, title_text, desc, url in links:
+        for icon, title_text, desc, url_or_callback in links:
             row = QHBoxLayout()
             row.setContentsMargins(0, 4, 0, 4)
             row.setSpacing(12)
@@ -218,63 +238,363 @@ class AboutInterface(BaseScrollAreaInterface, TranslatableWidget):
 
             btn = PushButton(FUI.LINK, tr("about.visit"), card)
             btn.setFixedHeight(30)
-            if url:
-                btn.clicked.connect(lambda _, u=url: webbrowser.open(u))
-            else:
+
+            if url_or_callback == "thanks":
+                btn.clicked.connect(self._showTechDialog)
+            elif url_or_callback is None:
                 btn.clicked.connect(self._viewLicense)
+            else:
+                url = url_or_callback
+                btn.clicked.connect(lambda _, u=url: webbrowser.open(u))
 
             row.addWidget(iw)
             row.addLayout(tcol, 1)
             row.addWidget(btn)
             lay.addLayout(row)
 
-        self.vbox.addWidget(card)
+        layout.addWidget(card)
 
-    def _addChangelogSection(self):
-        title = StrongBodyLabel(tr("about.changelog"), self.scrollWidget)
-        title.setObjectName("sectionTitle")
-        self.vbox.addWidget(title)
+    # 右栏
 
-        card = CardWidget(self.scrollWidget)
-        card.setObjectName("contentCard")
-        lay = QVBoxLayout(card)
-        lay.setContentsMargins(20, 12, 20, 12)
-        lay.setSpacing(8)
+    def _initRightPanel(self, parent):
+        self._rightPanel = QWidget(parent)
+        self._rightPanel.setObjectName("rightPanel")
 
-        verTitle = BodyLabel(f"v{VERSION}", card)
-        verTitle.setObjectName("changelogVersionLabel")
+        layout = QVBoxLayout(self._rightPanel)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
 
-        path = get_resPath("changelog.md")
-        if os.path.exists(path):
+        self._addVersionCard(layout)
+        self._addChangelogCard(layout)  # 占满高度
+        self._addUpdateSettings(layout)
+
+    def _addVersionCard(self, layout):
+        self.versionCard = CardWidget(self._rightPanel)
+        self.versionCard.setObjectName("contentCard")
+        vLay = QHBoxLayout(self.versionCard)
+        vLay.setContentsMargins(24, 20, 24, 20)
+        vLay.setSpacing(16)
+
+        leftInfo = QVBoxLayout()
+        leftInfo.setSpacing(4)
+        self.versionTitle = QLabel(f"ClassLively {VERSION}", self.versionCard)
+        self.versionTitle.setObjectName("versionTitle")
+        self.buildDate = QLabel(f"{tr('update.build_date')}: {BUILD_DATE}", self.versionCard)
+        self.buildDate.setObjectName("buildDate")
+        leftInfo.addWidget(self.versionTitle)
+        leftInfo.addWidget(self.buildDate)
+
+        self.updateStatusLayout = QHBoxLayout()
+        self.updateStatusLayout.setSpacing(8)
+        self.updateStatusIcon = QLabel(self.versionCard)
+        self.updateStatusIcon.setFixedSize(16, 16)
+        self.updateStatusIcon.setObjectName('updateStatusIcon')
+        self.updateStatusLabel = QLabel(tr("update.status_ready"), self.versionCard)
+        self.updateStatusLabel.setObjectName('updateStatusLabel')
+        self.updateStatusLayout.addWidget(self.updateStatusIcon)
+        self.updateStatusLayout.addWidget(self.updateStatusLabel)
+
+        self.checkUpdateButton = PrimaryPushButton(FUI.SYNC, tr("update.check_update"), self.versionCard)
+        self.checkUpdateButton.setFixedHeight(36)
+        self.checkUpdateButton.clicked.connect(self.checkUpdateManual)
+
+        vLay.addLayout(leftInfo, 1)
+        vLay.addLayout(self.updateStatusLayout)
+        vLay.addWidget(self.checkUpdateButton)
+
+        layout.addWidget(self.versionCard)
+
+    def _addChangelogCard(self, layout):
+        """更新日志卡片"""
+        self.changelogCard = CardWidget(self._rightPanel)
+        self.changelogCard.setObjectName("contentCard")
+        cLay = QVBoxLayout(self.changelogCard)
+        cLay.setContentsMargins(24, 20, 24, 20)
+        cLay.setSpacing(12)
+
+        self.changelogTitle = QLabel(tr("update.changelog"), self.changelogCard)
+        self.changelogTitle.setObjectName("changelogTitle")
+
+        # QTextBrowser 显示 Markdown
+        self.changelogContent = QTextBrowser(self.changelogCard)
+        self.changelogContent.setObjectName("changelogTextEdit")
+        self.changelogContent.setOpenExternalLinks(False)
+        self.changelogContent.setFont(QFont("HarmonyOS Sans", 12))
+        self.changelogContent.setPlaceholderText(tr("update.changelog_auto_load"))
+        self.changelogContent.setStyleSheet("""
+            QTextBrowser {
+                background: transparent;
+                border: none;
+                color: #CCCCCC;
+            }
+        """)
+
+        cLay.addWidget(self.changelogTitle)
+        cLay.addWidget(self.changelogContent, 1)  # stretch=1 占满高度
+
+        layout.addWidget(self.changelogCard, 1)  # stretch=1 占满右栏高度
+
+    def _addUpdateSettings(self, layout):
+        self.autoCheckUpdateCard = SwitchSettingCard(
+            FUI.UPDATE,
+            tr("update.auto_check"),
+            tr("update.auto_check_desc"),
+            configItem=cfg.autoCheckUpdate,
+            parent=self._rightPanel
+        )
+        self.autoUpdateCard = SwitchSettingCard(
+            FUI.DOWNLOAD,
+            tr("update.auto_update"),
+            tr("update.auto_update_desc"),
+            configItem=cfg.autoUpdate,
+            parent=self._rightPanel
+        )
+        layout.addWidget(self.autoCheckUpdateCard)
+        layout.addWidget(self.autoUpdateCard)
+
+
+    def _connectSignalToSlot(self):
+        pass
+
+
+    def __setUpdateStatus(self, status: str):
+        colors = {
+            'checking': ('#0078D4', '#0078D4'),
+            'error': ('#FF0000', '#FF0000'),
+            'update_available': ('#FF8C00', '#FF8C00'),
+            'latest': ('#107C10', '#107C10'),
+            'downloading': ('#0078D4', '#0078D4'),
+        }
+        text_color, icon_color = colors.get(status, ('#999999', '#999999'))
+        self.updateStatusLabel.setStyleSheet(f"color: {text_color};")
+        self.updateStatusIcon.setStyleSheet(f"background-color: {icon_color}; border-radius: 8px;")
+
+    # 更新日志加载
+
+    def __loadChangelog(self, auto_load=False):
+        if auto_load and not cfg.autoCheckUpdate.value:
+            return
+
+        def load():
             try:
-                with open(path, 'r', encoding='utf-8') as f:
-                    content = f.read()[:2000]
-            except Exception:
-                content = tr("about.changelog_unavailable")
-        else:
-            content = tr("about.changelog_unavailable")
+                changelog = get_github_changelog()
+                if changelog:
+                    logger.info(f"{'自动' if auto_load else '手动'}加载：成功从 GitHub 获取更新日志")
+                    return changelog
+                else:
+                    logger.info("GitHub 获取失败")
+                    return tr("update.no_changelog")
+            except Exception as e:
+                logger.error(f"加载更新日志失败：{str(e)}")
+                return tr("update.load_failed")
 
-        te = TextEdit(card)
-        te.setPlainText(content)
-        te.setReadOnly(True)
-        te.setFixedHeight(110)
-        te.setObjectName("changelogTextEdit")
+        def thread_func():
+            changelog_text = load()
+            self._changelog_loaded_signal.emit(changelog_text)
 
-        lay.addWidget(verTitle)
-        lay.addWidget(te)
-        self.vbox.addWidget(card)
+        thread = threading.Thread(target=thread_func, daemon=True)
+        thread.start()
 
-    def _addFooter(self):
-        footer = CaptionLabel(
-            "© 2025 AzeLightStudios. All rights reserved.",
-            self.scrollWidget)
-        footer.setObjectName("copyrightLabel")
-        footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.vbox.addSpacing(8)
-        self.vbox.addWidget(footer)
+    @pyqtSlot(str)
+    def _on_changelog_loaded(self, changelog_text: str):
+        # setMarkdown 提示 Markdown
+        self.changelogContent.setMarkdown(changelog_text)
 
+    # 检查更新
 
-    #  槽函数
+    def checkUpdateManual(self):
+        if hasattr(self, 'has_new_version') and self.has_new_version:
+            self.__downloadUpdate()
+            return
+
+        logger.info("手动检查：开始检查版本")
+        self.checkUpdateButton.setEnabled(False)
+        self.updateStatusLabel.setText(tr("update.checking"))
+        self.__setUpdateStatus('checking')
+
+        def do_check():
+            try:
+                result = check_github_verison()
+            except Exception as e:
+                logger.error(f"手动检查：检查更新时出错 - {str(e)}")
+                result = {'success': False, 'error': str(e)}
+            result['auto_check'] = False
+            self._check_result_signal.emit(result)
+
+        thread = threading.Thread(target=do_check, daemon=True)
+        thread.start()
+
+    def checkUpdateAuto(self):
+        if hasattr(self, 'has_new_version') and self.has_new_version:
+            self.__downloadUpdate(auto_update=True)
+            return
+
+        logger.info("自动检查：开始检查版本")
+
+        def do_check():
+            try:
+                result = check_github_verison()
+            except Exception as e:
+                logger.error(f"自动检查：检查更新时出错 - {str(e)}")
+                result = {'success': False, 'error': str(e)}
+            result['auto_check'] = True
+            self._check_result_signal.emit(result)
+
+        thread = threading.Thread(target=do_check, daemon=True)
+        thread.start()
+
+    @pyqtSlot(object)
+    def _on_check_result(self, result: object):
+        auto_check = result.get('auto_check', False)
+        try:
+            if not result.get('success', False):
+                logger.warning(f"检查版本失败 - {result.get('error', '未知错误')}")
+                if not auto_check:
+                    self.checkUpdateButton.setEnabled(True)
+                    self.updateStatusLabel.setText(tr("update.check_failed").format(error=result.get('error', tr("update.unknown_error"))))
+                    self.__setUpdateStatus('error')
+                return
+
+            github_version = result.get('version')
+            github_build_date = result.get('build_date')
+            changelog = result.get('changelog')
+
+            logger.info(f"检查结果：GitHub 最新版本：{github_version} (构建日期：{github_build_date})")
+
+            has_update = (github_version != VERSION)
+
+            if has_update:
+                self.has_new_version = True
+                self.new_version = github_version
+                self.build_date = github_build_date
+                self.update_url = result.get('update_url')
+
+                self.updateStatusLabel.setText(tr("update.new_version_found").format(version=github_version))
+                self.__setUpdateStatus('update_available')
+
+                if not auto_check:
+                    self.checkUpdateButton.setText(tr("update.download"))
+                    self.checkUpdateButton.setIcon(FUI.DOWNLOAD)
+                    self.checkUpdateButton.setEnabled(True)
+
+                if changelog:
+                    self.changelogContent.setMarkdown(changelog)
+
+                if auto_check and cfg.autoUpdate.value:
+                    logger.info("自动检查：启用自动更新，开始下载")
+                    QTimer.singleShot(2000, lambda: self.__downloadUpdate(auto_update=True))
+
+            else:
+                logger.info("已是最新版本")
+                self.updateStatusLabel.setText(tr("update.latest"))
+                self.__setUpdateStatus('latest')
+                if not auto_check:
+                    self.checkUpdateButton.setEnabled(True)
+                if changelog:
+                    self.changelogContent.setMarkdown(changelog)
+        except Exception as e:
+            logger.error(f"更新 UI 失败：{e}")
+
+    def _updateErrorState(self, msg):
+        self.checkUpdateButton.setText(tr("update.retry"))
+        self.checkUpdateButton.setIcon(FUI.SYNC)
+        self.checkUpdateButton.setEnabled(True)
+        self.updateStatusLabel.setText(tr("update.failed").format(error=msg))
+        self.updateStatusLabel.setStyleSheet("color: #FF0000;")
+        self.updateStatusIcon.setStyleSheet("background-color: #FF0000; border-radius: 8px;")
+
+    def __downloadUpdate(self, auto_update=False):
+        self.checkUpdateButton.setEnabled(False)
+        self.updateStatusLabel.setText(tr("update.downloading"))
+        self.__setUpdateStatus('downloading')
+
+        update_folder = os.path.join(BASE_DIR, 'update_temp')
+        download_path = os.path.join(update_folder, 'update.7z')
+        backup_folder = os.path.join(BASE_DIR, 'update_backup')
+
+        def download_thread():
+            try:
+                if os.path.exists(update_folder):
+                    shutil.rmtree(update_folder)
+                os.makedirs(update_folder)
+
+                def progress_callback(current, total):
+                    percent = (current / total) * 100
+                    QTimer.singleShot(0, lambda p=percent: self.updateStatusLabel.setText(tr("update.downloading_progress").format(percent=f"{p:.1f}")))
+
+                logger.info(f"正在从 {self.update_url} 下载更新")
+                download_success = False
+                max_download_retries = 3
+
+                for retry in range(max_download_retries):
+                    try:
+                        if retry > 0:
+                            logger.info(f"下载更新重试 {retry}/{max_download_retries}")
+                            QTimer.singleShot(0, lambda r=retry, m=max_download_retries: self.updateStatusLabel.setText(tr("update.download_retry").format(retry=r, max_retries=m)))
+
+                        if download_update(download_path, progress_callback):
+                            download_success = True
+                            break
+                        else:
+                            if os.path.exists(download_path):
+                                os.remove(download_path)
+                    except Exception as e:
+                        logger.warning(f"下载尝试 {retry + 1} 失败：{str(e)}")
+                        if os.path.exists(download_path):
+                            os.remove(download_path)
+
+                if not download_success:
+                    raise Exception("下载更新失败，已达到最大重试次数")
+
+                QTimer.singleShot(0, lambda: self.updateStatusLabel.setText(tr("update.extracting")))
+
+                extract_folder = os.path.join(update_folder, 'extracted')
+                if not extract_update(download_path, extract_folder):
+                    raise Exception("解压更新失败")
+
+                if os.path.exists(download_path):
+                    os.remove(download_path)
+
+                if auto_update:
+                    QTimer.singleShot(0, lambda: self.updateStatusLabel.setText(tr("update.backing_up")))
+                    try:
+                        if os.path.exists(backup_folder):
+                            shutil.rmtree(backup_folder)
+                        shutil.copytree(BASE_DIR, backup_folder,
+                                        ignore=shutil.ignore_patterns('update_temp', 'update_backup', 'logs', '*.log'))
+                        logger.info("已创建版本备份")
+                    except Exception as e:
+                        logger.warning(f"创建备份失败：{str(e)}")
+
+                script_path = create_update_script(BASE_DIR, extract_folder)
+                if not script_path:
+                    raise Exception("创建更新脚本失败")
+                QTimer.singleShot(0, lambda: self.updateStatusLabel.setText(tr("update.preparing")))
+
+                subprocess.Popen(
+                    f'cmd /c start "ClassLively Update" /MIN "{script_path}"',
+                    shell=True,
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+                )
+
+                logger.info("更新脚本已启动，准备退出应用")
+                QTimer.singleShot(0, lambda: self.updateStatusLabel.setText(tr("update.complete")))
+                QApplication.instance().quit()
+
+            except Exception as e:
+                logger.error(f"更新失败：{str(e)}")
+                if os.path.exists(update_folder):
+                    try:
+                        shutil.rmtree(update_folder)
+                    except Exception:
+                        pass
+                QTimer.singleShot(0, lambda: self._updateErrorState(str(e)))
+                self.has_new_version = False
+
+        thread = threading.Thread(target=download_thread, daemon=True)
+        thread.start()
+
+    # 槽函数
 
     def _onThemeChanged(self, theme: Theme):
         self.setStyleSheet(load_qss('about.qss'))
@@ -286,9 +606,20 @@ class AboutInterface(BaseScrollAreaInterface, TranslatableWidget):
                        license_path, parent=self.window())
 
     def _showTechDialog(self):
-        """弹出鸣谢窗口"""
         w = _TechDialog(self.window())
         w.exec()
+
+    def resizeEvent(self, event):
+        """调整图标大小"""
+        super().resizeEvent(event)
+        if hasattr(self, '_appIconPixmap') and self._appIconPixmap and self._appIconPixmap and not self._appIconPixmap.isNull():
+            card_height = self._headerCard.height() if hasattr(self, '_headerCard') and self._headerCard else 200
+            icon_size = min(128, max(64, card_height // 3))
+            scaled_pixmap = self._appIconPixmap.scaled(
+                icon_size, icon_size, Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation)
+            if not scaled_pixmap.isNull():
+                self._appIconLabel.setPixmap(scaled_pixmap)
 
 
 class _TechDialog(MessageBoxBase):
@@ -302,7 +633,6 @@ class _TechDialog(MessageBoxBase):
         self.listWidget = ListWidget(self)
         self.listWidget.setFixedHeight(400)
 
-        # 依赖项（可选 含链接按钮）
         deps = _get_dependencies()
         for name, ver, license_name, url in deps:
             display = f"{name}  {ver}   ({license_name})"
@@ -312,7 +642,6 @@ class _TechDialog(MessageBoxBase):
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.listWidget.addItem(item)
 
-            # 行内 widget：文字 + url（可隐藏）
             w = QWidget()
             lay = QHBoxLayout(w)
             lay.setContentsMargins(12, 0, 8, 0)
@@ -333,7 +662,6 @@ class _TechDialog(MessageBoxBase):
         self.listWidget.currentRowChanged.connect(
             self._onSelectionChanged)
 
-        # 布局
         self.viewLayout.setSpacing(8)
         self.viewLayout.addWidget(self.titleLabel)
         self.viewLayout.addWidget(self.listWidget)
@@ -343,8 +671,6 @@ class _TechDialog(MessageBoxBase):
         self.yesButton.setText(tr("common.confirm"))
 
     def _onSelectionChanged(self, row):
-        """选中项时显示url按钮"""
-        # 隐藏所有按钮
         for i in range(self.listWidget.count()):
             item = self.listWidget.item(i)
             w = self.listWidget.itemWidget(item) if item else None
@@ -353,7 +679,6 @@ class _TechDialog(MessageBoxBase):
                 if btn:
                     btn.hide()
 
-        # 显示当前项的url按钮
         item = self.listWidget.item(row)
         if not item or not item.data(Qt.ItemDataRole.UserRole):
             return
@@ -365,7 +690,6 @@ class _TechDialog(MessageBoxBase):
 
 
 def _get_dependencies():
-    """ 读取依赖列表（credits.json）  获取版本（importlib.metadata）"""
     from importlib.metadata import version, PackageNotFoundError
 
     path = get_resPath(os.path.join('resource', 'credits.json'))
