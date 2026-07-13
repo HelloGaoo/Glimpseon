@@ -182,3 +182,9 @@
     min-height: 28px;
     font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
 }
+
+/* 底部时长配置 */
+#timetable #bottomCard BodyLabel {
+    font-size: 12px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}

@@ -4961,6 +4961,7 @@ class TimetablePreviewComponent(DraggableContainer):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         self._bridge = None
+        self._timetable_page = None
         self._schedule_rows = []
         self._current_row_data = None  # start_time, end_time 用于算进度
         self._past_skip_groups = 0  # 已跳过多少组5节
@@ -4977,7 +4978,7 @@ class TimetablePreviewComponent(DraggableContainer):
         self._scroll_animation_timer = QTimer(self)
         self._scroll_animation_timer.timeout.connect(self._animate_scroll)
         self._setup_ui()
-        self._connect_bridge()
+        self._connect_timetable_page()
         self._refresh_schedule()
 
     def _setup_ui(self):
@@ -5123,25 +5124,21 @@ class TimetablePreviewComponent(DraggableContainer):
             self._current_row_data = last_current_times
 
         self._update_progress()    
-    def _connect_bridge(self):
-        """联动 Bridge"""
+    def _connect_timetable_page(self):
+        """连接 TimetablePage 获取课表数据"""
         try:
-            mw = None
             for w in QApplication.topLevelWidgets():
                 if hasattr(w, 'timetablePage'):
-                    mw = w
+                    self._timetable_page = w.timetablePage
+                    self._timetable_page.scheduleChanged.connect(self._refresh_schedule)
+                    if self._timetable_page.bridge:
+                        self._bridge = self._timetable_page.bridge
+                        self._bridge.stateChanged.connect(self._on_state_changed)
+                        self._bridge.connectedChanged.connect(self._on_connected_changed)
+                    logger.info("[Timetable] 已连接 timetablePage")
                     break
-            if not mw:
-                return
-            tp = mw.timetablePage
-            if hasattr(tp, 'bridge') and tp.bridge:
-                bridge = tp.bridge
-                self._bridge = bridge
-                bridge.stateChanged.connect(self._on_state_changed)
-                bridge.connectedChanged.connect(self._on_connected_changed)
-                logger.info("[Timetable] 已连接 Bridge: timetablePage")
         except Exception as e:
-            logger.debug(f"[Timetable] 连接 Bridge 失败: {e}")
+            logger.debug(f"[Timetable] 连接失败: {e}")
 
     def _on_state_changed(self, state):
         self._refresh_schedule()
@@ -5151,19 +5148,20 @@ class TimetablePreviewComponent(DraggableContainer):
             self._refresh_schedule()
 
     def _on_timer(self):
-        if not self._bridge:
-            self._connect_bridge()
+        if not self._timetable_page:
+            self._connect_timetable_page()
 
         # 检查是否放学
-        try:
-            from core.linkage import TimeState 
-            state = self._bridge.get_state()
-            if state and state.time_state == TimeState.AFTER_SCHOOL:
-                if not self._after_school_mode:
-                    self._enter_preview_mode()
-                return 
-        except Exception:
-            pass
+        if self._bridge:
+            try:
+                from core.linkage import TimeState 
+                state = self._bridge.get_state()
+                if state and state.time_state == TimeState.AFTER_SCHOOL:
+                    if not self._after_school_mode:
+                        self._enter_preview_mode()
+                    return 
+            except Exception:
+                pass
 
         # 正常模式下刷新今日课表
         self._refresh_schedule()
@@ -5210,18 +5208,19 @@ class TimetablePreviewComponent(DraggableContainer):
         if self._after_school_mode:
             return 
 
-        try:
-            from core.linkage import TimeState
-            state = self._bridge.get_state() if self._bridge else None
-            if state and state.time_state == TimeState.AFTER_SCHOOL:
-                return   # 放学了不刷新今天课表
-        except Exception:
-            pass
-
-        schedule = []
         if self._bridge:
             try:
-                schedule = self._bridge.get_today_schedule()
+                from core.linkage import TimeState
+                state = self._bridge.get_state()
+                if state and state.time_state == TimeState.AFTER_SCHOOL:
+                    return
+            except Exception:
+                pass
+
+        schedule = []
+        if self._timetable_page:
+            try:
+                schedule = self._timetable_page.get_today_schedule()
             except Exception:
                 pass
 
@@ -5308,15 +5307,23 @@ class TimetablePreviewComponent(DraggableContainer):
         QTimer.singleShot(50, lambda: self._do_scroll(row, viewport_offset_ratio))
 
     def _do_scroll(self, row, ratio):
-        # 目标行在 scroll_content 上的 y 坐标
-        row_y = row.mapTo(self._scroll_content, QPoint(0, 0)).y()
-        sb = self._scroll.verticalScrollBar()
-        viewport_h = self._scroll.viewport().height()
-        # 让此行在视口上方 ratio 处
-        target_y = row_y - int(viewport_h * ratio)
-        # 限制范围
-        target_y = max(sb.minimum(), min(target_y, sb.maximum()))
-        sb.setValue(target_y)
+        try:
+            # 检查 row 是否已被删除
+            from PyQt6.QtCore import pyqtSignal
+            if not row or not hasattr(row, 'mapTo'):
+                return
+            # 目标行在 scroll_content 上的 y 坐标
+            row_y = row.mapTo(self._scroll_content, QPoint(0, 0)).y()
+            sb = self._scroll.verticalScrollBar()
+            viewport_h = self._scroll.viewport().height()
+            # 让此行在视口上方 ratio 处
+            target_y = row_y - int(viewport_h * ratio)
+            # 限制范围
+            target_y = max(sb.minimum(), min(target_y, sb.maximum()))
+            sb.setValue(target_y)
+        except RuntimeError:
+            # C++ object 已删除，忽略
+            return
 
     def _auto_scroll(self):
         """自动滚动 大于10节时上完5节往下翻"""
@@ -5508,10 +5515,11 @@ class TimetableNowLessonComponent(DraggableContainer):
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
         self._bridge = None
+        self._timetable_page = None
         self._current_row_data = None
 
         self._setup_ui()
-        self._connect_bridge()
+        self._connect_timetable_page()
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._refresh)
@@ -5656,28 +5664,25 @@ class TimetableNowLessonComponent(DraggableContainer):
             padding: 2px 0;
         """)
 
-    def _connect_bridge(self):
+    def _connect_timetable_page(self):
         try:
-            mw = None
             for w in QApplication.topLevelWidgets():
                 if hasattr(w, 'timetablePage'):
-                    mw = w
+                    self._timetable_page = w.timetablePage
+                    self._timetable_page.scheduleChanged.connect(self._refresh)
+                    if self._timetable_page.bridge:
+                        self._bridge = self._timetable_page.bridge
                     break
-            if not mw:
-                return
-            tp = mw.timetablePage
-            if hasattr(tp, 'bridge') and tp.bridge:
-                self._bridge = tp.bridge
         except Exception:
             pass
 
     def _refresh(self):
-        if not self._bridge:
-            self._connect_bridge()
-            if not self._bridge:
+        if not self._timetable_page:
+            self._connect_timetable_page()
+            if not self._timetable_page:
                 return
         try:
-            schedule = self._bridge.get_today_schedule()
+            schedule = self._timetable_page.get_today_schedule()
         except Exception:
             return
 

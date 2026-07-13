@@ -12,7 +12,8 @@ else:
 if _BASE_DIR not in sys.path:
     sys.path.insert(0, _BASE_DIR)
 
-from PyQt6.QtCore import Qt, QTime, QTimer
+from PyQt6.QtCore import Qt, QTime, QTimer, pyqtSignal
+from PyQt6.QtGui import QFontMetrics
 from PyQt6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
@@ -73,6 +74,8 @@ def _add_minutes(time_str: str, minutes: int) -> str:
 
 class TimetablePage(ScrollArea, TranslatableWidget):
     """课程表页面"""
+
+    scheduleChanged = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
@@ -197,7 +200,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         config_card.setObjectName("configCard")
         self._config_layout = QVBoxLayout(config_card)
         self._config_layout.setContentsMargins(16, 12, 16, 12)
-        self._config_layout.setSpacing(8)
+        self._config_layout.setSpacing(10)
 
         # 档案来源选择
         source_row = QWidget()
@@ -209,11 +212,6 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         self._sourceCombo = ComboBox()
         self._sourceCombo.setObjectName("sourceCombo")
         self._sourceCombo.addItems(["ClassLively", "ClassIsland", "ClassWidgets"])
-        self._sourceCombo.setCurrentIndex(
-            {"classlively": 0, "classisland": 1, "classwidgets": 2}.get(
-                cfg.profileSource.value, 0
-            )
-        )
         self._sourceCombo.currentIndexChanged.connect(self._onSourceChanged)
         sr_layout.addWidget(source_label)
         sr_layout.addWidget(self._sourceCombo, stretch=1)
@@ -224,7 +222,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         config_title.setObjectName("configTitle")
         self._config_layout.addWidget(config_title)
 
-        # 名称 管理按钮
+        # 档案名称 管理按钮
         profile_header = QWidget()
         profile_header.setObjectName("profileHeader")
         ph_layout = QHBoxLayout(profile_header)
@@ -235,37 +233,31 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         self._profileLabel.setObjectName("profileNameLabel")
         ph_layout.addWidget(self._profileLabel, stretch=1)
 
-        # 添加按钮
         self._addBtn = ToolButton(FUI.ADD, config_card)
         self._addBtn.setToolTip(tr("timetable.profile_add"))
         self._addBtn.clicked.connect(self._onAddProfile)
         ph_layout.addWidget(self._addBtn)
 
-        # 重命名按钮
         self._renameBtn = ToolButton(FUI.EDIT, config_card)
         self._renameBtn.setToolTip(tr("timetable.profile_rename"))
         self._renameBtn.clicked.connect(self._onRenameProfile)
         ph_layout.addWidget(self._renameBtn)
 
-        # 删除按钮
         self._delBtn = ToolButton(FUI.DELETE, config_card)
         self._delBtn.setToolTip(tr("timetable.profile_delete"))
         self._delBtn.clicked.connect(self._onDeleteProfile)
         ph_layout.addWidget(self._delBtn)
 
-        # 导入按钮
         self._importBtn = ToolButton(FUI.DOWNLOAD, config_card)
         self._importBtn.setToolTip(tr("timetable.profile_import"))
         self._importBtn.clicked.connect(self._onImportProfile)
         ph_layout.addWidget(self._importBtn)
 
-        # 导出按钮
         self._exportBtn = ToolButton(FUI.SAVE, config_card)
         self._exportBtn.setToolTip(tr("timetable.profile_export"))
         self._exportBtn.clicked.connect(self._onExportProfile)
         ph_layout.addWidget(self._exportBtn)
 
-        # 选择按钮
         self._openFolderBtn = ToolButton(FUI.FOLDER, config_card)
         self._openFolderBtn.setToolTip(tr("timetable.profile_open_folder"))
         self._openFolderBtn.clicked.connect(self._onOpenFolder)
@@ -283,7 +275,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         action_section = QWidget()
         action_section.setObjectName("actionSection")
         act_layout = QVBoxLayout(action_section)
-        act_layout.setContentsMargins(0, 0, 0, 0)
+        act_layout.setContentsMargins(0, 4, 0, 4)
         act_layout.setSpacing(6)
 
         btn_row = QHBoxLayout()
@@ -294,14 +286,14 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         self._btnBreak.clicked.connect(lambda: self._addPeriod("课间"))
         self._btnActivity = PushButton(tr("timetable.btn_activity"))
         self._btnActivity.clicked.connect(lambda: self._addPeriod("活动"))
+        self._btnDeleteRow = PushButton(tr("timetable.btn_delete_row"))
+        self._btnDeleteRow.clicked.connect(self._onDeleteSelectedRow)
         btn_row.addWidget(self._btnClass)
         btn_row.addWidget(self._btnBreak)
         btn_row.addWidget(self._btnActivity)
+        btn_row.addStretch()
+        btn_row.addWidget(self._btnDeleteRow)
         act_layout.addLayout(btn_row)
-
-        self._btnDeleteRow = PushButton(tr("timetable.btn_delete_row"))
-        self._btnDeleteRow.clicked.connect(self._onDeleteSelectedRow)
-        act_layout.addWidget(self._btnDeleteRow)
 
         self._config_layout.addWidget(action_section)
 
@@ -423,24 +415,31 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         bottom_layout.setContentsMargins(16, 8, 16, 8)
         bottom_layout.setSpacing(6)
 
-        # 默认上课时间 默认课间时间
-        dur_row = QHBoxLayout()
-        dur_row.setSpacing(8)
+        # 默认上课时间
+        class_dur_row = QHBoxLayout()
+        class_dur_row.setSpacing(8)
         self._classDurSpin = SpinBox()
         self._classDurSpin.setRange(1, 120)
         self._classDurSpin.setValue(40)
         self._classDurSpin.setSuffix(tr("timetable.minutes"))
         self._classDurSpin.valueChanged.connect(self._onDurationChanged)
+        class_dur_row.addWidget(BodyLabel(tr("timetable.default_class_duration")))
+        class_dur_row.addStretch()
+        class_dur_row.addWidget(self._classDurSpin)
+        bottom_layout.addLayout(class_dur_row)
+
+        # 默认课间时间
+        break_dur_row = QHBoxLayout()
+        break_dur_row.setSpacing(8)
         self._breakDurSpin = SpinBox()
         self._breakDurSpin.setRange(1, 60)
         self._breakDurSpin.setValue(10)
         self._breakDurSpin.setSuffix(tr("timetable.minutes"))
         self._breakDurSpin.valueChanged.connect(self._onDurationChanged)
-        dur_row.addWidget(BodyLabel(tr("timetable.default_class_duration")))
-        dur_row.addWidget(self._classDurSpin)
-        dur_row.addWidget(BodyLabel(tr("timetable.default_break_duration")))
-        dur_row.addWidget(self._breakDurSpin)
-        bottom_layout.addLayout(dur_row)
+        break_dur_row.addWidget(BodyLabel(tr("timetable.default_break_duration")))
+        break_dur_row.addStretch()
+        break_dur_row.addWidget(self._breakDurSpin)
+        bottom_layout.addLayout(break_dur_row)
 
         right_layout.addWidget(bottom_card)
 
@@ -451,7 +450,6 @@ class TimetablePage(ScrollArea, TranslatableWidget):
 
         self.setStyleSheet(load_qss("timetable.qss"))
 
-        # Bridge 信号
         self._ciBridge.stateChanged.connect(self._onLinkageStateChanged)
         self._ciBridge.connectedChanged.connect(self._onLinkageConnectedChanged)
         self._ciBridge.errorOccurred.connect(self._onLinkageError)
@@ -459,18 +457,26 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         self._cwBridge.connectedChanged.connect(self._onLinkageConnectedChanged)
         self._cwBridge.errorOccurred.connect(self._onLinkageError)
 
-        # 联动模式刷新
         self._linkageRefreshTimer = QTimer(self)
         self._linkageRefreshTimer.setInterval(1000)
         self._linkageRefreshTimer.timeout.connect(self._onLinkageRefreshTimer)
 
-        # 加载档案
-        self._loadProfile(ensure_default_profile())
+        self._scheduleChangedTimer = QTimer(self)
+        self._scheduleChangedTimer.setSingleShot(True)
+        self._scheduleChangedTimer.setInterval(50)
+        self._scheduleChangedTimer.timeout.connect(self.scheduleChanged.emit)
+
         current_source = cfg.profileSource.value
-        if current_source != "classlively":
+        if current_source == "classlively":
+            self._loadProfile(ensure_default_profile())
+        else:
+            self._loadProfile(ensure_default_profile())
+            self._sourceCombo.blockSignals(True)
             self._sourceCombo.setCurrentIndex(
                 {"classisland": 1, "classwidgets": 2}.get(current_source, 0)
             )
+            self._sourceCombo.blockSignals(False)
+            self._applySourceMode(current_source)
 
 
     def _loadProfile(self, name: str):
@@ -489,6 +495,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         if self._block_save or self._profile is None:
             return
         self._profile.save()
+        self._scheduleChangedTimer.start()
 
 
     @staticmethod
@@ -499,6 +506,18 @@ class TimetablePage(ScrollArea, TranslatableWidget):
     def _refreshTables(self):
         """刷新两个表格"""
         self._block_save = True
+
+        # 保存当前选中状态
+        saved_time_row = -1
+        saved_course_row = -1
+        saved_course_col = -1
+        time_sel = self.timeTable.selectedItems()
+        if time_sel:
+            saved_time_row = time_sel[0].row()
+        course_sel = self.courseTable.selectedItems()
+        if course_sel:
+            saved_course_row = course_sel[0].row()
+            saved_course_col = course_sel[0].column()
 
         # 时间表
         self.timeTable.setRowCount(0)
@@ -513,7 +532,14 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         for table_row, period_idx in enumerate(nb_indices):
             self._setCourseRow(table_row, period_idx)
 
+        # 恢复选中状态
+        if saved_time_row >= 0 and saved_time_row < self._profile.period_count():
+            self.timeTable.selectRow(saved_time_row)
+        if saved_course_row >= 0 and saved_course_row < len(nb_indices):
+            self.courseTable.setCurrentCell(saved_course_row, saved_course_col)
+
         self._block_save = False
+        self._scheduleChangedTimer.start()
 
     def _setTimeRow(self, row: int, period: dict):
         """设置时间表的某一行"""
@@ -1029,6 +1055,48 @@ class TimetablePage(ScrollArea, TranslatableWidget):
     def cwBridge(self):
         return self._cwBridge
 
+    def get_today_schedule(self) -> list:
+        """返回今日课表（兼容 ClassLively/CI/CW 模式）"""
+        from datetime import datetime as _dt, time as _time
+
+        if self._activeBridge:
+            try:
+                return self._activeBridge.get_today_schedule()
+            except Exception:
+                return []
+
+        if not self._profile or not self._profile.periods:
+            return []
+
+        now = _dt.now()
+        today_wd = now.weekday()
+        day_name = DAYS[today_wd]
+        now_time = now.time()
+
+        result = []
+        class_counter = 0
+        for i, p in enumerate(self._profile.periods):
+            start = p.get("start", "")
+            end = p.get("end", "")
+            ptype = p.get("type", "")
+            try:
+                sh, sm = map(int, start.split(":"))
+                eh, em = map(int, end.split(":"))
+                is_current = _time(sh, sm) <= now_time < _time(eh, em)
+            except Exception:
+                is_current = False
+
+            if ptype in ("课间", "活动"):
+                break_name = ptype if ptype == "活动" else "课间"
+                result.append(("", "", start, end, 0, is_current, True, break_name))
+            else:
+                class_counter += 1
+                courses = self._profile.courses.get(str(i), {})
+                subject = courses.get(day_name, "")
+                result.append((subject, "", start, end, class_counter, is_current, False, ""))
+
+        return result
+
     def _onSourceChanged(self, index: int):
         """档案来源切换"""
         source_map = {0: "classlively", 1: "classisland", 2: "classwidgets"}
@@ -1101,22 +1169,26 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         self._breakDurSpin.setEnabled(enabled)
 
     def _updateLinkagePathLabel(self):
-        """联动模式更新档案名称为路径"""
+        """联动模式更新档案名称为路径（超长截断）"""
         if self._activeBridge is self._ciBridge:
             path = cfg.linkageDataPath.value
         elif self._activeBridge is self._cwBridge:
             path = cfg.classWidgetsDataPath.value
         else:
             path = ""
-        if path and os.path.isdir(path):
-            self._profileLabel.setText(path)
-            self._profileLabel.setStyleSheet("color: #30c361; font-size: 11px;")
-        elif path:
-            self._profileLabel.setText(path)
-            self._profileLabel.setStyleSheet("color: #d13438; font-size: 11px;")
-        else:
+        if not path:
             self._profileLabel.setText(tr("linkage.path_empty"))
             self._profileLabel.setStyleSheet("color: #999; font-size: 11px;")
+            self._profileLabel.setToolTip("")
+            return
+
+        color = "#30c361" if os.path.isdir(path) else "#d13438"
+        max_width = max(self._profileLabel.width(), 200)
+        fm = QFontMetrics(self._profileLabel.font())
+        elided = fm.elidedText(path, Qt.TextElideMode.ElideMiddle, max_width)
+        self._profileLabel.setText(elided)
+        self._profileLabel.setStyleSheet(f"color: {color}; font-size: 11px;")
+        self._profileLabel.setToolTip(path)
 
     def _onAutoDetect(self, source: str):
         """自动检测联动路径"""
@@ -1214,6 +1286,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
                     self.courseTable.setItem(table_row, col_idx + 1, item)
 
         self._block_save = False
+        self._scheduleChangedTimer.start()
 
     def _onLinkageStateChanged(self, state):
         if self._activeBridge is not self.sender():
@@ -1242,6 +1315,11 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             self._refreshLinkageTables()
 
 
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self._linkageMode:
+            self._updateLinkagePathLabel()
 
     def _onThemeChanged(self, theme):
         """主题变更"""
