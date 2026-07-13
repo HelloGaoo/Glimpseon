@@ -1487,15 +1487,16 @@ class HomeInterface(QWidget, TranslatableWidget):
         if dialog.exec():
             selected_region = dialog.get_selected_region()
             if selected_region:
-                # 获取城市代码
-                db = RegionDatabase()
-                city_code = db.get_code(selected_region)
-
-                # 保存城市名称和城市代码
+                # 保存城市名称
                 cfg.city.value = selected_region
-                if city_code:
-                    cfg.cityCode.value = city_code
-                    logger.info(f"天气设置：城市={selected_region}, 代码={city_code}")
+
+
+                db = RegionDatabase()
+                lon, lat = db.get_coordinates(selected_region)
+                if lon is not None and lat is not None:
+                    cfg.longitude.value = lon
+                    cfg.latitude.value = lat
+                    logger.info(f"天气设置：城市={selected_region}, 经纬度=({lon}, {lat})")
 
                 self._refreshWeather()
                 # 启动定时器
@@ -2965,23 +2966,35 @@ class EditPanel(QWidget):
         if dialog.exec():
             selected_region = dialog.get_selected_region()
             if selected_region:
-                # 保存城市名称和代码
-                db = RegionDatabase()
-                city_code = db.get_code(selected_region)
+                # 保存城市名称
                 cfg.city.value = selected_region
-                if city_code:
-                    cfg.cityCode.value = city_code
-                    logger.info(f"天气设置：城市={selected_region}, 代码={city_code}")
+                
+                # 从数据库获取经纬度
+                db = RegionDatabase()
+                lon, lat = db.get_coordinates(selected_region)
+                if lon is not None and lat is not None:
+                    cfg.longitude.value = lon
+                    cfg.latitude.value = lat
+                    logger.info(f"天气设置：城市={selected_region}, 经纬度=({lon}, {lat})")
                 self._refreshWeather()
 
     def _onCityButtonClicked(self):
         """城市选择按钮点击"""
+        from services.weather import RegionSelectorDialog, RegionDatabase
         dialog = RegionSelectorDialog(self.mainWindow)
         if dialog.exec():
             selected_region = dialog.get_selected_region()
             if selected_region:
                 cfg.city.value = selected_region
-                logger.info(f"天气设置：城市={selected_region}")
+                
+                # 从数据库获取经纬度
+                db = RegionDatabase()
+                lon, lat = db.get_coordinates(selected_region)
+                if lon is not None and lat is not None:
+                    cfg.longitude.value = lon
+                    cfg.latitude.value = lat
+                    logger.info(f"天气设置：城市={selected_region}, 经纬度=({lon}, {lat})")
+                    
                 self.mainWindow.refresh_weather()
 
     def _togglePosition(self):

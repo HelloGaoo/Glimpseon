@@ -161,17 +161,17 @@ class WeatherService:
     def fetch_all(self) -> Optional[Dict[str, Any]]:
         """请求天气数据"""
         try:
-            location_key = f"weathercn:{self.city_code}"
             lat = cfg.latitude.value if cfg.latitude.value else 39.9042
             lon = cfg.longitude.value if cfg.longitude.value else 116.4074
+            
+            # 仅经纬度请求
             params = {
                 **self.api_params,
-                "locationKey": location_key,
                 "latitude": str(lat),
                 "longitude": str(lon)
             }
 
-            logger.info(f"请求天气API，城市代码：{self.city_code}")
+            logger.info(f"请求天气API，经纬度：{lat}, {lon}")
             response = requests.get(self.base_url, params=params, timeout=10)
 
             if response.status_code != 200:
@@ -327,9 +327,9 @@ class RegionDatabase:
     """地区数据管理器"""
 
     def __init__(self):
-        self._db_path = get_resPath(os.path.join('data', 'xiaomi_weather.db'))
+        self._db_path = os.path.join(BASE_DIR, 'data', 'city.db')
         if not os.path.exists(self._db_path):
-            self._db_path = os.path.join(BASE_DIR, 'data', 'xiaomi_weather.db')
+            self._db_path = get_resPath(os.path.join('data', 'city.db'))
 
     def _connect(self):
         return sqlite3.connect(self._db_path)
@@ -342,51 +342,66 @@ class RegionDatabase:
             with self._connect() as conn:
                 cursor = conn.cursor()
                 if keyword is None or len(keyword.strip()) == 0:
-                    cursor.execute('SELECT name FROM citys ORDER BY name')
+                    cursor.execute('SELECT name FROM regions')
                 else:
                     cursor.execute(
-                        'SELECT name FROM citys WHERE name LIKE ? ORDER BY name',
+                        'SELECT name FROM regions WHERE name LIKE ?',
                         ('%' + keyword + '%',)
                     )
-                return [row[0] for row in cursor.fetchall()]
+                names = [row[0] for row in cursor.fetchall()]
+                
+                # 按首字拼音首字母排序
+                try:
+                    from pypinyin import lazy_pinyin
+                    names.sort(key=lambda x: lazy_pinyin(x[0])[0][0].lower() if x else '')
+                except ImportError:
+                    names.sort()
+                
+                return names
         except Exception as err:
-            # print(f'搜索地区出错：{err}')
             logger.error(f'搜索地区出错：{err}')
             return []
 
-    def get_code(self, region_name):
+    def get_coordinates(self, region_name):
+        """获取地区的经纬度"""
         try:
             if not os.path.exists(self._db_path):
-                return ''
+                return None, None
 
             with self._connect() as conn:
                 cursor = conn.cursor()
-                cursor.execute('SELECT city_num FROM citys WHERE name = ?', (region_name,))
+                cursor.execute('SELECT longitude, latitude FROM regions WHERE name = ?', (region_name,))
                 result = cursor.fetchone()
-                return result[0] if result else ''
+                if result:
+                    return result[0], result[1]
+                return None, None
         except Exception as err:
-            # print(f'获取地区代码失败：{err}')
-            logger.error(f'获取地区代码失败：{err}')
-            return ''
+            logger.error(f'获取经纬度失败：{err}')
+            return None, None
+
+    def get_code(self, region_name):
+        """原城市代码获取 弃"""
+        return ''
 
     def get_name(self, region_code):
-        try:
-            if not os.path.exists(self._db_path):
-                return ''
+        # try:
+        #     if not os.path.exists(self._db_path):
+        #         return ''
 
-            code = region_code
-            if code and code.startswith('weathercn:'):
-                code = code[10:]
+        #     code = region_code
+        #     if code and code.startswith('weathercn:'):
+        #         code = code[10:]
 
-            with self._connect() as conn:
-                cursor = conn.cursor()
-                cursor.execute('SELECT name FROM citys WHERE city_num LIKE ?', ('%' + code + '%',))
-                result = cursor.fetchone()
-                return result[0] if result else ''
-        except Exception as err:
-            # print(f'通过代码获取地区名失败：{err}')
-            logger.error(f'获取地区名失败：{err}')
-            return ''
+        #     with self._connect() as conn:
+        #         cursor = conn.cursor()
+        #         cursor.execute('SELECT name FROM citys WHERE city_num LIKE ?', ('%' + code + '%',))
+        #         result = cursor.fetchone()
+        #         return result[0] if result else ''
+        # except Exception as err:
+        #     # print(f'通过代码获取地区名失败：{err}')
+        #     logger.error(f'获取地区名失败：{err}')
+        #     return ''
+        return
 
 
 class RegionSelectorDialog(MessageBoxBase):

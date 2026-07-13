@@ -832,9 +832,21 @@ class WizardWindow(QDialog, TranslatableWidget):
 
     def _onFinishClicked3(self):
         """保存学校信息设置并完成向导"""
-        cfg.city.value = self.cityDisplayButton.text()
+        from services.weather import RegionDatabase
+        
+        city = self.cityDisplayButton.text()
+        cfg.city.value = city
         cfg.school.value = self.schoolLineEdit.text().strip()
         cfg.schoolClass.value = self.classLineEdit.text().strip()
+        
+        # 获取经纬度
+        db = RegionDatabase()
+        lon, lat = db.get_coordinates(city)
+        if lon is not None and lat is not None:
+            cfg.longitude.value = lon
+            cfg.latitude.value = lat
+            logger.info(f"向导：城市={city}, 经纬度=({lon}, {lat})")
+        
         complete_wizard()
         self.accept()
 
@@ -1641,8 +1653,7 @@ class Preloader(QThread):
         if not hi or not cfg.showWeather.value: return
 
         from core.utils import get_cached_content, save_cache
-        import requests
-        from services.weather import RegionDatabase, WeatherService, WEATHER_API_URL, WEATHER_API_APPKEY, WEATHER_API_SIGN
+        from services.weather import RegionDatabase, WeatherService
 
         cached = get_cached_content("weather")
         if cached:
@@ -1658,9 +1669,16 @@ class Preloader(QThread):
             return
 
         if self._stop: return
-        code = RegionDatabase().get_code(cfg.city.value) or cfg.cityCode.value or "101010100"
+        
+        city_name = cfg.city.value
+        if city_name:
+            lon, lat = RegionDatabase().get_coordinates(city_name)
+            if lon is not None and lat is not None:
+                cfg.longitude.value = lon
+                cfg.latitude.value = lat
+        
         try:
-            ws = WeatherService(code)
+            ws = WeatherService()
             data = ws.fetch_all()
             if data:
                 save_cache("weather", data, cfg.weatherUpdateInterval.value)

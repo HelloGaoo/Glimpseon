@@ -3267,21 +3267,21 @@ class WeatherHourlyComponent(DraggableContainer):
             if not region:
                 return
 
-            # 保存城市名称和代码
-            db = RegionDatabase()
-            code = db.get_code(region)
+            # 保存城市名称
             cfg.city.value = region
-            if code:
-                cfg.cityCode.value = code
-                logger.info(f"[天气组件] 选择城市: {region} (code={code})")
+
+            db = RegionDatabase()
+            lon, lat = db.get_coordinates(region)
+            if lon is not None and lat is not None:
+                cfg.longitude.value = lon
+                cfg.latitude.value = lat
+                logger.info(f"[天气组件] 选择城市: {region} (经纬度: {lon}, {lat})")
 
             self.cityLabel.setText(region)
 
             # 请求
-            if not code:
-                code = "101010100"
             try:
-                ws = WeatherService(code)
+                ws = WeatherService()
                 data = ws.fetch_all()
                 if data:
                     if not save_cache("weather", data, cfg.weatherUpdateInterval.value):
@@ -3606,21 +3606,22 @@ class WeatherWeeklyComponent(DraggableContainer):
             if not region:
                 return
 
-            # 保存城市名称和代码
-            db = RegionDatabase()
-            code = db.get_code(region)
+            # 保存城市名称
             cfg.city.value = region
-            if code:
-                cfg.cityCode.value = code
-                logger.info(f"[天气组件] 选择城市: {region} (code={code})")
+            
+            # 从数据库获取经纬度
+            db = RegionDatabase()
+            lon, lat = db.get_coordinates(region)
+            if lon is not None and lat is not None:
+                cfg.longitude.value = lon
+                cfg.latitude.value = lat
+                logger.info(f"[天气组件] 选择城市: {region} (经纬度: {lon}, {lat})")
 
             self.cityLabel.setText(region)
 
-            # 请求
-            if not code:
-                code = "101010100"
+            # 请求天气
             try:
-                ws = WeatherService(code)
+                ws = WeatherService()
                 data = ws.fetch_all()
                 if data:
                     if not save_cache("weather", data, cfg.weatherUpdateInterval.value):
