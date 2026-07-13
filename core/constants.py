@@ -1,4 +1,4 @@
-# ClassLively
+# Glimpseon
 # Copyright (C) 2026 HelloGaoo
 #
 # This program is free software: you can redistribute it and/or modify
@@ -24,9 +24,9 @@ import sys
 
 from qfluentwidgets import isDarkTheme
 
-logger = logging.getLogger("ClassLively.core.constants")
+logger = logging.getLogger("Glimpseon.core.constants")
 
-APP_NAME = "ClassLively"
+APP_NAME = "Glimpseon"
 if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
     MEIPASS_DIR = sys._MEIPASS

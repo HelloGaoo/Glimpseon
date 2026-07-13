@@ -1,4 +1,4 @@
-# ClassLively
+# Glimpseon
 # Copyright (C) 2026 HelloGaoo
 #
 # This program is free software: you can redistribute it and/or modify
@@ -201,7 +201,7 @@ def create_update_script(app_dir, update_folder, script_path=None):
     
     bat_content = f'''@echo off
 chcp 65001 >nul
-echo   ClassLively
+echo   Glimpseon
 echo.
 
 echo [1/5] 等待进程关闭
@@ -236,9 +236,9 @@ if exist "{app_dir}\\exclude_list.txt" (
     del "{app_dir}\\exclude_list.txt"
 )
 
-echo [5/5] 启动 ClassLively
+echo [5/5] 启动 Glimpseon
 timeout /t 1 /nobreak >nul
-start "" "{app_dir}\\ClassLively.exe"
+start "" "{app_dir}\\Glimpseon.exe"
 
 echo.
 echo   更新完成
@@ -257,7 +257,7 @@ if exist "{app_dir}\\update_backup\\*" (
     )
     echo 恢复完成！
     timeout /t 2 /nobreak >nul
-    start "" "{app_dir}\\ClassLively.exe"
+    start "" "{app_dir}\\Glimpseon.exe"
     exit /b 0
 ) else (
     echo 备份不存在，无法恢复！

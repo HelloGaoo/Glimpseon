@@ -1,4 +1,4 @@
-# ClassLively
+# Glimpseon
 # Copyright (C) 2026 HelloGaoo
 #
 # This program is free software: you can redistribute it and/or modify
@@ -99,7 +99,7 @@ from core.component import (
     ResizeMode,
 )
 
-logger = logging.getLogger("ClassLively.ui.component")
+logger = logging.getLogger("Glimpseon.ui.component")
 
 
 def get_component_display_name(component_id: str) -> str:
@@ -7947,7 +7947,7 @@ class ComponentCard(CardWidget):
             comp_type, comp_style = def_id.split("_", 1) if "_" in def_id else (def_id, "default")
 
         mime = QMimeData()
-        mime.setData("application/x-classlively-component",
+        mime.setData("application/x-Glimpseon-component",
                     f"{comp_type}|{comp_style}".encode('utf-8'))
         drag.setMimeData(mime)
         
@@ -8139,7 +8139,7 @@ class StyleCardWidget(CardWidget):
 
         # 设置拖拽数组件类型和样式
         mime_data = QMimeData()
-        mime_data.setData("application/x-classlively-component", 
+        mime_data.setData("application/x-Glimpseon-component", 
                           f"{self.component_type}|{self.style_name}".encode('utf-8'))
         drag.setMimeData(mime_data)
 
@@ -8773,11 +8773,11 @@ class GridCanvas(QWidget):
         """拖拽进入"""
         from core.component import EditSessionMode, EditSession
         mime = event.mimeData()
-        if mime.hasFormat("application/x-classlively-component"):
+        if mime.hasFormat("application/x-Glimpseon-component"):
             event.acceptProposedAction()
 
             # 编辑会话
-            data = bytes(mime.data("application/x-classlively-component")).decode('utf-8')
+            data = bytes(mime.data("application/x-Glimpseon-component")).decode('utf-8')
             parts = data.split('|')
             if len(parts) >= 2:
                 comp_id = parts[0]

@@ -3,7 +3,7 @@
     "language": "English",
     "locale": "en_US",
     "version": "1.0.0",
-    "author": "ClassLively Team"
+    "author": "Glimpseon Team"
   },
   "splash": {
     "initializing": "Initializing...",
@@ -88,8 +88,8 @@
     "btn_select_dir": "Select Directory Manually"
   },
   "wizard": {
-    "title": "ClassLively Setup Wizard",
-    "welcome": "ClassLively",
+    "title": "Glimpseon Setup Wizard",
+    "welcome": "Glimpseon",
     "next": "Continue",
     "agreement_title": "Software License Agreement",
     "agreement_text": "Please read and agree to the following agreements before using this software:",
@@ -586,7 +586,7 @@
     "view": "View",
     "license": "GNU General Public License Version 3",
     "related_links": "Related Links",
-    "license_intro": "This project (ClassLively) is released under GNU General Public License Version 3:",
+    "license_intro": "This project (Glimpseon) is released under GNU General Public License Version 3:",
     "license_title": "Open Source License",
     "visit": "Visit",
     "app_info": "App Info",

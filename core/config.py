@@ -1,4 +1,4 @@
-# ClassLively
+# Glimpseon
 # Copyright (C) 2026 HelloGaoo
 #
 # This program is free software: you can redistribute it and/or modify
@@ -49,7 +49,7 @@ if BASE_DIR not in sys.path:
 
 from data.url_dir import url_dir
 
-logger = logging.getLogger("ClassLively.core.config")
+logger = logging.getLogger("Glimpseon.core.config")
 
 
 class ThemeSerializer(ConfigSerializer):
@@ -424,8 +424,8 @@ class Config(QConfig):
     )
 
     profileSource = OptionsConfigItem(
-        "Timetable", "ProfileSource", "classlively",
-        OptionsValidator(["classlively", "classisland", "classwidgets"])
+        "Timetable", "ProfileSource", "Glimpseon",
+        OptionsValidator(["Glimpseon", "classisland", "classwidgets"])
     )
     
     usePreciseTime = ConfigItem(

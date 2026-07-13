@@ -3,7 +3,7 @@
     "language": "简体中文",
     "locale": "zh_CN",
     "version": "1.0.0",
-    "author": "ClassLively Team"
+    "author": "Glimpseon Team"
   },
   "splash": {
     "initializing": "正在初始化...",
@@ -88,8 +88,8 @@
     "btn_select_dir": "手动选择目录"
   },
   "wizard": {
-    "title": "ClassLively 向导",
-    "welcome": "ClassLively",
+    "title": "Glimpseon 向导",
+    "welcome": "Glimpseon",
     "next": "继续",
     "agreement_title": "软件使用协议",
     "agreement_text": "在使用本软件前，请阅读并同意以下协议：",
@@ -586,7 +586,7 @@
     "view": "查看",
     "license": "GNU General Public License Version 3 开源许可证",
     "related_links": "相关链接",
-    "license_intro": "此项目 (ClassLively) 基于 GNU General Public License Version 3 许可证发布：",
+    "license_intro": "此项目 (Glimpseon) 基于 GNU General Public License Version 3 许可证发布：",
     "license_title": "开源许可协议",
     "visit": "访问",
     "app_info": "应用信息",

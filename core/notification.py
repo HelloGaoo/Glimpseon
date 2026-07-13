@@ -1,4 +1,4 @@
-# ClassLively
+# Glimpseon
 # Copyright (C) 2026 HelloGaoo
 #
 # This program is free software: you can redistribute it and/or modify
@@ -31,7 +31,7 @@ from plyer import notification as plyer_notification
 
 from core.utils import tr
 
-logger = logging.getLogger("ClassLively.core.notification")
+logger = logging.getLogger("Glimpseon.core.notification")
 
 class NotifType:
     SCROLL = "scroll"
@@ -322,7 +322,7 @@ class NotificationManager(QObject):
 
     def _show_corner(self, text, duration):
         plyer_notification.notify(
-            title="ClassLively",
+            title="Glimpseon",
             message=text,
             timeout=duration,
         )

@@ -1,4 +1,4 @@
-# ClassLively
+# Glimpseon
 # Copyright (C) 2026 HelloGaoo
 #
 # This program is free software: you can redistribute it and/or modify
@@ -29,7 +29,7 @@ DAILY_NEWS_API_URL = "https://orz.ai/api/v1/dailynews/"
 SUPPORTED_PLATFORMS = {"baidu", "weibo", "jinritoutiao", "tenxunwang"}
 CACHE_INTERVAL = "30m"
 
-logger = logging.getLogger("ClassLively.services.news")
+logger = logging.getLogger("Glimpseon.services.news")
 
 
 class NewsService:

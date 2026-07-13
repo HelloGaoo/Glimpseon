@@ -1,4 +1,4 @@
-# ClassLively
+# Glimpseon
 # Copyright (C) 2026 HelloGaoo
 #
 # This program is free software: you can redistribute it and/or modify
@@ -64,7 +64,7 @@ from version import BUILD_DATE, VERSION
 
 from .common import show_text_file
 
-logger = logging.getLogger("ClassLively.ui.about")
+logger = logging.getLogger("Glimpseon.ui.about")
 
 
 class AboutInterface(ScrollArea, TranslatableWidget):
@@ -157,7 +157,7 @@ class AboutInterface(ScrollArea, TranslatableWidget):
         else:
             self._appIconPixmap = None
 
-        self._appNameLabel = TitleLabel("ClassLively", self._headerCard)
+        self._appNameLabel = TitleLabel("Glimpseon", self._headerCard)
         self._appNameLabel.setObjectName("appNameLabel")
         self._appNameLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -205,8 +205,8 @@ class AboutInterface(ScrollArea, TranslatableWidget):
         # 链接数据
         links = [
             (FUI.GITHUB, tr("about.github_repo"),
-             "github.com/HelloGaoo/ClassLively",
-             "https://github.com/HelloGaoo/ClassLively"),
+             "github.com/HelloGaoo/Glimpseon",
+             "https://github.com/HelloGaoo/Glimpseon"),
             (FUI.PEOPLE, tr("about.author_homepage"),
              "space.bilibili.com/1498602348",
              "https://space.bilibili.com/1498602348"),
@@ -277,7 +277,7 @@ class AboutInterface(ScrollArea, TranslatableWidget):
 
         leftInfo = QVBoxLayout()
         leftInfo.setSpacing(4)
-        self.versionTitle = QLabel(f"ClassLively {VERSION}", self.versionCard)
+        self.versionTitle = QLabel(f"Glimpseon {VERSION}", self.versionCard)
         self.versionTitle.setObjectName("versionTitle")
         self.buildDate = QLabel(f"{tr('update.build_date')}: {BUILD_DATE}", self.versionCard)
         self.buildDate.setObjectName("buildDate")
@@ -578,7 +578,7 @@ class AboutInterface(ScrollArea, TranslatableWidget):
                 QTimer.singleShot(0, lambda: self.updateStatusLabel.setText(tr("update.preparing")))
 
                 subprocess.Popen(
-                    f'cmd /c start "ClassLively Update" /MIN "{script_path}"',
+                    f'cmd /c start "Glimpseon Update" /MIN "{script_path}"',
                     shell=True,
                     creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
                 )

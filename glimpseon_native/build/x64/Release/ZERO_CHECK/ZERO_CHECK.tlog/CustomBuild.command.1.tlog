@@ -1,0 +1,10 @@
+^E:\260523\PY\GLIMPSEON\GLIMPSEON_NATIVE\BUILD\CMAKEFILES\C604413BE91A0889B4455707C6D0DED0\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SE:/260523/py/Glimpseon/glimpseon_native -BE:/260523/py/Glimpseon/glimpseon_native/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file E:/260523/py/Glimpseon/glimpseon_native/build/Glimpseon_native.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

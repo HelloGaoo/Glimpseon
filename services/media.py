@@ -1,4 +1,4 @@
-# ClassLively
+# Glimpseon
 # Copyright (C) 2026 HelloGaoo
 #
 # This program is free software: you can redistribute it and/or modify
@@ -51,7 +51,7 @@ from core.constants import BASE_DIR
 
 DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 
-logger = logging.getLogger("ClassLively.services.media")
+logger = logging.getLogger("Glimpseon.services.media")
 
 def _check_and_install_deps():
     missing = []

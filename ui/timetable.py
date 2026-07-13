@@ -212,7 +212,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         source_label = BodyLabel(tr("timetable.profile_source"))
         self._sourceCombo = ComboBox()
         self._sourceCombo.setObjectName("sourceCombo")
-        self._sourceCombo.addItems(["ClassLively", "ClassIsland", "ClassWidgets"])
+        self._sourceCombo.addItems(["Glimpseon", "ClassIsland", "ClassWidgets"])
         self._sourceCombo.currentIndexChanged.connect(self._onSourceChanged)
         sr_layout.addWidget(source_label)
         sr_layout.addWidget(self._sourceCombo, stretch=1)
@@ -468,7 +468,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         self._scheduleChangedTimer.timeout.connect(self.scheduleChanged.emit)
 
         current_source = cfg.profileSource.value
-        if current_source == "classlively":
+        if current_source == "Glimpseon":
             self._loadProfile(ensure_default_profile())
         else:
             self._loadProfile(ensure_default_profile())
@@ -1057,7 +1057,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         return self._cwBridge
 
     def get_today_schedule(self) -> list:
-        """返回今日课表（兼容 ClassLively/CI/CW 模式）"""
+        """返回今日课表（兼容 Glimpseon/CI/CW 模式）"""
         from datetime import datetime as _dt, time as _time
 
         if self._activeBridge:
@@ -1138,14 +1138,14 @@ class TimetablePage(ScrollArea, TranslatableWidget):
 
     def _onSourceChanged(self, index: int):
         """档案来源切换"""
-        source_map = {0: "classlively", 1: "classisland", 2: "classwidgets"}
-        source = source_map.get(index, "classlively")
+        source_map = {0: "Glimpseon", 1: "classisland", 2: "classwidgets"}
+        source = source_map.get(index, "Glimpseon")
         cfg.profileSource.value = source
         self._applySourceMode(source)
 
     def _applySourceMode(self, source: str):
         """根据来源模式切换 UI  Bridge"""
-        if source == "classlively":
+        if source == "Glimpseon":
             self._linkageMode = False
             self._activeBridge = None
             self._ciBridge.stop()

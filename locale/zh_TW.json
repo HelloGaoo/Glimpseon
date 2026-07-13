@@ -3,7 +3,7 @@
     "language": "繁體中文",
     "locale": "zh_TW",
     "version": "1.0.0",
-    "author": "ClassLively Team"
+    "author": "Glimpseon Team"
   },
   "splash": {
     "initializing": "正在初始化...",
@@ -88,8 +88,8 @@
     "btn_select_dir": "手動選擇目錄"
   },
   "wizard": {
-    "title": "ClassLively 設定精靈",
-    "welcome": "ClassLively",
+    "title": "Glimpseon 設定精靈",
+    "welcome": "Glimpseon",
     "next": "繼續",
     "agreement_title": "軟體使用協議",
     "agreement_text": "在使用本軟體前，請閱讀並同意以下協議：",
@@ -534,7 +534,7 @@
     "view": "檢視",
     "license": "GNU General Public License Version 3 開源授權",
     "related_links": "相關連結",
-    "license_intro": "此專案 (ClassLively) 基於 GNU General Public License Version 3 許可證發布：",
+    "license_intro": "此專案 (Glimpseon) 基於 GNU General Public License Version 3 許可證發布：",
     "license_title": "開源許可協議",
     "visit": "造訪",
     "app_info": "應用資訊",

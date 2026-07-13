@@ -53,7 +53,7 @@ from core.utils import tr, TranslatableWidget, FUI
 from core.notification import NotifType
 from qfluentwidgets import MessageBox
 
-logger = logging.getLogger("ClassLively.ui.notification")
+logger = logging.getLogger("Glimpseon.ui.notification")
 
 # 获取通知类型文本
 

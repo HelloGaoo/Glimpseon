@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="E:\260523\py\Glimpseon\glimpseon_native\build\CMakeFiles\c604413be91a0889b4455707c6d0ded0\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{16730514-0C48-33B9-8365-09553D3DDBE5}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

@@ -1,4 +1,4 @@
-# ClassLively
+# Glimpseon
 # Copyright (C) 2026 HelloGaoo
 #
 # This program is free software: you can redistribute it and/or modify
@@ -18,6 +18,6 @@ BUILD_DATE = "2026-03-14"
 
 __version__ = VERSION
 
-VERSION_URL = "https://ghfile.geekertao.top/https://raw.githubusercontent.com/HelloGaoo/ClassLively/main/version.py"
-UPDATE_URL = "https://ghfile.geekertao.top/https://raw.githubusercontent.com/HelloGaoo/ClassLively/main/update.7z"
-CHANGELOG_URL = "https://ghfile.geekertao.top/https://raw.githubusercontent.com/HelloGaoo/ClassLively/main/changelog.md"
+VERSION_URL = "https://cdn.gh-proxy.org/https://raw.githubusercontent.com/HelloGaoo/Glimpseon/main/version.py"
+UPDATE_URL = "https://cdn.gh-proxy.org/https://raw.githubusercontent.com/HelloGaoo/Glimpseon/main/update.7z"
+CHANGELOG_URL = "https://cdn.gh-proxy.org/https://raw.githubusercontent.com/HelloGaoo/Glimpseon/main/changelog.md"

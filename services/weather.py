@@ -1,4 +1,4 @@
-# ClassLively
+# Glimpseon
 # Copyright (C) 2026 HelloGaoo
 #
 # This program is free software: you can redistribute it and/or modify
@@ -35,7 +35,7 @@ from core.config import cfg
 from core.constants import BASE_DIR, get_resPath
 from core.utils import tr
 
-logger = logging.getLogger("ClassLively.services.weather")
+logger = logging.getLogger("Glimpseon.services.weather")
 
 WEATHER_API_URL = "https://weatherapi.market.xiaomi.com/wtr-v3/weather/all"
 WEATHER_API_APPKEY = "weather20151024"

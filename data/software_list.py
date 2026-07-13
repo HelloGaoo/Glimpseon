@@ -1,4 +1,4 @@
-# ClassLively
+# Glimpseon
 # Copyright (C) 2026 HelloGaoo
 #
 # This program is free software: you can redistribute it and/or modify
@@ -29,7 +29,7 @@ if _BASE_DIR not in sys.path:sys.path.insert(0, _BASE_DIR)
 
 from core.constants import BASE_DIR, get_resPath
 
-logger = logging.getLogger("ClassLively.data.software_list")
+logger = logging.getLogger("Glimpseon.data.software_list")
 
 SOFTWARE_CATEGORIES = [
     {

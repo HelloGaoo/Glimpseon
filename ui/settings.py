@@ -1,4 +1,4 @@
-# ClassLively
+# Glimpseon
 # Copyright (C) 2026 HelloGaoo
 #
 # This program is free software: you can redistribute it and/or modify
@@ -706,7 +706,7 @@ class AdvancedPage(SettingsSubPage):
     def __exportConfig(self):
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            default_filename = f"ClassLively_Config_{timestamp}.json"
+            default_filename = f"Glimpseon_Config_{timestamp}.json"
             file_path, _ = QFileDialog.getSaveFileName(
                 self, tr("settings.export_config"), default_filename, tr("settings.json_filter")
             )

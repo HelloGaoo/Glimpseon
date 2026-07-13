@@ -1,4 +1,4 @@
-# ClassLively
+# Glimpseon
 # Copyright (C) 2026 HelloGaoo
 #
 # This program is free software: you can redistribute it and/or modify
@@ -73,7 +73,7 @@ from core.config import cfg
 from core.constants import BASE_DIR, WALLPAPER_DIR, get_resPath, load_qss
 from core.utils import get_cached_content, save_cache, get_cache_info, tr, TranslatableWidget, INTERVAL_MAP, FUI
 
-logger = logging.getLogger("ClassLively.ui.wallpaper")
+logger = logging.getLogger("Glimpseon.ui.wallpaper")
 
 HISTORY_FILE_NAME = "history.json"
 HISTORY_VERSION = 1
@@ -1200,7 +1200,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
         
         logger.info(f"设置壁纸路径: {self.current_wallpaper_path}")
         try:
-            from classlively_native import set_wallpaper
+            from Glimpseon_native import set_wallpaper
             set_wallpaper(self.current_wallpaper_path)
             
             self.last_sync_path = self.current_wallpaper_path

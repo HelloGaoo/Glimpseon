@@ -1,4 +1,4 @@
-# ClassLively
+# Glimpseon
 # Copyright (C) 2026 HelloGaoo
 #
 # This program is free software: you can redistribute it and/or modify
@@ -34,7 +34,7 @@ from qfluentwidgets import qconfig
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
-logger = logging.getLogger("ClassLively.core.linkage")
+logger = logging.getLogger("Glimpseon.core.linkage")
 
 _PROFILE_FILE = "Profiles\\Default.json"
 _SETTINGS_FILE = "Settings.json"

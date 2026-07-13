@@ -1,4 +1,4 @@
-# ClassLively
+# Glimpseon
 # Copyright (C) 2026 HelloGaoo
 #
 # This program is free software: you can redistribute it and/or modify
@@ -26,7 +26,7 @@ from typing import Dict, List, Optional, Type, Any
 
 from PyQt6.QtCore import QObject, pyqtSignal, QPoint, QRect
 
-logger = logging.getLogger("ClassLively")
+logger = logging.getLogger("Glimpseon")
 
 
 class ResizeMode(Enum):

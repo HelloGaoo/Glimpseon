@@ -1,4 +1,4 @@
-# ClassLively
+# Glimpseon
 # Copyright (C) 2026 HelloGaoo
 #
 # This program is free software: you can redistribute it and/or modify
@@ -420,7 +420,7 @@ class Downloader:
             #     pass
             
             # 调用 native 模块更改桌面背景（C++ 封装，替代原 ctypes 调用）
-            from classlively_native import set_wallpaper
+            from Glimpseon_native import set_wallpaper
             wallpaper_path = os.path.join(output_dir, "img0.jpg")
             if os.path.exists(wallpaper_path):
                 if self.installer_logger:

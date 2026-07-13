@@ -1,4 +1,4 @@
-# ClassLively
+# Glimpseon
 # Copyright (C) 2026 HelloGaoo
 #
 # This program is free software: you can redistribute it and/or modify
@@ -1097,7 +1097,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
 
             self._popOutWindow = _PopOutWindow(self)
             self._popOutWindow.setObjectName('debug')
-            self._popOutWindow.setWindowTitle("调试面板 - ClassLively")
+            self._popOutWindow.setWindowTitle("调试面板 - Glimpseon")
             self._popOutWindow.setFixedSize(850, 750)
 
             qss = load_qss('debug.qss')

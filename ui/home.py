@@ -1,4 +1,4 @@
-# ClassLively
+# Glimpseon
 # Copyright (C) 2026 HelloGaoo
 #
 # This program is free software: you can redistribute it and/or modify
@@ -571,13 +571,13 @@ class HomeInterface(QWidget, TranslatableWidget):
 
     def dragEnterEvent(self, event):
         """拖拽进入事件"""
-        if event.mimeData().hasFormat("application/x-classlively-component"):
+        if event.mimeData().hasFormat("application/x-Glimpseon-component"):
             event.acceptProposedAction()
             self._drag_hover = True
             self._drag_preview_visible = True
 
             # 获取组件数据 
-            data = event.mimeData().data("application/x-classlively-component").data().decode('utf-8')
+            data = event.mimeData().data("application/x-Glimpseon-component").data().decode('utf-8')
             self._drag_preview_component_id = data
 
             if "|" in data:
@@ -642,7 +642,7 @@ class HomeInterface(QWidget, TranslatableWidget):
 
     def dragMoveEvent(self, event):
         """拖拽移动事件"""
-        if event.mimeData().hasFormat("application/x-classlively-component"):
+        if event.mimeData().hasFormat("application/x-Glimpseon-component"):
             event.acceptProposedAction()
 
             pos = event.position()
@@ -771,7 +771,7 @@ class HomeInterface(QWidget, TranslatableWidget):
 
     def dropEvent(self, event):
         """放置事件"""
-        if not event.mimeData().hasFormat("application/x-classlively-component"):
+        if not event.mimeData().hasFormat("application/x-Glimpseon-component"):
             event.ignore()
             return
 
@@ -803,7 +803,7 @@ class HomeInterface(QWidget, TranslatableWidget):
             else:
                 self._grid_overlay.hide()
 
-        data = event.mimeData().data("application/x-classlively-component").data().decode('utf-8')
+        data = event.mimeData().data("application/x-Glimpseon-component").data().decode('utf-8')
 
         # 组件类型和样式
         component_type, component_style = self._resolve_component_type_style(data)
@@ -1227,7 +1227,7 @@ class HomeInterface(QWidget, TranslatableWidget):
 
         src = self.originalPixmap
         try:
-            from classlively_native import blur_image
+            from Glimpseon_native import blur_image
             qimg = src.toImage().convertToFormat(QImage.Format.Format_ARGB32)
             t0 = time.perf_counter()
             blurred_bytes = blur_image(qimg.bits().asstring(qimg.sizeInBytes()), qimg.width(), qimg.height(), float(blur_radius))
@@ -1985,7 +1985,7 @@ class HomeInterface(QWidget, TranslatableWidget):
     def _extractIcon(self, exe_path, icon_filename):
         """使用 C++ SHGetFileInfo 提取图标"""
         try:
-            from classlively_native import extract_icon
+            from Glimpseon_native import extract_icon
             w, h, bgra_bytes = extract_icon(exe_path, 256)
             if w == 0 or len(bgra_bytes) == 0:
                 return 'exe.ico'
