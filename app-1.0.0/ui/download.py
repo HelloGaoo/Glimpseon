@@ -20,12 +20,6 @@
 
 import os
 import sys
-if getattr(sys, 'frozen', False):
-    _BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
-else:
-    _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _BASE_DIR not in sys.path:sys.path.insert(0, _BASE_DIR)
-
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, wait
@@ -52,9 +46,9 @@ from qfluentwidgets import (
 from core.config import cfg
 from core.constants import BASE_DIR, get_resPath, load_qss
 from core.downloader import DOWNLOAD_SOURCES, DEFAULT_SOURCE, Downloader, set_download_src, get_source_name
-from data.url_dir import url_dir
 from core.utils import tr, TranslatableWidget, FUI
 from core.logger import logger
+from resource.url_dir import url_dir
 
 from .common import BaseScrollAreaInterface, show_text_file
 

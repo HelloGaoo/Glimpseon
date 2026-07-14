@@ -1,0 +1,15 @@
+{
+  "current": 1,
+  "partial": false,
+  "version": "1.0.0",
+  "build_date": "2026-07-14",
+  "files": {},
+  "variables": {
+    "install_time": "2026-07-14T12:00:00"
+  },
+  "urls": {
+    "version_url": "https://cdn.gh-proxy.org/https://raw.githubusercontent.com/HelloGaoo/Glimpseon/main/app-1.0.0/record.json",
+    "update_url": "https://cdn.gh-proxy.org/https://raw.githubusercontent.com/HelloGaoo/Glimpseon/main/update.7z",
+    "changelog_url": "https://cdn.gh-proxy.org/https://raw.githubusercontent.com/HelloGaoo/Glimpseon/main/changelog.md"
+  }
+}

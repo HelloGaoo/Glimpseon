@@ -20,12 +20,6 @@
 
 import os
 import sys
-if getattr(sys, 'frozen', False):
-    _BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
-else:
-    _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _BASE_DIR not in sys.path:sys.path.insert(0, _BASE_DIR)
-
 import socket
 import subprocess
 import time
@@ -63,7 +57,7 @@ from qfluentwidgets import (
 from PyQt6.QtCore import pyqtSignal
 
 from core.config import cfg
-from core.constants import BASE_DIR, WALLPAPER_DIR, get_resPath, load_qss
+from core.constants import BASE_DIR, WALLPAPER_DIR, DATA_CONFIG, DATA_LOG, get_resPath, load_qss
 from core.utils import tr, TranslatableWidget, FUI
 from core.logger import logger
 from services.weather import WeatherService, RegionDatabase
@@ -225,7 +219,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         self.openWallpaperDirBtn.clicked.connect(lambda: os.startfile(WALLPAPER_DIR))  # os.path.join(BASE_DIR, 'wallpaper')
         row2.addWidget(self.openWallpaperDirBtn)
         self.openConfigDirBtn = PushButton(FUI.SETTING, tr("debug.btn_open_config_dir"), card)  # 打开配置目录
-        self.openConfigDirBtn.clicked.connect(lambda: os.startfile(os.path.join(BASE_DIR, 'config')))
+        self.openConfigDirBtn.clicked.connect(lambda: os.startfile(DATA_CONFIG))
         row2.addWidget(self.openConfigDirBtn)
         layout.addLayout(row2)
 
@@ -1010,7 +1004,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
 
     def _clearLogs(self):
         try:
-            log_dir = os.path.normpath(os.path.join(BASE_DIR, 'logs'))
+            log_dir = os.path.normpath(DATA_LOG)
             if os.path.exists(log_dir):
                 for root, dirs, files in os.walk(log_dir):
                     for f in files:

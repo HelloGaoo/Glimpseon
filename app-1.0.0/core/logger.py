@@ -14,14 +14,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import os
-import sys
-if getattr(sys, 'frozen', False):
-    _BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
-else:
-    _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _BASE_DIR not in sys.path:sys.path.insert(0, _BASE_DIR)
-
 import asyncio
 import atexit
 import faulthandler
@@ -42,14 +34,13 @@ from typing import Optional, Dict, Any
 
 from PyQt6.QtCore import qInstallMessageHandler, QtMsgType
 
-from core.constants import APP_NAME, BASE_DIR
+from core.paths import DATA_LOG, ensure_data_dirs, BASE_DIR
+from core.constants import APP_NAME
 
-#if getattr(sys, 'frozen', False):
-#    BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
-#else:
-#    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# 确保目录存在
+ensure_data_dirs()
 
-log_dir = os.path.join(BASE_DIR, "logs")
+log_dir = DATA_LOG
 if not os.path.exists(log_dir): os.makedirs(log_dir)
 
 DEFAULT_LOG_LEVEL = logging.INFO

@@ -23,6 +23,7 @@ import json
 import os
 import sys
 from enum import Enum
+from pathlib import Path
 
 from PyQt6.QtCore import QLocale
 from qfluentwidgets import (
@@ -39,15 +40,11 @@ from qfluentwidgets import (
     Theme,
 )
 
-if getattr(sys, 'frozen', False):
-    BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
-else:
-    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from core.constants import DATA_CONFIG, ensure_data_dirs
+from resource.url_dir import url_dir
 
-if BASE_DIR not in sys.path:
-    sys.path.insert(0, BASE_DIR)
-
-from data.url_dir import url_dir
+# 确保目录存在
+ensure_data_dirs()
 
 logger = logging.getLogger("Glimpseon.core.config")
 
@@ -135,6 +132,11 @@ class CountdownListSerializer(ConfigSerializer):
 
 class Config(QConfig):
     """ 应用配置 """
+
+    def __init__(self):
+        super().__init__()
+        # 显式设置配置文件路径为 data/config/config.json
+        self.file = Path(os.path.join(DATA_CONFIG, 'config.json'))
 
     themeMode = OptionsConfigItem(
         "MainWindow", "ThemeMode", Theme.AUTO, OptionsValidator([Theme.LIGHT, Theme.DARK, Theme.AUTO]), ThemeSerializer()
@@ -453,15 +455,19 @@ class Config(QConfig):
 
 
 cfg = Config()
-CONFIG_PATH = os.path.join(BASE_DIR, 'config', 'config.json')
-_cfg_loaded = False
-if os.path.exists(CONFIG_PATH):
-    try:
-        qconfig.load(CONFIG_PATH, cfg)
-        _cfg_loaded = True
-        logger.info(f"已从 {CONFIG_PATH} 加载配置")
-    except Exception as e:
-        logger.error(f"加载配置失败：{e}")
+CONFIG_PATH = os.path.join(DATA_CONFIG, 'config.json')
+
+# 关键：必须无条件调用 qconfig.load() 来设置正确的配置路径
+# 即使配置文件不存在，也要让 qconfig 知道正确的保存位置
+try:
+    qconfig.load(CONFIG_PATH, cfg)
+    logger.info(f"配置路径已设置为: {CONFIG_PATH}")
+except Exception as e:
+    logger.error(f"设置配置路径失败：{e}")
+
+_cfg_loaded = os.path.exists(CONFIG_PATH)
+if _cfg_loaded:
+    logger.info(f"已从 {CONFIG_PATH} 加载配置")
 
 def save_cfg():
     try:
@@ -635,8 +641,8 @@ def default_cfg():
     }
 
 
-if not os.path.exists(os.path.join(BASE_DIR, 'config')):
-    os.makedirs(os.path.join(BASE_DIR, 'config'))
+if not os.path.exists(DATA_CONFIG):
+    os.makedirs(DATA_CONFIG)
 if not _cfg_loaded and os.path.exists(CONFIG_PATH):
     try:
         qconfig.load(CONFIG_PATH, cfg)

@@ -30,24 +30,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Optional, List, Tuple, Dict, Any
-# from functools import lru_cache
 
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-# if getattr(sys, 'frozen', False):
-#     _BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
-# else:
-#     _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if getattr(sys, 'frozen', False):
-    _BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
-else:
-    _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _BASE_DIR not in sys.path:
-    sys.path.insert(0, _BASE_DIR)
-
-from core.constants import BASE_DIR
+from core.paths import BASE_DIR
 
 DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 

@@ -16,54 +16,46 @@
 
 """
 常量定义模块
+
+路径常量从 paths.py 导入，确保所有模块使用相同的路径
 """
 
-import logging
 import os
-import sys
 
 from qfluentwidgets import isDarkTheme
 
-logger = logging.getLogger("Glimpseon.core.constants")
+# 从 paths.py 导入所有路径常量
+from core.paths import (
+    PACKAGE_ROOT, APP_DIR, MEIPASS_DIR, BASE_DIR,
+    DATA_ROOT, DATA_CONFIG, DATA_LOG, DATA_CACHE, DATA_TEMP,
+    DATA_PROFILE, DATA_USER, DATA_ICON, DATA_WALLPAPER,
+    WALLPAPER_DIR, VERSION, BUILD_DATE,
+    ensure_data_dirs, get_resource_path
+)
 
 APP_NAME = "Glimpseon"
-if getattr(sys, 'frozen', False):
-    BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
-    MEIPASS_DIR = sys._MEIPASS
-else:
-    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    MEIPASS_DIR = None
 
-WALLPAPER_DIR = os.path.join(BASE_DIR, 'wallpaper')
-
-
-def get_resPath(relative_path):
-    base_path = os.path.join(BASE_DIR, relative_path)
-    if os.path.exists(base_path):
-        return base_path
-    if MEIPASS_DIR:
-        meipass_path = os.path.join(MEIPASS_DIR, relative_path)
-        if os.path.exists(meipass_path):
-            return meipass_path
-    return base_path
+# 兼容旧名称
+get_resPath = get_resource_path
 
 
 _qss_cache = {}
 
-def load_qss(qss_filename):
+
+def load_qss(qss_filename: str) -> str:
+    """加载 QSS 样式文件"""
     theme = 'dark' if isDarkTheme() else 'light'
     cache_key = (theme, qss_filename)
     if cache_key in _qss_cache:
         return _qss_cache[cache_key]
-    qss_path = get_resPath(os.path.join('resource', 'qss', theme, qss_filename))
+
+    qss_path = get_resource_path(os.path.join('resource', 'qss', theme, qss_filename))
     if not os.path.exists(qss_path):
-        logger.warning(f"QSS 文件不存在：{qss_path}")
         return ''
     try:
         with open(qss_path, 'r', encoding='utf-8') as f:
             content = f.read()
         _qss_cache[cache_key] = content
         return content
-    except Exception as e:
-        logger.error(f"加载 QSS 失败 [{qss_path}]：{e}")
+    except:
         return ''

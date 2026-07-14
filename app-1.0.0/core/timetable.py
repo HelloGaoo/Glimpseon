@@ -7,12 +7,12 @@ import os
 import re
 import sys
 
-if getattr(sys, 'frozen', False):
-    _BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
-else:
-    _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from core.constants import DATA_PROFILE, ensure_data_dirs
 
-PROFILES_DIR = os.path.join(_BASE_DIR, "profiles")
+# 确保目录存在
+ensure_data_dirs()
+
+PROFILES_DIR = DATA_PROFILE
 
 
 class TimetableProfile:

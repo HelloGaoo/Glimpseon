@@ -45,7 +45,7 @@ from qfluentwidgets import (
 )
 
 from core.config import cfg, default_cfg, ConfigItem, CONFIG_PATH
-from core.constants import BASE_DIR, load_qss
+from core.constants import BASE_DIR, DATA_CONFIG, load_qss
 from core.utils import _load_app_fonts, apply_fonts, tr, get_time_sync_service, FUI
 from core.logger import log_dir
 
@@ -681,7 +681,7 @@ class AdvancedPage(SettingsSubPage):
                 config_path = CONFIG_PATH
                 if os.path.exists(config_path):
                     os.remove(config_path)
-                config_dir = os.path.join(BASE_DIR, "config")
+                config_dir = DATA_CONFIG
                 if not os.path.exists(config_dir):
                     os.makedirs(config_dir)
                 default_config = default_cfg()
@@ -770,7 +770,7 @@ class AdvancedPage(SettingsSubPage):
             msgBox.cancelButton.setText(tr("dialog.cancel"))
             if not msgBox.exec():
                 return
-            config_dir = os.path.join(BASE_DIR, "config")
+            config_dir = DATA_CONFIG
             if not os.path.exists(config_dir):
                 os.makedirs(config_dir)
             import shutil

@@ -21,13 +21,11 @@
 import logging
 import os
 import sys
-if getattr(sys, 'frozen', False):
-    _BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
-else:
-    _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _BASE_DIR not in sys.path:sys.path.insert(0, _BASE_DIR)
 
-from core.constants import BASE_DIR, get_resPath
+from core.paths import APP_DIR, get_resource_path
+
+# 兼容旧名称
+get_resPath = get_resource_path
 
 logger = logging.getLogger("Glimpseon.data.software_list")
 
@@ -243,19 +241,19 @@ SOFTWARE_CATEGORIES = [
 def get_software_icon_path(icon_filename):
     if not icon_filename:
         return get_resPath(os.path.join("resource", "icons", "CY.png"))
-    
-    icon_path = get_resPath(os.path.join("data", "software_icon", icon_filename))
+
+    # 1. 从 APP_DIR/resource/icons/software_icon/ 查找（应用资源）
+    icon_path = get_resPath(os.path.join("resource", "icons", "software_icon", icon_filename))
     if os.path.exists(icon_path):
         return icon_path
-    
-    ql_icon_path = get_resPath(os.path.join("data", "ql_icon", icon_filename))
-    if os.path.exists(ql_icon_path):return ql_icon_path
-    
-    default_icon_path = get_resPath(os.path.join("data", "default_icon", icon_filename))
-    if os.path.exists(default_icon_path):return default_icon_path
-    
+
+    # 2. 从 APP_DIR/resource/icons/default_icon/ 查找（默认图标）
+    default_icon_path = get_resPath(os.path.join("resource", "icons", "default_icon", icon_filename))
+    if os.path.exists(default_icon_path):
+        return default_icon_path
+
     if icon_filename in ['exe.ico', 'default.ico']:
         logger.warning(f'默认图标文件不存在: {icon_filename}，将使用透明图标')
         return None
-    
+
     return get_resPath(os.path.join("resource", "icons", "CY.png"))

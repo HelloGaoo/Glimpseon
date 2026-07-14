@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-工具
+工具函数
 """
 
 import ctypes
@@ -38,8 +38,9 @@ from PyQt6.QtGui import QFont, QFontDatabase
 from PyQt6.QtWidgets import QApplication, QWidget
 from qfluentwidgets import setFontFamilies
 
+from core.paths import PACKAGE_ROOT, APP_DIR, MEIPASS_DIR, DATA_CACHE, get_resource_path as get_resPath
+from core.constants import APP_NAME
 from core.config import cfg, save_cfg
-from core.constants import APP_NAME, BASE_DIR, MEIPASS_DIR, get_resPath
 from core.logger import logger
 
 kernel32 = ctypes.windll.kernel32
@@ -252,7 +253,7 @@ def initialize_fonts(app: QApplication, install_to_system: bool = True):
     logger.info("字体初始化完成")
 
 
-CACHE_DIR = "data/cache"
+CACHE_DIR = "data/cache"  # 保持兼容，但实际使用 DATA_CACHE
 
 INTERVAL_MAP = {
     "从不": 0,
@@ -296,9 +297,8 @@ INTERVAL_MAP = {
 
 
 def get_cache_dir():
-    cache_dir = os.path.join(BASE_DIR, CACHE_DIR)
-    os.makedirs(cache_dir, exist_ok=True)
-    return cache_dir
+    os.makedirs(DATA_CACHE, exist_ok=True)
+    return DATA_CACHE
 
 
 def get_cache_path(cache_name: str) -> str:
@@ -444,7 +444,11 @@ def extract_files():
 
     for folder in bundled_folders:
         src_folder = os.path.join(MEIPASS_DIR, folder)
-        dst_folder = os.path.join(BASE_DIR, folder)
+        # resource 和 font 提取到 APP_DIR，data 提取到 PACKAGE_ROOT
+        if folder == 'data':
+            dst_folder = os.path.join(PACKAGE_ROOT, folder)
+        else:
+            dst_folder = os.path.join(APP_DIR, folder)
 
         if not os.path.exists(src_folder):
             continue
@@ -590,7 +594,7 @@ class TranslationManager(QObject):
         self._load_translations()
 
     def _load_translations(self):
-        locale_dir = os.path.join(BASE_DIR, "locale")
+        locale_dir = os.path.join(APP_DIR, "locale")
         if not os.path.exists(locale_dir):
             _i18n_logger.warning(f"Locale directory not found: {locale_dir}")
             return
@@ -750,7 +754,6 @@ _auto_offset_last_check = None  # type: Optional[date]
 def _check_auto_time_offset():
     """自动时间偏移"""
     global _auto_offset_last_check
-    from core.config import cfg
     if not cfg.autoTimeOffsetEnabled.value:
         return
     today = datetime.now().date()
@@ -767,7 +770,6 @@ def _check_auto_time_offset():
 
 def precise_now() -> datetime:
     """全局当前时间"""
-    from core.config import cfg
     now = datetime.now()
     if cfg.usePreciseTime.value:
         try:
@@ -782,8 +784,7 @@ def precise_now() -> datetime:
 
 def precise_time_str() -> str:
     """基准时间字符串"""
-    from core.config import cfg
-    now = datetime.now()
+    now = precise_now()
     if cfg.usePreciseTime.value:
         try:
             service = get_time_sync_service()
@@ -822,19 +823,17 @@ class _FluentUIIconInstance(FluentIconBase):
         """获取SVG 路径"""
         # qfluentwidgets 的 getIconColor 函数获取主题色
         icon_color = getIconColor(theme)
-        
+
         # 深浅色目录
         theme_dir = "light" if icon_color == "black" else "dark"
-        
-        from core.constants import BASE_DIR
-        
+
         # ic_fluent_<name>_32_regular.svg
         # 32 > 24
         icon_filename_32 = f"ic_fluent_{self._icon_name}_32_regular.svg"
         icon_filename_24 = f"ic_fluent_{self._icon_name}_24_regular.svg"
-        
-        svg_path_32 = os.path.join(BASE_DIR, "resource", "fluent", theme_dir, icon_filename_32)
-        svg_path_24 = os.path.join(BASE_DIR, "resource", "fluent", theme_dir, icon_filename_24)
+
+        svg_path_32 = os.path.join(APP_DIR, "resource", "fluent", theme_dir, icon_filename_32)
+        svg_path_24 = os.path.join(APP_DIR, "resource", "fluent", theme_dir, icon_filename_24)
         
         if os.path.exists(svg_path_32):
             return svg_path_32

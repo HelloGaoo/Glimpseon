@@ -22,12 +22,6 @@ import json
 import logging
 import os
 import sys
-if getattr(sys, 'frozen', False):
-    _BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
-else:
-    _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _BASE_DIR not in sys.path:sys.path.insert(0, _BASE_DIR)
-
 import shutil
 import subprocess
 import threading
@@ -57,10 +51,9 @@ from qfluentwidgets import (
 )
 
 from core.config import cfg
-from core.constants import BASE_DIR, get_resPath, load_qss
+from core.constants import PACKAGE_ROOT, APP_DIR, get_resPath, load_qss, VERSION, BUILD_DATE
 from core.utils import tr, TranslatableWidget, FUI
 from core.updater import check_github_verison, get_github_changelog, download_update, extract_update, create_update_script
-from version import BUILD_DATE, VERSION
 
 from .common import show_text_file
 
@@ -181,15 +174,15 @@ class AboutInterface(ScrollArea, TranslatableWidget):
         lay.setContentsMargins(20, 16, 20, 16)
         lay.setSpacing(4)
 
-        verLabel = BodyLabel(f"v{VERSION}", card)
-        verLabel.setObjectName("infoVersionLabel")
-        dateLabel = CaptionLabel(f"{tr('about.build_date')}: {BUILD_DATE}", card)
-        dateLabel.setObjectName("infoDateLabel")
+        # verLabel = BodyLabel(f"v{VERSION}", card)
+        # verLabel.setObjectName("infoVersionLabel")
+        # dateLabel = CaptionLabel(f"{tr('about.build_date')}: {BUILD_DATE}", card)
+        # dateLabel.setObjectName("infoDateLabel")
         authorLabel = CaptionLabel(f"{tr('about.author')}: HelloGaoo", card)
         authorLabel.setObjectName("infoAuthorLabel")
 
-        lay.addWidget(verLabel)
-        lay.addWidget(dateLabel)
+        # lay.addWidget(verLabel)
+        # lay.addWidget(dateLabel)
         lay.addWidget(authorLabel)
 
         layout.addWidget(card)
@@ -514,9 +507,9 @@ class AboutInterface(ScrollArea, TranslatableWidget):
         self.updateStatusLabel.setText(tr("update.downloading"))
         self.__setUpdateStatus('downloading')
 
-        update_folder = os.path.join(BASE_DIR, 'update_temp')
+        update_folder = os.path.join(PACKAGE_ROOT, 'update_temp')
         download_path = os.path.join(update_folder, 'update.7z')
-        backup_folder = os.path.join(BASE_DIR, 'update_backup')
+        backup_folder = os.path.join(PACKAGE_ROOT, 'update_backup')
 
         def download_thread():
             try:
@@ -566,13 +559,13 @@ class AboutInterface(ScrollArea, TranslatableWidget):
                     try:
                         if os.path.exists(backup_folder):
                             shutil.rmtree(backup_folder)
-                        shutil.copytree(BASE_DIR, backup_folder,
+                        shutil.copytree(APP_DIR, backup_folder,
                                         ignore=shutil.ignore_patterns('update_temp', 'update_backup', 'logs', '*.log'))
                         logger.info("已创建版本备份")
                     except Exception as e:
                         logger.warning(f"创建备份失败：{str(e)}")
 
-                script_path = create_update_script(BASE_DIR, extract_folder)
+                script_path = create_update_script(APP_DIR, extract_folder)
                 if not script_path:
                     raise Exception("创建更新脚本失败")
                 QTimer.singleShot(0, lambda: self.updateStatusLabel.setText(tr("update.preparing")))
@@ -588,13 +581,14 @@ class AboutInterface(ScrollArea, TranslatableWidget):
                 QApplication.instance().quit()
 
             except Exception as e:
-                logger.error(f"更新失败：{str(e)}")
+                error_msg = str(e)
+                logger.error(f"更新失败：{error_msg}")
                 if os.path.exists(update_folder):
                     try:
                         shutil.rmtree(update_folder)
                     except Exception:
                         pass
-                QTimer.singleShot(0, lambda: self._updateErrorState(str(e)))
+                QTimer.singleShot(0, lambda msg=error_msg: self._updateErrorState(msg))
                 self.has_new_version = False
 
         thread = threading.Thread(target=download_thread, daemon=True)

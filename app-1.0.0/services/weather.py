@@ -32,7 +32,10 @@ from PyQt6.QtCore import Qt
 from qfluentwidgets import BodyLabel, MessageBoxBase, SearchLineEdit, SubtitleLabel, ListWidget
 
 from core.config import cfg
-from core.constants import BASE_DIR, get_resPath
+from core.paths import BASE_DIR, get_resource_path
+
+# 兼容旧名称
+get_resPath = get_resource_path
 from core.utils import tr
 
 logger = logging.getLogger("Glimpseon.services.weather")
@@ -327,9 +330,8 @@ class RegionDatabase:
     """地区数据管理器"""
 
     def __init__(self):
-        self._db_path = os.path.join(BASE_DIR, 'data', 'city.db')
-        if not os.path.exists(self._db_path):
-            self._db_path = get_resPath(os.path.join('data', 'city.db'))
+        # city.db 是应用资源，从 APP_DIR/resource/ 读取
+        self._db_path = get_resPath(os.path.join('resource', 'city.db'))
 
     def _connect(self):
         return sqlite3.connect(self._db_path)

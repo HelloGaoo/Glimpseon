@@ -94,10 +94,10 @@ from qfluentwidgets import (
 )
 
 from core.config import cfg, save_cfg
-from core.constants import APP_NAME, BASE_DIR, get_resPath, load_qss
+from core.constants import APP_NAME, BASE_DIR, PACKAGE_ROOT, DATA_CONFIG, get_resPath, load_qss
 from core.logger import logger
 from core.utils import get_cached_content, save_cache, tr, TranslatableWidget, INTERVAL_MAP, precise_now, FUI, is_cache_expired
-from data.software_list import get_software_icon_path
+from resource.software_list import get_software_icon_path
 from services.weather import WeatherService, RegionDatabase, RegionSelectorDialog
 from services.poetry import PoetryService
 from ui.component import DraggableContainer, DraggableWidget, MediaWidget, QuickLaunchDock, resolve_app_from_path
@@ -1904,7 +1904,8 @@ class HomeInterface(QWidget, TranslatableWidget):
         apps = cfg.quickLaunchApps.value
         if not apps:
             return
-        icon_dir = os.path.join(BASE_DIR, 'data', 'ql_icon')
+        # 快捷启动图标存储在 data/icon/ 目录下
+        icon_dir = os.path.join(PACKAGE_ROOT, 'data', 'icon')
         os.makedirs(icon_dir, exist_ok=True)
         for app in apps:
             app_path = app.get('path', '')
@@ -1970,7 +1971,7 @@ class HomeInterface(QWidget, TranslatableWidget):
 #            else:
 #                img = Image.frombuffer('L', (width, height), bmpstr, 'raw', 'L', 0, 1).convert('RGBA')
 #
-#            icon_dir = os.path.join(BASE_DIR, 'data', 'ql_icon')
+#            icon_dir = os.path.join(PACKAGE_ROOT, 'data', 'ql_icon')
 #            os.makedirs(icon_dir, exist_ok=True)
 #            icon_save_path = os.path.join(icon_dir, icon_filename)
 #            img.save(icon_save_path, format='PNG')
@@ -1992,7 +1993,8 @@ class HomeInterface(QWidget, TranslatableWidget):
             from PIL import Image as PILImage
             import io
             img = PILImage.frombytes('RGBA', (w, h), bgra_bytes, 'raw', 'BGRA', 0, 1)
-            icon_dir = os.path.join(BASE_DIR, 'data', 'ql_icon')
+            # 快捷启动图标存储在 data/icon/ 目录下
+            icon_dir = os.path.join(PACKAGE_ROOT, 'data', 'icon')
             os.makedirs(icon_dir, exist_ok=True)
             icon_save_path = os.path.join(icon_dir, icon_filename)
             img.save(icon_save_path, format='PNG')
@@ -2210,7 +2212,7 @@ class HomeInterface(QWidget, TranslatableWidget):
                 current_positions[comp_id] = {"x": round(x, 4), "y": round(y, 4)}
 
         try:
-            config_path = os.path.join(BASE_DIR, 'config', 'components.json')
+            config_path = os.path.join(DATA_CONFIG, 'components.json')
             os.makedirs(os.path.dirname(config_path), exist_ok=True)
 
             # 读配置
@@ -2238,7 +2240,7 @@ class HomeInterface(QWidget, TranslatableWidget):
             return
 
         try:
-            config_path = os.path.join(BASE_DIR, 'config', 'components.json')
+            config_path = os.path.join(DATA_CONFIG, 'components.json')
             if not os.path.exists(config_path):
                 logger.info("组件配置文件不存在，使用默认位置")
                 return
@@ -3918,8 +3920,7 @@ class QuickLaunchEditDialog(MessageBoxBase):
         icon_filename = app_data.get('icon', '')
         if not icon_filename or icon_filename in ('exe.ico', 'default.ico'):return
 
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        icon_path = os.path.join(base_dir, 'data', 'ql_icon', icon_filename)
+        icon_path = os.path.join(PACKAGE_ROOT, 'data', 'icon', icon_filename)
         if os.path.exists(icon_path):
             try:
                 os.remove(icon_path)

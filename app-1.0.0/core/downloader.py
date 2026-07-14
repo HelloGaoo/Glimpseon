@@ -21,12 +21,6 @@
 import logging
 import os
 import sys
-if getattr(sys, 'frozen', False):
-    _BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
-else:
-    _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _BASE_DIR not in sys.path:sys.path.insert(0, _BASE_DIR)
-
 import ctypes
 import shutil
 import subprocess
@@ -39,9 +33,12 @@ import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from win32com.client import Dispatch
 
+from core.paths import PACKAGE_ROOT, APP_DIR, DATA_LOG, DATA_CACHE, DATA_TEMP, get_resource_path
 from core.logger import logger
 from core.utils import tr
-from core.constants import BASE_DIR as CONST_BASE_DIR, get_resPath
+
+# 兼容旧名称
+get_resPath = get_resource_path
 
 # urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import warnings
@@ -144,11 +141,6 @@ def set_download_src(source_key):
     Args:
         source_key: 下载源键名 (original, hk, cloudflare, edgeone, geekertao)
     """
-    # global current_source
-    # if source_key in DOWNLOAD_SOURCES:
-    #     current_source = source_key
-    # else:
-    #     current_source = DEFAULT_SOURCE
     global _current_source
     with _source_lock:
         if source_key in DOWNLOAD_SOURCES:
@@ -157,19 +149,12 @@ def set_download_src(source_key):
             _current_source = DEFAULT_SOURCE
 
 
-# if getattr(os.sys, 'frozen', False):
-#     BASE_DIR = os.path.dirname(os.path.abspath(os.sys.executable))
-#     MEIPASS_DIR = os.sys._MEIPASS
-# else:
-#     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-#     MEIPASS_DIR = None
-BASE_DIR = CONST_BASE_DIR
-
-LOGS_DIR = os.path.join(BASE_DIR, "Logs")
-CACHE_DIR = os.path.join(BASE_DIR, "cache")
-TEMP_DIR = os.path.join(BASE_DIR, "Temporary")
-TOOLS_DIR = os.path.join(BASE_DIR, "Tools")
-UPDATE_DIR = os.path.join(BASE_DIR, "Update")
+# 目录定义
+LOGS_DIR = DATA_LOG
+CACHE_DIR = DATA_CACHE
+TEMP_DIR = DATA_TEMP
+TOOLS_DIR = os.path.join(APP_DIR, "Tools")
+UPDATE_DIR = os.path.join(PACKAGE_ROOT, "update_temp")
 
 SEVEN_ZIP_PATH = os.path.join(TOOLS_DIR, "7z.exe")
 
