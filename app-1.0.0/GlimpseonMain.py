@@ -51,7 +51,7 @@ from qfluentwidgets.common.style_sheet import updateStyleSheet
 from pycaw.pycaw import AudioUtilities
 
 from core.config import cfg, save_cfg, Language
-from core.constants import APP_NAME, BASE_DIR, DATA_CONFIG, WALLPAPER_DIR, get_resPath, load_qss, ensure_data_dirs
+from core.constants import APP_NAME, APP_ICON, APP_DIR, BASE_DIR, DATA_CONFIG, WALLPAPER_DIR, get_resPath, load_qss, ensure_data_dirs, VERSION
 from core.downloader import cleanup_temp_directory
 from core.logger import logger, init_exhook
 from core.updater import (
@@ -219,16 +219,18 @@ class SplashScreen(QWidget, TranslatableWidget):
 
     def _loadIcon(self):
         """加载图标"""
+        logger.info(f"[Splash] icon_path={self.icon_path}, exists={os.path.exists(self.icon_path) if self.icon_path else 'N/A'}")
         if self.icon_path and os.path.exists(self.icon_path):
-            pixmap = QPixmap(self.icon_path).scaled(
-                64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
-            )
-            self.icon_label.setPixmap(pixmap)
+            pixmap = QPixmap(self.icon_path)
+            if pixmap.isNull():
+                logger.warning(f"[Splash] 图标加载失败: {self.icon_path}")
+            else:
+                self.icon_label.setPixmap(pixmap.scaled(
+                    64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+                ))
         else:
-            self.icon_label.setText("❓")
-            self.icon_label.setFont(QFont("Segoe UI Emoji", 32))
-            self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
+            logger.warning(f"[Splash] 图标文件: {self.icon_path}")
+            
     def centerOnScreen(self):
         """将窗口居中显示"""
         screen = QApplication.primaryScreen()
@@ -309,7 +311,7 @@ class WizardWindow(QDialog, TranslatableWidget):
 
         setTheme(cfg.themeMode.value)
 
-        icon_path = get_resPath(os.path.join("resource", "icons", "CY.png"))
+        icon_path = get_resPath(APP_ICON)
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
 
@@ -971,7 +973,7 @@ class MainWindow(FluentWindow):
 
         setTheme(cfg.themeMode.value)
 
-        icon_path = get_resPath(os.path.join("resource", "icons", "CY.png"))
+        icon_path = get_resPath(APP_ICON)
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         else:
@@ -1287,7 +1289,7 @@ class MainWindow(FluentWindow):
             self.move(w // 2 - self.width() // 2, h // 2 - self.height() // 2)
 
     def initSystemTray(self):
-        icon_path = get_resPath(os.path.join("resource", "icons", "CY.png"))
+        icon_path = get_resPath(APP_ICON)
         if os.path.exists(icon_path):
             self.tray_icon = QSystemTrayIcon(QIcon(icon_path), self)
         else:
@@ -1731,11 +1733,12 @@ if __name__ == "__main__":
         wizard = WizardWindow()
         wizard.exec()
 
-    icon_path = get_resPath(os.path.join("resource", "icons", "CY.png"))
+    icon_path = get_resPath(APP_ICON)
+    logger.info(f"[BOOT] APP_DIR={APP_DIR}, APP_ICON={APP_ICON}, icon_path={icon_path}, exists={os.path.exists(icon_path)}")
 
     _boot_t0 = time.time()
 
-    splash = SplashScreen(APP_NAME, icon_path)
+    splash = SplashScreen(APP_NAME, VERSION, icon_path)
     splash.show()
     splash.setProgress(0)
     logger.info(f"[BOOT] Splash显示 耗时{time.time()-_boot_t0:.2f}s")

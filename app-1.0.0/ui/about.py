@@ -51,7 +51,7 @@ from qfluentwidgets import (
 )
 
 from core.config import cfg
-from core.constants import PACKAGE_ROOT, APP_DIR, get_resPath, load_qss, VERSION, BUILD_DATE
+from core.constants import PACKAGE_ROOT, APP_DIR, APP_ICON, get_resPath, load_qss, VERSION, BUILD_DATE
 from core.utils import tr, TranslatableWidget, FUI
 from core.updater import check_github_verison, get_github_changelog, download_update, extract_update, create_update_script
 
@@ -141,7 +141,7 @@ class AboutInterface(ScrollArea, TranslatableWidget):
         self._appIconLabel.setObjectName("appIconLabel")
         self._appIconLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._appIconLabel.setMinimumSize(64, 64)
-        p = get_resPath(os.path.join('resource', 'icons', 'CY.png'))
+        p = get_resPath(APP_ICON)
         if os.path.exists(p):
             self._appIconPixmap = QPixmap(p)
             self._appIconLabel.setPixmap(self._appIconPixmap.scaled(

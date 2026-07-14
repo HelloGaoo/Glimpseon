@@ -34,6 +34,7 @@ from core.paths import (
 )
 
 APP_NAME = "Glimpseon"
+APP_ICON = os.path.join("resource", "icons", "CY.png")
 
 # 兼容旧名称
 get_resPath = get_resource_path

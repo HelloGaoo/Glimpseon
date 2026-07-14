@@ -23,6 +23,7 @@ import os
 import sys
 
 from core.paths import APP_DIR, get_resource_path
+from core.constants import APP_ICON
 
 # 兼容旧名称
 get_resPath = get_resource_path
@@ -240,7 +241,7 @@ SOFTWARE_CATEGORIES = [
 
 def get_software_icon_path(icon_filename):
     if not icon_filename:
-        return get_resPath(os.path.join("resource", "icons", "CY.png"))
+        return get_resPath(APP_ICON)
 
     # 1. 从 APP_DIR/resource/icons/software_icon/ 查找（应用资源）
     icon_path = get_resPath(os.path.join("resource", "icons", "software_icon", icon_filename))
@@ -256,4 +257,4 @@ def get_software_icon_path(icon_filename):
         logger.warning(f'默认图标文件不存在: {icon_filename}，将使用透明图标')
         return None
 
-    return get_resPath(os.path.join("resource", "icons", "CY.png"))
+    return get_resPath(APP_ICON)
