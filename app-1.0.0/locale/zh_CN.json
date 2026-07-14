@@ -199,6 +199,8 @@
     "reset_default_confirm": "确定要将所有设置恢复到默认值吗？",
     "restart_required": "配置需要重启应用程序才能生效",
     "restart_required_desc": "语言设置已更改，是否立即重启应用？",
+    "theme_restart_desc": "主题已更改，是否立即重启应用以完全生效？",
+    "theme_restart_cancel": "恢复原主题",
     "export_button": "导出",
     "import_button": "导入",
     "debug_mode": "调试模式",

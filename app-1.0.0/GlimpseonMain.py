@@ -980,6 +980,9 @@ class MainWindow(FluentWindow):
             logger.warning("窗口图标文件不存在")
 
         self.isEditMode = False
+        self._themeChangingFromSystem = False
+        self._previousThemeMode = cfg.themeMode.value
+        self._previousTheme = cfg.theme
 
         _t_i18n = time.time()
         self._initTranslation()
@@ -1139,6 +1142,15 @@ class MainWindow(FluentWindow):
         else:
             self._themeCheckTimer.stop()
 
+        # 用户手动切换主题时弹出重启对话框
+        if not self._themeChangingFromSystem:
+            old_mode = self._previousThemeMode
+            old_theme = self._previousTheme
+            self._showThemeRestartDialog(mode, old_mode, old_theme)
+
+        self._previousThemeMode = cfg.themeMode.value
+        self._previousTheme = cfg.theme
+
     def _checkSystemTheme(self):
         """检查系统主题变更"""
         try:
@@ -1148,13 +1160,46 @@ class MainWindow(FluentWindow):
             current_theme = Theme.LIGHT if current == 'Light' else Theme.DARK
             if cfg.theme != current_theme:
                 logger.info(f"系统主题已变更: {cfg.theme} → {current_theme}")
+                self._themeChangingFromSystem = True
                 cfg.theme = current_theme
                 setTheme(current_theme)
                 updateStyleSheet()
                 cfg.themeChanged.emit(current_theme)
                 self.setStyleSheet(load_qss('app.qss'))
+                self._themeChangingFromSystem = False
         except Exception as e:
             logger.warning(f"检查系统主题时出错: {e}")
+
+    def _showThemeRestartDialog(self, new_mode: Theme, old_mode: Theme, old_theme: Theme):
+        """主题切换后弹出重启对话框"""
+        w = MessageBox(
+            tr("settings.restart_required"),
+            tr("settings.theme_restart_desc"),
+            self
+        )
+        w.yesButton.setText(tr("common.restart_now"))
+        w.cancelButton.setText(tr("settings.theme_restart_cancel"))
+
+        if w.exec():
+            import subprocess
+            QApplication.quit()
+            subprocess.Popen([sys.executable] + sys.argv)
+        else:
+            # 恢复原主题
+            self._themeChangingFromSystem = True
+            cfg.themeMode.value = old_mode
+            cfg.theme = old_theme
+            setTheme(old_theme)
+            updateStyleSheet()
+            cfg.themeChanged.emit(old_theme)
+            self.setStyleSheet(load_qss('app.qss'))
+            if old_mode == Theme.AUTO:
+                self._themeCheckTimer.start()
+            else:
+                self._themeCheckTimer.stop()
+            self._previousThemeMode = old_mode
+            self._previousTheme = old_theme
+            self._themeChangingFromSystem = False
 
     def _onDebugModeChanged(self, value):
         self.debugNavItem.setVisible(value)

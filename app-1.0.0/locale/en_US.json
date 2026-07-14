@@ -201,6 +201,8 @@
     "reset_default_confirm": "Are you sure you want to restore all settings to default values?",
     "restart_required": "Configuration requires application restart to take effect",
     "restart_required_desc": "The language setting has been changed. Do you want to restart the application now?",
+    "theme_restart_desc": "Theme has been changed. Restart the application to fully apply changes?",
+    "theme_restart_cancel": "Revert Theme",
     "debug_mode": "Debug Mode",
     "debug_mode_desc": "Enable debug mode for testing and debugging",
     "clear_log_confirm": "Are you sure you want to clear all log files?",
