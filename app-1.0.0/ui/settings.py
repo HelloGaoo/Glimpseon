@@ -459,7 +459,9 @@ class AppearancePage(SettingsSubPage):
         cfg.appRestartSig.connect(self.__showRestartTooltip)
 
     def __onThemeChanged(self, theme: Theme):
-        pass
+        qss = load_qss('setting.qss')
+        if qss:
+            self.setStyleSheet(qss)
 
     def __showRestartTooltip(self):
         InfoBar.warning(

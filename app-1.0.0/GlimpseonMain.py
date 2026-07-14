@@ -51,7 +51,7 @@ from qfluentwidgets.common.style_sheet import updateStyleSheet
 from pycaw.pycaw import AudioUtilities
 
 from core.config import cfg, save_cfg, Language
-from core.constants import APP_NAME, APP_ICON, APP_DIR, BASE_DIR, DATA_CONFIG, WALLPAPER_DIR, get_resPath, load_qss, ensure_data_dirs, VERSION
+from core.constants import APP_NAME, APP_ICON, APP_DIR, BASE_DIR, DATA_CONFIG, WALLPAPER_DIR, get_resPath, load_qss, clear_qss_cache, ensure_data_dirs, VERSION
 from core.downloader import cleanup_temp_directory
 from core.logger import logger, init_exhook
 from core.updater import (
@@ -980,10 +980,6 @@ class MainWindow(FluentWindow):
             logger.warning("窗口图标文件不存在")
 
         self.isEditMode = False
-        self._themeChangingFromSystem = False
-        self._themeDialogActive = False
-        self._previousThemeMode = cfg.themeMode.value
-        self._previousTheme = cfg.theme
 
         _t_i18n = time.time()
         self._initTranslation()
@@ -1137,52 +1133,24 @@ class MainWindow(FluentWindow):
             self._checkSystemTheme()
 
     def _onThemeModeChanged(self, mode: Theme):
+        # 清 QSS 缓存
+        clear_qss_cache()
+
         if mode == Theme.AUTO:
             self._themeCheckTimer.start()
             self._checkSystemTheme()
         else:
             self._themeCheckTimer.stop()
-
-        # 系统自动切换或对话框活跃时不弹窗
-        if self._themeChangingFromSystem or self._themeDialogActive:
-            self._previousThemeMode = cfg.themeMode.value
-            self._previousTheme = cfg.theme
-            return
-
-        self._themeDialogActive = True
-        old_mode = self._previousThemeMode
-        old_theme = self._previousTheme
-
-        w = MessageBox(
-            tr("settings.restart_required"),
-            tr("settings.theme_restart_desc"),
-            self
-        )
-        w.yesButton.setText(tr("common.restart_now"))
-        w.cancelButton.setText(tr("settings.theme_restart_cancel"))
-
-        if w.exec():
-            import subprocess
-            QApplication.quit()
-            subprocess.Popen([sys.executable] + sys.argv)
-        else:
-            # 恢复原主题：阻断信号防止再次触发弹窗
-            cfg.themeMode.blockSignals(True)
-            cfg.themeMode.value = old_mode
-            cfg.theme = old_theme
-            setTheme(old_theme)
-            updateStyleSheet()
-            cfg.themeChanged.emit(old_theme)
-            self.setStyleSheet(load_qss('app.qss'))
-            if old_mode == Theme.AUTO:
-                self._themeCheckTimer.start()
+            if mode == Theme.DARK:
+                cfg.theme = Theme.DARK
             else:
-                self._themeCheckTimer.stop()
-            self._previousThemeMode = old_mode
-            self._previousTheme = old_theme
-            cfg.themeMode.blockSignals(False)
+                cfg.theme = Theme.LIGHT
+            # setTheme() 会 updateStyleSheet() 更新pfw组件
+            # 值不同会发 themeChanged 回调中 load_qss 会读真主题
+            setTheme(cfg.theme)
 
-        self._themeDialogActive = False
+        # 如果 setTheme() 因值相同没发 themeChanged 手动补发
+        cfg.themeChanged.emit(cfg.theme)
 
     def _checkSystemTheme(self):
         """检查系统主题变更"""
@@ -1193,13 +1161,10 @@ class MainWindow(FluentWindow):
             current_theme = Theme.LIGHT if current == 'Light' else Theme.DARK
             if cfg.theme != current_theme:
                 logger.info(f"系统主题已变更: {cfg.theme} → {current_theme}")
-                self._themeChangingFromSystem = True
+                clear_qss_cache()
                 cfg.theme = current_theme
                 setTheme(current_theme)
-                updateStyleSheet()
-                cfg.themeChanged.emit(current_theme)
-                self.setStyleSheet(load_qss('app.qss'))
-                self._themeChangingFromSystem = False
+                cfg.themeChanged.emit(cfg.theme)
         except Exception as e:
             logger.warning(f"检查系统主题时出错: {e}")
 

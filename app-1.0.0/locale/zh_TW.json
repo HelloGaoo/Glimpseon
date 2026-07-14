@@ -189,8 +189,6 @@
     "reset_default_confirm": "確定要將所有設定恢復到預設值嗎？",
     "restart_required": "設定需要重新啟動應用程式才能生效",
     "restart_required_desc": "語言設定已更改，是否立即重新啟動應用程式？",
-    "theme_restart_desc": "主題已更改，是否立即重新啟動應用程式以完全生效？",
-    "theme_restart_cancel": "恢復原主題",
     "export_button": "匯出",
     "import_button": "匯入",
     "debug_mode": "偵錯模式",

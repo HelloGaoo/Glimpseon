@@ -69,6 +69,11 @@ get_resPath = get_resource_path
 _qss_cache = {}
 
 
+def clear_qss_cache():
+    """清空 QSS 缓存"""
+    _qss_cache.clear()
+
+
 def load_qss(qss_filename: str) -> str:
     """加载 QSS 样式文件"""
     theme = 'dark' if isDarkTheme() else 'light'
