@@ -33,12 +33,9 @@ import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from win32com.client import Dispatch
 
-from core.paths import PACKAGE_ROOT, APP_DIR, DATA_LOG, DATA_CACHE, DATA_TEMP, get_resource_path
+from core.constants import PACKAGE_ROOT, APP_DIR, DATA_LOG, DATA_CACHE, DATA_TEMP, get_resPath
 from core.logger import logger
 from core.utils import tr
-
-# 兼容旧名称
-get_resPath = get_resource_path
 
 # urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import warnings

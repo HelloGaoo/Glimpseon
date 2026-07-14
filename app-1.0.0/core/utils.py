@@ -38,8 +38,7 @@ from PyQt6.QtGui import QFont, QFontDatabase
 from PyQt6.QtWidgets import QApplication, QWidget
 from qfluentwidgets import setFontFamilies
 
-from core.paths import PACKAGE_ROOT, APP_DIR, MEIPASS_DIR, DATA_CACHE, get_resource_path as get_resPath
-from core.constants import APP_NAME
+from core.constants import PACKAGE_ROOT, APP_DIR, MEIPASS_DIR, DATA_CACHE, get_resPath, APP_NAME
 from core.config import cfg, save_cfg
 from core.logger import logger
 

@@ -22,11 +22,7 @@ import logging
 import os
 import sys
 
-from core.paths import APP_DIR, get_resource_path
-from core.constants import APP_ICON
-
-# 兼容旧名称
-get_resPath = get_resource_path
+from core.constants import APP_DIR, APP_ICON, get_resPath
 
 logger = logging.getLogger("Glimpseon.data.software_list")
 

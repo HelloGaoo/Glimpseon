@@ -63,7 +63,7 @@ from qfluentwidgets import (
 )
 
 from core.config import cfg
-from core.constants import BASE_DIR, WALLPAPER_DIR, get_resPath, load_qss
+from core.constants import BASE_DIR, WALLPAPER_DIR, get_resPath, load_qss, RESOURCE_DEFAULT_WALLPAPER
 from core.utils import get_cached_content, save_cache, get_cache_info, tr, TranslatableWidget, INTERVAL_MAP, FUI
 
 logger = logging.getLogger("Glimpseon.ui.wallpaper")
@@ -1059,7 +1059,7 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
     def _loadDefaultWallpaper(self):
         logger.info("加载默认壁纸")
         if self._loadWallpaperFromCache():return
-        default_wallpaper_path = get_resPath(os.path.join('resource', 'wallpaper', 'default.jpg'))
+        default_wallpaper_path = get_resPath(RESOURCE_DEFAULT_WALLPAPER)
         
         if not os.path.exists(default_wallpaper_path):
             wallpaper_dir = WALLPAPER_DIR  # os.path.join(BASE_DIR, 'wallpaper')

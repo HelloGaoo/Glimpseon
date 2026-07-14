@@ -83,7 +83,7 @@ from core.config import cfg, save_cfg
 from core.utils import tr, FUI, get_cached_content, save_cache
 from services.media import MediaInfo, Lyrics, get_media_info, fetch_all_info, close as close_media
 from services.news import NewsService
-from core.constants import BASE_DIR, APP_DIR, DATA_CONFIG, load_qss
+from core.constants import BASE_DIR, APP_DIR, DATA_CONFIG, load_qss, NEWS_ICONS, get_resPath
 from resource.software_list import get_software_icon_path
 from core.component import (
     ComponentDefinition,
@@ -3778,7 +3778,7 @@ def _render_svg_logo(icon_path, height=30):
 class NewsBaiduComponent(DraggableContainer):
     """百度热搜组件"""
 
-    _ICON_PATH = os.path.join(APP_DIR, "resource", "icons", "news", "baidu.svg")
+    _ICON_PATH = get_resPath(NEWS_ICONS["baidu"])
 
     def __init__(self, parent, component_data: dict):
         super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
@@ -3871,7 +3871,7 @@ class NewsBaiduComponent(DraggableContainer):
 class NewsWeiboComponent(DraggableContainer):
     """微博热搜组件"""
 
-    _ICON_PATH = os.path.join(APP_DIR, "resource", "icons", "news", "weibo.svg")
+    _ICON_PATH = get_resPath(NEWS_ICONS["weibo"])
 
     def __init__(self, parent, component_data: dict):
         super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
@@ -3964,7 +3964,7 @@ class NewsWeiboComponent(DraggableContainer):
 class NewsJinritoutiaoComponent(DraggableContainer):
     """今日头条组件"""
 
-    _ICON_PATH = os.path.join(APP_DIR, "resource", "icons", "news", "jinritoutiao.svg")
+    _ICON_PATH = get_resPath(NEWS_ICONS["jinritoutiao"])
 
     def __init__(self, parent, component_data: dict):
         super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
@@ -4057,7 +4057,7 @@ class NewsJinritoutiaoComponent(DraggableContainer):
 class NewsTenxunwangComponent(DraggableContainer):
     """腾讯网组件"""
 
-    _ICON_PATH = os.path.join(APP_DIR, "resource", "icons", "news", "tencent.svg")
+    _ICON_PATH = get_resPath(NEWS_ICONS["tencent"])
 
     def __init__(self, parent, component_data: dict):
         super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
@@ -4150,7 +4150,7 @@ class NewsTenxunwangComponent(DraggableContainer):
 class NewsCCTVComponent(DraggableContainer):
     """央视新闻组件"""
 
-    _ICON_PATH = os.path.join(APP_DIR, "resource", "icons", "news", "cctv.svg")
+    _ICON_PATH = get_resPath(NEWS_ICONS["cctv"])
 
     def __init__(self, parent, component_data: dict):
         super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")

@@ -94,7 +94,7 @@ from qfluentwidgets import (
 )
 
 from core.config import cfg, save_cfg
-from core.constants import APP_NAME, BASE_DIR, PACKAGE_ROOT, DATA_CONFIG, get_resPath, load_qss
+from core.constants import APP_NAME, BASE_DIR, PACKAGE_ROOT, DATA_CONFIG, get_resPath, load_qss, RESOURCE_ICONS
 from core.logger import logger
 from core.utils import get_cached_content, save_cache, tr, TranslatableWidget, INTERVAL_MAP, precise_now, FUI, is_cache_expired
 from resource.software_list import get_software_icon_path
@@ -1715,7 +1715,7 @@ class HomeInterface(QWidget, TranslatableWidget):
             # }
 
             icon_file = WeatherService.ICON_MAP.get(self.current_weather_code, "0.svg")
-            icon_path = get_resPath(os.path.join("resource", "icons", "weather", icon_file))
+            icon_path = get_resPath(os.path.join(RESOURCE_ICONS, "weather", icon_file))
             if os.path.exists(icon_path):
                 icon = QIcon(icon_path)
                 icon_size = cfg.weatherIconSize.value

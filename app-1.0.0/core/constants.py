@@ -33,12 +33,38 @@ from core.paths import (
     ensure_data_dirs, get_resource_path
 )
 
+# ============================================================
+# 应用信息
+# ============================================================
 APP_NAME = "Glimpseon"
-APP_ICON = os.path.join("resource", "icons", "CY.png")
+APP_ICON = "resource/icons/CY.png"
+APP_LICENSE = "LICENSE"
 
-# 兼容旧名称
+EXTERNAL_CLASSWIDGETS = "ClassWidgets"
+EXTERNAL_CLASSISLAND = "ClassIsland"
+
+TIMETABLE_SOURCES = ["Glimpseon", "ClassIsland", "ClassWidgets"]
+TIMETABLE_SOURCE_GLIMPSEON = "Glimpseon"
+TIMETABLE_SOURCE_CLASSISLAND = "classisland"
+TIMETABLE_SOURCE_CLASSWIDGETS = "classwidgets"
+
+RESOURCE_ROOT = "resource"
+RESOURCE_ICONS = "resource/icons"
+RESOURCE_QSS = "resource/qss"
+RESOURCE_WALLPAPER = "resource/wallpaper"
+RESOURCE_CITY_DB = "resource/city.db"
+RESOURCE_CREDITS = "resource/credits.json"
+RESOURCE_DEFAULT_WALLPAPER = "resource/wallpaper/default.jpg"
+
+NEWS_ICONS = {
+    "baidu": "resource/icons/news/baidu.svg",
+    "weibo": "resource/icons/news/weibo.svg",
+    "jinritoutiao": "resource/icons/news/jinritoutiao.svg",
+    "tencent": "resource/icons/news/tencent.svg",
+    "cctv": "resource/icons/news/cctv.svg",
+}
+
 get_resPath = get_resource_path
-
 
 _qss_cache = {}
 
@@ -50,7 +76,7 @@ def load_qss(qss_filename: str) -> str:
     if cache_key in _qss_cache:
         return _qss_cache[cache_key]
 
-    qss_path = get_resource_path(os.path.join('resource', 'qss', theme, qss_filename))
+    qss_path = get_resource_path(os.path.join(RESOURCE_QSS, theme, qss_filename))
     if not os.path.exists(qss_path):
         return ''
     try:

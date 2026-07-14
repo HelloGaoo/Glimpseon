@@ -57,7 +57,7 @@ from qfluentwidgets import (
 from PyQt6.QtCore import pyqtSignal
 
 from core.config import cfg
-from core.constants import BASE_DIR, WALLPAPER_DIR, DATA_CONFIG, DATA_LOG, get_resPath, load_qss
+from core.constants import BASE_DIR, WALLPAPER_DIR, DATA_CONFIG, DATA_LOG, get_resPath, load_qss, RESOURCE_ICONS
 from core.utils import tr, TranslatableWidget, FUI
 from core.logger import logger
 from services.weather import WeatherService, RegionDatabase
@@ -465,7 +465,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         imgLabel = ImageLabel(parent_card)
         imgLabel.setFixedSize(32, 32)
-        icon_path = get_resPath(os.path.join("resource", "icons", "weather", icon_file))
+        icon_path = get_resPath(os.path.join(RESOURCE_ICONS, "weather", icon_file))
         if os.path.exists(icon_path):
             pixmap = QPixmap(icon_path).scaled(28, 28, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.FastTransformation)
             imgLabel.setImage(pixmap)
@@ -512,7 +512,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         #     74: "20.svg", 75: "20.svg", 76: "18.svg", 77: "20.svg", 99: "0.svg",
         # }
         icon_file = WeatherService.ICON_MAP.get(code, "0.svg")
-        icon_path = get_resPath(os.path.join("resource", "icons", "weather", icon_file))
+        icon_path = get_resPath(os.path.join(RESOURCE_ICONS, "weather", icon_file))
         if os.path.exists(icon_path):
             pixmap = QPixmap(icon_path).scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.FastTransformation)
             self.weatherIconPreviewLabel.setImage(pixmap)

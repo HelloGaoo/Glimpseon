@@ -32,10 +32,7 @@ from PyQt6.QtCore import Qt
 from qfluentwidgets import BodyLabel, MessageBoxBase, SearchLineEdit, SubtitleLabel, ListWidget
 
 from core.config import cfg
-from core.paths import BASE_DIR, get_resource_path
-
-# 兼容旧名称
-get_resPath = get_resource_path
+from core.constants import BASE_DIR, get_resPath
 from core.utils import tr
 
 logger = logging.getLogger("Glimpseon.services.weather")

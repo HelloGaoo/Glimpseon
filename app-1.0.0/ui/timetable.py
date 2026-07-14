@@ -35,7 +35,7 @@ from qfluentwidgets import (
 )
 
 from core.config import cfg
-from core.constants import load_qss
+from core.constants import load_qss, TIMETABLE_SOURCES
 from core.linkage import LinkageBridge, ClassWidgetsBridge
 from core.timetable import (
     TimetableProfile,
@@ -205,7 +205,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         source_label = BodyLabel(tr("timetable.profile_source"))
         self._sourceCombo = ComboBox()
         self._sourceCombo.setObjectName("sourceCombo")
-        self._sourceCombo.addItems(["Glimpseon", "ClassIsland", "ClassWidgets"])
+        self._sourceCombo.addItems(TIMETABLE_SOURCES)
         self._sourceCombo.currentIndexChanged.connect(self._onSourceChanged)
         sr_layout.addWidget(source_label)
         sr_layout.addWidget(self._sourceCombo, stretch=1)
