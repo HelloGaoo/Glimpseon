@@ -910,6 +910,19 @@ _ICON_NAME_MAP = {
     # 调试面板
     "GLOBE": "globe",
     "SEARCH": "search",
+
+    # 补充图标
+    "FOLDER_ADD": "folder_add",
+    "BROOM": "broom",
+    "CHEVRON_UP": "chevron_up",
+    "CHEVRON_DOWN": "chevron_down",
+    "PEOPLE": "people",
+    "DOCUMENT": "document",
+    "HEART": "heart",
+    "CALENDAR": "calendar",
+    "GITHUB": "link",
+    "CARE_LEFT_SOLID": "chevron_left",
+    "CARE_RIGHT_SOLID": "chevron_right",
 }
 
 

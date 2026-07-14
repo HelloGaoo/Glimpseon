@@ -981,6 +981,7 @@ class MainWindow(FluentWindow):
 
         self.isEditMode = False
         self._themeChangingFromSystem = False
+        self._themeDialogActive = False
         self._previousThemeMode = cfg.themeMode.value
         self._previousTheme = cfg.theme
 
@@ -1142,14 +1143,46 @@ class MainWindow(FluentWindow):
         else:
             self._themeCheckTimer.stop()
 
-        # 用户手动切换主题时弹出重启对话框
-        if not self._themeChangingFromSystem:
-            old_mode = self._previousThemeMode
-            old_theme = self._previousTheme
-            self._showThemeRestartDialog(mode, old_mode, old_theme)
+        # 系统自动切换或对话框活跃时不弹窗
+        if self._themeChangingFromSystem or self._themeDialogActive:
+            self._previousThemeMode = cfg.themeMode.value
+            self._previousTheme = cfg.theme
+            return
 
-        self._previousThemeMode = cfg.themeMode.value
-        self._previousTheme = cfg.theme
+        self._themeDialogActive = True
+        old_mode = self._previousThemeMode
+        old_theme = self._previousTheme
+
+        w = MessageBox(
+            tr("settings.restart_required"),
+            tr("settings.theme_restart_desc"),
+            self
+        )
+        w.yesButton.setText(tr("common.restart_now"))
+        w.cancelButton.setText(tr("settings.theme_restart_cancel"))
+
+        if w.exec():
+            import subprocess
+            QApplication.quit()
+            subprocess.Popen([sys.executable] + sys.argv)
+        else:
+            # 恢复原主题：阻断信号防止再次触发弹窗
+            cfg.themeMode.blockSignals(True)
+            cfg.themeMode.value = old_mode
+            cfg.theme = old_theme
+            setTheme(old_theme)
+            updateStyleSheet()
+            cfg.themeChanged.emit(old_theme)
+            self.setStyleSheet(load_qss('app.qss'))
+            if old_mode == Theme.AUTO:
+                self._themeCheckTimer.start()
+            else:
+                self._themeCheckTimer.stop()
+            self._previousThemeMode = old_mode
+            self._previousTheme = old_theme
+            cfg.themeMode.blockSignals(False)
+
+        self._themeDialogActive = False
 
     def _checkSystemTheme(self):
         """检查系统主题变更"""
@@ -1169,37 +1202,6 @@ class MainWindow(FluentWindow):
                 self._themeChangingFromSystem = False
         except Exception as e:
             logger.warning(f"检查系统主题时出错: {e}")
-
-    def _showThemeRestartDialog(self, new_mode: Theme, old_mode: Theme, old_theme: Theme):
-        """主题切换后弹出重启对话框"""
-        w = MessageBox(
-            tr("settings.restart_required"),
-            tr("settings.theme_restart_desc"),
-            self
-        )
-        w.yesButton.setText(tr("common.restart_now"))
-        w.cancelButton.setText(tr("settings.theme_restart_cancel"))
-
-        if w.exec():
-            import subprocess
-            QApplication.quit()
-            subprocess.Popen([sys.executable] + sys.argv)
-        else:
-            # 恢复原主题
-            self._themeChangingFromSystem = True
-            cfg.themeMode.value = old_mode
-            cfg.theme = old_theme
-            setTheme(old_theme)
-            updateStyleSheet()
-            cfg.themeChanged.emit(old_theme)
-            self.setStyleSheet(load_qss('app.qss'))
-            if old_mode == Theme.AUTO:
-                self._themeCheckTimer.start()
-            else:
-                self._themeCheckTimer.stop()
-            self._previousThemeMode = old_mode
-            self._previousTheme = old_theme
-            self._themeChangingFromSystem = False
 
     def _onDebugModeChanged(self, value):
         self.debugNavItem.setVisible(value)
