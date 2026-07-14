@@ -140,13 +140,12 @@ class AboutInterface(ScrollArea, TranslatableWidget):
         self._appIconLabel = QLabel(self._headerCard)
         self._appIconLabel.setObjectName("appIconLabel")
         self._appIconLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._appIconLabel.setMinimumSize(64, 64)
+        self._appIconLabel.setScaledContents(True)          # 自动缩放
+        self._appIconLabel.setMaximumSize(256, 256)         # 最大尺寸
         p = get_resPath(APP_ICON)
         if os.path.exists(p):
             self._appIconPixmap = QPixmap(p)
-            self._appIconLabel.setPixmap(self._appIconPixmap.scaled(
-                64, 64, Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation))
+            self._appIconLabel.setPixmap(self._appIconPixmap)
         else:
             self._appIconPixmap = None
 
@@ -612,14 +611,6 @@ class AboutInterface(ScrollArea, TranslatableWidget):
     def resizeEvent(self, event):
         """调整图标大小"""
         super().resizeEvent(event)
-        if hasattr(self, '_appIconPixmap') and self._appIconPixmap and not self._appIconPixmap.isNull():
-            card_height = self._headerCard.height() if hasattr(self, '_headerCard') and self._headerCard else 200
-            icon_size = min(128, max(64, card_height // 3))
-            scaled_pixmap = self._appIconPixmap.scaled(
-                icon_size, icon_size, Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation)
-            if not scaled_pixmap.isNull():
-                self._appIconLabel.setPixmap(scaled_pixmap)
 
 
 class _TechDialog(MessageBoxBase):
