@@ -606,11 +606,7 @@ class HomeInterface(QWidget, TranslatableWidget):
                     }
                     temp_widget = comp_class(self, temp_data)
                     temp_widget.hide()
-                    temp_widget.adjustSize()
-                    QApplication.processEvents()
-                    temp_widget.adjustSize()
-                    w = max(temp_widget.width(), style_info.get("default_size", (200, 80))[0])
-                    h = max(temp_widget.height(), style_info.get("default_size", (200, 80))[1])
+                    w, h = style_info.get("default_size", (200, 80))
                     self._drag_preview_size = (w, h)
                     temp_widget.setParent(None)
                     temp_widget.deleteLater()
@@ -1392,6 +1388,11 @@ class HomeInterface(QWidget, TranslatableWidget):
     border: 1px solid {border_color};
 }}
 #countdownContainer {{
+    background-color: {bg_color};
+    border-radius: {radius}px;
+    border: 1px solid {border_color};
+}}
+#classAlbumContainer {{
     background-color: {bg_color};
     border-radius: {radius}px;
     border: 1px solid {border_color};
