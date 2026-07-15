@@ -7837,14 +7837,17 @@ class ClassAlbumHorizontalComponent(DraggableContainer):
         self.setObjectName("classAlbumContainer")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setAcceptDrops(True)
-        unique_id = component_data.get("placement_id") or component_data.get("id", "unknown")
-        self._photos_dir = os.path.join(DATA_CLASSPHOTOS, f"album_{unique_id}")
-        os.makedirs(self._photos_dir, exist_ok=True)
+        self._is_temp = component_data.get("id", "").startswith("temp_preview")
+        if not self._is_temp:
+            unique_id = component_data.get("placement_id") or component_data.get("id", "unknown")
+            self._photos_dir = os.path.join(DATA_CLASSPHOTOS, f"album_{unique_id}")
+            os.makedirs(self._photos_dir, exist_ok=True)
         self._item_w = 400
         self._item_h = 200
         self._setup_ui()
-        self._load_photos()
-        self._setup_auto_flip()
+        if not self._is_temp:
+            self._load_photos()
+            self._setup_auto_flip()
 
     def _setup_ui(self):
         self.flip_view = HorizontalFlipView(self)
@@ -7853,6 +7856,8 @@ class ClassAlbumHorizontalComponent(DraggableContainer):
         self.flip_view.setSpacing(0)
         self.flip_view.setItemSize(QSize(self._item_w, self._item_h))
         self.flip_view.setMinimumSize(self._item_w, self._item_h)
+        self.flip_view.setStyleSheet("background: transparent; border: none;")
+        self.flip_view.viewport().setStyleSheet("background: transparent;")
         self.flip_view.installEventFilter(self)
 
         layout = self.inner_layout
@@ -7861,7 +7866,11 @@ class ClassAlbumHorizontalComponent(DraggableContainer):
         layout.addWidget(self.flip_view)
 
         self.setMinimumSize(self._item_w, self._item_h)
+        self._size_explicitly_set = True
         self.resize(self._item_w, self._item_h)
+
+    def _set_item_path(self, item, path: str):
+        item.setData(Qt.ItemDataRole.DisplayRole, path)
 
     def eventFilter(self, obj, event):
         if obj == self.flip_view and event.type() == QEvent.Type.Resize:
@@ -7869,6 +7878,8 @@ class ClassAlbumHorizontalComponent(DraggableContainer):
         return super().eventFilter(obj, event)
 
     def _fit_item_size(self):
+        if not hasattr(self, 'flip_view') or not self.flip_view:
+            return
         vp = self.flip_view.viewport()
         if vp and vp.width() > 0 and vp.height() > 0:
             s = QSize(vp.width(), vp.height())
@@ -7879,7 +7890,7 @@ class ClassAlbumHorizontalComponent(DraggableContainer):
                 self._recomposite_all()
 
     def _prepare_image(self, pixmap):
-        """缩放"""
+        """缩放到 itemSize 内并合成到画布居中"""
         w, h = self._item_w, self._item_h
         scaled = pixmap.scaled(w, h, Qt.AspectRatioMode.KeepAspectRatio,
                                Qt.TransformationMode.SmoothTransformation)
@@ -7891,7 +7902,6 @@ class ClassAlbumHorizontalComponent(DraggableContainer):
         return canvas
 
     def _recomposite_all(self):
-        """重合成到当前 itemSize"""
         paths = []
         for i in range(self.flip_view.count()):
             item = self.flip_view.item(i)
@@ -7899,16 +7909,18 @@ class ClassAlbumHorizontalComponent(DraggableContainer):
             if path:
                 paths.append(path)
         if paths:
+            idx = self.flip_view.currentIndex()
             self.flip_view.clear()
             for p in paths:
                 if os.path.exists(p):
                     pm = self._safe_load_pixmap(p)
                     if pm:
-                        self.flip_view.addImage(self._prepare_image(pm))
+                        item = self.flip_view.addImage(self._prepare_image(pm))
+                        if isinstance(item, QListWidgetItem):
+                            self._set_item_path(item, p)
             self.flip_view.viewport().update()
-            # 恢复当前位置
-            if hasattr(self, '_saved_idx'):
-                self.flip_view.scrollToIndex(min(self._saved_idx, self.flip_view.count() - 1))
+            if idx < self.flip_view.count():
+                self.flip_view.scrollToIndex(idx)
 
     def _setup_auto_flip(self):
         self._auto_timer = QTimer(self)
@@ -7950,9 +7962,12 @@ class ClassAlbumHorizontalComponent(DraggableContainer):
             if os.path.splitext(f)[1].lower() in self.SUPPORTED_EXTS
         )
         for fname in files:
-            pm = self._safe_load_pixmap(os.path.join(self._photos_dir, fname))
+            fpath = os.path.join(self._photos_dir, fname)
+            pm = self._safe_load_pixmap(fpath)
             if pm:
-                self.flip_view.addImage(self._prepare_image(pm))
+                item = self.flip_view.addImage(self._prepare_image(pm))
+                if isinstance(item, QListWidgetItem):
+                    self._set_item_path(item, fpath)
 
     def _import_files(self, file_paths: list):
         for src_path in file_paths:
@@ -7970,7 +7985,9 @@ class ClassAlbumHorizontalComponent(DraggableContainer):
             shutil.copy2(src_path, dst_path)
             pm = self._safe_load_pixmap(dst_path)
             if pm:
-                self.flip_view.addImage(self._prepare_image(pm))
+                item = self.flip_view.addImage(self._prepare_image(pm))
+                if isinstance(item, QListWidgetItem):
+                    self._set_item_path(item, dst_path)
         if self.flip_view.count() > 0:
             self._auto_timer.start()
 
@@ -7997,12 +8014,14 @@ class ClassAlbumHorizontalComponent(DraggableContainer):
 
     def showEvent(self, event):
         super().showEvent(event)
-        self._auto_timer.start()
+        if not self._is_temp:
+            self._auto_timer.start()
         QTimer.singleShot(0, self._fit_item_size)
 
     def hideEvent(self, event):
         super().hideEvent(event)
-        self._auto_timer.stop()
+        if not self._is_temp:
+            self._auto_timer.stop()
 
 
 class ClassAlbumVerticalComponent(DraggableContainer):
@@ -8016,14 +8035,17 @@ class ClassAlbumVerticalComponent(DraggableContainer):
         self.setObjectName("classAlbumContainer")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setAcceptDrops(True)
-        unique_id = component_data.get("placement_id") or component_data.get("id", "unknown")
-        self._photos_dir = os.path.join(DATA_CLASSPHOTOS, f"album_{unique_id}")
-        os.makedirs(self._photos_dir, exist_ok=True)
+        self._is_temp = component_data.get("id", "").startswith("temp_preview")
+        if not self._is_temp:
+            unique_id = component_data.get("placement_id") or component_data.get("id", "unknown")
+            self._photos_dir = os.path.join(DATA_CLASSPHOTOS, f"album_{unique_id}")
+            os.makedirs(self._photos_dir, exist_ok=True)
         self._item_w = 200
         self._item_h = 400
         self._setup_ui()
-        self._load_photos()
-        self._setup_auto_flip()
+        if not self._is_temp:
+            self._load_photos()
+            self._setup_auto_flip()
 
     def _setup_ui(self):
         self.flip_view = VerticalFlipView(self)
@@ -8032,6 +8054,8 @@ class ClassAlbumVerticalComponent(DraggableContainer):
         self.flip_view.setSpacing(0)
         self.flip_view.setItemSize(QSize(self._item_w, self._item_h))
         self.flip_view.setMinimumSize(self._item_w, self._item_h)
+        self.flip_view.setStyleSheet("background: transparent; border: none;")
+        self.flip_view.viewport().setStyleSheet("background: transparent;")
         self.flip_view.installEventFilter(self)
 
         layout = self.inner_layout
@@ -8042,12 +8066,17 @@ class ClassAlbumVerticalComponent(DraggableContainer):
         self.setMinimumSize(self._item_w, self._item_h)
         self.resize(self._item_w, self._item_h)
 
+    def _set_item_path(self, item, path: str):
+        item.setData(Qt.ItemDataRole.DisplayRole, path)
+
     def eventFilter(self, obj, event):
         if obj == self.flip_view and event.type() == QEvent.Type.Resize:
             self._fit_item_size()
         return super().eventFilter(obj, event)
 
     def _fit_item_size(self):
+        if not hasattr(self, 'flip_view') or not self.flip_view:
+            return
         vp = self.flip_view.viewport()
         if vp and vp.width() > 0 and vp.height() > 0:
             s = QSize(vp.width(), vp.height())
@@ -8058,7 +8087,7 @@ class ClassAlbumVerticalComponent(DraggableContainer):
                 self._recomposite_all()
 
     def _prepare_image(self, pixmap):
-        """缩放"""
+        """缩放到 itemSize 内并合成到画布居中"""
         w, h = self._item_w, self._item_h
         scaled = pixmap.scaled(w, h, Qt.AspectRatioMode.KeepAspectRatio,
                                Qt.TransformationMode.SmoothTransformation)
@@ -8070,7 +8099,6 @@ class ClassAlbumVerticalComponent(DraggableContainer):
         return canvas
 
     def _recomposite_all(self):
-        """重合成照片到当前 itemSize"""
         paths = []
         for i in range(self.flip_view.count()):
             item = self.flip_view.item(i)
@@ -8078,15 +8106,18 @@ class ClassAlbumVerticalComponent(DraggableContainer):
             if path:
                 paths.append(path)
         if paths:
+            idx = self.flip_view.currentIndex()
             self.flip_view.clear()
             for p in paths:
                 if os.path.exists(p):
                     pm = self._safe_load_pixmap(p)
                     if pm:
-                        self.flip_view.addImage(self._prepare_image(pm))
+                        item = self.flip_view.addImage(self._prepare_image(pm))
+                        if isinstance(item, QListWidgetItem):
+                            self._set_item_path(item, p)
             self.flip_view.viewport().update()
-            if hasattr(self, '_saved_idx'):
-                self.flip_view.scrollToIndex(min(self._saved_idx, self.flip_view.count() - 1))
+            if idx < self.flip_view.count():
+                self.flip_view.scrollToIndex(idx)
 
     def _setup_auto_flip(self):
         self._auto_timer = QTimer(self)
@@ -8128,9 +8159,12 @@ class ClassAlbumVerticalComponent(DraggableContainer):
             if os.path.splitext(f)[1].lower() in self.SUPPORTED_EXTS
         )
         for fname in files:
-            pm = self._safe_load_pixmap(os.path.join(self._photos_dir, fname))
+            fpath = os.path.join(self._photos_dir, fname)
+            pm = self._safe_load_pixmap(fpath)
             if pm:
-                self.flip_view.addImage(self._prepare_image(pm))
+                item = self.flip_view.addImage(self._prepare_image(pm))
+                if isinstance(item, QListWidgetItem):
+                    self._set_item_path(item, fpath)
 
     def _import_files(self, file_paths: list):
         for src_path in file_paths:
@@ -8148,7 +8182,9 @@ class ClassAlbumVerticalComponent(DraggableContainer):
             shutil.copy2(src_path, dst_path)
             pm = self._safe_load_pixmap(dst_path)
             if pm:
-                self.flip_view.addImage(self._prepare_image(pm))
+                item = self.flip_view.addImage(self._prepare_image(pm))
+                if isinstance(item, QListWidgetItem):
+                    self._set_item_path(item, dst_path)
         if self.flip_view.count() > 0:
             self._auto_timer.start()
 
@@ -8175,12 +8211,14 @@ class ClassAlbumVerticalComponent(DraggableContainer):
 
     def showEvent(self, event):
         super().showEvent(event)
-        self._auto_timer.start()
+        if not self._is_temp:
+            self._auto_timer.start()
         QTimer.singleShot(0, self._fit_item_size)
 
     def hideEvent(self, event):
         super().hideEvent(event)
-        self._auto_timer.stop()
+        if not self._is_temp:
+            self._auto_timer.stop()
 
 
 # 更新注册表
