@@ -76,7 +76,7 @@ from PyQt6.QtGui import (
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QFileIconProvider, QGridLayout, QLabel, QSizePolicy, QWidget, QVBoxLayout, QHBoxLayout, QApplication, QProgressBar, QGraphicsOpacityEffect,
-    QScrollArea, QStackedWidget, QPushButton, QListWidget, QListWidgetItem, QLineEdit, QSlider, QFileDialog
+    QScrollArea, QStackedWidget, QPushButton, QListWidget, QListWidgetItem, QLineEdit, QSlider, QFileDialog, QTextEdit
 )
 from qfluentwidgets import InfoBar, isDarkTheme, RoundMenu, Action, FluentWindow, setTheme, ScrollArea, PushButton, ToolButton, TransparentToolButton, StrongBodyLabel, CardWidget, BodyLabel, SubtitleLabel, ComboBox, SpinBox, SwitchButton, HorizontalFlipView, VerticalFlipView
 from win32com.shell import shell, shellcon
@@ -85,7 +85,7 @@ from core.config import cfg, save_cfg
 from core.utils import tr, FUI, get_cached_content, save_cache
 from services.media import MediaInfo, Lyrics, get_media_info, fetch_all_info, close as close_media
 from services.news import NewsService
-from core.constants import BASE_DIR, APP_DIR, DATA_CONFIG, DATA_CLASSPHOTOS, load_qss, NEWS_ICONS, get_resPath
+from core.constants import BASE_DIR, APP_DIR, DATA_CONFIG, DATA_CLASSPHOTOS, DATA_NOTES, load_qss, NEWS_ICONS, get_resPath
 from resource.software_list import get_software_icon_path
 from core.component import (
     ComponentDefinition,
@@ -259,6 +259,14 @@ COMPONENT_STYLES = {
             "class": None,
             "default_config": {},
             "default_size": (200, 400),
+        },
+    },
+    "sticky_note": {
+        "default": {
+            "name": "便签",
+            "class": None,
+            "default_config": {"color": "yellow"},
+            "default_size": (280, 280),
         },
     },
 }
@@ -8232,6 +8240,120 @@ class ClassAlbumVerticalComponent(DraggableContainer):
             self._auto_timer.stop()
 
 
+class StickyNoteComponent(DraggableContainer):
+    """便签组件"""
+
+    STICKY_COLORS = {
+        "yellow":  {"bg": "#FFF9C4", "header": "#FFF176", "text": "#5D4037"},
+        "green":   {"bg": "#C8E6C9", "header": "#A5D6A7", "text": "#2E7D32"},
+        "blue":    {"bg": "#BBDEFB", "header": "#90CAF9", "text": "#1565C0"},
+        "pink":    {"bg": "#F8BBD0", "header": "#F48FB1", "text": "#880E4F"},
+        "orange":  {"bg": "#FFE0B2", "header": "#FFCC80", "text": "#E65100"},
+        "purple":  {"bg": "#E1BEE7", "header": "#CE93D8", "text": "#4A148C"},
+    }
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName("stickyNoteContainer")
+        self._home = parent
+        self._notes_dir = DATA_NOTES
+        self._notes_file = os.path.join(self._notes_dir, f"{component_data['id']}.json")
+        self._color_key = component_data.get("config", {}).get("color", "yellow")
+        self._save_timer = QTimer(self)
+        self._save_timer.setSingleShot(True)
+        self._save_timer.setInterval(500)
+        self._save_timer.timeout.connect(self._save_note)
+        self._setup_ui()
+        self._load_note()
+
+    def _setup_ui(self):
+        colors = self.STICKY_COLORS.get(self._color_key, self.STICKY_COLORS["yellow"])
+
+        self.setStyleSheet(f"""
+            #stickyNoteContainer {{
+                background-color: {colors['bg']};
+                border-radius: 8px;
+                border: 1px solid {colors['header']};
+            }}
+        """)
+
+        # 标题栏
+        self._header = QWidget()
+        self._header.setFixedHeight(36)
+        header_layout = QHBoxLayout(self._header)
+        header_layout.setContentsMargins(12, 0, 12, 0)
+
+        self._color_dot = QLabel()
+        self._color_dot.setFixedSize(10, 10)
+        dot_pm = QPixmap(10, 10)
+        dot_pm.fill(QColor(colors['header']))
+        self._color_dot.setPixmap(dot_pm)
+        self._color_dot.setStyleSheet("border-radius: 5px;")
+
+        self._date_label = QLabel(QDate.currentDate().toString("yyyy-MM-dd"))
+        self._date_label.setStyleSheet(f"color: {colors['text']}; font-size: 11px; font-family: 'HarmonyOS Sans'; background: transparent;")
+
+        header_layout.addWidget(self._color_dot)
+        header_layout.addSpacing(6)
+        header_layout.addWidget(self._date_label)
+        header_layout.addStretch()
+
+        # 编辑区
+        self._editor = QTextEdit()
+        self._editor.setPlaceholderText(tr("sticky_note.placeholder"))
+        self._editor.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: transparent;
+                border: none;
+                color: {colors['text']};
+                font-size: 13px;
+                font-family: 'HarmonyOS Sans';
+                padding: 4px 12px 12px 12px;
+                selection-background-color: {colors['header']};
+            }}
+            QTextEdit:focus {{
+                outline: none;
+            }}
+        """)
+        self._editor.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._editor.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._editor.textChanged.connect(self._on_text_changed)
+        self._editor.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
+        self._editor.setTabChangesFocus(False)
+
+        layout = self.inner_layout
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self._header)
+        layout.addWidget(self._editor, 1)
+
+        self.setMinimumSize(180, 160)
+        self._size_explicitly_set = True
+        self.resize(280, 280)
+
+    def _on_text_changed(self):
+        self._save_timer.start()
+
+    def _save_note(self):
+        text = self._editor.toPlainText()
+        try:
+            if not os.path.exists(self._notes_dir):
+                os.makedirs(self._notes_dir, exist_ok=True)
+            with open(self._notes_file, 'w', encoding='utf-8') as f:
+                json.dump({"text": text, "color": self._color_key}, f, ensure_ascii=False)
+        except Exception as e:
+            logger.warning(f"保存便签失败: {e}")
+
+    def _load_note(self):
+        try:
+            if os.path.exists(self._notes_file):
+                with open(self._notes_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    self._editor.setPlainText(data.get("text", ""))
+        except Exception as e:
+            logger.warning(f"加载便签失败: {e}")
+
+
 # 更新注册表
 COMPONENT_STYLES["clock"]["digital"]["class"] = DigitalClockComponent
 COMPONENT_STYLES["weather"]["icon_temp"]["class"] = WeatherIconTempComponent
@@ -8254,6 +8376,7 @@ COMPONENT_STYLES["Math"]["calculator"]["class"] = CalculatorComponent
 COMPONENT_STYLES["writing"]["pad"]["class"] = WritingPadComponent
 COMPONENT_STYLES["class_album"]["horizontal"]["class"] = ClassAlbumHorizontalComponent
 COMPONENT_STYLES["class_album"]["vertical"]["class"] = ClassAlbumVerticalComponent
+COMPONENT_STYLES["sticky_note"]["default"]["class"] = StickyNoteComponent
 
 
 

@@ -102,6 +102,7 @@ DATA_USER = os.path.join(DATA_ROOT, "user")
 DATA_ICON = os.path.join(DATA_ROOT, "icon")
 DATA_WALLPAPER = os.path.join(DATA_ROOT, "wallpaper")
 DATA_CLASSPHOTOS = os.path.join(DATA_ROOT, "classphotos")
+DATA_NOTES = os.path.join(DATA_ROOT, "notes")
 
 # 兼容别名
 BASE_DIR = PACKAGE_ROOT
@@ -124,7 +125,7 @@ def ensure_data_dirs():
     dirs = [
         DATA_ROOT, DATA_CONFIG, DATA_LOG, DATA_CACHE,
         DATA_TEMP, DATA_PROFILE, DATA_USER, DATA_ICON, DATA_WALLPAPER,
-        DATA_CLASSPHOTOS
+        DATA_CLASSPHOTOS, DATA_NOTES
     ]
     for d in dirs:
         if not os.path.exists(d):

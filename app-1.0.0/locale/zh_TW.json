@@ -524,6 +524,9 @@
     "select_title": "選擇桌布",
     "image_filter": "圖片檔案 (*.jpg *.jpeg *.png *.bmp *.gif)"
   },
+  "sticky_note": {
+    "placeholder": "寫點東西..."
+  },
   "about": {
     "description": "驚鴻一面 面面俱到",
     "current_version": "目前版本",

@@ -624,4 +624,16 @@ BUILTIN_COMPONENT_DEFINITIONS = [
         resize_mode=ResizeMode.FREE,
         default_config={},
     ),
+    ComponentDefinition(
+        id="sticky_note",
+        display_name="便签",
+        category="Tools",
+        icon="Edit",
+        min_width_cells=1,
+        min_height_cells=1,
+        default_width_cells=2,
+        default_height_cells=2,
+        resize_mode=ResizeMode.FREE,
+        default_config={"color": "yellow"},
+    ),
 ]

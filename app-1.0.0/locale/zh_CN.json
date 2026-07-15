@@ -442,6 +442,9 @@
     "category_media": "媒体",
     "category_launcher": "启动器"
   },
+  "sticky_note": {
+    "placeholder": "写点东西..."
+  },
   "update": {
     "build_date": "构建日期",
     "status_ready": "已就绪",

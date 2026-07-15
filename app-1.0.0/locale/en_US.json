@@ -442,6 +442,9 @@
     "category_media": "Media",
     "category_launcher": "Launcher"
   },
+  "sticky_note": {
+    "placeholder": "Write something..."
+  },
   "update": {
     "build_date": "Build Date",
     "status_ready": "Ready",
