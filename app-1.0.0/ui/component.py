@@ -8038,6 +8038,12 @@ class ComponentLibraryWindow(FluentWindow):
             icon = icon_map.get(category, FUI.HOME)
             self.addSubInterface(page, icon, category)
 
+        #  展开导航栏
+        self.navigationInterface.expand()
+        self.navigationInterface.setReturnButtonVisible(False)
+
+        
+
 
 
 class StyleCardWidget(CardWidget):
