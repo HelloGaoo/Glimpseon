@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import sys
 import time
 import datetime
@@ -63,6 +64,7 @@ from PyQt6.QtGui import (
     QFont,
     QFontMetrics,
     QIcon,
+    QImageReader,
     QLinearGradient,
     QMouseEvent,
     QPainter,
@@ -74,16 +76,16 @@ from PyQt6.QtGui import (
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QFileIconProvider, QGridLayout, QLabel, QSizePolicy, QWidget, QVBoxLayout, QHBoxLayout, QApplication, QProgressBar, QGraphicsOpacityEffect,
-    QScrollArea, QStackedWidget, QPushButton, QListWidget, QListWidgetItem, QLineEdit, QSlider
+    QScrollArea, QStackedWidget, QPushButton, QListWidget, QListWidgetItem, QLineEdit, QSlider, QFileDialog
 )
-from qfluentwidgets import InfoBar, isDarkTheme, RoundMenu, Action, FluentWindow, setTheme, ScrollArea, PushButton, ToolButton, TransparentToolButton, StrongBodyLabel, CardWidget, BodyLabel, SubtitleLabel, ComboBox, SpinBox, SwitchButton
+from qfluentwidgets import InfoBar, isDarkTheme, RoundMenu, Action, FluentWindow, setTheme, ScrollArea, PushButton, ToolButton, TransparentToolButton, StrongBodyLabel, CardWidget, BodyLabel, SubtitleLabel, ComboBox, SpinBox, SwitchButton, HorizontalFlipView, VerticalFlipView
 from win32com.shell import shell, shellcon
 
 from core.config import cfg, save_cfg
 from core.utils import tr, FUI, get_cached_content, save_cache
 from services.media import MediaInfo, Lyrics, get_media_info, fetch_all_info, close as close_media
 from services.news import NewsService
-from core.constants import BASE_DIR, APP_DIR, DATA_CONFIG, load_qss, NEWS_ICONS, get_resPath
+from core.constants import BASE_DIR, APP_DIR, DATA_CONFIG, DATA_CLASSPHOTOS, load_qss, NEWS_ICONS, get_resPath
 from resource.software_list import get_software_icon_path
 from core.component import (
     ComponentDefinition,
@@ -243,6 +245,20 @@ COMPONENT_STYLES = {
             "class": None,
             "default_config": {},
             "default_size": (400, 100),
+        },
+    },
+    "class_album": {
+        "horizontal": {
+            "name": "横向相册",
+            "class": None,
+            "default_config": {},
+            "default_size": (400, 200),
+        },
+        "vertical": {
+            "name": "纵向相册",
+            "class": None,
+            "default_config": {},
+            "default_size": (200, 400),
         },
     },
 }
@@ -7810,6 +7826,363 @@ class WritingPadComponent(DraggableContainer):
         self.updateSize()
 
 
+class ClassAlbumHorizontalComponent(DraggableContainer):
+    """横向班级相册"""
+
+    SUPPORTED_EXTS = {'.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp'}
+    MAX_IMAGE_DIMENSION = 4096
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="horizontal")
+        self.setObjectName("classAlbumContainer")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setAcceptDrops(True)
+        unique_id = component_data.get("placement_id") or component_data.get("id", "unknown")
+        self._photos_dir = os.path.join(DATA_CLASSPHOTOS, f"album_{unique_id}")
+        os.makedirs(self._photos_dir, exist_ok=True)
+        self._item_w = 400
+        self._item_h = 200
+        self._setup_ui()
+        self._load_photos()
+        self._setup_auto_flip()
+
+    def _setup_ui(self):
+        self.flip_view = HorizontalFlipView(self)
+        self.flip_view.setObjectName("classAlbumFlipView")
+        self.flip_view.setBorderRadius(8)
+        self.flip_view.setSpacing(0)
+        self.flip_view.setItemSize(QSize(self._item_w, self._item_h))
+        self.flip_view.setMinimumSize(self._item_w, self._item_h)
+        self.flip_view.installEventFilter(self)
+
+        layout = self.inner_layout
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self.flip_view)
+
+        self.setMinimumSize(self._item_w, self._item_h)
+        self.resize(self._item_w, self._item_h)
+
+    def eventFilter(self, obj, event):
+        if obj == self.flip_view and event.type() == QEvent.Type.Resize:
+            self._fit_item_size()
+        return super().eventFilter(obj, event)
+
+    def _fit_item_size(self):
+        vp = self.flip_view.viewport()
+        if vp and vp.width() > 0 and vp.height() > 0:
+            s = QSize(vp.width(), vp.height())
+            if s != self.flip_view.itemSize:
+                self.flip_view.setItemSize(s)
+                self._item_w = s.width()
+                self._item_h = s.height()
+                self._recomposite_all()
+
+    def _prepare_image(self, pixmap):
+        """缩放"""
+        w, h = self._item_w, self._item_h
+        scaled = pixmap.scaled(w, h, Qt.AspectRatioMode.KeepAspectRatio,
+                               Qt.TransformationMode.SmoothTransformation)
+        canvas = QPixmap(w, h)
+        canvas.fill(Qt.GlobalColor.transparent)
+        p = QPainter(canvas)
+        p.drawPixmap((w - scaled.width()) // 2, (h - scaled.height()) // 2, scaled)
+        p.end()
+        return canvas
+
+    def _recomposite_all(self):
+        """重合成到当前 itemSize"""
+        paths = []
+        for i in range(self.flip_view.count()):
+            item = self.flip_view.item(i)
+            path = item.data(Qt.ItemDataRole.DisplayRole) or ""
+            if path:
+                paths.append(path)
+        if paths:
+            self.flip_view.clear()
+            for p in paths:
+                if os.path.exists(p):
+                    pm = self._safe_load_pixmap(p)
+                    if pm:
+                        self.flip_view.addImage(self._prepare_image(pm))
+            self.flip_view.viewport().update()
+            # 恢复当前位置
+            if hasattr(self, '_saved_idx'):
+                self.flip_view.scrollToIndex(min(self._saved_idx, self.flip_view.count() - 1))
+
+    def _setup_auto_flip(self):
+        self._auto_timer = QTimer(self)
+        self._auto_timer.setInterval(5000)
+        self._auto_timer.timeout.connect(self._auto_flip_next)
+        self._auto_timer.start()
+
+    def _auto_flip_next(self):
+        count = self.flip_view.count()
+        if count <= 1:
+            return
+        idx = self.flip_view.currentIndex()
+        if idx >= count - 1:
+            self.flip_view.scrollToIndex(0)
+        else:
+            self.flip_view.scrollNext()
+
+    def _safe_load_pixmap(self, path: str):
+        reader = QImageReader(path)
+        size = reader.size()
+        if not size.isValid() or size.width() <= 0 or size.height() <= 0:
+            return None
+        if size.width() > self.MAX_IMAGE_DIMENSION or size.height() > self.MAX_IMAGE_DIMENSION:
+            reader.setScaledSize(size.scaled(
+                self.MAX_IMAGE_DIMENSION, self.MAX_IMAGE_DIMENSION,
+                Qt.AspectRatioMode.KeepAspectRatio
+            ))
+        image = reader.read()
+        if image.isNull():
+            return None
+        return QPixmap.fromImage(image)
+
+    def _load_photos(self):
+        self.flip_view.clear()
+        if not os.path.isdir(self._photos_dir):
+            return
+        files = sorted(
+            f for f in os.listdir(self._photos_dir)
+            if os.path.splitext(f)[1].lower() in self.SUPPORTED_EXTS
+        )
+        for fname in files:
+            pm = self._safe_load_pixmap(os.path.join(self._photos_dir, fname))
+            if pm:
+                self.flip_view.addImage(self._prepare_image(pm))
+
+    def _import_files(self, file_paths: list):
+        for src_path in file_paths:
+            ext = os.path.splitext(src_path)[1].lower()
+            if ext not in self.SUPPORTED_EXTS:
+                continue
+            fname = os.path.basename(src_path)
+            dst_path = os.path.join(self._photos_dir, fname)
+            if os.path.exists(dst_path):
+                name, e = os.path.splitext(fname)
+                c = 1
+                while os.path.exists(os.path.join(self._photos_dir, f"{name}_{c}{e}")):
+                    c += 1
+                dst_path = os.path.join(self._photos_dir, f"{name}_{c}{e}")
+            shutil.copy2(src_path, dst_path)
+            pm = self._safe_load_pixmap(dst_path)
+            if pm:
+                self.flip_view.addImage(self._prepare_image(pm))
+        if self.flip_view.count() > 0:
+            self._auto_timer.start()
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            for url in event.mimeData().urls():
+                if url.isLocalFile() and os.path.splitext(url.toLocalFile())[1].lower() in self.SUPPORTED_EXTS:
+                    event.acceptProposedAction()
+                    return
+        event.ignore()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        paths = [url.toLocalFile() for url in event.mimeData().urls()
+                 if url.isLocalFile() and os.path.splitext(url.toLocalFile())[1].lower() in self.SUPPORTED_EXTS]
+        if paths:
+            self._import_files(paths)
+            event.acceptProposedAction()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._auto_timer.start()
+        QTimer.singleShot(0, self._fit_item_size)
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self._auto_timer.stop()
+
+
+class ClassAlbumVerticalComponent(DraggableContainer):
+    """纵向班级相册"""
+
+    SUPPORTED_EXTS = {'.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp'}
+    MAX_IMAGE_DIMENSION = 4096
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName("classAlbumContainer")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setAcceptDrops(True)
+        unique_id = component_data.get("placement_id") or component_data.get("id", "unknown")
+        self._photos_dir = os.path.join(DATA_CLASSPHOTOS, f"album_{unique_id}")
+        os.makedirs(self._photos_dir, exist_ok=True)
+        self._item_w = 200
+        self._item_h = 400
+        self._setup_ui()
+        self._load_photos()
+        self._setup_auto_flip()
+
+    def _setup_ui(self):
+        self.flip_view = VerticalFlipView(self)
+        self.flip_view.setObjectName("classAlbumFlipView")
+        self.flip_view.setBorderRadius(8)
+        self.flip_view.setSpacing(0)
+        self.flip_view.setItemSize(QSize(self._item_w, self._item_h))
+        self.flip_view.setMinimumSize(self._item_w, self._item_h)
+        self.flip_view.installEventFilter(self)
+
+        layout = self.inner_layout
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self.flip_view)
+
+        self.setMinimumSize(self._item_w, self._item_h)
+        self.resize(self._item_w, self._item_h)
+
+    def eventFilter(self, obj, event):
+        if obj == self.flip_view and event.type() == QEvent.Type.Resize:
+            self._fit_item_size()
+        return super().eventFilter(obj, event)
+
+    def _fit_item_size(self):
+        vp = self.flip_view.viewport()
+        if vp and vp.width() > 0 and vp.height() > 0:
+            s = QSize(vp.width(), vp.height())
+            if s != self.flip_view.itemSize:
+                self.flip_view.setItemSize(s)
+                self._item_w = s.width()
+                self._item_h = s.height()
+                self._recomposite_all()
+
+    def _prepare_image(self, pixmap):
+        """缩放"""
+        w, h = self._item_w, self._item_h
+        scaled = pixmap.scaled(w, h, Qt.AspectRatioMode.KeepAspectRatio,
+                               Qt.TransformationMode.SmoothTransformation)
+        canvas = QPixmap(w, h)
+        canvas.fill(Qt.GlobalColor.transparent)
+        p = QPainter(canvas)
+        p.drawPixmap((w - scaled.width()) // 2, (h - scaled.height()) // 2, scaled)
+        p.end()
+        return canvas
+
+    def _recomposite_all(self):
+        """重合成照片到当前 itemSize"""
+        paths = []
+        for i in range(self.flip_view.count()):
+            item = self.flip_view.item(i)
+            path = item.data(Qt.ItemDataRole.DisplayRole) or ""
+            if path:
+                paths.append(path)
+        if paths:
+            self.flip_view.clear()
+            for p in paths:
+                if os.path.exists(p):
+                    pm = self._safe_load_pixmap(p)
+                    if pm:
+                        self.flip_view.addImage(self._prepare_image(pm))
+            self.flip_view.viewport().update()
+            if hasattr(self, '_saved_idx'):
+                self.flip_view.scrollToIndex(min(self._saved_idx, self.flip_view.count() - 1))
+
+    def _setup_auto_flip(self):
+        self._auto_timer = QTimer(self)
+        self._auto_timer.setInterval(5000)
+        self._auto_timer.timeout.connect(self._auto_flip_next)
+        self._auto_timer.start()
+
+    def _auto_flip_next(self):
+        count = self.flip_view.count()
+        if count <= 1:
+            return
+        idx = self.flip_view.currentIndex()
+        if idx >= count - 1:
+            self.flip_view.scrollToIndex(0)
+        else:
+            self.flip_view.scrollNext()
+
+    def _safe_load_pixmap(self, path: str):
+        reader = QImageReader(path)
+        size = reader.size()
+        if not size.isValid() or size.width() <= 0 or size.height() <= 0:
+            return None
+        if size.width() > self.MAX_IMAGE_DIMENSION or size.height() > self.MAX_IMAGE_DIMENSION:
+            reader.setScaledSize(size.scaled(
+                self.MAX_IMAGE_DIMENSION, self.MAX_IMAGE_DIMENSION,
+                Qt.AspectRatioMode.KeepAspectRatio
+            ))
+        image = reader.read()
+        if image.isNull():
+            return None
+        return QPixmap.fromImage(image)
+
+    def _load_photos(self):
+        self.flip_view.clear()
+        if not os.path.isdir(self._photos_dir):
+            return
+        files = sorted(
+            f for f in os.listdir(self._photos_dir)
+            if os.path.splitext(f)[1].lower() in self.SUPPORTED_EXTS
+        )
+        for fname in files:
+            pm = self._safe_load_pixmap(os.path.join(self._photos_dir, fname))
+            if pm:
+                self.flip_view.addImage(self._prepare_image(pm))
+
+    def _import_files(self, file_paths: list):
+        for src_path in file_paths:
+            ext = os.path.splitext(src_path)[1].lower()
+            if ext not in self.SUPPORTED_EXTS:
+                continue
+            fname = os.path.basename(src_path)
+            dst_path = os.path.join(self._photos_dir, fname)
+            if os.path.exists(dst_path):
+                name, e = os.path.splitext(fname)
+                c = 1
+                while os.path.exists(os.path.join(self._photos_dir, f"{name}_{c}{e}")):
+                    c += 1
+                dst_path = os.path.join(self._photos_dir, f"{name}_{c}{e}")
+            shutil.copy2(src_path, dst_path)
+            pm = self._safe_load_pixmap(dst_path)
+            if pm:
+                self.flip_view.addImage(self._prepare_image(pm))
+        if self.flip_view.count() > 0:
+            self._auto_timer.start()
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            for url in event.mimeData().urls():
+                if url.isLocalFile() and os.path.splitext(url.toLocalFile())[1].lower() in self.SUPPORTED_EXTS:
+                    event.acceptProposedAction()
+                    return
+        event.ignore()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        paths = [url.toLocalFile() for url in event.mimeData().urls()
+                 if url.isLocalFile() and os.path.splitext(url.toLocalFile())[1].lower() in self.SUPPORTED_EXTS]
+        if paths:
+            self._import_files(paths)
+            event.acceptProposedAction()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._auto_timer.start()
+        QTimer.singleShot(0, self._fit_item_size)
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self._auto_timer.stop()
+
+
 # 更新注册表
 COMPONENT_STYLES["clock"]["digital"]["class"] = DigitalClockComponent
 COMPONENT_STYLES["weather"]["icon_temp"]["class"] = WeatherIconTempComponent
@@ -7830,6 +8203,8 @@ COMPONENT_STYLES["linkage"]["timetable_preview"]["class"] = TimetablePreviewComp
 COMPONENT_STYLES["linkage"]["timetable_nowlesson"]["class"] = TimetableNowLessonComponent
 COMPONENT_STYLES["Math"]["calculator"]["class"] = CalculatorComponent
 COMPONENT_STYLES["writing"]["pad"]["class"] = WritingPadComponent
+COMPONENT_STYLES["class_album"]["horizontal"]["class"] = ClassAlbumHorizontalComponent
+COMPONENT_STYLES["class_album"]["vertical"]["class"] = ClassAlbumVerticalComponent
 
 
 
@@ -8720,7 +9095,7 @@ class GridCanvas(QWidget):
 
         # 构造函数期望 component_data: dict
         try:
-            component_data = {"id": placement.component_id, **placement.config}
+            component_data = {"id": placement.component_id, "placement_id": placement.placement_id, **placement.config}
             widget = comp_class(self, component_data)
             widget.setGeometry(rect)
             widget.show()
