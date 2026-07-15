@@ -994,8 +994,6 @@ class WallpaperInterface(ScrollArea, TranslatableWidget):
     def _getWallpaper(self):
         logger.info("开始获取壁纸")
         
-        if self._loadWallpaperFromCache():return
-        
         success = False
         
         try:
