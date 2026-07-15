@@ -552,9 +552,10 @@ class HomeInterface(QWidget, TranslatableWidget):
         """打开组件库窗口"""
         from ui.component import ComponentLibraryWindow
         if not hasattr(self, '_component_library_window') or self._component_library_window is None:
-            self._component_library_window = ComponentLibraryWindow(self.component_registry, self.mainWindow)
-            # 监听窗口事件
+            self._component_library_window = ComponentLibraryWindow(self.component_registry)
+            self._component_library_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
             self._component_library_window.installEventFilter(self)
+            self._component_library_window.destroyed.connect(self._on_component_library_destroyed)
 
         # 进入编辑模式
         self._enterEditMode()
@@ -563,8 +564,13 @@ class HomeInterface(QWidget, TranslatableWidget):
         self._component_library_window.raise_()
         self._component_library_window.activateWindow()
 
+    def _on_component_library_destroyed(self):
+        """组件库窗口销毁时清理引用"""
+        self._component_library_window = None
+        self._exitEditMode()
+
     def eventFilter(self, obj, event):
-        """监听组件库窗口关闭"""
+        """监听组件库窗口事件"""
         if obj == self._component_library_window and event.type() == QEvent.Type.Close:
             self._exitEditMode()
         return super().eventFilter(obj, event)
