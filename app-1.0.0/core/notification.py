@@ -17,7 +17,7 @@
 """
 通知模块
 """
-
+import os
 import logging
 from PyQt6.QtCore import (
     QObject, QTimer, QPropertyAnimation,
@@ -28,6 +28,9 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QColor, QFont
 from plyer import notification as plyer_notification
+import threading
+import subprocess
+import uuid
 
 from core.utils import tr
 
@@ -255,15 +258,122 @@ class FullScreenPopup(_BasePopup):
 
 
 class NotificationManager(QObject):
-    """通知排队"""
-
     notification_finished = pyqtSignal()
+    play_audio_signal = pyqtSignal(str) 
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._active_windows = []   # 防止窗口被回收
         self._is_showing = False    # 是否正在显示滚动/全屏
         self._queue = []            # 等待显示的滚动/全屏通知
+
+        # TTS
+        self._tts_voice = "zh-CN-XiaoxiaoNeural"
+        self._tts_rate = "+0%"
+        self._tts_volume = "+0%"
+
+        # 播放器
+        self._player = None           # QMediaPlayer
+        self._audio_output = None     # QAudioOutput
+        self._current_audio_file = "" # 文件路径
+
+
+        self.play_audio_signal.connect(self._play_audio)
+
+    def _speak_text(self, text: str):
+        def run_async():
+
+            try:
+                temp_file = f"tts_{uuid.uuid4().hex[:8]}.mp3"
+                # 将文本写入临时文件
+                text_file = f"tts_text_{uuid.uuid4().hex[:8]}.txt"
+                with open(text_file, "w", encoding="utf-8") as f:
+                    f.write(text)
+
+                # 调用 edge-tts 命令行
+                cmd = [
+                    "edge-tts",
+                    "--voice", self._tts_voice,
+                    "--rate", self._tts_rate,
+                    "--volume", self._tts_volume,
+                    "-f", text_file,
+                    "--write-media", temp_file
+                ]
+                subprocess.run(cmd, check=True, capture_output=True)
+                os.remove(text_file)  # 删除临时文本
+
+                self.play_audio_signal.emit(temp_file)
+            except Exception as e:
+                logger.error(f"TTS 生成失败: {e}")
+
+        threading.Thread(target=run_async, daemon=True).start()
+
+    @pyqtSlot(str)
+    def _play_audio(self, file_path: str):
+        """播放音频"""
+        from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
+        from PyQt6.QtCore import QUrl
+
+        if self._player is not None:
+            self._player.stop()
+            self._player.deleteLater()
+            self._player = None
+        if self._audio_output is not None:
+            self._audio_output.deleteLater()
+            self._audio_output = None
+        if self._current_audio_file and os.path.exists(self._current_audio_file):
+            try:
+                os.remove(self._current_audio_file)
+            except Exception:
+                pass
+
+        self._current_audio_file = file_path
+
+        # 创建新播放器
+        self._player = QMediaPlayer()
+        self._audio_output = QAudioOutput()
+        self._player.setAudioOutput(self._audio_output)
+        self._player.setSource(QUrl.fromLocalFile(file_path))
+
+        # 清理文件
+        def on_media_status_changed(status):
+            if status == QMediaPlayer.MediaStatus.EndOfMedia:
+                QTimer.singleShot(500, self.off_audio)
+            elif status == QMediaPlayer.MediaStatus.InvalidMedia:
+                QTimer.singleShot(500, self.off_audio)
+
+        def on_error(error):
+            logger.error(f"播放失败: {error}")
+            self.off_audio()
+
+        self._player.mediaStatusChanged.connect(on_media_status_changed)
+        self._player.errorOccurred.connect(on_error)
+
+        # 开始播放
+        self._player.play()
+
+    def off_audio(self):
+        """关闭播放"""
+        if self._player is not None:
+            self._player.stop()
+            self._player.deleteLater()
+            self._player = None
+        if self._audio_output is not None:
+            self._audio_output.deleteLater()
+            self._audio_output = None
+
+        if self._current_audio_file and os.path.exists(self._current_audio_file):
+            def delete_with_retry(path, attempt=0):
+                try:
+                    os.remove(path)
+                    logger.debug(f"已删除临时文件: {path}")
+                except PermissionError:
+                    if attempt < 3:
+                        QTimer.singleShot(300 * (attempt + 1), lambda: delete_with_retry(path, attempt + 1))
+                    else:
+                        logger.warning(f"无法删除临时文件: {path}")
+            delete_with_retry(self._current_audio_file)
+            self._current_audio_file = ""
 
     @pyqtSlot(dict)
     def handle_notification(self, data: dict):
@@ -280,6 +390,8 @@ class NotificationManager(QObject):
         if not content:
             logger.warning("通知内容为空")
             return
+
+        self._speak_text(content)
 
         # 右下角通知不排队
         if notif_type == NotifType.CORNER:
