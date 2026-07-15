@@ -482,6 +482,10 @@ class DraggableWidget(QWidget):
     
     def setDraggable(self, enabled: bool):
         self._draggable = enabled
+        if enabled:
+            self._set_children_mouse_transparent(True)
+        else:
+            self._set_children_mouse_transparent(False)
         self._show_border = enabled
         self.update()
         if enabled:
@@ -489,6 +493,13 @@ class DraggableWidget(QWidget):
             self.raise_()
         else:
             self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+
+    def _set_children_mouse_transparent(self, transparent: bool):
+        for child in self.findChildren(QWidget):
+            try:
+                child.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, transparent)
+            except RuntimeError:
+                pass  # 已销毁的子部件
 
     def setSelected(self, selected: bool):
         self._selected = selected
