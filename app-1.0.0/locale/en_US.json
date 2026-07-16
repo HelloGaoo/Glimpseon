@@ -984,6 +984,10 @@
     "config_updated": "Config updated",
     "will_display_next": "This notification will play next",
     "banner_bg_height": "Banner BG Height",
-    "banner_mouse_through": "Mouse Through"
+    "banner_mouse_through": "Mouse Through",
+    "tts_voice_label": "TTS Voice",
+    "tts_no_speak": "No Speech",
+    "tts_rate_label": "TTS Rate (%)",
+    "tts_volume_label": "TTS Volume (%)"
   }
 }

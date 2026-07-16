@@ -984,6 +984,10 @@
     "config_updated": "配置已更新",
     "will_display_next": "将优先显示该通知",
     "banner_bg_height": "横幅背景高度",
-    "banner_mouse_through": "鼠标穿透"
+    "banner_mouse_through": "鼠标穿透",
+    "tts_voice_label": "朗读音色",
+    "tts_no_speak": "不朗读",
+    "tts_rate_label": "朗读语速(%)",
+    "tts_volume_label": "朗读音量(%)"
   }
 }

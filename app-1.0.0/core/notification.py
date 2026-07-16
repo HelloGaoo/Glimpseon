@@ -280,17 +280,22 @@ class NotificationManager(QObject):
 
         self.play_audio_signal.connect(self._play_audio)
 
-    def _speak_text(self, text: str):
-        def run_async():
+    def _format_tts_percent(self, value: int) -> str:
+        delta = value - 100
+        sign = "+" if delta >= 0 else ""
+        return f"{sign}{delta}%"
 
+    def _speak_text(self, text: str):
+        if self._tts_voice == "done":
+            return
+
+        def run_async():
             try:
                 temp_file = f"tts_{uuid.uuid4().hex[:8]}.mp3"
-                # 将文本写入临时文件
                 text_file = f"tts_text_{uuid.uuid4().hex[:8]}.txt"
                 with open(text_file, "w", encoding="utf-8") as f:
                     f.write(text)
 
-                # 调用 edge-tts 命令行
                 cmd = [
                     "edge-tts",
                     "--voice", self._tts_voice,
@@ -300,7 +305,7 @@ class NotificationManager(QObject):
                     "--write-media", temp_file
                 ]
                 subprocess.run(cmd, check=True, capture_output=True)
-                os.remove(text_file)  # 删除临时文本
+                os.remove(text_file)
 
                 self.play_audio_signal.emit(temp_file)
             except Exception as e:
@@ -386,12 +391,16 @@ class NotificationManager(QObject):
         text_color = data.get("text_color", "#ffffff")
         font_size = data.get("font_size", 24)
         font_weight = data.get("font_weight", 1)
+        self._tts_voice = data.get("tts_voice", self._tts_voice)
+        self._tts_rate = self._format_tts_percent(data.get("tts_rate", 100))
+        self._tts_volume = self._format_tts_percent(data.get("tts_volume", 100))
 
         if not content:
             logger.warning("通知内容为空")
             return
 
-        self._speak_text(content)
+        if self._tts_voice != "done":
+            self._speak_text(content)
 
         # 右下角通知不排队
         if notif_type == NotifType.CORNER:

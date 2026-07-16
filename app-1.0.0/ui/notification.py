@@ -270,6 +270,61 @@ class _ConfigEditDialog(Dialog):
         sdrow.addStretch()
         layout.addLayout(sdrow)
 
+        # TTS 语音/音量/语速
+        tts_edit_row = QHBoxLayout()
+        tts_edit_row.setSpacing(20)
+
+        tts_voice_group = QHBoxLayout()
+        tts_voice_group.setSpacing(6)
+        tts_voice_group.addWidget(BodyLabel(tr("notification.tts_voice_label") + ":"))
+        self._tts_voice_combo = ComboBox(w)
+        self._tts_voice_combo.addItem(tr("notification.tts_no_speak"), userData="done")
+        for voice in [
+            "zh-CN-XiaoxiaoNeural",
+            "zh-CN-XiaoyiNeural",
+            "zh-CN-YunxiNeural",
+            "zh-CN-YunjianNeural",
+            "zh-CN-YunyangNeural",
+            "zh-CN-YunxiaNeural",
+        ]:
+            self._tts_voice_combo.addItem(voice, userData=voice)
+        voice_index = 0
+        if data.get("tts_voice"):
+            for idx in range(self._tts_voice_combo.count()):
+                if self._tts_voice_combo.itemData(idx) == data.get("tts_voice"):
+                    voice_index = idx
+                    break
+        self._tts_voice_combo.setCurrentIndex(voice_index)
+        self._tts_voice_combo.setMinimumWidth(160)
+        self._tts_voice_combo.setStyleSheet(_spin_style)
+        tts_voice_group.addWidget(self._tts_voice_combo)
+        tts_edit_row.addLayout(tts_voice_group)
+
+        tts_rate_group = QHBoxLayout()
+        tts_rate_group.setSpacing(6)
+        tts_rate_group.addWidget(BodyLabel(tr("notification.tts_rate_label") + ":"))
+        self._tts_rate_spin = SpinBox(w)
+        self._tts_rate_spin.setRange(50, 200)
+        self._tts_rate_spin.setValue(data.get("tts_rate", 100))
+        self._tts_rate_spin.setFixedWidth(120)
+        self._tts_rate_spin.setStyleSheet(_spin_style)
+        tts_rate_group.addWidget(self._tts_rate_spin)
+        tts_edit_row.addLayout(tts_rate_group)
+
+        tts_volume_group = QHBoxLayout()
+        tts_volume_group.setSpacing(6)
+        tts_volume_group.addWidget(BodyLabel(tr("notification.tts_volume_label") + ":"))
+        self._tts_volume_spin = SpinBox(w)
+        self._tts_volume_spin.setRange(0, 200)
+        self._tts_volume_spin.setValue(data.get("tts_volume", 100))
+        self._tts_volume_spin.setFixedWidth(120)
+        self._tts_volume_spin.setStyleSheet(_spin_style)
+        tts_volume_group.addWidget(self._tts_volume_spin)
+        tts_edit_row.addLayout(tts_volume_group)
+
+        tts_edit_row.addStretch()
+        layout.addLayout(tts_edit_row)
+
         # 横幅背景高度 鼠标穿透
         brrow = QHBoxLayout()
         brrow.setSpacing(20)
@@ -515,6 +570,55 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         type_row.addWidget(self.typeCombo)
         type_row.addStretch()
         config_layout.addLayout(type_row)
+
+        # TTS 语音/音量/语速
+        tts_row = QHBoxLayout()
+        tts_row.setSpacing(8)
+
+        tts_voice_label = BodyLabel(tr("notification.tts_voice_label"), config_card)
+        tts_voice_label.setFixedWidth(95)
+        self.ttsVoiceCombo = ComboBox(config_card)
+        self.ttsVoiceCombo.addItem(tr("notification.tts_no_speak"), userData="done")
+        for voice in [
+            "zh-CN-XiaoxiaoNeural",
+            "zh-CN-XiaoyiNeural",
+            "zh-CN-YunxiNeural",
+            "zh-CN-YunjianNeural",
+            "zh-CN-YunyangNeural",
+            "zh-CN-YunxiaNeural",
+        ]:
+            self.ttsVoiceCombo.addItem(voice, userData=voice)
+        self.ttsVoiceCombo.setCurrentIndex(1)
+        self.ttsVoiceCombo.setMinimumWidth(150)
+        tts_row.addWidget(tts_voice_label)
+        tts_row.addWidget(self.ttsVoiceCombo)
+
+        tts_rate_group = QHBoxLayout()
+        tts_rate_group.setSpacing(6)
+        tts_rate_label = BodyLabel(tr("notification.tts_rate_label"), config_card)
+        tts_rate_label.setFixedWidth(95)
+        self.ttsRateSpin = SpinBox(config_card)
+        self.ttsRateSpin.setRange(50, 200)
+        self.ttsRateSpin.setValue(100)
+        self.ttsRateSpin.setFixedWidth(140)
+        tts_rate_group.addWidget(tts_rate_label)
+        tts_rate_group.addWidget(self.ttsRateSpin)
+        tts_row.addLayout(tts_rate_group)
+
+        tts_volume_group = QHBoxLayout()
+        tts_volume_group.setSpacing(6)
+        tts_volume_label = BodyLabel(tr("notification.tts_volume_label"), config_card)
+        tts_volume_label.setFixedWidth(95)
+        self.ttsVolumeSpin = SpinBox(config_card)
+        self.ttsVolumeSpin.setRange(0, 200)
+        self.ttsVolumeSpin.setValue(100)
+        self.ttsVolumeSpin.setFixedWidth(140)
+        tts_volume_group.addWidget(tts_volume_label)
+        tts_volume_group.addWidget(self.ttsVolumeSpin)
+        tts_row.addLayout(tts_volume_group)
+
+        tts_row.addStretch()
+        config_layout.addLayout(tts_row)
 
         # 背景色 文字色
         color_row = QHBoxLayout()
@@ -884,6 +988,9 @@ class NotificationPage(ScrollArea, TranslatableWidget):
             "text_color": self._fg_color.name(),
             "font_size": self.fontSizeSpin.value(),
             "font_weight": self.fontWeightCombo.currentIndex(),
+            "tts_voice": self.ttsVoiceCombo.currentData(),
+            "tts_rate": self.ttsRateSpin.value(),
+            "tts_volume": self.ttsVolumeSpin.value(),
         }
 
     # 按钮动作
