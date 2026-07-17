@@ -522,6 +522,13 @@ BUILTIN_COMPONENT_DEFINITIONS = [
         default_width_cells=2,
         default_height_cells=2,
         resize_mode=ResizeMode.FIXED,
+        default_config={
+            "show_teacher": True,
+            "show_next": True,
+            "show_duration": True,
+            "show_countdown": True,
+            "prepare_minutes": 3,
+        },
     ),
     ComponentDefinition(
         id="Math_calculator",
@@ -635,5 +642,17 @@ BUILTIN_COMPONENT_DEFINITIONS = [
         default_height_cells=2,
         resize_mode=ResizeMode.FREE,
         default_config={"color": "yellow"},
+    ),
+    ComponentDefinition(
+        id="timer_countdown",
+        display_name="计时与倒计时",
+        category="Tools",
+        icon="StopWatch",
+        min_width_cells=2,
+        min_height_cells=2,
+        default_width_cells=2,
+        default_height_cells=2,
+        resize_mode=ResizeMode.FREE,
+        default_config={},
     ),
 ]

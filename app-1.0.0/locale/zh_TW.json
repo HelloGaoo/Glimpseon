@@ -550,6 +550,7 @@
     "close": "關閉",
     "cancel": "取消",
     "confirm": "確定",
+    "info": "提示",
     "done": "完成",
     "browse": "瀏覽",
     "off": "關",
@@ -933,5 +934,20 @@
     "will_display_next": "將優先顯示該通知",
     "banner_bg_height": "橫幅背景高度",
     "banner_mouse_through": "滑鼠穿透"
+  },
+  "timer_countdown": {
+    "title": "計時與倒計時",
+    "timer": "計時",
+    "countdown": "倒計時",
+    "hours": "時",
+    "minutes": "分",
+    "seconds": "秒",
+    "start": "開始",
+    "pause": "暫停",
+    "resume": "繼續",
+    "cancel": "取消",
+    "finished_title": "倒計時",
+    "finished_body": "倒計時結束！",
+    "set_time_hint": "請設定倒計時時間"
   }
 }

@@ -864,6 +864,10 @@ class HomeInterface(QWidget, TranslatableWidget):
                         self._draggable_widgets.append(comp)
                     if self._edit_mode_active and hasattr(comp, 'setDraggable'):
                         comp.setDraggable(True)
+                        try:
+                            comp.selected.connect(self._selectComponent)
+                        except Exception:
+                            pass
 
                 event.acceptProposedAction()
                 self.update()

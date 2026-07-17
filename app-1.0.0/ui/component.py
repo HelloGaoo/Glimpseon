@@ -78,7 +78,7 @@ from PyQt6.QtWidgets import (
     QFileIconProvider, QGridLayout, QLabel, QSizePolicy, QWidget, QVBoxLayout, QHBoxLayout, QApplication, QProgressBar, QGraphicsOpacityEffect,
     QScrollArea, QStackedWidget, QPushButton, QListWidget, QListWidgetItem, QLineEdit, QSlider, QFileDialog, QTextEdit
 )
-from qfluentwidgets import InfoBar, isDarkTheme, RoundMenu, Action, FluentWindow, setTheme, ScrollArea, PushButton, ToolButton, TransparentToolButton, StrongBodyLabel, CardWidget, BodyLabel, SubtitleLabel, ComboBox, SpinBox, SwitchButton, HorizontalFlipView, VerticalFlipView
+from qfluentwidgets import InfoBar, isDarkTheme, RoundMenu, Action, FluentWindow, setTheme, ScrollArea, PushButton, ToolButton, TransparentToolButton, StrongBodyLabel, CardWidget, BodyLabel, SubtitleLabel, ComboBox, SpinBox, SwitchButton, HorizontalFlipView, VerticalFlipView, PrimaryPushButton, Pivot, MessageBoxBase, ProgressBar
 from win32com.shell import shell, shellcon
 
 from core.config import cfg, save_cfg
@@ -227,7 +227,13 @@ COMPONENT_STYLES = {
         "timetable_nowlesson": {
             "name": "当前课程",
             "class": None,
-            "default_config": {},
+            "default_config": {
+                "show_teacher": True,
+                "show_next": True,
+                "show_duration": True,
+                "show_countdown": True,
+                "prepare_minutes": 3,
+            },
             "default_size": (400, 200),
         },
     },
@@ -267,6 +273,14 @@ COMPONENT_STYLES = {
             "class": None,
             "default_config": {"color": "yellow"},
             "default_size": (280, 280),
+        },
+    },
+    "timer": {
+        "countdown": {
+            "name": "计时与倒计时",
+            "class": None,
+            "default_config": {},
+            "default_size": (360, 320),
         },
     },
 }
@@ -851,24 +865,387 @@ class DraggableWidget(QWidget):
         self._updatePositionFromPercent()
 
 
-def _create_delete_button(parent_widget, component_widget, on_clicked):
-    """创建删除按钮"""
-    btn = ToolButton(FUI.DELETE, parent_widget)
-    btn.setFixedSize(28, 28)
-    btn.setIconSize(QSize(14, 14))
-    btn.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
-    btn.hide()
-    btn.clicked.connect(on_clicked)
+def _create_edit_controls(parent_widget, component_widget, on_delete_clicked, on_config_clicked):
+    """创建编辑控件"""
+    from core.config import cfg
 
-    # 绑定定位方法
+    btn_size = 48
+    icon_size = 22
+    gap = 8
+
+    def _build_btn(icon, on_clicked):
+        btn = ToolButton(icon, parent_widget)
+        btn.setFixedSize(btn_size, btn_size)
+        btn.setIconSize(QSize(icon_size, icon_size))
+        btn.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+        btn.hide()
+        btn.clicked.connect(on_clicked)
+        return btn
+
+    config_btn = _build_btn(FUI.SETTING, on_config_clicked)
+    delete_btn = _build_btn(FUI.DELETE, on_delete_clicked)
+
+    def _apply_btn_style(btn):
+        opacity = cfg.componentCardOpacity.value / 100.0
+        radius = cfg.componentCardRadius.value
+        if isDarkTheme():
+            c = QColor(40, 40, 40)
+            border_c = "rgba(255,255,255,0.08)"
+        else:
+            c = QColor(255, 255, 255)
+            border_c = "rgba(0,0,0,0.06)"
+        c.setAlpha(int(255 * max(0.6, opacity)))
+        btn.setStyleSheet(f"""
+            ToolButton {{
+                background-color: rgba({c.red()}, {c.green()}, {c.blue()}, {c.alpha() / 255:.2f});
+                border-radius: {max(4, radius - 4)}px;
+                border: 1px solid {border_c};
+            }}
+            ToolButton:hover {{
+                background-color: rgba(220, 80, 80, 0.85);
+                border: 1px solid rgba(220, 80, 80, 0.9);
+            }}
+        """)
+
+    _apply_btn_style(config_btn)
+    opacity = cfg.componentCardOpacity.value / 100.0
+    radius = cfg.componentCardRadius.value
+    if isDarkTheme():
+        dc = QColor(40, 40, 40)
+        dborder = "rgba(255,255,255,0.08)"
+    else:
+        dc = QColor(255, 255, 255)
+        dborder = "rgba(0,0,0,0.06)"
+    dc.setAlpha(int(255 * max(0.6, opacity)))
+    delete_btn.setStyleSheet(f"""
+        ToolButton {{
+            background-color: rgba({dc.red()}, {dc.green()}, {dc.blue()}, {dc.alpha() / 255:.2f});
+            border-radius: {max(4, radius - 4)}px;
+            border: 1px solid {dborder};
+        }}
+        ToolButton:hover {{
+            background-color: rgba(220, 80, 80, 0.85);
+            border: 1px solid rgba(220, 80, 80, 0.9);
+        }}
+    """)
+
     def _reposition():
         comp_pos = component_widget.mapTo(parent_widget, QPoint(0, 0))
-        x = comp_pos.x() + component_widget.width() - btn.width() + 4
-        y = comp_pos.y() + component_widget.height() + 4
-        btn.move(x, y)
+        # 右下角
+        del_x = comp_pos.x() + component_widget.width() - delete_btn.width() + 4
+        del_y = comp_pos.y() + component_widget.height() + 4
+        delete_btn.move(del_x, del_y)
+        # 左边
+        config_btn.move(del_x - config_btn.width() - gap, del_y)
 
-    btn.reposition = _reposition
-    return btn
+    config_btn.reposition = _reposition
+    delete_btn.reposition = _reposition
+
+    def _apply_style():
+        _apply_btn_style(config_btn)
+        opacity_v = cfg.componentCardOpacity.value / 100.0
+        radius_v = cfg.componentCardRadius.value
+        if isDarkTheme():
+            dc2 = QColor(40, 40, 40)
+            db2 = "rgba(255,255,255,0.08)"
+        else:
+            dc2 = QColor(255, 255, 255)
+            db2 = "rgba(0,0,0,0.06)"
+        dc2.setAlpha(int(255 * max(0.6, opacity_v)))
+        delete_btn.setStyleSheet(f"""
+            ToolButton {{
+                background-color: rgba({dc2.red()}, {dc2.green()}, {dc2.blue()}, {dc2.alpha() / 255:.2f});
+                border-radius: {max(4, radius_v - 4)}px;
+                border: 1px solid {db2};
+            }}
+            ToolButton:hover {{
+                background-color: rgba(220, 80, 80, 0.85);
+                border: 1px solid rgba(220, 80, 80, 0.9);
+            }}
+        """)
+
+    config_btn.apply_style = _apply_style
+    delete_btn.apply_style = _apply_style
+
+    return config_btn, delete_btn
+
+
+class ComponentConfigDialog(MessageBoxBase):
+    """组件配置面板"""
+
+    def __init__(self, component_widget, component_id, comp_data, home_interface):
+        # 获取主窗口作为父级（不是主界面）
+        main_window = None
+        if home_interface:
+            main_window = home_interface.window()
+        if main_window is None:
+            main_window = component_widget.window() if component_widget else None
+        super().__init__(main_window)
+
+        self._component_widget = component_widget
+        self._component_id = component_id
+        self._comp_data = comp_data or {}
+        self._home = home_interface
+        self._config = dict(self._comp_data.get("config", {}))
+        comp_type = self._comp_data.get("type", "")
+        comp_style = self._comp_data.get("style", "")
+        self._comp_key = f"{comp_type}|{comp_style}"
+
+        self._widgets = {}  # key - widget
+        self._init_ui()
+        self._load_config()
+
+    def _init_ui(self):
+        self.setWindowTitle(tr("component_edit.config_title"))
+        self.setFixedSize(520, 480)
+
+        self._pivot = Pivot(self)
+        self._stack = QStackedWidget(self)
+
+        # 基础设置
+        self._basic_page = ScrollArea()
+        self._basic_page.setWidgetResizable(True)
+        self._basic_page.setStyleSheet("background: transparent; border: none;")
+        basic_content = QWidget()
+        self._build_basic_page(basic_content)
+        self._basic_page.setWidget(basic_content)
+        self._stack.addWidget(self._basic_page)
+        self._pivot.addItem(
+            "basic", tr("component_edit.config_basic"),
+            onClick=lambda: self._switch_page(0),
+        )
+
+        # 进阶设置
+        self._advanced_page = ScrollArea()
+        self._advanced_page.setWidgetResizable(True)
+        self._advanced_page.setStyleSheet("background: transparent; border: none;")
+        advanced_content = QWidget()
+        self._build_advanced_page(advanced_content)
+        self._advanced_page.setWidget(advanced_content)
+        self._stack.addWidget(self._advanced_page)
+        self._pivot.addItem(
+            "advanced", tr("component_edit.config_advanced"),
+            onClick=lambda: self._switch_page(1),
+        )
+
+        layout = self.viewLayout
+        layout.setContentsMargins(24, 8, 24, 8)
+        layout.setSpacing(12)
+        layout.addWidget(self._pivot)
+        layout.addWidget(self._stack)
+
+        self.yesButton.setText(tr("component_edit.config_save"))
+        self.cancelButton.setText(tr("component_edit.config_cancel"))
+
+        # 默认选中基础设置
+        self._pivot.setCurrentItem("basic")
+        self._stack.setCurrentIndex(0)
+
+    def _switch_page(self, idx):
+        self._stack.setCurrentIndex(idx)
+
+    # 基础设置
+
+    def _build_basic_page(self, page):
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 8, 0, 0)
+        layout.setSpacing(14)
+
+        if self._comp_key == "linkage|timetable_nowlesson":
+            # 内容分组
+            self._add_group(layout, tr("component_edit.group_content"), [
+                ("switch", "show_teacher", tr("component_edit.config_show_teacher"), True),
+                ("switch", "show_next", tr("component_edit.config_show_next"), True),
+                ("switch", "show_duration", tr("component_edit.config_show_duration"), True),
+            ])
+            # 倒计时分组
+            self._add_group(layout, tr("component_edit.group_countdown"), [
+                ("switch", "show_countdown", tr("component_edit.config_show_countdown"), True),
+                ("spin", "prepare_minutes", tr("component_edit.config_prepare_minutes"), 1, 10, 3),
+            ])
+        elif self._comp_key == "clock|digital":
+            self._add_group(layout, tr("component_edit.group_display"), [
+                ("switch", "show_seconds", tr("component_edit.config_show_seconds"), True),
+                ("switch", "show_lunar", tr("component_edit.config_show_lunar"), True),
+            ])
+        elif self._comp_key == "countdown|event":
+            self._add_group(layout, tr("component_edit.group_target"), [
+                ("text", "target_name", tr("component_edit.config_target_name"), ""),
+                ("text", "target_date", tr("component_edit.config_target_date"), "", "YYYY-MM-DD"),
+            ])
+        elif self._comp_key == "school_info|class_info":
+            self._add_group(layout, tr("component_edit.group_info"), [
+                ("text", "school", tr("component_edit.config_school"), ""),
+                ("text", "class", tr("component_edit.config_class"), ""),
+            ])
+        elif self._comp_key == "weather|icon_temp":
+            self._add_group(layout, tr("component_edit.group_display"), [
+                ("switch", "show_icon", tr("component_edit.config_show_icon"), True),
+            ])
+        elif self._comp_key == "media|player":
+            self._add_group(layout, tr("component_edit.group_display"), [
+                ("switch", "show_progress", tr("component_edit.config_show_progress"), True),
+            ])
+        elif self._comp_key == "quick_launch|dock":
+            self._add_group(layout, tr("component_edit.group_display"), [
+                ("spin", "icon_size", tr("component_edit.config_icon_size"), 24, 96, 64),
+            ])
+        else:
+            label = BodyLabel(tr("component_edit.feature_pending_desc"), page)
+            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(label)
+
+        layout.addStretch()
+
+    def _add_group(self, layout, title, items):
+        """添加分组"""
+        group_box = QWidget()
+        group_box.setStyleSheet("QWidget { background: transparent; }")
+        group_layout = QVBoxLayout(group_box)
+        group_layout.setContentsMargins(0, 0, 0, 0)
+        group_layout.setSpacing(8)
+
+        # 分组标题
+        header = StrongBodyLabel(title, self)
+        group_layout.addWidget(header)
+
+        # 分组内容
+        content = QWidget()
+        content.setStyleSheet("QWidget { background: transparent; }")
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(12, 4, 0, 4)
+        content_layout.setSpacing(10)
+
+        for item in items:
+            kind = item[0]
+            key = item[1]
+            label_text = item[2]
+            default = item[3]
+            if kind == "switch":
+                self._add_switch(content_layout, key, label_text, default)
+            elif kind == "spin":
+                min_v, max_v = item[4], item[5]
+                self._add_spin(content_layout, key, label_text, min_v, max_v, default)
+            elif kind == "text":
+                placeholder = item[4] if len(item) > 4 else ""
+                self._add_text(content_layout, key, label_text, default, placeholder)
+
+        group_layout.addWidget(content)
+        layout.addWidget(group_box)
+
+    # 进阶设置
+
+    def _build_advanced_page(self, page):
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 8, 0, 0)
+        layout.setSpacing(14)
+
+        # 外观分组
+        self._add_group(layout, tr("component_edit.group_appearance"), [
+            ("slider", "bg_opacity", tr("component_edit.config_bg_opacity"), 0, 100, 55, "%"),
+            ("slider", "corner_radius", tr("component_edit.config_corner_radius"), 0, 29, 16, "px"),
+        ])
+
+        # 字体分组
+        self._add_group(layout, tr("component_edit.group_font"), [
+            ("slider", "font_scale", tr("component_edit.config_font_scale"), 50, 200, 100, "%"),
+        ])
+
+        layout.addStretch()
+
+
+    def _add_switch(self, layout, key, label_text, default):
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        lbl = BodyLabel(label_text, self)
+        sw = SwitchButton(self)
+        row.addWidget(lbl)
+        row.addStretch()
+        row.addWidget(sw)
+        layout.addLayout(row)
+        self._widgets[key] = ("switch", sw, default)
+
+    def _add_spin(self, layout, key, label_text, min_v, max_v, default):
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        lbl = BodyLabel(label_text, self)
+        sp = SpinBox(self)
+        sp.setRange(min_v, max_v)
+        sp.setValue(default)
+        sp.setFixedWidth(100)
+        row.addWidget(lbl)
+        row.addStretch()
+        row.addWidget(sp)
+        layout.addLayout(row)
+        self._widgets[key] = ("spin", sp, default)
+
+    def _add_text(self, layout, key, label_text, default, placeholder=""):
+        row = QVBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(4)
+        lbl = BodyLabel(label_text, self)
+        le = QLineEdit(self)
+        le.setPlaceholderText(placeholder)
+        row.addWidget(lbl)
+        row.addWidget(le)
+        layout.addLayout(row)
+        self._widgets[key] = ("text", le, default)
+
+    def _add_slider(self, layout, key, label_text, min_v, max_v, default, suffix=""):
+        row = QVBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(4)
+        top = QHBoxLayout()
+        top.setContentsMargins(0, 0, 0, 0)
+        lbl = BodyLabel(label_text, self)
+        val_lbl = BodyLabel(f"{default}{suffix}", self)
+        val_lbl.setFixedWidth(60)
+        val_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        top.addWidget(lbl)
+        top.addStretch()
+        top.addWidget(val_lbl)
+        row.addLayout(top)
+
+        slider = QSlider(Qt.Orientation.Horizontal, self)
+        slider.setRange(min_v, max_v)
+        slider.setValue(default)
+        slider.valueChanged.connect(lambda v: val_lbl.setText(f"{v}{suffix}"))
+        row.addWidget(slider)
+        layout.addLayout(row)
+        self._widgets[key] = ("slider", slider, default, suffix)
+
+    # 加载 / 获取
+
+    def _load_config(self):
+        cfg = self._config
+        for key, spec in self._widgets.items():
+            kind = spec[0]
+            widget = spec[1]
+            default = spec[2]
+            val = cfg.get(key, default)
+            if kind == "switch":
+                widget.setChecked(bool(val))
+            elif kind == "spin":
+                widget.setValue(int(val))
+            elif kind == "text":
+                widget.setText(str(val))
+            elif kind == "slider":
+                widget.setValue(int(val))
+
+    def get_config(self) -> dict:
+        result = dict(self._config)
+        for key, spec in self._widgets.items():
+            kind = spec[0]
+            widget = spec[1]
+            if kind == "switch":
+                result[key] = widget.isChecked()
+            elif kind == "spin":
+                result[key] = widget.value()
+            elif kind == "text":
+                result[key] = widget.text()
+            elif kind == "slider":
+                result[key] = widget.value()
+        return result
 
 
 class DraggableContainer(DraggableWidget):
@@ -878,6 +1255,7 @@ class DraggableContainer(DraggableWidget):
 
         self._content_visible = True
         self._delete_button = None
+        self._config_button = None
         self._scale_factor = 1.0
         self._size_explicitly_set = False  # 是否已显式设置尺寸
         self._resize_debounce_timer = QTimer(self)
@@ -942,14 +1320,29 @@ class DraggableContainer(DraggableWidget):
             home = self._getHomeInterface()
             # 按钮放在 home 上
             parent_widget = home if home else self
-            self._delete_button = _create_delete_button(
-                parent_widget, self, self._onDeleteClicked
+            self._config_button, self._delete_button = _create_edit_controls(
+                parent_widget, self, self._onDeleteClicked, self._onConfigClicked
             )
+            # 跟随主题和透明度
+            try:
+                cfg.componentCardOpacity.valueChanged.connect(self._updateEditControlsStyle)
+                cfg.componentCardRadius.valueChanged.connect(self._updateEditControlsStyle)
+            except Exception:
+                pass
+
+    def _updateEditControlsStyle(self):
+        if self._config_button and hasattr(self._config_button, 'apply_style'):
+            self._config_button.apply_style()
+        if self._delete_button and hasattr(self._delete_button, 'apply_style'):
+            self._delete_button.apply_style()
 
     def showEditControls(self, visible: bool):
         self._ensureEditControls()
+        self._config_button.setVisible(visible)
         self._delete_button.setVisible(visible)
         if visible:
+            self._config_button.reposition()
+            self._config_button.raise_()
             self._delete_button.reposition()
             self._delete_button.raise_()
 
@@ -957,6 +1350,20 @@ class DraggableContainer(DraggableWidget):
         home = self._getHomeInterface()
         if home:
             home.deleteSelectedComponent(self.component_id)
+
+    def _onConfigClicked(self):
+        """打开组件配置面板"""
+        home = self._getHomeInterface()
+        if home and hasattr(home, 'component_manager'):
+            comp_data = home.component_manager.get_component_data(self.component_id)
+            # 传入组件自身
+            dialog = ComponentConfigDialog(self, self.component_id, comp_data, home)
+            if dialog.exec():
+                # 确认
+                new_config = dialog.get_config()
+                home.component_manager.update_component_config(self.component_id, new_config, comp_data.get("pro"))
+                if hasattr(self, 'apply_config'):
+                    self.apply_config(new_config)
 
     def _getHomeInterface(self):
         widget = self.parentWidget()
@@ -970,7 +1377,17 @@ class DraggableContainer(DraggableWidget):
         super().resizeEvent(event)
         if self._delete_button and self._delete_button.isVisible():
             self._delete_button.reposition()
+        if self._config_button and self._config_button.isVisible():
+            self._config_button.reposition()
         self._resize_debounce_timer.start(100)
+
+    def moveEvent(self, event):
+        super().moveEvent(event)
+        # 拖动时更新编辑按钮位置
+        if self._delete_button and self._delete_button.isVisible():
+            self._delete_button.reposition()
+        if self._config_button and self._config_button.isVisible():
+            self._config_button.reposition()
 
     def _applyUniformScale(self):
         """缩放所有子控件的字体和间距"""
@@ -1408,8 +1825,15 @@ class MediaWidget(QWidget):
             self._default_cover()
 
         self._bar.apply_style()
-        self.setFixedSize(cfg.mediaWidth.value, cfg.mediaHeight.value)
+        # 如果嵌入在 MediaPlayerComponent 中，不设置固定大小
+        if not self._is_embedded():
+            self.setFixedSize(cfg.mediaWidth.value, cfg.mediaHeight.value)
         self._apply_background_style()
+
+    def _is_embedded(self):
+        """检查是否嵌入在 MediaPlayerComponent 中"""
+        parent = self.parentWidget()
+        return parent is not None and parent.objectName() == "mediaContainer"
 
     def _get_wallpaper_color(self):
         """提取壁纸主色 失败返回None"""
@@ -4438,27 +4862,36 @@ class MediaPlayerComponent(DraggableContainer):
     def __init__(self, parent, component_data: dict):
         super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
         self.setObjectName("mediaContainer")
-        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         self._home = parent
         self._setup_ui()
         self._setup_timer()
 
     def _setup_ui(self):
-        # 嵌入原有的 MediaWidget
         self.mediaWidget = MediaWidget(self)
         self.mediaWidget.setObjectName("mediaWidget")
+        self.mediaWidget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.mediaWidget.setMinimumSize(1, 1)
+        self.mediaWidget.setMaximumSize(16777215, 16777215)
 
         layout = self.inner_layout
-        layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft)
-        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self.mediaWidget)
 
-        self.setMinimumSize(400, 200)
+        self.setMinimumSize(300, 150)
         self._size_explicitly_set = True
-        self.resize(400, 200)
+        self.resize(cfg.mediaWidth.value, cfg.mediaHeight.value)
+
+        # 同步尺寸变化
+        cfg.mediaWidth.valueChanged.connect(self._sync_media_size)
+        cfg.mediaHeight.valueChanged.connect(self._sync_media_size)
+
+    def _sync_media_size(self):
+        """同步尺寸变化"""
+        self.resize(cfg.mediaWidth.value, cfg.mediaHeight.value)
+        if hasattr(self.mediaWidget, '_apply_config'):
+            self.mediaWidget._apply_config()
 
     def _setup_timer(self):
         cfg.showMediaInfo.valueChanged.connect(self._on_visibility_changed)
@@ -5541,7 +5974,7 @@ class TimetablePreviewComponent(DraggableContainer):
 
 
 class TimetableNowLessonComponent(DraggableContainer):
-    """当前课程组件"""
+    """当前课程组件 — 支持课前倒计时播报"""
 
     def __init__(self, parent, component_data: dict):
         super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
@@ -5553,18 +5986,42 @@ class TimetableNowLessonComponent(DraggableContainer):
         self._bridge = None
         self._timetable_page = None
         self._current_row_data = None
+        self._is_prepare_mode = False  # 是否处于课前播报模式
+
+        comp_config = component_data.get("config", {})
+        self._cfg_show_teacher = comp_config.get("show_teacher", True)
+        self._cfg_show_next = comp_config.get("show_next", True)
+        self._cfg_show_duration = comp_config.get("show_duration", True)
+        self._cfg_show_countdown = comp_config.get("show_countdown", True)
+        self._cfg_prepare_minutes = comp_config.get("prepare_minutes", 3)
+        self._cfg_bg_opacity = comp_config.get("bg_opacity", None)
+        self._cfg_corner_radius = comp_config.get("corner_radius", None)
+        self._cfg_font_scale = comp_config.get("font_scale", 100)
 
         self._setup_ui()
         self._connect_timetable_page()
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._refresh)
-        self._timer.start(5000)
+        self._timer.start(1000)
+        self._refresh()
+
+    def apply_config(self, config):
+        """应用配置变更"""
+        self._cfg_show_teacher = config.get("show_teacher", self._cfg_show_teacher)
+        self._cfg_show_next = config.get("show_next", self._cfg_show_next)
+        self._cfg_show_duration = config.get("show_duration", self._cfg_show_duration)
+        self._cfg_show_countdown = config.get("show_countdown", self._cfg_show_countdown)
+        self._cfg_prepare_minutes = config.get("prepare_minutes", self._cfg_prepare_minutes)
+        self._cfg_bg_opacity = config.get("bg_opacity", self._cfg_bg_opacity)
+        self._cfg_corner_radius = config.get("corner_radius", self._cfg_corner_radius)
+        self._cfg_font_scale = config.get("font_scale", self._cfg_font_scale)
+        self._apply_style()
         self._refresh()
 
     def _setup_ui(self):
         layout = self.inner_layout
-        layout.setContentsMargins(14, 10, 14, 8)
+        layout.setContentsMargins(16, 10, 16, 8)
         layout.setSpacing(0)
 
         # 左右分栏
@@ -5573,24 +6030,30 @@ class TimetableNowLessonComponent(DraggableContainer):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(14)
 
-        # 左侧：课程名 进度
+        # 左侧：课程名 + 倒计时/进度
         left = QWidget()
-        left.setFixedWidth(170)
+        left.setFixedWidth(180)
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(6)
+        left_layout.setSpacing(4)
 
         self._subject_label = QLabel("--")
         self._subject_label.setObjectName("miniSubject")
         self._subject_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self._subject_label.setWordWrap(True)
-        self._subject_label.setMinimumHeight(60)
+        self._subject_label.setMinimumHeight(70)
         left_layout.addWidget(self._subject_label, 1)
+
+        self._countdown_label = QLabel("")
+        self._countdown_label.setObjectName("miniCountdown")
+        self._countdown_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self._countdown_label.setMinimumHeight(28)
+        left_layout.addWidget(self._countdown_label)
 
         self._time_progress_label = QLabel("-- min / -- min")
         self._time_progress_label.setObjectName("miniTimeLabel")
         self._time_progress_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        self._time_progress_label.setMinimumHeight(36)
+        self._time_progress_label.setMinimumHeight(28)
         left_layout.addWidget(self._time_progress_label)
 
         main_layout.addWidget(left)
@@ -5604,40 +6067,37 @@ class TimetableNowLessonComponent(DraggableContainer):
         self._teacher_label = QLabel("--")
         self._teacher_label.setObjectName("miniTeacher")
         self._teacher_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        right_layout.addWidget(self._teacher_label,1)
+        right_layout.addWidget(self._teacher_label, 1)
 
         self._time_label = QLabel("--:-- ~ --:--")
         self._time_label.setObjectName("miniTime")
         self._time_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        right_layout.addWidget(self._time_label,1)
+        right_layout.addWidget(self._time_label, 1)
 
         self._next_label = QLabel("下节课：--")
         self._next_label.setObjectName("miniNext")
         self._next_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        right_layout.addWidget(self._next_label,1)
+        right_layout.addWidget(self._next_label, 1)
 
         right_layout.addStretch()
         main_layout.addWidget(right, 1)
 
         layout.addWidget(main, 1)
 
-        self._bottom_progress = QProgressBar(self)
-        self._bottom_progress.setObjectName("miniBottomProgress")
-        self._bottom_progress.setFixedHeight(8)
+        # 进度条 — 使用 qfluentwidgets ProgressBar
+        self._bottom_progress = ProgressBar(self)
+        self._bottom_progress.setFixedHeight(6)
         self._bottom_progress.setRange(0, 100)
-        self._bottom_progress.setTextVisible(False)
         self._bottom_progress.setValue(0)
         layout.addWidget(self._bottom_progress)
 
         self._apply_style()
 
         # 监听主题变化
-        from core.config import cfg
         cfg.componentCardOpacity.valueChanged.connect(self._apply_style)
         cfg.componentCardRadius.valueChanged.connect(self._apply_style)
 
     def _apply_style(self):
-        from core.config import cfg
         is_dark = isDarkTheme()
 
         if is_dark:
@@ -5649,31 +6109,63 @@ class TimetableNowLessonComponent(DraggableContainer):
             sub_text = "#777777"
             accent = "#4cc2ff"
 
+        # 背景
+        opacity_val = self._cfg_bg_opacity if self._cfg_bg_opacity is not None else cfg.componentCardOpacity.value
+        radius_val = self._cfg_corner_radius if self._cfg_corner_radius is not None else cfg.componentCardRadius.value
+        opacity = opacity_val / 100.0
+        if is_dark:
+            bg = QColor(30, 30, 30)
+        else:
+            bg = QColor(255, 255, 255)
+        bg.setAlpha(int(255 * opacity))
+        self.setStyleSheet(f"""
+            #nowLessonContainer {{
+                background-color: rgba({bg.red()}, {bg.green()}, {bg.blue()}, {bg.alpha() / 255:.2f});
+                border-radius: {radius_val}px;
+            }}
+        """)
+
+        font_scale = self._cfg_font_scale / 100.0
+
+        def fs(px):
+            return max(1, int(px * font_scale))
+
         # 课程名
         self._subject_label.setStyleSheet(f"""
             color: {text};
-            font-size: 40px;
+            font-size: {fs(40)}px;
             font-weight: 600;
             font-family: {FONT_FAMILY};
             background: transparent;
-            padding: 25px 0 4px 0;
+            padding: 20px 0 4px 0;
+        """)
+
+        # 倒计时
+        self._countdown_label.setStyleSheet(f"""
+            color: {accent};
+            font-size: {fs(18)}px;
+            font-weight: 600;
+            font-family: {FONT_FAMILY};
+            background: transparent;
+            padding: 2px 0;
+            padding-left: 4px;
         """)
 
         # 时间进度
         self._time_progress_label.setStyleSheet(f"""
             color: {text};
-            font-size: 16px;
+            font-size: {fs(15)}px;
             font-weight: 600;
             font-family: {FONT_FAMILY};
             background: transparent;
             padding: 2px 0;
-            padding-left: 8px;
+            padding-left: 4px;
         """)
 
         # 老师
         self._teacher_label.setStyleSheet(f"""
             color: {text};
-            font-size: 20px;
+            font-size: {fs(19)}px;
             font-weight: 600;
             font-family: {FONT_FAMILY};
             background: transparent;
@@ -5683,7 +6175,7 @@ class TimetableNowLessonComponent(DraggableContainer):
         # 时间段
         self._time_label.setStyleSheet(f"""
             color: {text};
-            font-size: 20px;
+            font-size: {fs(19)}px;
             font-weight: 600;
             font-family: {FONT_FAMILY};
             background: transparent;
@@ -5693,7 +6185,7 @@ class TimetableNowLessonComponent(DraggableContainer):
         # 下节课
         self._next_label.setStyleSheet(f"""
             color: {sub_text};
-            font-size: 20px;
+            font-size: {fs(19)}px;
             font-weight: 600;
             font-family: {FONT_FAMILY};
             background: transparent;
@@ -5722,6 +6214,8 @@ class TimetableNowLessonComponent(DraggableContainer):
         except Exception:
             return
 
+        now = datetime.datetime.now()
+
         current_row = None
         next_row = None
         found_current = False
@@ -5734,55 +6228,170 @@ class TimetableNowLessonComponent(DraggableContainer):
                 next_row = row
                 break
 
-        if current_row:
-            subject, teacher, start, end, idx, is_current, is_break, break_name = current_row
-
-            # 更新课程名
-            if is_break:
-                self._subject_label.setText(break_name or "课间休息")
+        # 课前播报
+        prepare_row = None  # 要开始的课程行
+        if current_row and current_row[6]:  # is_break = True
+            if next_row:
+                prepare_row = next_row
             else:
-                self._subject_label.setText(subject or "--")
+                found_curr = False
+                for row in schedule:
+                    if found_curr and not row[6]:
+                        prepare_row = row
+                        break
+                    if row == current_row:
+                        found_curr = True
 
-            # 老师显示
+        in_prepare = False
+        if prepare_row and current_row and current_row[6]:  # 课间中有下一节课
+            try:
+                ps = prepare_row[2]  # start time "HH:MM"
+                psh, psm = map(int, ps.split(":"))
+                next_start_dt = now.replace(hour=psh, minute=psm, second=0, microsecond=0)
+                diff = (next_start_dt - now).total_seconds()
+                if 0 < diff <= self._cfg_prepare_minutes * 60:
+                    in_prepare = True
+            except Exception:
+                pass
+
+        if in_prepare:
+            if self._timer.interval() != 1000:
+                self._timer.setInterval(1000)
+        else:
+            if self._timer.interval() != 5000:
+                self._timer.setInterval(5000)
+
+        self._is_prepare_mode = in_prepare
+
+        if in_prepare and prepare_row:
+            self._render_prepare_mode(prepare_row, now)
+        elif current_row:
+            self._render_normal_mode(current_row, next_row, now)
+        else:
+            self._render_empty()
+
+    def _render_prepare_mode(self, prepare_row, now):
+        """课前播报模式"""
+        subject, teacher, start, end, idx, is_current, is_break, break_name = prepare_row
+
+        self._subject_label.setText(subject or "下节课")
+
+        try:
+            sh, sm = map(int, start.split(":"))
+            next_start = now.replace(hour=sh, minute=sm, second=0, microsecond=0)
+            diff = next_start - now
+            total_sec = max(0, int(diff.total_seconds()))
+            m, s = divmod(total_sec, 60)
+            if self._cfg_show_countdown:
+                self._countdown_label.setText(f"{m}:{s:02d} 后上课")
+            else:
+                self._countdown_label.setText("")
+        except Exception:
+            self._countdown_label.setText("")
+
+        # 隐藏进度时间
+        self._time_progress_label.setText("")
+
+        # 老师
+        if self._cfg_show_teacher:
+            teacher_display = (teacher[0] + "老师") if teacher else ""
+            self._teacher_label.setText(teacher_display)
+        else:
+            self._teacher_label.setText("")
+
+        # 时间段
+        self._time_label.setText(f"{start}~{end}")
+
+        # 下节课程时长
+        if self._cfg_show_duration:
+            try:
+                sh, sm = map(int, start.split(":"))
+                eh, em = map(int, end.split(":"))
+                total_min = (eh * 60 + em) - (sh * 60 + sm)
+                self._next_label.setText(f"时长：{total_min}分钟")
+            except Exception:
+                self._next_label.setText("")
+        else:
+            self._next_label.setText("")
+
+        # 进度条
+        try:
+            sh, sm = map(int, start.split(":"))
+            next_start = now.replace(hour=sh, minute=sm, second=0, microsecond=0)
+            diff = (next_start - now).total_seconds()
+            total_prepare = self._cfg_prepare_minutes * 60
+            pct = int(max(0, min(100, (1 - diff / total_prepare) * 100))) if total_prepare > 0 else 0
+            self._bottom_progress.setValue(pct)
+        except Exception:
+            self._bottom_progress.setValue(0)
+
+    def _render_normal_mode(self, current_row, next_row, now):
+        """上课中 / 课间"""
+        subject, teacher, start, end, idx, is_current, is_break, break_name = current_row
+
+        # 倒计时清空
+        self._countdown_label.setText("")
+
+        # 课程名
+        if is_break:
+            self._subject_label.setText(break_name or "课间休息")
+        else:
+            self._subject_label.setText(subject or "--")
+
+        # 老师显示
+        if self._cfg_show_teacher:
             if is_break:
                 self._teacher_label.setText("课间休息")
             else:
                 teacher_display = (teacher[0] + "老师") if teacher else ""
                 self._teacher_label.setText(teacher_display)
+        else:
+            self._teacher_label.setText("")
 
-            # 时间段
-            self._time_label.setText(f"{start}~{end}")
+        # 时间段
+        self._time_label.setText(f"{start}~{end}")
 
-            # 下节课
+        # 下节课 / 时长
+        if self._cfg_show_next:
             if next_row:
                 next_subject = next_row[0]
                 self._next_label.setText(f"下节课：{next_subject}" if next_subject else "下节课：--")
             else:
                 self._next_label.setText("下节课：--")
+        else:
+            self._next_label.setText("")
 
-            # 时间进度
-            now = datetime.datetime.now().time()
+        # 时间进度
+        if self._cfg_show_duration:
             try:
                 sh, sm = map(int, start.split(":"))
                 eh, em = map(int, end.split(":"))
-                start_min = sh * 60 + sm
-                end_min = eh * 60 + em
-                now_min = now.hour * 60 + now.minute
-                total = end_min - start_min
-                elapsed = max(0, now_min - start_min)
+                start_sec = sh * 3600 + sm * 60
+                end_sec = eh * 3600 + em * 60
+                now_sec = now.hour * 3600 + now.minute * 60 + now.second
+                total = end_sec - start_sec
+                elapsed = max(0, now_sec - start_sec)
                 pct = min(100, int(elapsed / total * 100)) if total > 0 else 0
-                self._time_progress_label.setText(f"{elapsed}min / {total}min")
+                elapsed_min = elapsed // 60
+                total_min = total // 60
+                self._time_progress_label.setText(f"{elapsed_min}min / {total_min}min")
                 self._bottom_progress.setValue(pct)
             except Exception:
                 self._time_progress_label.setText("-- min / -- min")
                 self._bottom_progress.setValue(0)
         else:
-            self._subject_label.setText("--")
-            self._teacher_label.setText("--")
-            self._time_label.setText("--:-- ~ --:--")
-            self._next_label.setText("下节课：--")
-            self._time_progress_label.setText("-- min / -- min")
+            self._time_progress_label.setText("")
             self._bottom_progress.setValue(0)
+
+    def _render_empty(self):
+        """无数据"""
+        self._subject_label.setText("--")
+        self._countdown_label.setText("")
+        self._teacher_label.setText("--")
+        self._time_label.setText("--:-- ~ --:--")
+        self._next_label.setText("下节课：--")
+        self._time_progress_label.setText("-- min / -- min")
+        self._bottom_progress.setValue(0)
 
     def showEvent(self, e):
         super().showEvent(e)
@@ -9050,6 +9659,7 @@ class ComponentEditWindow(FluentWindow):
             "school_info": FUI.EDUCATION,
             "media": FUI.MUSIC,
             "quick_launch": FUI.LINK,
+            "timer": FUI.STOP_WATCH,
         }
 
         type_names = {
@@ -9060,6 +9670,7 @@ class ComponentEditWindow(FluentWindow):
             "school_info": tr("component.school_info"),
             "media": tr("component.media"),
             "quick_launch": tr("component.quick_launch"),
+            "timer": tr("timer_countdown.title"),
         }
 
         for type_name, styles in COMPONENT_STYLES.items():
@@ -9522,3 +10133,388 @@ class DragPreviewBox(QWidget):
         pen = QPen(border_color, 2)
         painter.setPen(pen)
         painter.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 4, 4)
+
+
+FONT_FAMILY = '"HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif'
+
+
+class TimeColumnWidget(QWidget):
+    """时间列选择器"""
+    valueChanged = pyqtSignal(int)
+
+    def __init__(self, label: str, min_val: int = 0, max_val: int = 59, default: int = 0, parent=None):
+        super().__init__(parent)
+        self._min_val = min_val
+        self._max_val = max_val
+        self._value = max(min_val, min(max_val, default))
+        self.setFixedWidth(80)
+        self._init_ui(label)
+
+    def _init_ui(self, label: str):
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(2)
+        layout.setContentsMargins(2, 2, 2, 2)
+
+        self._label_widget = BodyLabel(label, self)
+        self._label_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label_font = QFont(FONT_FAMILY, 12)
+        self._label_widget.setFont(label_font)
+        layout.addWidget(self._label_widget)
+
+        self._up_btn = ToolButton(FUI.CHEVRON_UP, self)
+        self._up_btn.setFixedSize(40, 28)
+        self._up_btn.clicked.connect(self._step_up)
+        layout.addWidget(self._up_btn, 0, Qt.AlignmentFlag.AlignCenter)
+
+        self._value_label = StrongBodyLabel(f"{self._value:02d}", self)
+        self._value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        val_font = QFont(FONT_FAMILY, 28, QFont.Weight.Bold)
+        self._value_label.setFont(val_font)
+        self._value_label.setFixedHeight(44)
+        layout.addWidget(self._value_label, 0, Qt.AlignmentFlag.AlignCenter)
+
+        self._down_btn = ToolButton(FUI.CHEVRON_DOWN, self)
+        self._down_btn.setFixedSize(40, 28)
+        self._down_btn.clicked.connect(self._step_down)
+        layout.addWidget(self._down_btn, 0, Qt.AlignmentFlag.AlignCenter)
+
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+
+    def _step_up(self):
+        self.set_value(self._value + 1)
+
+    def _step_down(self):
+        self.set_value(self._value - 1)
+
+    def set_value(self, val: int):
+        old = self._value
+        self._value = max(self._min_val, min(self._max_val, val))
+        if self._value != old:
+            self._value_label.setText(f"{self._value:02d}")
+            self.valueChanged.emit(self._value)
+
+    def value(self) -> int:
+        return self._value
+
+    def wheelEvent(self, event):
+        delta = event.angleDelta().y()
+        if delta > 0:
+            self._step_up()
+        elif delta < 0:
+            self._step_down()
+        super().wheelEvent(event)
+
+
+class TimerTimeDisplayWidget(QWidget):
+    """HH:MM:SS组件"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(6)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        self._label = StrongBodyLabel("00:00:00", self)
+        font = QFont(FONT_FAMILY, 48, QFont.Weight.Bold)
+        self._label.setFont(font)
+        self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._label.setStyleSheet("color: %s;" % (
+            "#ffffff" if isDarkTheme() else "#000000"
+        ))
+        layout.addWidget(self._label)
+
+    def set_time(self, h: int, m: int, s: int):
+        self._label.setText(f"{h:02d}:{m:02d}:{s:02d}")
+
+
+class TimerCountdownComponent(DraggableContainer):
+    """Pivot分栏"""
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName("timerCountdownContainer")
+        self._home = parent
+        self._running = False
+        self._paused = False
+        self._elapsed_seconds = 0
+        self._remaining_seconds = 0
+        self._is_countdown = False
+        self._timer = QTimer(self)
+        self._timer.setInterval(1000)
+        self._timer.timeout.connect(self._on_tick)
+        self._init_ui()
+
+    def _init_ui(self):
+        # Pivot
+        self._pivot = Pivot(self)
+        self._pivot.setFixedHeight(32)
+        self._pivot.addItem(
+            "timer",
+            tr("timer_countdown.timer"),
+            onClick=lambda: self._switch_mode(False),
+        )
+        self._pivot.addItem(
+            "countdown",
+            tr("timer_countdown.countdown"),
+            onClick=lambda: self._switch_mode(True),
+        )
+
+        self._mode_stack = QStackedWidget(self)
+
+        #             计时
+        self._timer_page = QWidget()
+        tp_layout = QVBoxLayout(self._timer_page)
+        tp_layout.setContentsMargins(0, 12, 0, 0)
+        tp_layout.setSpacing(4)
+
+        # 计时时间
+        self._timer_display = TimerTimeDisplayWidget(self._timer_page)
+        tp_layout.addWidget(self._timer_display, 0, Qt.AlignmentFlag.AlignHCenter)
+
+        # 计时按钮
+        self._timer_btn_stack = QStackedWidget(self._timer_page)
+        self._timer_btn_stack.setFixedHeight(60)
+
+        # 开始
+        ts_btn = QWidget()
+        ts_lay = QVBoxLayout(ts_btn)
+        ts_lay.setContentsMargins(0, 0, 0, 0)
+        ts_lay.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._ts_start = PrimaryPushButton(FUI.PLAY, tr("timer_countdown.start"), ts_btn)
+        self._ts_start.setFixedSize(160, 44)
+        self._ts_start.clicked.connect(self._on_timer_start)
+        ts_lay.addWidget(self._ts_start)
+        self._timer_btn_stack.addWidget(ts_btn)  # index 0
+
+        # 暂停 取消
+        tr_btn = QWidget()
+        tr_lay = QHBoxLayout(tr_btn)
+        tr_lay.setContentsMargins(0, 0, 0, 0)
+        tr_lay.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        tr_lay.setSpacing(16)
+        self._ts_pause = PushButton(tr("timer_countdown.pause"), tr_btn)
+        self._ts_pause.setFixedSize(100, 40)
+        self._ts_pause.clicked.connect(self._on_timer_pause)
+        tr_lay.addWidget(self._ts_pause)
+        self._ts_cancel = PushButton(tr("timer_countdown.cancel"), tr_btn)
+        self._ts_cancel.setFixedSize(100, 40)
+        self._ts_cancel.clicked.connect(self._on_timer_cancel)
+        tr_lay.addWidget(self._ts_cancel)
+        self._timer_btn_stack.addWidget(tr_btn)  # index 1
+
+        tp_layout.addWidget(self._timer_btn_stack, 0, Qt.AlignmentFlag.AlignHCenter)
+        tp_layout.addStretch(1)
+        self._mode_stack.addWidget(self._timer_page)  # index 0
+
+        #    倒计时 
+        self._cd_page = QWidget()
+        cp_layout = QVBoxLayout(self._cd_page)
+        cp_layout.setContentsMargins(0, 12, 0, 0)
+        cp_layout.setSpacing(4)
+
+        self._cd_content_stack = QStackedWidget(self._cd_page)
+
+        # 时间 按钮
+        cd_setup = QWidget()
+        cds_lay = QVBoxLayout(cd_setup)
+        cds_lay.setContentsMargins(0, 0, 0, 0)
+        cds_lay.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        cds_lay.setSpacing(8)
+
+        cols = QHBoxLayout()
+        cols.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        cols.setSpacing(8)
+        self._hh_col = TimeColumnWidget(tr("timer_countdown.hours"), 0, 99, 0)
+        self._mm_col = TimeColumnWidget(tr("timer_countdown.minutes"), 0, 59, 0)
+        self._ss_col = TimeColumnWidget(tr("timer_countdown.seconds"), 0, 59, 0)
+        cols.addWidget(self._hh_col)
+        cols.addWidget(self._mm_col)
+        cols.addWidget(self._ss_col)
+        cds_lay.addLayout(cols)
+
+        self._cd_start = PrimaryPushButton(FUI.PLAY, tr("timer_countdown.start"), cd_setup)
+        self._cd_start.setFixedSize(160, 40)
+        self._cd_start.clicked.connect(self._on_countdown_start)
+        cds_lay.addWidget(self._cd_start, 0, Qt.AlignmentFlag.AlignCenter)
+        self._cd_content_stack.addWidget(cd_setup)  # index 0
+
+        # 时间显示 暂停 取消
+        cd_run = QWidget()
+        cdr_lay = QVBoxLayout(cd_run)
+        cdr_lay.setContentsMargins(0, 0, 0, 0)
+        cdr_lay.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        cdr_lay.setSpacing(10)
+
+        self._cd_display = TimerTimeDisplayWidget(cd_run)
+        cdr_lay.addWidget(self._cd_display, 0, Qt.AlignmentFlag.AlignCenter)
+
+        cdr_btns = QHBoxLayout()
+        cdr_btns.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        cdr_btns.setSpacing(16)
+        self._cd_pause = PushButton(tr("timer_countdown.pause"), cd_run)
+        self._cd_pause.setFixedSize(100, 40)
+        self._cd_pause.clicked.connect(self._on_countdown_pause)
+        cdr_btns.addWidget(self._cd_pause)
+        self._cd_cancel = PushButton(tr("timer_countdown.cancel"), cd_run)
+        self._cd_cancel.setFixedSize(100, 40)
+        self._cd_cancel.clicked.connect(self._on_countdown_cancel)
+        cdr_btns.addWidget(self._cd_cancel)
+        cdr_lay.addLayout(cdr_btns)
+        self._cd_content_stack.addWidget(cd_run)  # index 1
+
+        cp_layout.addWidget(self._cd_content_stack, 0, Qt.AlignmentFlag.AlignHCenter)
+        cp_layout.addStretch(1)
+        self._mode_stack.addWidget(self._cd_page)  # index 1
+
+        main_layout = self.inner_layout
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        main_layout.addWidget(self._pivot)
+        main_layout.addWidget(self._mode_stack, 1)
+
+        self.setMinimumSize(200, 160)
+        self._size_explicitly_set = True
+        self.resize(240, 200)
+        self._apply_bg_style()
+        self._switch_mode(False)
+
+    # 模式切换
+
+    def _switch_mode(self, countdown: bool):
+        if self._running:
+            self._timer.stop()
+            self._running = False
+            self._paused = False
+            self._elapsed_seconds = 0
+            self._remaining_seconds = 0
+        self._is_countdown = countdown
+        self._pivot.setCurrentItem("countdown" if countdown else "timer")
+        self._mode_stack.setCurrentIndex(1 if countdown else 0)
+        # 重置到设置
+        if countdown:
+            self._cd_content_stack.setCurrentIndex(0)
+            self._cd_display.set_time(0, 0, 0)
+        else:
+            self._timer_btn_stack.setCurrentIndex(0)
+            self._timer_display.set_time(0, 0, 0)
+
+    # 计时回调
+
+    def _on_timer_start(self):
+        self._elapsed_seconds = 0
+        self._remaining_seconds = 0
+        self._timer_btn_stack.setCurrentIndex(1)  # 暂停 取消
+        self._ts_pause.setText(tr("timer_countdown.pause"))
+        self._running = True
+        self._paused = False
+        self._timer.start()
+
+    def _on_timer_pause(self):
+        self._running = True  # keep running
+        if self._paused:
+            self._paused = False
+            self._ts_pause.setText(tr("timer_countdown.pause"))
+        else:
+            self._paused = True
+            self._ts_pause.setText(tr("timer_countdown.resume"))
+
+    def _on_timer_cancel(self):
+        self._timer.stop()
+        self._running = False
+        self._paused = False
+        self._elapsed_seconds = 0
+        self._remaining_seconds = 0
+        self._timer_btn_stack.setCurrentIndex(0)
+        self._timer_display.set_time(0, 0, 0)
+
+    # 倒计时回调
+
+    def _on_countdown_start(self):
+        h = self._hh_col.value()
+        m = self._mm_col.value()
+        s = self._ss_col.value()
+        total = h * 3600 + m * 60 + s
+        if total <= 0:
+            InfoBar.warning(
+                title=tr("common.info"),
+                content=tr("timer_countdown.set_time_hint"),
+                parent=self,
+                duration=2000,
+            )
+            return
+        self._remaining_seconds = total
+        self._elapsed_seconds = total
+        self._cd_pause.setText(tr("timer_countdown.pause"))
+        self._cd_content_stack.setCurrentIndex(1)  # 显示运行页
+        self._update_display()
+        self._running = True
+        self._paused = False
+        self._timer.start()
+
+    def _on_countdown_pause(self):
+        if self._paused:
+            self._paused = False
+            self._cd_pause.setText(tr("timer_countdown.pause"))
+        else:
+            self._paused = True
+            self._cd_pause.setText(tr("timer_countdown.resume"))
+
+    def _on_countdown_cancel(self):
+        self._timer.stop()
+        self._running = False
+        self._paused = False
+        self._elapsed_seconds = 0
+        self._remaining_seconds = 0
+        self._cd_content_stack.setCurrentIndex(0)
+        self._cd_display.set_time(0, 0, 0)
+
+    # 共享定时器
+
+    def _on_tick(self):
+        if not self._running or self._paused:
+            return
+        if self._is_countdown:
+            self._remaining_seconds -= 1
+            if self._remaining_seconds <= 0:
+                self._remaining_seconds = 0
+                self._update_display()
+                self._timer.stop()
+                self._running = False
+                InfoBar.success(
+                    title=tr("timer_countdown.finished_title"),
+                    content=tr("timer_countdown.finished_body"),
+                    parent=self,
+                    duration=3000,
+                )
+                self._cd_content_stack.setCurrentIndex(0)
+                self._cd_display.set_time(0, 0, 0)
+                return
+        else:
+            self._elapsed_seconds += 1
+        self._update_display()
+
+    def _update_display(self):
+        secs = self._remaining_seconds if self._is_countdown else self._elapsed_seconds
+        h = secs // 3600
+        m = (secs % 3600) // 60
+        s = secs % 60
+        if self._is_countdown:
+            self._cd_display.set_time(h, m, s)
+        else:
+            self._timer_display.set_time(h, m, s)
+
+    def _apply_bg_style(self):
+        dark = isDarkTheme()
+        bg = QColor(30, 30, 30) if dark else QColor(250, 250, 250)
+        bg.setAlpha(200)
+        bg_str = f"rgba({bg.red()}, {bg.green()}, {bg.blue()}, {bg.alpha()})"
+        self.setStyleSheet(
+            f"#timerCountdownContainer {{ background-color: {bg_str}; border-radius: 8px; }}"
+        )
+
+    def cleanup(self):
+        self._timer.stop()
+
+
+COMPONENT_STYLES["timer"]["countdown"]["class"] = TimerCountdownComponent
