@@ -997,7 +997,7 @@ class ComponentConfigDialog(MessageBoxBase):
 
     def _init_ui(self):
         self.setWindowTitle(tr("component_edit.config_title"))
-        self.setFixedSize(520, 480)
+        self.widget.setMinimumSize(520, 480)
 
         self._pivot = Pivot(self)
         self._stack = QStackedWidget(self)
