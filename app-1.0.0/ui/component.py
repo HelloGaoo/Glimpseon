@@ -719,6 +719,8 @@ class DraggableWidget(QWidget):
                 self._resize_start_pos = event.globalPosition().toPoint()
                 self._resize_start_size = self.size()
                 self._resize_start_geo = self.geometry()
+                self._saved_min_size = self.minimumSize()
+                self.setMinimumSize(1, 1)
                 self.setCursor(QCursor(Qt.CursorShape.SizeFDiagCursor))
                 event.accept()
                 return
@@ -745,14 +747,13 @@ class DraggableWidget(QWidget):
         super().mouseDoubleClickEvent(event)
     
     def mouseMoveEvent(self, event):
-        # 缩放模式
         if self._resizing and self._draggable:
             delta = event.globalPosition().toPoint() - self._resize_start_pos
             orig_w = self._resize_start_size.width()
             orig_h = self._resize_start_size.height()
             # 等比缩放
-            new_w = max(self.minimumWidth() or 80, orig_w + delta.x())
-            new_h = max(self.minimumHeight() or 40, orig_h + delta.y())
+            new_w = max(40, orig_w + delta.x())
+            new_h = max(40, orig_h + delta.y())
             scale_w = new_w / orig_w if orig_w > 0 else 1.0
             scale_h = new_h / orig_h if orig_h > 0 else 1.0
             scale = max(scale_w, scale_h)
@@ -811,6 +812,10 @@ class DraggableWidget(QWidget):
             # 缩放结束
             if self._resizing:
                 self._resizing = False
+                # 恢复 minimumSize
+                if hasattr(self, '_saved_min_size'):
+                    self.setMinimumSize(self._saved_min_size)
+                    del self._saved_min_size
                 self.setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
                 # 保存
                 home = self._getMainWindow()
@@ -974,7 +979,6 @@ class ComponentConfigDialog(MessageBoxBase):
     """组件配置面板"""
 
     def __init__(self, component_widget, component_id, comp_data, home_interface):
-        # 获取主窗口作为父级（不是主界面）
         main_window = None
         if home_interface:
             main_window = home_interface.window()
@@ -1037,7 +1041,7 @@ class ComponentConfigDialog(MessageBoxBase):
         self.yesButton.setText(tr("component_edit.config_save"))
         self.cancelButton.setText(tr("component_edit.config_cancel"))
 
-        # 默认选中基础设置
+        # 默认基础设置
         self._pivot.setCurrentItem("basic")
         self._stack.setCurrentIndex(0)
 
@@ -1249,18 +1253,20 @@ class ComponentConfigDialog(MessageBoxBase):
 
 
 class DraggableContainer(DraggableWidget):
-    
+
     def __init__(self, parent=None, component_id: str = "", layout_direction: str = "vertical"):
         super().__init__(parent, component_id)
 
         self._content_visible = True
         self._delete_button = None
         self._config_button = None
+        # _scale_factor 由 resizeEvent 根据当前尺寸 / natural_size 计算，
+        # 子类在样式方法中用 self._scaled_px(base) 缩放字体/图标，apply_scale 重应用样式
         self._scale_factor = 1.0
-        self._size_explicitly_set = False  # 是否已显式设置尺寸
-        self._resize_debounce_timer = QTimer(self)
-        self._resize_debounce_timer.setSingleShot(True)
-        self._resize_debounce_timer.timeout.connect(self._applyUniformScale)
+        self._natural_size = None
+        self._orig_captured = False
+        self._size_explicitly_set = False
+        self._applying_scale = False
 
         if layout_direction == "vertical":
             self.inner_layout = QVBoxLayout(self)
@@ -1271,15 +1277,55 @@ class DraggableContainer(DraggableWidget):
         self.inner_layout.setSpacing(5)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-    
+
+        self._resize_debounce_timer = QTimer(self)
+        self._resize_debounce_timer.setSingleShot(True)
+        self._resize_debounce_timer.timeout.connect(self._onResizeDebounce)
+
+    def _onResizeDebounce(self):
+        """更新编辑按钮位置"""
+        if self._delete_button and self._delete_button.isVisible():
+            self._delete_button.reposition()
+        if self._config_button and self._config_button.isVisible():
+            self._config_button.reposition()
+
+    def _set_natural_size(self, w: int, h: int):
+        self._natural_size = QSize(w, h)
+
+    def _scaled_px(self, base_px: int) -> int:
+        return max(1, int(base_px * self._scale_factor))
+
+    def _recompute_scale(self) -> bool:
+        """重算缩放因子"""
+        if not self._natural_size:
+            return False
+        nw = self._natural_size.width()
+        nh = self._natural_size.height()
+        if nw <= 0 or nh <= 0:
+            return False
+        sw = self.width() / nw
+        sh = self.height() / nh
+        # 取小 下限 0.3
+        new_factor = max(0.3, min(sw, sh))
+        if abs(new_factor - self._scale_factor) < 0.02:
+            return False
+        self._scale_factor = new_factor
+        return True
+
+    def apply_scale(self, factor: float):
+        pass
+
+    def _capture_originals(self):
+        pass
+
     def setContentVisible(self, visible: bool):
         """隐藏/显示内容"""
         self._content_visible = visible
-        for i in range(self.inner_layout.count()):
-            item = self.inner_layout.itemAt(i)
-            if item and item.widget():
-                item.widget().setVisible(visible)
         if visible:
+            for i in range(self.inner_layout.count()):
+                item = self.inner_layout.itemAt(i)
+                if item and item.widget():
+                    item.widget().setVisible(visible)
             self.inner_layout.setContentsMargins(10, 10, 10, 10)
             self.setMinimumSize(80, 40)
             self.setMaximumSize(16777215, 16777215)
@@ -1296,13 +1342,13 @@ class DraggableContainer(DraggableWidget):
             self.setFixedSize(max(text_width, 100), 36)
         self.updateGeometry()
         self.update()
-    
+
     def addWidget(self, widget):
         self.inner_layout.addWidget(widget)
         self.inner_layout.activate()
         self.adjustSize()
         self.updateGeometry()
-    
+
     def updateSize(self):
         if not getattr(self, '_update_pending', False):
             self._update_pending = True
@@ -1318,12 +1364,10 @@ class DraggableContainer(DraggableWidget):
     def _ensureEditControls(self):
         if self._delete_button is None:
             home = self._getHomeInterface()
-            # 按钮放在 home 上
             parent_widget = home if home else self
             self._config_button, self._delete_button = _create_edit_controls(
                 parent_widget, self, self._onDeleteClicked, self._onConfigClicked
             )
-            # 跟随主题和透明度
             try:
                 cfg.componentCardOpacity.valueChanged.connect(self._updateEditControlsStyle)
                 cfg.componentCardRadius.valueChanged.connect(self._updateEditControlsStyle)
@@ -1352,14 +1396,11 @@ class DraggableContainer(DraggableWidget):
             home.deleteSelectedComponent(self.component_id)
 
     def _onConfigClicked(self):
-        """打开组件配置面板"""
         home = self._getHomeInterface()
         if home and hasattr(home, 'component_manager'):
             comp_data = home.component_manager.get_component_data(self.component_id)
-            # 传入组件自身
             dialog = ComponentConfigDialog(self, self.component_id, comp_data, home)
             if dialog.exec():
-                # 确认
                 new_config = dialog.get_config()
                 home.component_manager.update_component_config(self.component_id, new_config, comp_data.get("pro"))
                 if hasattr(self, 'apply_config'):
@@ -1379,67 +1420,44 @@ class DraggableContainer(DraggableWidget):
             self._delete_button.reposition()
         if self._config_button and self._config_button.isVisible():
             self._config_button.reposition()
-        self._resize_debounce_timer.start(100)
+        if not self._applying_scale and self._recompute_scale():
+            self._applying_scale = True
+            try:
+                self.apply_scale(self._scale_factor)
+            finally:
+                self._applying_scale = False
+        self._resize_debounce_timer.start(50)
 
     def moveEvent(self, event):
         super().moveEvent(event)
-        # 拖动时更新编辑按钮位置
         if self._delete_button and self._delete_button.isVisible():
             self._delete_button.reposition()
         if self._config_button and self._config_button.isVisible():
             self._config_button.reposition()
 
-    def _applyUniformScale(self):
-        """缩放所有子控件的字体和间距"""
-        if not getattr(self, '_content_visible', True):
-            return
-        # adjustSize 后的 preferred size
-        natural_size = self.sizeHint()
-        if natural_size.width() <= 0 or natural_size.height() <= 0:
-            return
-        current_w = self.width()
-        if current_w <= 0:
-            return
-        new_scale = current_w / natural_size.width()
-        if abs(new_scale - self._scale_factor) < 0.01:
-            return
-        self._scale_factor = new_scale
+    def mousePressEvent(self, event):
+        super().mousePressEvent(event)
 
-        for child in self.findChildren(QWidget):
-            font = child.font()
-            if not hasattr(child, '_orig_font_size'):
-                child._orig_font_size = font.pointSizeF() if font.pointSizeF() > 0 else font.pixelSize()
-                child._orig_is_pixel = font.pointSizeF() <= 0
-            orig = child._orig_font_size
-            if child._orig_is_pixel:
-                font.setPixelSize(max(1, int(orig * new_scale)))
-            else:
-                font.setPointSizeF(orig * new_scale)
-            child.setFont(font)
+    def mouseReleaseEvent(self, event):
+        super().mouseReleaseEvent(event)
 
-        if hasattr(self, 'inner_layout'):
-            if not hasattr(self, '_orig_margins'):
-                self._orig_margins = self.inner_layout.contentsMargins()
-                self._orig_spacing = self.inner_layout.spacing()
-            m = self._orig_margins
-            self.inner_layout.setContentsMargins(
-                int(m.left() * new_scale), int(m.top() * new_scale),
-                int(m.right() * new_scale), int(m.bottom() * new_scale)
-            )
-            self.inner_layout.setSpacing(int(self._orig_spacing * new_scale))
-    
     def showEvent(self, event):
         super().showEvent(event)
         if getattr(self, 'inner_layout', None):
             self.inner_layout.activate()
             if not getattr(self, '_size_explicitly_set', False):
                 self.adjustSize()
-    
+            if self._natural_size is None:
+                ns = self.sizeHint()
+                if ns.isValid() and ns.width() > 0:
+                    self._natural_size = ns
+                    self._capture_originals()
+
     def sizeHint(self) -> QSize:
         if getattr(self, '_size_explicitly_set', False):
             return self.size()
-        if getattr(self, 'inner_layout', None):self.inner_layout.activate()
-        base_size = super().sizeHint()
+        if getattr(self, 'inner_layout', None):
+            self.inner_layout.activate()
         if not getattr(self, '_content_visible', True):
             display_name = get_component_display_name(self.component_id)
             text = f"⚙ {display_name} {tr('component.click_to_settings')}"
@@ -1447,18 +1465,18 @@ class DraggableContainer(DraggableWidget):
             font.setPointSize(8)
             fm = QFontMetrics(font)
             return QSize(max(fm.horizontalAdvance(text) + 24, 100), 36)
-        return base_size
-    
+        return super().sizeHint()
+
     def minimumSizeHint(self) -> QSize:
         if not getattr(self, '_content_visible', True):
             return self.sizeHint()
         return QSize(80, 40)
-    
+
     def paintEvent(self, event):
         if not getattr(self, '_content_visible', True):
             painter = QPainter(self)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            
+
             border_color = QColor(0, 0, 0, 30) if not isDarkTheme() else QColor(255, 255, 255, 30)
             pen = QPen(border_color)
             pen.setWidthF(1)
@@ -1674,12 +1692,18 @@ class MediaWidget(QWidget):
         self._info_cache = OrderedDict()
         self._rapid_update_count = 0
         self._normal_interval = cfg.mediaUpdateInterval.value * 1000
+        # 由父组件 MediaPlayerComponent 注入的缩放因子
+        self._scale_factor = 1.0
 
         self._init_ui()
         self._setup_timers()
         self._apply_config()
         self._init_cover_animation()
         self._fetch_done.connect(self._on_fetched)
+
+    def _scaled_px(self, base_px: int) -> int:
+        """按当前缩放因子缩放像素值"""
+        return max(1, int(base_px * self._scale_factor))
 
     @staticmethod
     def _qss_color(color_val):
@@ -1762,7 +1786,7 @@ class MediaWidget(QWidget):
         return cfg.mediaHeight.value
 
     def _default_cover(self):
-        sz = cfg.mediaCoverSize.value
+        sz = self._scaled_px(cfg.mediaCoverSize.value)
         radius = cfg.mediaCoverBorderRadius.value
         pm = QPixmap(sz, sz)
         pm.fill(Qt.GlobalColor.transparent)
@@ -1801,22 +1825,22 @@ class MediaWidget(QWidget):
         lyrics_color = cfg.mediaLyricsColor.value
 
         self._title.setStyleSheet(
-            f"font-size: {sz + 2}px; font-weight: 600;"
+            f"font-size: {self._scaled_px(sz + 2)}px; font-weight: 600;"
             f"color: {title_color};"
             f"font-family: 'HarmonyOS Sans', 'Microsoft YaHei', 'SimHei', sans-serif;"
         )
         self._artist.setStyleSheet(
-            f"font-size: {sz}px;"
+            f"font-size: {self._scaled_px(sz)}px;"
             f"color: {artist_color};"
             f"font-family: 'HarmonyOS Sans', 'Microsoft YaHei', 'SimHei', sans-serif;"
         )
         self._time.setStyleSheet(f"color: {time_color};")
         self._dur.setStyleSheet(f"color: {time_color};")
-        self._lyrics_w.set_text_size(cfg.mediaLyricsSize.value)
+        self._lyrics_w.set_text_size(self._scaled_px(cfg.mediaLyricsSize.value))
         self._lyrics_w.set_visible_lines(1)
         self._lyrics_w.set_lyrics_color(lyrics_color)
 
-        cover_sz = cfg.mediaCoverSize.value
+        cover_sz = self._scaled_px(cfg.mediaCoverSize.value)
         self._cover_lbl.setFixedSize(cover_sz, cover_sz)
         if self._cover and not self._cover.isNull():
             cover_with_shadow = self._add_cover_shadow(self._cover, cover_sz)
@@ -2397,6 +2421,7 @@ class QuickLaunchDock(QWidget):
         self._launch_result.connect(self._on_launch_result)
         self._icon_gap = cfg.quickLaunchIconSpacing.value
         self._show_labels = cfg.quickLaunchShowLabels.value
+        self._scale_factor = 1.0
 
         self._apps = []
         self._pixmaps = []
@@ -2420,7 +2445,22 @@ class QuickLaunchDock(QWidget):
         self._timer.timeout.connect(self._tick)
 
     def _sz(self):
-        return cfg.quickLaunchIconSize.value
+        return max(8, int(cfg.quickLaunchIconSize.value * self._scale_factor))
+
+    def set_scale_factor(self, f):
+        self._scale_factor = max(0.3, f)
+
+    def _gap(self):
+        return max(0, int(self._icon_gap * self._scale_factor))
+
+    def _pad_x(self):
+        return int(self.PAD_X * self._scale_factor)
+
+    def _pad_y_top(self):
+        return int(self.PAD_Y_TOP * self._scale_factor)
+
+    def _pad_y_bottom(self):
+        return int(self.PAD_Y_BOTTOM * self._scale_factor)
 
     def set_apps(self, apps, animate_idx=-1):
         self._apps = list(apps)
@@ -2475,8 +2515,8 @@ class QuickLaunchDock(QWidget):
         n = len(self._apps)
         if n == 0:
             return QRectF()
-        w = n * sz + (n - 1) * self._icon_gap + self.PAD_X * 2
-        h = sz + self.PAD_Y_TOP + self.PAD_Y_BOTTOM
+        w = n * sz + (n - 1) * self._gap() + self._pad_x() * 2
+        h = sz + self._pad_y_top() + self._pad_y_bottom()
         x = (self.width() - w) / 2
         y = self.height() - h
         return QRectF(x, y, w, h)
@@ -2487,12 +2527,16 @@ class QuickLaunchDock(QWidget):
         if n == 0:
             self.setFixedSize(0, 0)
             return
-        w_icons = n * sz + (n - 1) * self._icon_gap + self.PAD_X * 2
-        h_icons = sz + self.PAD_Y_TOP + self.PAD_Y_BOTTOM
+        gap = self._gap()
+        px = self._pad_x()
+        pyt = self._pad_y_top()
+        pyb = self._pad_y_bottom()
+        w_icons = n * sz + (n - 1) * gap + px * 2
+        h_icons = sz + pyt + pyb
         scale_overflow = int(sz * (self.MAX_SCALE - self.BASE_SCALE))
-        bounce_overflow = self.BOUNCE_H + 10
+        bounce_overflow = int(self.BOUNCE_H * self._scale_factor) + 10
         side_overflow = int(sz * (self.MAX_SCALE - self.BASE_SCALE) * 0.3)
-        label_overflow = 28 if self._show_labels else 0
+        label_overflow = int(28 * self._scale_factor) if self._show_labels else 0
         drag_extra = int(sz * 0.5)
         w = w_icons + side_overflow * 2 + drag_extra
         h = h_icons + scale_overflow + bounce_overflow + label_overflow + drag_extra
@@ -2504,17 +2548,18 @@ class QuickLaunchDock(QWidget):
         if n == 0:
             return []
 
+        gap = self._gap()
         widths = [sz * sc for sc in self._scales]
-        total = sum(widths) + (n - 1) * self._icon_gap
+        total = sum(widths) + (n - 1) * gap
         bg = self._bg_rect()
-        content_w = bg.width() - self.PAD_X * 2
-        start_x = bg.x() + self.PAD_X + (content_w - total) / 2
+        content_w = bg.width() - self._pad_x() * 2
+        start_x = bg.x() + self._pad_x() + (content_w - total) / 2
 
         pos = []
         cx = start_x
         for i in range(n):
             pos.append(cx + widths[i] / 2)
-            cx += widths[i] + self._icon_gap
+            cx += widths[i] + gap
         return pos
 
     def _icon_rect(self, i, positions=None):
@@ -2523,7 +2568,7 @@ class QuickLaunchDock(QWidget):
         s = self._sz() * self._scales[i]
         cx = positions[i]
         bg = self._bg_rect()
-        by = bg.y() + bg.height() - self.PAD_Y_BOTTOM
+        by = bg.y() + bg.height() - self._pad_y_bottom()
         return QRectF(cx - s / 2, by - s, s, s)
 
     def _smoothstep(self, t):
@@ -2603,17 +2648,19 @@ class QuickLaunchDock(QWidget):
     def _update_drop_target(self, pos):
         if not self._apps:
             return
-        
+
         sz = self._sz()
+        gap = self._gap()
+        px = self._pad_x()
         bg = self._bg_rect()
-        content_w = bg.width() - self.PAD_X * 2
+        content_w = bg.width() - px * 2
         n = len(self._apps)
-        total_w = n * sz + (n - 1) * self._icon_gap
-        start_x = bg.x() + self.PAD_X + (content_w - total_w) / 2
-        
+        total_w = n * sz + (n - 1) * gap
+        start_x = bg.x() + px + (content_w - total_w) / 2
+
         new_target = -1
         for i in range(n):
-            icon_x = start_x + i * (sz + self._icon_gap)
+            icon_x = start_x + i * (sz + gap)
             if pos.x() < icon_x + sz / 2:
                 new_target = i
                 break
@@ -3066,7 +3113,7 @@ class QuickLaunchDock(QWidget):
         p.drawPath(path)
 
         pl = self._icon_positions()
-        baseline_y = bg.y() + bg.height() - self.PAD_Y_BOTTOM
+        baseline_y = bg.y() + bg.height() - self._pad_y_bottom()
         sz = self._sz()
 
         for i in range(len(self._apps)):
@@ -3113,18 +3160,18 @@ class QuickLaunchDock(QWidget):
                 if name:
                     label_font = p.font()
                     label_font.setFamily("HarmonyOS Sans")
-                    label_font.setPixelSize(14)
+                    label_font.setPixelSize(max(8, int(14 * self._scale_factor)))
                     label_font.setWeight(QFont.Weight.Medium)
                     p.setFont(label_font)
                     fm = QFontMetrics(label_font)
-                    
+
                     display_name = name
                     if len(name) > 50:
                         display_name = name[:50] + "..."
-                    
-                    padding_x = 10
+
+                    padding_x = int(10 * self._scale_factor)
                     label_w = fm.horizontalAdvance(display_name) + padding_x * 2
-                    label_h = 24
+                    label_h = int(24 * self._scale_factor)
                     label_x = cx - label_w / 2
                     label_y = top - label_h - 4
                     
@@ -3216,20 +3263,26 @@ class DigitalClockComponent(DraggableContainer):
     def _setup_ui(self):
         self.clockLabel = QLabel("00:00:00")
         self.clockLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.clockLabel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         self.dateLabel = QLabel("")
         self.dateLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.dateLabel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         layout = self.inner_layout
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setContentsMargins(32, 24, 32, 24)
         layout.setSpacing(8)
-        layout.addWidget(self.clockLabel)
-        layout.addWidget(self.dateLabel)
+        layout.addWidget(self.clockLabel, 3)
+        layout.addWidget(self.dateLabel, 1)
 
-        self.setMinimumSize(400, 200)
+        self._set_natural_size(400, 200)
+        self.setMinimumSize(120, 80)
         self._size_explicitly_set = True
         self.resize(400, 200)
+        self._apply_style()
+
+    def apply_scale(self, factor):
         self._apply_style()
 
     def _setup_timer(self):
@@ -3316,7 +3369,7 @@ class DigitalClockComponent(DraggableContainer):
 
         self.clockLabel.setStyleSheet(f"""
             color: {color_str};
-            font-size: {clock_size}px;
+            font-size: {self._scaled_px(clock_size)}px;
             font-weight: bold;
             font-family: {FONT_FAMILY};
             background-color: transparent;
@@ -3324,7 +3377,7 @@ class DigitalClockComponent(DraggableContainer):
 
         self.dateLabel.setStyleSheet(f"""
             color: {color_str};
-            font-size: {date_size}px;
+            font-size: {self._scaled_px(date_size)}px;
             font-family: {FONT_FAMILY};
             background-color: transparent;
         """)
@@ -3339,6 +3392,7 @@ class WeatherIconTempComponent(DraggableContainer):
         self.setObjectName("weatherContainer")
         self._home = parent
         self._cached_weather = None
+        self._current_icon_path = None
         self._setup_ui()
         self._setup_timer()
 
@@ -3346,19 +3400,22 @@ class WeatherIconTempComponent(DraggableContainer):
         self.tempLabel = QLabel("")
         self.tempLabel.setObjectName("weatherTempLabel")
         self.tempLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.tempLabel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         self.iconLabel = QLabel("")
         self.iconLabel.setObjectName("weatherIconLabel")
         self.iconLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.iconLabel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         layout = self.inner_layout
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(12)
-        layout.addWidget(self.iconLabel)
-        layout.addWidget(self.tempLabel)
+        layout.addWidget(self.iconLabel, 1)
+        layout.addWidget(self.tempLabel, 1)
 
-        self.setMinimumSize(200, 200)
+        self._set_natural_size(200, 200)
+        self.setMinimumSize(80, 80)
         self._size_explicitly_set = True
         self.resize(200, 200)
         self._apply_style()
@@ -3425,7 +3482,8 @@ class WeatherIconTempComponent(DraggableContainer):
         logger.info(f"[WeatherComponent] 当前温度:{temp}° 天气代码:{weather_code} 天气:{weather_text} 图标:{icon_name}")
 
         if icon_path and os.path.exists(icon_path):
-            icon_size = cfg.weatherIconSize.value
+            self._current_icon_path = icon_path
+            icon_size = self._scaled_px(cfg.weatherIconSize.value)
             dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
             pm = render_svg_icon(icon_path, icon_size, dpr)
             if not pm.isNull():
@@ -3443,11 +3501,21 @@ class WeatherIconTempComponent(DraggableContainer):
 
         self.tempLabel.setStyleSheet(f"""
             color: {color_str};
-            font-size: {size}px;
+            font-size: {self._scaled_px(size)}px;
             font-family: {FONT_FAMILY};
             background-color: transparent;
         """)
         self.updateSize()
+
+    def apply_scale(self, factor):
+        self._apply_style()
+        # 重渲染图标到缩放后尺寸
+        if self._current_icon_path and os.path.exists(self._current_icon_path):
+            icon_size = self._scaled_px(cfg.weatherIconSize.value)
+            dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+            pm = render_svg_icon(self._current_icon_path, icon_size, dpr)
+            if not pm.isNull():
+                self.iconLabel.setPixmap(pm)
 
 
 class WeatherHourlyComponent(DraggableContainer):
@@ -3458,6 +3526,8 @@ class WeatherHourlyComponent(DraggableContainer):
         self.setObjectName("weatherHourlyContainer")
         self._home = parent
         self._hourly_data = None
+        self._current_icon_path = None
+        self._hourly_icon_paths = [None] * 6
         self._setup_ui()
         self._setup_timer()
 
@@ -3503,7 +3573,7 @@ class WeatherHourlyComponent(DraggableContainer):
 
         self.currentIconLabel = QLabel()
         self.currentIconLabel.setAlignment(Qt.AlignmentFlag.AlignRight)
-        self.currentIconLabel.setFixedSize(60, 60)
+        self.currentIconLabel.setFixedSize(self._scaled_px(60), self._scaled_px(60))
 
         self.alertLabel = QLabel("")
         self.alertLabel.setAlignment(Qt.AlignmentFlag.AlignRight)
@@ -3537,7 +3607,7 @@ class WeatherHourlyComponent(DraggableContainer):
 
             icon_label = QLabel()
             icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            icon_label.setFixedSize(28, 28)
+            icon_label.setFixedSize(self._scaled_px(28), self._scaled_px(28))
 
             temp_label = QLabel("--°")
             temp_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -3549,13 +3619,14 @@ class WeatherHourlyComponent(DraggableContainer):
             bottom_layout.addWidget(col, 1)
             self._hourly_widgets.append((time_label, icon_label, temp_label))
 
-        layout.addWidget(self._top_row)
-        layout.addWidget(self._bottom_row)
+        layout.addWidget(self._top_row, 3)
+        layout.addWidget(self._bottom_row, 1)
 
-        self.setMinimumSize(400, 200)
+        self._set_natural_size(400, 200)
+        self.setMinimumSize(160, 100)
         self._size_explicitly_set = True
         self.resize(400, 200)
-        self._top_row.setMinimumHeight(100)
+        self._top_row.setMinimumHeight(self._scaled_px(100))
         self._apply_style()
 
     def _setup_timer(self):
@@ -3624,13 +3695,15 @@ class WeatherHourlyComponent(DraggableContainer):
         logger.info(f"[WeatherHourly] 城市:{cfg.city.value} 当前温度:{current_temp}° 天气代码:{current_icon_code} 天气:{weather_text} 图标:{icon_name}")
 
         if icon_path and os.path.exists(icon_path):
+            self._current_icon_path = icon_path
             dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
-            pm = render_svg_icon(icon_path, 60, dpr)
+            pm = render_svg_icon(icon_path, self._scaled_px(60), dpr)
             if not pm.isNull():
                 self.currentIconLabel.setPixmap(pm)
             else:
                 self.currentIconLabel.clear()
         else:
+            self._current_icon_path = None
             self.currentIconLabel.clear()
 
         if wd and wd.get("forecastHourly"):
@@ -3676,13 +3749,15 @@ class WeatherHourlyComponent(DraggableContainer):
                 icon_name = hour_data.get("icon", "2.svg")
                 icon_path = WeatherService.get_weather_icon_path(icon_name)
                 if icon_path and os.path.exists(icon_path):
+                    self._hourly_icon_paths[i] = icon_path
                     dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
-                    pm = render_svg_icon(icon_path, 28, dpr)
+                    pm = render_svg_icon(icon_path, self._scaled_px(28), dpr)
                     if not pm.isNull():
                         icon_label.setPixmap(pm)
                     else:
                         icon_label.clear()
                 else:
+                    self._hourly_icon_paths[i] = None
                     icon_label.clear()
 
                 temp = hour_data.get("temp", "--")
@@ -3750,7 +3825,7 @@ class WeatherHourlyComponent(DraggableContainer):
 
         self.cityLabel.setStyleSheet(f"""
             color: {color_str};
-            font-size: 16px;
+            font-size: {self._scaled_px(16)}px;
             font-family: {FONT_FAMILY};
             background-color: transparent;
             opacity: 0.7;
@@ -3758,7 +3833,7 @@ class WeatherHourlyComponent(DraggableContainer):
 
         self.currentTempLabel.setStyleSheet(f"""
             color: {color_str};
-            font-size: 52px;
+            font-size: {self._scaled_px(52)}px;
             font-weight: 300;
             font-family: {FONT_FAMILY};
             background-color: transparent;
@@ -3767,7 +3842,7 @@ class WeatherHourlyComponent(DraggableContainer):
 
         self.alertLabel.setStyleSheet(f"""
             color: #ff6b6b;
-            font-size: 12px;
+            font-size: {self._scaled_px(12)}px;
             font-family: {FONT_FAMILY};
             background-color: transparent;
         """)
@@ -3775,19 +3850,39 @@ class WeatherHourlyComponent(DraggableContainer):
         for time_label, icon_label, temp_label in self._hourly_widgets:
             time_label.setStyleSheet(f"""
                 color: {color_str};
-                font-size: 12px;
+                font-size: {self._scaled_px(12)}px;
                 font-family: {FONT_FAMILY};
                 background-color: transparent;
                 opacity: 0.7;
             """)
             temp_label.setStyleSheet(f"""
                 color: {color_str};
-                font-size: 12px;
+                font-size: {self._scaled_px(12)}px;
                 font-family: {FONT_FAMILY};
                 background-color: transparent;
             """)
 
         self.updateSize()
+
+    def apply_scale(self, factor):
+        self._apply_style()
+        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+        # 当前图标
+        self.currentIconLabel.setFixedSize(self._scaled_px(60), self._scaled_px(60))
+        if self._current_icon_path and os.path.exists(self._current_icon_path):
+            pm = render_svg_icon(self._current_icon_path, self._scaled_px(60), dpr)
+            if not pm.isNull():
+                self.currentIconLabel.setPixmap(pm)
+        # 逐小时图标
+        for i, (time_label, icon_label, temp_label) in enumerate(self._hourly_widgets):
+            icon_label.setFixedSize(self._scaled_px(28), self._scaled_px(28))
+            p = self._hourly_icon_paths[i] if i < len(self._hourly_icon_paths) else None
+            if p and os.path.exists(p):
+                pm = render_svg_icon(p, self._scaled_px(28), dpr)
+                if not pm.isNull():
+                    icon_label.setPixmap(pm)
+        if self._top_row is not None:
+            self._top_row.setMinimumHeight(self._scaled_px(100))
 
 
 class WeatherWeeklyComponent(DraggableContainer):
@@ -3798,6 +3893,8 @@ class WeatherWeeklyComponent(DraggableContainer):
         self.setObjectName("weatherWeeklyContainer")
         self._home = parent
         self._daily_data = None
+        self._current_icon_path = None
+        self._daily_icon_paths = [None] * 4
         self._setup_ui()
         self._setup_timer()
 
@@ -3842,7 +3939,7 @@ class WeatherWeeklyComponent(DraggableContainer):
 
         self.currentIconLabel = QLabel()
         self.currentIconLabel.setAlignment(Qt.AlignmentFlag.AlignRight)
-        self.currentIconLabel.setFixedSize(48, 48)
+        self.currentIconLabel.setFixedSize(self._scaled_px(48), self._scaled_px(48))
 
         tr_layout.addWidget(self.currentIconLabel)
         tr_layout.addStretch()
@@ -3862,17 +3959,17 @@ class WeatherWeeklyComponent(DraggableContainer):
         for i in range(4):
             row = QWidget()
             row.setStyleSheet("background-color: transparent;")
-            row.setFixedHeight(20)
+            row.setFixedHeight(self._scaled_px(20))
             row_layout = QHBoxLayout(row)
             row_layout.setContentsMargins(0, 0, 0, 0)
             row_layout.setSpacing(0)
 
             day_label = QLabel("--")
-            day_label.setFixedWidth(40)
+            day_label.setFixedWidth(self._scaled_px(40))
             day_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
             icon_label = QLabel()
-            icon_label.setFixedSize(18, 18)
+            icon_label.setFixedSize(self._scaled_px(18), self._scaled_px(18))
             icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
             low_label = QLabel("--")
@@ -3880,10 +3977,10 @@ class WeatherWeeklyComponent(DraggableContainer):
             low_label.setObjectName(f"weeklyLow_{i}")
 
             spacer = QLabel()
-            spacer.setFixedWidth(8)
+            spacer.setFixedWidth(self._scaled_px(8))
 
             high_label = QLabel("--°")
-            high_label.setFixedWidth(28)
+            high_label.setFixedWidth(self._scaled_px(28))
             high_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             high_label.setObjectName(f"weeklyHigh_{i}")
 
@@ -3898,10 +3995,11 @@ class WeatherWeeklyComponent(DraggableContainer):
             self._forecast_rows.append((day_label, icon_label, low_label, high_label))
             bottom_layout.addWidget(row)
 
-        layout.addWidget(top)
-        layout.addWidget(bottom)
+        layout.addWidget(top, 3)
+        layout.addWidget(bottom, 1)
 
-        self.setMinimumSize(200, 200)
+        self._set_natural_size(200, 200)
+        self.setMinimumSize(80, 80)
         self._size_explicitly_set = True
         self.resize(200, 200)
         self._apply_style()
@@ -3973,13 +4071,15 @@ class WeatherWeeklyComponent(DraggableContainer):
         logger.info(f"[WeatherWeekly] 城市:{cfg.city.value} 当前温度:{current_temp}° 天气代码:{current_icon_code} 天气:{weather_text} 图标:{icon_name}")
 
         if icon_path and os.path.exists(icon_path):
+            self._current_icon_path = icon_path
             dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
-            pm = render_svg_icon(icon_path, 48, dpr)
+            pm = render_svg_icon(icon_path, self._scaled_px(48), dpr)
             if not pm.isNull():
                 self.currentIconLabel.setPixmap(pm)
             else:
                 self.currentIconLabel.clear()
         else:
+            self._current_icon_path = None
             self.currentIconLabel.clear()
 
         # 每日预报
@@ -4019,13 +4119,15 @@ class WeatherWeeklyComponent(DraggableContainer):
             icon_name = day_data.get("icon", "2.svg")
             icon_path = WeatherService.get_weather_icon_path(icon_name)
             if icon_path and os.path.exists(icon_path):
+                self._daily_icon_paths[i] = icon_path
                 dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
-                pm = render_svg_icon(icon_path, 18, dpr)
+                pm = render_svg_icon(icon_path, self._scaled_px(18), dpr)
                 if not pm.isNull():
                     icon_label.setPixmap(pm)
                 else:
                     icon_label.clear()
             else:
+                self._daily_icon_paths[i] = None
                 icon_label.clear()
 
             low_label.setText(day_data.get("low", "--"))
@@ -4091,7 +4193,7 @@ class WeatherWeeklyComponent(DraggableContainer):
         # 城市名
         self.cityLabel.setStyleSheet(f"""
             color: {color_str};
-            font-size: 14px;
+            font-size: {self._scaled_px(14)}px;
             font-family: {FONT_FAMILY};
             background-color: transparent;
             opacity: 0.7;
@@ -4100,7 +4202,7 @@ class WeatherWeeklyComponent(DraggableContainer):
         # 大温度
         self.currentTempLabel.setStyleSheet(f"""
             color: {color_str};
-            font-size: 48px;
+            font-size: {self._scaled_px(48)}px;
             font-weight: 300;
             font-family: {FONT_FAMILY};
             background-color: transparent;
@@ -4111,26 +4213,44 @@ class WeatherWeeklyComponent(DraggableContainer):
         for day_label, icon_label, low_label, high_label in self._forecast_rows:
             day_label.setStyleSheet(f"""
                 color: {color_str};
-                font-size: 11px;
+                font-size: {self._scaled_px(11)}px;
                 font-family: {FONT_FAMILY};
                 background-color: transparent;
                 opacity: 0.7;
             """)
             low_label.setStyleSheet(f"""
                 color: {color_str};
-                font-size: 11px;
+                font-size: {self._scaled_px(11)}px;
                 opacity: 0.6;
                 font-family: {FONT_FAMILY};
                 background-color: transparent;
             """)
             high_label.setStyleSheet(f"""
                 color: {color_str};
-                font-size: 11px;
+                font-size: {self._scaled_px(11)}px;
                 font-family: {FONT_FAMILY};
                 background-color: transparent;
             """)
 
         self.updateSize()
+
+    def apply_scale(self, factor):
+        self._apply_style()
+        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+        # 当前图标
+        self.currentIconLabel.setFixedSize(self._scaled_px(48), self._scaled_px(48))
+        if self._current_icon_path and os.path.exists(self._current_icon_path):
+            pm = render_svg_icon(self._current_icon_path, self._scaled_px(48), dpr)
+            if not pm.isNull():
+                self.currentIconLabel.setPixmap(pm)
+        # 每日预报行图标与固定宽度
+        for i, (day_label, icon_label, low_label, high_label) in enumerate(self._forecast_rows):
+            icon_label.setFixedSize(self._scaled_px(18), self._scaled_px(18))
+            p = self._daily_icon_paths[i] if i < len(self._daily_icon_paths) else None
+            if p and os.path.exists(p):
+                pm = render_svg_icon(p, self._scaled_px(18), dpr)
+                if not pm.isNull():
+                    icon_label.setPixmap(pm)
 
 
 class PoetryOneLineComponent(DraggableContainer):
@@ -4148,13 +4268,15 @@ class PoetryOneLineComponent(DraggableContainer):
         self.poetryLabel.setObjectName("poetryLabel")
         self.poetryLabel.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter)
         self.poetryLabel.setWordWrap(False)
+        self.poetryLabel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         layout = self.inner_layout
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setContentsMargins(24, 20, 24, 20)
-        layout.addWidget(self.poetryLabel)
+        layout.addWidget(self.poetryLabel, 1)
 
-        self.setMinimumSize(400, 200)
+        self._set_natural_size(400, 200)
+        self.setMinimumSize(120, 80)
         self._size_explicitly_set = True
         self.resize(400, 200)
         self._apply_style()
@@ -4200,17 +4322,20 @@ class PoetryOneLineComponent(DraggableContainer):
             self.poetryLabel.setText("")
 
     def _apply_style(self):
-        color = cfg.poetryTextColor.value   
+        color = cfg.poetryTextColor.value
         color_str = color.name() if hasattr(color, 'name') else str(color)
         size = cfg.poetrySize.value
 
         self.poetryLabel.setStyleSheet(f"""
             color: {color_str};
-            font-size: {size}px;
+            font-size: {self._scaled_px(size)}px;
             font-family: {FONT_FAMILY};
             background-color: transparent;
         """)
         self.updateSize()
+
+    def apply_scale(self, factor):
+        self._apply_style()
 
 
 def _render_svg_logo(icon_path, height=30):
@@ -4245,12 +4370,14 @@ class NewsBaiduComponent(DraggableContainer):
         self._home = parent
         self._source = "baidu"
         self._items = []
+        self._news_titles = ["--"] * 4
+        self._news_urls = [""] * 4
         self._setup_ui()
         self._setup_timer()
 
     def _setup_ui(self):
         dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
-        pm = _render_svg_logo(self._ICON_PATH, 30)
+        pm = _render_svg_logo(self._ICON_PATH, self._scaled_px(30))
         pm.setDevicePixelRatio(dpr)
 
         self.iconLabel = QLabel()
@@ -4264,7 +4391,6 @@ class NewsBaiduComponent(DraggableContainer):
         header_layout.addStretch()
 
         self.itemWidgets = []
-        self._news_urls = [""] * 4
         for i in range(4):
             item_label = QLabel("--")
             item_label.setWordWrap(True)
@@ -4282,7 +4408,8 @@ class NewsBaiduComponent(DraggableContainer):
         for widget in self.itemWidgets:
             layout.addWidget(widget, 1)
 
-        self.setMinimumSize(360, 220)
+        self._set_natural_size(360, 220)
+        self.setMinimumSize(150, 100)
         self._size_explicitly_set = True
         self.resize(360, 220)
         self._apply_style()
@@ -4311,12 +4438,17 @@ class NewsBaiduComponent(DraggableContainer):
                     titles[index] = title
                     urls[index] = item.get("url") or item.get("link") or ""
         self._news_urls = urls
+        self._news_titles = titles
+        self._render_items()
 
-        for i, (label, text) in enumerate(zip(self.itemWidgets, titles)):
+    def _render_items(self):
+        sz_num = self._scaled_px(12)
+        sz_text = self._scaled_px(15)
+        for i, (label, text) in enumerate(zip(self.itemWidgets, self._news_titles)):
             label.setText(
-                f"<span style='font-size:12px;color:#2932e1;font-family:{FONT_FAMILY};'>"
+                f"<span style='font-size:{sz_num}px;color:#2932e1;font-family:{FONT_FAMILY};'>"
                 f"{i+1}.</span> "
-                f"<span style='font-size:15px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
+                f"<span style='font-size:{sz_text}px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
             )
 
     def _on_news_clicked(self, index):
@@ -4325,6 +4457,15 @@ class NewsBaiduComponent(DraggableContainer):
 
     def _apply_style(self):
         self.updateSize()
+
+    def apply_scale(self, factor):
+        # 重渲染图标
+        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+        pm = _render_svg_logo(self._ICON_PATH, self._scaled_px(30))
+        pm.setDevicePixelRatio(dpr)
+        self.iconLabel.setPixmap(pm)
+        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
+        self._render_items()
 
 
 class NewsWeiboComponent(DraggableContainer):
@@ -4338,12 +4479,14 @@ class NewsWeiboComponent(DraggableContainer):
         self._home = parent
         self._source = "weibo"
         self._items = []
+        self._news_titles = ["--"] * 4
+        self._news_urls = [""] * 4
         self._setup_ui()
         self._setup_timer()
 
     def _setup_ui(self):
         dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
-        pm = _render_svg_logo(self._ICON_PATH, 30)
+        pm = _render_svg_logo(self._ICON_PATH, self._scaled_px(30))
         pm.setDevicePixelRatio(dpr)
 
         self.iconLabel = QLabel()
@@ -4357,7 +4500,6 @@ class NewsWeiboComponent(DraggableContainer):
         header_layout.addStretch()
 
         self.itemWidgets = []
-        self._news_urls = [""] * 4
         for i in range(4):
             item_label = QLabel("--")
             item_label.setWordWrap(True)
@@ -4375,7 +4517,8 @@ class NewsWeiboComponent(DraggableContainer):
         for widget in self.itemWidgets:
             layout.addWidget(widget, 1)
 
-        self.setMinimumSize(360, 220)
+        self._set_natural_size(360, 220)
+        self.setMinimumSize(150, 100)
         self._size_explicitly_set = True
         self.resize(360, 220)
         self._apply_style()
@@ -4404,12 +4547,17 @@ class NewsWeiboComponent(DraggableContainer):
                     titles[index] = title
                     urls[index] = item.get("url") or item.get("link") or ""
         self._news_urls = urls
+        self._news_titles = titles
+        self._render_items()
 
-        for i, (label, text) in enumerate(zip(self.itemWidgets, titles)):
+    def _render_items(self):
+        sz_num = self._scaled_px(12)
+        sz_text = self._scaled_px(15)
+        for i, (label, text) in enumerate(zip(self.itemWidgets, self._news_titles)):
             label.setText(
-                f"<span style='font-size:12px;color:#e89214;font-family:{FONT_FAMILY};'>"
+                f"<span style='font-size:{sz_num}px;color:#e89214;font-family:{FONT_FAMILY};'>"
                 f"{i+1}.</span> "
-                f"<span style='font-size:15px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
+                f"<span style='font-size:{sz_text}px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
             )
 
     def _on_news_clicked(self, index):
@@ -4418,6 +4566,14 @@ class NewsWeiboComponent(DraggableContainer):
 
     def _apply_style(self):
         self.updateSize()
+
+    def apply_scale(self, factor):
+        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+        pm = _render_svg_logo(self._ICON_PATH, self._scaled_px(30))
+        pm.setDevicePixelRatio(dpr)
+        self.iconLabel.setPixmap(pm)
+        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
+        self._render_items()
 
 
 class NewsJinritoutiaoComponent(DraggableContainer):
@@ -4431,6 +4587,8 @@ class NewsJinritoutiaoComponent(DraggableContainer):
         self._home = parent
         self._source = "jinritoutiao"
         self._items = []
+        self._news_titles = ["--"] * 4
+        self._news_urls = [""] * 4
         self._setup_ui()
         self._setup_timer()
 
@@ -4497,12 +4655,17 @@ class NewsJinritoutiaoComponent(DraggableContainer):
                     titles[index] = title
                     urls[index] = item.get("url") or item.get("link") or ""
         self._news_urls = urls
+        self._news_titles = titles
+        self._render_items()
 
-        for i, (label, text) in enumerate(zip(self.itemWidgets, titles)):
+    def _render_items(self):
+        sz_num = self._scaled_px(12)
+        sz_text = self._scaled_px(15)
+        for i, (label, text) in enumerate(zip(self.itemWidgets, self._news_titles)):
             label.setText(
-                f"<span style='font-size:12px;color:#ff353c;font-family:{FONT_FAMILY};'>"
+                f"<span style='font-size:{sz_num}px;color:#ff353c;font-family:{FONT_FAMILY};'>"
                 f"{i+1}.</span> "
-                f"<span style='font-size:15px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
+                f"<span style='font-size:{sz_text}px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
             )
 
     def _on_news_clicked(self, index):
@@ -4511,6 +4674,14 @@ class NewsJinritoutiaoComponent(DraggableContainer):
 
     def _apply_style(self):
         self.updateSize()
+
+    def apply_scale(self, factor):
+        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+        pm = _render_svg_logo(self._ICON_PATH, self._scaled_px(30))
+        pm.setDevicePixelRatio(dpr)
+        self.iconLabel.setPixmap(pm)
+        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
+        self._render_items()
 
 
 class NewsTenxunwangComponent(DraggableContainer):
@@ -4524,12 +4695,14 @@ class NewsTenxunwangComponent(DraggableContainer):
         self._home = parent
         self._source = "tenxunwang"
         self._items = []
+        self._news_titles = ["--"] * 4
+        self._news_urls = [""] * 4
         self._setup_ui()
         self._setup_timer()
 
     def _setup_ui(self):
         dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
-        pm = _render_svg_logo(self._ICON_PATH, 30)
+        pm = _render_svg_logo(self._ICON_PATH, self._scaled_px(30))
         pm.setDevicePixelRatio(dpr)
 
         self.iconLabel = QLabel()
@@ -4543,7 +4716,6 @@ class NewsTenxunwangComponent(DraggableContainer):
         header_layout.addStretch()
 
         self.itemWidgets = []
-        self._news_urls = [""] * 4
         for i in range(4):
             item_label = QLabel("--")
             item_label.setWordWrap(True)
@@ -4561,7 +4733,8 @@ class NewsTenxunwangComponent(DraggableContainer):
         for widget in self.itemWidgets:
             layout.addWidget(widget, 1)
 
-        self.setMinimumSize(360, 220)
+        self._set_natural_size(360, 220)
+        self.setMinimumSize(150, 100)
         self._size_explicitly_set = True
         self.resize(360, 220)
         self._apply_style()
@@ -4590,12 +4763,17 @@ class NewsTenxunwangComponent(DraggableContainer):
                     titles[index] = title
                     urls[index] = item.get("url") or item.get("link") or ""
         self._news_urls = urls
+        self._news_titles = titles
+        self._render_items()
 
-        for i, (label, text) in enumerate(zip(self.itemWidgets, titles)):
+    def _render_items(self):
+        sz_num = self._scaled_px(12)
+        sz_text = self._scaled_px(14)
+        for i, (label, text) in enumerate(zip(self.itemWidgets, self._news_titles)):
             label.setText(
-                f"<span style='font-size:12px;color:#106eb0;font-family:{FONT_FAMILY};'>"
+                f"<span style='font-size:{sz_num}px;color:#106eb0;font-family:{FONT_FAMILY};'>"
                 f"{i+1}.</span> "
-                f"<span style='font-size:14px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
+                f"<span style='font-size:{sz_text}px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
             )
 
     def _on_news_clicked(self, index):
@@ -4604,6 +4782,14 @@ class NewsTenxunwangComponent(DraggableContainer):
 
     def _apply_style(self):
         self.updateSize()
+
+    def apply_scale(self, factor):
+        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+        pm = _render_svg_logo(self._ICON_PATH, self._scaled_px(30))
+        pm.setDevicePixelRatio(dpr)
+        self.iconLabel.setPixmap(pm)
+        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
+        self._render_items()
 
 
 class NewsCCTVComponent(DraggableContainer):
@@ -4617,6 +4803,8 @@ class NewsCCTVComponent(DraggableContainer):
         self._home = parent
         self._source = "xcvts"
         self._items = []
+        self._news_titles = ["--"] * 4
+        self._news_urls = [""] * 4
         self._setup_ui()
         self._setup_timer()
 
@@ -4683,12 +4871,17 @@ class NewsCCTVComponent(DraggableContainer):
                     titles[index] = title
                     urls[index] = item.get("url") or item.get("link") or ""
         self._news_urls = urls
+        self._news_titles = titles
+        self._render_items()
 
-        for i, (label, text) in enumerate(zip(self.itemWidgets, titles)):
+    def _render_items(self):
+        sz_num = self._scaled_px(12)
+        sz_text = self._scaled_px(15)
+        for i, (label, text) in enumerate(zip(self.itemWidgets, self._news_titles)):
             label.setText(
-                f"<span style='font-size:12px;color:#e53928;font-family:{FONT_FAMILY};'>"
+                f"<span style='font-size:{sz_num}px;color:#e53928;font-family:{FONT_FAMILY};'>"
                 f"{i+1}.</span> "
-                f"<span style='font-size:15px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
+                f"<span style='font-size:{sz_text}px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
             )
 
     def _on_news_clicked(self, index):
@@ -4697,6 +4890,14 @@ class NewsCCTVComponent(DraggableContainer):
 
     def _apply_style(self):
         self.updateSize()
+
+    def apply_scale(self, factor):
+        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+        pm = _render_svg_logo(self._ICON_PATH, self._scaled_px(30))
+        pm.setDevicePixelRatio(dpr)
+        self.iconLabel.setPixmap(pm)
+        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
+        self._render_items()
 
 
 class CountdownEventComponent(DraggableContainer):
@@ -4713,13 +4914,15 @@ class CountdownEventComponent(DraggableContainer):
     def _setup_ui(self):
         self.countdownLabel = QLabel("")
         self.countdownLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.countdownLabel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         layout = self.inner_layout
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setContentsMargins(24, 20, 24, 20)
-        layout.addWidget(self.countdownLabel)
+        layout.addWidget(self.countdownLabel, 1)
 
-        self.setMinimumSize(200, 200)
+        self._set_natural_size(200, 200)
+        self.setMinimumSize(80, 80)
         self._size_explicitly_set = True
         self.resize(200, 200)
         self._apply_style()
@@ -4809,11 +5012,14 @@ class CountdownEventComponent(DraggableContainer):
 
         self.countdownLabel.setStyleSheet(f"""
             color: {color_str};
-            font-size: {size}px;
+            font-size: {self._scaled_px(size)}px;
             font-family: {FONT_FAMILY};
             background-color: transparent;
         """)
         self.updateSize()
+
+    def apply_scale(self, factor):
+        self._apply_style()
 
 
 class SchoolInfoComponent(DraggableContainer):
@@ -4829,22 +5035,46 @@ class SchoolInfoComponent(DraggableContainer):
         self.classLabel = QLabel("")
         self.classLabel.setObjectName("schoolClassLabel")
         self.classLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.classLabel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         self.nameLabel = QLabel("")
         self.nameLabel.setObjectName("schoolNameLabel")
         self.nameLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.nameLabel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         layout = self.inner_layout
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(6)
-        layout.addWidget(self.classLabel)
-        layout.addWidget(self.nameLabel)
+        layout.addWidget(self.classLabel, 3)
+        layout.addWidget(self.nameLabel, 1)
 
-        self.setMinimumSize(200, 200)
+        self._set_natural_size(200, 200)
+        self.setMinimumSize(80, 80)
         self._size_explicitly_set = True
         self.resize(200, 200)
+        self._apply_style()
         self._update_info()
+
+    def _apply_style(self):
+        color = cfg.clockColor.value
+        color_str = color.name() if hasattr(color, 'name') else str(color)
+        self.classLabel.setStyleSheet(f"""
+            color: {color_str};
+            font-size: {self._scaled_px(28)}px;
+            font-weight: bold;
+            font-family: {FONT_FAMILY};
+            background-color: transparent;
+        """)
+        self.nameLabel.setStyleSheet(f"""
+            color: {color_str};
+            font-size: {self._scaled_px(18)}px;
+            font-family: {FONT_FAMILY};
+            background-color: transparent;
+        """)
+
+    def apply_scale(self, factor):
+        self._apply_style()
 
     def _update_info(self):
         # 从 ClassWidgets 数据更新
@@ -4877,11 +5107,14 @@ class MediaPlayerComponent(DraggableContainer):
         layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        layout.addWidget(self.mediaWidget)
+        layout.addWidget(self.mediaWidget, 1)
 
-        self.setMinimumSize(300, 150)
+        nat_w = cfg.mediaWidth.value
+        nat_h = cfg.mediaHeight.value
+        self._set_natural_size(nat_w, nat_h)
+        self.setMinimumSize(150, 80)
         self._size_explicitly_set = True
-        self.resize(cfg.mediaWidth.value, cfg.mediaHeight.value)
+        self.resize(nat_w, nat_h)
 
         # 同步尺寸变化
         cfg.mediaWidth.valueChanged.connect(self._sync_media_size)
@@ -4892,6 +5125,13 @@ class MediaPlayerComponent(DraggableContainer):
         self.resize(cfg.mediaWidth.value, cfg.mediaHeight.value)
         if hasattr(self.mediaWidget, '_apply_config'):
             self.mediaWidget._apply_config()
+
+    def apply_scale(self, factor):
+        # 将缩放因子传递给 MediaWidget，让其缩放字体/封面/歌词
+        if self.mediaWidget is not None:
+            self.mediaWidget._scale_factor = factor
+            if hasattr(self.mediaWidget, '_apply_config'):
+                self.mediaWidget._apply_config()
 
     def _setup_timer(self):
         cfg.showMediaInfo.valueChanged.connect(self._on_visibility_changed)
@@ -4922,7 +5162,8 @@ class QuickLaunchDockComponent(DraggableContainer):
         layout.setContentsMargins(20, 16, 20, 16)
         layout.addWidget(self.dock)
 
-        self.setMinimumSize(400, 200)
+        self._set_natural_size(400, 200)
+        self.setMinimumSize(120, 80)
         self._size_explicitly_set = True
         self.resize(400, 200)
 
@@ -4930,6 +5171,11 @@ class QuickLaunchDockComponent(DraggableContainer):
         apps = cfg.quickLaunchApps.value
         if apps:
             self.dock.set_apps(apps)
+
+    def apply_scale(self, factor):
+        self.dock.set_scale_factor(factor)
+        self.dock._fix_size()
+        self.dock.update()
 
     def _setup_signals(self):
         cfg.showQuickLaunch.valueChanged.connect(self._on_visibility_changed)
@@ -5186,12 +5432,12 @@ class CalendarMonthComponent(DraggableContainer):
 
         self._up_btn = TransparentToolButton(self)
         self._up_btn.setIcon(FUI.CHEVRON_UP.icon())
-        self._up_btn.setFixedSize(28, 18)
+        self._up_btn.setFixedSize(self._scaled_px(28), self._scaled_px(18))
         self._up_btn.clicked.connect(self._go_prev_month)
 
         self._down_btn = TransparentToolButton(self)
         self._down_btn.setIcon(FUI.CHEVRON_DOWN.icon())
-        self._down_btn.setFixedSize(28, 18)
+        self._down_btn.setFixedSize(self._scaled_px(28), self._scaled_px(18))
         self._down_btn.clicked.connect(self._go_next_month)
 
         btn_layout.addWidget(self._up_btn)
@@ -5237,7 +5483,8 @@ class CalendarMonthComponent(DraggableContainer):
 
         layout.addWidget(grid_w, 1)
 
-        self.setMinimumSize(300, 300)
+        self._set_natural_size(300, 300)
+        self.setMinimumSize(120, 120)
         self._size_explicitly_set = True
         self.resize(300, 300)
         self._apply_style()
@@ -5325,17 +5572,19 @@ class CalendarMonthComponent(DraggableContainer):
         self.updateSize()
 
     def _apply_style(self):
+        title_sz = self._scaled_px(20)
+        wk_sz = self._scaled_px(13)
         self.setStyleSheet(f"""
             #calTitle {{
                 color: #f0f0f0;
-                font-size: 20px;
+                font-size: {title_sz}px;
                 font-weight: 600;
                 font-family: {FONT_FAMILY};
                 background: transparent;
             }}
             #calWk {{
                 color: #d0d0d0;
-                font-size: 13px;
+                font-size: {wk_sz}px;
                 font-family: {FONT_FAMILY};
                 background: transparent;
             }}
@@ -5343,6 +5592,11 @@ class CalendarMonthComponent(DraggableContainer):
                 color: #b0b0b0;
             }}
         """)
+
+    def apply_scale(self, factor):
+        self._up_btn.setFixedSize(self._scaled_px(28), self._scaled_px(18))
+        self._down_btn.setFixedSize(self._scaled_px(28), self._scaled_px(18))
+        self._apply_style()
 
 
 class _TimetableRow(QWidget):
@@ -5470,7 +5724,8 @@ class TimetablePreviewComponent(DraggableContainer):
         self._scroll.setWidget(self._scroll_content)
         layout.addWidget(self._scroll, 1)
 
-        self.setMinimumSize(300, 550)
+        self._set_natural_size(300, 550)
+        self.setMinimumSize(160, 200)
         self._size_explicitly_set = True
         self.resize(300, 550)
         self._apply_style()
@@ -5852,6 +6107,12 @@ class TimetablePreviewComponent(DraggableContainer):
             accent = "#4cc2ff"
             progress_bg = "rgba(0, 0, 0, 0.05)"
 
+        sz_title = self._scaled_px(17)
+        sz_idx = self._scaled_px(15)
+        sz_subj = self._scaled_px(20)
+        sz_time = self._scaled_px(15)
+        sz_empty = self._scaled_px(15)
+
         self.setStyleSheet(f"""
             /* 滚动区域 */
             #timetableScroll {{
@@ -5865,7 +6126,7 @@ class TimetablePreviewComponent(DraggableContainer):
             /* 标题 */
             #timetableTitle {{
                 color: {text};
-                font-size: 17px;
+                font-size: {sz_title}px;
                 font-weight: 600;
                 font-family: {FONT_FAMILY};
                 background: transparent;
@@ -5897,13 +6158,13 @@ class TimetablePreviewComponent(DraggableContainer):
             /* 第几节 */
             #timetableIdx {{
                 color: {text};
-                font-size: 15px;
+                font-size: {sz_idx}px;
                 font-family: {FONT_FAMILY};
                 background: transparent;
             }}
             #timetableIdxPast {{
                 color: {past_text};
-                font-size: 15px;
+                font-size: {sz_idx}px;
                 font-family: {FONT_FAMILY};
                 background: transparent;
             }}
@@ -5911,14 +6172,14 @@ class TimetablePreviewComponent(DraggableContainer):
             /* 课程名 */
             #timetableSubj {{
                 color: {text};
-                font-size: 20px;
+                font-size: {sz_subj}px;
                 font-weight: 500;
                 font-family: {FONT_FAMILY};
                 background: transparent;
             }}
             #timetableSubjPast {{
                 color: {past_text};
-                font-size: 20px;
+                font-size: {sz_subj}px;
                 font-weight: 500;
                 font-family: {FONT_FAMILY};
                 background: transparent;
@@ -5927,13 +6188,13 @@ class TimetablePreviewComponent(DraggableContainer):
             /* 时间 */
             #timetableTime {{
                 color: {text};
-                font-size: 15px;
+                font-size: {sz_time}px;
                 font-family: {FONT_FAMILY};
                 background: transparent;
             }}
             #timetableTimePast {{
                 color: {past_text};
-                font-size: 15px;
+                font-size: {sz_time}px;
                 font-family: {FONT_FAMILY};
                 background: transparent;
             }}
@@ -5941,7 +6202,7 @@ class TimetablePreviewComponent(DraggableContainer):
             /* 课间休息 */
             #timetableBreakLabel {{
                 color: {text};
-                font-size: 20px;
+                font-size: {sz_subj}px;
                 font-weight: 500;
                 font-family: {FONT_FAMILY};
                 background: transparent;
@@ -5950,7 +6211,7 @@ class TimetablePreviewComponent(DraggableContainer):
             /* 空状态 */
             #timetableEmpty {{
                 color: {text_sub};
-                font-size: 15px;
+                font-size: {sz_empty}px;
                 font-family: {FONT_FAMILY};
                 background: transparent;
             }}
@@ -5967,6 +6228,9 @@ class TimetablePreviewComponent(DraggableContainer):
             }}
         """)
 
+    def apply_scale(self, factor):
+        self._apply_style()
+
     def showEvent(self, e):
         super().showEvent(e)
         self._apply_style()
@@ -5980,8 +6244,9 @@ class TimetableNowLessonComponent(DraggableContainer):
         super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
         self.setObjectName("nowLessonContainer")
         self._home = parent
-        self.setFixedSize(400, 200)
-        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self._set_natural_size(400, 200)
+        self.setMinimumSize(120, 80)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         self._bridge = None
         self._timetable_page = None
@@ -6032,7 +6297,8 @@ class TimetableNowLessonComponent(DraggableContainer):
 
         # 左侧：课程名 + 倒计时/进度
         left = QWidget()
-        left.setFixedWidth(180)
+        left.setMinimumWidth(self._scaled_px(100))
+        left.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(4)
@@ -6041,25 +6307,24 @@ class TimetableNowLessonComponent(DraggableContainer):
         self._subject_label.setObjectName("miniSubject")
         self._subject_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self._subject_label.setWordWrap(True)
-        self._subject_label.setMinimumHeight(70)
-        left_layout.addWidget(self._subject_label, 1)
+        self._subject_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        left_layout.addWidget(self._subject_label, 3)
 
         self._countdown_label = QLabel("")
         self._countdown_label.setObjectName("miniCountdown")
         self._countdown_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        self._countdown_label.setMinimumHeight(28)
-        left_layout.addWidget(self._countdown_label)
+        left_layout.addWidget(self._countdown_label, 1)
 
         self._time_progress_label = QLabel("-- min / -- min")
         self._time_progress_label.setObjectName("miniTimeLabel")
         self._time_progress_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        self._time_progress_label.setMinimumHeight(28)
-        left_layout.addWidget(self._time_progress_label)
+        left_layout.addWidget(self._time_progress_label, 1)
 
-        main_layout.addWidget(left)
+        main_layout.addWidget(left, 1)
 
         # 右侧：老师 时间段 下节课
         right = QWidget()
+        right.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(8)
@@ -6067,16 +6332,19 @@ class TimetableNowLessonComponent(DraggableContainer):
         self._teacher_label = QLabel("--")
         self._teacher_label.setObjectName("miniTeacher")
         self._teacher_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self._teacher_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         right_layout.addWidget(self._teacher_label, 1)
 
         self._time_label = QLabel("--:-- ~ --:--")
         self._time_label.setObjectName("miniTime")
         self._time_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self._time_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         right_layout.addWidget(self._time_label, 1)
 
         self._next_label = QLabel("下节课：--")
         self._next_label.setObjectName("miniNext")
         self._next_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self._next_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         right_layout.addWidget(self._next_label, 1)
 
         right_layout.addStretch()
@@ -6086,7 +6354,7 @@ class TimetableNowLessonComponent(DraggableContainer):
 
         # 进度条 — 使用 qfluentwidgets ProgressBar
         self._bottom_progress = ProgressBar(self)
-        self._bottom_progress.setFixedHeight(6)
+        self._bottom_progress.setFixedHeight(self._scaled_px(6))
         self._bottom_progress.setRange(0, 100)
         self._bottom_progress.setValue(0)
         layout.addWidget(self._bottom_progress)
@@ -6128,7 +6396,7 @@ class TimetableNowLessonComponent(DraggableContainer):
         font_scale = self._cfg_font_scale / 100.0
 
         def fs(px):
-            return max(1, int(px * font_scale))
+            return max(1, int(px * font_scale * self._scale_factor))
 
         # 课程名
         self._subject_label.setStyleSheet(f"""
@@ -6191,6 +6459,15 @@ class TimetableNowLessonComponent(DraggableContainer):
             background: transparent;
             padding: 2px 0;
         """)
+
+    def apply_scale(self, factor):
+        # 更新左侧最小宽度并重应用字体样式
+        main_item = self.inner_layout.itemAt(0)
+        if main_item and main_item.widget():
+            left = main_item.widget().findChild(QWidget)
+            if left:
+                left.setMinimumWidth(self._scaled_px(100))
+        self._apply_style()
 
     def _connect_timetable_page(self):
         try:
@@ -6467,7 +6744,8 @@ class CalculatorComponent(DraggableContainer):
         main_layout.addWidget(self.display)
         main_layout.addLayout(buttons_layout)
 
-        self.setMinimumSize(300, 480)
+        self._set_natural_size(300, 480)
+        self.setMinimumSize(160, 240)
         self._size_explicitly_set = True
         self.resize(300, 480)
 
@@ -6598,10 +6876,15 @@ class CalculatorComponent(DraggableContainer):
             }}
         """)
 
+        sz_display = self._scaled_px(24)
+        sz_op = self._scaled_px(28)
+        sz_num = self._scaled_px(24)
+        sz_hist = self._scaled_px(14)
+
         self.display.setTextFormat(Qt.TextFormat.RichText)
         self.display.setStyleSheet(f"""
             color: {display_text};
-            font-size: 24px;
+            font-size: {sz_display}px;
             font-family: {FONT_FAMILY};
             font-weight: 300;
             background-color: transparent;
@@ -6611,13 +6894,15 @@ class CalculatorComponent(DraggableContainer):
             white-space: nowrap;
         """)
 
+        self.history_display.setStyleSheet(f"color: rgba(255, 255, 255, 0.5); font-size: {sz_hist}px; background: transparent; border: none; padding: 0 8px;")
+
         operator_keys = {"÷", "×", "−", "+", "="}
         for text, btn in self.buttons.items():
             if text in operator_keys:
                 btn.setStyleSheet(f"""
                     QPushButton {{
                         color: {btn_op_text};
-                        font-size: 28px;
+                        font-size: {sz_op}px;
                         font-family: {FONT_FAMILY};
                         background-color: {btn_op_bg};
                         border: none;
@@ -6631,7 +6916,7 @@ class CalculatorComponent(DraggableContainer):
                 btn.setStyleSheet(f"""
                     QPushButton {{
                         color: #ffffff;
-                        font-size: 24px;
+                        font-size: {sz_num}px;
                         font-family: {FONT_FAMILY};
                         background-color: {btn_num_bg};
                         border: none;
@@ -6643,6 +6928,9 @@ class CalculatorComponent(DraggableContainer):
                 """)
 
         self.updateSize()
+
+    def apply_scale(self, factor):
+        self._apply_style()
 
     def _is_operator(self, ch: str) -> bool:
         return ch in {"+", "-", "*", "/"}
@@ -8317,13 +8605,14 @@ class WritingPadComponent(DraggableContainer):
         return container
 
     def _style_tool_btn(self, container):
+        sz_text = self._scaled_px(11)
         if container._checked:
             container.setStyleSheet(
                 "QWidget{background:rgba(0,95,184,100);border-radius:8px;}"
             )
             container._icon_lb.setStyleSheet("border:none;background:transparent;")
             container._text_lb.setStyleSheet(
-                "font-size:11px;color:#ffffff;border:none;background:transparent;"
+                f"font-size:{sz_text}px;color:#ffffff;border:none;background:transparent;"
             )
         else:
             container.setStyleSheet(
@@ -8332,7 +8621,7 @@ class WritingPadComponent(DraggableContainer):
             )
             container._icon_lb.setStyleSheet("border:none;background:transparent;")
             container._text_lb.setStyleSheet(
-                "font-size:11px;color:#aaaaaa;border:none;background:transparent;"
+                f"font-size:{sz_text}px;color:#aaaaaa;border:none;background:transparent;"
             )
 
     def _setup_ui(self):
@@ -8377,7 +8666,8 @@ class WritingPadComponent(DraggableContainer):
 
         layout.addStretch()
 
-        self.setMinimumSize(400, 96)
+        self._set_natural_size(400, 100)
+        self.setMinimumSize(200, 60)
         self._size_explicitly_set = True
         self.resize(400, 100)
         self._update_button_states()
@@ -8453,6 +8743,12 @@ class WritingPadComponent(DraggableContainer):
     def _apply_style(self):
         self.updateSize()
 
+    def apply_scale(self, factor):
+        for box in (self._mouse_box, self._pen_box, self._eraser_box,
+                    self._trans_box, self._white_box):
+            if hasattr(box, '_update_style'):
+                box._update_style()
+
 
 class ClassAlbumHorizontalComponent(DraggableContainer):
     """横向班级相册"""
@@ -8483,7 +8779,8 @@ class ClassAlbumHorizontalComponent(DraggableContainer):
         self.flip_view.setBorderRadius(8)
         self.flip_view.setSpacing(0)
         self.flip_view.setItemSize(QSize(self._item_w, self._item_h))
-        self.flip_view.setMinimumSize(self._item_w, self._item_h)
+        self.flip_view.setMinimumSize(80, 60)
+        self.flip_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.flip_view.setStyleSheet("background: transparent; border: none;")
         self.flip_view.viewport().setStyleSheet("background: transparent;")
         self.flip_view.installEventFilter(self)
@@ -8493,7 +8790,8 @@ class ClassAlbumHorizontalComponent(DraggableContainer):
         layout.setSpacing(0)
         layout.addWidget(self.flip_view)
 
-        self.setMinimumSize(self._item_w, self._item_h)
+        self._set_natural_size(self._item_w, self._item_h)
+        self.setMinimumSize(120, 80)
         self._size_explicitly_set = True
         self.resize(self._item_w, self._item_h)
 
@@ -8681,7 +8979,8 @@ class ClassAlbumVerticalComponent(DraggableContainer):
         self.flip_view.setBorderRadius(8)
         self.flip_view.setSpacing(0)
         self.flip_view.setItemSize(QSize(self._item_w, self._item_h))
-        self.flip_view.setMinimumSize(self._item_w, self._item_h)
+        self.flip_view.setMinimumSize(60, 80)
+        self.flip_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.flip_view.setStyleSheet("background: transparent; border: none;")
         self.flip_view.viewport().setStyleSheet("background: transparent;")
         self.flip_view.installEventFilter(self)
@@ -8691,7 +8990,8 @@ class ClassAlbumVerticalComponent(DraggableContainer):
         layout.setSpacing(0)
         layout.addWidget(self.flip_view)
 
-        self.setMinimumSize(self._item_w, self._item_h)
+        self._set_natural_size(self._item_w, self._item_h)
+        self.setMinimumSize(80, 120)
         self.resize(self._item_w, self._item_h)
 
     def _set_item_path(self, item, path: str):
@@ -8876,31 +9176,22 @@ class StickyNoteComponent(DraggableContainer):
         self._load_note()
 
     def _setup_ui(self):
-        colors = self.STICKY_COLORS.get(self._color_key, self.STICKY_COLORS["yellow"])
-
-        self.setStyleSheet(f"""
-            #stickyNoteContainer {{
-                background-color: {colors['bg']};
-                border-radius: 8px;
-                border: 1px solid {colors['header']};
-            }}
-        """)
+        self._colors = self.STICKY_COLORS.get(self._color_key, self.STICKY_COLORS["yellow"])
 
         # 标题栏
         self._header = QWidget()
-        self._header.setFixedHeight(36)
+        self._header.setFixedHeight(self._scaled_px(36))
         header_layout = QHBoxLayout(self._header)
         header_layout.setContentsMargins(12, 0, 12, 0)
 
         self._color_dot = QLabel()
-        self._color_dot.setFixedSize(10, 10)
+        self._color_dot.setFixedSize(self._scaled_px(10), self._scaled_px(10))
         dot_pm = QPixmap(10, 10)
-        dot_pm.fill(QColor(colors['header']))
+        dot_pm.fill(QColor(self._colors['header']))
         self._color_dot.setPixmap(dot_pm)
         self._color_dot.setStyleSheet("border-radius: 5px;")
 
         self._date_label = QLabel(QDate.currentDate().toString("yyyy-MM-dd"))
-        self._date_label.setStyleSheet(f"color: {colors['text']}; font-size: 11px; font-family: 'HarmonyOS Sans'; background: transparent;")
 
         header_layout.addWidget(self._color_dot)
         header_layout.addSpacing(6)
@@ -8910,20 +9201,6 @@ class StickyNoteComponent(DraggableContainer):
         # 编辑区
         self._editor = QTextEdit()
         self._editor.setPlaceholderText(tr("sticky_note.placeholder"))
-        self._editor.setStyleSheet(f"""
-            QTextEdit {{
-                background-color: transparent;
-                border: none;
-                color: {colors['text']};
-                font-size: 13px;
-                font-family: 'HarmonyOS Sans';
-                padding: 4px 12px 12px 12px;
-                selection-background-color: {colors['header']};
-            }}
-            QTextEdit:focus {{
-                outline: none;
-            }}
-        """)
         self._editor.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._editor.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._editor.textChanged.connect(self._on_text_changed)
@@ -8936,9 +9213,43 @@ class StickyNoteComponent(DraggableContainer):
         layout.addWidget(self._header)
         layout.addWidget(self._editor, 1)
 
-        self.setMinimumSize(180, 160)
+        self._set_natural_size(280, 280)
+        self.setMinimumSize(120, 100)
         self._size_explicitly_set = True
         self.resize(280, 280)
+        self._apply_style()
+
+    def _apply_style(self):
+        colors = self._colors
+        sz_date = self._scaled_px(11)
+        sz_editor = self._scaled_px(13)
+        self.setStyleSheet(f"""
+            #stickyNoteContainer {{
+                background-color: {colors['bg']};
+                border-radius: 8px;
+                border: 1px solid {colors['header']};
+            }}
+        """)
+        self._date_label.setStyleSheet(f"color: {colors['text']}; font-size: {sz_date}px; font-family: 'HarmonyOS Sans'; background: transparent;")
+        self._editor.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: transparent;
+                border: none;
+                color: {colors['text']};
+                font-size: {sz_editor}px;
+                font-family: 'HarmonyOS Sans';
+                padding: 4px 12px 12px 12px;
+                selection-background-color: {colors['header']};
+            }}
+            QTextEdit:focus {{
+                outline: none;
+            }}
+        """)
+
+    def apply_scale(self, factor):
+        self._header.setFixedHeight(self._scaled_px(36))
+        self._color_dot.setFixedSize(self._scaled_px(10), self._scaled_px(10))
+        self._apply_style()
 
     def _on_text_changed(self):
         self._save_timer.start()
@@ -10248,7 +10559,7 @@ class TimerCountdownComponent(DraggableContainer):
     def _init_ui(self):
         # Pivot
         self._pivot = Pivot(self)
-        self._pivot.setFixedHeight(32)
+        self._pivot.setFixedHeight(self._scaled_px(32))
         self._pivot.addItem(
             "timer",
             tr("timer_countdown.timer"),
@@ -10274,7 +10585,7 @@ class TimerCountdownComponent(DraggableContainer):
 
         # 计时按钮
         self._timer_btn_stack = QStackedWidget(self._timer_page)
-        self._timer_btn_stack.setFixedHeight(60)
+        self._timer_btn_stack.setFixedHeight(self._scaled_px(60))
 
         # 开始
         ts_btn = QWidget()
@@ -10282,7 +10593,7 @@ class TimerCountdownComponent(DraggableContainer):
         ts_lay.setContentsMargins(0, 0, 0, 0)
         ts_lay.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._ts_start = PrimaryPushButton(FUI.PLAY, tr("timer_countdown.start"), ts_btn)
-        self._ts_start.setFixedSize(160, 44)
+        self._ts_start.setFixedSize(self._scaled_px(160), self._scaled_px(44))
         self._ts_start.clicked.connect(self._on_timer_start)
         ts_lay.addWidget(self._ts_start)
         self._timer_btn_stack.addWidget(ts_btn)  # index 0
@@ -10294,11 +10605,11 @@ class TimerCountdownComponent(DraggableContainer):
         tr_lay.setAlignment(Qt.AlignmentFlag.AlignCenter)
         tr_lay.setSpacing(16)
         self._ts_pause = PushButton(tr("timer_countdown.pause"), tr_btn)
-        self._ts_pause.setFixedSize(100, 40)
+        self._ts_pause.setFixedSize(self._scaled_px(100), self._scaled_px(40))
         self._ts_pause.clicked.connect(self._on_timer_pause)
         tr_lay.addWidget(self._ts_pause)
         self._ts_cancel = PushButton(tr("timer_countdown.cancel"), tr_btn)
-        self._ts_cancel.setFixedSize(100, 40)
+        self._ts_cancel.setFixedSize(self._scaled_px(100), self._scaled_px(40))
         self._ts_cancel.clicked.connect(self._on_timer_cancel)
         tr_lay.addWidget(self._ts_cancel)
         self._timer_btn_stack.addWidget(tr_btn)  # index 1
@@ -10334,7 +10645,7 @@ class TimerCountdownComponent(DraggableContainer):
         cds_lay.addLayout(cols)
 
         self._cd_start = PrimaryPushButton(FUI.PLAY, tr("timer_countdown.start"), cd_setup)
-        self._cd_start.setFixedSize(160, 40)
+        self._cd_start.setFixedSize(self._scaled_px(160), self._scaled_px(40))
         self._cd_start.clicked.connect(self._on_countdown_start)
         cds_lay.addWidget(self._cd_start, 0, Qt.AlignmentFlag.AlignCenter)
         self._cd_content_stack.addWidget(cd_setup)  # index 0
@@ -10353,11 +10664,11 @@ class TimerCountdownComponent(DraggableContainer):
         cdr_btns.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cdr_btns.setSpacing(16)
         self._cd_pause = PushButton(tr("timer_countdown.pause"), cd_run)
-        self._cd_pause.setFixedSize(100, 40)
+        self._cd_pause.setFixedSize(self._scaled_px(100), self._scaled_px(40))
         self._cd_pause.clicked.connect(self._on_countdown_pause)
         cdr_btns.addWidget(self._cd_pause)
         self._cd_cancel = PushButton(tr("timer_countdown.cancel"), cd_run)
-        self._cd_cancel.setFixedSize(100, 40)
+        self._cd_cancel.setFixedSize(self._scaled_px(100), self._scaled_px(40))
         self._cd_cancel.clicked.connect(self._on_countdown_cancel)
         cdr_btns.addWidget(self._cd_cancel)
         cdr_lay.addLayout(cdr_btns)
@@ -10373,7 +10684,8 @@ class TimerCountdownComponent(DraggableContainer):
         main_layout.addWidget(self._pivot)
         main_layout.addWidget(self._mode_stack, 1)
 
-        self.setMinimumSize(200, 160)
+        self._set_natural_size(240, 200)
+        self.setMinimumSize(140, 120)
         self._size_explicitly_set = True
         self.resize(240, 200)
         self._apply_bg_style()
@@ -10512,6 +10824,16 @@ class TimerCountdownComponent(DraggableContainer):
         self.setStyleSheet(
             f"#timerCountdownContainer {{ background-color: {bg_str}; border-radius: 8px; }}"
         )
+
+    def apply_scale(self, factor):
+        self._pivot.setFixedHeight(self._scaled_px(32))
+        self._timer_btn_stack.setFixedHeight(self._scaled_px(60))
+        self._ts_start.setFixedSize(self._scaled_px(160), self._scaled_px(44))
+        self._ts_pause.setFixedSize(self._scaled_px(100), self._scaled_px(40))
+        self._ts_cancel.setFixedSize(self._scaled_px(100), self._scaled_px(40))
+        self._cd_start.setFixedSize(self._scaled_px(160), self._scaled_px(40))
+        self._cd_pause.setFixedSize(self._scaled_px(100), self._scaled_px(40))
+        self._cd_cancel.setFixedSize(self._scaled_px(100), self._scaled_px(40))
 
     def cleanup(self):
         self._timer.stop()
