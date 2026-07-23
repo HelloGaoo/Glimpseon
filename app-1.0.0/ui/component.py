@@ -31,7 +31,6 @@ import webbrowser
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict
-import queue
 import threading
 from collections import deque
 
@@ -66,11 +65,10 @@ from PyQt6.QtGui import (
     QIcon,
     QImageReader,
     QLinearGradient,
-    QMouseEvent,
     QPainter,
     QPainterPath,
     QPen,
-    QPixmap, 
+    QPixmap,
     QDrag,
 )
 from PyQt6.QtSvg import QSvgRenderer
@@ -78,8 +76,8 @@ from PyQt6.QtWidgets import (
     QFileIconProvider, QGridLayout, QLabel, QSizePolicy, QWidget, QVBoxLayout, QHBoxLayout, QApplication, QProgressBar, QGraphicsOpacityEffect,
     QScrollArea, QStackedWidget, QPushButton, QListWidget, QListWidgetItem, QLineEdit, QSlider, QFileDialog, QTextEdit
 )
-from qfluentwidgets import InfoBar, isDarkTheme, RoundMenu, Action, FluentWindow, setTheme, ScrollArea, PushButton, ToolButton, TransparentToolButton, StrongBodyLabel, CardWidget, BodyLabel, SubtitleLabel, ComboBox, SpinBox, SwitchButton, HorizontalFlipView, VerticalFlipView, PrimaryPushButton, Pivot, MessageBoxBase, ProgressBar
-from win32com.shell import shell, shellcon
+from qfluentwidgets import InfoBar, isDarkTheme, RoundMenu, Action, FluentWindow, setTheme, ScrollArea, PushButton, ToolButton, TransparentToolButton, StrongBodyLabel, CardWidget, BodyLabel, ComboBox, SpinBox, SwitchButton, HorizontalFlipView, VerticalFlipView, PrimaryPushButton, Pivot, MessageBoxBase, ProgressBar, LineEdit, ColorPickerButton
+from win32com.shell import shell
 
 from core.config import cfg, save_cfg
 from core.utils import tr, FUI, get_cached_content, save_cache
@@ -90,7 +88,6 @@ from resource.software_list import get_software_icon_path
 from core.component import (
     ComponentDefinition,
     ComponentRegistry,
-    ResizeMode,
 )
 
 logger = logging.getLogger("Glimpseon.ui.component")
@@ -163,10 +160,10 @@ COMPONENT_STYLES = {
     },
     "school_info": {
         "class_info": {
-            "name": "课程信息",
+            "name": "班级卡片",
             "class": None,
             "default_config": {},
-            "default_size": (200, 200),
+            "default_size": (400, 200),
         },
     },
     "media": {
@@ -296,8 +293,8 @@ class ComponentManager:
 
     def __init__(self, home_interface):
         self.home = home_interface
-        self.components = {}  # id > DraggableContainer 实例
-        self._component_data = {}  # id > 原始配置数据
+        self.components = {}  # id: DraggableContainer 实例
+        self._component_data = {}  # id: 原始配置数据
 
     def load_components(self):
         """从 config/components.json 加载组件"""
@@ -375,9 +372,6 @@ class ComponentManager:
                 "enabled": instance.isVisible(),
                 "config": self._component_data.get(comp_id, {}).get("config", {}),
             }
-            pro = self._component_data.get(comp_id, {}).get("pro")
-            if pro is not None:
-                comp_data["pro"] = pro
 
             data["components"].append(comp_data)
 
@@ -388,7 +382,7 @@ class ComponentManager:
         except Exception as e:
             logger.error(f"保存组件配置失败: {e}")
 
-    def add_component(self, comp_type: str, comp_style: str, config=None, pro=None) -> str:
+    def add_component(self, comp_type: str, comp_style: str, config=None) -> str:
         """添加新组件"""
         if len(self.components) >= self.MAX_COMPONENTS:
             logger.warning(f"组件数量上限: {self.MAX_COMPONENTS}")
@@ -409,7 +403,6 @@ class ComponentManager:
             "size": {"w": default_size[0], "h": default_size[1]},
             "enabled": True,
             "config": config or style_info.get("default_config", {}),
-            "pro": pro,
         }
 
         comp_class = style_info["class"]
@@ -418,7 +411,7 @@ class ComponentManager:
             instance.resize(*default_size)
             instance._size_explicitly_set = True
             instance.show()
-            # show() 触发 showEvent > adjustSize() 可能改变尺寸
+            # show() 触发 showEvent 调 adjustSize() 可能改变尺寸
             # 目的防止加载数据之后布局变了
             instance.setPositionPercent(0.5, 0.5)
 
@@ -452,15 +445,13 @@ class ComponentManager:
         """获取单个组件的配置数据"""
         return self._component_data.get(comp_id, {})
 
-    def update_component_config(self, comp_id: str, config: dict, pro=None):
+    def update_component_config(self, comp_id: str, config: dict):
         """更新组件配置"""
         if comp_id not in self._component_data:
             logger.warning(f"组件不存在: {comp_id}")
             return
 
         self._component_data[comp_id]["config"] = config
-        if pro is not None:
-            self._component_data[comp_id]["pro"] = pro
         self.save_components()
 
     def _generate_id(self, comp_type: str) -> str:
@@ -475,7 +466,7 @@ class ComponentManager:
 class DraggableWidget(QWidget):
     positionChanged = pyqtSignal(float, float)
     selected = pyqtSignal(str)
-    # settingRequested = pyqtSignal(str)  # 弃
+
     def __init__(self, parent=None, component_id: str = ""):
         super().__init__(parent)
         self.component_id = component_id
@@ -486,17 +477,13 @@ class DraggableWidget(QWidget):
         self._percent_x = 0.5
         self._percent_y = 0.5
         self._draggable = False
-        self._anchor_mode = "topleft"
         self._selected = False
         self._resizing = False
         self._resize_start_pos = QPoint()
         self._resize_start_size = QSize()
-        self._resize_start_geo = QRect()
         self._show_border = False
-        self._border_color = QColor(120, 120, 120)
         self._hovered = False
         self._cached_primary_color = QColor(48, 195, 97)
-        self._cached_hover_color = QColor(108, 255, 157)
 
         self.setMouseTracking(True)
         self.setAutoFillBackground(False)
@@ -537,12 +524,7 @@ class DraggableWidget(QWidget):
     
     def getPositionPercent(self) -> tuple:
         return (self._percent_x, self._percent_y)
-    
-    def setAnchorMode(self, mode: str):
-        valid_modes = ["topleft", "top", "topright", "left", "center", "right", 
-                       "bottomleft", "bottom", "bottomright"]
-        if mode in valid_modes:self._anchor_mode = mode
-    
+
     def _updatePositionFromPercent(self):
         parent = self.parentWidget()
         if not parent:return
@@ -553,18 +535,6 @@ class DraggableWidget(QWidget):
         if available_width > 0 and available_height > 0:
             x = int(available_width * self._percent_x)
             y = int(available_height * self._percent_y)
-
-            if self._anchor_mode == "topright":
-                x = int(available_width * (1 - self._percent_x))
-            elif self._anchor_mode == "bottomleft":
-                y = int(available_height * (1 - self._percent_y))
-            elif self._anchor_mode == "bottomright":
-                x = int(available_width * (1 - self._percent_x))
-                y = int(available_height * (1 - self._percent_y))
-            elif self._anchor_mode == "center":
-                x = int(available_width / 2)
-                y = int(available_height / 2)
-            
             self.move(x, y)
     
     def _calculatePercentFromPosition(self) -> tuple:
@@ -679,11 +649,6 @@ class DraggableWidget(QWidget):
         else:
             primary_color = theme_color
         self._cached_primary_color = primary_color
-        self._cached_hover_color = QColor(
-            min(255, primary_color.red() + 60),
-            min(255, primary_color.green() + 60),
-            min(255, primary_color.blue() + 60)
-        )
         self.update()
     
     def enterEvent(self, event):
@@ -718,7 +683,6 @@ class DraggableWidget(QWidget):
                 self._resizing = True
                 self._resize_start_pos = event.globalPosition().toPoint()
                 self._resize_start_size = self.size()
-                self._resize_start_geo = self.geometry()
                 self._saved_min_size = self.minimumSize()
                 self.setMinimumSize(1, 1)
                 self.setCursor(QCursor(Qt.CursorShape.SizeFDiagCursor))
@@ -741,7 +705,6 @@ class DraggableWidget(QWidget):
         if self._draggable and event.button() == Qt.MouseButton.LeftButton:
             self._dragging = False
             self.setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
-            # self.settingRequested.emit(self.component_id)
             event.accept()
             return
         super().mouseDoubleClickEvent(event)
@@ -807,64 +770,53 @@ class DraggableWidget(QWidget):
             widget = widget.parentWidget()
         return None
     
+    def _save_position(self):
+        """保存当前位置到配置"""
+        main_win = self._getMainWindow()
+        if main_win and hasattr(main_win, 'homeInterface') and main_win.homeInterface:
+            mgr = getattr(main_win.homeInterface, 'component_manager', None)
+            if mgr:
+                mgr.save_components()
+
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            # 缩放结束
-            if self._resizing:
-                self._resizing = False
-                # 恢复 minimumSize
-                if hasattr(self, '_saved_min_size'):
-                    self.setMinimumSize(self._saved_min_size)
-                    del self._saved_min_size
-                self.setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
-                # 保存
-                home = self._getMainWindow()
-                if home and hasattr(home, 'homeInterface') and home.homeInterface:
-                    mgr = getattr(home.homeInterface, 'component_manager', None)
-                    if mgr:
-                        mgr.save_components()
+        if event.button() != Qt.MouseButton.LeftButton:
+            super().mouseReleaseEvent(event)
+            return
+
+        # 缩放结束
+        if self._resizing:
+            self._resizing = False
+            if hasattr(self, '_saved_min_size'):
+                self.setMinimumSize(self._saved_min_size)
+                del self._saved_min_size
+            self.setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
+            self._save_position()
+            event.accept()
+            return
+
+        # 拖动结束
+        if self._dragging:
+            self._dragging = False
+            self.setCursor(QCursor(Qt.CursorShape.OpenHandCursor if self._draggable else Qt.CursorShape.ArrowCursor))
+
+        self.update()
+
+        main_window = self._getMainWindow()
+        if main_window and hasattr(main_window, 'clearDragAlignLines'):
+            main_window.clearDragAlignLines()
+
+        # 点击检测（未发生明显拖动则视为点击选中）
+        if self._draggable and hasattr(self, '_click_start_pos'):
+            delta = event.globalPosition().toPoint() - self._click_start_pos
+            if abs(delta.x()) < 5 and abs(delta.y()) < 5:
+                self.selected.emit(self.component_id)
                 event.accept()
                 return
 
-            # 拖动结束
-            if self._dragging:
-                self._dragging = False
-                if self._draggable:
-                    self.setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
-                else:
-                    self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
-                # 保存
-                home = self._getMainWindow()
-                if home and hasattr(home, 'homeInterface') and home.homeInterface:
-                    mgr = getattr(home.homeInterface, 'component_manager', None)
-                    if mgr:
-                        mgr.save_components()
-            
-            self.update()
-
-            main_window = self._getMainWindow()
-            if main_window and hasattr(main_window, 'clearDragAlignLines'):
-                main_window.clearDragAlignLines()
-
-            if self._draggable and hasattr(self, '_click_start_pos'):
-                delta = event.globalPosition().toPoint() - self._click_start_pos
-                if abs(delta.x()) < 5 and abs(delta.y()) < 5:
-                    self.selected.emit(self.component_id)
-                    event.accept()
-                    return
-            
-            # 保存
-            self._percent_x, self._percent_y = self._calculatePercentFromPosition()
-            main_win = self._getMainWindow()
-            if main_win and hasattr(main_win, 'homeInterface') and main_win.homeInterface:
-                mgr = main_win.homeInterface.component_manager if hasattr(main_win.homeInterface, 'component_manager') else None
-                if mgr:
-                    mgr.save_components()
-
-            event.accept()
-            return
-        
-        super().mouseReleaseEvent(event)
+        # 保存位置
+        self._percent_x, self._percent_y = self._calculatePercentFromPosition()
+        self._save_position()
+        event.accept()
     
     def onParentResize(self):
         self._updatePositionFromPercent()
@@ -890,49 +842,41 @@ def _create_edit_controls(parent_widget, component_widget, on_delete_clicked, on
     config_btn = _build_btn(FUI.SETTING, on_config_clicked)
     delete_btn = _build_btn(FUI.DELETE, on_delete_clicked)
 
-    def _apply_btn_style(btn):
+    def _btn_style(btn, hover_rgb):
         opacity = cfg.componentCardOpacity.value / 100.0
         radius = cfg.componentCardRadius.value
         if isDarkTheme():
             c = QColor(40, 40, 40)
-            border_c = "rgba(255,255,255,0.08)"
+            border_c = "rgba(255,255,255,0.10)"
         else:
             c = QColor(255, 255, 255)
-            border_c = "rgba(0,0,0,0.06)"
-        c.setAlpha(int(255 * max(0.6, opacity)))
+            border_c = "rgba(0,0,0,0.08)"
+        c.setAlpha(int(255 * opacity))
+        hr, hg, hb = hover_rgb
         btn.setStyleSheet(f"""
             ToolButton {{
                 background-color: rgba({c.red()}, {c.green()}, {c.blue()}, {c.alpha() / 255:.2f});
-                border-radius: {max(4, radius - 4)}px;
+                border-radius: {radius}px;
                 border: 1px solid {border_c};
             }}
             ToolButton:hover {{
-                background-color: rgba(220, 80, 80, 0.85);
-                border: 1px solid rgba(220, 80, 80, 0.9);
+                background-color: rgba({hr}, {hg}, {hb}, 0.85);
+                border: 1px solid rgba({hr}, {hg}, {hb}, 0.9);
             }}
         """)
 
-    _apply_btn_style(config_btn)
-    opacity = cfg.componentCardOpacity.value / 100.0
-    radius = cfg.componentCardRadius.value
-    if isDarkTheme():
-        dc = QColor(40, 40, 40)
-        dborder = "rgba(255,255,255,0.08)"
-    else:
-        dc = QColor(255, 255, 255)
-        dborder = "rgba(0,0,0,0.06)"
-    dc.setAlpha(int(255 * max(0.6, opacity)))
-    delete_btn.setStyleSheet(f"""
-        ToolButton {{
-            background-color: rgba({dc.red()}, {dc.green()}, {dc.blue()}, {dc.alpha() / 255:.2f});
-            border-radius: {max(4, radius - 4)}px;
-            border: 1px solid {dborder};
-        }}
-        ToolButton:hover {{
-            background-color: rgba(220, 80, 80, 0.85);
-            border: 1px solid rgba(220, 80, 80, 0.9);
-        }}
-    """)
+    # 配置按钮 hover 蓝色 删除按钮 hover 红色
+    _CONFIG_HOVER = (0, 120, 212)
+    _DELETE_HOVER = (220, 80, 80)
+
+    def _apply_config_style():
+        _btn_style(config_btn, _CONFIG_HOVER)
+
+    def _apply_delete_style():
+        _btn_style(delete_btn, _DELETE_HOVER)
+
+    _apply_config_style()
+    _apply_delete_style()
 
     def _reposition():
         comp_pos = component_widget.mapTo(parent_widget, QPoint(0, 0))
@@ -947,27 +891,8 @@ def _create_edit_controls(parent_widget, component_widget, on_delete_clicked, on
     delete_btn.reposition = _reposition
 
     def _apply_style():
-        _apply_btn_style(config_btn)
-        opacity_v = cfg.componentCardOpacity.value / 100.0
-        radius_v = cfg.componentCardRadius.value
-        if isDarkTheme():
-            dc2 = QColor(40, 40, 40)
-            db2 = "rgba(255,255,255,0.08)"
-        else:
-            dc2 = QColor(255, 255, 255)
-            db2 = "rgba(0,0,0,0.06)"
-        dc2.setAlpha(int(255 * max(0.6, opacity_v)))
-        delete_btn.setStyleSheet(f"""
-            ToolButton {{
-                background-color: rgba({dc2.red()}, {dc2.green()}, {dc2.blue()}, {dc2.alpha() / 255:.2f});
-                border-radius: {max(4, radius_v - 4)}px;
-                border: 1px solid {db2};
-            }}
-            ToolButton:hover {{
-                background-color: rgba(220, 80, 80, 0.85);
-                border: 1px solid rgba(220, 80, 80, 0.9);
-            }}
-        """)
+        _apply_config_style()
+        _apply_delete_style()
 
     config_btn.apply_style = _apply_style
     delete_btn.apply_style = _apply_style
@@ -994,8 +919,8 @@ class ComponentConfigDialog(MessageBoxBase):
         comp_type = self._comp_data.get("type", "")
         comp_style = self._comp_data.get("style", "")
         self._comp_key = f"{comp_type}|{comp_style}"
+        self._fields = []
 
-        self._widgets = {}  # key - widget
         self._init_ui()
         self._load_config()
 
@@ -1048,207 +973,338 @@ class ComponentConfigDialog(MessageBoxBase):
     def _switch_page(self, idx):
         self._stack.setCurrentIndex(idx)
 
-    # 基础设置
+    # 配置字段
+    class _Field:
+        """配置字段基类"""
+        def __init__(self, key, label_text, default):
+            self.key = key
+            self.label_text = label_text
+            self.default = default
+
+        def build(self, dialog) -> object:
+            """创建并返回行布局"""
+            raise NotImplementedError
+
+        def load(self, config: dict):
+            """从配置字典加载值"""
+            raise NotImplementedError
+
+        def save(self, result: dict):
+            """从控件读取值写入结果字典"""
+            raise NotImplementedError
+
+    class _SwitchField(_Field):
+        """开关字段"""
+        def __init__(self, key, label_text, default):
+            super().__init__(key, label_text, default)
+            self._widget = None
+
+        def build(self, dialog):
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.addWidget(BodyLabel(self.label_text, dialog))
+            row.addStretch()
+            self._widget = SwitchButton(dialog)
+            row.addWidget(self._widget)
+            return row
+
+        def load(self, config):
+            self._widget.setChecked(bool(config.get(self.key, self.default)))
+
+        def save(self, result):
+            result[self.key] = self._widget.isChecked()
+
+    class _SpinField(_Field):
+        """数值输入字段"""
+        def __init__(self, key, label_text, default, min_v, max_v):
+            super().__init__(key, label_text, default)
+            self._min = min_v
+            self._max = max_v
+            self._widget = None
+
+        def build(self, dialog):
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.addWidget(BodyLabel(self.label_text, dialog))
+            row.addStretch()
+            self._widget = SpinBox(dialog)
+            self._widget.setRange(self._min, self._max)
+            self._widget.setValue(self.default)
+            self._widget.setFixedWidth(200)
+            row.addWidget(self._widget)
+            return row
+
+        def load(self, config):
+            self._widget.setValue(int(config.get(self.key, self.default)))
+
+        def save(self, result):
+            result[self.key] = self._widget.value()
+
+    class _TextField(_Field):
+        """多行文本字段"""
+        def __init__(self, key, label_text, default, placeholder=""):
+            super().__init__(key, label_text, default)
+            self._placeholder = placeholder
+            self._widget = None
+
+        def build(self, dialog):
+            row = QVBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(4)
+            row.addWidget(BodyLabel(self.label_text, dialog))
+            self._widget = QLineEdit(dialog)
+            self._widget.setPlaceholderText(self._placeholder)
+            row.addWidget(self._widget)
+            return row
+
+        def load(self, config):
+            self._widget.setText(str(config.get(self.key, self.default)))
+
+        def save(self, result):
+            result[self.key] = self._widget.text()
+
+    class _TextRowField(_Field):
+        """单行文本字段"""
+        def __init__(self, key, label_text, default):
+            super().__init__(key, label_text, default)
+            self._widget = None
+
+        def build(self, dialog):
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            lbl = BodyLabel(self.label_text, dialog)
+            lbl.setFixedWidth(80)
+            self._widget = LineEdit(dialog)
+            self._widget.setText(str(self.default))
+            self._widget.setMinimumWidth(200)
+            row.addWidget(lbl)
+            row.addWidget(self._widget, 1)
+            return row
+
+        def load(self, config):
+            self._widget.setText(str(config.get(self.key, self.default)))
+
+        def save(self, result):
+            result[self.key] = self._widget.text()
+
+    class _SliderField(_Field):
+        """滑块字段"""
+        def __init__(self, key, label_text, default, min_v, max_v, suffix=""):
+            super().__init__(key, label_text, default)
+            self._min = min_v
+            self._max = max_v
+            self._suffix = suffix
+            self._widget = None
+            self._val_lbl = None
+
+        def build(self, dialog):
+            row = QVBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(4)
+            top = QHBoxLayout()
+            top.setContentsMargins(0, 0, 0, 0)
+            top.addWidget(BodyLabel(self.label_text, dialog))
+            top.addStretch()
+            self._val_lbl = BodyLabel(f"{self.default}{self._suffix}", dialog)
+            self._val_lbl.setFixedWidth(60)
+            self._val_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            top.addWidget(self._val_lbl)
+            row.addLayout(top)
+            self._widget = QSlider(Qt.Orientation.Horizontal, dialog)
+            self._widget.setRange(self._min, self._max)
+            self._widget.setValue(self.default)
+            self._widget.valueChanged.connect(lambda v: self._val_lbl.setText(f"{v}{self._suffix}"))
+            row.addWidget(self._widget)
+            return row
+
+        def load(self, config):
+            self._widget.setValue(int(config.get(self.key, self.default)))
+
+        def save(self, result):
+            result[self.key] = self._widget.value()
+
+    class _ColorField(_Field):
+        """颜色字段"""
+        def __init__(self, key, label_text, default_mode, default_color):
+            super().__init__(key, label_text, default_mode)
+            self._default_color = default_color
+            self._combo = None
+            self._picker = None
+
+        def build(self, dialog):
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            lbl = BodyLabel(self.label_text, dialog)
+            lbl.setFixedWidth(80)
+            self._combo = ComboBox(dialog)
+            self._combo.addItems([tr("component_edit.bg_mode_opacity"), tr("component_edit.bg_mode_custom")])
+            self._combo.setFixedWidth(130)
+            self._combo.setCurrentIndex(1 if self.default == "custom" else 0)
+            self._picker = ColorPickerButton(QColor(self._default_color), "", dialog)
+            self._picker.setFixedWidth(60)
+            self._combo.currentIndexChanged.connect(lambda idx: self._picker.setVisible(idx == 1))
+            self._picker.setVisible(self._combo.currentIndex() == 1)
+            row.addWidget(lbl)
+            row.addWidget(self._combo)
+            row.addWidget(self._picker)
+            row.addStretch()
+            return row
+
+        def load(self, config):
+            mode = config.get(self.key + "_mode", self.default)
+            self._combo.setCurrentIndex(1 if mode == "custom" else 0)
+            color = config.get(self.key + "_color", self._default_color)
+            self._picker.setColor(QColor(str(color)))
+
+        def save(self, result):
+            result[self.key + "_mode"] = "custom" if self._combo.currentIndex() == 1 else "opacity"
+            c = self._picker.color()
+            result[self.key + "_color"] = c.name() if c.isValid() else "#ffffff"
+
+    # 组件配置注册表
+    # key 对应返回 [(分组标题, [字段实例, ...]), ...] 的函数。
+    def _basic_defs(self):
+        """返回当前组件的基础配置定义。"""
+        defs = {
+            "linkage|timetable_nowlesson": lambda: [
+                (tr("component_edit.group_content"), [
+                    self._SwitchField("show_teacher", tr("component_edit.config_show_teacher"), True),
+                    self._SwitchField("show_next", tr("component_edit.config_show_next"), True),
+                    self._SwitchField("show_duration", tr("component_edit.config_show_duration"), True),
+                ]),
+                (tr("component_edit.group_countdown"), [
+                    self._SwitchField("show_countdown", tr("component_edit.config_show_countdown"), True),
+                    self._SpinField("prepare_minutes", tr("component_edit.config_prepare_minutes"), 3, 1, 10),
+                ]),
+            ],
+            "clock|digital": lambda: [
+                (tr("component_edit.group_display"), [
+                    self._SwitchField("show_seconds", tr("component_edit.config_show_seconds"), True),
+                    self._SwitchField("show_lunar", tr("component_edit.config_show_lunar"), True),
+                ]),
+            ],
+            "countdown|event": lambda: [
+                (tr("component_edit.group_target"), [
+                    self._TextField("target_name", tr("component_edit.config_target_name"), ""),
+                    self._TextField("target_date", tr("component_edit.config_target_date"), "", "YYYY-MM-DD"),
+                ]),
+            ],
+            "school_info|class_info": lambda: [
+                (tr("component_edit.group_info"), [
+                    self._TextRowField("class", tr("component_edit.config_class"), ""),
+                    self._TextRowField("school", tr("component_edit.config_school"), ""),
+                    self._TextRowField("count", tr("component_edit.config_count"), ""),
+                    self._TextRowField("slogan", tr("component_edit.config_slogan"), ""),
+                ]),
+            ],
+            "weather|icon_temp": lambda: [
+                (tr("component_edit.group_display"), [
+                    self._SwitchField("show_icon", tr("component_edit.config_show_icon"), True),
+                ]),
+            ],
+            "media|player": lambda: [
+                (tr("component_edit.group_display"), [
+                    self._SwitchField("show_progress", tr("component_edit.config_show_progress"), True),
+                ]),
+            ],
+            "quick_launch|dock": lambda: [
+                (tr("component_edit.group_display"), [
+                    self._SpinField("icon_size", tr("component_edit.config_icon_size"), 64, 24, 96),
+                ]),
+            ],
+        }
+        return defs.get(self._comp_key)
+
+    def _advanced_defs(self):
+        """返回当前组件的进阶配置定义。未单独定义的组件使用默认配置。"""
+        defs = {
+            "school_info|class_info": lambda: [
+                # 外观：不透明度 + 圆角 + 字号缩放
+                ("", [
+                    self._SliderField("bg_opacity", tr("component_edit.config_bg_opacity"), 55, 0, 100, "%"),
+                    self._SliderField("corner_radius", tr("component_edit.config_corner_radius"), 16, 0, 29, "px"),
+                    self._SliderField("font_scale", tr("component_edit.config_font_scale"), 100, 50, 200, "%"),
+                ]),
+                # 字号
+                (tr("component_edit.group_font_size"), [
+                    self._SpinField("class_size", tr("component_edit.config_class_size"), 48, 12, 80),
+                    self._SpinField("school_size", tr("component_edit.config_school_size"), 25, 10, 50),
+                    self._SpinField("count_size", tr("component_edit.config_count_size"), 19, 8, 30),
+                    self._SpinField("slogan_size", tr("component_edit.config_slogan_size"), 23, 10, 40),
+                ]),
+                # 背景颜色：主背景 + 上层背景
+                (tr("component_edit.group_bg_color"), [
+                    self._ColorField("main_bg", tr("component_edit.config_main_bg"), "opacity", "#ffffff"),
+                    self._ColorField("top_bg", tr("component_edit.config_top_bg"), "opacity", "#ffffff"),
+                ]),
+            ],
+        }
+        default = lambda: [
+            (tr("component_edit.group_appearance"), [
+                self._SliderField("bg_opacity", tr("component_edit.config_bg_opacity"), 55, 0, 100, "%"),
+                self._SliderField("corner_radius", tr("component_edit.config_corner_radius"), 16, 0, 29, "px"),
+            ]),
+            (tr("component_edit.group_font"), [
+                self._SliderField("font_scale", tr("component_edit.config_font_scale"), 100, 50, 200, "%"),
+            ]),
+        ]
+        return defs.get(self._comp_key, default)
+
+    # 页面构建
 
     def _build_basic_page(self, page):
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 8, 0, 0)
         layout.setSpacing(14)
-
-        if self._comp_key == "linkage|timetable_nowlesson":
-            # 内容分组
-            self._add_group(layout, tr("component_edit.group_content"), [
-                ("switch", "show_teacher", tr("component_edit.config_show_teacher"), True),
-                ("switch", "show_next", tr("component_edit.config_show_next"), True),
-                ("switch", "show_duration", tr("component_edit.config_show_duration"), True),
-            ])
-            # 倒计时分组
-            self._add_group(layout, tr("component_edit.group_countdown"), [
-                ("switch", "show_countdown", tr("component_edit.config_show_countdown"), True),
-                ("spin", "prepare_minutes", tr("component_edit.config_prepare_minutes"), 1, 10, 3),
-            ])
-        elif self._comp_key == "clock|digital":
-            self._add_group(layout, tr("component_edit.group_display"), [
-                ("switch", "show_seconds", tr("component_edit.config_show_seconds"), True),
-                ("switch", "show_lunar", tr("component_edit.config_show_lunar"), True),
-            ])
-        elif self._comp_key == "countdown|event":
-            self._add_group(layout, tr("component_edit.group_target"), [
-                ("text", "target_name", tr("component_edit.config_target_name"), ""),
-                ("text", "target_date", tr("component_edit.config_target_date"), "", "YYYY-MM-DD"),
-            ])
-        elif self._comp_key == "school_info|class_info":
-            self._add_group(layout, tr("component_edit.group_info"), [
-                ("text", "school", tr("component_edit.config_school"), ""),
-                ("text", "class", tr("component_edit.config_class"), ""),
-            ])
-        elif self._comp_key == "weather|icon_temp":
-            self._add_group(layout, tr("component_edit.group_display"), [
-                ("switch", "show_icon", tr("component_edit.config_show_icon"), True),
-            ])
-        elif self._comp_key == "media|player":
-            self._add_group(layout, tr("component_edit.group_display"), [
-                ("switch", "show_progress", tr("component_edit.config_show_progress"), True),
-            ])
-        elif self._comp_key == "quick_launch|dock":
-            self._add_group(layout, tr("component_edit.group_display"), [
-                ("spin", "icon_size", tr("component_edit.config_icon_size"), 24, 96, 64),
-            ])
+        groups = self._basic_defs()
+        if groups:
+            for title, fields in groups():
+                self._add_group(layout, title, fields)
         else:
             label = BodyLabel(tr("component_edit.feature_pending_desc"), page)
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.addWidget(label)
-
         layout.addStretch()
-
-    def _add_group(self, layout, title, items):
-        """添加分组"""
-        group_box = QWidget()
-        group_box.setStyleSheet("QWidget { background: transparent; }")
-        group_layout = QVBoxLayout(group_box)
-        group_layout.setContentsMargins(0, 0, 0, 0)
-        group_layout.setSpacing(8)
-
-        # 分组标题
-        header = StrongBodyLabel(title, self)
-        group_layout.addWidget(header)
-
-        # 分组内容
-        content = QWidget()
-        content.setStyleSheet("QWidget { background: transparent; }")
-        content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(12, 4, 0, 4)
-        content_layout.setSpacing(10)
-
-        for item in items:
-            kind = item[0]
-            key = item[1]
-            label_text = item[2]
-            default = item[3]
-            if kind == "switch":
-                self._add_switch(content_layout, key, label_text, default)
-            elif kind == "spin":
-                min_v, max_v = item[4], item[5]
-                self._add_spin(content_layout, key, label_text, min_v, max_v, default)
-            elif kind == "text":
-                placeholder = item[4] if len(item) > 4 else ""
-                self._add_text(content_layout, key, label_text, default, placeholder)
-
-        group_layout.addWidget(content)
-        layout.addWidget(group_box)
-
-    # 进阶设置
 
     def _build_advanced_page(self, page):
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 8, 0, 0)
         layout.setSpacing(14)
-
-        # 外观分组
-        self._add_group(layout, tr("component_edit.group_appearance"), [
-            ("slider", "bg_opacity", tr("component_edit.config_bg_opacity"), 0, 100, 55, "%"),
-            ("slider", "corner_radius", tr("component_edit.config_corner_radius"), 0, 29, 16, "px"),
-        ])
-
-        # 字体分组
-        self._add_group(layout, tr("component_edit.group_font"), [
-            ("slider", "font_scale", tr("component_edit.config_font_scale"), 50, 200, 100, "%"),
-        ])
-
+        for title, fields in self._advanced_defs()():
+            self._add_group(layout, title, fields)
         layout.addStretch()
 
+    def _add_group(self, layout, title, fields):
+        """添加一个配置分组"""
+        # 标题可选 例如班级卡片那个外观配置
+        group_box = QWidget()
+        group_box.setStyleSheet("QWidget { background: transparent; }")
+        group_layout = QVBoxLayout(group_box)
+        group_layout.setContentsMargins(0, 0, 0, 0)
+        group_layout.setSpacing(8)
+        if title:
+            group_layout.addWidget(StrongBodyLabel(title, self))
+        content = QWidget()
+        content.setStyleSheet("QWidget { background: transparent; }")
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(12, 4, 0, 4)
+        content_layout.setSpacing(10)
+        for field in fields:
+            content_layout.addLayout(field.build(self))
+            self._fields.append(field)
+        group_layout.addWidget(content)
+        layout.addWidget(group_box)
 
-    def _add_switch(self, layout, key, label_text, default):
-        row = QHBoxLayout()
-        row.setContentsMargins(0, 0, 0, 0)
-        lbl = BodyLabel(label_text, self)
-        sw = SwitchButton(self)
-        row.addWidget(lbl)
-        row.addStretch()
-        row.addWidget(sw)
-        layout.addLayout(row)
-        self._widgets[key] = ("switch", sw, default)
-
-    def _add_spin(self, layout, key, label_text, min_v, max_v, default):
-        row = QHBoxLayout()
-        row.setContentsMargins(0, 0, 0, 0)
-        lbl = BodyLabel(label_text, self)
-        sp = SpinBox(self)
-        sp.setRange(min_v, max_v)
-        sp.setValue(default)
-        sp.setFixedWidth(100)
-        row.addWidget(lbl)
-        row.addStretch()
-        row.addWidget(sp)
-        layout.addLayout(row)
-        self._widgets[key] = ("spin", sp, default)
-
-    def _add_text(self, layout, key, label_text, default, placeholder=""):
-        row = QVBoxLayout()
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(4)
-        lbl = BodyLabel(label_text, self)
-        le = QLineEdit(self)
-        le.setPlaceholderText(placeholder)
-        row.addWidget(lbl)
-        row.addWidget(le)
-        layout.addLayout(row)
-        self._widgets[key] = ("text", le, default)
-
-    def _add_slider(self, layout, key, label_text, min_v, max_v, default, suffix=""):
-        row = QVBoxLayout()
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(4)
-        top = QHBoxLayout()
-        top.setContentsMargins(0, 0, 0, 0)
-        lbl = BodyLabel(label_text, self)
-        val_lbl = BodyLabel(f"{default}{suffix}", self)
-        val_lbl.setFixedWidth(60)
-        val_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        top.addWidget(lbl)
-        top.addStretch()
-        top.addWidget(val_lbl)
-        row.addLayout(top)
-
-        slider = QSlider(Qt.Orientation.Horizontal, self)
-        slider.setRange(min_v, max_v)
-        slider.setValue(default)
-        slider.valueChanged.connect(lambda v: val_lbl.setText(f"{v}{suffix}"))
-        row.addWidget(slider)
-        layout.addLayout(row)
-        self._widgets[key] = ("slider", slider, default, suffix)
-
-    # 加载 / 获取
+    # 配置读写
 
     def _load_config(self):
-        cfg = self._config
-        for key, spec in self._widgets.items():
-            kind = spec[0]
-            widget = spec[1]
-            default = spec[2]
-            val = cfg.get(key, default)
-            if kind == "switch":
-                widget.setChecked(bool(val))
-            elif kind == "spin":
-                widget.setValue(int(val))
-            elif kind == "text":
-                widget.setText(str(val))
-            elif kind == "slider":
-                widget.setValue(int(val))
+        for field in self._fields:
+            field.load(self._config)
 
     def get_config(self) -> dict:
         result = dict(self._config)
-        for key, spec in self._widgets.items():
-            kind = spec[0]
-            widget = spec[1]
-            if kind == "switch":
-                result[key] = widget.isChecked()
-            elif kind == "spin":
-                result[key] = widget.value()
-            elif kind == "text":
-                result[key] = widget.text()
-            elif kind == "slider":
-                result[key] = widget.value()
+        for field in self._fields:
+            field.save(result)
         return result
 
 
@@ -1264,9 +1320,13 @@ class DraggableContainer(DraggableWidget):
         # 子类在样式方法中用 self._scaled_px(base) 缩放字体/图标，apply_scale 重应用样式
         self._scale_factor = 1.0
         self._natural_size = None
-        self._orig_captured = False
         self._size_explicitly_set = False
         self._applying_scale = False
+        # 卡片背景标准配置 11**14年了终于统一背景了。。。
+        self._bg_opacity = None
+        self._corner_radius = None
+        self._bg_mode = "opacity"
+        self._bg_color = "#ffffff"
 
         if layout_direction == "vertical":
             self.inner_layout = QVBoxLayout(self)
@@ -1280,10 +1340,24 @@ class DraggableContainer(DraggableWidget):
 
         self._resize_debounce_timer = QTimer(self)
         self._resize_debounce_timer.setSingleShot(True)
-        self._resize_debounce_timer.timeout.connect(self._onResizeDebounce)
+        self._resize_debounce_timer.timeout.connect(self._on_resize_debounce)
+        """下面这些到pass 都是更新样式相关"""
+        cfg.componentCardOpacity.valueChanged.connect(self._on_card_config_changed)
+        cfg.componentCardRadius.valueChanged.connect(self._on_card_config_changed)
 
-    def _onResizeDebounce(self):
-        """更新编辑按钮位置"""
+        cfg.themeChanged.connect(self._on_card_config_changed)
+
+    def _on_card_config_changed(self):
+        self._apply_card_style()
+        if hasattr(self, '_apply_style'):
+            self._apply_style()
+
+    def apply_config(self, config: dict):
+        self._bg_opacity = config.get("bg_opacity", self._bg_opacity)
+        self._corner_radius = config.get("corner_radius", self._corner_radius)
+        self._on_card_config_changed()
+
+    def _on_resize_debounce(self):
         if self._delete_button and self._delete_button.isVisible():
             self._delete_button.reposition()
         if self._config_button and self._config_button.isVisible():
@@ -1315,8 +1389,36 @@ class DraggableContainer(DraggableWidget):
     def apply_scale(self, factor: float):
         pass
 
-    def _capture_originals(self):
-        pass
+
+    def _card_bg_css(self, obj_name=None, bg_mode=None,
+                     bg_color=None, opacity=None, radius=None):
+        """生成卡片背景"""
+        obj_name = obj_name or self.objectName()
+        if not obj_name:
+            return ""
+        is_dark = isDarkTheme()
+        op_val = opacity if opacity is not None else self._bg_opacity
+        op_val = op_val if op_val is not None else cfg.componentCardOpacity.value
+        rd_val = radius if radius is not None else self._corner_radius
+        rd_val = rd_val if rd_val is not None else cfg.componentCardRadius.value
+        mode = bg_mode or self._bg_mode
+        if mode == "custom":
+            c = QColor(bg_color or self._bg_color)
+        else:
+            c = QColor(30, 30, 30) if is_dark else QColor(255, 255, 255)
+            c.setAlpha(int(255 * op_val / 100.0))
+        return (f"#{obj_name} {{ background-color: rgba({c.red()}, {c.green()}, "
+                f"{c.blue()}, {c.alpha() / 255:.2f}); border-radius: {rd_val}px; }}")
+
+    def _apply_card_style(self, target=None, obj_name=None, bg_mode=None,
+                          bg_color=None, opacity=None, radius=None):
+        """应用卡片背景到 target 默认 self"""
+        target = target or self
+        obj_name = obj_name or target.objectName()
+        css = self._card_bg_css(obj_name, bg_mode, bg_color, opacity, radius)
+        if css:
+            target.setStyleSheet(css)
+
 
     def setContentVisible(self, visible: bool):
         """隐藏/显示内容"""
@@ -1366,15 +1468,15 @@ class DraggableContainer(DraggableWidget):
             home = self._getHomeInterface()
             parent_widget = home if home else self
             self._config_button, self._delete_button = _create_edit_controls(
-                parent_widget, self, self._onDeleteClicked, self._onConfigClicked
+                parent_widget, self, self._on_delete_clicked, self._on_config_clicked
             )
             try:
-                cfg.componentCardOpacity.valueChanged.connect(self._updateEditControlsStyle)
-                cfg.componentCardRadius.valueChanged.connect(self._updateEditControlsStyle)
+                cfg.componentCardOpacity.valueChanged.connect(self._update_edit_controls_style)
+                cfg.componentCardRadius.valueChanged.connect(self._update_edit_controls_style)
             except Exception:
                 pass
 
-    def _updateEditControlsStyle(self):
+    def _update_edit_controls_style(self):
         if self._config_button and hasattr(self._config_button, 'apply_style'):
             self._config_button.apply_style()
         if self._delete_button and hasattr(self._delete_button, 'apply_style'):
@@ -1390,19 +1492,19 @@ class DraggableContainer(DraggableWidget):
             self._delete_button.reposition()
             self._delete_button.raise_()
 
-    def _onDeleteClicked(self):
+    def _on_delete_clicked(self):
         home = self._getHomeInterface()
         if home:
             home.deleteSelectedComponent(self.component_id)
 
-    def _onConfigClicked(self):
+    def _on_config_clicked(self):
         home = self._getHomeInterface()
         if home and hasattr(home, 'component_manager'):
             comp_data = home.component_manager.get_component_data(self.component_id)
             dialog = ComponentConfigDialog(self, self.component_id, comp_data, home)
             if dialog.exec():
                 new_config = dialog.get_config()
-                home.component_manager.update_component_config(self.component_id, new_config, comp_data.get("pro"))
+                home.component_manager.update_component_config(self.component_id, new_config)
                 if hasattr(self, 'apply_config'):
                     self.apply_config(new_config)
 
@@ -1435,12 +1537,6 @@ class DraggableContainer(DraggableWidget):
         if self._config_button and self._config_button.isVisible():
             self._config_button.reposition()
 
-    def mousePressEvent(self, event):
-        super().mousePressEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        super().mouseReleaseEvent(event)
-
     def showEvent(self, event):
         super().showEvent(event)
         if getattr(self, 'inner_layout', None):
@@ -1451,7 +1547,6 @@ class DraggableContainer(DraggableWidget):
                 ns = self.sizeHint()
                 if ns.isValid() and ns.width() > 0:
                     self._natural_size = ns
-                    self._capture_originals()
 
     def sizeHint(self) -> QSize:
         if getattr(self, '_size_explicitly_set', False):
@@ -1514,9 +1609,6 @@ class LyricsWidget(QWidget):
         self._text_size = max(size, 10)
         self.setFixedHeight(self._text_size + 8)
         self.update()
-
-    def set_visible_lines(self, n: int):
-        pass
 
     def set_lyrics(self, lyrics):
         self._lyrics = lyrics
@@ -1601,10 +1693,7 @@ class MediaProgressBar(QProgressBar):
             w = int(self.width() * self.value() / self.maximum()) if self.maximum() > 0 else 0
             # allow parent widget to override progress color (e.g. follow wallpaper)
             progress_color = QColor(cfg.mediaProgressColor.value)
-            # try:
             parent_widget = self.parent()
-            # except Exception:
-            #     parent_widget = None
             if parent_widget and hasattr(parent_widget, '_override_progress_color') and parent_widget._override_progress_color:
                 progress_color = parent_widget._override_progress_color
             p.setBrush(progress_color)
@@ -1681,7 +1770,6 @@ class MediaWidget(QWidget):
         self._has_gstmtc_cover: bool = False
         self._fetching = False
         self._pending_full = False
-        self._cache = {}
         self._duration = 0
         self._position = 0
         self._playing = False
@@ -1696,7 +1784,7 @@ class MediaWidget(QWidget):
         self._scale_factor = 1.0
 
         self._init_ui()
-        self._setup_timers()
+        self._setup_timer()
         self._apply_config()
         self._init_cover_animation()
         self._fetch_done.connect(self._on_fetched)
@@ -1751,7 +1839,6 @@ class MediaWidget(QWidget):
 
         self._lyrics_w = LyricsWidget()
         self._lyrics_w.setObjectName("mediaLyricsWidget")
-        self._lyrics_w.set_visible_lines(1)
         right_col.addWidget(self._lyrics_w)
 
         prog = QWidget()
@@ -1781,9 +1868,6 @@ class MediaWidget(QWidget):
         main_layout.addLayout(top_row)
 
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        
-    def _get_content_height(self) -> int:
-        return cfg.mediaHeight.value
 
     def _default_cover(self):
         sz = self._scaled_px(cfg.mediaCoverSize.value)
@@ -1811,7 +1895,7 @@ class MediaWidget(QWidget):
         p.end()
         self._cover_lbl.setPixmap(pm)
 
-    def _setup_timers(self):
+    def _setup_timer(self):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._update)
         self._prog_timer = QTimer(self)
@@ -1837,7 +1921,6 @@ class MediaWidget(QWidget):
         self._time.setStyleSheet(f"color: {time_color};")
         self._dur.setStyleSheet(f"color: {time_color};")
         self._lyrics_w.set_text_size(self._scaled_px(cfg.mediaLyricsSize.value))
-        self._lyrics_w.set_visible_lines(1)
         self._lyrics_w.set_lyrics_color(lyrics_color)
 
         cover_sz = self._scaled_px(cfg.mediaCoverSize.value)
@@ -1995,27 +2078,14 @@ class MediaWidget(QWidget):
             if full:
                 self._pending_full = True
             return
-        # import threading
         self._fetching = True
         self._pending_full = False
-        # t = threading.Thread(target=self._do_fetch, args=(full,), daemon=True)
-        # t.start()
         self._thread = QThread()
         self._worker = _MediaFetchWorker(full)
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
         self._worker.finished.connect(self._on_worker_done)
         self._thread.start()
-
-    # def _do_fetch(self, full):
-    #     try:
-    #         m = get_media_info()
-    #         if not m or not m.is_valid():
-    #             logger.debug(f"媒体组件: 无效信息")
-    #     except Exception as e:
-    #         logger.error(f"媒体信息获取异常: {e}")
-    #         m = None
-    #     self._fetch_done.emit(m, full)
 
     def _on_worker_done(self, m, full):
         if self._thread:
@@ -2230,14 +2300,6 @@ class MediaWidget(QWidget):
         finally:
             self._detail_fetching = False
 
-    def _cleanup_thread(self):
-        if self._thread:
-            self._thread.deleteLater()
-            self._thread = None
-        if self._worker:
-            self._worker.deleteLater()
-            self._worker = None
-
     def _cleanup_detail_thread(self):
         if hasattr(self, '_detail_thread') and self._detail_thread:
             self._detail_thread.deleteLater()
@@ -2247,19 +2309,6 @@ class MediaWidget(QWidget):
             self._detail_worker = None
 
     def _fetch_kugou_thumbnail(self):
-        # import threading
-        # def _do():
-        #     try:
-        #         from services.media import get_gstmtc
-        #         gsmtc = get_gstmtc()
-        #         if gsmtc and gsmtc.available:
-        #             info = gsmtc.get_info()
-        #             if info and getattr(info, 'thumbnail_data', None):
-        #                 self._fetch_done.emit(info, False)
-        #     except Exception:
-        #         pass
-        # t = threading.Thread(target=_do, daemon=True)
-        # t.start()
         self._kugou_thread = QThread()
         self._kugou_worker = _KugouThumbWorker()
         self._kugou_worker.moveToThread(self._kugou_thread)
@@ -3228,7 +3277,7 @@ class QuickLaunchDock(QWidget):
 
 
 # 组件样式类
-import datetime as py_datetime
+py_datetime = datetime
 FONT_FAMILY = '"HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif'
 
 
@@ -3281,7 +3330,6 @@ class DigitalClockComponent(DraggableContainer):
         self._size_explicitly_set = True
         self.resize(400, 200)
         self._apply_style()
-
     def apply_scale(self, factor):
         self._apply_style()
 
@@ -3362,6 +3410,7 @@ class DigitalClockComponent(DraggableContainer):
 
     def _apply_style(self):
         """应用样式"""
+        self._apply_card_style()
         clock_color = cfg.clockColor.value
         color_str = clock_color.name() if hasattr(clock_color, 'name') else str(clock_color)
         clock_size = cfg.clockSize.value
@@ -3384,17 +3433,99 @@ class DigitalClockComponent(DraggableContainer):
         self.updateSize()
 
 
-class WeatherIconTempComponent(DraggableContainer):
-    """天气组件"""
+class WeatherComponentBase(DraggableContainer):
+    """天气基类：定时器 刷新间隔 天气数据更新 城市选择等公共"""
+
+    def __init__(self, parent, component_data: dict, layout_direction: str = "vertical"):
+        super().__init__(parent, component_id=component_data["id"], layout_direction=layout_direction)
+        self._home = parent
+        self._current_icon_path = None
+
+    def _setup_timer(self):
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._refresh_weather)
+        self.timer.start(1000)
+        cfg.showWeather.valueChanged.connect(self._refresh_weather)
+        cfg.weatherUpdateInterval.valueChanged.connect(self._update_interval)
+        cfg.weatherTextColor.valueChanged.connect(self._apply_style)
+        if hasattr(self._home, 'weather_updated'):
+            self._home.weather_updated.connect(self._on_weather_updated)
+        self._update_interval()
+        self._refresh_weather()
+
+    def _update_interval(self):
+        interval_map = {
+            "10s": 10000, "30s": 30000, "1m": 60000,
+            "5m": 300000, "10m": 600000, "30m": 1800000,
+        }
+        self.timer.setInterval(interval_map.get(cfg.weatherUpdateInterval.value, 300000))
+
+    def _refresh_weather(self):
+        if not cfg.showWeather.value:
+            self.hide()
+            return
+        self.show()
+        self._update_from_cache()
+
+    def _on_weather_updated(self):
+        self._update_from_cache()
+
+    def _update_from_cache(self):
+        """从缓存读取天气数据 后显示"""
+        raise NotImplementedError
+
+    def mousePressEvent(self, event):
+        """城市标签单击打开区域选择"""
+        if event.button() == Qt.MouseButton.LeftButton and hasattr(self, 'cityLabel'):
+            local_pos = self.cityLabel.mapFrom(self, event.pos())
+            if self.cityLabel.rect().contains(local_pos):
+                self._onCityLabelClicked()
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def _onCityLabelClicked(self):
+        """打开区域选择对话框"""
+        from services.weather import RegionSelectorDialog, RegionDatabase, WeatherService
+
+        parent = getattr(self._home, 'mainWindow', None) or self._home
+        dialog = RegionSelectorDialog(parent)
+        if dialog.exec():
+            region = dialog.get_selected_region()
+            if not region:
+                return
+            cfg.city.value = region
+            db = RegionDatabase()
+            lon, lat = db.get_coordinates(region)
+            if lon is not None and lat is not None:
+                cfg.longitude.value = lon
+                cfg.latitude.value = lat
+                logger.info(f"[天气组件] 选择城市: {region} (经纬度: {lon}, {lat})")
+            self.cityLabel.setText(region)
+            try:
+                ws = WeatherService()
+                data = ws.fetch_all()
+                if data:
+                    if not save_cache("weather", data, cfg.weatherUpdateInterval.value):
+                        logger.warning("[天气组件] 缓存保存失败")
+                    if hasattr(self._home, '_cached_weather'):
+                        self._home._cached_weather = data
+                    self._home.weather_updated.emit(data)
+                    logger.info("[天气组件] 新城市天气获取成功")
+            except Exception as e:
+                logger.error(f"[天气组件] 新城市天气获取失败: {e}")
+
+
+class WeatherIconTempComponent(WeatherComponentBase):
+    """天气组件：图标 温度"""
 
     def __init__(self, parent, component_data: dict):
-        super().__init__(parent, component_id=component_data["id"], layout_direction="horizontal")
+        super().__init__(parent, component_data, "horizontal")
         self.setObjectName("weatherContainer")
-        self._home = parent
-        self._cached_weather = None
-        self._current_icon_path = None
         self._setup_ui()
         self._setup_timer()
+        cfg.weatherSize.valueChanged.connect(self._apply_style)
+        cfg.weatherIconSize.valueChanged.connect(self._update_icon_size)
 
     def _setup_ui(self):
         self.tempLabel = QLabel("")
@@ -3420,35 +3551,8 @@ class WeatherIconTempComponent(DraggableContainer):
         self.resize(200, 200)
         self._apply_style()
 
-    def _setup_timer(self):
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self._refresh_weather)
-        self.timer.start(1000) 
-
-        cfg.showWeather.valueChanged.connect(self._refresh_weather)
-        cfg.weatherUpdateInterval.valueChanged.connect(self._update_interval)
-        cfg.clockColor.valueChanged.connect(self._apply_style)
-        cfg.weatherSize.valueChanged.connect(self._apply_style)
-        cfg.weatherIconSize.valueChanged.connect(self._update_icon_size)
-
-        if hasattr(self._home, 'weather_updated'):
-            self._home.weather_updated.connect(self._refresh_weather)
-
-        self._update_interval()
-        self._refresh_weather()
-
-    def _update_interval(self):
-        interval_map = {"10s": 10000, "30s": 30000, "1m": 60000, "5m": 300000, "10m": 600000, "30m": 1800000}
-        interval_str = cfg.weatherUpdateInterval.value
-        self.timer.setInterval(interval_map.get(interval_str, 300000))
-
-    def _refresh_weather(self):
-        if not cfg.showWeather.value:
-            self.hide()
-            return
-        self.show()
-
-        cached = get_cached_content("weather", ignore_expiry=True)  # 过期也显示旧数据
+    def _update_from_cache(self):
+        cached = get_cached_content("weather", ignore_expiry=True)
         if cached:
             self._update_display(cached)
         else:
@@ -3484,7 +3588,7 @@ class WeatherIconTempComponent(DraggableContainer):
         if icon_path and os.path.exists(icon_path):
             self._current_icon_path = icon_path
             icon_size = self._scaled_px(cfg.weatherIconSize.value)
-            dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+            dpr = self.devicePixelRatioF()
             pm = render_svg_icon(icon_path, icon_size, dpr)
             if not pm.isNull():
                 self.iconLabel.setPixmap(pm)
@@ -3495,6 +3599,7 @@ class WeatherIconTempComponent(DraggableContainer):
             self._update_display(cached)
 
     def _apply_style(self):
+        self._apply_card_style()
         color = cfg.weatherTextColor.value
         color_str = color.name() if hasattr(color, 'name') else str(color)
         size = cfg.weatherSize.value
@@ -3509,24 +3614,21 @@ class WeatherIconTempComponent(DraggableContainer):
 
     def apply_scale(self, factor):
         self._apply_style()
-        # 重渲染图标到缩放后尺寸
         if self._current_icon_path and os.path.exists(self._current_icon_path):
             icon_size = self._scaled_px(cfg.weatherIconSize.value)
-            dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+            dpr = self.devicePixelRatioF()
             pm = render_svg_icon(self._current_icon_path, icon_size, dpr)
             if not pm.isNull():
                 self.iconLabel.setPixmap(pm)
 
 
-class WeatherHourlyComponent(DraggableContainer):
+class WeatherHourlyComponent(WeatherComponentBase):
     """逐小时天气卡片"""
 
     def __init__(self, parent, component_data: dict):
-        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        super().__init__(parent, component_data, "vertical")
         self.setObjectName("weatherHourlyContainer")
-        self._home = parent
         self._hourly_data = None
-        self._current_icon_path = None
         self._hourly_icon_paths = [None] * 6
         self._setup_ui()
         self._setup_timer()
@@ -3551,7 +3653,6 @@ class WeatherHourlyComponent(DraggableContainer):
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(2)
 
-        # 能点击城市标签
         self.cityLabel = QLabel("--")
         self.cityLabel.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self.cityLabel.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -3629,44 +3730,10 @@ class WeatherHourlyComponent(DraggableContainer):
         self._top_row.setMinimumHeight(self._scaled_px(100))
         self._apply_style()
 
-    def _setup_timer(self):
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self._refresh_weather)
-        self.timer.start(1000)
-
-        cfg.showWeather.valueChanged.connect(self._refresh_weather)
-        cfg.weatherUpdateInterval.valueChanged.connect(self._update_interval)
-        cfg.weatherTextColor.valueChanged.connect(self._apply_style)
-
-        if hasattr(self._home, 'weather_updated'):
-            self._home.weather_updated.connect(self._on_weather_updated)
-
-        self._update_interval()
-        self._refresh_weather()
-
-    def _update_interval(self):
-        interval_map = {
-            "10s": 10000, "30s": 30000, "1m": 60000,
-            "5m": 300000, "10m": 600000, "30m": 1800000,
-        }
-        interval_str = cfg.weatherUpdateInterval.value
-        self.timer.setInterval(interval_map.get(interval_str, 300000))
-
-    def _refresh_weather(self):
-        if not cfg.showWeather.value:
-            self.hide()
-            return
-        self.show()
-        self._update_from_cache()
-
-    def _on_weather_updated(self):
-        """天气数据更新回调"""
-        self._update_from_cache()
-
     def _update_from_cache(self):
         from services.weather import WeatherService
 
-        wd = get_cached_content("weather", ignore_expiry=True)  # 过期也显示旧的
+        wd = get_cached_content("weather", ignore_expiry=True)
 
         current_temp = "--"
         current_icon_code = 0
@@ -3690,13 +3757,12 @@ class WeatherHourlyComponent(DraggableContainer):
         icon_name = WeatherService.ICON_MAP.get(current_icon_code, "2.svg")
         icon_path = WeatherService.get_weather_icon_path(icon_name)
 
-        # 日志 当前天气
         weather_text = WeatherService.WEATHER_MAP.get(current_icon_code, ("未知", "2.svg"))[0]
         logger.info(f"[WeatherHourly] 城市:{cfg.city.value} 当前温度:{current_temp}° 天气代码:{current_icon_code} 天气:{weather_text} 图标:{icon_name}")
 
         if icon_path and os.path.exists(icon_path):
             self._current_icon_path = icon_path
-            dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+            dpr = self.devicePixelRatioF()
             pm = render_svg_icon(icon_path, self._scaled_px(60), dpr)
             if not pm.isNull():
                 self.currentIconLabel.setPixmap(pm)
@@ -3733,7 +3799,6 @@ class WeatherHourlyComponent(DraggableContainer):
         start_hour = 0
         try:
             if pub_time:
-                from datetime import datetime
                 dt = datetime.fromisoformat(pub_time)
                 start_hour = dt.hour
         except Exception:
@@ -3750,7 +3815,7 @@ class WeatherHourlyComponent(DraggableContainer):
                 icon_path = WeatherService.get_weather_icon_path(icon_name)
                 if icon_path and os.path.exists(icon_path):
                     self._hourly_icon_paths[i] = icon_path
-                    dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+                    dpr = self.devicePixelRatioF()
                     pm = render_svg_icon(icon_path, self._scaled_px(28), dpr)
                     if not pm.isNull():
                         icon_label.setPixmap(pm)
@@ -3769,57 +3834,8 @@ class WeatherHourlyComponent(DraggableContainer):
 
         self._apply_style()
 
-    def mousePressEvent(self, event):
-        """城市标签单击打开选择城市"""
-        if event.button() == Qt.MouseButton.LeftButton:
-            # 将事件坐标转换为城市标签的本地坐标进行检测
-            local_pos = self.cityLabel.mapFrom(self, event.pos())
-            if self.cityLabel.rect().contains(local_pos):
-                self._onCityLabelClicked()
-                event.accept()
-                return
-        super().mousePressEvent(event)
-
-    def _onCityLabelClicked(self):
-        """打开框"""
-        from services.weather import RegionSelectorDialog, RegionDatabase, WeatherService
-
-        # 主窗口
-        parent = getattr(self._home, 'mainWindow', None) or self._home
-
-        dialog = RegionSelectorDialog(parent)
-        if dialog.exec():
-            region = dialog.get_selected_region()
-            if not region:
-                return
-
-            # 保存城市名称
-            cfg.city.value = region
-
-            db = RegionDatabase()
-            lon, lat = db.get_coordinates(region)
-            if lon is not None and lat is not None:
-                cfg.longitude.value = lon
-                cfg.latitude.value = lat
-                logger.info(f"[天气组件] 选择城市: {region} (经纬度: {lon}, {lat})")
-
-            self.cityLabel.setText(region)
-
-            # 请求
-            try:
-                ws = WeatherService()
-                data = ws.fetch_all()
-                if data:
-                    if not save_cache("weather", data, cfg.weatherUpdateInterval.value):
-                        logger.warning("[天气组件] 缓存保存失败")
-                    if hasattr(self._home, '_cached_weather'):
-                        self._home._cached_weather = data
-                    self._home.weather_updated.emit(data)
-                    logger.info(f"[天气组件] 新城市天气获取成功")
-            except Exception as e:
-                logger.error(f"[天气组件] 新城市天气获取失败: {e}")
-
     def _apply_style(self):
+        self._apply_card_style()
         color = cfg.weatherTextColor.value
         color_str = color.name() if hasattr(color, 'name') else str(color)
 
@@ -3866,14 +3882,12 @@ class WeatherHourlyComponent(DraggableContainer):
 
     def apply_scale(self, factor):
         self._apply_style()
-        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
-        # 当前图标
+        dpr = self.devicePixelRatioF()
         self.currentIconLabel.setFixedSize(self._scaled_px(60), self._scaled_px(60))
         if self._current_icon_path and os.path.exists(self._current_icon_path):
             pm = render_svg_icon(self._current_icon_path, self._scaled_px(60), dpr)
             if not pm.isNull():
                 self.currentIconLabel.setPixmap(pm)
-        # 逐小时图标
         for i, (time_label, icon_label, temp_label) in enumerate(self._hourly_widgets):
             icon_label.setFixedSize(self._scaled_px(28), self._scaled_px(28))
             p = self._hourly_icon_paths[i] if i < len(self._hourly_icon_paths) else None
@@ -3885,15 +3899,13 @@ class WeatherHourlyComponent(DraggableContainer):
             self._top_row.setMinimumHeight(self._scaled_px(100))
 
 
-class WeatherWeeklyComponent(DraggableContainer):
-    """逐日天气组件"""
+class WeatherWeeklyComponent(WeatherComponentBase):
+    """逐日天气组件。"""
 
     def __init__(self, parent, component_data: dict):
-        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        super().__init__(parent, component_data, "vertical")
         self.setObjectName("weatherWeeklyContainer")
-        self._home = parent
         self._daily_data = None
-        self._current_icon_path = None
         self._daily_icon_paths = [None] * 4
         self._setup_ui()
         self._setup_timer()
@@ -4004,46 +4016,11 @@ class WeatherWeeklyComponent(DraggableContainer):
         self.resize(200, 200)
         self._apply_style()
 
-    def _setup_timer(self):
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self._refresh_weather)
-        self.timer.start(1000)
-
-        cfg.showWeather.valueChanged.connect(self._refresh_weather)
-        cfg.weatherUpdateInterval.valueChanged.connect(self._update_interval)
-        cfg.weatherTextColor.valueChanged.connect(self._apply_style)
-
-        if hasattr(self._home, 'weather_updated'):
-            self._home.weather_updated.connect(self._on_weather_updated)
-
-        self._update_interval()
-        self._refresh_weather()
-
-    def _update_interval(self):
-        interval_map = {
-            "10s": 10000, "30s": 30000, "1m": 60000,
-            "5m": 300000, "10m": 600000, "30m": 1800000,
-        }
-        interval_str = cfg.weatherUpdateInterval.value
-        self.timer.setInterval(interval_map.get(interval_str, 300000))
-
-    def _refresh_weather(self):
-        if not cfg.showWeather.value:
-            self.hide()
-            return
-        self.show()
-        self._update_from_cache()
-
-    def _on_weather_updated(self):
-        """天气数据更新回调"""
-        self._update_from_cache()
-
     def _update_from_cache(self):
         from services.weather import WeatherService
 
-        wd = get_cached_content("weather", ignore_expiry=True)  # 过期也显示旧的
+        wd = get_cached_content("weather", ignore_expiry=True)
 
-        # 当前天气
         current_temp = "--"
         current_icon_code = 0
         if wd:
@@ -4066,13 +4043,12 @@ class WeatherWeeklyComponent(DraggableContainer):
         icon_name = WeatherService.ICON_MAP.get(current_icon_code, "2.svg")
         icon_path = WeatherService.get_weather_icon_path(icon_name)
 
-        # 日志：当前天气
         weather_text = WeatherService.WEATHER_MAP.get(current_icon_code, ("未知", "2.svg"))[0]
         logger.info(f"[WeatherWeekly] 城市:{cfg.city.value} 当前温度:{current_temp}° 天气代码:{current_icon_code} 天气:{weather_text} 图标:{icon_name}")
 
         if icon_path and os.path.exists(icon_path):
             self._current_icon_path = icon_path
-            dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+            dpr = self.devicePixelRatioF()
             pm = render_svg_icon(icon_path, self._scaled_px(48), dpr)
             if not pm.isNull():
                 self.currentIconLabel.setPixmap(pm)
@@ -4082,7 +4058,6 @@ class WeatherWeeklyComponent(DraggableContainer):
             self._current_icon_path = None
             self.currentIconLabel.clear()
 
-        # 每日预报
         if wd and wd.get("forecastDaily"):
             parsed = WeatherService.parse_daily(wd["forecastDaily"])
             if parsed:
@@ -4120,7 +4095,7 @@ class WeatherWeeklyComponent(DraggableContainer):
             icon_path = WeatherService.get_weather_icon_path(icon_name)
             if icon_path and os.path.exists(icon_path):
                 self._daily_icon_paths[i] = icon_path
-                dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
+                dpr = self.devicePixelRatioF()
                 pm = render_svg_icon(icon_path, self._scaled_px(18), dpr)
                 if not pm.isNull():
                     icon_label.setPixmap(pm)
@@ -4135,62 +4110,11 @@ class WeatherWeeklyComponent(DraggableContainer):
 
         self._apply_style()
 
-    def mousePressEvent(self, event):
-        """城市标签单击打开框"""
-        if event.button() == Qt.MouseButton.LeftButton:
-            # 检测城市标签点击
-            local_pos = self.cityLabel.mapFrom(self, event.pos())
-            if self.cityLabel.rect().contains(local_pos):
-                self._onCityLabelClicked()
-                event.accept()
-                return
-        super().mousePressEvent(event)
-
-    def _onCityLabelClicked(self):
-        """打开框"""
-        from services.weather import RegionSelectorDialog, RegionDatabase, WeatherService
-
-        # 主窗口
-        parent = getattr(self._home, 'mainWindow', None) or self._home
-
-        dialog = RegionSelectorDialog(parent)
-        if dialog.exec():
-            region = dialog.get_selected_region()
-            if not region:
-                return
-
-            # 保存城市名称
-            cfg.city.value = region
-            
-            # 从数据库获取经纬度
-            db = RegionDatabase()
-            lon, lat = db.get_coordinates(region)
-            if lon is not None and lat is not None:
-                cfg.longitude.value = lon
-                cfg.latitude.value = lat
-                logger.info(f"[天气组件] 选择城市: {region} (经纬度: {lon}, {lat})")
-
-            self.cityLabel.setText(region)
-
-            # 请求天气
-            try:
-                ws = WeatherService()
-                data = ws.fetch_all()
-                if data:
-                    if not save_cache("weather", data, cfg.weatherUpdateInterval.value):
-                        logger.warning("[天气组件] 缓存保存失败")
-                    if hasattr(self._home, '_cached_weather'):
-                        self._home._cached_weather = data
-                    self._home.weather_updated.emit(data)
-                    logger.info(f"[天气组件] 新城市天气获取成功")
-            except Exception as e:
-                logger.error(f"[天气组件] 新城市天气获取失败: {e}")
-
     def _apply_style(self):
+        self._apply_card_style()
         color = cfg.weatherTextColor.value
         color_str = color.name() if hasattr(color, 'name') else str(color)
 
-        # 城市名
         self.cityLabel.setStyleSheet(f"""
             color: {color_str};
             font-size: {self._scaled_px(14)}px;
@@ -4199,7 +4123,6 @@ class WeatherWeeklyComponent(DraggableContainer):
             opacity: 0.7;
         """)
 
-        # 大温度
         self.currentTempLabel.setStyleSheet(f"""
             color: {color_str};
             font-size: {self._scaled_px(48)}px;
@@ -4209,7 +4132,6 @@ class WeatherWeeklyComponent(DraggableContainer):
             line-height: 1.0;
         """)
 
-        # 预报行
         for day_label, icon_label, low_label, high_label in self._forecast_rows:
             day_label.setStyleSheet(f"""
                 color: {color_str};
@@ -4236,14 +4158,12 @@ class WeatherWeeklyComponent(DraggableContainer):
 
     def apply_scale(self, factor):
         self._apply_style()
-        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
-        # 当前图标
+        dpr = self.devicePixelRatioF()
         self.currentIconLabel.setFixedSize(self._scaled_px(48), self._scaled_px(48))
         if self._current_icon_path and os.path.exists(self._current_icon_path):
             pm = render_svg_icon(self._current_icon_path, self._scaled_px(48), dpr)
             if not pm.isNull():
                 self.currentIconLabel.setPixmap(pm)
-        # 每日预报行图标与固定宽度
         for i, (day_label, icon_label, low_label, high_label) in enumerate(self._forecast_rows):
             icon_label.setFixedSize(self._scaled_px(18), self._scaled_px(18))
             p = self._daily_icon_paths[i] if i < len(self._daily_icon_paths) else None
@@ -4280,7 +4200,6 @@ class PoetryOneLineComponent(DraggableContainer):
         self._size_explicitly_set = True
         self.resize(400, 200)
         self._apply_style()
-
     def _setup_timer(self):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._refresh_poetry)
@@ -4322,6 +4241,7 @@ class PoetryOneLineComponent(DraggableContainer):
             self.poetryLabel.setText("")
 
     def _apply_style(self):
+        self._apply_card_style()
         color = cfg.poetryTextColor.value
         color_str = color.name() if hasattr(color, 'name') else str(color)
         size = cfg.poetrySize.value
@@ -4359,545 +4279,162 @@ def _render_svg_logo(icon_path, height=30):
     return pm
 
 
-class NewsBaiduComponent(DraggableContainer):
+class NewsComponent(DraggableContainer):
+    """新闻组件基类"""
+
+    # 子类配置
+    _source = ""           # 数据源标识
+    _icon_key = ""         # NEWS_ICONS 中的键
+    _object_name = ""      # 容器 objectName
+    _num_color = "#ffffff" # 序号颜色
+    _item_count = 4        # 显示条目数
+    _use_cctv_api = False  # 是否使用央视新闻 API
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName(self._object_name)
+        self._home = parent
+        self._news_titles = ["--"] * self._item_count
+        self._news_urls = [""] * self._item_count
+        self._icon_path = get_resPath(NEWS_ICONS[self._icon_key])
+        self._setup_ui()
+        self._setup_timer()
+
+    def _setup_ui(self):
+        dpr = self.devicePixelRatioF()
+        pm = _render_svg_logo(self._icon_path, self._scaled_px(30))
+        pm.setDevicePixelRatio(dpr)
+
+        self.iconLabel = QLabel()
+        self.iconLabel.setPixmap(pm)
+        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
+        self.iconLabel.setObjectName("newsHeaderIcon")
+
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.addWidget(self.iconLabel)
+        header_layout.addStretch()
+
+        self.itemWidgets = []
+        for i in range(self._item_count):
+            item_label = QLabel("--")
+            item_label.setWordWrap(True)
+            item_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+            item_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            item_label.setObjectName("newsItemLabel")
+            item_label.mousePressEvent = lambda e, idx=i: self._on_news_clicked(idx)
+            item_label.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.itemWidgets.append(item_label)
+
+        layout = self.inner_layout
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(6)
+        layout.addLayout(header_layout)
+        for widget in self.itemWidgets:
+            layout.addWidget(widget, 1)
+
+        self._set_natural_size(360, 220)
+        self.setMinimumSize(150, 100)
+        self._size_explicitly_set = True
+        self.resize(360, 220)
+        self._apply_style()
+
+    def _setup_timer(self):
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._refresh_news)
+        self.timer.start(300000)
+        self._refresh_news()
+
+    def _refresh_news(self):
+        if self._use_cctv_api:
+            data = NewsService.fetch_cctv_news(use_cache=True)
+        else:
+            data = NewsService.fetch_daily_news(self._source, use_cache=True)
+        if not data:
+            data = get_cached_content(f"news_{self._source}", ignore_expiry=True)
+        self._update_display(data)
+
+    def _update_display(self, data):
+        count = self._item_count
+        titles = ["--"] * count
+        urls = [""] * count
+        if isinstance(data, list) and data:
+            for index in range(count):
+                if index < len(data):
+                    item = data[index] or {}
+                    titles[index] = item.get("title") or item.get("name") or "--"
+                    urls[index] = item.get("url") or item.get("link") or ""
+        self._news_urls = urls
+        self._news_titles = titles
+        self._render_items()
+
+    def _render_items(self):
+        sz_num = self._scaled_px(12)
+        sz_text = self._scaled_px(15)
+        for i, (label, text) in enumerate(zip(self.itemWidgets, self._news_titles)):
+            label.setText(
+                f"<span style='font-size:{sz_num}px;color:{self._num_color};font-family:{FONT_FAMILY};'>"
+                f"{i+1}.</span> "
+                f"<span style='font-size:{sz_text}px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
+            )
+
+    def _on_news_clicked(self, index):
+        if 0 <= index < len(self._news_urls) and self._news_urls[index]:
+            webbrowser.open(self._news_urls[index])
+
+    def _apply_style(self):
+        self._apply_card_style()
+        self.updateSize()
+
+    def apply_scale(self, factor):
+        dpr = self.devicePixelRatioF()
+        pm = _render_svg_logo(self._icon_path, self._scaled_px(30))
+        pm.setDevicePixelRatio(dpr)
+        self.iconLabel.setPixmap(pm)
+        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
+        self._render_items()
+
+
+class NewsBaiduComponent(NewsComponent):
     """百度热搜组件"""
-
-    _ICON_PATH = get_resPath(NEWS_ICONS["baidu"])
-
-    def __init__(self, parent, component_data: dict):
-        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
-        self.setObjectName("newsBaiduContainer")
-        self._home = parent
-        self._source = "baidu"
-        self._items = []
-        self._news_titles = ["--"] * 4
-        self._news_urls = [""] * 4
-        self._setup_ui()
-        self._setup_timer()
-
-    def _setup_ui(self):
-        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
-        pm = _render_svg_logo(self._ICON_PATH, self._scaled_px(30))
-        pm.setDevicePixelRatio(dpr)
-
-        self.iconLabel = QLabel()
-        self.iconLabel.setPixmap(pm)
-        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
-        self.iconLabel.setObjectName("newsHeaderIcon")
-
-        header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(0, 0, 0, 0)
-        header_layout.addWidget(self.iconLabel)
-        header_layout.addStretch()
-
-        self.itemWidgets = []
-        for i in range(4):
-            item_label = QLabel("--")
-            item_label.setWordWrap(True)
-            item_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-            item_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            item_label.setObjectName("newsItemLabel")
-            item_label.mousePressEvent = lambda e, idx=i: self._on_news_clicked(idx)
-            item_label.setCursor(Qt.CursorShape.PointingHandCursor)
-            self.itemWidgets.append(item_label)
-
-        layout = self.inner_layout
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(6)
-        layout.addLayout(header_layout)
-        for widget in self.itemWidgets:
-            layout.addWidget(widget, 1)
-
-        self._set_natural_size(360, 220)
-        self.setMinimumSize(150, 100)
-        self._size_explicitly_set = True
-        self.resize(360, 220)
-        self._apply_style()
-
-    def _setup_timer(self):
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self._refresh_news)
-        self.timer.start(300000)
-        self._refresh_news()
-
-    def _refresh_news(self):
-        cache_name = f"news_{self._source}"
-        data = NewsService.fetch_daily_news(self._source, use_cache=True)
-        if not data:
-            data = get_cached_content(cache_name, ignore_expiry=True)
-        self._update_display(data)
-
-    def _update_display(self, data):
-        titles = ["--"] * 4
-        urls = [""] * 4
-        if isinstance(data, list) and data:
-            for index in range(4):
-                if index < len(data):
-                    item = data[index] or {}
-                    title = item.get("title") or item.get("name") or "--"
-                    titles[index] = title
-                    urls[index] = item.get("url") or item.get("link") or ""
-        self._news_urls = urls
-        self._news_titles = titles
-        self._render_items()
-
-    def _render_items(self):
-        sz_num = self._scaled_px(12)
-        sz_text = self._scaled_px(15)
-        for i, (label, text) in enumerate(zip(self.itemWidgets, self._news_titles)):
-            label.setText(
-                f"<span style='font-size:{sz_num}px;color:#2932e1;font-family:{FONT_FAMILY};'>"
-                f"{i+1}.</span> "
-                f"<span style='font-size:{sz_text}px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
-            )
-
-    def _on_news_clicked(self, index):
-        if 0 <= index < len(self._news_urls) and self._news_urls[index]:
-            webbrowser.open(self._news_urls[index])
-
-    def _apply_style(self):
-        self.updateSize()
-
-    def apply_scale(self, factor):
-        # 重渲染图标
-        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
-        pm = _render_svg_logo(self._ICON_PATH, self._scaled_px(30))
-        pm.setDevicePixelRatio(dpr)
-        self.iconLabel.setPixmap(pm)
-        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
-        self._render_items()
+    _source = "baidu"
+    _icon_key = "baidu"
+    _object_name = "newsBaiduContainer"
+    _num_color = "#2932e1"
 
 
-class NewsWeiboComponent(DraggableContainer):
+class NewsWeiboComponent(NewsComponent):
     """微博热搜组件"""
-
-    _ICON_PATH = get_resPath(NEWS_ICONS["weibo"])
-
-    def __init__(self, parent, component_data: dict):
-        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
-        self.setObjectName("newsWeiboContainer")
-        self._home = parent
-        self._source = "weibo"
-        self._items = []
-        self._news_titles = ["--"] * 4
-        self._news_urls = [""] * 4
-        self._setup_ui()
-        self._setup_timer()
-
-    def _setup_ui(self):
-        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
-        pm = _render_svg_logo(self._ICON_PATH, self._scaled_px(30))
-        pm.setDevicePixelRatio(dpr)
-
-        self.iconLabel = QLabel()
-        self.iconLabel.setPixmap(pm)
-        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
-        self.iconLabel.setObjectName("newsHeaderIcon")
-
-        header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(0, 0, 0, 0)
-        header_layout.addWidget(self.iconLabel)
-        header_layout.addStretch()
-
-        self.itemWidgets = []
-        for i in range(4):
-            item_label = QLabel("--")
-            item_label.setWordWrap(True)
-            item_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-            item_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            item_label.setObjectName("newsItemLabel")
-            item_label.mousePressEvent = lambda e, idx=i: self._on_news_clicked(idx)
-            item_label.setCursor(Qt.CursorShape.PointingHandCursor)
-            self.itemWidgets.append(item_label)
-
-        layout = self.inner_layout
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(6)
-        layout.addLayout(header_layout)
-        for widget in self.itemWidgets:
-            layout.addWidget(widget, 1)
-
-        self._set_natural_size(360, 220)
-        self.setMinimumSize(150, 100)
-        self._size_explicitly_set = True
-        self.resize(360, 220)
-        self._apply_style()
-
-    def _setup_timer(self):
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self._refresh_news)
-        self.timer.start(300000)
-        self._refresh_news()
-
-    def _refresh_news(self):
-        cache_name = f"news_{self._source}"
-        data = NewsService.fetch_daily_news(self._source, use_cache=True)
-        if not data:
-            data = get_cached_content(cache_name, ignore_expiry=True)
-        self._update_display(data)
-
-    def _update_display(self, data):
-        titles = ["--"] * 4
-        urls = [""] * 4
-        if isinstance(data, list) and data:
-            for index in range(4):
-                if index < len(data):
-                    item = data[index] or {}
-                    title = item.get("title") or item.get("name") or "--"
-                    titles[index] = title
-                    urls[index] = item.get("url") or item.get("link") or ""
-        self._news_urls = urls
-        self._news_titles = titles
-        self._render_items()
-
-    def _render_items(self):
-        sz_num = self._scaled_px(12)
-        sz_text = self._scaled_px(15)
-        for i, (label, text) in enumerate(zip(self.itemWidgets, self._news_titles)):
-            label.setText(
-                f"<span style='font-size:{sz_num}px;color:#e89214;font-family:{FONT_FAMILY};'>"
-                f"{i+1}.</span> "
-                f"<span style='font-size:{sz_text}px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
-            )
-
-    def _on_news_clicked(self, index):
-        if 0 <= index < len(self._news_urls) and self._news_urls[index]:
-            webbrowser.open(self._news_urls[index])
-
-    def _apply_style(self):
-        self.updateSize()
-
-    def apply_scale(self, factor):
-        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
-        pm = _render_svg_logo(self._ICON_PATH, self._scaled_px(30))
-        pm.setDevicePixelRatio(dpr)
-        self.iconLabel.setPixmap(pm)
-        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
-        self._render_items()
+    _source = "weibo"
+    _icon_key = "weibo"
+    _object_name = "newsWeiboContainer"
+    _num_color = "#e89214"
 
 
-class NewsJinritoutiaoComponent(DraggableContainer):
+class NewsJinritoutiaoComponent(NewsComponent):
     """今日头条组件"""
-
-    _ICON_PATH = get_resPath(NEWS_ICONS["jinritoutiao"])
-
-    def __init__(self, parent, component_data: dict):
-        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
-        self.setObjectName("newsJinritoutiaoContainer")
-        self._home = parent
-        self._source = "jinritoutiao"
-        self._items = []
-        self._news_titles = ["--"] * 4
-        self._news_urls = [""] * 4
-        self._setup_ui()
-        self._setup_timer()
-
-    def _setup_ui(self):
-        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
-        pm = _render_svg_logo(self._ICON_PATH, 40)
-        pm.setDevicePixelRatio(dpr)
-
-        self.iconLabel = QLabel()
-        self.iconLabel.setPixmap(pm)
-        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
-        self.iconLabel.setObjectName("newsHeaderIcon")
-
-        header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(0, 0, 0, 0)
-        header_layout.addWidget(self.iconLabel)
-        header_layout.addStretch()
-
-        self.itemWidgets = []
-        self._news_urls = [""] * 4
-        for i in range(4):
-            item_label = QLabel("--")
-            item_label.setWordWrap(True)
-            item_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-            item_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            item_label.setObjectName("newsItemLabel")
-            item_label.mousePressEvent = lambda e, idx=i: self._on_news_clicked(idx)
-            item_label.setCursor(Qt.CursorShape.PointingHandCursor)
-            self.itemWidgets.append(item_label)
-
-        layout = self.inner_layout
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(6)
-        layout.addLayout(header_layout)
-        for widget in self.itemWidgets:
-            layout.addWidget(widget, 1)
-
-        self.setMinimumSize(360, 220)
-        self._size_explicitly_set = True
-        self.resize(360, 220)
-        self._apply_style()
-
-    def _setup_timer(self):
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self._refresh_news)
-        self.timer.start(300000)
-        self._refresh_news()
-
-    def _refresh_news(self):
-        cache_name = f"news_{self._source}"
-        data = NewsService.fetch_daily_news(self._source, use_cache=True)
-        if not data:
-            data = get_cached_content(cache_name, ignore_expiry=True)
-        self._update_display(data)
-
-    def _update_display(self, data):
-        titles = ["--"] * 4
-        urls = [""] * 4
-        if isinstance(data, list) and data:
-            for index in range(4):
-                if index < len(data):
-                    item = data[index] or {}
-                    title = item.get("title") or item.get("name") or "--"
-                    titles[index] = title
-                    urls[index] = item.get("url") or item.get("link") or ""
-        self._news_urls = urls
-        self._news_titles = titles
-        self._render_items()
-
-    def _render_items(self):
-        sz_num = self._scaled_px(12)
-        sz_text = self._scaled_px(15)
-        for i, (label, text) in enumerate(zip(self.itemWidgets, self._news_titles)):
-            label.setText(
-                f"<span style='font-size:{sz_num}px;color:#ff353c;font-family:{FONT_FAMILY};'>"
-                f"{i+1}.</span> "
-                f"<span style='font-size:{sz_text}px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
-            )
-
-    def _on_news_clicked(self, index):
-        if 0 <= index < len(self._news_urls) and self._news_urls[index]:
-            webbrowser.open(self._news_urls[index])
-
-    def _apply_style(self):
-        self.updateSize()
-
-    def apply_scale(self, factor):
-        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
-        pm = _render_svg_logo(self._ICON_PATH, self._scaled_px(30))
-        pm.setDevicePixelRatio(dpr)
-        self.iconLabel.setPixmap(pm)
-        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
-        self._render_items()
+    _source = "jinritoutiao"
+    _icon_key = "jinritoutiao"
+    _object_name = "newsJinritoutiaoContainer"
+    _num_color = "#ff353c"
 
 
-class NewsTenxunwangComponent(DraggableContainer):
+class NewsTenxunwangComponent(NewsComponent):
     """腾讯网组件"""
-
-    _ICON_PATH = get_resPath(NEWS_ICONS["tencent"])
-
-    def __init__(self, parent, component_data: dict):
-        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
-        self.setObjectName("newsTenxunwangContainer")
-        self._home = parent
-        self._source = "tenxunwang"
-        self._items = []
-        self._news_titles = ["--"] * 4
-        self._news_urls = [""] * 4
-        self._setup_ui()
-        self._setup_timer()
-
-    def _setup_ui(self):
-        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
-        pm = _render_svg_logo(self._ICON_PATH, self._scaled_px(30))
-        pm.setDevicePixelRatio(dpr)
-
-        self.iconLabel = QLabel()
-        self.iconLabel.setPixmap(pm)
-        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
-        self.iconLabel.setObjectName("newsHeaderIcon")
-
-        header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(0, 0, 0, 0)
-        header_layout.addWidget(self.iconLabel)
-        header_layout.addStretch()
-
-        self.itemWidgets = []
-        for i in range(4):
-            item_label = QLabel("--")
-            item_label.setWordWrap(True)
-            item_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-            item_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            item_label.setObjectName("newsItemLabel")
-            item_label.mousePressEvent = lambda e, idx=i: self._on_news_clicked(idx)
-            item_label.setCursor(Qt.CursorShape.PointingHandCursor)
-            self.itemWidgets.append(item_label)
-
-        layout = self.inner_layout
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(6)
-        layout.addLayout(header_layout)
-        for widget in self.itemWidgets:
-            layout.addWidget(widget, 1)
-
-        self._set_natural_size(360, 220)
-        self.setMinimumSize(150, 100)
-        self._size_explicitly_set = True
-        self.resize(360, 220)
-        self._apply_style()
-
-    def _setup_timer(self):
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self._refresh_news)
-        self.timer.start(300000)
-        self._refresh_news()
-
-    def _refresh_news(self):
-        cache_name = f"news_{self._source}"
-        data = NewsService.fetch_daily_news(self._source, use_cache=True)
-        if not data:
-            data = get_cached_content(cache_name, ignore_expiry=True)
-        self._update_display(data)
-
-    def _update_display(self, data):
-        titles = ["--"] * 4
-        urls = [""] * 4
-        if isinstance(data, list) and data:
-            for index in range(4):
-                if index < len(data):
-                    item = data[index] or {}
-                    title = item.get("title") or item.get("name") or "--"
-                    titles[index] = title
-                    urls[index] = item.get("url") or item.get("link") or ""
-        self._news_urls = urls
-        self._news_titles = titles
-        self._render_items()
-
-    def _render_items(self):
-        sz_num = self._scaled_px(12)
-        sz_text = self._scaled_px(14)
-        for i, (label, text) in enumerate(zip(self.itemWidgets, self._news_titles)):
-            label.setText(
-                f"<span style='font-size:{sz_num}px;color:#106eb0;font-family:{FONT_FAMILY};'>"
-                f"{i+1}.</span> "
-                f"<span style='font-size:{sz_text}px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
-            )
-
-    def _on_news_clicked(self, index):
-        if 0 <= index < len(self._news_urls) and self._news_urls[index]:
-            webbrowser.open(self._news_urls[index])
-
-    def _apply_style(self):
-        self.updateSize()
-
-    def apply_scale(self, factor):
-        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
-        pm = _render_svg_logo(self._ICON_PATH, self._scaled_px(30))
-        pm.setDevicePixelRatio(dpr)
-        self.iconLabel.setPixmap(pm)
-        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
-        self._render_items()
+    _source = "tenxunwang"
+    _icon_key = "tencent"
+    _object_name = "newsTenxunwangContainer"
+    _num_color = "#106eb0"
 
 
-class NewsCCTVComponent(DraggableContainer):
+class NewsCCTVComponent(NewsComponent):
     """央视新闻组件"""
-
-    _ICON_PATH = get_resPath(NEWS_ICONS["cctv"])
-
-    def __init__(self, parent, component_data: dict):
-        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
-        self.setObjectName("newsCCTVContainer")
-        self._home = parent
-        self._source = "xcvts"
-        self._items = []
-        self._news_titles = ["--"] * 4
-        self._news_urls = [""] * 4
-        self._setup_ui()
-        self._setup_timer()
-
-    def _setup_ui(self):
-        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
-        pm = _render_svg_logo(self._ICON_PATH, 20)
-        pm.setDevicePixelRatio(dpr)
-
-        self.iconLabel = QLabel()
-        self.iconLabel.setPixmap(pm)
-        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
-        self.iconLabel.setObjectName("newsHeaderIcon")
-
-        header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(0, 0, 0, 0)
-        header_layout.addWidget(self.iconLabel)
-        header_layout.addStretch()
-
-        self.itemWidgets = []
-        self._news_urls = [""] * 3
-        for i in range(3):
-            item_label = QLabel("--")
-            item_label.setWordWrap(True)
-            item_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-            item_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            item_label.setObjectName("newsItemLabel")
-            item_label.mousePressEvent = lambda e, idx=i: self._on_news_clicked(idx)
-            item_label.setCursor(Qt.CursorShape.PointingHandCursor)
-            self.itemWidgets.append(item_label)
-
-        layout = self.inner_layout
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(6)
-        layout.addLayout(header_layout)
-        for widget in self.itemWidgets:
-            layout.addWidget(widget, 1)
-
-        self.setMinimumSize(360, 220)
-        self._size_explicitly_set = True
-        self.resize(360, 220)
-        self._apply_style()
-
-    def _setup_timer(self):
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self._refresh_news)
-        self.timer.start(300000)
-        self._refresh_news()
-
-    def _refresh_news(self):
-        cache_name = f"news_{self._source}"
-        data = NewsService.fetch_cctv_news(use_cache=True)
-        if not data:
-            data = get_cached_content(cache_name, ignore_expiry=True)
-        self._update_display(data)
-
-    def _update_display(self, data):
-        titles = ["--"] * 3
-        urls = [""] * 3
-        if isinstance(data, list) and data:
-            for index in range(3):
-                if index < len(data):
-                    item = data[index] or {}
-                    title = item.get("title") or item.get("name") or "--"
-                    titles[index] = title
-                    urls[index] = item.get("url") or item.get("link") or ""
-        self._news_urls = urls
-        self._news_titles = titles
-        self._render_items()
-
-    def _render_items(self):
-        sz_num = self._scaled_px(12)
-        sz_text = self._scaled_px(15)
-        for i, (label, text) in enumerate(zip(self.itemWidgets, self._news_titles)):
-            label.setText(
-                f"<span style='font-size:{sz_num}px;color:#e53928;font-family:{FONT_FAMILY};'>"
-                f"{i+1}.</span> "
-                f"<span style='font-size:{sz_text}px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
-            )
-
-    def _on_news_clicked(self, index):
-        if 0 <= index < len(self._news_urls) and self._news_urls[index]:
-            webbrowser.open(self._news_urls[index])
-
-    def _apply_style(self):
-        self.updateSize()
-
-    def apply_scale(self, factor):
-        dpr = self.devicePixelRatioF() if hasattr(self, 'devicePixelRatioF') else self.devicePixelRatio()
-        pm = _render_svg_logo(self._ICON_PATH, self._scaled_px(30))
-        pm.setDevicePixelRatio(dpr)
-        self.iconLabel.setPixmap(pm)
-        self.iconLabel.setFixedSize(int(pm.width() / dpr), int(pm.height() / dpr))
-        self._render_items()
+    _source = "xcvts"
+    _icon_key = "cctv"
+    _object_name = "newsCCTVContainer"
+    _num_color = "#e53928"
+    _item_count = 3
+    _use_cctv_api = True
 
 
 class CountdownEventComponent(DraggableContainer):
@@ -4926,7 +4463,6 @@ class CountdownEventComponent(DraggableContainer):
         self._size_explicitly_set = True
         self.resize(200, 200)
         self._apply_style()
-
     def _setup_timer(self):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._update_countdown)
@@ -5006,6 +4542,7 @@ class CountdownEventComponent(DraggableContainer):
             self.countdownLabel.setText(name)
 
     def _apply_style(self):
+        self._apply_card_style()
         color = cfg.countdownTextColor.value
         color_str = color.name() if hasattr(color, 'name') else str(color)
         size = cfg.countdownTextSize.value
@@ -5023,67 +4560,154 @@ class CountdownEventComponent(DraggableContainer):
 
 
 class SchoolInfoComponent(DraggableContainer):
-    """学校信息组件"""
+    """班级卡片组件"""
 
     def __init__(self, parent, component_data: dict):
         super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
         self.setObjectName("schoolInfoContainer")
         self._home = parent
+        self._read_config(component_data.get("config", {}))
         self._setup_ui()
 
+    def _read_config(self, config):
+        # 哇哦。。
+        self._class = config.get("class", getattr(self, "_class", "")) or ""
+        self._school = config.get("school", getattr(self, "_school", "")) or ""
+        self._count = config.get("count", getattr(self, "_count", "")) or ""
+        self._slogan = config.get("slogan", getattr(self, "_slogan", "")) or ""
+        self._class_size = config.get("class_size", getattr(self, "_class_size", 48))
+        self._school_size = config.get("school_size", getattr(self, "_school_size", 25))
+        self._count_size = config.get("count_size", getattr(self, "_count_size", 19))
+        self._slogan_size = config.get("slogan_size", getattr(self, "_slogan_size", 23))
+        self._text_color = config.get("text_color", getattr(self, "_text_color", ""))
+        self._font_scale = config.get("font_scale", getattr(self, "_font_scale", 100))
+        self._bg_opacity = config.get("bg_opacity", getattr(self, "_bg_opacity", None))
+        self._corner_radius = config.get("corner_radius", getattr(self, "_corner_radius", None))
+        self._main_bg_mode = config.get("main_bg_mode", getattr(self, "_main_bg_mode", "opacity"))
+        self._main_bg_color = config.get("main_bg_color", getattr(self, "_main_bg_color", "#ffffff"))
+        self._top_bg_mode = config.get("top_bg_mode", getattr(self, "_top_bg_mode", "opacity"))
+        self._top_bg_color = config.get("top_bg_color", getattr(self, "_top_bg_color", "#ffffff"))
+
+    def apply_config(self, config):
+        self._read_config(config)
+        self._apply_style()
+        self._update_info()
+
     def _setup_ui(self):
+        layout = self.inner_layout
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
+
+        # 上层背景：班级 学校
+        self.topWidget = QWidget(self)
+        self.topWidget.setObjectName("schoolInfoTopBg")
+        top_layout = QVBoxLayout(self.topWidget)
+        top_layout.setContentsMargins(20, 16, 20, 12)
+        top_layout.setSpacing(4)
+
+        # 班级 人数
+        class_row = QHBoxLayout()
+        class_row.setContentsMargins(0, 0, 0, 0)
         self.classLabel = QLabel("")
         self.classLabel.setObjectName("schoolClassLabel")
-        self.classLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.classLabel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.classLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.countLabel = QLabel("")
+        self.countLabel.setObjectName("schoolCountLabel")
+        self.countLabel.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        class_row.addWidget(self.classLabel, 1)
+        class_row.addWidget(self.countLabel, 0)
+        top_layout.addLayout(class_row)
 
+        # 学校名
         self.nameLabel = QLabel("")
         self.nameLabel.setObjectName("schoolNameLabel")
-        self.nameLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.nameLabel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.nameLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        top_layout.addWidget(self.nameLabel)
 
-        layout = self.inner_layout
-        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(6)
-        layout.addWidget(self.classLabel, 3)
-        layout.addWidget(self.nameLabel, 1)
+        # 口号 组件背景为背景
+        self.sloganLabel = QLabel("")
+        self.sloganLabel.setObjectName("schoolSloganLabel")
+        self.sloganLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.sloganLabel.setContentsMargins(20, 4, 20, 4)
+        self.sloganLabel.setWordWrap(True)
+        self.sloganLabel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-        self._set_natural_size(200, 200)
-        self.setMinimumSize(80, 80)
+        layout.addWidget(self.topWidget, 3)
+        layout.addWidget(self.sloganLabel, 1)
+
+        self._set_natural_size(400, 200)
+        self.setMinimumSize(150, 100)
         self._size_explicitly_set = True
-        self.resize(200, 200)
+        self.resize(400, 200)
         self._apply_style()
         self._update_info()
 
     def _apply_style(self):
-        color = cfg.clockColor.value
-        color_str = color.name() if hasattr(color, 'name') else str(color)
-        self.classLabel.setStyleSheet(f"""
-            color: {color_str};
-            font-size: {self._scaled_px(28)}px;
-            font-weight: bold;
-            font-family: {FONT_FAMILY};
-            background-color: transparent;
-        """)
-        self.nameLabel.setStyleSheet(f"""
-            color: {color_str};
-            font-size: {self._scaled_px(18)}px;
-            font-family: {FONT_FAMILY};
-            background-color: transparent;
-        """)
+        is_dark = isDarkTheme()
+        if self._text_color:
+            text_color = self._text_color
+        else:
+            text_color = "#e0e0e0" if is_dark else "#1a1a1a"
+        sub_color = "#aaaaaa" if is_dark else "#666666"
+        count_color = "#777777" if is_dark else "#999999"
+
+        # 组件背景
+        self._apply_card_style(
+            bg_mode=self._main_bg_mode, bg_color=self._main_bg_color)
+        # 上层背景
+        self._apply_card_style(
+            target=self.topWidget, obj_name="schoolInfoTopBg",
+            bg_mode=self._top_bg_mode, bg_color=self._top_bg_color)
+
+        # 字号
+        class_sz = self._scaled_px(self._class_size)
+        school_sz = self._scaled_px(self._school_size)
+        count_sz = self._scaled_px(self._count_size)
+        slogan_sz = self._scaled_px(self._slogan_size)
+
+        self.classLabel.setStyleSheet(
+            f"color: {text_color}; font-size: {class_sz}px; font-weight: bold; "
+            f"font-family: {FONT_FAMILY}; background: transparent;")
+        self.nameLabel.setStyleSheet(
+            f"color: {sub_color}; font-size: {school_sz}px; "
+            f"font-family: {FONT_FAMILY}; background: transparent;")
+        self.countLabel.setStyleSheet(
+            f"color: {count_color}; font-size: {count_sz}px; "
+            f"font-family: {FONT_FAMILY}; background: transparent;")
+        self.sloganLabel.setStyleSheet(
+            f"color: {sub_color}; font-size: {slogan_sz}px; "
+            f"font-family: {FONT_FAMILY}; background: transparent;")
 
     def apply_scale(self, factor):
         self._apply_style()
 
+    def _scaled_px(self, base_px: int) -> int:
+        font_scale = self._font_scale / 100.0
+        return max(1, int(base_px * font_scale * self._scale_factor))
+
     def _update_info(self):
-        # 从 ClassWidgets 数据更新
-        if hasattr(self._home, 'schoolClassLabel') and hasattr(self._home, 'schoolNameLabel'):
-            self.classLabel.setText(self._home.schoolClassLabel.text())
-            self.nameLabel.setText(self._home.schoolNameLabel.text())
+        class_text = self._class
+        school_text = self._school
+        slogan_text = self._slogan
+
+        if not class_text and hasattr(self._home, 'schoolClassLabel'):
+            class_text = self._home.schoolClassLabel.text()
+        if not school_text and hasattr(self._home, 'schoolNameLabel'):
+            school_text = self._home.schoolNameLabel.text()
+
+        self.classLabel.setText(class_text or "")
+        self.nameLabel.setText(school_text or "")
+        self.sloganLabel.setText(slogan_text or "")
+        if self._count:
+            self.countLabel.setText(f"{self._count}人")
         else:
-            self.classLabel.setText("")
-            self.nameLabel.setText("")
+            self.countLabel.setText("")
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._apply_style()
+        self._update_info()
 
 
 class MediaPlayerComponent(DraggableContainer):
@@ -5287,7 +4911,7 @@ def _short_holiday(name: str) -> str:
 
 
 def _get_day_info(year: int, month: int, day: int) -> tuple:
-    """→ (holiday, solar_term, lunar_day)"""
+    """返回 (holiday, solar_term, lunar_day)"""
     holiday = ""
     solar_term = ""
     lunar_day = ""
@@ -5488,7 +5112,6 @@ class CalendarMonthComponent(DraggableContainer):
         self._size_explicitly_set = True
         self.resize(300, 300)
         self._apply_style()
-
     def _setup_timer(self):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._check_day_change)
@@ -5575,6 +5198,7 @@ class CalendarMonthComponent(DraggableContainer):
         title_sz = self._scaled_px(20)
         wk_sz = self._scaled_px(13)
         self.setStyleSheet(f"""
+            {self._card_bg_css()}
             #calTitle {{
                 color: #f0f0f0;
                 font-size: {title_sz}px;
@@ -5689,8 +5313,6 @@ class TimetablePreviewComponent(DraggableContainer):
         self._scroll_animation_timer = QTimer(self)  # 逐帧滚动
         self._scroll_direction = 1               # 1向下，-1向上
         self._scroll_step = 2                    # 每次滚动像素数
-        self._preview_elapsed = 0                # 已滚动时间（s）
-        self._scroll_animation_timer = QTimer(self)
         self._scroll_animation_timer.timeout.connect(self._animate_scroll)
         self._setup_ui()
         self._connect_timetable_page()
@@ -5732,8 +5354,6 @@ class TimetablePreviewComponent(DraggableContainer):
 
         # 监听卡片设置变化
         from core.config import cfg
-        cfg.componentCardOpacity.valueChanged.connect(self._apply_style)
-        cfg.componentCardRadius.valueChanged.connect(self._apply_style)
 
         # 定时刷新 自动滚动
         self._refresh_timer = QTimer(self)
@@ -6031,6 +5651,7 @@ class TimetablePreviewComponent(DraggableContainer):
         QTimer.singleShot(50, lambda: self._do_scroll(row, viewport_offset_ratio))
 
     def _do_scroll(self, row, ratio):
+        # d老师立大功
         try:
             # 检查 row 是否已被删除
             from PyQt6.QtCore import pyqtSignal
@@ -6048,36 +5669,6 @@ class TimetablePreviewComponent(DraggableContainer):
         except RuntimeError:
             # C++ object 已删除，忽略
             return
-
-    def _auto_scroll(self):
-        """自动滚动 大于10节时上完5节往下翻"""
-        if not self._bridge:
-            return
-        # 统计
-        past_count = 0
-        for r in self._schedule_rows:
-            if isinstance(r, _TimetableRow) and r._is_past:
-                past_count += 1
-            else:
-                break
-        target_groups = past_count // 5
-        if target_groups > self._past_skip_groups:
-            self._past_skip_groups = target_groups
-        # 计算到哪行
-        skip_rows = self._past_skip_groups * 5
-
-        scroll_idx = skip_rows
-        for i, r in enumerate(self._schedule_rows):
-            if isinstance(r, _TimetableRow) and r._is_current:
-                scroll_idx = i
-                break
-            if isinstance(r, _TimetableRow) and not r._is_past and i >= skip_rows:
-                if scroll_idx == skip_rows:
-                    scroll_idx = i
-                break
-        if 0 <= scroll_idx < len(self._schedule_rows):
-            if time.time() - self._last_user_scroll_time > 15:
-                self._scroll_to_row(scroll_idx)
 
     def _apply_style(self, *args):
         """跟随组件系统的背景"""
@@ -6238,7 +5829,7 @@ class TimetablePreviewComponent(DraggableContainer):
 
 
 class TimetableNowLessonComponent(DraggableContainer):
-    """当前课程组件 — 支持课前倒计时播报"""
+    """当前课程组件"""
 
     def __init__(self, parent, component_data: dict):
         super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
@@ -6253,15 +5844,7 @@ class TimetableNowLessonComponent(DraggableContainer):
         self._current_row_data = None
         self._is_prepare_mode = False  # 是否处于课前播报模式
 
-        comp_config = component_data.get("config", {})
-        self._cfg_show_teacher = comp_config.get("show_teacher", True)
-        self._cfg_show_next = comp_config.get("show_next", True)
-        self._cfg_show_duration = comp_config.get("show_duration", True)
-        self._cfg_show_countdown = comp_config.get("show_countdown", True)
-        self._cfg_prepare_minutes = comp_config.get("prepare_minutes", 3)
-        self._cfg_bg_opacity = comp_config.get("bg_opacity", None)
-        self._cfg_corner_radius = comp_config.get("corner_radius", None)
-        self._cfg_font_scale = comp_config.get("font_scale", 100)
+        self._read_config(component_data.get("config", {}))
 
         self._setup_ui()
         self._connect_timetable_page()
@@ -6273,16 +5856,20 @@ class TimetableNowLessonComponent(DraggableContainer):
 
     def apply_config(self, config):
         """应用配置变更"""
-        self._cfg_show_teacher = config.get("show_teacher", self._cfg_show_teacher)
-        self._cfg_show_next = config.get("show_next", self._cfg_show_next)
-        self._cfg_show_duration = config.get("show_duration", self._cfg_show_duration)
-        self._cfg_show_countdown = config.get("show_countdown", self._cfg_show_countdown)
-        self._cfg_prepare_minutes = config.get("prepare_minutes", self._cfg_prepare_minutes)
-        self._cfg_bg_opacity = config.get("bg_opacity", self._cfg_bg_opacity)
-        self._cfg_corner_radius = config.get("corner_radius", self._cfg_corner_radius)
-        self._cfg_font_scale = config.get("font_scale", self._cfg_font_scale)
+        self._read_config(config)
         self._apply_style()
         self._refresh()
+
+    def _read_config(self, config):
+        # 哦哦。
+        self._show_teacher = config.get("show_teacher", getattr(self, "_show_teacher", True))
+        self._show_next = config.get("show_next", getattr(self, "_show_next", True))
+        self._show_duration = config.get("show_duration", getattr(self, "_show_duration", True))
+        self._show_countdown = config.get("show_countdown", getattr(self, "_show_countdown", True))
+        self._prepare_minutes = config.get("prepare_minutes", getattr(self, "_prepare_minutes", 3))
+        self._bg_opacity = config.get("bg_opacity", getattr(self, "_bg_opacity", None))
+        self._corner_radius = config.get("corner_radius", getattr(self, "_corner_radius", None))
+        self._font_scale = config.get("font_scale", getattr(self, "_font_scale", 100))
 
     def _setup_ui(self):
         layout = self.inner_layout
@@ -6295,7 +5882,7 @@ class TimetableNowLessonComponent(DraggableContainer):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(14)
 
-        # 左侧：课程名 + 倒计时/进度
+        # 左侧：课程名 倒计时/进度
         left = QWidget()
         left.setMinimumWidth(self._scaled_px(100))
         left.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
@@ -6352,19 +5939,17 @@ class TimetableNowLessonComponent(DraggableContainer):
 
         layout.addWidget(main, 1)
 
-        # 进度条 — 使用 qfluentwidgets ProgressBar
-        self._bottom_progress = ProgressBar(self)
+        # 进度条
+        self._bottom_progress = QProgressBar(self)
         self._bottom_progress.setFixedHeight(self._scaled_px(6))
         self._bottom_progress.setRange(0, 100)
         self._bottom_progress.setValue(0)
+        self._bottom_progress.setTextVisible(False)
         layout.addWidget(self._bottom_progress)
 
         self._apply_style()
 
         # 监听主题变化
-        cfg.componentCardOpacity.valueChanged.connect(self._apply_style)
-        cfg.componentCardRadius.valueChanged.connect(self._apply_style)
-
     def _apply_style(self):
         is_dark = isDarkTheme()
 
@@ -6378,22 +5963,10 @@ class TimetableNowLessonComponent(DraggableContainer):
             accent = "#4cc2ff"
 
         # 背景
-        opacity_val = self._cfg_bg_opacity if self._cfg_bg_opacity is not None else cfg.componentCardOpacity.value
-        radius_val = self._cfg_corner_radius if self._cfg_corner_radius is not None else cfg.componentCardRadius.value
-        opacity = opacity_val / 100.0
-        if is_dark:
-            bg = QColor(30, 30, 30)
-        else:
-            bg = QColor(255, 255, 255)
-        bg.setAlpha(int(255 * opacity))
-        self.setStyleSheet(f"""
-            #nowLessonContainer {{
-                background-color: rgba({bg.red()}, {bg.green()}, {bg.blue()}, {bg.alpha() / 255:.2f});
-                border-radius: {radius_val}px;
-            }}
-        """)
+        self._apply_card_style(
+            opacity=self._bg_opacity, radius=self._corner_radius)
 
-        font_scale = self._cfg_font_scale / 100.0
+        font_scale = self._font_scale / 100.0
 
         def fs(px):
             return max(1, int(px * font_scale * self._scale_factor))
@@ -6526,7 +6099,7 @@ class TimetableNowLessonComponent(DraggableContainer):
                 psh, psm = map(int, ps.split(":"))
                 next_start_dt = now.replace(hour=psh, minute=psm, second=0, microsecond=0)
                 diff = (next_start_dt - now).total_seconds()
-                if 0 < diff <= self._cfg_prepare_minutes * 60:
+                if 0 < diff <= self._prepare_minutes * 60:
                     in_prepare = True
             except Exception:
                 pass
@@ -6559,7 +6132,7 @@ class TimetableNowLessonComponent(DraggableContainer):
             diff = next_start - now
             total_sec = max(0, int(diff.total_seconds()))
             m, s = divmod(total_sec, 60)
-            if self._cfg_show_countdown:
+            if self._show_countdown:
                 self._countdown_label.setText(f"{m}:{s:02d} 后上课")
             else:
                 self._countdown_label.setText("")
@@ -6570,7 +6143,7 @@ class TimetableNowLessonComponent(DraggableContainer):
         self._time_progress_label.setText("")
 
         # 老师
-        if self._cfg_show_teacher:
+        if self._show_teacher:
             teacher_display = (teacher[0] + "老师") if teacher else ""
             self._teacher_label.setText(teacher_display)
         else:
@@ -6580,7 +6153,7 @@ class TimetableNowLessonComponent(DraggableContainer):
         self._time_label.setText(f"{start}~{end}")
 
         # 下节课程时长
-        if self._cfg_show_duration:
+        if self._show_duration:
             try:
                 sh, sm = map(int, start.split(":"))
                 eh, em = map(int, end.split(":"))
@@ -6596,7 +6169,7 @@ class TimetableNowLessonComponent(DraggableContainer):
             sh, sm = map(int, start.split(":"))
             next_start = now.replace(hour=sh, minute=sm, second=0, microsecond=0)
             diff = (next_start - now).total_seconds()
-            total_prepare = self._cfg_prepare_minutes * 60
+            total_prepare = self._prepare_minutes * 60
             pct = int(max(0, min(100, (1 - diff / total_prepare) * 100))) if total_prepare > 0 else 0
             self._bottom_progress.setValue(pct)
         except Exception:
@@ -6616,7 +6189,7 @@ class TimetableNowLessonComponent(DraggableContainer):
             self._subject_label.setText(subject or "--")
 
         # 老师显示
-        if self._cfg_show_teacher:
+        if self._show_teacher:
             if is_break:
                 self._teacher_label.setText("课间休息")
             else:
@@ -6629,7 +6202,7 @@ class TimetableNowLessonComponent(DraggableContainer):
         self._time_label.setText(f"{start}~{end}")
 
         # 下节课 / 时长
-        if self._cfg_show_next:
+        if self._show_next:
             if next_row:
                 next_subject = next_row[0]
                 self._next_label.setText(f"下节课：{next_subject}" if next_subject else "下节课：--")
@@ -6639,7 +6212,7 @@ class TimetableNowLessonComponent(DraggableContainer):
             self._next_label.setText("")
 
         # 时间进度
-        if self._cfg_show_duration:
+        if self._show_duration:
             try:
                 sh, sm = map(int, start.split(":"))
                 eh, em = map(int, end.split(":"))
@@ -6687,10 +6260,6 @@ class CalculatorComponent(DraggableContainer):
 
         self._setup_ui()
         self._apply_style()
-
-        cfg.componentCardOpacity.valueChanged.connect(self._apply_style)
-        cfg.componentCardRadius.valueChanged.connect(self._apply_style)
-        cfg.themeChanged.connect(self._apply_style)
 
     def _setup_ui(self):
         # 历史表达式行
@@ -6837,7 +6406,6 @@ class CalculatorComponent(DraggableContainer):
 
         is_dark = isDarkTheme()
         if is_dark:
-            base_color = QColor(0, 0, 0)
             border_color = "rgba(255,255,255,0.05)"
             display_text = "#ffffff"
             btn_num_color = QColor(51, 51, 51)
@@ -6845,16 +6413,12 @@ class CalculatorComponent(DraggableContainer):
             btn_op_color = QColor(255, 159, 10)
             btn_op_text = "#ffffff"
         else:
-            base_color = QColor(255, 255, 255)
             border_color = "rgba(0,0,0,0.05)"
             display_text = "#000000"
             btn_num_color = QColor(229, 229, 234)
             btn_num_press_color = QColor(209, 209, 214)
             btn_op_color = QColor(255, 159, 10)
             btn_op_text = "#ffffff"
-
-        base_color.setAlpha(int(255 * opacity))
-        bg_rgba = f"rgba({base_color.red()}, {base_color.green()}, {base_color.blue()}, {opacity:.2f})"
 
         button_opacity = min(1.0, opacity * 0.8 + 0.15)
         press_opacity = min(1.0, opacity * 0.95 + 0.1)
@@ -6868,12 +6432,10 @@ class CalculatorComponent(DraggableContainer):
         btn_num_press = f"rgba({btn_num_press_color.red()}, {btn_num_press_color.green()}, {btn_num_press_color.blue()}, {btn_num_press_color.alpha() / 255:.2f})"
         btn_op_bg = f"rgba({btn_op_color.red()}, {btn_op_color.green()}, {btn_op_color.blue()}, {btn_op_color.alpha() / 255:.2f})"
 
+        bg_css = self._card_bg_css()
         self.setStyleSheet(f"""
-            #calculatorContainer {{
-                background-color: {bg_rgba};
-                border-radius: {radius}px;
-                border: 1px solid {border_color};
-            }}
+            {bg_css}
+            #calculatorContainer {{ border: 1px solid {border_color}; }}
         """)
 
         sz_display = self._scaled_px(24)
@@ -6932,9 +6494,6 @@ class CalculatorComponent(DraggableContainer):
     def apply_scale(self, factor):
         self._apply_style()
 
-    def _is_operator(self, ch: str) -> bool:
-        return ch in {"+", "-", "*", "/"}
-
     def _current_number_has_decimal(self) -> bool:
         match = re.search(r'(-?\d+\.?\d*)$', self._expression)
         return bool(match and "." in match.group(1))
@@ -6962,6 +6521,7 @@ class CalculatorComponent(DraggableContainer):
 
     # 计算逻辑
     def _on_button_click(self, key):
+        # 用的全是这种图标 哪天改成fluent的
         calc_key = key
         if key == "÷":
             calc_key = "/"
@@ -7803,7 +7363,7 @@ def _rts_com_release(ptr):
 def _disable_edge_gestures(hwnd):
     """通过 SHGetPropertyStoreForWindow 禁用边缘手势"""
     try:
-        # SHGetPropertyStoreForWindow(HWND, REFIID, void**) → HRESULT
+        # SHGetPropertyStoreForWindow(HWND, REFIID, void**) 返回 HRESULT
         try:
             shgppfw = ctypes.windll.shell32.SHGetPropertyStoreForWindow
             shgppfw.argtypes = [wintypes.HWND, ctypes.c_void_p, ctypes.c_void_p]
@@ -7905,7 +7465,6 @@ class _WritingOverlay(QWidget):
 
         # WM_POINTER 多点触控
         self._rts = None
-        self._rts_plugin_addr = 0
 
         # 触控事件队列
         self._touch_queue = deque()
@@ -8741,6 +8300,7 @@ class WritingPadComponent(DraggableContainer):
             self._pen_popup.close()
 
     def _apply_style(self):
+        self._apply_card_style()
         self.updateSize()
 
     def apply_scale(self, factor):
@@ -8750,14 +8310,22 @@ class WritingPadComponent(DraggableContainer):
                 box._update_style()
 
 
-class ClassAlbumHorizontalComponent(DraggableContainer):
-    """横向班级相册"""
+class ClassAlbumBaseComponent(DraggableContainer):
+    """班级相册基类：横向/纵向共用逻辑，子类通过类属性配置方向和尺寸。"""
 
     SUPPORTED_EXTS = {'.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp'}
     MAX_IMAGE_DIMENSION = 4096
 
+    # 子类配置
+    _layout_direction = "horizontal"   # "horizontal" / "vertical"
+    _flip_view_class = HorizontalFlipView
+    _default_item_w = 400
+    _default_item_h = 200
+    _flip_min_size = (80, 60)          # flip_view 的 minimumSize
+    _container_min_size = (120, 80)    # 容器的 minimumSize
+
     def __init__(self, parent, component_data: dict):
-        super().__init__(parent, component_id=component_data["id"], layout_direction="horizontal")
+        super().__init__(parent, component_id=component_data["id"], layout_direction=self._layout_direction)
         self.setObjectName("classAlbumContainer")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setAcceptDrops(True)
@@ -8766,20 +8334,20 @@ class ClassAlbumHorizontalComponent(DraggableContainer):
             unique_id = component_data.get("placement_id") or component_data.get("id", "unknown")
             self._photos_dir = os.path.join(DATA_CLASSPHOTOS, f"album_{unique_id}")
             os.makedirs(self._photos_dir, exist_ok=True)
-        self._item_w = 400
-        self._item_h = 200
+        self._item_w = self._default_item_w
+        self._item_h = self._default_item_h
         self._setup_ui()
         if not self._is_temp:
             self._load_photos()
             self._setup_auto_flip()
 
     def _setup_ui(self):
-        self.flip_view = HorizontalFlipView(self)
+        self.flip_view = self._flip_view_class(self)
         self.flip_view.setObjectName("classAlbumFlipView")
         self.flip_view.setBorderRadius(8)
         self.flip_view.setSpacing(0)
         self.flip_view.setItemSize(QSize(self._item_w, self._item_h))
-        self.flip_view.setMinimumSize(80, 60)
+        self.flip_view.setMinimumSize(*self._flip_min_size)
         self.flip_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.flip_view.setStyleSheet("background: transparent; border: none;")
         self.flip_view.viewport().setStyleSheet("background: transparent;")
@@ -8791,9 +8359,10 @@ class ClassAlbumHorizontalComponent(DraggableContainer):
         layout.addWidget(self.flip_view)
 
         self._set_natural_size(self._item_w, self._item_h)
-        self.setMinimumSize(120, 80)
+        self.setMinimumSize(*self._container_min_size)
         self._size_explicitly_set = True
         self.resize(self._item_w, self._item_h)
+        self._apply_card_style()
 
     def _set_item_path(self, item, path: str):
         item.setData(Qt.ItemDataRole.DisplayRole, path)
@@ -8950,203 +8519,26 @@ class ClassAlbumHorizontalComponent(DraggableContainer):
             self._auto_timer.stop()
 
 
-class ClassAlbumVerticalComponent(DraggableContainer):
+class ClassAlbumHorizontalComponent(ClassAlbumBaseComponent):
+    """横向班级相册"""
+
+    _layout_direction = "horizontal"
+    _flip_view_class = HorizontalFlipView
+    _default_item_w = 400
+    _default_item_h = 200
+    _flip_min_size = (80, 60)
+    _container_min_size = (120, 80)
+
+
+class ClassAlbumVerticalComponent(ClassAlbumBaseComponent):
     """纵向班级相册"""
 
-    SUPPORTED_EXTS = {'.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp'}
-    MAX_IMAGE_DIMENSION = 4096
-
-    def __init__(self, parent, component_data: dict):
-        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
-        self.setObjectName("classAlbumContainer")
-        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setAcceptDrops(True)
-        self._is_temp = component_data.get("id", "").startswith("temp_preview")
-        if not self._is_temp:
-            unique_id = component_data.get("placement_id") or component_data.get("id", "unknown")
-            self._photos_dir = os.path.join(DATA_CLASSPHOTOS, f"album_{unique_id}")
-            os.makedirs(self._photos_dir, exist_ok=True)
-        self._item_w = 200
-        self._item_h = 400
-        self._setup_ui()
-        if not self._is_temp:
-            self._load_photos()
-            self._setup_auto_flip()
-
-    def _setup_ui(self):
-        self.flip_view = VerticalFlipView(self)
-        self.flip_view.setObjectName("classAlbumFlipView")
-        self.flip_view.setBorderRadius(8)
-        self.flip_view.setSpacing(0)
-        self.flip_view.setItemSize(QSize(self._item_w, self._item_h))
-        self.flip_view.setMinimumSize(60, 80)
-        self.flip_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.flip_view.setStyleSheet("background: transparent; border: none;")
-        self.flip_view.viewport().setStyleSheet("background: transparent;")
-        self.flip_view.installEventFilter(self)
-
-        layout = self.inner_layout
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        layout.addWidget(self.flip_view)
-
-        self._set_natural_size(self._item_w, self._item_h)
-        self.setMinimumSize(80, 120)
-        self.resize(self._item_w, self._item_h)
-
-    def _set_item_path(self, item, path: str):
-        item.setData(Qt.ItemDataRole.DisplayRole, path)
-
-    def eventFilter(self, obj, event):
-        if obj == self.flip_view and event.type() == QEvent.Type.Resize:
-            self._fit_item_size()
-        return super().eventFilter(obj, event)
-
-    def _fit_item_size(self):
-        if not hasattr(self, 'flip_view') or not self.flip_view:
-            return
-        vp = self.flip_view.viewport()
-        if vp and vp.width() > 0 and vp.height() > 0:
-            s = QSize(vp.width(), vp.height())
-            if s != self.flip_view.itemSize:
-                self.flip_view.setItemSize(s)
-                self._item_w = s.width()
-                self._item_h = s.height()
-                self._recomposite_all()
-
-    def _prepare_image(self, pixmap):
-        """缩放到 itemSize 内并合成到画布居中"""
-        w, h = self._item_w, self._item_h
-        scaled = pixmap.scaled(w, h, Qt.AspectRatioMode.KeepAspectRatio,
-                               Qt.TransformationMode.SmoothTransformation)
-        canvas = QPixmap(w, h)
-        canvas.fill(Qt.GlobalColor.transparent)
-        p = QPainter(canvas)
-        p.drawPixmap((w - scaled.width()) // 2, (h - scaled.height()) // 2, scaled)
-        p.end()
-        return canvas
-
-    def _recomposite_all(self):
-        paths = []
-        for i in range(self.flip_view.count()):
-            item = self.flip_view.item(i)
-            path = item.data(Qt.ItemDataRole.DisplayRole) or ""
-            if path:
-                paths.append(path)
-        if paths:
-            idx = self.flip_view.currentIndex()
-            self.flip_view.clear()
-            for p in paths:
-                if os.path.exists(p):
-                    pm = self._safe_load_pixmap(p)
-                    if pm:
-                        item = self.flip_view.addImage(self._prepare_image(pm))
-                        if isinstance(item, QListWidgetItem):
-                            self._set_item_path(item, p)
-            self.flip_view.viewport().update()
-            if idx < self.flip_view.count():
-                self.flip_view.scrollToIndex(idx)
-
-    def _setup_auto_flip(self):
-        self._auto_timer = QTimer(self)
-        self._auto_timer.setInterval(5000)
-        self._auto_timer.timeout.connect(self._auto_flip_next)
-        self._auto_timer.start()
-
-    def _auto_flip_next(self):
-        count = self.flip_view.count()
-        if count <= 1:
-            return
-        idx = self.flip_view.currentIndex()
-        if idx >= count - 1:
-            self.flip_view.scrollToIndex(0)
-        else:
-            self.flip_view.scrollNext()
-
-    def _safe_load_pixmap(self, path: str):
-        reader = QImageReader(path)
-        size = reader.size()
-        if not size.isValid() or size.width() <= 0 or size.height() <= 0:
-            return None
-        if size.width() > self.MAX_IMAGE_DIMENSION or size.height() > self.MAX_IMAGE_DIMENSION:
-            reader.setScaledSize(size.scaled(
-                self.MAX_IMAGE_DIMENSION, self.MAX_IMAGE_DIMENSION,
-                Qt.AspectRatioMode.KeepAspectRatio
-            ))
-        image = reader.read()
-        if image.isNull():
-            return None
-        return QPixmap.fromImage(image)
-
-    def _load_photos(self):
-        self.flip_view.clear()
-        if not os.path.isdir(self._photos_dir):
-            return
-        files = sorted(
-            f for f in os.listdir(self._photos_dir)
-            if os.path.splitext(f)[1].lower() in self.SUPPORTED_EXTS
-        )
-        for fname in files:
-            fpath = os.path.join(self._photos_dir, fname)
-            pm = self._safe_load_pixmap(fpath)
-            if pm:
-                item = self.flip_view.addImage(self._prepare_image(pm))
-                if isinstance(item, QListWidgetItem):
-                    self._set_item_path(item, fpath)
-
-    def _import_files(self, file_paths: list):
-        for src_path in file_paths:
-            ext = os.path.splitext(src_path)[1].lower()
-            if ext not in self.SUPPORTED_EXTS:
-                continue
-            fname = os.path.basename(src_path)
-            dst_path = os.path.join(self._photos_dir, fname)
-            if os.path.exists(dst_path):
-                name, e = os.path.splitext(fname)
-                c = 1
-                while os.path.exists(os.path.join(self._photos_dir, f"{name}_{c}{e}")):
-                    c += 1
-                dst_path = os.path.join(self._photos_dir, f"{name}_{c}{e}")
-            shutil.copy2(src_path, dst_path)
-            pm = self._safe_load_pixmap(dst_path)
-            if pm:
-                item = self.flip_view.addImage(self._prepare_image(pm))
-                if isinstance(item, QListWidgetItem):
-                    self._set_item_path(item, dst_path)
-        if self.flip_view.count() > 0:
-            self._auto_timer.start()
-
-    def dragEnterEvent(self, event):
-        if event.mimeData().hasUrls():
-            for url in event.mimeData().urls():
-                if url.isLocalFile() and os.path.splitext(url.toLocalFile())[1].lower() in self.SUPPORTED_EXTS:
-                    event.acceptProposedAction()
-                    return
-        event.ignore()
-
-    def dragMoveEvent(self, event):
-        if event.mimeData().hasUrls():
-            event.acceptProposedAction()
-        else:
-            event.ignore()
-
-    def dropEvent(self, event):
-        paths = [url.toLocalFile() for url in event.mimeData().urls()
-                 if url.isLocalFile() and os.path.splitext(url.toLocalFile())[1].lower() in self.SUPPORTED_EXTS]
-        if paths:
-            self._import_files(paths)
-            event.acceptProposedAction()
-
-    def showEvent(self, event):
-        super().showEvent(event)
-        if not self._is_temp:
-            self._auto_timer.start()
-        QTimer.singleShot(0, self._fit_item_size)
-
-    def hideEvent(self, event):
-        super().hideEvent(event)
-        if not self._is_temp:
-            self._auto_timer.stop()
+    _layout_direction = "vertical"
+    _flip_view_class = VerticalFlipView
+    _default_item_w = 200
+    _default_item_h = 400
+    _flip_min_size = (60, 80)
+    _container_min_size = (80, 120)
 
 
 class StickyNoteComponent(DraggableContainer):
@@ -9218,7 +8610,6 @@ class StickyNoteComponent(DraggableContainer):
         self._size_explicitly_set = True
         self.resize(280, 280)
         self._apply_style()
-
     def _apply_style(self):
         colors = self._colors
         sz_date = self._scaled_px(11)
@@ -9226,7 +8617,7 @@ class StickyNoteComponent(DraggableContainer):
         self.setStyleSheet(f"""
             #stickyNoteContainer {{
                 background-color: {colors['bg']};
-                border-radius: 8px;
+                border-radius: {cfg.componentCardRadius.value}px;
                 border: 1px solid {colors['header']};
             }}
         """)
@@ -9477,15 +8868,16 @@ class ComponentLibraryWindow(FluentWindow):
     def __init__(self, registry, parent=None):
         super().__init__(parent)
         self.registry = registry
-        
+        self.setObjectName("componentLibrary")
+
         self._setup_navigation()
         self.setWindowTitle(tr("component_library.title"))
         self.resize(600, 400)
-        
+
         if isDarkTheme():
             setTheme(cfg.themeMode.value)
-        
-        self.setStyleSheet(load_qss('setting.qss'))
+
+        self.setStyleSheet(load_qss('component.qss'))
     
     def _setup_navigation(self):
         """设置导航"""
@@ -9508,947 +8900,6 @@ class ComponentLibraryWindow(FluentWindow):
         #  展开导航栏
         self.navigationInterface.expand()
         self.navigationInterface.setReturnButtonVisible(False)
-
-        
-
-
-
-class StyleCardWidget(CardWidget):
-    """样式卡片"""
-
-    def __init__(self, component_type: str, style_name: str, style_info: dict, parent=None):
-        super().__init__(parent)
-        self.component_type = component_type
-        self.style_name = style_name
-        self.style_info = style_info
-        self.setFixedSize(260, 180)
-        self._drag_start_pos = None
-        self._preview_pixmap = None
-        self._setup_ui()
-
-    def _setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(6)
-        layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-
-        # 预览图片区域
-        self.preview_label = QLabel()
-        self.preview_label.setFixedSize(236, 120)
-        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_label.setStyleSheet("""
-            background-color: transparent;
-            border-radius: 8px;
-        """)
-        
-        # 加载预览图片
-        self._load_preview_image()
-        
-        layout.addWidget(self.preview_label)
-
-        # 样式名称
-        name_label = StrongBodyLabel(self.style_info.get("name", self.style_name))
-        name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(name_label)
-
-    def _load_preview_image(self):
-        """加载预览图片，不存在则显示空白"""
-        # resources/component_preview/{type}_{style}.png
-        image_name = f"{self.component_type}_{self.style_name}.png"
-        image_path = os.path.join(PREVIEW_DIR, image_name)
-        
-        if os.path.exists(image_path):
-            pixmap = QPixmap(image_path)
-            if not pixmap.isNull():
-                target_size = QSize(236, 120)
-                scaled = pixmap.scaled(
-                    target_size,
-                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                    Qt.TransformationMode.SmoothTransformation
-                )
-                if scaled.width() > target_size.width() or scaled.height() > target_size.height():
-                    x = (scaled.width() - target_size.width()) // 2
-                    y = (scaled.height() - target_size.height()) // 2
-                    scaled = scaled.copy(x, y, target_size.width(), target_size.height())
-                
-                self.preview_label.setPixmap(scaled)
-                self.preview_label.setStyleSheet("border-radius: 8px;")
-                self._preview_pixmap = scaled
-                return
-        
-        self.preview_label.clear()
-        self.preview_label.setStyleSheet("""
-            background-color: rgba(255, 255, 255, 0.05);
-            border-radius: 8px;
-        """)
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._drag_start_pos = event.position().toPoint()
-        super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event):
-        if not (event.buttons() & Qt.MouseButton.LeftButton):
-            return
-        if self._drag_start_pos is None:
-            return
-
-        distance = (event.position().toPoint() - self._drag_start_pos).manhattanLength()
-        if distance >= QApplication.startDragDistance():
-            self._start_drag()
-
-        super().mouseMoveEvent(event)
-
-    def _start_drag(self):
-        drag = QDrag(self)
-
-        # 设置拖拽数组件类型和样式
-        mime_data = QMimeData()
-        mime_data.setData("application/x-Glimpseon-component", 
-                          f"{self.component_type}|{self.style_name}".encode('utf-8'))
-        drag.setMimeData(mime_data)
-
-        # 创建拖拽预览图
-        if self._preview_pixmap and not self._preview_pixmap.isNull():
-            drag.setPixmap(self._preview_pixmap)
-        else:
-            pixmap = self.grab()
-            scaled = pixmap.scaled(200, 100, Qt.AspectRatioMode.KeepAspectRatio, 
-                                   Qt.TransformationMode.SmoothTransformation)
-            drag.setPixmap(scaled)
-        
-        drag.setHotSpot(QPoint(100, 60))
-
-        # 执行拖拽
-        drag.exec(Qt.DropAction.CopyAction)
-        self._drag_start_pos = None
-
-
-class ComponentTypePage(QWidget):
-    """组件类型页面"""
-
-    def __init__(self, component_type: str, styles: dict, edit_window, parent=None):
-        super().__init__(parent)
-        self.component_type = component_type
-        self.styles = styles
-        self.edit_window = edit_window
-        self._current_index = 0
-        self._style_cards = []
-        self._selected_component_id = None  # 当前选中的组件
-        
-        # 必设 objectName os必上b站
-        self.setObjectName(f"componentPage_{component_type}")
-        
-        self._setup_ui()
-        self._refresh_component_list()
-
-    def _setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(16)
-
-        # 已添加组件列表区域
-        list_header = StrongBodyLabel(tr("component_edit.added_components"))
-        layout.addWidget(list_header)
-
-        self.component_list = QListWidget(self)
-        self.component_list.setFixedHeight(120)
-        self.component_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
-        self.component_list.itemClicked.connect(self._on_component_selected)
-        layout.addWidget(self.component_list)
-
-        # 删除按钮
-        delete_btn = PushButton(FUI.DELETE, tr("component_edit.delete_selected"), self)
-        delete_btn.setFixedHeight(32)
-        delete_btn.clicked.connect(self._delete_selected_component)
-        layout.addWidget(delete_btn, alignment=Qt.AlignmentFlag.AlignLeft)
-
-        # 分隔线
-        separator = QWidget()
-        separator.setFixedHeight(2)
-        separator.setStyleSheet("background-color: rgba(255, 255, 255, 0.1);")
-        layout.addWidget(separator)
-
-        # 样式选择区域
-        style_header = StrongBodyLabel(tr("component_edit.select_style"))
-        layout.addWidget(style_header)
-
-        style_area = QWidget()
-        style_layout = QHBoxLayout(style_area)
-        style_layout.setContentsMargins(0, 0, 0, 0)
-        style_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        # 左箭头
-        self.prev_btn = ToolButton(FUI.LEFT_ARROW, self)
-        self.prev_btn.setFixedSize(32, 32)
-        self.prev_btn.clicked.connect(self._prev_style)
-        style_layout.addWidget(self.prev_btn)
-
-        # 样式卡片容器
-        self.card_container = QWidget()
-        self.card_container.setFixedSize(220, 140)
-        self.card_layout = QVBoxLayout(self.card_container)
-        self.card_layout.setContentsMargins(0, 0, 0, 0)
-        style_layout.addWidget(self.card_container)
-
-        # 右箭头
-        self.next_btn = ToolButton(FUI.RIGHT_ARROW, self)
-        self.next_btn.setFixedSize(32, 32)
-        self.next_btn.clicked.connect(self._next_style)
-        style_layout.addWidget(self.next_btn)
-
-        layout.addWidget(style_area)
-
-        # 添加按钮
-        add_btn = PushButton(FUI.ADD, tr("component_edit.add_component"), self)
-        add_btn.setFixedHeight(36)
-        add_btn.clicked.connect(self._add_component)
-        layout.addWidget(add_btn, alignment=Qt.AlignmentFlag.AlignCenter)
-
-        # 配置面板区域
-        self.config_header = StrongBodyLabel(tr("component_edit.component_config"))
-        self.config_header.hide()
-        layout.addWidget(self.config_header)
-
-        self.config_panel = QWidget()
-        self.config_panel_layout = QVBoxLayout(self.config_panel)
-        self.config_panel_layout.setContentsMargins(0, 0, 0, 0)
-        self.config_panel.hide()
-        layout.addWidget(self.config_panel)
-
-        # 初始化样式卡片
-        self._create_style_cards()
-        self._show_current_card()
-
-    def _refresh_component_list(self):
-        """刷新已添加组件列表"""
-        self.component_list.clear()
-        
-        home = self.edit_window.main_window.homeInterface
-        if not home or not hasattr(home, 'component_manager'):
-            return
-        
-        manager = home.component_manager
-        
-        # 获取当前类型的所有组件
-        for comp_id, comp_data in manager._component_data.items():
-            if comp_data.get("type") == self.component_type:
-                style_name = comp_data.get("style", "default")
-                style_info = self.styles.get(style_name, {})
-                display_name = style_info.get("name", style_name)
-                
-                item = QListWidgetItem(f"{display_name} ({comp_id})")
-                item.setData(Qt.ItemDataRole.UserRole, comp_id)
-                self.component_list.addItem(item)
-
-    def _on_component_selected(self, item):
-        """选中组件后显示配置面板"""
-        self._selected_component_id = item.data(Qt.ItemDataRole.UserRole)
-        self._show_config_panel()
-
-    def _show_config_panel(self):
-        """显示选中组件的配置面板"""
-        # 清空配置面板
-        while self.config_panel_layout.count():
-            item = self.config_panel_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
-        if not self._selected_component_id:
-            self.config_header.hide()
-            self.config_panel.hide()
-            return
-
-        # 获取组件数据
-        home = self.edit_window.main_window.homeInterface
-        if not home:
-            return
-        
-        manager = home.component_manager
-        comp_data = manager._component_data.get(self._selected_component_id)
-        if not comp_data:
-            return
-
-        # 根据组件类型创建配置项
-        config_items = self._get_config_items_for_type(self.component_type)
-        
-        for config_key, config_info in config_items.items():
-            card = self._create_config_card(config_key, config_info, comp_data)
-            if card:
-                self.config_panel_layout.addWidget(card)
-
-        self.config_header.show()
-        self.config_panel.show()
-
-    def _get_config_items_for_type(self, comp_type: str) -> dict:
-        """获取组件类型的配置项定义"""
-        # 基础配置项
-        base_config = {
-            "enabled": {"name": tr("component_edit.config_enabled"), "type": "switch"},
-        }
-        
-        # 类型特定配置
-        type_config = {
-            "clock": {
-                "show_seconds": {"name": tr("component_edit.config_show_seconds"), "type": "switch"},
-                "show_lunar": {"name": tr("component_edit.config_show_lunar"), "type": "switch"},
-                "font_size": {"name": tr("component_edit.config_font_size"), "type": "spinbox", "min": 10, "max": 200},
-            },
-            "weather": {
-                "show_icon": {"name": tr("component_edit.config_show_icon"), "type": "switch"},
-                "font_size": {"name": tr("component_edit.config_font_size"), "type": "spinbox", "min": 10, "max": 100},
-            },
-            "poetry": {
-                "font_size": {"name": tr("component_edit.config_font_size"), "type": "spinbox", "min": 10, "max": 50},
-            },
-            "countdown": {
-                "target_name": {"name": tr("component_edit.config_target_name"), "type": "lineedit"},
-                "target_date": {"name": tr("component_edit.config_target_date"), "type": "lineedit"},
-            },
-            "school_info": {
-                "school_name": {"name": tr("component_edit.config_school"), "type": "lineedit"},
-                "class_name": {"name": tr("component_edit.config_class"), "type": "lineedit"},
-            },
-            "media": {
-                "show_progress": {"name": tr("component_edit.config_show_progress"), "type": "switch"},
-            },
-            "quick_launch": {
-                "icon_size": {"name": tr("component_edit.config_icon_size"), "type": "spinbox", "min": 32, "max": 128},
-            },
-        }
-        
-        return {**base_config, **type_config.get(comp_type, {})}
-
-    def _create_config_card(self, config_key: str, config_info: dict, comp_data: dict) -> QWidget:
-        """创建配置项卡片"""
-        config_type = config_info.get("type", "switch")
-        config_name = config_info.get("name", config_key)
-        current_value = comp_data.get("config", {}).get(config_key)
-
-        card = CardWidget(self.config_panel)
-        card_layout = QHBoxLayout(card)
-        card_layout.setContentsMargins(16, 12, 16, 12)
-
-        # 配置名称
-        name_label = BodyLabel(config_name)
-        card_layout.addWidget(name_label)
-
-        card_layout.addStretch()
-
-        # 配置控件
-        if config_type == "switch":
-            switch = SwitchButton(self)
-            switch.setChecked(bool(current_value) if current_value is not None else True)
-            switch.checkedChanged.connect(lambda checked: self._update_config(config_key, checked))
-            card_layout.addWidget(switch)
-        elif config_type == "spinbox":
-            spinbox = SpinBox(self)
-            spinbox.setRange(config_info.get("min", 1), config_info.get("max", 100))
-            spinbox.setValue(int(current_value) if current_value else config_info.get("min", 1))
-            spinbox.valueChanged.connect(lambda value: self._update_config(config_key, value))
-            card_layout.addWidget(spinbox)
-        elif config_type == "lineedit":
-            lineedit = QLineEdit(self)
-            lineedit.setText(str(current_value) if current_value else "")
-            lineedit.setFixedWidth(200)
-            lineedit.textChanged.connect(lambda text: self._update_config(config_key, text))
-            card_layout.addWidget(lineedit)
-
-        return card
-
-    def _update_config(self, config_key: str, value):
-        """更新组件配置"""
-        if not self._selected_component_id:
-            return
-        
-        home = self.edit_window.main_window.homeInterface
-        if not home:
-            return
-        
-        manager = home.component_manager
-        
-        # 更新配置数据
-        comp_data = manager._component_data.get(self._selected_component_id)
-        if comp_data:
-            if "config" not in comp_data:
-                comp_data["config"] = {}
-            comp_data["config"][config_key] = value
-            
-            manager.save_components()
-
-    def _delete_selected_component(self):
-        """删除选中的组件"""
-        if not self._selected_component_id:
-            return
-
-        home = self.edit_window.main_window.homeInterface
-        if not home:
-            return
-
-        manager = home.component_manager
-
-        # 通过 manager 的方法删除，确保清理逻辑一致
-        manager.remove_component(self._selected_component_id)
-
-        self._selected_component_id = None
-        self._refresh_component_list()
-        self._show_config_panel()
-
-    def _create_style_cards(self):
-        for style_name, style_info in self.styles.items():
-            card = StyleCardWidget(self.component_type, style_name, style_info, self)
-            self._style_cards.append(card)
-
-    def _show_current_card(self):
-        # 清空容器
-        while self.card_layout.count():
-            item = self.card_layout.takeAt(0)
-            if item.widget():
-                item.widget().setParent(None)
-
-        if self._style_cards:
-            card = self._style_cards[self._current_index]
-            card.setParent(self.card_container)
-            self.card_layout.addWidget(card)
-
-        # 更新箭头状态
-        self.prev_btn.setEnabled(self._current_index > 0)
-        self.next_btn.setEnabled(self._current_index < len(self._style_cards) - 1)
-
-    def _prev_style(self):
-        if self._current_index > 0:
-            self._current_index -= 1
-            self._show_current_card()
-
-    def _next_style(self):
-        if self._current_index < len(self._style_cards) - 1:
-            self._current_index += 1
-            self._show_current_card()
-
-    def _add_component(self):
-        if self._style_cards:
-            style_keys = list(self.styles.keys())
-            idx = min(self._current_index, len(style_keys) - 1)
-            current_style = style_keys[idx]
-            self.edit_window._on_add_component(self.component_type, current_style)
-
-
-class ComponentEditWindow(FluentWindow):
-    """组件编辑窗口"""
-
-    def __init__(self, main_window):
-        super().__init__()
-        self.main_window = main_window
-        self.setObjectName("componentEdit")
-        self.resize(900, 650)
-
-        # 窗口置顶，隐藏最小化和最大化按钮
-        self.setWindowFlags(
-            (self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-            & ~Qt.WindowType.WindowMinimizeButtonHint
-            & ~Qt.WindowType.WindowMaximizeButtonHint
-        )
-
-        self._type_pages = {}
-        self._setup_pages()
-        self._setup_navigation()
-        self._setup_added_list()
-        self._applyTheme()
-
-        # 中间显示
-        self._centerOnScreen()
-
-    def _setup_pages(self):
-        """创建各类型页面"""
-        self._stack = QStackedWidget(self)
-
-        type_icons = {
-            "clock": FUI.DATE_TIME,
-            "weather": FUI.CLOUD,
-            "poetry": FUI.BOOK_SHELF,
-            "countdown": FUI.STOP_WATCH,
-            "school_info": FUI.EDUCATION,
-            "media": FUI.MUSIC,
-            "quick_launch": FUI.LINK,
-            "timer": FUI.STOP_WATCH,
-        }
-
-        type_names = {
-            "clock": tr("component.clock"),
-            "weather": tr("component.weather"),
-            "poetry": tr("component.poetry"),
-            "countdown": tr("component.countdown"),
-            "school_info": tr("component.school_info"),
-            "media": tr("component.media"),
-            "quick_launch": tr("component.quick_launch"),
-            "timer": tr("timer_countdown.title"),
-        }
-
-        for type_name, styles in COMPONENT_STYLES.items():
-            page = ComponentTypePage(type_name, styles, self)
-            self._type_pages[type_name] = page
-            self._stack.addWidget(page)
-
-        self._type_icons = type_icons
-        self._type_names = type_names
-
-    def _setup_navigation(self):
-        """设置导航栏"""
-        for type_name, page in self._type_pages.items():
-            icon = self._type_icons.get(type_name, FUI.SETTING)
-            name = self._type_names.get(type_name, type_name)
-            self.addSubInterface(page, icon, name)
-
-        self.navigationInterface.expand()
-        self.navigationInterface.setReturnButtonVisible(False)
-
-    def _setup_added_list(self):
-        """已添加组件列表"""
-        # 暂时跳过，后续实现
-        pass
-
-    def _centerOnScreen(self):
-        screen = QApplication.primaryScreen()
-        if screen:
-            center = screen.availableGeometry().center()
-            self.move(center.x() - self.width() // 2, center.y() - self.height() // 2)
-
-    def _applyTheme(self):
-        """应用主题"""
-        theme = cfg.themeMode.value
-        setTheme(theme)
-        qss = load_qss('setting.qss')
-        if qss:
-            self.setStyleSheet(qss)
-
-    def _on_add_component(self, component_type: str, component_style: str):
-        """添加组件回调"""
-        from qfluentwidgets import InfoBar
-
-        # 获取 HomeInterface
-        home = None
-        if hasattr(self.main_window, 'homeInterface'):
-            home = self.main_window.homeInterface
-
-        if home and hasattr(home, 'component_manager') and home.component_manager:
-            comp_id = home.component_manager.add_component(component_type, component_style)
-            if comp_id:
-                InfoBar.success(
-                    tr("component_edit.add_success"),
-                    f"{self._type_names.get(component_type, component_type)}: {component_style}",
-                    parent=self,
-                    duration=2000
-                )
-        else:
-            # 组件系统尚未完全整合
-            InfoBar.warning(
-                tr("component_edit.feature_pending"),
-                tr("component_edit.feature_pending_desc"),
-                parent=self,
-                duration=3000
-            )
-
-    def closeEvent(self, event):
-        """释放资源"""
-        event.accept()
-
-
-class GridCanvas(QWidget):
-    """网格桌面画布 - 管理组件放置和交互"""
-
-    # 信号
-    component_placed = pyqtSignal(str)       # placement_id
-    component_removed = pyqtSignal(str)      # placement_id
-    edit_mode_changed = pyqtSignal(bool)
-
-    def __init__(self, main_window, parent=None):
-        super().__init__(parent)
-        self.main_window = main_window
-        self.setObjectName("gridCanvas")
-
-        from core.component import (
-            GridLayoutService, ComponentRegistry, PlacementService,
-            BUILTIN_COMPONENT_DEFINITIONS, EditSession, GridMetrics
-        )
-        self.grid_service = GridLayoutService()
-        self.registry = ComponentRegistry(self)
-        self.placement_srv = PlacementService(self)
-
-        # 加载内置组件定义
-        self.registry.register_batch(BUILTIN_COMPONENT_DEFINITIONS)
-
-        # 加载放置配置
-        self.placement_srv.load()
-
-        # 网格计算结果
-        self._metrics: Optional[GridMetrics] = None
-
-        # 编辑状态
-        self._edit_session = EditSession()
-        self._is_edit_mode = False
-
-        # 预览框
-        self._preview_box = DragPreviewBox(self)
-
-        # 组件容器
-        self._component_widgets: Dict[str, QWidget] = {}
-
-        # UI 设置
-        self.setAcceptDrops(True)
-        self._setup_ui()
-
-        # 尺寸计算
-        self._update_grid_metrics()
-
-        # 创建加了的组件
-        self._create_placed_components()
-
-        self.placement_srv.placement_added.connect(self._on_placement_added)
-        self.placement_srv.placement_removed.connect(self._on_placement_removed)
-        self.placement_srv.placement_updated.connect(self._on_placement_updated)
-
-        self.setStyleSheet(load_qss('home.qss'))
-
-    def _setup_ui(self):
-        """设置布局"""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-    def _update_grid_metrics(self):
-        """更新网格尺寸"""
-        from core.component import GridMetrics
-        settings = self.placement_srv.get_grid_settings()
-        self._metrics = self.grid_service.calculate_grid_metrics(
-            self.width(), self.height(), settings
-        )
-
-    def resizeEvent(self, event):
-        """窗口大小变化时重新计算网格"""
-        super().resizeEvent(event)
-        self._update_grid_metrics()
-
-        # 更新所有组件位置
-        for placement_id, widget in self._component_widgets.items():
-            placement = self.placement_srv.get_placement(placement_id)
-            if placement and self._metrics:
-                rect = self.grid_service.get_cell_rect(
-                    self._metrics,
-                    placement.column,
-                    placement.row,
-                    placement.width_cells,
-                    placement.height_cells
-                )
-                widget.setGeometry(rect)
-
-    def _create_placed_components(self):
-        """创建已放置的组件"""
-        for placement in self.placement_srv.get_all_placements():
-            self._create_component_widget(placement)
-
-    def _create_component_widget(self, placement) -> Optional[QWidget]:
-        """创建单个组件"""
-        from core.component import ComponentPlacement
-        definition = self.registry.get_definition(placement.component_id)
-        if not definition:
-            logger.warning(f"[GridCanvas] 组件定义不存在: {placement.component_id}")
-            return None
-
-        # 获取组件类
-        comp_class = definition.component_class
-        if not comp_class:
-            # 从 COMPONENT_STYLES 获取 - 支持多词类型 (school_info, quick_launch_dock)
-            comp_id = placement.component_id
-            for type_name in COMPONENT_STYLES:
-                if comp_id.startswith(type_name + "_"):
-                    style_name = comp_id[len(type_name) + 1:]
-                    style_info = COMPONENT_STYLES[type_name].get(style_name, {})
-                    comp_class = style_info.get('class')
-                    break
-                elif comp_id == type_name:
-                    first_style = next(iter(COMPONENT_STYLES[type_name]))
-                    style_info = COMPONENT_STYLES[type_name][first_style]
-                    comp_class = style_info.get('class')
-                    break
-
-        if not comp_class:
-            logger.warning(f"[GridCanvas] 组件类不存在: {placement.component_id}")
-            return None
-
-        # 计算位置和大小
-        if self._metrics:
-            rect = self.grid_service.get_cell_rect(
-                self._metrics,
-                placement.column,
-                placement.row,
-                placement.width_cells,
-                placement.height_cells
-            )
-        else:
-            rect = QRect(100, 100, 200, 200)
-
-        # 构造函数期望 component_data: dict
-        try:
-            component_data = {"id": placement.component_id, "placement_id": placement.placement_id, **placement.config}
-            widget = comp_class(self, component_data)
-            widget.setGeometry(rect)
-            widget.show()
-
-            self._component_widgets[placement.placement_id] = widget
-            self.placement_srv.register_widget(placement.placement_id, widget)
-
-            logger.info(f"[GridCanvas] 创建组件: {placement.placement_id}")
-            return widget
-        except Exception as e:
-            logger.error(f"[GridCanvas] 创建组件失败: {e}")
-            return None
-
-    def _on_placement_added(self, placement_id: str):
-        """放置添加时创建组件"""
-        placement = self.placement_srv.get_placement(placement_id)
-        if placement:
-            self._create_component_widget(placement)
-        self.component_placed.emit(placement_id)
-
-    def _on_placement_removed(self, placement_id: str):
-        """放置移除时删除组件"""
-        if placement_id in self._component_widgets:
-            widget = self._component_widgets[placement_id]
-            widget.deleteLater()
-            del self._component_widgets[placement_id]
-        self.component_removed.emit(placement_id)
-
-    def _on_placement_updated(self, placement_id: str):
-        """放置更新时移动/调整组件"""
-        placement = self.placement_srv.get_placement(placement_id)
-        widget = self._component_widgets.get(placement_id)
-
-        if placement and widget and self._metrics:
-            rect = self.grid_service.get_cell_rect(
-                self._metrics,
-                placement.column,
-                placement.row,
-                placement.width_cells,
-                placement.height_cells
-            )
-            widget.setGeometry(rect)
-
-
-    # 拖拽处理
-
-    def dragEnterEvent(self, event):
-        """拖拽进入"""
-        from core.component import EditSessionMode, EditSession
-        mime = event.mimeData()
-        if mime.hasFormat("application/x-Glimpseon-component"):
-            event.acceptProposedAction()
-
-            # 编辑会话
-            data = bytes(mime.data("application/x-Glimpseon-component")).decode('utf-8')
-            parts = data.split('|')
-            if len(parts) >= 2:
-                comp_id = parts[0]
-                # 组件定义
-                definition = self.registry.get_definition(comp_id)
-                if definition:
-                    self._edit_session = EditSession(
-                        mode=EditSessionMode.DRAGGING_NEW,
-                        component_id=comp_id,
-                        width_cells=definition.default_width_cells,
-                        height_cells=definition.default_height_cells,
-                        start_position=event.position().toPoint(),
-                        current_position=event.position().toPoint(),
-                    )
-                    self._show_preview()
-        else:
-            event.ignore()
-
-    def dragMoveEvent(self, event):
-        """拖拽移动"""
-        if self._edit_session.is_dragging_new:
-            pos = event.position().toPoint()
-            self._edit_session.current_position = pos
-
-            # 计算目标格子
-            if self._metrics:
-                row, col = self.grid_service.point_to_cell(self._metrics, pos)
-                self._edit_session.target_row = row
-                self._edit_session.target_column = col
-
-                # 检查碰撞
-                is_collision = self.grid_service.check_collision(
-                    self.placement_srv.get_all_placements(),
-                    row, col,
-                    self._edit_session.width_cells,
-                    self._edit_session.height_cells,
-                )
-
-                self._update_preview_position()
-                self._preview_box.set_collision(is_collision)
-
-            event.acceptProposedAction()
-
-    def dragLeaveEvent(self, event):
-        """拖拽离开"""
-        from core.component import EditSession
-        self._hide_preview()
-        self._edit_session = EditSession()
-
-    def dropEvent(self, event):
-        """放置"""
-        from core.component import EditSession
-        if self._edit_session.is_dragging_new and self._edit_session.has_target:
-            # 检查碰撞
-            is_collision = self.grid_service.check_collision(
-                self.placement_srv.get_all_placements(),
-                self._edit_session.target_row,
-                self._edit_session.target_column,
-                self._edit_session.width_cells,
-                self._edit_session.height_cells,
-            )
-
-            if not is_collision:
-                # 创建放置
-                placement_id = self.placement_srv.add_placement(
-                    self._edit_session.component_id,
-                    self._edit_session.target_row,
-                    self._edit_session.target_column,
-                    self._edit_session.width_cells,
-                    self._edit_session.height_cells,
-                )
-                logger.info(f"[GridCanvas] 放置组件: {placement_id}")
-
-        self._hide_preview()
-        self._edit_session = EditSession()
-        event.acceptProposedAction()
-
-    def _show_preview(self):
-        """显示预览框"""
-        if self._metrics and self._edit_session.is_dragging_new:
-            rect = self.grid_service.get_cell_rect(
-                self._metrics,
-                self._edit_session.target_column,
-                self._edit_session.target_row,
-                self._edit_session.width_cells,
-                self._edit_session.height_cells,
-            )
-            self._preview_box.setGeometry(rect)
-            self._preview_box.show()
-            self._preview_box.raise_()
-
-    def _update_preview_position(self):
-        """更新预览框位置"""
-        if self._metrics and self._edit_session.is_dragging_new:
-            rect = self.grid_service.get_cell_rect(
-                self._metrics,
-                self._edit_session.target_column,
-                self._edit_session.target_row,
-                self._edit_session.width_cells,
-                self._edit_session.height_cells,
-            )
-            self._preview_box.setGeometry(rect)
-
-    def _hide_preview(self):
-        """隐藏预览框"""
-        self._preview_box.hide()
-
-    # 编辑模式
-
-    def enter_edit_mode(self):
-        """进入编辑模式"""
-        self._is_edit_mode = True
-        self.edit_mode_changed.emit(True)
-
-    def exit_edit_mode(self):
-        """退出编辑模式"""
-        self._is_edit_mode = False
-        self.edit_mode_changed.emit(False)
-
-    def is_edit_mode(self) -> bool:
-        return self._is_edit_mode
-
-    # 绘制网格
-
-    def paintEvent(self, event):
-        """绘制"""
-        super().paintEvent(event)
-
-        if self._is_edit_mode and self._metrics:
-            painter = QPainter(self)
-            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-            # 绘制网格线
-            grid_color = QColor(200, 200, 200, 220) if not isDarkTheme() else QColor(255, 255, 255, 30)
-            pen = QPen(grid_color, 1)
-            painter.setPen(pen)
-
-            # 垂直线
-            for col in range(self._metrics.column_count + 1):
-                x = self._metrics.edge_inset_px + col * self._metrics.pitch
-                painter.drawLine(int(x), int(self._metrics.edge_inset_px),
-                                int(x), int(self._metrics.edge_inset_px + self._metrics.grid_height_px))
-
-            # 水平线
-            for row in range(self._metrics.row_count + 1):
-                y = self._metrics.edge_inset_px + row * self._metrics.pitch
-                painter.drawLine(int(self._metrics.edge_inset_px), int(y),
-                                int(self._metrics.edge_inset_px + self._metrics.grid_width_px), int(y))
-
-    # 公共 API
-
-    def get_registry(self):
-        """获取组件注册中心"""
-        return self.registry
-
-    def get_placement_service(self):
-        """获取放置服务"""
-        return self.placement_srv
-
-    def get_grid_metrics(self):
-        """获取网格尺寸"""
-        return self._metrics
-
-    def get_all_components(self) -> Dict[str, QWidget]:
-        """获取所有组件"""
-        return self._component_widgets.copy()
-
-
-class DragPreviewBox(QWidget):
-    """拖拽放置预览框"""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self._collision = False
-        self.hide()
-
-    def set_collision(self, is_collision: bool):
-        """设置碰撞状态"""
-        self._collision = is_collision
-        self.update()
-
-    def paintEvent(self, event):
-        """绘制预览框"""
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        if self._collision:
-            color = QColor(255, 0, 0, 80)
-            border_color = QColor(255, 0, 0, 180)
-        else:
-            color = QColor(0, 180, 255, 60)
-            border_color = QColor(0, 180, 255, 160)
-
-        painter.setBrush(QBrush(color))
-        pen = QPen(border_color, 2)
-        painter.setPen(pen)
-        painter.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 4, 4)
-
-
-FONT_FAMILY = '"HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif'
-
-
 class TimeColumnWidget(QWidget):
     """时间列选择器"""
     valueChanged = pyqtSignal(int)
@@ -10618,7 +9069,7 @@ class TimerCountdownComponent(DraggableContainer):
         tp_layout.addStretch(1)
         self._mode_stack.addWidget(self._timer_page)  # index 0
 
-        #    倒计时 
+        # 倒计时 
         self._cd_page = QWidget()
         cp_layout = QVBoxLayout(self._cd_page)
         cp_layout.setContentsMargins(0, 12, 0, 0)
@@ -10688,7 +9139,7 @@ class TimerCountdownComponent(DraggableContainer):
         self.setMinimumSize(140, 120)
         self._size_explicitly_set = True
         self.resize(240, 200)
-        self._apply_bg_style()
+        self._apply_style()
         self._switch_mode(False)
 
     # 模式切换
@@ -10816,14 +9267,8 @@ class TimerCountdownComponent(DraggableContainer):
         else:
             self._timer_display.set_time(h, m, s)
 
-    def _apply_bg_style(self):
-        dark = isDarkTheme()
-        bg = QColor(30, 30, 30) if dark else QColor(250, 250, 250)
-        bg.setAlpha(200)
-        bg_str = f"rgba({bg.red()}, {bg.green()}, {bg.blue()}, {bg.alpha()})"
-        self.setStyleSheet(
-            f"#timerCountdownContainer {{ background-color: {bg_str}; border-radius: 8px; }}"
-        )
+    def _apply_style(self):
+        self._apply_card_style()
 
     def apply_scale(self, factor):
         self._pivot.setFixedHeight(self._scaled_px(32))

@@ -522,17 +522,18 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         if code is None: return
         mw = self.mainWindow
         home = mw.homeInterface
-        if home is None: return
+        if home is None or not hasattr(home, 'weatherTempLabel'): return
         self._savedWeatherCode = getattr(home, 'current_weather_code', None)
-        self._savedWeatherTemp = home.weatherTempLabel.text() if hasattr(home, 'weatherTempLabel') else ""
+        self._savedWeatherTemp = home.weatherTempLabel.text()
         home.current_weather_code = code
         temp_text = self.weatherTempInput.text().strip()
         if temp_text:
             home.weatherTempLabel.setText(temp_text)
-        elif hasattr(home, 'weatherTempLabel'):
+        else:
             name = self.weatherCodeMap.get(code, "")
             home.weatherTempLabel.setText(f"模拟: {name}")
-        home._updateWeatherIcon()
+        if hasattr(home, '_updateWeatherIcon'):
+            home._updateWeatherIcon()
         InfoBar.success(title=tr("debug.title_weather_sim"), content=tr("debug.weather_sim_applied").format(code=code, name=self.weatherCodeMap.get(code, '')), parent=self, duration=2500)
 
     def _resetWeatherDebug(self):
@@ -543,7 +544,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         if hasattr(self, '_savedWeatherTemp'): del self._savedWeatherTemp
         mw = self.mainWindow
         home = getattr(mw, 'homeInterface', None)
-        if home:
+        if home and hasattr(home, '_refreshWeather'):
             home._refreshWeather()
 
     def _createElementCheckCard(self):

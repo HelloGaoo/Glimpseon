@@ -814,19 +814,6 @@ class AdvancedPage(SettingsSubPage):
 
         mw = self.main_window
         mw.refresh_quick_launch()
-        mw.refresh_clock()
-        mw.refresh_poetry()
-        mw.refresh_weather()
-        mw.refresh_countdown()
-        if hasattr(mw, "updateSchoolInfo"):
-            mw.updateSchoolInfo()
-        if hasattr(mw, "updateSchoolInfoStyle"):
-            mw.updateSchoolInfoStyle()
-        mw.refresh_school_info_position()
-        mw.refresh_clock_position()
-        mw.refresh_poetry_position()
-        mw.refresh_weather_position()
-        mw.refresh_countdown_position()
 
         app = QApplication.instance()
         if app:

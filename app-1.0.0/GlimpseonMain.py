@@ -1531,65 +1531,9 @@ class MainWindow(FluentWindow):
             return False
 
     # 刷新委托到 homeInterface
-    def refresh_clock(self):
-        hi = getattr(self, 'homeInterface', None)
-        if hi and hasattr(hi, '_updateClock'): hi._updateClock()
-
-    def refresh_poetry(self):
-        hi = getattr(self, 'homeInterface', None)
-        if hi and hasattr(hi, '_refreshPoetry'): hi._refreshPoetry()
-
-    def refresh_poetry_interval(self):
-        hi = getattr(self, 'homeInterface', None)
-        if hi and hasattr(hi, '_updatePoetryInterval'): hi._updatePoetryInterval()
-
-    def refresh_weather(self):
-        hi = getattr(self, 'homeInterface', None)
-        if hi and hasattr(hi, '_refreshWeather'): hi._refreshWeather()
-
-    def refresh_weather_icon(self):
-        hi = getattr(self, 'homeInterface', None)
-        if hi and hasattr(hi, '_updateWeatherIcon'): hi._updateWeatherIcon()
-
-    def refresh_weather_interval(self):
-        hi = getattr(self, 'homeInterface', None)
-        if hi and hasattr(hi, '_updateWeatherInterval'): hi._updateWeatherInterval()
-
-    def refresh_countdown(self):
-        hi = getattr(self, 'homeInterface', None)
-        if hi and hasattr(hi, '_updateCountdown'): hi._updateCountdown()
-
-    def refresh_countdown_carousel_interval(self):
-        hi = getattr(self, 'homeInterface', None)
-        if hi and hasattr(hi, '_updateCountdownCarouselInterval'): hi._updateCountdownCarouselInterval()
-
     def refresh_quick_launch(self):
         hi = getattr(self, 'homeInterface', None)
         if hi and hasattr(hi, '_updateQuickLaunch'): hi._updateQuickLaunch()
-
-    def refresh_edit_button_position(self):
-        hi = getattr(self, 'homeInterface', None)
-        if hi and hasattr(hi, '_updateEditButtonPosition'): hi._updateEditButtonPosition()
-
-    def refresh_school_info_position(self):
-        hi = getattr(self, 'homeInterface', None)
-        if hi and hasattr(hi, '_updateSchoolInfoPosition'): hi._updateSchoolInfoPosition()
-
-    def refresh_clock_position(self):
-        hi = getattr(self, 'homeInterface', None)
-        if hi and hasattr(hi, '_updateClockPosition'): hi._updateClockPosition()
-
-    def refresh_poetry_position(self):
-        hi = getattr(self, 'homeInterface', None)
-        if hi and hasattr(hi, '_updatePoetryPosition'): hi._updatePoetryPosition()
-
-    def refresh_weather_position(self):
-        hi = getattr(self, 'homeInterface', None)
-        if hi and hasattr(hi, '_updateWeatherPosition'): hi._updateWeatherPosition()
-
-    def refresh_countdown_position(self):
-        hi = getattr(self, 'homeInterface', None)
-        if hi and hasattr(hi, '_updateCountdownPosition'): hi._updateCountdownPosition()
 
 
 class Preloader(QThread):

@@ -1,0 +1,161 @@
+/* 组件库 */
+
+#componentLibrary, #componentEdit,
+#componentLibrary QScrollArea, #componentEdit QScrollArea {
+    background: transparent;
+    border: none;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 分类页面容器 */
+#componentLibrary [objectName^="category_"] {
+    background: transparent;
+    border: none;
+}
+
+/* 组件卡片 */
+#componentLibrary CardWidget,
+#componentEdit CardWidget {
+    background-color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 8px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#componentLibrary CardWidget:hover,
+#componentEdit CardWidget:hover {
+    background-color: rgba(255, 255, 255, 1);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+#componentLibrary StyleCardWidget,
+#componentEdit StyleCardWidget {
+    background-color: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 8px;
+}
+
+#componentLibrary StyleCardWidget:hover,
+#componentEdit StyleCardWidget:hover {
+    background-color: rgba(255, 255, 255, 1);
+    border: 1px solid rgba(0, 120, 212, 0.4);
+}
+
+/* 标题 */
+#componentLibrary StrongBodyLabel,
+#componentEdit StrongBodyLabel {
+    color: #1a1a1a;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#componentLibrary BodyLabel,
+#componentEdit BodyLabel {
+    color: #444444;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 列表 */
+#componentEdit QListWidget {
+    background-color: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 6px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#componentEdit QListWidget::item {
+    padding: 6px 10px;
+    border-radius: 4px;
+}
+
+#componentEdit QListWidget::item:selected {
+    background-color: rgba(0, 120, 212, 0.12);
+    color: #0078D4;
+}
+
+#componentEdit QListWidget::item:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+}
+
+/* 按钮 */
+#componentLibrary PushButton,
+#componentEdit PushButton {
+    background-color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 5px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#componentLibrary PushButton:hover,
+#componentEdit PushButton:hover {
+    background-color: rgba(255, 255, 255, 1);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+#componentLibrary PrimaryPushButton,
+#componentEdit PrimaryPushButton {
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+/* 分隔线 */
+#componentEdit #separator {
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
+/* 预览图区域 */
+#componentLibrary #preview_label,
+#componentEdit #preview_label {
+    background-color: rgba(0, 0, 0, 0.03);
+    border-radius: 6px;
+}
+
+/* 滚动区域透明 */
+#componentLibrary QScrollArea,
+#componentEdit QScrollArea {
+    background: transparent;
+    border: none;
+}
+
+#componentLibrary QWidget#scrollWidget,
+#componentEdit QWidget#scrollWidget {
+    background: transparent;
+}
+
+/* 预览页面背景 */
+#componentPage_clock,
+#componentPage_weather,
+#componentPage_poetry,
+#componentPage_countdown,
+#componentPage_school_info,
+#componentPage_media,
+#componentPage_quick_launch,
+#componentPage_timer,
+#componentPage_news,
+#componentPage_writing,
+#componentPage_class_album,
+#componentPage_sticky_note,
+#componentPage_Math,
+#componentPage_linkage {
+    background: transparent;
+}
+
+/* ComboBox / SpinBox / LineEdit */
+#componentEdit ComboBox,
+#componentEdit SpinBox,
+#componentEdit LineEdit {
+    background-color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 5px;
+    font-family: "HarmonyOS Sans", "Microsoft YaHei", "SimHei", sans-serif;
+}
+
+#componentEdit ComboBox:hover,
+#componentEdit SpinBox:hover,
+#componentEdit LineEdit:hover {
+    border: 1px solid rgba(0, 0, 0, 0.25);
+    background-color: rgba(255, 255, 255, 1);
+}
+
+/* SwitchButton */
+#componentEdit SwitchButton {
+    background: transparent;
+}
