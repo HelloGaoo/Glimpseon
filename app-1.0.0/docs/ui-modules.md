@@ -1,12 +1,10 @@
 # UI 模块（ui/）
 
 > \[!NOTE]
-> 编写者：HelloGaoo　最后修改：2026/08/27
+> 编写者：HelloGaoo　最后修改：2026/09/12
 
-`ui/` 是基于 PyQt6 Fluent Widgets 的界面层。所有界面通过 `MainWindow.addSubInterface()` 注册到 FluentWindow 导航。每个界面通过 `load_qss()` 加载对应主题 QSS，并实现 `_onThemeChanged` 响应主题切换。
+`ui/` 基于 P6FW/HTML 用户可见范围即是这层
 
-> \[!IMPORTANT]
-> **约束**：UI 控件必须使用 PyQt6 Fluent Widgets，不得引入其它组件库。组件配置面板必须 parent 到 MainWindow 以保证 z-order 正确。
 
 ***
 
@@ -53,10 +51,6 @@
 | `CountdownEditDialog` | 倒计时编辑对话框    |
 | `AppEditDialog`       | 快捷启动应用编辑对话框 |
 
-### 2.3 主题适配
-
-NavigationPage 提示文字颜色随主题：深色 `rgba(230,230,230,0.95)`，浅色 `rgba(60,60,60,1.0)`，切换时自动更新。
-
 ***
 
 ## 3. component.py — 组件实现库
@@ -73,16 +67,15 @@ NavigationPage 提示文字颜色随主题：深色 `rgba(230,230,230,0.95)`，�
 | `ComponentConfigDialog(MessageBoxBase)` | 组件配置弹窗（独立配置，parent 到 MainWindow）                                               |
 | `ComponentCard(CardWidget)`             | 组件库中的卡片项                                                                       |
 | `CategoryPage(ScrollArea)`              | 组件库分类页                                                                         |
-| `ComponentLibraryWindow(FluentWindow)`  | 组件库窗口（固定 650×550），加载 `component.qss`                                           |
+| `ComponentLibraryWindow(FluentWindow)`  | 组件库窗口，加载 `component.qss`                                           |
 
 ### 3.2 编辑模式约定
 
-- 编辑/删除按钮：48×48px，22px 图标，8px 间距；hover 色 编辑 `(0,120,212)` / 删除 `(220,80,80)`；直接使用全局 `componentCardOpacity` / `componentCardRadius`，无值限制。
-- 选中框：主题色（`#30c361`），2px 边框，距组件边 3px，圆角 8；外层 4 层同色发光（alpha=60）。
-- 调整柄：右下角圆弧柄（`arc_r=18`），外层 7px + 内层 4px，非 8 点方形手柄。
-- 编辑模式：`_GridOverlay` 网格 + `GuideLineOverlay` 参考线（无黑色遮罩）。
+- 编辑/删除按钮、选中框、缩放柄的尺寸与配色见 `DraggableWidget` 。
+- 按钮使用全局 `componentCardOpacity` / `componentCardRadius`。
 - 组件移动事件必须触发按钮重新定位。
-- 缩放：拖拽右下角圆弧柄**整体缩放**——内部字号/图标/图片/固定尺寸/边距/间距随 `_scale_factor` 等比变化（`_scaled_px` + `_scale_layouts`）；拖拽中 30ms 节流重应用，松手最终落位（详见 [component-system.md](component-system.md) 5.2）。
+- 编辑模式显示 `_GridOverlay` 网格 + `GuideLineOverlay` 参考线。
+- 缩放：拖拽右下角圆弧柄**整体等比缩放**——内部字号/图标/固定尺寸/边距/间距随 `_scale_factor` 经 `_scaled_px` / `_scale_layouts` 变化，拖拽中节流重应用，松手最终落位（详见 [component-system.md 5.2](component-system.md#52-拖拽与缩放)）。
 
 ### 3.3 内置组件清单
 
@@ -118,24 +111,15 @@ NavigationPage 提示文字颜色随主题：深色 `rgba(230,230,230,0.95)`，�
 
 ### 3.4 媒体组件
 
-- 单一 `MediaPlayerComponent`（`DraggableContainer` 子类）：标题/艺术家/封面/进度/歌词/播放控制一体。
-- 歌词：右侧 `QLabel`（`wordWrap` 12px 加粗）。
-- 进度条：qfluentwidgets 原生 `ProgressBar`（固定高 3px，不自定义颜色）。
-- 后台抓取：`threading.Thread`（daemon）+ pyqtSignal（`_media_ready` / `_detail_ready` / `_sync_done`）。
-- 切歌竞态保护：详情结果携带歌曲 key，仅匹配当前歌曲才应用（见 [component-system.md 7.10](component-system.md)）。
+单一 `MediaPlayerComponent`（`DraggableContainer` 子类）：标题/艺术家/封面/进度/歌词/播放控制一体。双定时器、抓取、切歌竞态保护等实现见 [component-system.md 7](component-system.md#7-媒体组件)。
 
-### 3.5 手写画板（擦除）架构
+### 3.5 手写画板（擦除）
 
-- 永久层 `_buffer` 做实际擦除，临时层渲染光标。
-- **16ms 定时器循环驱动**，避免输入停止时半径冻结。
-- 擦除速度：`(上次速度 + 欧氏距离) * 0.5` EMA。
-- `drawingScale = min(屏宽/1920, 屏高/1080)`。
-- 光标：灰色 `(130,130,130,200)` 3px 空心圆，实时调大小，输入停止时消失。
-- 参考 Inkey：速度用欧氏距离，鼠标/触控用特定曲线，双变量平滑追随。
+`WritingPadComponent` 基于 `_WritingOverlay`（见 [component-system.md 6](component-system.md#6-手写画板writingpadcomponent)。
 
 ### 3.6 HTML 渲染组件
 
-html组件通过 `create_html_view()`（[ui/common.py](common.py)）借用 QWebEngineView 渲染 HTML/SVG，类内不直接引用 QtWebEngine：
+html组件通过 `create_html_view()`（[ui/common.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/common.py)）借用 QWebEngineView 渲染 html/svg/js，类内不直接引用 QtWebEngine：
 
 | 组件                           | 渲染方式            | 说明     |
 | ---------------------------- | --------------- | ------ |
@@ -146,16 +130,17 @@ html组件通过 `create_html_view()`（[ui/common.py](common.py)）借用 QWebE
 | `MiniCalendarComponent`      | HTML + CSS      | 简约月历   |
 | `TimetableTimelineComponent` | HTML + CSS + JS | 课程时间轴  |
 
-**需知**：
+**约定**：
 
 - 视图由 `create_html_view()` 创建；QtWebEngineWidgets 必须在 QApplication 创建前于入口导入。
 - 字体 `FONT_FAMILY`（`core/constants.py`），引号 / 水印字母 / 等宽日期等保留衬线 / 等宽字体。
 - 方形钟表I/II走时由页面内 `requestAnimationFrame` 循环驱动。
-- 方形钟表II：60秒刻度随时间往前 35 个已走过刻度按 sqrt 渐回浅色。
+- 方形钟表II：已走过的秒刻度渐回浅色。
+- 整页 HTML另见 [11.4](#114-整页-html-界面qwebchannel)。
 
 ### 3.7 公用图标提取
 
-快捷启动相关组件需要显示添加的软件的图标，于[ui/component.py](component.py)中创建公用extract\_app\_icon函数，可直接导入使用。
+快捷启动相关组件需要显示添加的软件的图标，于 [ui/component.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/component.py) 中创建公用 `extract_app_icon` 函数，可直接导入使用。
 
 <br />
 
@@ -207,22 +192,66 @@ html组件通过 `create_html_view()`（[ui/common.py](common.py)）借用 QWebE
 
 [源码](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/timetable.py) · QSS：`timetable.qss`
 
-`TimetablePage(ScrollArea, TranslatableWidget)`：课程表编辑、时间安排、课程管理。配合 `core/timetable.py` 与 `core/linkage.py`。
+`TimetablePage(ScrollArea, TranslatableWidget)` 承载课表编辑与课表来源切换：
+
+- **档案管理**：多课表档案（`TimetableProfile`），新建 / 删除 / 重命名 / 导入 / 导出 / 打开目录，存于 `data/profile/`。
+- **时间安排**：表格编辑时段（上课 / 下课），起止时间经时间选择器双向同步，默认单节时长可配。
+- **课程编辑**：按时段填课程（科目按钮 / 单元格编辑）；删除时段后课程索引自动重排。
+- **课表来源**：`cfg.profileSource` 切换 `Glimpseon / classisland / classwidgets`；外部源模式下编辑禁用，改为展示联动数据表（`_refreshLinkageTables`），找到进程往上找data/（`_onAutoDetect`）。
+- **对外接口**：`get_today_schedule()` / `get_schedule_by_weekday(weekday)` 供课表预览、当前课程、时间轴组件取课。
 
 ***
 
-## 7. download.py — 软件下载中心
+## 7. download.py — 软件下载
 
-[源码](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/download.py) · QSS：`download.qss`
+[源码](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/download.py)
 
-`DownloadInterface(BaseScrollAreaInterface, TranslatableWidget)`：
+`DownloadInterface(QWidget)` 整页内嵌html，两者经 `QWebChannel` 通信。（用pfw做实在是太卡了）
 
-- 按 `SOFTWARE_CATEGORIES`（`resource/software_list.py`）分节展示。
-- 支持多源下载、批量下载、软件详情。
-- 图标来自 `resource/software_icon/`（`get_software_icon_path`）。
-- 链接来自 `resource/url_dir.py` 的 `url_dir`。
-- `_onDataPopulated()` 在数据填充后回调。
-- `_onThemeChanged` 响应主题切换。
+### 7.1 结构
+
+| 组成 | 说明 |
+| --- | --- |
+| `DownloadInterface(QWidget)` | 外壳 `QWebEngineView` |
+| `_HTML_TEMPLATE`（`string.Template`） | 整页模板|
+| `DownloadBridge(QObject)` | `QWebChannel` 桥，注册名 `bridge`，方法 `@pyqtSlot` 声明（见 7.4） |
+| `get_cached_icon_data()` | 图标转 base64 data URI 内嵌（`file://` 取不到） |
+
+### 7.2 数据与渲染
+
+- 数据源：`SOFTWARE_CATEGORIES`（`resource/software_list.py`）、图标 `get_software_icon_path()`、下载链接 `resource/url_dir.py` 的 `url_dir`。
+- 对外api：`addSection()` / `addSoftware()` / `_onDataPopulated()`。
+- `_onDataPopulated()` → `_requestRender()`：可见即渲染，隐藏则挂起到首次 `showEvent`。
+- 调色板由 `isDarkTheme()` 选；主题色取 `QColor(cfg.themeColor.value).name()`（取值可能是 `str` 或 `QColor`）。
+- `cfg.themeChanged` / `cfg.themeColor.valueChanged` 触发重渲染。
+
+### 7.3 页面内交互
+
+所有元素都是html，样式在 `_HTML_TEMPLATE` 里。复选状态只存 `CARDS[name].checked`。
+
+### 7.4 下载流程
+
+单个：`bridge.download(name)` → 确认框 → 工作线程 `_findCacheFile()` / `_get_url()`（按 `cfg.downloadSource` 拼前缀）→ `downloader._install_<名称>()`（契约见 [core-modules.md 8](core-modules.md)）→ 进度回调。
+
+批量：`bridge.startBatch(names_json)` → `ThreadPoolExecutor` → `_sigBatchDone` 清空勾选。
+
+| 方向 | 成员 |
+| --- | --- |
+| JS → Python | `download` / `openLink` / `setMode` / `setSource` / `startBatch` / `confirmResult` |
+| Python → JS | `window.glimpseon.uiStart` / `uiProgress` / `uiError` / `uiBatchDone` / `toast` / `confirm`、`window.relayout()` |
+
+### 7.5 线程
+
+工作线程没有事件循环，`QTimer.singleShot()` 在那儿不触发，`runJavaScript()` 只有主线程能调。UI 更新统一用 `_sigProgress(str,int)` / `_sigError(str,str)` / `_sigComplete(str)` / `_sigBatchDone()`，在 `__init__` 里 connect 到主线程槽。
+
+### 7.6 新增可下载软件
+
+1. `resource/software_list.py` 的 `SOFTWARE_CATEGORIES` 加软件条目：分类项为 `{"name_key"（i18n 键）, "software": [...]}`，软件项含 `name` / `description` / `icon` / `link`。
+2. `resource/url_dir.py` 的 `url_dir` 加下载记录：`{"filename", "url"}`（直链）或 `{"filename", "github_path"}`（GitHub Releases，经镜像源拼前缀），可带 `hash` 校验。
+3. `core/downloader.py` 实现 `_install_<软件名>()` 安装方法（契约见 [core-modules.md 8.2](core-modules.md#82-安装方法约定)）；图标 `.ico` 放 `resource/icons/software_icon/`，文件名与条目 `icon` 一致。
+
+> \[!NOTE]
+> QSS已飞 毕业快乐
 
 ***
 
@@ -289,22 +318,39 @@ cfg.themeChanged → downloadInterface / wallpaper / notificationPage /
 
 切换流程：`_onThemeModeChanged` → `clear_qss_cache()` → `setTheme()` → 若未触发则手动 `cfg.themeChanged.emit()` → 各界面重载 QSS。
 
+主题色单独广播：`cfg.themeColor.valueChanged`
+
 ### 11.2 国际化
 
-所有界面继承 `TranslatableWidget`，`tr()` 取键。语言切换会弹出重启确认框（`_onLanguageConfigChanged`）。
+ `tr(key)`取文案（键在 `locale/*.json`）。多数界面继承 `TranslatableWidget`（`setup_translatable_ui()`；整页 HTML 界面在 `_build_html()` 时把需要的文案一并注入模板（语言切换走重启确认框 `_onLanguageConfigChanged`）。
 
 ### 11.3 QSS 映射表
 
-| 界面           | QSS 文件             |
-| ------------ | ------------------ |
-| Home / 部分组件  | `home.qss`         |
-| 组件库 / 配置弹窗   | `component.qss`    |
-| Wallpaper    | `wallpaper.qss`    |
-| Notification | `notification.qss` |
-| Timetable    | `timetable.qss`    |
-| Download     | `download.qss`     |
-| Settings     | `setting.qss`      |
-| About        | `about.qss`        |
-| Debug        | `debug.qss`        |
-| 启动闪屏 / 向导    | `app.qss`          |
+| 界面           | QSS 文件                             |
+| ------------ | ---------------------------------- |
+| Home / 部分组件  | `home.qss`                         |
+| 组件库 / 配置弹窗   | `component.qss`                    |
+| Wallpaper    | `wallpaper.qss`                    |
+| Notification | `notification.qss`                 |
+| Timetable    | `timetable.qss`                    |
+| Download     | - |
+| Settings     | `setting.qss`                      |
+| About        | `about.qss`                        |
+| Debug        | `debug.qss`                        |
+| 启动闪屏 / 向导    | `app.qss`                          |
 
+### 11.4 整页 HTML 界面（QWebChannel）
+
+[ui/download.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/download.py) 范例。
+
+- 外壳：`QWidget` + 单个 `create_html_view(mouse_transparent=False)`，html创建标题。
+- 模板放类属性 `_HTML_TEMPLATE`（`string.Template`，`$var` 占位），`_build_html()` 注入、`_render()` 调 `setHtml`。
+- 注入三类：调色板（`isDarkTheme()` 选）、主题色 `QColor(cfg.themeColor.value).name()`、json（`</` 替换成 `<\/`）。
+- 弹窗 / 提示也用html 搞不懂为啥html创建的卡片和按钮会比pfw的弹窗还高
+
+| 方向 | 做法 |
+| --- | --- |
+| JS → Python | `QWebChannel` 注册 `bridge`，方法 `@pyqtSlot`；页面引 `qrc:///qtwebchannel/qwebchannel.js` |
+| Python → JS | `runJavaScript("window.glimpseon.xxx(...)")`，参数 `json.dumps` 转义 |
+| 确认框 | Python 下发 `confirm(id, title, content)`，JS 回 `confirmResult(id, ok)`，`{id: callback}` 承接 |
+| 尺寸 | `showEvent` / `resizeEvent` 通知 js 重排（隐藏时视口宽度为 0） |

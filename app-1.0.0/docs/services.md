@@ -1,7 +1,7 @@
 # 服务模块（services/）
 
 > \[!NOTE]
-> 编写者：HelloGaoo　最后修改：2026/08/21
+> 编写者：HelloGaoo　最后修改：2026/09/12
 
 `services/` 是数据获取层，从网络或系统获取外部数据。所有服务统一使用 `core.utils` 的文件缓存机制（`save_cache` / `get_cached_content`）减少请求。
 
@@ -98,7 +98,7 @@
 
 ### 4.2 媒体源
 
-四大媒体源不互牵，做的是每一条都独立，基本不相互依赖：
+四个媒体源相互独立：
 
 | 源类                  | 名称                | 数据获取方式                                                               |
 | ------------------- | ----------------- | -------------------------------------------------------------------- |
@@ -108,7 +108,6 @@
 | `GsmTc`             | GSMTC             | Windows SMTC 通用源，支持播放控制                                              |
 
 每个源实现统一接口：`read() / lyrics(media) / cover(media) / duration(media) / control(action) / close()`。
-内部自带独立 `requests.Session`、缓存与限速。
 
 ### 4.3 模块路由
 
@@ -122,9 +121,7 @@
 
 ### 4.4 与 UI 协作
 
-- UI 端 `MediaPlayerComponent` 用 `threading.Thread`（daemon）+ pyqtSignal 在后台调用 `get_media_info()` 与 `get_service().lyrics/cover/duration()`。
-- 详情补全按歌曲 key 校验，切歌竞态时旧结果不覆盖新歌（见 [component-system.md 7.10](component-system.md)）。
-- 进度条使用 qfluentwidgets 原生 `ProgressBar` 外观，不自定义颜色。
+UI 端 `MediaPlayerComponent` 用 `threading.Thread`（daemon）+ pyqtSignal 在后台调用服务接口，切歌竞态保护见 [component-system.md 7.4](component-system.md#74-切歌竞态保护)。
 
 ***
 

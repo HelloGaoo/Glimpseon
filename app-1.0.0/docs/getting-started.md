@@ -1,7 +1,7 @@
 # 快速开始
 
 > [!NOTE]
-> 编写者：HelloGaoo　最后修改：2026/08/15
+> 编写者：HelloGaoo　最后修改：2026/09/12
 
 ## 1. 环境要求
 
@@ -40,6 +40,7 @@ pip install -r requirements.txt
 依赖清单见 [requirements.txt](https://github.com/HelloGaoo/Glimpseon/blob/main/requirements.txt)。关键依赖：
 
 - `PyQt6`、`PyQt6-Fluent-Widgets`、`PyQt6-Frameless-Window`、`shiboken6`
+- `PyQt6-WebEngine`（HTML）
 - `py7zr`、`requests`（下载/解压）
 - `pycaw`、`pywin32`、`uiautomation`、`comtypes`（Windows）
 - `easyocr`、`torch`、`opencv-python-headless`（OCR / 图像）
@@ -54,7 +55,7 @@ pip install -r requirements.txt
 python Glimpseon.py
 ```
 
-启动器（[Glimpseon.py](https://github.com/HelloGaoo/Glimpseon/blob/main/Glimpseon.py)）扫描所有 `app-*` 目录，读取每个 `record.json`，运行最适合的版本。
+启动器（[Glimpseon.py](https://github.com/HelloGaoo/Glimpseon/blob/main/Glimpseon.py)）扫描所有 `app-*` 目录，读取每个 `record.json`，运行最适合的版本。
 
 `record.json` 关键字段：
 
@@ -84,25 +85,25 @@ python GlimpseonMain.py
 
 项目内置 PyInstaller 打包支持。关键点：
 
-1. `Glimpseon_native.pyd` 需随包！！
-2. 资源目录 `resource/`、`font/`、`locale/`、`glimpseon_native/`、`Tools/` 必须打包！！
-3. 打包后通过 `_MEIPASS` 访问内置资源（`get_resource_path` 帮你干了）
-4. data目录完全不需要打包
+1. `Glimpseon_native.pyd` 随包携带
+2. 资源目录 `resource/`、`font/`、`locale/`、`glimpseon_native/`、`Tools/` 必须打包！！！！！
+3. 打包后经 `_MEIPASS` 访问内置资源（`get_resource_path`会找）
+4. `data/` 不打包
 
 ## 7. 调试技巧
 
 - **调试模式**：开启设置中的 DebugMode（或 `cfg.debugMode`）后：
-  - 日志最大条目数降为 3、保留 1 天。
+  - 日志条目数与保留天数降到最小值。
   - 主窗口底部导航显示「调试」面板（`DebugPanel`）。
   - 跳过单实例检查（多开调试）。
-  - 按 `F12` 跳转到调试面板。
+  - 按 `F12` 跳转到调试面板。
 - **日志位置**：`data/log/`，格式 `precise_time|level|caller|module:line|message`。
 - **多开**：`cfg.allowMultipleInstances = True` 或 DebugMode 下可绕过单例锁。
 
 > [!NOTE]
 > os：其实我觉得这个调试模式非常没用
 
-8\. 常见问题
+## 8. 常见问题
 
 | 现象         | 排查                                                               |
 | ---------- | ---------------------------------------------------------------- |

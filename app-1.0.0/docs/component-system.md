@@ -1,9 +1,9 @@
 # 组件系统
 
 > \[!NOTE]
-> 编写者：HelloGaoo　最后修改：2026/08/27
+> 编写者：HelloGaoo　最后修改：2026/09/12
 
-Glimpseon 定位是桌面信息看板，已编写了注册组件等函数，每个组件独立类，与主页面沟通能做到拖拽、删除、配置相关操作
+Glimpseon 定位是桌面组件化信息看板。
 
 [core](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/core/component.py) · [ui](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/component.py)
 
@@ -96,28 +96,12 @@ class GridMetrics:
 
 ### 2.1 calculate\_grid\_metrics
 
-输入画布尺寸 + `GridSettings`，输出 `GridMetrics`。
-
-```
-edge_inset_px = min(80, base_cell * inset_percent/100)
-            其中 base_cell = short_side_px / short_side_cells
-
-若横向 (width >= height):
-    row_count = short_side_cells
-    denominator = row_count + (row_count-1)*gap_ratio
-    cell_size = available_height / denominator
-    gap_px = cell_size * gap_ratio
-    pitch = cell_size + gap_px
-    column_count = int((available_width + gap_px) // pitch)
-若纵向:
-    column_count = short_side_cells
-    ...（对称）
-```
+`calculate_grid_metrics(canvas_size, GridSettings) → GridMetrics`。短边格数固定为 `short_side_cells`（横屏定行数，竖屏定列数），另一方向按可用尺寸与 `gap_ratio` 推格数；边距由 `inset_percent` 控制，上限 80px。
 
 ### 2.2 坐标换算
 
 - `get_cell_rect(metrics, col, row, w_cells, h_cells) → QRect`：格子坐标 → 屏幕像素矩形。
-- `point_to_cell(metrics, point) → (row, column)`：屏幕点 → 格子坐标，**网格外或间隙中返回** **`(-1, -1)`**。
+- `point_to_cell(metrics, point) → (row, column)`：屏幕点 → 格子坐标，网格外或间隙中返回 `(-1, -1)`。
 
 ### 2.3 碰撞检测
 
@@ -143,7 +127,7 @@ class ComponentRegistry(QObject):
 | `get_categories()`                          | 所有分类            |
 | `load_from_json(path, component_classes)`   | 从 json 加载并绑定实现类 |
 
-### 内置组件
+### 3.1 内置组件
 
 `BUILTIN_COMPONENT_DEFINITIONS` 预定义组件（数字时钟、月历等），仅用于组件库窗口展示卡片。注意：这些 `ComponentDefinition` 的 `component_class` 字段默认为 `None`，**不参与实例化**——实际创建 UI 走 [ui/component.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/component.py) 的 `COMPONENT_STYLES`（见第 9 章）。
 
@@ -192,10 +176,9 @@ QWidget
 
 ### 4.2 DraggableWidget 编辑能力
 
-- **选中框**：主题色（`_cached_primary_color`，默认 `#30c361`），2px 边框（alpha=200），距组件边 3px，圆角 8；外层 4 层同色发光（alpha=60，逐层 `widthF=i*2`），距边 4px。
-- **缩放柄**：右下角圆弧柄（`arc_r=18`，drawArc `-30°~-90°`），外层 7px（alpha=220，`darker(150)`）+ 内层 4px（alpha=230）。
-- **编辑/删除按钮**：48×48px，22px 图标，8px 间距；悬停色 编辑 `(0,120,212)` / 删除 `(220,80,80)`。
-- **按钮直接使用全局** **`componentCardOpacity`** **/** **`componentCardRadius`**，无值限制。
+- **选中框**：主题色（`_cached_primary_color`，默认 `#30c361`）边框 + 同色多层发光。
+- **缩放柄**：右下角圆弧柄。
+- **编辑/删除按钮**：hover 区分编辑/删除配色；使用全局 `componentCardOpacity` / `componentCardRadius`。
 - **移动事件触发按钮重定位。**
 
 ### 4.3 ComponentManager
@@ -213,7 +196,6 @@ QWidget
 
 `ComponentLibraryWindow(FluentWindow)`：
 
-- 尺寸 **650×550**。
 - 加载 `resource/qss/{light,dark}/component.qss`。
 - `CategoryPage` 按分类展示 `ComponentCard`，用户点击卡片添加组件到当前页。
 
@@ -233,22 +215,22 @@ QWidget
 
 - 拖拽：`DraggableWidget` 处理鼠标事件，按 `ResizeMode` 限制方向。
 - 吸附：基于 `GridLayoutService` 的格子坐标对齐。
-- 碰撞：`check_collision` 重叠提醒。
-- 缩放：**整体等比缩放**——拖拽右下角圆弧柄时 `scale = max(scale_w, scale_h)` 等比缩放所有元素。
+- 碰撞：`check_collision` 重叠提醒。
+- 缩放：**整体等比缩放**——拖拽右下角圆弧柄时取宽高缩放比的较大值，等比缩放所有元素。
 
 #### 缩放机制（DraggableContainer）
 
 | 成员                    | 作用                                                                                                                          |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `_scale_factor`       | 当前缩放因子，由 `resizeEvent` 按 `当前尺寸 / natural_size` 的宽高最小值计算（`min(sw, sh)`），下限 0.3；变化 ≥0.02 时重应用样式                               |
-| `_scaled_px(base)`    | `max(1, int(base * _scale_factor))`，子类字号/图标/固定尺寸/圆角统一经它缩放                                                                   |
+| `_scale_factor`       | 当前缩放因子，由 `resizeEvent` 按当前尺寸与自然尺寸的宽高最小值计算，带下限；变化超过阈值时重应用样式                               |
+| `_scaled_px(base)`    | 按 `_scale_factor` 缩放基准像素，子类字号/图标/固定尺寸/圆角统一经它换算                                                                   |
 | `apply_scale(factor)` | 子类按 factor 重应用样式；由基类在缩放变化时调用                                                                                                |
 | `_scale_layouts()`    | 遍历 `findChildren(QLayout)`，按 `_scale_factor` 等比缩放所有子布局的 `contentsMargins` 与 `spacing`；首次调用缓存基准值（`_layout_bases`），后续始终基于基准重算 |
 | `_applied_factor`     | 上次已应用到样式的缩放因子，判断是否还有未应用的差异                                                                                                  |
-| `_scale_timer`        | 拖拽缩放节流定时器（周期 30ms）                                                                                                          |
+| `_scale_timer`        | 拖拽缩放节流定时器                                                                                                          |
 | `_apply_scale_now()`  | 统一入口：执行 `apply_scale` + `_scale_layouts` 并同步 `_applied_factor`                                                              |
 
-流程：拖拽缩放 → `resizeEvent` 更新 `_scale_factor` → 与 `_applied_factor` 差异>0.001时启动 `_scale_timer` → 每 30ms 周期触发 `_apply_scale_now()` 跟随 → 松手停止定时器应用最终状态（`mouseReleaseEvent`）。
+流程：拖拽缩放 → `resizeEvent` 更新 `_scale_factor` → 与 `_applied_factor` 差异超阈值时启动 `_scale_timer` → 定时触发 `_apply_scale_now()` 跟随 → 松手停止定时器并应用最终状态（`mouseReleaseEvent`）。
 
 ### 5.3 统一卡片背景（DraggableContainer）
 
@@ -273,7 +255,7 @@ QWidget
 
 `cfg.componentCardOpacity`、`cfg.componentCardRadius` 或 `cfg.themeChanged` 变化时，基类自动触发 `_on_card_config_changed()` → 重应用背景并调用子类 `_apply_style()`，因此全局设置/主题变化无需每个组件单独监听。组件级 `bg_opacity` / `corner_radius` 由配置面板写入 `component_data["config"]`，经基类 `apply_config(config)` 读取生效。
 
-**组件在** **`_apply_style()`** **中的两种标准写法（二选一）：**
+组件在 `_apply_style()` 中的两种标准写法（二选一）：
 
 ```python
 # 写法 A：背景与子控件样式分离（推荐）
@@ -303,12 +285,7 @@ def _apply_style(self):
 
 ## 6. 手写画板（WritingPadComponent）
 
-> \[!NOTE]
-> 本章算法部分由 AI 基于源码（`ui/component.py` 中 `_WritingOverlay`，约 L7094–L7853）生成，如与实际实现有出入，请以源码为准。
-
-手写画板主要是 `_WritingOverlay`（全屏透明覆盖层，`FramelessWindowHint | Tool`，`WA_TranslucentBackground`）。通过 Windows `WM_POINTER` 只读触控点（`PT_TOUCH`），并防止 Qt 重复派发 mouse event。擦除功能采用**定时器循环驱动**，参考项目 Inkeys 的算法实现。
-
-相关类：`_WritingOverlay`（覆盖层主体）、`_PenSettingsPopup`（画笔设置）、`_OverToolBtn`（悬浮工具栏按钮）。
+手写画板主体是 `_WritingOverlay`（全屏透明覆盖层，`FramelessWindowHint | Tool`，`WA_TranslucentBackground`），经 Windows `WM_POINTER` 只读触控点（`PT_TOUCH`），并拦截 Qt 侧重复派发的 mouse event。相关类：`_PenSettingsPopup`（画笔设置）、`_OverToolBtn`（悬浮工具按钮）。算法参考 Inkeys。
 
 ### 6.1 分层结构与渲染
 
@@ -316,233 +293,73 @@ def _apply_style(self):
 | --- | -------------------- | -------------------------------------- |
 | 永久层 | `_buffer`（QPixmap）   | 实际笔画与擦除发生处，`paintEvent` 中 `drawPixmap` |
 | 临时层 | `_temp_pixmaps[tid]` | 直线/矩形等形状的实时预览（抬笔前不落盘）                  |
-| 光标层 | `paintEvent` 绘制      | 橡皮光标，每帧重绘，不写入 buffer                   |
+| 光标层 | `paintEvent` 绘制      | 橡皮光标，每帧重绘，不写入 buffer                   |
 
-`paintEvent` 顺序：白板背景（若开启）→ `_buffer` → 各 `_temp_pixmaps` → `_render_erase_cursor`。
+### 6.2 定时器分工
 
-### 6.2 三个定时器
+| 定时器                  | 回调                     | 职责                            |
+| -------------------- | ---------------------- | ----------------------------- |
+| `_touch_timer`       | `_process_touch_queue` | 消费触控事件队列 `_touch_queue`，按模式分发 |
+| `_erase_speed_timer` | `_sample_erase_speed`  | 采样擦除速度（EMA 平滑）                |
+| `_erase_loop_timer`  | `_erase_loop_tick`     | 擦除主循环                         |
 
-| 定时器                  | 间隔           | 回调                     | 职责                                                          |
-| -------------------- | ------------ | ---------------------- | ----------------------------------------------------------- |
-| `_touch_timer`       | 0ms          | `_process_touch_queue` | 消费触控事件队列 `_touch_queue`（`deque` + `threading.Lock` 线），按模式分发 |
-| `_erase_speed_timer` | 50ms（20fps）  | `_sample_erase_speed`  | 采样擦除速度                                                      |
-| `_erase_loop_timer`  | 16ms（≈60fps） | `_erase_loop_tick`     | 擦除主循环                                                       |
+擦除状态按触点 tid 分组维护（`_erase_prev_pos` / `_erase_speed` / `_erase_rubber` / `_erase_trubber` / `_erase_cursors` 等）：目标直径随擦除速度变化，实际直径 `rubber` 平滑追随目标；橡皮尺寸经 `drawingScale` 适配屏幕分辨率。实际擦除用 `CompositionMode_DestinationOut`：移动画线（`RoundCap` / `RoundJoin`），原地画实心圆。
 
-### 6.3 drawingScale
+### 6.3 定时器循环而非事件驱动
 
-```python
-drawingScale = min(主屏宽 / 1920.0, 主屏高 / 1080.0)
-```
+事件驱动在输入停止后无法继续更新，半径会冻结在半路。擦除循环持续读取 `_erase_live_pos` 并让 `rubber` 向 `trubber` 追随，输入暂停时直径仍连续变化；速度采样独立定时器，降低逐事件计算的抖动。
 
-用于将基准直径缩放到当前屏幕分辨率，保证不同分辨率下擦除范围视觉一致。
-
-### 6.4 擦除状态（按 tid 分组）
-
-`tid == 0` 为鼠标，其余为触控点 ID。每个 tid 维护：
-
-| 状态                        | 含义            |
-| ------------------------- | ------------- |
-| `_erase_prev_pos[tid]`    | 上一次擦除位置       |
-| `_erase_live_pos[tid]`    | 最新实时位置        |
-| `_erase_prev_sample[tid]` | 上一次速度采样位置     |
-| `_erase_speed[tid]`       | 当前速度（EMA 平滑值） |
-| `_erase_rubber[tid]`      | **当前实际橡皮直径**  |
-| `_erase_trubber[tid]`     | **目标橡皮直径**    |
-| `_erase_cursors[tid]`     | 光标渲染数据        |
-
-### 6.5 完整流程
-
-#### 6.5.1 触控采集（nativeEvent）
-
-`WM_POINTERDOWN / WM_POINTERUPDATE / WM_POINTERUP` → 校验 `PT_TOUCH` → 提取坐标 → `_push_touch_event(ev_type, tid, pos)` 入队，并返回 `True` 拦截消息。
-
-#### 6.5.2 事件分发（\_process\_touch\_queue）
-
-批量取出队列，擦除模式下 `DOWN/UPDATE` 调 `_erase_at`，`UP` 清理该 tid 全部状态；所有手指抬起且非鼠标按下时，停 16ms 循环并 `_end_erase_session`。
-
-#### 6.5.3 速度采样（\_sample\_erase\_speed，50ms）
-
-对每个活跃 tid，计算与上次采样点的欧氏距离 `dist`：
-
-```python
-speed = (speed + dist) * 0.5   # EMA 50/50 平滑
-```
-
-首次采样 `speed = 1.0`。速度由 20fps 定时器采样
-
-#### 6.5.4 擦除入口（\_erase\_at）
-
-- **首次按下**：初始化全部状态，`rubber = drawingScale * ERASE_INIT(20.0)`，`trubber = -1.0`，立即在 buffer 上擦除一个点，加入 `_erase_session`，设光标，启动 16ms 循环。
-- **后续移动**：**仅更新** **`_erase_live_pos[tid]`**，由 16ms 循环统一处理。
-
-#### 6.5.5 擦除主循环（\_erase\_loop\_tick，16ms）
-
-对每个活跃 tid：
-
-**① 计算目标直径 t\_size（鼠标与触控分别独立）**
-
-```python
-if tid == 0:                      # 鼠标
-    if speed <= 30:
-        t_size = max(ERASE_BASE_MIN, speed * 2.33 + 2.33)   # 25 起步
-    else:
-        t_size = min(ERASE_BASE_MAX, speed + 30)            # 上限 200
-else:                             # 触控
-    if speed <= 20:
-        t_size = max(ERASE_BASE_MIN, speed * 2.33 + 13.33)
-    else:
-        t_size = min(ERASE_BASE_MAX, 3.0 * speed)
-```
-
-常量：`ERASE_BASE_MIN = 25.0`、`ERASE_BASE_MAX = 200.0`、`ERASE_INIT = 20.0`。
-
-`trubber = t_size * drawingScale`
-
-**② 当前直径 rubber 平滑追随目标 trubber（双变量追随）**
-
-```python
-if rubber < trubber:
-    rubber += max(0.1, (trubber - rubber) / 50.0)   # 渐增，每帧最多追 1/50
-elif rubber > trubber:
-    rubber += min(-0.1, (trubber - rubber) / 50.0)  # 渐减
-```
-
-该步长保证直径以约 50 帧（≈0.8s）过渡到目标，避免直径突变。
-
-**③ 在 buffer 上擦除**：`_erase_on_buffer(prev_pos, cur_pos, rubber)`，更新 `prev_pos = cur_pos`，记入 `_erase_session`，更新光标。
-
-**④** **`update()`** 触发重绘。
-
-#### 6.5.6 实际擦除（\_erase\_on\_buffer）
-
-使用 `CompositionMode_DestinationOut`（用 alpha=255 的黑色绘制会擦除目标像素）：
-
-- `prev != cur`：`drawLine`（`RoundCap` / `RoundJoin`），笔宽 = diameter
-- `prev == cur`：`drawEllipse`（实心圆，半径 = diameter/2）
-
-#### 6.5.7 光标渲染（\_render\_erase\_cursor）
-
-```python
-painter.setPen(QPen(QColor(130, 130, 130, 200), 3))   # 灰色 3px
-painter.setBrush(Qt.BrushStyle.NoBrush)                # 空心
-painter.drawEllipse(pos, diameter / 2.0, diameter / 2.0)
-```
-
-每个 tid 一个光标，直径 = 当前 `rubber`，实时反映大小变化。
-
-#### 6.5.8 抬起与历史
-
-- `UP`：清理该 tid 全部状态；全部抬起时停循环、`_end_erase_session`。
-- `_erase_session`（`[(pos, diameter), ...]`）作为一个 `("erase", session)` 记入 `_history`。
-- 画笔笔画记为 `("draw", stroke)`。
-
-### 6.6 撤回与重建
+### 6.4 撤回与重建
 
 - `_undo_last_stroke`：`_history.pop()` → `_rebuild_buffer()`。
-- `_rebuild_buffer`：清空 `_buffer`，按 `_history` 顺序重放所有 `draw`（重画笔画）与 `erase`（重放擦除点）。
+- `_rebuild_buffer`：按 `_history` 顺序重放所有 `draw` 笔画与 `erase` 会话。
 - `clear_all`：清空全部历史与 buffer。
-
-### 6.7 为何用定时器循环而非事件驱动
-
-事件驱动只在有输入时更新，**输入停止时半径会冻结**（无法继续平滑追随/衰减）。16ms 循环持续读取 `_erase_live_pos` 并重算 `rubber`，即使输入暂停也能让 `rubber` 持续向 `trubber` 追随，保证半径连续变化。速度采样独立 20fps，避免每个事件都算速度导致抖动。这是该项目从 Inkeys 复刻并验证过的关键架构。
 
 ***
 
 ## 7. 媒体组件
 
-> \[!NOTE]
-> 本章由 AI 基于源码（`ui/component.py` 中 `MediaPlayerComponent` L1772）生成，如与实际实现有出入，请以源码为准。
+单一 `MediaPlayerComponent`（`DraggableContainer` 子类），后台从 `services.media` 获取正在播放的媒体信息（标题/艺术家/封面/进度/歌词）。
 
-媒体组件为**单一** **`MediaPlayerComponent`**（`DraggableContainer` 子类），后台从 `services.media` 获取正在播放的媒体信息（标题/艺术家/封面/进度/歌词）。
+### 7.1 双定时器
 
-### 7.1 类结构
+| 定时器           | 回调                 | 职责                                                  |
+| ------------- | ------------------ | --------------------------------------------------- |
+| `_timer`      | `_poll`            | 完整抓取（标题/艺术家/封面/歌词/进度），间隔 `cfg.mediaUpdateInterval` |
+| `_prog_timer` | `_update_progress` | 播放中推算进度，不请求网络即更新进度条                               |
 
-| 类                      | 位置    | 职责                               |
-| ---------------------- | ----- | -------------------------------- |
-| `MediaPlayerComponent` | L1772 | UI、双定时器、抓取、LRU 缓存、封面动画、播放控制、切歌保护 |
+检测到新歌（`title_artist` 变化）时切到快速抓取间隔，尽快拿到封面/歌词。
 
-### 7.2 双定时器架构
+### 7.2 线程化抓取
 
-`MediaPlayerComponent` 用两个定时器分工：
+`threading.Thread`（daemon）+ pyqtSignal 回主线程：`_spawn_media_fetch` → `_media_worker` → `_media_ready` → `_on_media`；详情经 `_fetch(m)` → `_detail_ready` → `_on_detail`。
 
-| 定时器           | 间隔                                      | 回调                 | 职责                                    |
-| ------------- | --------------------------------------- | ------------------ | ------------------------------------- |
-| `_timer`      | `cfg.mediaUpdateInterval * 1000`（默认 1s） | `_poll`            | **完整抓取**（`full=True`）：标题/艺术家/封面/歌词/进度 |
-| `_prog_timer` | 1000ms                                  | `_update_progress` | 播放中本地推算进度（不请求网络即更新进度条）                |
+- `_fetching` 标志防重入，期间的新请求记入 `_pending_full`，完成后补抓。
+- `stop()`（`closeEvent` / `__del__` 调用）停掉全部定时器，防止线程残留。
 
-- `_update_progress`：若正在播放，本地按 `interval` 推进 `_position`（不请求网络即更新进度条）。
-- `start()` 同时启动两个定时器并发起首次 `full=True` 抓取。
+### 7.3 封面来源优先级
 
-### 7.3 线程化抓取与防重入
+1. **SMTC 缩略图**：`m.thumbnail_data` 存在 → 直接 `_load_cover`，置 `_has_thumb`（优先级最高，不再被在线封面覆盖）。
+2. **浏览器**：只等 `thumbnail_data`，不触发在线查询。
+3. **酷狗**：详情线程内额外借用 SMTC 会话缩略图作封面。
+4. **在线补全**：非浏览器 → `_fetch(m)`，仅 `not _has_thumb` 时应用封面。
 
-用 `threading.Thread`（daemon=True）+ pyqtSignal 跨线程回主线程（Qt 自动 queued 连接）：
+封面载入后加渐变阴影并淡入；默认封面 `_default_cover` 自绘圆角矩形 + 音符图标（主题自适应配色）。
 
-- `_spawn_media_fetch(full)` → `_media_worker` 线程调 `get_media_info()` → `_media_ready.emit(m, full)` → `_on_media`。
-- `_fetch(m)` → `_fetch_detail` 线程调 `get_service(app_name).lyrics/cover/duration()` → `_detail_ready.emit(key, result)` → `_on_detail`。
-- **防重入**：`_fetching` 标志，抓取期间若再次请求 `full=True`，置 `_pending_full=True`，完成后 `QTimer.singleShot(100, ...)` 补抓。
-- `stop()` 停掉全部定时器（`closeEvent` / `__del__` 均调用），防止线程残留崩溃。
-
-### 7.4 新歌快速更新（rapid update）
-
-检测到 `title_artist` 变化（新歌）时：
-
-```python
-self._rapid_update_count = 5
-self._timer.setInterval(500)   # 切到 500ms 快速间隔
-```
-
-连续 5 次快速抓取后恢复 `_normal_interval`，用于新歌切入时尽快拿到封面/歌词，避免长时间空白。
-
-### 7.5 封面来源优先级
-
-`_display` 中按 `app_name` 分流封面获取：
-
-1. **SMTC 缩略图**：`m.thumbnail_data` 存在 → 直接 `_load_cover`（置 `_has_thumb=True`，优先级最高，不再被在线封面覆盖）。
-2. **浏览器**：`is_web_browser` → 标记 `_has_thumb=True`（等待 thumbnail\_data），不触发在线查询。
-3. **酷狗**：`app_name == 'Kugou'` → 详情线程内额外借用 SMTC 会话缩略图作封面。
-4. **在线补全**：非浏览器 → `_fetch(m)` → 详情线程调 `get_service().lyrics/cover/duration()`，仅在 `not _has_thumb` 时应用封面。
-
-### 7.6 封面动画与阴影
-
-- `_load_cover`：载入后先 `_add_cover_shadow`（4 层渐变阴影 + 圆角裁剪 `SourceAtop`），再 `QPropertyAnimation` 透明度 0→1，300ms `OutCubic` 淡入。
-- 默认封面 `_default_cover`：自绘圆角矩形 + 音符图标（主题自适应配色）。
-
-### 7.7 进度条
-
-使用 qfluentwidgets 原生 `ProgressBar`（固定高 3px），不自定义颜色、不覆盖样式。
-
-### 7.8 歌词
-
-- 右侧 `QLabel`（`wordWrap=True`，12px 加粗），替代原自绘 `LyricsWidget`。
-- `_update_lyrics(ms)`：`adjusted_ms = ms + cfg.mediaLyricsAdvance`（提前量），`lyrics.get_line_at_time(adjusted_ms)` 定位当前行。
-
-### 7.9 浏览器特殊处理
-
-`_display` 检测 `app_name` 含 `chrome/edge/firefox/msedge`：
-
-- 无 `artist` 时：标题换行显示，隐藏艺术家与歌词行。
-- 有 `artist` 时：正常布局。
-- 浏览器不触发在线 `_fetch`（避免用网页标题当歌名查询）。
-
-### 7.10 切歌竞态保护
+### 7.4 切歌竞态保护
 
 详情补全与轮询抓取异步并行，快速切歌时旧结果可能滞后返回：
 
-- 详情结果携带歌曲 key（`title_artist`），`_on_detail(key, result)` 仅当 key 与当前 `self._media.title_artist` 一致时才应用（`_apply_detail`）。
-- 详情线程忙碌时 `_fetch` 记录 `_pending_key`，返回后自动补拉当前歌，不丢请求。
-- `_no_media` 重置 `_pending_key`，避免残留脏状态。
+- 详情结果携带歌曲 key（`title_artist`），`_on_detail` 仅在 key 与当前歌曲一致时应用（`_apply_detail`）。
+- 详情线程忙碌时 `_fetch` 记录 `_pending_key`，返回后自动补拉当前歌。
+- `_no_media` 重置 `_pending_key`。
 
-### 7.11 LRU 缓存
+### 7.5 缓存与播放控制
 
-- `_info_cache`（`OrderedDict`，上限 50）：以 `title_artist` 为 key 缓存详情补全结果。
-- 命中时 `pop` 再插入末尾（LRU）；超限时 `popitem(last=False)` 淘汰最久未用。
-- `clear_cache()` 清空并 `close_media()` 释放资源。
-
-### 7.12 播放控制
-
-- `_on_play_pause`：先立马更新为播放/暂停 → 后台线程 `media_control(play/pause)` → `_sync_confirm_timer` 轮询 SMTC 真实状态确认（上限约 2 秒解锁）。
-- `_on_next` / `_on_prev`：后台线程 `media_next()` / `media_prev()`，800ms 后重新完整拉取。
-- 播放状态同步期间旧状态不覆盖图标（`_playing_sync_pending` 标志）。
+- `_info_cache`（`OrderedDict` LRU）：以 `title_artist` 为 key 缓存详情补全结果；`clear_cache()` 清空并 `close_media()` 释放资源。
+- 播放/暂停：先立即更新图标，后台 `media_control()` 后由 `_sync_confirm_timer` 轮询 SMTC 真实状态确认，同步期间旧状态不覆盖图标（`_playing_sync_pending`）。
+- 上一首/下一首：后台 `media_next()` / `media_prev()`，随后重新完整拉取。
+- 歌词行定位带 `cfg.mediaLyricsAdvance` 提前量；浏览器源无艺术家时标题换行显示并隐藏歌词行。
 
 ***
 
@@ -576,8 +393,8 @@ self._timer.setInterval(500)   # 切到 500ms 快速间隔
 
 | 表                               | 位置                                                                                   | 作用                                                                     | 是否参与实例化                                                         |
 | ------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `COMPONENT_STYLES`              | [ui/component.py L109](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/component.py)     | `comp_type → comp_style → {name, class, default_config, default_size}` | **是**，`ComponentManager` 据此 `comp_class(parent, comp_data)` 实例化 |
-| `BUILTIN_COMPONENT_DEFINITIONS` | [core/component.py L376](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/core/component.py) | `ComponentDefinition` 列表（id/分类/格子数/resize\_mode）                       | 否，仅用于组件库窗口展示卡片                                                  |
+| `COMPONENT_STYLES`              | [ui/component.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/component.py)     | `comp_type → comp_style → {name, class, default_config, default_size}` | **是**，`ComponentManager` 据此 `comp_class(parent, comp_data)` 实例化 |
+| `BUILTIN_COMPONENT_DEFINITIONS` | [core/component.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/core/component.py) | `ComponentDefinition` 列表（id/分类/格子数/resize\_mode）                       | 否，仅用于组件库窗口展示卡片                                                  |
 
 组件在 `home_layout.json` 中存储的是 `type` + `style`（如 `"type":"clock","style":"digital"`），而非 `ComponentDefinition.id`。`ComponentManager.load_components()` 通过 `COMPONENT_STYLES[type][style]["class"]` 取实现类。
 
@@ -602,9 +419,9 @@ self._timer.setInterval(500)   # 切到 500ms 快速间隔
 
 假设要新增一个「打卡」组件，type=`checkin`、style=`default`。
 
-**步骤 1：注册到** **`COMPONENT_STYLES`**
+步骤 1：注册到 `COMPONENT_STYLES`
 
-在 [ui/component.py L109](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/component.py) 的 `COMPONENT_STYLES` 字典中新增条目。若是全新分类，加一个顶层键：
+在 [ui/component.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/component.py) 的 `COMPONENT_STYLES` 字典中新增条目。若是全新分类，加一个顶层键：
 
 ```python
 "checkin": {
@@ -648,23 +465,23 @@ class CheckinComponent(DraggableContainer):
 - **背景必须走统一方法**：`_apply_style()` 中调 `self._apply_card_style()`；若用整份样式表覆盖自身，则需把 `{self._card_bg_css()}` 拼在样式表最前面（见 [5.3 统一卡片背景](#53-统一卡片背景draggablecontainer)）。不要自行写 `background-color`。
 - 实现主题切换响应（`_apply_style` / 重载 `_onThemeChanged`）。
 - 若需随缩放，实现 `apply_scale(factor)`：内部字号/图标/固定尺寸/圆角一律用 `self._scaled_px(base)`；子布局边距/间距由基类 `_scale_layouts()` 自动等比缩放，无需手动处理。
-- **初始化与** **`apply_scale`** **必须同步**：`_setup_ui` 中用过 `_scaled_px` 的固定尺寸（行高/列宽/图标底图等），`apply_scale` 中必须重新设置，否则缩放后停留在原尺寸。
+- 初始化与 `apply_scale` 必须同步：`_setup_ui` 中用过 `_scaled_px` 的固定尺寸（行高/列宽/图标底图等），`apply_scale` 中必须重新设置。
 - 调用 `self._set_natural_size(w, h)` 设自然尺寸，`self._size_explicitly_set = True`。
 
 **步骤 3：绑定 class**
 
-在文件末尾的绑定区（[ui/component.py L8548 附近](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/component.py)）追加：
+在文件末尾的绑定区追加：
 
 ```python
 COMPONENT_STYLES["checkin"]["default"]["class"] = CheckinComponent
 ```
 
 > \[!WARNING]
-> 绑定放在末尾是因为 `COMPONENT_STYLES` 在 L109 定义时类还未定义，必须延后到类定义之后赋值。漏掉此步会导致 `load_components` 报「组件样式未注册」并跳过。
+> 绑定放在类定义之后：`COMPONENT_STYLES` 定义时组件类还不存在，必须延后赋值。漏掉此步会导致 `load_components` 报「组件样式未注册」并跳过。
 
 **步骤 4：（可选）加入组件库展示**
 
-若希望该组件出现在组件库窗口供用户添加，在 [core/component.py L376](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/core/component.py) 的 `BUILTIN_COMPONENT_DEFINITIONS` 追加 `ComponentDefinition`：
+若希望该组件出现在组件库窗口供用户添加，在 [core/component.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/core/component.py) 的 `BUILTIN_COMPONENT_DEFINITIONS` 追加 `ComponentDefinition`：
 
 ```python
 ComponentDefinition(
@@ -679,7 +496,7 @@ ComponentDefinition(
 ),
 ```
 
-`ComponentRegistry.register_batch(BUILTIN_COMPONENT_DEFINITIONS)`（[home.py L317](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/home.py)）会在启动时注册，组件库窗口据此渲染卡片。
+`ComponentRegistry.register_batch(BUILTIN_COMPONENT_DEFINITIONS)`（[home.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/home.py)）会在启动时注册，组件库窗口据此渲染卡片。
 
 **步骤 5：（可选）配置面板**
 
@@ -707,4 +524,3 @@ ComponentDefinition(
 | 缩放后内部元素不变            | 未实现 `apply_scale(factor)`；或已实现但字号/尺寸仍硬编码，需改用 `self._scaled_px()` |
 | 缩放后固定尺寸停留在初始值        | `_setup_ui` 用了 `_scaled_px` 但 `apply_scale` 未重设（行高/列宽/图标底图等）     |
 | 切主题样式不更新             | 未在 `_apply_style` 中重读主题色 / 未连 `cfg.themeChanged`                 |
-

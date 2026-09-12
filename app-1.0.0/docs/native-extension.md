@@ -1,9 +1,9 @@
 # 原生扩展（glimpseon\_native/）
 
 > [!NOTE]
-> 编写者：HelloGaoo　最后修改：2026/08/13
+> 编写者：HelloGaoo　最后修改：2026/09/12
 
-`glimpseon_native` 是用 C++17 + pybind11 编写的 Windows 原生扩展，编译为 `Glimpseon_native.pyd`（cp311-win\_amd64）。Python 侧通过 `import Glimpseon_native` 调用。我不会C++，所以此拓展与此文档由AI生成。
+`glimpseon_native` 是用 C++17 + pybind11 编写的，编译为 `Glimpseon_native.pyd`（cp311-win\_amd64）。Python通过 `import Glimpseon_native` 调用。我不会c++，所以此扩展与此文档由ai生成。
 
 ***
 
@@ -44,11 +44,11 @@ cmake --build build --config Release
 
 - 编译目标 Python 版本必须与运行时一致（仓库附带为 cp311）。
 - `/openmp` 启用 OpenMP，用于 `blur_image` 的并行像素处理回退路径。
-- 顶层 `app-1.0.0/` 同时附带 `classlively_native.pyd`。
+- `glimpseon_native/` 旧产物`classlively_native.pyd`；运行时导入的是 `Glimpseon_native.pyd`。
 
 ***
 
-## 2. 模块注册（wallpaper.cpp）
+## 2. 导出 API（PYBIND11_MODULE）
 
 [wallpaper.cpp](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/glimpseon_native/src/wallpaper.cpp) 的 `PYBIND11_MODULE(Glimpseon_native, m)` 统一注册全部导出函数。Python 侧可见 API：
 
@@ -70,18 +70,7 @@ cmake --build build --config Release
 
 ## 3. wallpaper.cpp — 桌面壁纸
 
-```cpp
-bool set_wallpaper(const std::string& path) {
-    return SystemParametersInfoA(
-        SPI_SETDESKWALLPAPER, 0, (PVOID)path.c_str(),
-        SPIF_UPDATEINIFILE | SPIF_SENDCHANGE
-    ) != 0;
-}
-```
-
-- `SPI_SETDESKWALLPAPER`（=20）设置壁纸。
-- `SPIF_UPDATEINIFILE | SPIF_SENDCHANGE`：持久化到 ini 并广播 `WM_SETTINGCHANGE`。
-- 替代原 `ctypes.windll.user32.SystemParametersInfoW` 方案。
+`set_wallpaper(path)` 经 `SystemParametersInfoA(SPI_SETDESKWALLPAPER, ..., SPIF_UPDATEINIFILE | SPIF_SENDCHANGE)` 设置壁纸：持久化并广播 `WM_SETTINGCHANGE`。
 
 ***
 
@@ -118,7 +107,7 @@ bool set_wallpaper(const std::string& path) {
 
 ### 4.4 Python 入口
 
-`blur_image_py(py::buffer input, int width, int height, float radius) -> py::bytes`：接受 buffer 协议对象，输出模糊后 BGRA bytes。对应壁纸 `backgroundBlurRadius`（0\~30）。
+`blur_image` 接受 buffer 协议对象（BGRA 像素），返回模糊后 bytes，对应壁纸 `backgroundBlurRadius`（0~30）。
 
 ***
 
@@ -181,20 +170,4 @@ bool acquire_mutex(const std::string& name) {
 3. 创建兼容 DC + Bitmap，`DrawIconEx` 缩放绘制到目标尺寸。
 4. `GetDIBits` 以 `BITMAPINFOHEADER`（`biHeight = -h` 自上而下，32bpp BGRA）读回像素。
 5. 返回 `(w, h, py::bytes)`，Python 侧可构造 `QImage`。
-
-***
-
-## 7. Python 侧使用模式
-
-```python
-from Glimpseon_native import (
-    set_wallpaper, blur_image,
-    install_hook, uninstall_hook, was_page_operation_recent,
-    idle_get_seconds, acquire_mutex, release_mutex,
-    install_font, extract_icon,
-)
-```
-
-> [!WARNING]
-> 导入失败通常意味着 Python 版本不匹配或缺失 pyd。DebugMode / 多实例模式下，`verify_single_instance` 会跳过互斥锁；但 `idle_*` / `blur_image` 等仍依赖该模块，需确保可用。
 

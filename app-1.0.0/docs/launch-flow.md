@@ -1,7 +1,7 @@
 # 启动流程
 
 > [!NOTE]
-> 编写者：HelloGaoo　最后修改：2026/08/19
+> 编写者：HelloGaoo　最后修改：2026/09/12
 
 本文档梳理从用户启动到主窗口就绪的完整时序，涵盖启动器、闪屏、向导、主窗口、预加载各阶段。
 
@@ -43,7 +43,7 @@ find_app()
 
 ## 3. 阶段 2：`__main__` 入口
 
-[GlimpseonMain.py L1645](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/GlimpseonMain.py) 起。
+[GlimpseonMain.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/GlimpseonMain.py) 的 `__main__` 起。
 
 ### 3.1 QApplication 与线程池
 
@@ -56,7 +56,7 @@ app = QApplication(sys.argv)
 init_exhook()                                  # 安装异常钩子
 atexit.register(release_single_instance)
 executor = ThreadPoolExecutor(max_workers=2)
-_extract_future = executor.submit(extract_files)   # 后台释放 Tools/（释放了也没啥用 Tools里的好像都没啥用 是我另一下载器项目遗留下来的产物）
+_extract_future = executor.submit(extract_files)   # 后台释放 Tools/（另一下载器项目遗留，当前基本未用到。。完全用不到 占地方。）
 ```
 
 ### 3.2 向导（首次运行）
@@ -77,7 +77,7 @@ splash = SplashScreen(APP_NAME, VERSION, icon_path)
 splash.show(); splash.setProgress(0)
 ```
 
-`SplashScreen` 无边框置顶，进度条带 8ms 定时器动画（`_advance_progress`，步长 `delta//6`）。
+`SplashScreen` 无边框置顶，进度条带定时器动画（`_advance_progress`）。
 
 ### 3.4 后台初始化任务
 
@@ -99,7 +99,7 @@ if not verify_single_instance():
 ### 3.6 字体初始化
 
 ```
-_extract_future.result(timeout=10)            # 等待 Tools 释放
+_extract_future.result()            # 等待 Tools 释放
 initialize_fonts(app, install_to_system=True)  # 装 HarmonyOS Sans 到系统
 ```
 
@@ -107,7 +107,7 @@ initialize_fonts(app, install_to_system=True)  # 装 HarmonyOS Sans 到系统
 
 ```
 logger.update_cfg(disable_log, log_level, max_count, max_days)
-# DebugMode 强制 max_count=3, max_days=1
+# DebugMode 下强制最小值
 ```
 
 随后打印`logger.info` 记录所有配置项。
@@ -128,7 +128,7 @@ window = MainWindow()
   ├─ sync_autostart_cfg()         # 同步注册表自启
   ├─ _initIdleDetection()         # 空闲检测 / 全局钩子
   ├─ _initThemeConnections()      # 主题信号广播
-  └─ _initSystemThemeMonitor()    # 5s 轮询系统主题（auto）
+  └─ _initSystemThemeMonitor()    # 轮询系统主题（auto）
 ```
 
 ### 4.2 导航注册（\_initNavigation）
@@ -145,7 +145,7 @@ window = MainWindow()
 
 `NotificationManager` 在通知页之后创建，连接 `send_notification → handle_notification`。
 
-下载页数据通过 `QTimer.singleShot(0, _populateDownload)` 异步填充。
+下载页数据通过 `QTimer.singleShot(0, _populateDownload)` 异步填充：`addSection()` / `addSoftware()` 只入队数据，`_onDataPopulated()` → `_requestRender()` 时才生成整页 HTML（`_build_html()` → `setHtml`）。此时页面尚未显示，渲染被挂起（`_pendingLayout`），等首次 `showEvent` 再执行。
 
 ***
 
@@ -167,7 +167,7 @@ loader.start()
 1. 若已有 current_pixmap → 跳过
 2. get_cached_content("wallpaper", ignore_expiry=True)  # 过期也用旧的
    └─ 命中 → sig_wp.emit(path, src, url)
-3. requests.get(API, stream=True, timeout=15)
+3. requests.get(API, stream=True)
    └─ 200 → 落盘 wp_HHMMSS.jpg → _manageWallpaperLimit → save_cache → emit
 4. 失败 → 默认壁纸 resource/wallpaper/default.jpg
 5. 再失败 → data/wallpaper/ 下最新 wallpaper_*.jpg
@@ -207,8 +207,8 @@ if cfg.autoCheckUpdate.value:
 
 ```
 while loader.isRunning():
-    allow_ui_update(0.02)
-    if 超时 12s: loader.cancel(); loader.wait(5000); break
+    allow_ui_update()
+    if 超时: loader.cancel(); loader.wait(); break
 ```
 
 ***
@@ -217,10 +217,10 @@ while loader.isRunning():
 
 ```
 splash.setProgress(95)
-allow_ui_update(0.06)
+allow_ui_update()
 splash.setProgress(100)
-splash.waitForProgress(100, timeout=1.0)    # 等进度条动画到 100
-allow_ui_update(0.06)
+splash.waitForProgress()    # 等进度条动画到 100
+allow_ui_update()
 splash.close()
 window.showMaximized()
 tray_icon.show()
@@ -228,23 +228,13 @@ sys.exit(app.exec())
 ```
 
 > [!NOTE]
-> **顺序说明**：当前实现是先 `splash.close()` 再 `window.showMaximized()`。`close` 前的 `allow_ui_update(0.06)` 让事件循环处理完闪屏末帧与待绘制事件，避免主窗口显示瞬间的白屏。
+> **顺序说明**：当前实现是先 `splash.close()` 再 `window.showMaximized()`。`close` 前的 `allow_ui_update()` 让事件循环处理完闪屏末帧与待绘制事件，避免主窗口显示瞬间的白屏。
 
 ***
 
 ## 7. 启动耗时埋点
 
-主程序在关键节点用 `time.time()` 计时并 `logger.info`：
-
-- `Splash显示`
-- `语言配置`
-- `字体初始化`
-- `后台等待`
-- `创建主窗口`
-- `翻译系统初始化` / `_initNavigation` / 各 Interface 耗时
-- `预加载`
-- `进度条100%等待`
-- `总启动耗时`
+主程序在关键节点（Splash 显示、语言配置、字体初始化、后台等待、创建主窗口、翻译系统初始化、`_initNavigation`、各 Interface、预加载、进度条 100% 等待、总启动耗时）用 `time.time()` 计时并 `logger.info`，日志键名以「耗时」类字段写入 `data/log/`。
 
 ***
 
@@ -253,9 +243,9 @@ sys.exit(app.exec())
 | 约束                             | 原因                                            |
 | ------------------------------ | --------------------------------------------- |
 | 组件加载须在 splash 期间同步完成           | `QTimer.singleShot(0)` 会导致主窗口显示后才加载，产生延迟      |
-| 主 logger 在 CustomLogger 类设置后创建 | 否则 `_log` 未被覆盖，缺 `precise_time`/`caller_info` |
-| 子模块 logger 用层级命名               | 避免与主 `Glimpseon` logger 重名冲突                  |
-| splash 先 show 后 close          | 避免主窗口白屏                                       |
-| 预加载用 QThread + 信号              | 不阻塞主线程，UI 流畅                                  |
-| 预加载超时 12s 强制取消                 | 防止网络问题导致无限等待                                  |
+| 主 logger 在 CustomLogger 类设置后创建 | `CustomLogger._log` 覆盖发生在类设置时，后建才有 `precise_time`/`caller_info` 字段 |
+| 子模块 logger 用层级命名               | 与主 `Glimpseon` logger 区分                      |
+| splash 先 show 后 close，close 前 `allow_ui_update` | 事件循环处理完闪屏末帧，主窗口显示无白屏 |
+| 预加载用 QThread + 信号              | 预加载在子线程执行，经 `pyqtSignal` 回主线程刷新 UI            |
+| 预加载超时强制取消                      | 网络异常时启动不被挂起                                   |
 

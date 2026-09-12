@@ -124,6 +124,7 @@ class DownloadInterface(QWidget):
         self._mode = "single"
         self._downloadingNames = set()
         self._progress = {}          # name -> int percent
+        self._pendingLayout = False  # 隐藏时延迟到首次显示再渲染
         self._confirmSeq = 0
         self._pendingConfirms = {}   # id -> callback
         self.downloader = Downloader(logger)
@@ -181,7 +182,13 @@ class DownloadInterface(QWidget):
         })
 
     def _onDataPopulated(self):
-        self._render()
+        self._requestRender()
+
+    def _requestRender(self):
+        if self.isVisible():
+            self._render()
+        else:
+            self._pendingLayout = True
 
     # HTML
     def _collectSections(self):
@@ -236,9 +243,13 @@ class DownloadInterface(QWidget):
         self.webView.setHtml(self._build_html(), QUrl("file:///glimpseon/download/"))
 
     def showEvent(self, event):
-        """首次显示重算卡片列数"""
+        """首次显示"""
         super().showEvent(event)
-        self._js("window.relayout && window.relayout()")
+        if self._pendingLayout:
+            self._pendingLayout = False
+            self._render()
+        else:
+            self._js("window.relayout && window.relayout()")
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -291,7 +302,7 @@ class DownloadInterface(QWidget):
         args = json.dumps(name, ensure_ascii=False)
         self._js(f"window.glimpseon && window.glimpseon.uiProgress({args},{int(percent)})")
 
-    # HTML 通知
+    # HTML 通知与确认框
     def _toast(self, kind: str, title: str, content: str, duration: int = 3000):
         self._js(
             "window.glimpseon && window.glimpseon.toast("

@@ -1,9 +1,9 @@
 # 目录结构
 
 > [!NOTE]
-> 编写者：HelloGaoo　最后修改：2026/08/21
+> 编写者：HelloGaoo　最后修改：2026/09/12
 
-本文档说明仓库及运行期目录组织。仓库根为 `e:\260523\py\Glimpseon`。
+本文档说明仓库及运行期目录组织，路径相对仓库根书写。
 
 ## 1. 仓库根目录
 
@@ -63,7 +63,7 @@ app-1.0.0/
 | [wallpaper.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/wallpaper.py)                                                          | `WallpaperInterface` 壁纸管理（获取/保存/设桌面/历史/自动同步）            |
 | [notification.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/notification.py)                                                    | `NotificationPage` 通知编辑/预览/队列/定时                        |
 | [timetable.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/timetable.py)                                                          | `TimetablePage` 课程表编辑                                   |
-| [download.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/download.py)                                                            | `DownloadInterface` 软件下载中心                              |
+| [download.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/download.py)                                                            | `DownloadInterface` 软件下载（HTML） |
 | [settings.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/settings.py)                                                            | `SettingsWindow` 多分组设置                                  |
 | [about.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/about.py)                                                                  | `AboutInterface` 关于/更新检查/鸣谢                             |
 | [debug.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/debug.py)                                                                  | `DebugPanel` 调试面板                                       |
@@ -96,7 +96,7 @@ resource/
 │   ├── CY.png             # 应用图标
 │   └── changelog.md       # 更新日志
 ├── qss/{light,dark}/      # 各界面 QSS（app/about/component/debug/
-│                          #   download/home/notification/setting/
+│                          #   home/notification/setting/
 │                          #   setting_dialog/timetable/wallpaper）
 ├── city.db                # 城市经纬度库（weather 服务使用）
 ├── credits.json           # 第三方依赖鸣谢
@@ -131,7 +131,7 @@ glimpseon_native/
 │   ├── sys.cpp/.h          # 空闲检测/互斥锁/字体安装/图标提取
 │   └── ...
 ├── build/                  # CMake 构建产物
-└── classlively_native.pyd
+└── classlively_native.pyd  # 旧名产物
 ```
 
 详见 [原生扩展](native-extension.md)。

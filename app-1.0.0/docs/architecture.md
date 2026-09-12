@@ -1,7 +1,7 @@
 # 架构总览
 
 > \[!NOTE]
-> 编写者：HelloGaoo　最后修改：2026/08/25
+> 编写者：HelloGaoo　最后修改：2026/09/12
 
 ## 1. 技术栈
 
@@ -11,9 +11,10 @@
 | GUI 框架 | PyQt6 6.11                                |
 | UI 组件库 | PyQt6-Fluent-Widgets 1.11                 |
 | 无边框窗口  | PyQt6-Frameless-Window                    |
+| HTML 渲染 | PyQt6-WebEngine                           |
 | 原生绑定   | pybind11（`Glimpseon_native.pyd`）          |
 | 配置     | qfluentwidgets `QConfig`（.json）           |
-| 国际化    |  `TranslationManager` + json              |
+| 国际化    | `TranslationManager` + json              |
 | 打包     | PyInstaller 6.20                          |
 | 媒体/OCR | easyocr、pytesseract、opencv-headless、torch |
 | 网络     | requests、aria2c（外部）、7z（外部）                |
@@ -37,40 +38,30 @@ graph TD
     B -- 组合 --> D["ui/ 界面层"]
     B -- 组合 --> E["services/ 数据服务层<br/>请求api/解析返回"]
 
+    D --- D1["HTML 界面/组件<br/>QWebEngineView + QWebChannel"]
+
     D -- 依赖 --> C
     D -- 调用 --> E
+    D1 -- "bridge 回调" --> C
     C -- 读取 --> F["resource/ 资源<br/>qss/icon/font/locale/city/software"]
     C -- 调用 --> G["glimpseon_native/ C++<br/>壁纸/模糊/钩子/系统"]
 ```
 
 ## 3. 设计原则
 
-1. **组件库**：UI 控件 PyQt6 Fluent Widgets
+1. **组件库**：UI 控件 PyQt6 Fluent Widgets；元素多的话 HTML性能来说更好一些，见 [ui-modules.md 11.4](ui-modules.md)
 2. **路径**：目录由 [core/paths.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/core/paths.py) 在导入期处理（`get_resource_path()` 依次查 `APP_DIR → MEIPASS_DIR → APP_DIR`）
 3. **配置**：配置项以 `ConfigItem` 形式声明在 [core/config.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/core/config.py) 的 `Config` 类中
-4. **主题样式**：每个页面含dark/light两个qss文件
-5. **预加载/缓存**：壁纸 / 天气 / 一言在 `Preloader`（QThread）中同时拉取 通过 `pyqtSignal` 回主线程刷新 UI
-6. **跨语言**：高斯模糊（Direct2D）空闲检测 单例互斥 图标提取等 部分由c++处理
+4. **预加载/缓存**：壁纸 / 天气 / 一言在 `Preloader`（QThread）中同时拉取，`pyqtSignal` 回主线程刷新 ui
+5. **跨语言**：高斯模糊（Direct2D）、空闲检测、单例互斥、图标提取等由 C++（`glimpseon_native`）处理
 
-## 4. 数据处理（例如：壁纸显示）
+## 4. 数据处理（以壁纸为例）
 
-### 阶段一：子线程预加载 `Preloader._load_wp()`
+壁纸在 `Preloader._load_wp()`（QThread）中预加载：读缓存（`get_cached_content`，过期也用旧的）→ 未命中则请求 API 落盘 → `_manageWallpaperLimit()` 控制数量 → `save_cache()` → `sig_wp.emit(path, src, url)` 回主线程。
 
-| 步骤 | 动作                                                                 | 结果                            |
-| -- | ------------------------------------------------------------------ | ----------------------------- |
-| 1  | 读缓存 `get_cached_content("wallpaper")`（`ignore_expiry=True`，过期也用旧的） | 命中则直接进入步骤 4                   |
-| 2  | 未命中：`requests.get(API, stream=True, timeout=15)` 拉取壁纸              | HTTP 200 → 落盘 `wp_HHMMSS.jpg` |
-| 3  | 落盘后 `_manageWallpaperLimit()` 控制数量，`save_cache()` 写缓存              | 失败则回退默认壁纸 / 历史最新              |
-| 4  | `sig_wp.emit(path, src, url)` 通过信号回到主线程                            | 触发阶段二                         |
+主线程槽 `_upd_wp()` 依次：`QPixmap` 载入 → `_updateMainWindowBackground()` 设为主窗口背景 → `_applyEffects()` 模糊/亮度（调 `Glimpseon_native`）→ `infoCard.updateInfo()` 更新信息卡 → `historyManager.add()` 写入历史 → `wallpaperChanged.emit()` 通知主界面刷新。
 
-### 阶段二：主线程槽 `_upd_wp()`
-
-1. `wallpaper.current_pixmap = QPixmap(path)` —— 载入像素图
-2. `wallpaper._updateMainWindowBackground()` —— 设为主窗口背景
-3. `wallpaper._applyEffects()` —— 模糊 / 亮度（调用 `Glimpseon_native`）
-4. `wallpaper.infoCard.updateInfo(...)` —— 更新信息卡
-5. `wallpaper.historyManager.add(...)` —— 加入历史记录
-6. `wallpaper.wallpaperChanged.emit()` —— 通知主界面刷新
+完整时序见 [启动流程](launch-flow.md)。
 
 ## 5. 全局对象
 
@@ -114,4 +105,4 @@ data/
 └── notes/       便签
 ```
 
-软件启动时调用 `ensure_data_dirs()`&#x20;
+软件启动时调用 `ensure_data_dirs()`

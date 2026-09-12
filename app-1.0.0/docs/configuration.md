@@ -1,7 +1,7 @@
 # 配置系统
 
 > [!NOTE]
-> 编写者：HelloGaoo　最后修改：2026/08/14
+> 编写者：HelloGaoo　最后修改：2026/09/12
 
 [源码](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/core/config.py)
 
@@ -230,10 +230,10 @@ cfg.clockSize.value = 100   # 修改即触发保存
 
 ### Download
 
-| 键              | 默认   | 选项                                         | 备注     |
-| -------------- | ---- | ------------------------------------------ | ------ |
-| `Source`       | `hk` | `original/hk/cloudflare/edgeone/geekertao` | 下载镜像源  |
-| `ItemsPerPage` | `8`  | 4\~40                                      | <br /> |
+| 键              | 默认   | 选项                                         | 备注                                                  |
+| -------------- | ---- | ------------------------------------------ | --------------------------------------------------- |
+| `Source`       | `hk` | `original/hk/cloudflare/edgeone/geekertao` | 下载镜像源 |
+| `ItemsPerPage` | `8`  | 4\~40                                      | 弃用                          |
 
 ### Other
 

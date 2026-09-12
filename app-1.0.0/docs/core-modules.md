@@ -1,9 +1,9 @@
 # 核心模块（core/）
 
 > [!NOTE]
-> 编写者：HelloGaoo　最后修改：2026/08/14
+> 编写者：HelloGaoo　最后修改：2026/09/12
 
-`core/` 所有路径、常量、配置、日志、工具函数集中于此，被 `ui/`、`services/`、主程序复用。
+`core/` 所有路径、常量、配置、日志、工具函数集中于此，被 `ui/`、`services/`、主程序复用。
 
 ***
 
@@ -11,7 +11,7 @@
 
 [源码](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/core/paths.py)
 
-**职责**：在启动时确定软件文件目录 适配编写态/编译态
+**职责**：在启动时确定软件文件目录，适配编写态 / 编译态
 
 ### 1.1 路径推导逻辑
 
@@ -61,7 +61,7 @@ def clear_qss_cache()
 ```
 
 - `load_qss` 根据 `isDarkTheme()` 选择 `resource/qss/{light|dark}/<filename>`。
-- **切主题必须调用** **`clear_qss_cache()`**！！！！
+- 切主题后调 `clear_qss_cache()` 清空缓存！！不然就卡死/样式卡两种中间。
 - 文件以 `utf-8-sig` 读取（兼容 BOM）。
 
 ***
@@ -112,7 +112,7 @@ for attr_name in dir(cfg):
         attr.valueChanged.connect(_on_config_changed)  # → save_cfg()
 ```
 
-导入期遍历所有 `ConfigItem`，连接 `valueChanged` 到 `save_cfg`，因此**修改** **`cfg.xxx.value`** **即自动持久化**。
+导入期遍历所有 `ConfigItem`，连接 `valueChanged` 到 `save_cfg`，因此修改 `cfg.xxx.value` 即自动持久化。
 
 带 `restart=True` 的项（如 `language`、`dpiScale`、`enableGpuAcceleration`）变更后需重启生效。
 
@@ -138,14 +138,14 @@ for attr_name in dir(cfg):
 
 - `precise_time`：NTP 校准后的精确时间（`precise_now()`）。
 - `caller_info`：调用方信息。
-- 这些字段由 `CustomLogger._log` 注入 `extra`，**主** **`Glimpseon`** **logger 必须在设置** **`CustomLogger`** **类之后创建**
+- 这些字段由 `CustomLogger._log` 注入 `extra`，主 `Glimpseon` logger 在 `setLoggerClass(CustomLogger)` 之后创建。
 
 ### 4.2 关键类与函数
 
 - `CustomLogger(logging.Logger)`：重写 `_log`，注入 `precise_time` / `caller_info`。
 - `Logger`：封装类，提供 `update_cfg(disable_log, log_level, max_count, max_days)`、文件轮转（`LOG_MAX_BYTES=1MB`）、控制台输出。
 - `logger`：全局实例（`Glimpseon`）。
-- `init_exhook()`：一安装全部异常/信号钩子。
+- `init_exhook()`：一次性安装全部异常/信号钩子。
 
 ### 4.3 异常钩子（init\_exhook 安装）
 
@@ -163,7 +163,7 @@ for attr_name in dir(cfg):
 
 ### 4.4 子模块日志器约定
 
-使用层级命名 `Glimpseon.core.{module}`（如 `Glimpseon.core.config`），**避免与主** **`Glimpseon`** **logger 重名冲突**。建议在函数内懒创建。
+使用层级命名 `Glimpseon.core.{module}`（如 `Glimpseon.core.config`），与主 `Glimpseon` logger 区分。建议在函数内懒创建。
 
 ### 4.5 系统上下文
 
@@ -187,7 +187,7 @@ for attr_name in dir(cfg):
 - `initialize_fonts(app, install_to_system=True)`：检测系统是否已装 HarmonyOS Sans，未装则调 `Glimpseon_native.install_font` 安装；并 `setFontFamilies([...])`。
 - `resolve_font_family()`：从 `HARMONYOS_FONT_FAMILIES + FONT_FAMILY_CANDIDATES` 中选首个系统可用字体。
 - 字体回退链（`apply_fonts` 注入 QFont 替换规则 + 全局 QSS）：`HarmonyOS Sans → Microsoft YaHei UI → Microsoft YaHei → PingFang SC → Source Han Sans SC → Segoe UI → sans-serif`。
-- UI 组件层统一 `FONT_FAMILY` 常量（`ui/component.py`），与回退链一致。
+- `FONT_FAMILY` 常量（`core/constants.py`）供 UI 组件层统一引用，与回退链一致。
 
 ### 5.3 缓存
 
@@ -289,13 +289,26 @@ for attr_name in dir(cfg):
 
 ### 8.1 main
 
-- `DOWNLOAD_SOURCES`：`original`（GitHub 直连）/ `hk` / `cloudflare` / `edgeone` / `geekertao` 多镜像前缀。
+- `DOWNLOAD_SOURCES`：`original`（GitHub 直连）/ `hk` / `cloudflare` / `edgeone` / `geekertao` 
 - `set_priority_pid(pid, level)`：通过 `SetPriorityClass` 调进程优先级（默认 `below_normal`，避免下载抢占）。
 - `SEVEN_ZIP_PASSWORD`：加密 7z 包统一密码。
 - `Downloader` 类：封装下载 + 解压 + 静默安装（COM `Dispatch`）流程。
 - `cleanup_temp_directory(temp_dir, logger)`：清理临时目录。
 
-### 8.2 外部工具
+### 8.2 安装方法约定
+
+每个可下载软件对应一个按软件名命名的方法（去掉空格与方括号）：
+这还是老项目复制过来的
+```python
+def _install_<软件名>(self, software_name, cache_file,
+                      progress_callback=None, download_complete_callback=None)
+```
+
+- 由 ui/ 按 `_install_` + 去掉特定字后的名称查找并调用（`hasattr` → `getattr`）。
+- `cache_file`：`resource/url_dir.py` 中匹配到的那条记录（含 `url` / `github_path` / `hash`）。
+- `progress_callback(software_name, percent)`：线程回调，UI 更新经 `pyqtSignal` 回主线程（见 [ui-modules.md 7.5](ui-modules.md#75-线程)）。
+
+### 8.3 外部工具
 
 使用 `Tools/7z.exe`、`Tools/aria2c.exe`（由 `extract_files()` 释放）。
 
@@ -325,9 +338,9 @@ for attr_name in dir(cfg):
 
 [源码](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/core/timetable.py)
 
-- `TimetableProfile`：课表配置类。
-- 函数：`get_profile_path(name)`、`list_profiles()`、`next_profile_name()`、`ensure_default_profile()`、`rename_profile(old, new)`、`delete_profile(name)`。
-- 课表 JSON 存于 `DATA_CONFIG`。
+- `TimetableProfile`：单份课表档案（名称、默认上课/下课时长、`periods` 时段列表、`courses` 各时段课程），`to_dict()` / `from_dict()` / `save()` / `load()` 读写 json
+- 模块函数：`get_profile_path(name)`、`list_profiles()`、`next_profile_name()`、`ensure_default_profile()`、`rename_profile(old, new)`、`delete_profile(name)`。
+- 课表 JSON 存于 `DATA_PROFILE`（`data/profile/`），与 `cfg.profileSource`（`Glimpseon / classisland / classwidgets`，见 [配置系统](configuration.md)）共同决定课表来源。
 
 ***
 
