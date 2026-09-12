@@ -563,6 +563,15 @@
   "sticky_note": {
     "placeholder": "写点东西..."
   },
+  "homework": {
+    "title": "作业板",
+    "add_subject": "科目",
+    "clear_done": "清除已完成",
+    "add_item": "添加作业...",
+    "subject_ph": "科目名称...",
+    "empty": "点击左上角添加科目",
+    "confirm_del": "确认"
+  },
   "update": {
     "build_date": "构建日期",
     "status_ready": "已就绪",

@@ -697,6 +697,18 @@ BUILTIN_COMPONENT_DEFINITIONS = [
         default_config={"color": "yellow"},
     ),
     ComponentDefinition(
+        id="homework_board",
+        display_name="作业板",
+        category="School",
+        icon="Education",
+        min_width_cells=2,
+        min_height_cells=2,
+        default_width_cells=3,
+        default_height_cells=2,
+        resize_mode=ResizeMode.FREE,
+        default_config={},
+    ),
+    ComponentDefinition(
         id="timer_countdown",
         display_name="计时与倒计时",
         category="Clock",

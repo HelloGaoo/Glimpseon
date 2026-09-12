@@ -437,6 +437,15 @@
     "system": "效能監測",
     "click_to_settings": "點擊設定"
   },
+  "homework": {
+    "title": "作業板",
+    "add_subject": "科目",
+    "clear_done": "清除已完成",
+    "add_item": "新增作業...",
+    "subject_ph": "科目名稱...",
+    "empty": "點擊左上角新增科目",
+    "confirm_del": "確認"
+  },
   "update": {
     "build_date": "建構日期",
     "status_ready": "已就緒",

@@ -563,6 +563,15 @@
     "title": "Today in History",
     "no_data": "No data"
   },
+  "homework": {
+    "title": "Homework",
+    "add_subject": "Subject",
+    "clear_done": "Clear done",
+    "add_item": "Add task...",
+    "subject_ph": "Subject name...",
+    "empty": "Add a subject from the top bar",
+    "confirm_del": "Sure?"
+  },
   "update": {
     "build_date": "Build Date",
     "status_ready": "Ready",

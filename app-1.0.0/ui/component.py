@@ -52,7 +52,7 @@ from PyQt6.QtCore import (
     QTimer,
     pyqtProperty,
     QSize,
-    pyqtSignal, QObject,
+    pyqtSignal, QObject, pyqtSlot,
     QByteArray, QPropertyAnimation, QEasingCurve,
     QTime, QDate,
     QMimeData,
@@ -67,6 +67,7 @@ from PyQt6.QtGui import (
     QIcon,
     QImageReader,
     QLinearGradient,
+    QMouseEvent,
     QPainter,
     QPainterPath,
     QPen,
@@ -90,7 +91,7 @@ from services.history import HistoryService
 from services.word import WordService
 from services.sentence import SentenceService
 from ui.common import create_html_view, HTML_BASE_URL
-from core.constants import BASE_DIR, DATA_CONFIG, DATA_CLASSPHOTOS, DATA_NOTES, load_qss, NEWS_ICONS, get_resPath, APP_ICON, FONT_FAMILY, FONT_PRIMARY
+from core.constants import BASE_DIR, DATA_CONFIG, DATA_CLASSPHOTOS, DATA_NOTES, DATA_USER, load_qss, NEWS_ICONS, get_resPath, APP_ICON, FONT_FAMILY, FONT_PRIMARY
 from resource.software_list import get_software_icon_path
 from core.component import (
     ComponentDefinition,
@@ -307,6 +308,14 @@ COMPONENT_STYLES = {
             "class": None,
             "default_config": {"color": "yellow"},
             "default_size": (280, 280),
+        },
+    },
+    "homework": {
+        "board": {
+            "name": "作业板",
+            "class": None,
+            "default_config": {},
+            "default_size": (430, 236),
         },
     },
     "timer": {
@@ -10981,6 +10990,525 @@ class StickyNoteComponent(DraggableContainer):
             logger.warning(f"加载便签失败: {e}")
 
 
+class _HomeworkBridge(QObject):
+    """作业板 QWebChannel 桥"""
+
+    def __init__(self, on_commit, on_drag, parent=None):
+        super().__init__(parent)
+        self._on_commit = on_commit
+        self._on_drag = on_drag
+
+    @pyqtSlot(str)
+    def commit(self, sections_json: str):
+        try:
+            self._on_commit(sections_json)
+        except Exception as e:
+            logger.warning(f"作业板提交失败: {e}")
+
+    @pyqtSlot(float, float)
+    def drag_start(self, x: float, y: float):
+        self._on_drag("start", x, y)
+
+    @pyqtSlot(float, float)
+    def drag_move(self, x: float, y: float):
+        self._on_drag("move", x, y)
+
+    @pyqtSlot()
+    def drag_end(self):
+        self._on_drag("end", 0.0, 0.0)
+
+
+class HomeworkBoardComponent(DraggableContainer):
+    """作业板组件（HTML）"""
+
+    _object_name = "homeworkBoardContainer"
+
+    _PALETTE = ["#f59e0b", "#3b82f6", "#10b981", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"]
+
+    _theme_light = {
+        "ink": "rgba(0,0,0,0.89)", "sub": "rgba(0,0,0,0.62)", "line": "rgba(0,0,0,0.08)",
+        "hover": "rgba(0,0,0,0.045)", "chip": "rgba(0,0,0,0.05)",
+        "bar": "rgba(0,0,0,0.12)", "empty": "rgba(0,0,0,0.45)",
+        "card": "rgba(255,255,255,0.55)", "cardline": "rgba(0,0,0,0.06)",
+    }
+    _theme_dark = {
+        "ink": "rgba(255,255,255,0.95)", "sub": "rgba(255,255,255,0.62)", "line": "rgba(255,255,255,0.10)",
+        "hover": "rgba(255,255,255,0.06)", "chip": "rgba(255,255,255,0.08)",
+        "bar": "rgba(255,255,255,0.14)", "empty": "rgba(255,255,255,0.40)",
+        "card": "rgba(255,255,255,0.055)", "cardline": "rgba(255,255,255,0.09)",
+    }
+
+    _HTML_TEMPLATE = Template('''<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
+  body { font-family: $font; color: $ink; user-select: none; }
+  #app { display: flex; flex-direction: column; width: 100%; height: 100%; padding: 2px 12px 8px; }
+  #topbar { display: flex; align-items: center; gap: 8px; padding: 3px 2px 8px; flex: none; cursor: grab; }
+  body.hw-drag, body.hw-drag #topbar { cursor: grabbing; }
+  #prog-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  #prog-text { font-size: 12px; font-weight: 600; color: $sub; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  #prog-track { width: 72px; height: 3px; border-radius: 2px; background: $bar; overflow: hidden; flex: none; }
+  #prog-fill { height: 100%; width: 0; border-radius: 2px; background: $accent; transition: width .3s cubic-bezier(.16,1,.3,1); }
+  .act {
+    border: none; cursor: pointer; font-family: $font; font-size: 11.5px; font-weight: 600;
+    color: $sub; background: $chip; padding: 3px 10px; border-radius: 4px;
+    transition: background .15s, color .15s; flex: none;
+  }
+  .act:hover { background: $accent22; color: $accent; }
+  .act:active { opacity: .8; }
+  .act.danger:hover { background: rgba(229,72,77,.12); color: #e5484d; }
+  #cols { flex: 1; overflow-y: auto; overflow-x: hidden; column-count: 2; column-gap: 10px; padding-right: 3px; }
+  #cols::-webkit-scrollbar { width: 4px; }
+  #cols::-webkit-scrollbar-thumb { background: $bar; border-radius: 2px; }
+  #empty {
+    height: 100%; display: flex; align-items: center; justify-content: center;
+    color: $empty; font-size: 12px;
+  }
+  .sec {
+    break-inside: avoid; background: $card; border: 1px solid $cardline; border-radius: 8px;
+    padding: 8px 9px 7px; margin-bottom: 10px;
+  }
+  .sec-head { display: flex; align-items: center; gap: 7px; padding: 0 1px 5px; position: relative; }
+  .sec-dot { width: 6px; height: 6px; border-radius: 2px; flex: none; }
+  .sec-title { font-size: 12.5px; font-weight: 600; cursor: text; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sec-count { font-size: 10.5px; color: $sub; font-variant-numeric: tabular-nums; flex: none; }
+  .sec-del {
+    margin-left: auto; border: none; cursor: pointer; background: transparent; color: $sub;
+    font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 4px; line-height: 1.5;
+    opacity: 0; transition: opacity .15s, background .15s, color .15s; font-family: $font; flex: none;
+  }
+  .sec-head:hover .sec-del { opacity: 1; }
+  .sec-del:hover { background: rgba(229,72,77,.12); color: #e5484d; }
+  .sec-del.confirm { opacity: 1; background: rgba(229,72,77,.9); color: #fff; }
+  .item { display: flex; align-items: center; gap: 8px; padding: 3px 5px 3px 3px; border-radius: 5px; position: relative; }
+  .item:hover { background: $hover; }
+  .circle { width: 16px; height: 16px; flex: none; cursor: pointer; position: relative; }
+  .circle svg { width: 100%; height: 100%; display: block; }
+  .circle .ring { fill: transparent; stroke: $dotbd; stroke-width: 1.4; transition: fill .18s, stroke .18s; }
+  .circle:hover .ring { stroke: $accent; }
+  .circle .tick { fill: none; stroke: #fff; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round;
+    stroke-dasharray: 20; stroke-dashoffset: 20; transition: stroke-dashoffset .25s cubic-bezier(.3,.8,.4,1) .04s; }
+  .done .circle .ring { fill: $accent; stroke: $accent; }
+  .done .circle .tick { stroke-dashoffset: 0; }
+  .text { font-size: 12px; font-weight: 400; line-height: 1.45; position: relative; min-width: 0; flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; transition: color .2s, opacity .2s; }
+  .text::after { content: ''; position: absolute; left: 0; top: 52%; height: 1.5px; width: 0;
+    background: $sub; border-radius: 1px; transition: width .25s cubic-bezier(.3,.8,.4,1); }
+  .done .text { color: $sub; opacity: .6; }
+  .done .text::after { width: 100%; }
+  .item-btns { display: flex; gap: 2px; opacity: 0; transition: opacity .15s; flex: none; }
+  .item:hover .item-btns { opacity: 1; }
+  .ibtn { border: none; cursor: pointer; background: transparent; color: $sub; width: 18px; height: 18px;
+    border-radius: 4px; font-size: 11px; line-height: 18px; text-align: center; padding: 0; font-family: $font; transition: background .15s, color .15s; }
+  .ibtn:hover { background: $chip; color: $accent; }
+  .ibtn.del:hover { background: rgba(229,72,77,.12); color: #e5484d; }
+  .add-row { display: flex; align-items: center; gap: 7px; padding: 3px 3px; cursor: pointer; border-radius: 5px; }
+  .add-row:hover { background: $hover; }
+  .add-row .plus { width: 15px; height: 15px; flex: none; position: relative; opacity: .55; }
+  .add-row .plus::before, .add-row .plus::after { content: ''; position: absolute; background: $sub; border-radius: 1px; transition: background .15s; }
+  .add-row .plus::before { left: 7px; top: 2px; width: 1.5px; height: 11px; }
+  .add-row .plus::after { left: 2px; top: 6.2px; width: 11px; height: 1.5px; }
+  .add-row .add-label { font-size: 11.5px; color: $sub; transition: color .15s; }
+  .add-row:hover .plus::before, .add-row:hover .plus::after, .add-row:hover .add-label { background: $accent; color: $accent; opacity: 1; }
+  .inline-input {
+    flex: 1; min-width: 0; border: none; outline: none; background: $chip; font-family: $font;
+    font-size: 12px; color: $ink; padding: 2.5px 7px; border-radius: 5px;
+    box-shadow: inset 0 -1.5px 0 $accent;
+  }
+  .inline-input::placeholder { color: $empty; }
+  .sec-input { font-size: 12.5px; font-weight: 600; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div id="prog-wrap">
+      <span id="prog-text"></span>
+      <div id="prog-track"><div id="prog-fill"></div></div>
+    </div>
+    <button class="act" id="btn-add-sub"></button>
+    <button class="act danger" id="btn-clear" style="display:none"></button>
+  </div>
+  <div id="cols"></div>
+</div>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script>
+var DATA = /*DATA*/[];
+var T = { addSub: "$add_sub", clear: "$clear_done", item: "$item_ph", subject: "$subject_ph",
+          empty: "$empty_hint", confirm: "$confirm_del" };
+var PALETTE = $palette;
+var bridge = null, pending = null;
+
+var app = document.getElementById('app');
+var cols = document.getElementById('cols');
+var progText = document.getElementById('prog-text');
+var progFill = document.getElementById('prog-fill');
+var btnAddSub = document.getElementById('btn-add-sub');
+var btnClear = document.getElementById('btn-clear');
+
+btnAddSub.textContent = '+ ' + T.addSub;
+btnClear.textContent = T.clear;
+btnAddSub.onclick = function () { data().sections.push({ title: '', items: [] }); addSectionInline(data().sections.length - 1, true); };
+btnClear.onclick = function () {
+  var ch = false;
+  data().sections.forEach(function (s) {
+    var before = s.items.length;
+    s.items = s.items.filter(function (it) { return !it.done; });
+    if (s.items.length !== before) ch = true;
+  });
+  if (ch) { render(); commit(); }
+};
+
+function data() { return DATA; }
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+function commit() {
+  pending = JSON.stringify(DATA);
+  if (bridge) { bridge.commit(pending); pending = null; }
+}
+
+function updateProgress() {
+  var total = 0, done = 0;
+  DATA.sections.forEach(function (s) { total += s.items.length; s.items.forEach(function (it) { if (it.done) done++; }); });
+  progText.textContent = done + '/' + total;
+  progFill.style.width = total ? (done * 100 / total) + '%' : '0';
+  btnClear.style.display = done ? '' : 'none';
+  document.getElementById('empty').style.display = DATA.sections.length ? 'none' : 'flex';
+}
+
+function svgCircle() {
+  return '<svg viewBox="0 0 20 20"><rect class="ring" x="2.7" y="2.7" width="14.6" height="14.6" rx="4.4"/><path class="tick" d="M6.3 10.4 l2.5 2.5 L13.8 7.6"/></svg>';
+}
+
+function render() {
+  cols.innerHTML = '';
+  var empty = document.createElement('div');
+  empty.id = 'empty'; empty.textContent = T.empty;
+  cols.appendChild(empty);
+  DATA.sections.forEach(function (sec, si) {
+    var color = PALETTE[si % PALETTE.length];
+    var box = document.createElement('div');
+    box.className = 'sec'; box.style.columnBreakInside = 'avoid';
+    var head = document.createElement('div');
+    head.className = 'sec-head';
+    var dot = document.createElement('span');
+    dot.className = 'sec-dot'; dot.style.background = color;
+    dot.style.boxShadow = '0 0 0 3px ' + color + '22';
+    var title = document.createElement('span');
+    title.className = 'sec-title'; title.textContent = sec.title;
+    title.ondblclick = function () { editSectionTitle(si, title); };
+    var count = document.createElement('span');
+    count.className = 'sec-count';
+    var del = document.createElement('button');
+    del.className = 'sec-del'; del.textContent = '×';
+    del.onclick = function () {
+      if (del.classList.contains('confirm')) {
+        DATA.sections.splice(si, 1); render(); commit();
+      } else {
+        del.classList.add('confirm'); del.textContent = T.confirm;
+        setTimeout(function () { del.classList.remove('confirm'); del.textContent = '×'; }, 2500);
+      }
+    };
+    head.appendChild(dot); head.appendChild(title); head.appendChild(count); head.appendChild(del);
+    box.appendChild(head);
+    sec.items.forEach(function (it, ii) { box.appendChild(itemRow(si, ii, it, color)); });
+    box.appendChild(addRowSection(si));
+    cols.appendChild(box);
+  });
+  updateProgress();
+  refreshCounts();
+}
+
+function refreshCounts() {
+  var secs = cols.querySelectorAll('.sec');
+  DATA.sections.forEach(function (s, i) {
+    if (!secs[i]) return;
+    var done = 0; s.items.forEach(function (it) { if (it.done) done++; });
+    var c = secs[i].querySelector('.sec-count');
+    if (c) c.textContent = s.items.length ? done + '/' + s.items.length : '';
+  });
+}
+
+function itemRow(si, ii, it, color) {
+  var row = document.createElement('div');
+  row.className = 'item' + (it.done ? ' done' : '');
+  var circle = document.createElement('span');
+  circle.className = 'circle'; circle.innerHTML = svgCircle();
+  circle.onclick = function () { it.done = !it.done; row.classList.toggle('done', it.done); refreshCounts(); updateProgress(); commit(); };
+  var text = document.createElement('span');
+  text.className = 'text'; text.textContent = it.text;
+  text.ondblclick = function () { editItem(si, ii, row, text); };
+  var btns = document.createElement('span');
+  btns.className = 'item-btns';
+  var be = document.createElement('button');
+  be.className = 'ibtn'; be.textContent = '✎';
+  be.onclick = function () { editItem(si, ii, row, text); };
+  var bd = document.createElement('button');
+  bd.className = 'ibtn del'; bd.textContent = '×';
+  bd.onclick = function () { DATA.sections[si].items.splice(ii, 1); render(); commit(); };
+  btns.appendChild(be); btns.appendChild(bd);
+  row.appendChild(circle); row.appendChild(text); row.appendChild(btns);
+  return row;
+}
+
+function addRowSection(si) {
+  var row = document.createElement('div');
+  row.className = 'add-row';
+  var plus = document.createElement('span'); plus.className = 'plus';
+  var label = document.createElement('span'); label.className = 'add-label'; label.textContent = T.item;
+  row.appendChild(plus); row.appendChild(label);
+  row.onclick = function (e) { e.stopPropagation(); startAddItem(si, row); };
+  return row;
+}
+
+function startAddItem(si, row) {
+  row.onclick = null;
+  row.innerHTML = '';
+  var input = document.createElement('input');
+  input.className = 'inline-input'; input.placeholder = T.item;
+  row.appendChild(input);
+  input.focus();
+  var finish = function (save) {
+    var v = input.value.trim();
+    if (save && v) { DATA.sections[si].items.push({ text: v, done: false }); render(); commit(); }
+    else render();
+  };
+  input.onkeydown = function (e) {
+    if (e.key === 'Enter') finish(true);
+    else if (e.key === 'Escape') finish(false);
+  };
+  input.onblur = function () { finish(true); };
+}
+
+function editItem(si, ii, row, text) {
+  var it = DATA.sections[si].items[ii];
+  var input = document.createElement('input');
+  input.className = 'inline-input'; input.value = it.text;
+  text.replaceWith(input);
+  input.focus(); input.select();
+  var finish = function (save) {
+    var v = input.value.trim();
+    if (save && v && v !== it.text) { it.text = v; commit(); }
+    render();
+  };
+  input.onkeydown = function (e) {
+    if (e.key === 'Enter') finish(true);
+    else if (e.key === 'Escape') finish(false);
+  };
+  input.onblur = function () { finish(true); };
+}
+
+function addSectionInline(si, fresh) {
+  render();
+  var secs = cols.querySelectorAll('.sec');
+  var box = secs[si]; if (!box) return;
+  var head = box.querySelector('.sec-head');
+  var input = document.createElement('input');
+  input.className = 'inline-input sec-input'; input.placeholder = T.subject;
+  head.innerHTML = '';
+  head.appendChild(input);
+  input.focus();
+  var finish = function (save) {
+    var v = input.value.trim();
+    if (save && v) { DATA.sections[si].title = v; commit(); }
+    else if (fresh) { DATA.sections.splice(si, 1); }
+    render();
+  };
+  input.onkeydown = function (e) {
+    if (e.key === 'Enter') finish(true);
+    else if (e.key === 'Escape') finish(false);
+  };
+  input.onblur = function () { finish(true); };
+}
+
+function editSectionTitle(si, title) {
+  var si2 = si;
+  var input = document.createElement('input');
+  input.className = 'inline-input sec-input'; input.value = DATA.sections[si2].title;
+  title.replaceWith(input);
+  input.focus(); input.select();
+  var finish = function (save) {
+    var v = input.value.trim();
+    if (save && v && v !== DATA.sections[si2].title) { DATA.sections[si2].title = v; commit(); }
+    render();
+  };
+  input.onkeydown = function (e) {
+    if (e.key === 'Enter') finish(true);
+    else if (e.key === 'Escape') finish(false);
+  };
+  input.onblur = function () { finish(true); };
+}
+
+var topbarEl = document.getElementById('topbar');
+var hwDrag = false;
+function hwSend(kind, x, y) {
+  if (!bridge) return;
+  if (kind === 0) bridge.drag_start(x, y);
+  else if (kind === 1) bridge.drag_move(x, y);
+  else bridge.drag_end();
+}
+topbarEl.addEventListener('mousedown', function (e) {
+  if (e.button !== 0 || (e.target.closest && e.target.closest('.act'))) return;
+  hwDrag = true; document.body.classList.add('hw-drag');
+  hwSend(0, e.clientX, e.clientY); e.preventDefault();
+});
+window.addEventListener('mousemove', function (e) {
+  if (hwDrag) hwSend(1, e.clientX, e.clientY);
+});
+window.addEventListener('mouseup', function () {
+  if (hwDrag) { hwDrag = false; document.body.classList.remove('hw-drag'); hwSend(2, 0, 0); }
+});
+
+if (typeof QWebChannel !== 'undefined' && typeof qt !== 'undefined') {
+  new QWebChannel(qt.webChannelTransport, function (channel) {
+    bridge = channel.objects.bridge;
+    if (pending) { bridge.commit(pending); pending = null; }
+  });
+}
+render();
+</script>
+</body>
+</html>''')
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName(self._object_name)
+        self._home = parent
+        self._data_file = os.path.join(DATA_USER, f"homework_{component_data['id']}.json")
+        self._sections = self._load()
+        self._save_timer = QTimer(self)
+        self._save_timer.setSingleShot(True)
+        self._save_timer.setInterval(400)
+        self._save_timer.timeout.connect(self._save)
+        self._bridge = _HomeworkBridge(self._on_commit, self._hw_drag, self)
+        self._setup_ui()
+
+    # 数据
+    def _load(self) -> list:
+        try:
+            if os.path.exists(self._data_file):
+                with open(self._data_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                sections = data.get("sections")
+                if isinstance(sections, list):
+                    return sections
+        except Exception as e:
+            logger.warning(f"读取作业板失败: {e}")
+        return []
+
+    def _on_commit(self, sections_json: str):
+        try:
+            sections = json.loads(sections_json)
+            if not isinstance(sections, list):
+                return
+            clean = []
+            for sec in sections:
+                if not isinstance(sec, dict):
+                    continue
+                title = str(sec.get("title", "")).strip()[:30]
+                items = []
+                for it in sec.get("items", []):
+                    if not isinstance(it, dict):
+                        continue
+                    text = str(it.get("text", "")).strip()[:120]
+                    if text:
+                        items.append({"text": text, "done": bool(it.get("done"))})
+                if title or items:
+                    clean.append({"title": title, "items": items})
+            self._sections = clean
+            self._save_timer.start()
+        except Exception as e:
+            logger.warning(f"作业板数据无效: {e}")
+
+    def _save(self):
+        try:
+            os.makedirs(DATA_USER, exist_ok=True)
+            with open(self._data_file, "w", encoding="utf-8") as f:
+                json.dump({"sections": self._sections}, f, ensure_ascii=False, indent=1)
+        except Exception as e:
+            logger.warning(f"保存作业板失败: {e}")
+
+    # ui
+    def _setup_ui(self):
+        from PyQt6.QtWebChannel import QWebChannel
+
+        self.webView = create_html_view(self, mouse_transparent=False)
+        self._channel = QWebChannel(self)
+        self._channel.registerObject("bridge", self._bridge)
+        self.webView.page().setWebChannel(self._channel)
+
+        layout = self.inner_layout
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self.webView, 1)
+
+        self._set_natural_size(430, 236)
+        self.setMinimumSize(320, 200)
+        self._size_explicitly_set = True
+        self.resize(430, 236)
+        self._apply_style()
+
+    def _build_html(self) -> str:
+        theme = self._theme_dark if isDarkTheme() else self._theme_light
+        tc = cfg.themeColor.value
+        tc = QColor(tc) if isinstance(tc, str) else tc
+        theme = dict(theme)
+        theme["accent"] = tc.name()[:7]
+        theme["accent88"] = f"rgba({tc.red()}, {tc.green()}, {tc.blue()}, 0.65)"
+        theme["accent55"] = f"rgba({tc.red()}, {tc.green()}, {tc.blue()}, 0.45)"
+        theme["accent22"] = f"rgba({tc.red()}, {tc.green()}, {tc.blue()}, 0.13)"
+        theme["dotring"] = "rgba(0,0,0,0.04)" if not isDarkTheme() else "rgba(255,255,255,0.05)"
+        theme["dotbd"] = "rgba(0,0,0,0.28)" if not isDarkTheme() else "rgba(255,255,255,0.35)"
+        data_json = json.dumps({"sections": self._sections}, ensure_ascii=False).replace("</", "<\\/")
+        return self._HTML_TEMPLATE.substitute(
+            font=FONT_FAMILY,
+            add_sub=tr("homework.add_subject"),
+            clear_done=tr("homework.clear_done"),
+            item_ph=tr("homework.add_item"),
+            subject_ph=tr("homework.subject_ph"),
+            empty_hint=tr("homework.empty"),
+            confirm_del=tr("homework.confirm_del"),
+            palette=json.dumps(self._PALETTE),
+            **theme,
+        ).replace("/*DATA*/[]", data_json)
+
+    def _render(self):
+        self.webView.setHtml(self._build_html(), HTML_BASE_URL)
+
+    def _apply_style(self):
+        self._apply_card_style()
+        self._render()
+
+    def _hw_drag(self, phase: str, x: float, y: float):
+        """ 拖拽转发"""
+        if not self._draggable:
+            return
+        z = self.webView.zoomFactor() or 1.0
+        gp = self.webView.mapToGlobal(QPoint(int(x * z), int(y * z)))
+        lp = self.mapFromGlobal(gp)
+        types = {"start": QEvent.Type.MouseButtonPress,
+                 "move": QEvent.Type.MouseMove,
+                 "end": QEvent.Type.MouseButtonRelease}
+        ev = QMouseEvent(types[phase], QPointF(lp), QPointF(gp),
+                         Qt.MouseButton.LeftButton,
+                         Qt.MouseButton.NoButton if phase == "end" else Qt.MouseButton.LeftButton,
+                         Qt.KeyboardModifier.NoModifier)
+        if phase == "start":
+            self.mousePressEvent(ev)
+        elif self._dragging:
+            if phase == "move":
+                self.mouseMoveEvent(ev)
+            else:
+                self.mouseReleaseEvent(ev)
+
+    def apply_scale(self, factor):
+        self.webView.setZoomFactor(factor)
+
+
 # 更新注册表
 COMPONENT_STYLES["clock"]["digital"]["class"] = DigitalClockComponent
 COMPONENT_STYLES["clock"]["square_1"]["class"] = SquareClock1Component
@@ -11009,6 +11537,7 @@ COMPONENT_STYLES["writing"]["pad"]["class"] = WritingPadComponent
 COMPONENT_STYLES["class_album"]["horizontal"]["class"] = ClassAlbumHorizontalComponent
 COMPONENT_STYLES["class_album"]["vertical"]["class"] = ClassAlbumVerticalComponent
 COMPONENT_STYLES["sticky_note"]["default"]["class"] = StickyNoteComponent
+COMPONENT_STYLES["homework"]["board"]["class"] = HomeworkBoardComponent
 COMPONENT_STYLES["history"]["today"]["class"] = HistoryTodayComponent
 COMPONENT_STYLES["sentence"]["daily"]["class"] = DailySentenceComponent
 COMPONENT_STYLES["word"]["daily"]["class"] = DailyWordComponent

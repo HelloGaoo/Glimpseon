@@ -101,6 +101,7 @@
 | School   | `TimetableNowLessonComponent`                           | 当前课程                                                           |
 | School   | `TimetableTimelineComponent`                            | 课程时间轴（HTML）                                                    |
 | School   | `ClassAlbumHorizontal/VerticalComponent`                | 班级相册（继承 `ClassAlbumBaseComponent`）                             |
+| School   | `HomeworkBoardComponent`                                | 作业板（HTML）                        |
 | Media    | `MediaPlayerComponent`                                  | 媒体播放信息                                                         |
 | Launcher | `QuickLaunchDockComponent` / `QuickLaunchDock`          | 快捷启动栏                                                          |
 | Launcher | `QuickLaunchGridComponent`                              | 快捷启动II                                                         |
@@ -129,6 +130,7 @@ html组件通过 `create_html_view()`（[ui/common.py](https://github.com/HelloG
 | `SquareClock2Component`      | SVG             | 方形钟表II |
 | `MiniCalendarComponent`      | HTML + CSS      | 简约月历   |
 | `TimetableTimelineComponent` | HTML + CSS + JS | 课程时间轴  |
+| `HomeworkBoardComponent`     | HTML + CSS + JS + QWebChannel | 作业板 |
 
 **约定**：
 
