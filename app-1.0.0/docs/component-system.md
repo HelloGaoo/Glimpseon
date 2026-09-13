@@ -216,13 +216,13 @@ QWidget
 - 拖拽：`DraggableWidget` 处理鼠标事件，按 `ResizeMode` 限制方向。
 - 吸附：基于 `GridLayoutService` 的格子坐标对齐。
 - 碰撞：`check_collision` 重叠提醒。
-- 缩放：**整体等比缩放**——拖拽右下角圆弧柄时取宽高缩放比的较大值，等比缩放所有元素。
+- 缩放：**dpi**——每个组件都有缩放百分比（1\~300，1），右下角调整这个
 
 #### 缩放机制（DraggableContainer）
 
 | 成员                    | 作用                                                                                                                          |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `_scale_factor`       | 当前缩放因子，由 `resizeEvent` 按当前尺寸与自然尺寸的宽高最小值计算，带下限；变化超过阈值时重应用样式                               |
+| `_dpi`               | 缩放（1\~300），由 `_init_dpi` 从存档读入，`set_dpi` 修改                      |
 | `_scaled_px(base)`    | 按 `_scale_factor` 缩放基准像素，子类字号/图标/固定尺寸/圆角统一经它换算                                                                   |
 | `apply_scale(factor)` | 子类按 factor 重应用样式；由基类在缩放变化时调用                                                                                                |
 | `_scale_layouts()`    | 遍历 `findChildren(QLayout)`，按 `_scale_factor` 等比缩放所有子布局的 `contentsMargins` 与 `spacing`；首次调用缓存基准值（`_layout_bases`），后续始终基于基准重算 |
@@ -230,7 +230,7 @@ QWidget
 | `_scale_timer`        | 拖拽缩放节流定时器                                                                                                          |
 | `_apply_scale_now()`  | 统一入口：执行 `apply_scale` + `_scale_layouts` 并同步 `_applied_factor`                                                              |
 
-流程：拖拽缩放 → `resizeEvent` 更新 `_scale_factor` → 与 `_applied_factor` 差异超阈值时启动 `_scale_timer` → 定时触发 `_apply_scale_now()` 跟随 → 松手停止定时器并应用最终状态（`mouseReleaseEvent`）。
+流程：拖拽手柄 → 位移换算为 `_dpi`（1%  1\~300）→ 占位尺寸重设为 `_base_size × dpi/100` → `_scale_timer` 节流触发 `_apply_scale_now()` → 松手应用并 `save_components` 保存 `scale` 与实际尺寸。
 
 ### 5.3 统一卡片背景（DraggableContainer）
 

@@ -62,7 +62,7 @@
 | 类                                       | 作用                                                                             |
 | --------------------------------------- | ------------------------------------------------------------------------------ |
 | `DraggableWidget(QWidget)`              | 可拖拽组件基类（移动、缩放手柄、选中框、编辑/删除按钮）                                                   |
-| `DraggableContainer(DraggableWidget)`   | 带配置存储的容器基类（整体等比缩放：`_scale_factor` / `_scaled_px` / `_scale_layouts`），所有具体组件的父类 |
+| `DraggableContainer(DraggableWidget)`   | dpi缩放：`_dpi` / `_base_size` / `_scaled_px` / `_scale_layouts`），所有具体组件的父类 |
 | `ComponentManager`                      | 组件实例生命周期 / 布局 / 持久化管理                                                          |
 | `ComponentConfigDialog(MessageBoxBase)` | 组件配置弹窗（独立配置，parent 到 MainWindow）                                               |
 | `ComponentCard(CardWidget)`             | 组件库中的卡片项                                                                       |
@@ -75,7 +75,7 @@
 - 按钮使用全局 `componentCardOpacity` / `componentCardRadius`。
 - 组件移动事件必须触发按钮重新定位。
 - 编辑模式显示 `_GridOverlay` 网格 + `GuideLineOverlay` 参考线。
-- 缩放：拖拽右下角圆弧柄**整体等比缩放**——内部字号/图标/固定尺寸/边距/间距随 `_scale_factor` 经 `_scaled_px` / `_scale_layouts` 变化，拖拽中节流重应用，松手最终落位（详见 [component-system.md 5.2](component-system.md#52-拖拽与缩放)）。
+- 缩放：详见 [component-system.md 5.2](component-system.md#52-拖拽与缩放)）。
 
 ### 3.3 内置组件清单
 

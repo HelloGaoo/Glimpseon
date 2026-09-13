@@ -923,8 +923,8 @@ class WizardWindow(QDialog, TranslatableWidget):
 
     def _onThemeChanged(self, index):
         """主题变更"""
-        theme_mode = cfg.themeMode.value
-        setTheme(theme_mode.value)
+        from core.utils import apply_theme
+        apply_theme(cfg.themeMode.value)
         self.__setQss()
         def update_widget_style(widget):
             widget.style().unpolish(widget)
@@ -1205,20 +1205,20 @@ class MainWindow(FluentWindow):
     def _onLanguageConfigChanged(self, new_language):
         """语言切换回调重启提示"""
         from qfluentwidgets import MessageBox
+        from core.utils import request_restart
 
+        # 弹在当前活动窗口
+        parent = QApplication.activeWindow() or self
         w = MessageBox(
             tr("settings.restart_required"),
             tr("settings.restart_required_desc"),
-            self
+            parent
         )
         w.yesButton.setText(tr("common.restart_now"))
         w.cancelButton.setText(tr("common.restart_later"))
 
         if w.exec():
-            import sys
-            import subprocess
-            QApplication.quit()
-            subprocess.Popen([sys.executable] + sys.argv)
+            request_restart()
 
     # def updateInterfaceText(self, interface, text: str, position=None):
     #     """更新子界面导航"""
@@ -1938,5 +1938,12 @@ if __name__ == "__main__":
     else:
         logger.info("一般启动模式：全屏启动")
 
-    sys.exit(app.exec())
+    ret = app.exec()
+
+    from core.utils import is_restart_pending
+    if is_restart_pending():
+        import subprocess
+        subprocess.Popen([sys.executable] + sys.argv)
+
+    sys.exit(ret)
 

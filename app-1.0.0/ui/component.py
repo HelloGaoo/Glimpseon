@@ -421,6 +421,8 @@ class ComponentManager:
                     else:
                         default_size = style_info.get("default_size", (200, 80))
                         instance.resize(*default_size)
+                    if hasattr(instance, "_init_dpi"):
+                        instance._init_dpi(comp_data.get("scale"))
                     instance._size_explicitly_set = True
                     instance.hide()
                     instance.setPositionPercent(
@@ -456,6 +458,7 @@ class ComponentManager:
                 "style": stored.get("style", "unknown"),
                 "position": {"x": pos_x, "y": pos_y},
                 "size": {"w": instance.width(), "h": instance.height()},
+                "scale": instance.get_dpi() if hasattr(instance, "get_dpi") else 100,
                 "enabled": stored.get("enabled", True),
                 "page_index": page_index,
                 "config": stored.get("config", {}),
@@ -488,6 +491,7 @@ class ComponentManager:
             "style": comp_style,
             "position": {"x": 0.5, "y": 0.5},
             "size": {"w": default_size[0], "h": default_size[1]},
+            "scale": 100,
             "enabled": True,
             "page_index": page_index,
             "config": config or style_info.get("default_config", {}),
@@ -498,6 +502,8 @@ class ComponentManager:
             parent_widget = self._get_parent_widget(page_index)
             instance = comp_class(parent_widget, comp_data)
             instance.resize(*default_size)
+            if hasattr(instance, "_init_dpi"):
+                instance._init_dpi(100)
             instance._size_explicitly_set = True
             instance.show()
             instance.setPositionPercent(0.5, 0.5)
@@ -796,6 +802,12 @@ class DraggableWidget(QWidget):
                 self._resizing = True
                 self._resize_start_pos = event.globalPosition().toPoint()
                 self._resize_start_size = self.size()
+                self._resize_start_dpi = getattr(self, '_dpi', 100)
+                if getattr(self, '_base_size', None) is None:
+                    f = self._resize_start_dpi / 100.0
+                    self._base_size = QSize(
+                        max(1, round(self._resize_start_size.width() / f)),
+                        max(1, round(self._resize_start_size.height() / f)))
                 self._saved_min_size = self.minimumSize()
                 self.setMinimumSize(1, 1)
                 self.setCursor(QCursor(Qt.CursorShape.SizeFDiagCursor))
@@ -827,19 +839,28 @@ class DraggableWidget(QWidget):
             delta = event.globalPosition().toPoint() - self._resize_start_pos
             orig_w = self._resize_start_size.width()
             orig_h = self._resize_start_size.height()
-            # 等比缩放
             new_w = max(40, orig_w + delta.x())
             new_h = max(40, orig_h + delta.y())
-            scale_w = new_w / orig_w if orig_w > 0 else 1.0
-            scale_h = new_h / orig_h if orig_h > 0 else 1.0
-            scale = max(scale_w, scale_h)
-            new_w = int(orig_w * scale)
-            new_h = int(orig_h * scale)
-            parent = self.parentWidget()
-            if parent:
-                new_w = min(new_w, parent.width() - self.x())
-                new_h = min(new_h, parent.height() - self.y())
-            self.resize(new_w, new_h)
+            scale = max(new_w / orig_w if orig_w > 0 else 1.0,
+                        new_h / orig_h if orig_h > 0 else 1.0)
+            start_dpi = getattr(self, '_resize_start_dpi', 100)
+            new_dpi = max(1, min(300, int(round(start_dpi * scale))))
+            base = getattr(self, '_base_size', None)
+            if base and not base.isEmpty():
+                parent = self.parentWidget()
+                if parent:
+                    max_f_w = (parent.width() - self.x()) / base.width()
+                    max_f_h = (parent.height() - self.y()) / base.height()
+                    new_dpi = min(new_dpi, max(1, int(min(max_f_w, max_f_h) * 100)))
+            if new_dpi != getattr(self, '_dpi', 100):
+                f = new_dpi / 100.0
+                self._dpi = new_dpi
+                self._scale_factor = f
+                if base and not base.isEmpty():
+                    self.resize(max(1, round(base.width() * f)),
+                                max(1, round(base.height() * f)))
+                if hasattr(self, '_scale_timer') and not self._scale_timer.isActive():
+                    self._scale_timer.start()
             event.accept()
             return
 
@@ -1054,6 +1075,7 @@ class ComponentConfigDialog(MessageBoxBase):
         basic_content = QWidget()
         self._build_basic_page(basic_content)
         self._basic_page.setWidget(basic_content)
+        self._basic_page.enableTransparentBackground()
         self._stack.addWidget(self._basic_page)
         self._pivot.addItem(
             "basic", tr("component_edit.config_basic"),
@@ -1066,6 +1088,7 @@ class ComponentConfigDialog(MessageBoxBase):
         advanced_content = QWidget()
         self._build_advanced_page(advanced_content)
         self._advanced_page.setWidget(advanced_content)
+        self._advanced_page.enableTransparentBackground()
         self._stack.addWidget(self._advanced_page)
         self._pivot.addItem(
             "advanced", tr("component_edit.config_advanced"),
@@ -1562,8 +1585,11 @@ class DraggableContainer(DraggableWidget):
         self._content_visible = True
         self._delete_button = None
         self._config_button = None
-        # _scale_factor 由 resizeEvent 根据当前尺寸 / natural_size 计算，
-        # 子类在样式方法中用 self._scaled_px(base) 缩放字体/图标，apply_scale 重应用样式
+        # 内容 = _dpi/100，占位 = _base_size × 因子；
+        # 子类在样式方法中用
+        # self._scaled_px(base) 缩放字体/图标，apply_scale 重应用
+        self._dpi = 100
+        self._base_size = None  # 100%
         self._scale_factor = 1.0
         self._applied_factor = 1.0  # 上次已应用到样式的缩放因子
         self._natural_size = None
@@ -1622,21 +1648,36 @@ class DraggableContainer(DraggableWidget):
     def _scaled_px(self, base_px: int) -> int:
         return max(1, int(base_px * self._scale_factor))
 
-    def _recompute_scale(self) -> bool:
-        """重算缩放因子"""
-        if not self._natural_size:
-            return False
-        nw = self._natural_size.width()
-        nh = self._natural_size.height()
-        if nw <= 0 or nh <= 0:
-            return False
-        sw = self.width() / nw
-        sh = self.height() / nh
-        # 取小 下限 0.3
-        new_factor = max(0.3, min(sw, sh))
-        changed = abs(new_factor - self._scale_factor) >= 0.02
-        self._scale_factor = new_factor
-        return changed
+    def get_dpi(self) -> int:
+        return getattr(self, "_dpi", 100)
+
+    def _init_dpi(self, scale=None):
+        w, h = self.width(), self.height()
+        scale = max(1, min(300, int(scale) if scale is not None else 100))
+        f = scale / 100.0
+        self._dpi = scale
+        self._scale_factor = f
+        self._applied_factor = f
+        self._base_size = QSize(max(1, round(w / f)), max(1, round(h / f)))
+        self.apply_scale(f)
+
+    def set_dpi(self, dpi: int, apply: bool = True):
+        dpi = max(1, min(300, int(dpi)))
+        f = dpi / 100.0
+        base = getattr(self, "_base_size", None)
+        self._applying_scale = True
+        try:
+            if base and base.width() > 0 and base.height() > 0:
+                self.resize(max(1, round(base.width() * f)),
+                            max(1, round(base.height() * f)))
+            self._dpi = dpi
+            self._scale_factor = f
+            if apply:
+                self._apply_scale_now()
+            else:
+                self._applied_factor = f
+        finally:
+            self._applying_scale = False
 
     def apply_scale(self, factor: float):
         pass
@@ -1824,14 +1865,6 @@ class DraggableContainer(DraggableWidget):
             self._delete_button.reposition()
         if self._config_button and self._config_button.isVisible():
             self._config_button.reposition()
-        if not self._applying_scale:
-            if getattr(self, '_resizing', False):
-                self._recompute_scale()
-                if abs(self._scale_factor - self._applied_factor) > 0.001:
-                    if not self._scale_timer.isActive():
-                        self._scale_timer.start()
-            elif self._recompute_scale():
-                self._apply_scale_now()
         self._resize_debounce_timer.start(50)
 
     def moveEvent(self, event):
@@ -4666,7 +4699,10 @@ class NewsComponent(DraggableContainer):
     _source = ""           # 数据源标识
     _icon_key = ""         # NEWS_ICONS 中的键
     _object_name = ""      # 容器 objectName
-    _num_color = "#ffffff" # 序号颜色
+    _num_color_dark = "rgba(255, 255, 255, 0.55)"  # 序号颜色
+    _num_color_light = "rgba(0, 0, 0, 0.45)"
+    _text_color_dark = "#ffffff"   # 正文颜色
+    _text_color_light = "#1a1a1a"
     _item_count = 4        # 显示条目数
     _use_cctv_api = False  # 是否使用央视新闻 API
 
@@ -4679,6 +4715,7 @@ class NewsComponent(DraggableContainer):
         self._icon_path = get_resPath(NEWS_ICONS[self._icon_key])
         self._setup_ui()
         self._setup_timer()
+        cfg.themeChanged.connect(self._render_items)
 
     def _setup_ui(self):
         dpr = self.devicePixelRatioF()
@@ -4751,11 +4788,15 @@ class NewsComponent(DraggableContainer):
     def _render_items(self):
         sz_num = self._scaled_px(12)
         sz_text = self._scaled_px(15)
+        if isDarkTheme():
+            num_c, text_c = self._num_color_dark, self._text_color_dark
+        else:
+            num_c, text_c = self._num_color_light, self._text_color_light
         for i, (label, text) in enumerate(zip(self.itemWidgets, self._news_titles)):
             label.setText(
-                f"<span style='font-size:{sz_num}px;color:{self._num_color};font-family:{FONT_FAMILY};'>"
+                f"<span style='font-size:{sz_num}px;color:{num_c};font-family:{FONT_FAMILY};'>"
                 f"{i+1}.</span> "
-                f"<span style='font-size:{sz_text}px;color:#ffffff;font-family:{FONT_FAMILY};'>{text}</span>"
+                f"<span style='font-size:{sz_text}px;color:{text_c};font-family:{FONT_FAMILY};'>{text}</span>"
             )
 
     def _on_news_clicked(self, index):
@@ -4764,6 +4805,7 @@ class NewsComponent(DraggableContainer):
 
     def _apply_style(self):
         self._apply_card_style()
+        self._render_items()
         self.updateSize()
 
     def apply_scale(self, factor):
@@ -7603,14 +7645,15 @@ class _DayCell(QWidget):
             painter.setBrush(QColor("#00b7c3"))
             painter.drawEllipse(QPoint(cx, cy), int(sz * 0.40), int(sz * 0.40))
 
+        dark = isDarkTheme()
         if self._is_today:
             painter.setPen(QColor("#ffffff"))
         elif not self._is_current_month:
-            painter.setPen(QColor("#555555"))
+            painter.setPen(QColor("#555555") if dark else QColor(0, 0, 0, 60))
         elif self._is_weekend:
-            painter.setPen(QColor("#9a9a9a"))
+            painter.setPen(QColor("#9a9a9a") if dark else QColor(0, 0, 0, 140))
         else:
-            painter.setPen(QColor("#e8e8e8"))
+            painter.setPen(QColor("#e8e8e8") if dark else QColor("#1a1a1a"))
 
         day_rect = QRect(r.left() + int(w * 0.04), 0, w, int(mid))
         painter.drawText(day_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, str(self._day))
@@ -7621,7 +7664,10 @@ class _DayCell(QWidget):
             sub_font.setPixelSize(int(sz * 0.35))  # 节日字号
             sub_font.setBold(True)
             painter.setFont(sub_font)
-            painter.setPen(QColor("#ffffff") if self._is_today else QColor("#c0c0c0"))
+            if self._is_today:
+                painter.setPen(QColor("#ffffff"))
+            else:
+                painter.setPen(QColor("#c0c0c0") if dark else QColor(0, 0, 0, 170))
             sub_rect = QRect(r.left(), int(mid), w, int(h - mid))
             painter.drawText(sub_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, self._sub_text)
         painter.end()
@@ -7644,6 +7690,7 @@ class CalendarMonthComponent(DraggableContainer):
         self._setup_ui()
         self._setup_timer()
         self._refresh_calendar()
+        cfg.themeChanged.connect(self._apply_style)
 
     def _setup_ui(self):
         layout = self.inner_layout
@@ -7806,25 +7853,34 @@ class CalendarMonthComponent(DraggableContainer):
     def _apply_style(self):
         title_sz = self._scaled_px(20)
         wk_sz = self._scaled_px(13)
+        if isDarkTheme():
+            title_c = "#f0f0f0"
+            wk_c, wkend_c = "rgba(255, 255, 255, 0.75)", "rgba(255, 255, 255, 0.45)"
+        else:
+            title_c = "#1a1a1a"
+            wk_c, wkend_c = "rgba(0, 0, 0, 0.55)", "rgba(0, 0, 0, 0.35)"
         self.setStyleSheet(f"""
             {self._card_bg_css()}
             #calTitle {{
-                color: #f0f0f0;
+                color: {title_c};
                 font-size: {title_sz}px;
                 font-weight: 600;
                 font-family: {FONT_FAMILY};
                 background: transparent;
             }}
             #calWk {{
-                color: #d0d0d0;
+                color: {wk_c};
                 font-size: {wk_sz}px;
                 font-family: {FONT_FAMILY};
                 background: transparent;
             }}
             #calWk[wkend="true"] {{
-                color: #b0b0b0;
+                color: {wkend_c};
             }}
         """)
+        for row in self._cells:
+            for cell in row:
+                cell.update()
 
     def apply_scale(self, factor):
         self._up_btn.setFixedSize(self._scaled_px(28), self._scaled_px(18))

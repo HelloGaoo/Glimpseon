@@ -92,6 +92,33 @@ def release_single_instance():
     manager.release()
 
 
+_pending_restart = False
+
+
+def is_restart_pending() -> bool:
+    return _pending_restart
+
+
+def request_restart():
+    """请求重启"""
+    global _pending_restart
+    _pending_restart = True
+    QApplication.closeAllWindows()
+    QApplication.quit()
+
+
+def apply_theme(theme):
+    """主题应用"""
+    from qfluentwidgets import Theme, setTheme
+    if theme == Theme.AUTO:
+        import darkdetect
+        t = darkdetect.theme()
+        theme = Theme(t) if t else Theme.LIGHT
+    setTheme(theme)
+    cfg.theme = theme
+    cfg.themeChanged.emit(theme)
+
+
 def verify_single_instance():
     """检查实例"""
     allow_multiple = cfg.allowMultipleInstances.value

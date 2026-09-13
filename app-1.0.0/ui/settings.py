@@ -1121,7 +1121,18 @@ class AdvancedPage(SettingsSubPage):
                 default_config = default_cfg()
                 with open(config_path, "w", encoding="utf-8") as f:
                     json.dump(default_config, f, ensure_ascii=False, indent=4)
-                qconfig.load(config_path, cfg)
+                lang_item = cfg.language
+                reconnected = False
+                try:
+                    lang_item.valueChanged.disconnect(self.main_window._onLanguageConfigChanged)
+                    reconnected = True
+                except TypeError:
+                    pass
+                try:
+                    qconfig.load(config_path, cfg)
+                finally:
+                    if reconnected:
+                        lang_item.valueChanged.connect(self.main_window._onLanguageConfigChanged)
                 self._refreshAllConfigUI()
                 InfoBar.success(
                     tr("wizard.success_title"),
@@ -1253,8 +1264,8 @@ class AdvancedPage(SettingsSubPage):
             apply_fonts(app)
         current_theme = cfg.themeMode.value
         clear_qss_cache()
-        setTheme(current_theme)
-        cfg.themeChanged.emit(current_theme)
+        from core.utils import apply_theme
+        apply_theme(current_theme)
         
 
 class _GridPreviewWidget(QWidget):

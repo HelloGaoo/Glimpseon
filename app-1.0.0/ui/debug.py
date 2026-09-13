@@ -690,7 +690,8 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
     def _reloadTheme(self):
         try:
             clear_qss_cache()
-            setTheme(cfg.themeMode.value)
+            from core.utils import apply_theme
+            apply_theme(cfg.themeMode.value)
             self._loadStyleSheet()
             InfoBar.success(title=tr("debug.theme_refresh"), content=tr("debug.stylesheet_reloaded"), parent=self, duration=2000)
         except Exception as e:
@@ -699,7 +700,11 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
 
     def _restartApp(self):
         InfoBar.info(title=tr("debug.btn_restart_app"), content=tr("debug.restarting"), parent=self, duration=2000)
-        QTimer.singleShot(800, lambda: (subprocess.Popen([sys.executable] + sys.argv), QApplication.quit()))
+        QTimer.singleShot(800, self._doRestartApp)
+
+    def _doRestartApp(self):
+        from core.utils import request_restart
+        request_restart()
 
     def _runNetworkDiag(self):
         target = self.networkTargetCombo.currentText().strip()
