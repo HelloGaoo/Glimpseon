@@ -514,6 +514,7 @@
     "config_target_time": "Target Time",
     "config_target_time_placeholder": "YYYY-MM-DD HH:MM",
     "config_event_name": "Event Name",
+    "config_title_bg": "Title Background Color",
     "config_apps": "App List",
     "group_apps": "App Management",
     "config_app_add": "Add App",
@@ -533,6 +534,11 @@
     "no_events": "No countdown events",
     "click_to_config": "Click to configure countdown",
     "expired": "Expired"
+  },
+  "days_matter": {
+    "default_title": "Days Matter",
+    "start_date": "Since",
+    "target_date": "Until"
   },
   "school_info_component": {
     "click_to_config": "Click to configure class card"

@@ -102,6 +102,12 @@ def is_restart_pending() -> bool:
 def request_restart():
     """请求重启"""
     global _pending_restart
+    import traceback
+    try:
+        logging.getLogger("Glimpseon").warning(
+            "[RESTART-TRACE] request_restart 被调用\n" + "".join(traceback.format_stack()))
+    except Exception:
+        pass
     _pending_restart = True
     QApplication.closeAllWindows()
     QApplication.quit()

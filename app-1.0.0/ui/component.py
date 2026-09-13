@@ -54,7 +54,7 @@ from PyQt6.QtCore import (
     QSize,
     pyqtSignal, QObject, pyqtSlot,
     QByteArray, QPropertyAnimation, QEasingCurve,
-    QTime, QDate,
+    QTime, QDate, QLocale,
     QMimeData,
     QEvent,
 )
@@ -181,6 +181,12 @@ COMPONENT_STYLES = {
             "name": "事件倒计时",
             "class": None,
             "default_config": {},
+            "default_size": (200, 200),
+        },
+        "days": {
+            "name": "倒数日",
+            "class": None,
+            "default_config": {"event_name": "", "target_date": "", "title_bg_color": "#F98E1B"},
             "default_size": (200, 200),
         },
     },
@@ -1302,8 +1308,86 @@ class ComponentConfigDialog(MessageBoxBase):
 
         def save(self, result):
             result[self.key + "_mode"] = "custom" if self._combo.currentIndex() == 1 else "opacity"
-            c = self._picker.color()
+            c = self._picker.color
+            if callable(c):
+                c = c()
             result[self.key + "_color"] = c.name() if c.isValid() else "#ffffff"
+
+    class _DateField(_Field):
+        """日期选择器字段"""
+        def __init__(self, key, label_text, default=""):
+            super().__init__(key, label_text, default)
+            self._picker = None
+            self._edit = None
+
+        def _use_picker(self):
+            return self._picker is not None
+
+        def build(self, dialog):
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.addWidget(BodyLabel(self.label_text, dialog))
+            row.addStretch()
+            try:
+                from qfluentwidgets import DatePicker
+                self._picker = DatePicker(dialog)
+                d = QDate.fromString(str(self.default), "yyyy-MM-dd")
+                if d.isValid():
+                    self._picker.setDate(d)
+                self._picker.setFixedWidth(240)
+                row.addWidget(self._picker)
+            except Exception:
+                self._picker = None
+                self._edit = LineEdit(dialog)
+                self._edit.setPlaceholderText("YYYY-MM-DD")
+                self._edit.setFixedWidth(200)
+                self._edit.setText(str(self.default))
+                row.addWidget(self._edit)
+            return row
+
+        def load(self, config):
+            val = str(config.get(self.key, self.default) or "")
+            if self._use_picker():
+                d = QDate.fromString(val, "yyyy-MM-dd")
+                if d.isValid():
+                    self._picker.setDate(d)
+            elif self._edit is not None:
+                self._edit.setText(val)
+
+        def save(self, result):
+            if self._use_picker():
+                result[self.key] = self._picker.date.toString("yyyy-MM-dd")
+            elif self._edit is not None:
+                result[self.key] = self._edit.text()
+
+    class _PlainColorField(_Field):
+        """纯颜色字段"""
+        def __init__(self, key, label_text, default_color):
+            super().__init__(key, label_text, default_color)
+            self._picker = None
+
+        def build(self, dialog):
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            lbl = BodyLabel(self.label_text, dialog)
+            lbl.setFixedWidth(80)
+            self._picker = ColorPickerButton(QColor(self.default), "", dialog, enableAlpha=False)
+            self._picker.setFixedWidth(60)
+            row.addWidget(lbl)
+            row.addWidget(self._picker)
+            row.addStretch()
+            return row
+
+        def load(self, config):
+            color = str(config.get(self.key, self.default) or self.default)
+            c = QColor(color)
+            self._picker.setColor(c if c.isValid() else QColor(self.default))
+
+        def save(self, result):
+            c = self._picker.color
+            if callable(c):
+                c = c()
+            result[self.key] = c.name() if c.isValid() else self.default
 
     class _AppListField(_Field):
         """应用列表字段"""
@@ -1464,6 +1548,13 @@ class ComponentConfigDialog(MessageBoxBase):
                 (tr("component_edit.group_target"), [
                     self._TextField("event_name", tr("component_edit.config_event_name"), ""),
                     self._TextField("target_time", tr("component_edit.config_target_time"), "", "YYYY-MM-DD HH:MM"),
+                ]),
+            ],
+            "countdown|days": lambda: [
+                (tr("component_edit.group_target"), [
+                    self._TextField("event_name", tr("component_edit.config_event_name"), ""),
+                    self._DateField("target_date", tr("component_edit.config_target_date"), ""),
+                    self._PlainColorField("title_bg_color", tr("component_edit.config_title_bg"), "#F98E1B"),
                 ]),
             ],
             "school_info|class_info": lambda: [
@@ -6772,6 +6863,182 @@ class CountdownEventComponent(DraggableContainer):
         super().mouseReleaseEvent(event)
 
 
+class DaysMatterComponent(DraggableContainer):
+    """倒数日组件"""
+    # 太稀奇了今天居然没用html写
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName("daysMatterContainer")
+        self._home = parent
+        self._click_start_pos = QPoint()
+        self._read_config(component_data.get("config", {}))
+        self._setup_ui()
+        self._setup_timer()
+
+    def _read_config(self, config):
+        self._event_name = str(config.get("event_name", getattr(self, "_event_name", "")) or "")
+        self._target_date = str(config.get("target_date", getattr(self, "_target_date", "")) or "")
+        self._title_bg = str(config.get("title_bg_color", getattr(self, "_title_bg", "#F98E1B")) or "#F98E1B")
+
+    def apply_config(self, config):
+        self._read_config(config)
+        self._apply_style()
+
+    def _setup_ui(self):
+        layout = self.inner_layout
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # 顶部标题
+        self.headerWidget = QWidget(self)
+        self.headerWidget.setObjectName("daysMatterHeader")
+        header_layout = QHBoxLayout(self.headerWidget)
+        header_layout.setContentsMargins(8, 0, 8, 0)
+        self.headerLabel = BodyLabel("", self.headerWidget)
+        self.headerLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_layout.addWidget(self.headerLabel)
+
+        # 中间数字
+        self.numLabel = BodyLabel("", self)
+        self.numLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.numLabel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+        # 底部日期
+        self.footerWidget = QWidget(self)
+        self.footerWidget.setObjectName("daysMatterFooter")
+        footer_layout = QHBoxLayout(self.footerWidget)
+        footer_layout.setContentsMargins(6, 0, 6, 0)
+        self.footerLabel = BodyLabel("", self.footerWidget)
+        self.footerLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        footer_layout.addWidget(self.footerLabel)
+
+        layout.addWidget(self.headerWidget)
+        layout.addWidget(self.numLabel, 1)
+        layout.addWidget(self.footerWidget)
+
+        self._set_natural_size(200, 200)
+        self.setMinimumSize(120, 120)
+        self._size_explicitly_set = True
+        self.resize(200, 200)
+        self._apply_style()
+
+    def _setup_timer(self):
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._update_days)
+        self.timer.start(60 * 1000)
+        self._update_days()
+
+    def _is_configured(self):
+        d = QDate.fromString(self._target_date, "yyyy-MM-dd")
+        return d.isValid()
+
+    def _effective_radius(self):
+        return self._corner_radius if self._corner_radius is not None else cfg.componentCardRadius.value
+
+    def _num_font(self, px: int) -> QFont:
+        f = QFont(FONT_FAMILY)
+        f.setPixelSize(px)
+        f.setBold(True)
+        return f
+
+    def _fit_font_px(self, text: str, base_px: int, max_width: int) -> int:
+        px = base_px
+        while px > 12:
+            fm = QFontMetrics(self._num_font(px))
+            if fm.horizontalAdvance(text) <= max_width:
+                break
+            px -= 2
+        return px
+
+    def _update_days(self):
+        d = QDate.fromString(self._target_date, "yyyy-MM-dd")
+        if not d.isValid():
+            self.headerLabel.setText(tr("days_matter.default_title"))
+            self.numLabel.setText("· · ·")
+            self.footerLabel.setText(tr("countdown.click_to_config"))
+            self.updateSize()
+            return
+
+        today = QDate.currentDate()
+        diff = today.daysTo(d)  # >0 未来 / <=0 过去或今天
+        days = abs(diff)
+        number_text = str(days)
+
+        locale = QLocale.system()
+        date_str = d.toString("yyyy-MM-dd")
+        week_str = locale.toString(d, "dddd")
+        if diff > 0:
+            footer = f"{tr('days_matter.target_date')}: {date_str} {week_str}"
+        else:
+            footer = f"{tr('days_matter.start_date')}: {date_str} {week_str}"
+
+        self.headerLabel.setText(self._event_name or tr("days_matter.default_title"))
+        self.footerLabel.setText(footer)
+
+        available = max(40, self.width() - self._scaled_px(16))
+        px = self._fit_font_px(number_text, self._scaled_px(72), available)
+        self.numLabel.setFont(self._num_font(px))
+        self.numLabel.setText(number_text)
+        self.updateSize()
+
+    def _apply_style(self):
+        # 纯色背景（不透明），圆角仍跟随全局设置
+        self._apply_card_style(opacity=100)
+        is_dark = isDarkTheme()
+        radius = self._effective_radius()
+
+        c = QColor(self._title_bg)
+        title_bg = c.name() if c.isValid() else "#F98E1B"
+        self.headerWidget.setStyleSheet(
+            f"#daysMatterHeader {{ background-color: {title_bg}; "
+            f"border-top-left-radius: {radius}px; border-top-right-radius: {radius}px; }}")
+        self.footerWidget.setStyleSheet(
+            f"#daysMatterFooter {{ background-color: {'#2d2d2d' if is_dark else '#f5f5f5'}; "
+            f"border-bottom-left-radius: {radius}px; border-bottom-right-radius: {radius}px; }}")
+
+        self.headerLabel.setStyleSheet(
+            f"color: #ffffff; font-size: {self._scaled_px(17)}px; font-weight: 600; "
+            f"letter-spacing: 1px; "
+            f"font-family: {FONT_FAMILY}; background: transparent;")
+        num_color = "#f0f0f0" if is_dark else "#111111"
+        self.numLabel.setStyleSheet(
+            f"color: {num_color}; font-family: {FONT_FAMILY}; background: transparent;")
+        footer_fs = max(8.0, self._scale_factor * 11.5)
+        self.footerLabel.setStyleSheet(
+            f"color: {'#9a9a9a' if is_dark else '#8e8e93'}; font-size: {footer_fs:.1f}px; "
+            f"font-family: {FONT_FAMILY}; background: transparent;")
+
+        self.headerWidget.setFixedHeight(self._scaled_px(44))
+        self.footerWidget.setFixedHeight(self._scaled_px(34))
+        self._update_days()
+
+    def apply_scale(self, factor):
+        self._apply_style()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_days()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._apply_style()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._click_start_pos = event.globalPosition().toPoint()
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and hasattr(self, '_click_start_pos'):
+            delta = event.globalPosition().toPoint() - self._click_start_pos
+            if abs(delta.x()) < 5 and abs(delta.y()) < 5:
+                self._on_config_clicked()
+                event.accept()
+                return
+        super().mouseReleaseEvent(event)
+
+
 class SchoolInfoComponent(DraggableContainer):
     """班级卡片组件"""
 
@@ -11894,6 +12161,7 @@ COMPONENT_STYLES["news"]["jinritoutiao"]["class"] = NewsJinritoutiaoComponent
 COMPONENT_STYLES["news"]["tenxunwang"]["class"] = NewsTenxunwangComponent
 COMPONENT_STYLES["news"]["xcvts"]["class"] = NewsCCTVComponent
 COMPONENT_STYLES["countdown"]["event"]["class"] = CountdownEventComponent
+COMPONENT_STYLES["countdown"]["days"]["class"] = DaysMatterComponent
 COMPONENT_STYLES["school_info"]["class_info"]["class"] = SchoolInfoComponent
 COMPONENT_STYLES["media"]["player"]["class"] = MediaPlayerComponent
 COMPONENT_STYLES["quick_launch"]["dock"]["class"] = QuickLaunchDockComponent

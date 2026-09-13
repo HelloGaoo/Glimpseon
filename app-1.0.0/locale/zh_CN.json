@@ -514,6 +514,7 @@
     "config_target_time": "目标时间",
     "config_target_time_placeholder": "YYYY-MM-DD HH:MM",
     "config_event_name": "事件名称",
+    "config_title_bg": "标题背景颜色",
     "config_apps": "应用列表",
     "group_apps": "应用管理",
     "config_app_add": "添加应用",
@@ -533,6 +534,11 @@
     "no_events": "暂无倒计时",
     "click_to_config": "单击以配置倒计时",
     "expired": "已到期"
+  },
+  "days_matter": {
+    "default_title": "倒数日",
+    "start_date": "起始日",
+    "target_date": "目标日"
   },
   "school_info_component": {
     "click_to_config": "单击以配置班级卡片"

@@ -604,6 +604,7 @@
     "config_target_time": "目標時間",
     "config_target_time_placeholder": "YYYY-MM-DD HH:MM",
     "config_event_name": "事件名稱",
+    "config_title_bg": "標題背景顏色",
     "config_school": "學校名稱",
     "config_class": "班級名稱",
     "config_count": "學生人數",
@@ -662,6 +663,11 @@
     "no_events": "暫無倒計時",
     "click_to_config": "單擊以配置倒計時",
     "expired": "已到期"
+  },
+  "days_matter": {
+    "default_title": "倒數日",
+    "start_date": "起始日",
+    "target_date": "目標日"
   },
   "school_info_component": {
     "click_to_config": "單擊以配置班級卡片"

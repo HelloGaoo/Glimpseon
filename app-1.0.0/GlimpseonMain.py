@@ -102,6 +102,24 @@ class _MSG(ctypes.Structure):
         ("pt_y", ctypes.c_long),
     ]
 
+
+class _RECT(ctypes.Structure):
+    _fields_ = [
+        ("left", ctypes.c_long),
+        ("top", ctypes.c_long),
+        ("right", ctypes.c_long),
+        ("bottom", ctypes.c_long),
+    ]
+
+
+class _MONITORINFO(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", ctypes.c_uint32),
+        ("rcMonitor", _RECT),
+        ("rcWork", _RECT),
+        ("dwFlags", ctypes.c_uint32),
+    ]
+
 WIZARD_CONFIG_PATH = os.path.join(DATA_CONFIG, "Setup_Wizard.json")
 
 
@@ -1031,6 +1049,16 @@ class MainWindow(FluentWindow):
         if not hasattr(self, '_menu_disabled'):
             self._menu_disabled = True
             QTimer.singleShot(100, self.disable_menu_button)
+        # 启动期原生窗口可能被重建
+        QTimer.singleShot(0, self._restore_window_effects)
+
+    def _restore_window_effects(self):
+        """重新应用 DWM 窗口动画和阴影效果"""
+        try:
+            self.windowEffect.addWindowAnimation(self.winId())
+            self.windowEffect.addShadowEffect(self.winId())
+        except Exception:
+            logger.exception("恢复窗口动画/阴影失败")
             
     def _initNavigation(self):
         """初始化导航"""
@@ -1251,6 +1279,12 @@ class MainWindow(FluentWindow):
             return
         super().keyPressEvent(event)
 
+    def event(self, e):
+        """补回窗口动画/阴影属性"""
+        if e.type() == QEvent.Type.WinIdChange:
+            QTimer.singleShot(0, self._restore_window_effects)
+        return super().event(e)
+
     def eventFilter(self, obj, event):
         """事件过滤器"""
         if hasattr(self, 'isEditMode') and self.isEditMode:
@@ -1443,6 +1477,23 @@ class MainWindow(FluentWindow):
         try:
             if eventType == b"windows_generic_MSG":
                 msg = _MSG.from_address(int(message))
+                if msg.message == 0x0083 and msg.wParam:  # WM_NCCALCSIZE
+                    # glm理解：
+                    # qframelesswindow 在最大化时按"边框外扩摆放"惯例把客户区四边缩进
+                    # 矩形摆放、无外扩，缩进会让四边露出未绘制的黑边（最小化再恢复后
+                    # 由 Windows 原生最大化路径补上外扩才正常 。此场景下客户区直接取
+                    # 整个窗口矩形，跳过缩进。
+                    try:
+                        if ctypes.windll.user32.IsZoomed(msg.hwnd):
+                            mi = _MONITORINFO()
+                            mi.cbSize = ctypes.sizeof(_MONITORINFO)
+                            hmon = ctypes.windll.user32.MonitorFromWindow(msg.hwnd, 2)
+                            if hmon and ctypes.windll.user32.GetMonitorInfoW(hmon, ctypes.byref(mi)):
+                                rect = ctypes.cast(msg.lParam, ctypes.POINTER(_RECT)).contents
+                                if rect.left >= mi.rcWork.left and rect.top >= mi.rcWork.top:
+                                    return True, 0
+                    except Exception:
+                        pass
                 if msg.message == 0x0112:  # WM_SYSCOMMAND
                     low_word = msg.wParam & 0xFFFF
                     # 阻止拖拽移动 (0xF010) 调整大小 (0xF000 系列)
@@ -1930,6 +1981,9 @@ if __name__ == "__main__":
     splash.close()
     logger.info(f"总启动耗时{time.time()-_boot_t0:.2f}s")
 
+    # QTBUG-109424
+    window.switchTo(window.downloadInterface)
+
     window.showMaximized()
     if hasattr(window, 'tray_icon') and window.tray_icon:
         window.tray_icon.show()
@@ -1937,6 +1991,9 @@ if __name__ == "__main__":
         logger.info("开机自启动模式：全屏启动")
     else:
         logger.info("一般启动模式：全屏启动")
+
+    allow_ui_update(0.3)
+    window.switchTo(window.homeInterface)
 
     ret = app.exec()
 

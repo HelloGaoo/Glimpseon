@@ -96,7 +96,7 @@ class AboutInterface(ScrollArea, TranslatableWidget):
 
         self._topLayout.addLayout(self._splitLayout)
 
-        self._footerLabel = CaptionLabel("© 2025 AzeLightStudios. All rights reserved.", self._container)
+        self._footerLabel = CaptionLabel("© 2025 HelloGaoo. All rights reserved.", self._container)
         self._footerLabel.setObjectName("copyrightLabel")
         self._footerLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._topLayout.addSpacing(16)
