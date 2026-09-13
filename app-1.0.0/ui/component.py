@@ -357,6 +357,12 @@ COMPONENT_STYLES = {
             "default_config": {},
             "default_size": (400, 200),
         },
+        "netspeed": {
+            "name": "网速监控",
+            "class": None,
+            "default_config": {},
+            "default_size": (400, 200),
+        },
     },
 }
 
@@ -11565,6 +11571,314 @@ render();
         self.webView.setZoomFactor(factor)
 
 
+
+
+class _NetSpeedBridge(QObject):
+    """网速组件 QWebChannel 桥"""
+    def __init__(self, on_drag, parent=None):
+        super().__init__(parent)
+        self._on_drag = on_drag
+
+    @pyqtSlot(float, float)
+    def drag_start(self, x: float, y: float):
+        self._on_drag("start", x, y)
+
+    @pyqtSlot(float, float)
+    def drag_move(self, x: float, y: float):
+        self._on_drag("move", x, y)
+
+    @pyqtSlot()
+    def drag_end(self):
+        self._on_drag("end", 0.0, 0.0)
+
+
+class NetworkSpeedComponent(DraggableContainer):
+    """网速监控组件（HTML）"""
+
+    _object_name = "netSpeedContainer"
+
+    _theme_light = {
+        "ink": "rgba(0,0,0,0.89)", "sub": "rgba(0,0,0,0.60)",
+        "grid": "rgba(0,0,0,0.07)", "gridv": "rgba(0,0,0,0.10)",
+    }
+    _theme_dark = {
+        "ink": "rgba(255,255,255,0.95)", "sub": "rgba(255,255,255,0.60)",
+        "grid": "rgba(255,255,255,0.08)", "gridv": "rgba(255,255,255,0.12)",
+    }
+
+    _HTML_TEMPLATE = Template('''<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
+  body { font-family: $font; color: $ink; user-select: none; cursor: grab; }
+  body.ns-drag { cursor: grabbing; }
+  #app { display: flex; flex-direction: column; width: 100%; height: 100%; padding: 2px 12px 8px; }
+  #topbar { display: flex; align-items: center; gap: 10px; padding: 3px 2px 6px; flex: none; }
+  #title { font-size: 12px; font-weight: 700; color: $sub; letter-spacing: .5px; }
+  .stat { font-size: 11.5px; font-weight: 600; color: $sub; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .stat b { color: $line; font-weight: 700; margin-right: 2px; }
+  #stat-down { margin-left: auto; }
+  #chart { flex: 1; min-height: 0; position: relative; }
+  canvas { display: block; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <span id="title">$title</span>
+    <span class="stat" id="stat-down"><b>&#8595;$recv</b> <span id="dv">0 B/s</span></span>
+    <span class="stat" id="stat-up"><b>&#8593;$send</b> <span id="uv">0 B/s</span></span>
+  </div>
+  <div id="chart"><canvas id="cv"></canvas></div>
+</div>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script>
+var MAXPTS = 60;                 // 60 秒窗口
+var down = [], up = [];
+var scale = 50000;               // 纵轴上限（bps）
+var lowCount = 0;
+var GRID_H = 4;                  // 横向 4 分格
+var bridge = null;
+
+var dv = document.getElementById('dv');
+var uv = document.getElementById('uv');
+var cv = document.getElementById('cv');
+var ctx = cv.getContext('2d');
+var W = 0, H = 0;
+
+function fmtBits(v) {
+  if (v >= 1e9) return (v / 1e9).toFixed(1) + ' Gbps';
+  if (v >= 1e6) return (v / 1e6).toFixed(1) + ' Mbps';
+  if (v >= 1e3) return Math.round(v / 1e3) + ' Kbps';
+  return Math.round(v) + ' bps';
+}
+function fmtBytes(v) {
+  if (v >= 1048576) return (v / 1048576).toFixed(1) + ' MB/s';
+  if (v >= 1024) return (v / 1024).toFixed(1) + ' KB/s';
+  return Math.round(v) + ' B/s';
+}
+
+function resize() {
+  var r = document.getElementById('chart').getBoundingClientRect();
+  if (r.width < 10 || r.height < 10) return;
+  var dpr = window.devicePixelRatio || 1;
+  W = r.width; H = r.height;
+  cv.width = Math.round(W * dpr);
+  cv.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+}
+
+function draw() {
+  if (W < 10 || H < 10) return;
+  ctx.clearRect(0, 0, W, H);
+  var i, x, y;
+  // 横向网格
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = '$grid';
+  for (i = 0; i <= GRID_H; i++) {
+    y = Math.round(H * i / GRID_H) + 0.5;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+  // 纵向网格
+  var step = W / (MAXPTS - 1);
+  ctx.strokeStyle = '$gridv';
+  for (x = W; x > 0; x -= step * 10) {
+    var gx = Math.round(x) + 0.5;
+    ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke();
+  }
+  if (down.length < 2) return;
+  // 接收
+  ctx.beginPath();
+  for (i = 0; i < down.length; i++) {
+    x = W - (down.length - 1 - i) * step;
+    y = H - Math.min(down[i] / scale, 1) * H;
+    if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+  }
+  ctx.lineTo(x, H); ctx.lineTo(W - (down.length - 1) * step, H); ctx.closePath();
+  ctx.fillStyle = '$fill';
+  ctx.fill();
+  ctx.beginPath();
+  for (i = 0; i < down.length; i++) {
+    x = W - (down.length - 1 - i) * step;
+    y = H - Math.min(down[i] / scale, 1) * H;
+    if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+  }
+  ctx.strokeStyle = '$line'; ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.stroke();
+  // 发送
+  ctx.beginPath();
+  ctx.setLineDash([3, 3]);
+  for (i = 0; i < up.length; i++) {
+    x = W - (up.length - 1 - i) * step;
+    y = H - Math.min(up[i] / scale, 1) * H;
+    if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+  }
+  ctx.strokeStyle = '$line'; ctx.lineWidth = 1.3; ctx.stroke();
+  ctx.setLineDash([]);
+  // 右上角刻度标签
+  ctx.font = '11px sans-serif';
+  ctx.fillStyle = '$sub';
+  ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+  ctx.fillText(fmtBits(scale), W - 4, 3);
+}
+
+function adaptScale() {
+  var m = 1, a = down.concat(up);
+  for (var i = 0; i < a.length; i++) if (a[i] > m) m = a[i];
+  while (m > scale) { scale *= 2; lowCount = 0; }
+  if (m < scale / 4) {
+    if (lowCount >= 4 && scale > 50000) { scale /= 2; lowCount = 0; }
+    else lowCount++;
+  } else lowCount = 0;
+}
+
+window.updateNet = function (s) {
+  s = s || {};
+  down.push(s.d || 0); up.push(s.u || 0);
+  if (down.length > MAXPTS) { down.shift(); up.shift(); }
+  dv.textContent = fmtBytes((s.d || 0) / 8);
+  uv.textContent = fmtBytes((s.u || 0) / 8);
+  adaptScale();
+  draw();
+  return true;
+};
+
+window.addEventListener('resize', resize);
+
+// 整卡拖拽
+var nsDrag = false;
+function send(kind, x, y) {
+  if (!bridge) return;
+  if (kind === 0) bridge.drag_start(x, y);
+  else if (kind === 1) bridge.drag_move(x, y);
+  else bridge.drag_end();
+}
+document.getElementById('app').addEventListener('mousedown', function (e) {
+  if (e.button !== 0) return;
+  nsDrag = true; document.body.classList.add('ns-drag');
+  send(0, e.clientX, e.clientY); e.preventDefault();
+});
+window.addEventListener('mousemove', function (e) {
+  if (nsDrag) send(1, e.clientX, e.clientY);
+});
+window.addEventListener('mouseup', function () {
+  if (nsDrag) { nsDrag = false; document.body.classList.remove('ns-drag'); send(2, 0, 0); }
+});
+
+if (typeof QWebChannel !== 'undefined' && typeof qt !== 'undefined') {
+  new QWebChannel(qt.webChannelTransport, function (channel) {
+    bridge = channel.objects.bridge;
+  });
+}
+resize();
+</script>
+</body>
+</html>''')
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName(self._object_name)
+        self._home = parent
+        self._last_io = None
+        self._last_t = 0.0
+        self._bridge = _NetSpeedBridge(self._ns_drag, self)
+        self._setup_ui()
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._sample)
+        self._timer.start(1000)
+        cfg.themeChanged.connect(self._apply_style)
+        self._sample()
+
+    def _sample(self):
+        try:
+            import psutil
+            io = psutil.net_io_counters()
+            now = time.monotonic()
+            if self._last_io is None:
+                d = u = 0.0
+            else:
+                dt = max(now - self._last_t, 1e-3)
+                d = max(0, io.bytes_recv - self._last_io.bytes_recv) * 8 / dt
+                u = max(0, io.bytes_sent - self._last_io.bytes_sent) * 8 / dt
+            self._last_io = io
+            self._last_t = now
+            self._push({"d": round(d, 1), "u": round(u, 1)})
+        except Exception as e:
+            logger.warning(f"网速采样失败: {e}")
+
+    def _push(self, sample: dict):
+        try:
+            self.webView.page().runJavaScript(f"updateNet({json.dumps(sample)})")
+        except Exception:
+            pass
+
+    def _setup_ui(self):
+        from PyQt6.QtWebChannel import QWebChannel
+
+        self.webView = create_html_view(self, mouse_transparent=False)
+        self._channel = QWebChannel(self)
+        self._channel.registerObject("bridge", self._bridge)
+        self.webView.page().setWebChannel(self._channel)
+
+        layout = self.inner_layout
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self.webView, 1)
+
+        self._set_natural_size(400, 200)
+        self.setMinimumSize(300, 160)
+        self._size_explicitly_set = True
+        self.resize(400, 200)
+        self._apply_style()
+
+    def _build_html(self) -> str:
+        theme = dict(self._theme_dark if isDarkTheme() else self._theme_light)
+        theme["line"] = "#e2543a"
+        theme["fill"] = "rgba(226, 84, 58, 0.20)"
+        return self._HTML_TEMPLATE.substitute(
+            font=FONT_FAMILY,
+            title=tr("netspeed.title"),
+            recv=tr("netspeed.recv"),
+            send=tr("netspeed.send"),
+            **theme,
+        )
+
+    def _render(self):
+        self.webView.setHtml(self._build_html(), HTML_BASE_URL)
+
+    def _apply_style(self):
+        self._apply_card_style()
+        self._render()
+
+    def _ns_drag(self, phase: str, x: float, y: float):
+        """拖拽转发"""
+        if not self._draggable:
+            return
+        z = self.webView.zoomFactor() or 1.0
+        gp = self.webView.mapToGlobal(QPoint(int(x * z), int(y * z)))
+        lp = self.mapFromGlobal(gp)
+        types = {"start": QEvent.Type.MouseButtonPress,
+                 "move": QEvent.Type.MouseMove,
+                 "end": QEvent.Type.MouseButtonRelease}
+        ev = QMouseEvent(types[phase], QPointF(lp), QPointF(gp),
+                         Qt.MouseButton.LeftButton,
+                         Qt.MouseButton.NoButton if phase == "end" else Qt.MouseButton.LeftButton,
+                         Qt.KeyboardModifier.NoModifier)
+        if phase == "start":
+            self.mousePressEvent(ev)
+        elif self._dragging:
+            if phase == "move":
+                self.mouseMoveEvent(ev)
+            else:
+                self.mouseReleaseEvent(ev)
+
+    def apply_scale(self, factor):
+        self.webView.setZoomFactor(factor)
+
+
 # 更新注册表
 COMPONENT_STYLES["clock"]["digital"]["class"] = DigitalClockComponent
 COMPONENT_STYLES["clock"]["square_1"]["class"] = SquareClock1Component
@@ -11598,6 +11912,7 @@ COMPONENT_STYLES["history"]["today"]["class"] = HistoryTodayComponent
 COMPONENT_STYLES["sentence"]["daily"]["class"] = DailySentenceComponent
 COMPONENT_STYLES["word"]["daily"]["class"] = DailyWordComponent
 COMPONENT_STYLES["system"]["performance"]["class"] = PerformanceMonitorComponent
+COMPONENT_STYLES["system"]["netspeed"]["class"] = NetworkSpeedComponent
 
 
 

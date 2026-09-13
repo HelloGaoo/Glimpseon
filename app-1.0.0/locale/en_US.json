@@ -572,6 +572,11 @@
     "empty": "Add a subject from the top bar",
     "confirm_del": "Sure?"
   },
+  "netspeed": {
+    "title": "Network",
+    "recv": "Recv",
+    "send": "Send"
+  },
   "update": {
     "build_date": "Build Date",
     "status_ready": "Ready",

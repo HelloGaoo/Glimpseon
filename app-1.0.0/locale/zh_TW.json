@@ -446,6 +446,11 @@
     "empty": "點擊左上角新增科目",
     "confirm_del": "確認"
   },
+  "netspeed": {
+    "title": "網速",
+    "recv": "接收",
+    "send": "傳送"
+  },
   "update": {
     "build_date": "建構日期",
     "status_ready": "已就緒",

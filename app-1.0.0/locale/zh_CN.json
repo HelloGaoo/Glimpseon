@@ -572,6 +572,11 @@
     "empty": "点击左上角添加科目",
     "confirm_del": "确认"
   },
+  "netspeed": {
+    "title": "网速",
+    "recv": "接收",
+    "send": "发送"
+  },
   "update": {
     "build_date": "构建日期",
     "status_ready": "已就绪",

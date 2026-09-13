@@ -768,6 +768,18 @@ BUILTIN_COMPONENT_DEFINITIONS = [
         resize_mode=ResizeMode.FREE,
         default_config={},
     ),
+    ComponentDefinition(
+        id="system_netspeed",
+        display_name="网速监控",
+        category="System",
+        icon="Globe",
+        min_width_cells=3,
+        min_height_cells=2,
+        default_width_cells=4,
+        default_height_cells=2,
+        resize_mode=ResizeMode.FREE,
+        default_config={},
+    ),
 ]
 
 
