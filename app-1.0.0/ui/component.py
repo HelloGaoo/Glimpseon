@@ -651,7 +651,29 @@ class DraggableWidget(QWidget):
 
     def isSelected(self) -> bool:
         return self._selected
-    
+
+    def _is_edit_mode(self) -> bool:
+        return bool(self._draggable)
+
+    def _handle_config_click_release(self, event, allow_config: bool = True) -> bool:
+        """处理 <5px 开配置组件 
+        True ：return 
+        False ：调用者调 super().mouseReleaseEvent(event) 
+        """
+        if event.button() != Qt.MouseButton.LeftButton or not hasattr(self, '_click_start_pos'):
+            return False
+        delta = event.globalPosition().toPoint() - self._click_start_pos
+        if abs(delta.x()) >= 5 or abs(delta.y()) >= 5:
+            return False
+        self._dragging = False
+        if self._is_edit_mode():
+            return False
+        if allow_config:
+            self._on_config_clicked()
+            event.accept()
+            return True
+        return False
+
     def setPositionPercent(self, x: float, y: float):
         self._percent_x = max(0.0, min(1.0, x))
         self._percent_y = max(0.0, min(1.0, y))
@@ -808,6 +830,8 @@ class DraggableWidget(QWidget):
                 pos.y() >= self.height() - handle_zone)
 
     def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._click_start_pos = event.globalPosition().toPoint()
         if self._draggable and event.button() == Qt.MouseButton.LeftButton:
             # 选中状态
             if self._selected and self._hitResizeHandle(event.position().toPoint()):
@@ -6848,18 +6872,9 @@ class CountdownEventComponent(DraggableContainer):
     def apply_scale(self, factor):
         self._apply_style()
 
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._click_start_pos = event.globalPosition().toPoint()
-        super().mousePressEvent(event)
-
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton and hasattr(self, '_click_start_pos'):
-            delta = event.globalPosition().toPoint() - self._click_start_pos
-            if abs(delta.x()) < 5 and abs(delta.y()) < 5:
-                self._on_config_clicked()
-                event.accept()
-                return
+        if self._handle_config_click_release(event):
+            return
         super().mouseReleaseEvent(event)
 
 
@@ -7024,18 +7039,9 @@ class DaysMatterComponent(DraggableContainer):
         super().showEvent(event)
         self._apply_style()
 
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._click_start_pos = event.globalPosition().toPoint()
-        super().mousePressEvent(event)
-
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton and hasattr(self, '_click_start_pos'):
-            delta = event.globalPosition().toPoint() - self._click_start_pos
-            if abs(delta.x()) < 5 and abs(delta.y()) < 5:
-                self._on_config_clicked()
-                event.accept()
-                return
+        if self._handle_config_click_release(event):
+            return
         super().mouseReleaseEvent(event)
 
 
@@ -7198,20 +7204,9 @@ class SchoolInfoComponent(DraggableContainer):
         else:
             self.countLabel.setText("")
 
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._click_start_pos = event.globalPosition().toPoint()
-        super().mousePressEvent(event)
-
     def mouseReleaseEvent(self, event):
-        if (event.button() == Qt.MouseButton.LeftButton
-                and hasattr(self, '_click_start_pos')
-                and not self._is_configured()):
-            delta = event.globalPosition().toPoint() - self._click_start_pos
-            if abs(delta.x()) < 5 and abs(delta.y()) < 5:
-                self._on_config_clicked()
-                event.accept()
-                return
+        if self._handle_config_click_release(event, allow_config=not self._is_configured()):
+            return
         super().mouseReleaseEvent(event)
 
     def showEvent(self, event):
@@ -7308,20 +7303,9 @@ class QuickLaunchDockComponent(DraggableContainer):
             self._placeholder.show()
         self.updateSize()
 
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._click_start_pos = event.globalPosition().toPoint()
-        super().mousePressEvent(event)
-
     def mouseReleaseEvent(self, event):
-        if (event.button() == Qt.MouseButton.LeftButton
-                and hasattr(self, '_click_start_pos')
-                and not self._has_apps()):
-            delta = event.globalPosition().toPoint() - self._click_start_pos
-            if abs(delta.x()) < 5 and abs(delta.y()) < 5:
-                self._on_config_clicked()
-                event.accept()
-                return
+        if self._handle_config_click_release(event, allow_config=not self._has_apps()):
+            return
         super().mouseReleaseEvent(event)
 
 
