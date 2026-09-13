@@ -538,7 +538,10 @@
   "days_matter": {
     "default_title": "Days Matter",
     "start_date": "Since",
-    "target_date": "Until"
+    "target_date": "Until",
+    "still": "in",
+    "today": "is today",
+    "past": "since"
   },
   "school_info_component": {
     "click_to_config": "Click to configure class card"

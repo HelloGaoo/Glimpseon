@@ -601,6 +601,7 @@ class ComponentManager:
 class DraggableWidget(QWidget):
     positionChanged = pyqtSignal(float, float)
     selected = pyqtSignal(str)
+    _accept_press = False
 
     def __init__(self, parent=None, component_id: str = ""):
         super().__init__(parent)
@@ -832,34 +833,36 @@ class DraggableWidget(QWidget):
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self._click_start_pos = event.globalPosition().toPoint()
-        if self._draggable and event.button() == Qt.MouseButton.LeftButton:
-            # 选中状态
-            if self._selected and self._hitResizeHandle(event.position().toPoint()):
-                self._resizing = True
-                self._resize_start_pos = event.globalPosition().toPoint()
-                self._resize_start_size = self.size()
-                self._resize_start_dpi = getattr(self, '_dpi', 100)
-                if getattr(self, '_base_size', None) is None:
-                    f = self._resize_start_dpi / 100.0
-                    self._base_size = QSize(
-                        max(1, round(self._resize_start_size.width() / f)),
-                        max(1, round(self._resize_start_size.height() / f)))
-                self._saved_min_size = self.minimumSize()
-                self.setMinimumSize(1, 1)
-                self.setCursor(QCursor(Qt.CursorShape.SizeFDiagCursor))
+            if self._draggable:
+                # 选中状态
+                if self._selected and self._hitResizeHandle(event.position().toPoint()):
+                    self._resizing = True
+                    self._resize_start_pos = event.globalPosition().toPoint()
+                    self._resize_start_size = self.size()
+                    self._resize_start_dpi = getattr(self, '_dpi', 100)
+                    if getattr(self, '_base_size', None) is None:
+                        f = self._resize_start_dpi / 100.0
+                        self._base_size = QSize(
+                            max(1, round(self._resize_start_size.width() / f)),
+                            max(1, round(self._resize_start_size.height() / f)))
+                    self._saved_min_size = self.minimumSize()
+                    self.setMinimumSize(1, 1)
+                    self.setCursor(QCursor(Qt.CursorShape.SizeFDiagCursor))
+                    event.accept()
+                    return
+
+                self._dragging = True
+                self._drag_start_pos = event.globalPosition().toPoint()
+                self._widget_start_pos = self.pos()
+                self.setCursor(QCursor(Qt.CursorShape.ClosedHandCursor))
+                self.update()
+                self.raise_()
+                event.accept()
+                return
+            if self._accept_press:
                 event.accept()
                 return
 
-            self._dragging = True
-            self._drag_start_pos = event.globalPosition().toPoint()
-            self._widget_start_pos = self.pos()
-            self._click_start_pos = event.globalPosition().toPoint()
-            self.setCursor(QCursor(Qt.CursorShape.ClosedHandCursor))
-            self.update()
-            self.raise_()
-            event.accept()
-            return
-        
         super().mousePressEvent(event)
     
     def mouseDoubleClickEvent(self, event):
@@ -6784,6 +6787,7 @@ class PerformanceMonitorComponent(DraggableContainer):
 
 
 class CountdownEventComponent(DraggableContainer):
+    _accept_press = True
     """事件倒计时组件"""
 
     def __init__(self, parent, component_data: dict):
@@ -6881,6 +6885,7 @@ class CountdownEventComponent(DraggableContainer):
 class DaysMatterComponent(DraggableContainer):
     """倒数日组件"""
     # 太稀奇了今天居然没用html写
+    _accept_press = True
 
     def __init__(self, parent, component_data: dict):
         super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
@@ -6976,7 +6981,7 @@ class DaysMatterComponent(DraggableContainer):
             return
 
         today = QDate.currentDate()
-        diff = today.daysTo(d)  # >0 未来 / <=0 过去或今天
+        diff = today.daysTo(d)  # >0 未来 / ==0 今天 / <0 过去
         days = abs(diff)
         number_text = str(days)
 
@@ -6985,10 +6990,16 @@ class DaysMatterComponent(DraggableContainer):
         week_str = locale.toString(d, "dddd")
         if diff > 0:
             footer = f"{tr('days_matter.target_date')}: {date_str} {week_str}"
+            status = tr("days_matter.still")
+        elif diff == 0:
+            footer = f"{tr('days_matter.target_date')}: {date_str} {week_str}"
+            status = tr("days_matter.today")
         else:
             footer = f"{tr('days_matter.start_date')}: {date_str} {week_str}"
+            status = tr("days_matter.past")
 
-        self.headerLabel.setText(self._event_name or tr("days_matter.default_title"))
+        name = self._event_name or tr("days_matter.default_title")
+        self.headerLabel.setText(f"{name} {status}")
         self.footerLabel.setText(footer)
 
         available = max(40, self.width() - self._scaled_px(16))
@@ -7040,13 +7051,15 @@ class DaysMatterComponent(DraggableContainer):
         self._apply_style()
 
     def mouseReleaseEvent(self, event):
-        if self._handle_config_click_release(event):
+        # 已配置了单击不要再弹配置
+        if self._handle_config_click_release(event, allow_config=not self._is_configured()):
             return
         super().mouseReleaseEvent(event)
 
 
 class SchoolInfoComponent(DraggableContainer):
     """班级卡片组件"""
+    _accept_press = True
 
     def __init__(self, parent, component_data: dict):
         super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
@@ -7217,6 +7230,7 @@ class SchoolInfoComponent(DraggableContainer):
 
 class QuickLaunchDockComponent(DraggableContainer):
     """快捷启动栏组件"""
+    _accept_press = True
 
     def __init__(self, parent, component_data: dict):
         super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")

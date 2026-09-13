@@ -538,7 +538,10 @@
   "days_matter": {
     "default_title": "倒数日",
     "start_date": "起始日",
-    "target_date": "目标日"
+    "target_date": "目标日",
+    "still": "还有",
+    "today": "就是今天",
+    "past": "已过"
   },
   "school_info_component": {
     "click_to_config": "单击以配置班级卡片"
