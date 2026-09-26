@@ -9,11 +9,7 @@ HTML_BASE_URL = QUrl("file:///glimpseon/")
 
 
 def create_html_view(parent=None, mouse_transparent: bool = True):
-    """创建透明背景的 HTML 渲染视图（QWebEngineView 封装）
-
-    需安装 PyQt6-WebEngine，应用启动时需设置 AA_ShareOpenGLContexts。
-    仅负责视图创建与通用配置（透明背景/鼠标穿透），内容渲染由调用方负责。
-
+    """创建透明背景html
     Args:
         parent: 父控件
         mouse_transparent: 鼠标事件穿透，纯展示组件应为 True，避免拦截宿主的拖拽/点击
@@ -28,6 +24,7 @@ def create_html_view(parent=None, mouse_transparent: bool = True):
 
 
 class BaseScrollAreaInterface(ScrollArea):
+    """设置类基类"""
 
     def __init__(self, title: str, parent=None, width=1000, height=800,
                  viewport_margins=(0, 120, 0, 20), title_position=(60, 63)):
@@ -51,7 +48,7 @@ class BaseScrollAreaInterface(ScrollArea):
 
 
 def show_text_file(title: str, intro: str, file_path: str, parent=None):
-    """文件不存在则展示 intro 作为兜底内容"""
+    """文件不存在展示 intro"""
     content_text = ""
     if file_path and os.path.exists(file_path):
         try:

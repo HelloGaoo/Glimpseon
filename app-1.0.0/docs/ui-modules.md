@@ -1,7 +1,7 @@
 # UI 模块（ui/）
 
 > \[!NOTE]
-> 编写者：HelloGaoo　最后修改：2026/09/12
+> 编写者：HelloGaoo　最后修改：2026/09/26
 
 `ui/` 基于 P6FW/HTML 用户可见范围即是这层
 
@@ -37,15 +37,14 @@
 
 - `weather_updated(dict)` — 天气数据更新（由 Preloader 触发）
 - `poetry_updated(str)` — 一言更新
-- `wallpaperChanged` — 壁纸变更（间接触发）
+- `pageClicked(int)` — 页面指示器点击
 
-**关键属性**：`_cached_weather`、`_cached_poetry`、`current_weather_code`、`isEditMode`。
+**关键属性**：`_cached_weather`、`_cached_poetry`、`current_weather_code`、`_edit_mode_active`（`_enterEditMode` / `_exitEditMode` 切换）。
 
 ### 2.2 辅助控件
 
 | 类                     | 作用          |
 | --------------------- | ----------- |
-| `GuideLineOverlay`    | 编辑模式参考线覆盖层  |
 | `PageIndicator`       | 多页小圆点指示器    |
 | `_GridOverlay`        | 网格背景显示      |
 | `CountdownEditDialog` | 倒计时编辑对话框    |
@@ -62,7 +61,7 @@
 | 类                                       | 作用                                                                             |
 | --------------------------------------- | ------------------------------------------------------------------------------ |
 | `DraggableWidget(QWidget)`              | 可拖拽组件基类（移动、缩放手柄、选中框、编辑/删除按钮）                                                   |
-| `DraggableContainer(DraggableWidget)`   | dpi缩放：`_dpi` / `_base_size` / `_scaled_px` / `_scale_layouts`），所有具体组件的父类 |
+| `DraggableContainer(DraggableWidget)`   | dpi缩放：`_dpi` / `_base_size` / `_scaled_px` / `_apply_scale_now`），所有具体组件的父类 |
 | `ComponentManager`                      | 组件实例生命周期 / 布局 / 持久化管理                                                          |
 | `ComponentConfigDialog(MessageBoxBase)` | 组件配置弹窗（独立配置，parent 到 MainWindow）                                               |
 | `ComponentCard(CardWidget)`             | 组件库中的卡片项                                                                       |
@@ -74,7 +73,7 @@
 - 编辑/删除按钮、选中框、缩放柄的尺寸与配色见 `DraggableWidget` 。
 - 按钮使用全局 `componentCardOpacity` / `componentCardRadius`。
 - 组件移动事件必须触发按钮重新定位。
-- 编辑模式显示 `_GridOverlay` 网格 + `GuideLineOverlay` 参考线。
+- 编辑模式显示 `_GridOverlay` 网格背景。
 - 缩放：详见 [component-system.md 5.2](component-system.md#52-拖拽与缩放)）。
 
 ### 3.3 内置组件清单
@@ -92,7 +91,7 @@
 | Weather  | `WeatherHourlyComponent`                                | 逐小时预报                                                          |
 | Weather  | `WeatherWeeklyComponent`                                | 每周预报                                                           |
 | Info     | `PoetryOneLineComponent`                                | 一言                                                             |
-| Info     | `NewsBaidu/Weibo/Jinritoutiao/Tenxunwang/CCTVComponent` | 新闻（继承 `NewsComponent`）                                         |
+| Info     | `NewsComponent`                                         | 新闻（type() 按 `_NEWS_SOURCES` 生成 `NewsComponent_{key}` 子类）       |
 | Info     | `HistoryTodayComponent`                                 | 历史上的今天                                                         |
 | Info     | `DailyWordComponent`                                    | 每日单词                                                           |
 | Info     | `DailySentenceComponent`                                | 每日英语                                                           |
@@ -100,7 +99,7 @@
 | School   | `TimetablePreviewComponent`                             | 课表预览（`_TimetableRow`）                                          |
 | School   | `TimetableNowLessonComponent`                           | 当前课程                                                           |
 | School   | `TimetableTimelineComponent`                            | 课程时间轴（HTML）                                                    |
-| School   | `ClassAlbumHorizontal/VerticalComponent`                | 班级相册（继承 `ClassAlbumBaseComponent`）                             |
+| School   | `ClassAlbumComponent` / `ClassAlbumVerticalComponent`   | 班级相册（Vertical 继承 ClassAlbumComponent）                          |
 | School   | `HomeworkBoardComponent`                                | 作业板（HTML）                        |
 | System   | `NetworkSpeedComponent`                                 | 网速监控（HTML）                 |
 | Media    | `MediaPlayerComponent`                                  | 媒体播放信息                                                         |
@@ -133,6 +132,7 @@ html组件通过 `create_html_view()`（[ui/common.py](https://github.com/HelloG
 | `TimetableTimelineComponent` | HTML + CSS + JS | 课程时间轴  |
 | `HomeworkBoardComponent`     | HTML + CSS + JS + QWebChannel | 作业板 |
 | `NetworkSpeedComponent`      | HTML + Canvas + JS + QWebChannel | 网速监控 |
+| `PerformanceMonitorComponent` | HTML + SVG + JS | 性能监测 |
 
 **约定**：
 
@@ -162,9 +162,6 @@ html组件通过 `create_html_view()`（[ui/common.py](https://github.com/HelloG
 | `WallpaperRecord`                                    | 单条壁纸记录（路径/来源/URL/时间）                    |
 | `WallpaperHistory`                                   | 历史记录管理（持久化 + 数量限制 `wallpaperSaveLimit`） |
 | `WallpaperInfoCard(CardWidget)`                      | 当前壁纸信息卡                                 |
-| `WallpaperPreviewDialog(MessageBoxBase)`             | 壁纸预览                                    |
-| `WallpaperThumbnailCard(CardWidget)`                 | 缩略图卡片                                   |
-| `WallpaperHistoryWidget(QWidget)`                    | 历史缩略图列表                                 |
 | `_ShrinkableWidget(QWidget)`                         | 可收缩容器                                   |
 
 ### 4.2 关键能力
@@ -173,8 +170,8 @@ html组件通过 `create_html_view()`（[ui/common.py](https://github.com/HelloG
 - 模糊 / 亮度效果（`_applyEffects`，调用 `Glimpseon_native`）。
 - 设为桌面壁纸（`Glimpseon_native` wallpaper 接口）。
 - 自动同步到桌面（`autoSyncToDesktop`）。
-- 历史记录与数量管理（`_manageWallpaperLimit`）。
-- `wallpaperChanged` 信号通知主界面更新背景。
+- 历史记录与数量管理（`historyManager.sync_cleanup`）。
+- 主界面背景更新由 Preloader `_upd_wp` 
 
 ***
 
@@ -267,10 +264,11 @@ html组件通过 `create_html_view()`（[ui/common.py](https://github.com/HelloG
 
 | 类                                             | 作用     |
 | --------------------------------------------- | ------ |
-| `LineEditSettingCard` / `TextLineSettingCard` | 行编辑    |
+| `TextLineSettingCard`                         | 行编辑    |
 | `SpinBoxSettingCard`                          | 数值     |
 | `SyncStatusSettingCard`                       | 同步状态显示 |
 | `AutoOffsetSettingCard`                       | 自动时间偏移 |
+| `_LatLonSettingCard`                          | 经纬度选择  |
 | `ButtonSettingCard` / `DualButtonSettingCard` | 按钮触发   |
 
 ### 8.2 设置子页
@@ -281,6 +279,7 @@ html组件通过 `create_html_view()`（[ui/common.py](https://github.com/HelloG
 | ---------------- | ------------------------------------------------------------------------------ |
 | `GeneralPage`    | 通用（关闭动作、多实例、自启、空闲、更新）                                                          |
 | `TimePage`       | 时间（时钟、农历、偏移、NTP）                                                               |
+| `WeatherPage`    | 天气（城市/经纬度选择、更新间隔，`_WeatherFetchWorker` 后台拉取测试）                                  |
 | `AppearancePage` | 外观（主题、颜色、模糊、壁纸亮度）                                                              |
 | `LogPage`        | 日志（级别、禁用、数量、天数）                                                                |
 | `AdvancedPage`   | 高级（GPU、调试、下载源）                                                                 |
@@ -320,7 +319,7 @@ cfg.themeChanged → downloadInterface / wallpaper / notificationPage /
                    timetablePage / aboutInterface / _onDebugPanelThemeChanged
 ```
 
-切换流程：`_onThemeModeChanged` → `clear_qss_cache()` → `setTheme()` → 若未触发则手动 `cfg.themeChanged.emit()` → 各界面重载 QSS。
+切换流程：`_onThemeModeChanged` → `clear_qss_cache()` → AUTO 模式启动 `_themeCheckTimer` 轮询系统主题，非 AUTO 直接 `setTheme()`（库内 `qconfig.set` 已 emit `themeChanged`，各界面自行重载 QSS）。
 
 主题色单独广播：`cfg.themeColor.valueChanged`
 

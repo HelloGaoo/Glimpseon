@@ -1,7 +1,7 @@
 # 快速开始
 
 > [!NOTE]
-> 编写者：HelloGaoo　最后修改：2026/09/12
+> 编写者：HelloGaoo　最后修改：2026/09/26
 
 ## 1. 环境要求
 
@@ -65,6 +65,7 @@ python Glimpseon.py
 | `build_date` | 构建日期，决定 `BUILD_DATE` |
 | `current`    | `1` 表示当前激活版本         |
 | `partial`    | `true` 表示不完整，启动器会跳过  |
+| `urls`       | 更新检查用（record/update/changelog） |
 
 ### 方式 B：直接运行主程序
 
@@ -74,7 +75,7 @@ python GlimpseonMain.py
 ```
 
 > [!NOTE]
-> 直接运行时无环境变量，[core/paths.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/core/paths.py) 会回退为基于 `__file__` 推导 `PACKAGE_ROOT`（上三级，`paths.py` 位于 `app-*/core/`，三级父目录即包根）。
+> 直接运行时无环境变量，[core/paths.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/core/paths.py) 会回退为基于 `__file__` 推导 `PACKAGE_ROOT`（上三级，`paths.py` 位于 `app-*/core/`，三级父目录即仓库根）
 
 ## 5. 首次运行
 
@@ -86,14 +87,14 @@ python GlimpseonMain.py
 项目内置 PyInstaller 打包支持。关键点：
 
 1. `Glimpseon_native.pyd` 随包携带
-2. 资源目录 `resource/`、`font/`、`locale/`、`glimpseon_native/`、`Tools/` 必须打包！！！！！
+2. 资源目录 `resource/`、`font/`、`locale/`、`glimpseon_native/` 必须打包！！！！！（`extract_files()` 从 `_MEIPASS` 解包 `resource/`、`font/`、`data/`）
 3. 打包后经 `_MEIPASS` 访问内置资源（`get_resource_path`会找）
 4. `data/` 不打包
 
 ## 7. 调试技巧
 
 - **调试模式**：开启设置中的 DebugMode（或 `cfg.debugMode`）后：
-  - 日志条目数与保留天数降到最小值。
+  - 日志条目数与保留天数强制为 `max_count=3`、`max_days=1`。
   - 主窗口底部导航显示「调试」面板（`DebugPanel`）。
   - 跳过单实例检查（多开调试）。
   - 按 `F12` 跳转到调试面板。

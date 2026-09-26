@@ -41,7 +41,6 @@ from qfluentwidgets import (
 )
 
 from core.constants import DATA_CONFIG, ensure_data_dirs
-from resource.url_dir import url_dir
 
 ensure_data_dirs()
 
@@ -118,12 +117,15 @@ class CountdownListSerializer(ConfigSerializer):
         return value
 
 
+CONFIG_PATH = os.path.join(DATA_CONFIG, 'config.json')
+
+
 class Config(QConfig):
     """应用配置"""
 
     def __init__(self):
         super().__init__()
-        self.file = Path(os.path.join(DATA_CONFIG, 'config.json'))
+        self.file = Path(CONFIG_PATH)
 
     themeMode = OptionsConfigItem(
         "MainWindow", "ThemeMode", Theme.AUTO, OptionsValidator([Theme.LIGHT, Theme.DARK, Theme.AUTO]), ThemeSerializer()
@@ -146,7 +148,7 @@ class Config(QConfig):
         "Log", "MaxCount", 50, RangeValidator(10, 500)
     )
     logMaxDays = RangeConfigItem(
-        "Log", "MaxDays", 7, RangeValidator(30, 365)
+        "Log", "MaxDays", 30, RangeValidator(30, 365)
     )
     closeAction = OptionsConfigItem(
         "Other", "CloseAction", "minimize", OptionsValidator(["minimize", "close"])
@@ -225,9 +227,6 @@ class Config(QConfig):
     )
     city = ConfigItem(
         "Weather", "City", "北京市"
-    )
-    cityCode = ConfigItem(
-        "Weather", "CityCode", ""
     )
     weatherSource = OptionsConfigItem(
         "Weather", "Source", "city", OptionsValidator(["city", "coords"])
@@ -419,7 +418,7 @@ class Config(QConfig):
     )
     
     usePreciseTime = ConfigItem(
-        "PreciseTime", "UsePreciseTime", False, BoolValidator()
+        "PreciseTime", "UsePreciseTime", True, BoolValidator()
     )
     timeServer = ConfigItem(
         "PreciseTime", "TimeServer", "ntp.aliyun.com"
@@ -443,7 +442,6 @@ class Config(QConfig):
 
 
 cfg = Config()
-CONFIG_PATH = os.path.join(DATA_CONFIG, 'config.json')
 
 try:
     qconfig.load(CONFIG_PATH, cfg)
@@ -464,181 +462,32 @@ def _on_config_changed(*args):
     """配置改变时保存"""
     save_cfg()
 
-saved_count = 0
 for attr_name in dir(cfg):
     if not attr_name.startswith('_'):
         attr = getattr(cfg, attr_name)
         if isinstance(attr, ConfigItem) and hasattr(attr, 'valueChanged'):
             attr.valueChanged.connect(_on_config_changed)
-            saved_count += 1
 
 def default_cfg():
-    return {
-        "MainWindow": {
-            "DpiScale": "Auto",
-            "Language": "Auto",
-            "ThemeColor": "#30c361",
-            "ThemeMode": "Auto"
-        },
-        "Log": {
-            "DisableLog": False,
-            "LogLevel": "Info",
-            "MaxCount": 50,
-            "MaxDays": 7
-        },
-        "Other": {
-            "CloseAction": "minimize",
-            "AllowMultipleInstances": False,
-            "DebugMode": False,
-            "EnableGpuAcceleration": True,
-            "AutoStart": False,
-            "AutoOpenOnIdle": False,
-            "IdleMinutes": 5,
-            "AutoOpenMaximize": False,
-            "AutoCheckUpdate": True,
-            "AutoUpdate": False,
-            "MinimizeNotificationCount": 0
-        },
-        "Wallpaper": {
-            "SaveLimit": 50,
-            "AutoGetInterval": "30m",
-            "AutoSyncToDesktop": True,
-            "WallpaperApi": "wp.upx8.com",
-            "Brightness": 0
-        },
-        "Appearance": {
-            "BackgroundBlurRadius": 0
-        },
-        "Time": {
-            "ShowClock": True,
-            "ShowClockSeconds": True,
-            "ShowLunarCalendar": True,
-            "ClockColor": "#FFFFFF",
-            "ClockSize": 120,
-            "DateSize": 20,
-            "TimeOffset": 0,
-            "AutoTimeOffsetEnabled": False,
-            "AutoTimeOffsetIncrement": 1
-        },
-        "Poetry": {
-            "ShowPoetry": True,
-            "PoetryApiUrl": "https://v1.hitokoto.cn/",
-            "PoetryUpdateInterval": "10m",
-            "PoetrySize": 16,
-            "PoetryTextColor": "#FFFFFF"
-        },
-        "Weather": {
-            "ShowWeather": True,
-            "WeatherSize": 24,
-            "WeatherTextColor": "#FFFFFF",
-            "WeatherIconSize": 64,
-            "UpdateInterval": "5m",
-            "City": "北京市",
-            "CityCode": "",
-            "Source": "city",
-            "Latitude": 39.9042,
-            "Longitude": 116.4074,
-            "Unit": "c",
-            "AlertExcluded": ""
-        },
-        "QFluentWidgets": {
-            "FontFamilies": [
-                "HarmonyOS Sans",
-                "HarmonyOS Sans SC",
-                "HarmonyOS Sans TC",
-                "HarmonyOS Sans HC",
-                "Microsoft YaHei UI",
-                "Microsoft YaHei",
-                "PingFang SC",
-                "Source Han Sans SC",
-                "Segoe UI"
-            ]
-        },
-        "Download": {
-            "Source": "hk",
-            "ItemsPerPage": 8
-        },
-        "Countdown": {
-            "ShowCountdown": True,
-            "DisplayMode": "simultaneous",
-            "TextColor": "#FF0000",
-            "TextSize": 35,
-            "ConnectorColor": "#FFFFFF",
-            "ConnectorSize": 35,
-            "CarouselInterval": 5,
-            "CountdownList": []
-        },
-        "School": {
-            "School": "",
-            "Class": "",
-            "ShowSchoolInfo": False,
-            "SchoolInfoTextColor": "#FFFFFF",
-            "SchoolInfoTextSize": 34
-        },
-        "QuickLaunch": {
-            "ShowQuickLaunch": True,
-            "QuickLaunchApps": [],
-            "IconSize": 64,
-            "IconSpacing": 12,
-            "ShowLabels": True,
-            "OffsetY": 60
-        },
-        "Media": {
-            "ShowMediaInfo": True,
-            "ShowMediaCover": True,
-            "ShowMediaProgress": True,
-            "ShowMediaLyrics": True,
-            "UpdateInterval": 1,
-            "TextSize": 16,
-            "CoverSize": 64,
-            "LyricsSize": 14,
-            "LyricsLines": 3,
-            "LyricsAdvance": 300,
-            "Width": 360,
-            "Height": 130,
-            "BgColor": "#000000",
-            "BgOpacity": 60,
-            "UseCustomBg": False,
-            "BorderRadius": 12,
-            "TitleColor": "#FFFFFF",
-            "ArtistColor": "#FFFFFF99",
-            "TimeColor": "#FFFFFF80",
-            "LyricsColor": "#FFFFFFB3",
-            "ProgressColor": "#30c361",
-            "ProgressTrackColor": "#FFFFFF1A",
-            "ProgressHeight": 4,
-            "CoverBorderRadius": 10,
-            "CoverBorderColor": "#FFFFFF20"
-        },
-        "Linkage": {
-            "Enabled": False,
-            "DataPath": "",
-            "PollInterval": 5,
-            "SyncTimeConfig": False
-        },
-        "ClassWidgets": {
-            "Enabled": False,
-            "DataPath": "",
-            "PollInterval": 5
-        },
-        "PreciseTime": {
-            "UsePreciseTime": False,
-            "TimeServer": "ntp.aliyun.com",
-            "LastSyncTime": ""
-        },
-        "Grid": {
-            "ShortSideCells": 6,
-            "InsetPercent": 5,
-            "ComponentCardOpacity": 55,
-            "ComponentCardRadius": 16
-        }
+    """生成默认值"""
+    result = {}
+    for attr_name in dir(Config):
+        if attr_name.startswith('_'):
+            continue
+        item = getattr(Config, attr_name)
+        if isinstance(item, ConfigItem):
+            result.setdefault(item.group, {})[item.name] = item.serializer.serialize(item.defaultValue)
+    result["QFluentWidgets"] = {
+        "FontFamilies": [
+            "HarmonyOS Sans",
+            "HarmonyOS Sans SC",
+            "HarmonyOS Sans TC",
+            "HarmonyOS Sans HC",
+            "Microsoft YaHei UI",
+            "Microsoft YaHei",
+            "PingFang SC",
+            "Source Han Sans SC",
+            "Segoe UI"
+        ]
     }
-
-
-if not os.path.exists(DATA_CONFIG):
-    os.makedirs(DATA_CONFIG)
-if not _cfg_loaded and os.path.exists(CONFIG_PATH):
-    try:
-        qconfig.load(CONFIG_PATH, cfg)
-    except Exception:
-        logger.exception("加载配置失败")
+    return result

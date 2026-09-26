@@ -29,6 +29,7 @@ from datetime import datetime, time as _dt_time, timedelta
 from enum import IntEnum
 from typing import Optional
 
+from core.config import cfg
 from core.utils import precise_now
 from qfluentwidgets import qconfig
 
@@ -114,8 +115,8 @@ class LinkageState:
 @dataclass
 class _TimeSlot:
     """ci 作息时间段"""
-    start_time: datetime.time
-    end_time: datetime.time
+    start_time: _dt_time
+    end_time: _dt_time
     time_type: int         # 0=上课, 1=课间
     break_name: str = ""
     index: int = 0
@@ -140,13 +141,7 @@ class _CWTimeSlot:
     index: int
     is_break: bool
 
-
-
-
-
-
-
-def _time_from_str(s: str) -> Optional[datetime.time]:
+def _time_from_str(s: str) -> Optional[_dt_time]:
     """HH:MM/HH:MM:SS > time"""
     if not s:
         return None
@@ -172,14 +167,10 @@ def _python_weekday_to_dotnet(weekday: int) -> int:
     """Mon=1..Sun=7 > Sun=0..Sat=6"""
     return 0 if weekday == 7 else weekday
 
-
-
-
-
 # ClassIsland 联动
 def _find_exe_by_psutil(process_names: list[str]) -> Optional[str]:
-    """todo:_find_exe_by_psutil _find_classisland_exe做法是不现实的"""
-    """查找进程路径"""
+    """查找进程路径
+    """
     try:
         import psutil
         for proc in psutil.process_iter(['name', 'exe']):
@@ -221,12 +212,16 @@ def _find_classisland_data() -> str:
     return ""
 
 
-class LinkageBridge(QObject):
-    """ClassIsland 配置桥接"""
-
+class _LinkageBridgeBase(QObject):
+    """联动桥基类
+    """
     stateChanged = pyqtSignal(object)
     connectedChanged = pyqtSignal(bool)
     errorOccurred = pyqtSignal(str)
+
+    _TAG = "Linkage"
+    _THREAD_NAME = "linkage-file"
+    _CFG_PATH_ATTR = "linkageDataPath"
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -237,15 +232,7 @@ class LinkageBridge(QObject):
         self._lock = threading.Lock()
         self._poll_interval = 5
         self._prev_state = TimeState.NONE
-        self._cached_raw: dict = {}
-        self._cached_mtime: float = 0
-        self._settings_mtime: float = 0
-        self._settings_cached: dict = {}
-        self._slots: list[_TimeSlot] = []
-        self._day_plans: dict[int, _DayPlan] = {}
-        self._subjects: dict[str, dict] = {}
         self._consecutive_failures = 0
-        self._max_failures_before_redetect = 3
 
     @property
     def poll_interval(self):
@@ -259,14 +246,11 @@ class LinkageBridge(QObject):
     def is_running(self):
         return self._running
 
-    # 生命周期
-
     def set_data_path(self, path: str):
         self._data_dir = path.strip()
-        self._clear_cache()
 
     def auto_detect(self) -> str:
-        path = _find_classisland_data()
+        path = self._find_data()
         if path:
             self.set_data_path(path)
         return path
@@ -276,30 +260,107 @@ class LinkageBridge(QObject):
             return
         self._consecutive_failures = 0
         self._running = True
-        self._thread = threading.Thread(target=self._loop, daemon=True, name="linkage-file")
+        self._thread = threading.Thread(target=self._loop, daemon=True, name=self._THREAD_NAME)
         self._thread.start()
-        logger.info(f"[Link0age] 启动 (路径: {self._data_dir or '未设置'})")
+        logger.info(f"[{self._TAG}] 启动 (路径: {self._data_dir or '未设置'})")
 
     def stop(self):
         self._running = False
         if self._thread:
             self._thread.join(timeout=3)
             self._thread = None
-        logger.info("[Linkage] 停止")
-
-    # 对外查询
+        logger.info(f"[{self._TAG}] 停止")
 
     def get_state(self) -> LinkageState:
         with self._lock:
             return self._state
 
-    def get_current_lesson(self) -> Optional[LessonInfo]:
+    def _loop(self):
+        while self._running:
+            try:
+                if not self._data_dir:
+                    self._auto_detect_silent()
+                self._before_compute()
+                st = self._compute_state()
+                self._commit(st)
+            except Exception as e:
+                logger.debug(f"[{self._TAG}] 循环异常: {e}")
+            _time.sleep(self._poll_interval)
+
+    def _before_compute(self):
+        """每轮计算前的钩子"""
+
+    def _try_redetect(self):
+        new_path = self._find_data()
+        if new_path and new_path != self._data_dir:
+            logger.info(f"[{self._TAG}] 重检测到新路径: {new_path}")
+            self.set_data_path(new_path)
+            self._consecutive_failures = 0
+            try:
+                getattr(cfg, self._CFG_PATH_ATTR).value = new_path
+            except Exception:
+                pass
+            self.errorOccurred.emit(f"REDIRECT:{new_path}")
+
+    def _commit(self, new_state: LinkageState) -> bool:
+        # 锁内只做状态替换与 diff;emit 出锁外(同线程直连槽调 get_state 会自死锁)
         with self._lock:
-            return self._state.current_lesson
+            old = self._state
+            old_ts = self._prev_state
+            self._state = new_state
+            connected_changed = old.is_connected != new_state.is_connected
+            changed = new_state.time_state != old_ts
+            if changed:
+                self._prev_state = new_state.time_state
+        self.stateChanged.emit(new_state)
+        if connected_changed:
+            self.connectedChanged.emit(new_state.is_connected)
+        if changed:
+            logger.info(f"[{self._TAG}] {TimeState.display_name(old_ts)} -> {TimeState.display_name(new_state.time_state)}")
+        return changed
+
+
+class LinkageBridge(_LinkageBridgeBase):
+    """ClassIsland 配置桥接"""
+
+    _TAG = "Linkage"
+    _THREAD_NAME = "linkage-file"
+    _CFG_PATH_ATTR = "linkageDataPath"
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._cached_raw: dict = {}
+        self._cached_mtime: float = 0
+        self._settings_mtime: float = 0
+        self._settings_cached: dict = {}
+        self._slots: list[_TimeSlot] = []
+        self._day_plans: dict[int, _DayPlan] = {}
+        self._subjects: dict[str, dict] = {}
+
+    def set_data_path(self, path: str):
+        self._data_dir = path.strip()
+        self._clear_cache()
+
+    def _find_data(self) -> Optional[str]:
+        return _find_classisland_data()
+
+    def _auto_detect_silent(self):
+        """静默检测 成功则保存路径"""
+        path = _find_classisland_data()
+        if path:
+            self.set_data_path(path)
+            self._consecutive_failures = 0
+            try:
+                cfg.linkageDataPath.value = path
+            except Exception:
+                pass
+            logger.info(f"[Linkage] 检测到: {path}")
+
+    def _before_compute(self):
+        self._sync_time_config()
 
     def get_today_schedule(self) -> list:
         """返回今日课表"""
-        import datetime as _dt
         with self._lock:
             if not self._slots or not self._day_plans:
                 return []
@@ -343,8 +404,9 @@ class LinkageBridge(QObject):
                         slot.break_name or "课间",
                     ))
             return result
+
     def get_schedule_by_weekday(self, dotnet_weekday: int) -> list:
-        """取指定日的课表。"""
+        """取指定日的课表"""
         with self._lock:
             if not self._slots or not self._day_plans:
                 return []
@@ -392,56 +454,13 @@ class LinkageBridge(QObject):
             result[py_wd] = sched
         return result
 
-    def test_connection(self) -> tuple[bool, str]:
-        profile = os.path.join(self._data_dir, _PROFILE_FILE)
-        if not os.path.isfile(profile):
-            return False, f"文件不存在: {profile}"
-        try:
-            with open(profile, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            subjects = data.get("Subjects", {})
-            plans = data.get("ClassPlans", {})
-            layouts = data.get("TimeLayouts", {})
-            return True, f"ClassIsland ({len(subjects)}科目/{len(plans)}课表/{len(layouts)}作息)"
-        except json.JSONDecodeError as e:
-            return False, f"JSON 解析失败: {e}"
-        except Exception as e:
-            return False, str(e)
-
-    # 内部
-
     def _clear_cache(self):
-        self._cached_raw = {}
-        self._cached_mtime = 0
-        self._slots.clear()
-        self._day_plans.clear()
-        self._subjects.clear()
-
-    def _loop(self):
-        while self._running:
-            try:
-                # 没有路径时自动检测
-                if not self._data_dir:
-                    self._auto_detect_silent()
-                self._sync_time_config()
-                st = self._compute_state()
-                self._commit(st)
-            except Exception as e:
-                logger.debug(f"[Linkage] 循环异常: {e}")
-            _time.sleep(self._poll_interval)
-
-    def _auto_detect_silent(self):
-        """静默检测 成功则保存路径"""
-        path = _find_classisland_data()
-        if path:
-            self.set_data_path(path)
-            self._consecutive_failures = 0
-            try:
-                from core.config import cfg
-                cfg.linkageDataPath.value = path
-            except Exception:
-                pass
-            logger.info(f"[Linkage] 检测到: {path}")
+        with self._lock:
+            self._cached_raw = {}
+            self._cached_mtime = 0
+            self._slots = []
+            self._day_plans = {}
+            self._subjects = {}
 
     def _load_file_if_changed(self) -> bool:
         if not self._data_dir:
@@ -471,45 +490,36 @@ class LinkageBridge(QObject):
                 self._try_redetect()
             return False
 
-    def _try_redetect(self):
-        new_path = _find_classisland_data()
-        if new_path and new_path != self._data_dir:
-            logger.info(f"[Linkage] 重检测到新路径: {new_path}")
-            self.set_data_path(new_path)
-            self._consecutive_failures = 0
-            try:
-                from core.config import cfg
-                cfg.linkageDataPath.value = new_path
-            except Exception:
-                pass
-            self.errorOccurred.emit(f"REDIRECT:{new_path}")
-
     def _parse_all(self, raw: dict):
-        self._subjects = raw.get("Subjects") or {}
+        # 先在局部构建完整结构,最后持锁一次性换引用(worker 写 / 主线程读)
+        subjects = raw.get("Subjects") or {}
         layouts = raw.get("TimeLayouts") or {}
-        self._slots = []
+        slots = []
         if layouts:
             first_id = next(iter(layouts), None)
             if first_id:
-                for i, item in enumerate(layouts[first_id].get("Layouts") or []):
+                for item in (layouts[first_id].get("Layouts") or []):
                     try:
                         s = _time_from_str(item.get("StartTime", ""))
                         e = _time_from_str(item.get("EndTime", ""))
                         if s and e:
-                            self._slots.append(_TimeSlot(s, e, item.get("TimeType", 1),
-                                                         item.get("BreakName", ""), i))
+                            slots.append(_TimeSlot(s, e, item.get("TimeType", 1),
+                                                   item.get("BreakName", "")))
                     except (ValueError, TypeError):
                         pass
-        self._day_plans.clear()
+        day_plans = {}
         for pid, plan in (raw.get("ClassPlans") or {}).items():
-            tr = plan.get("TimeRule", {}) or {}
-            wd = tr.get("WeekDay", 0)
+            time_rule = plan.get("TimeRule", {}) or {}
+            wd = time_rule.get("WeekDay", 0)
             classes = [c["SubjectId"] for c in plan.get("Classes", []) if c.get("IsEnabled", True)]
-            self._day_plans[wd] = _DayPlan(week_day=wd, name=plan.get("Name", ""),
-                                            class_ids=classes, layout_id=plan.get("TimeLayoutId", ""))
+            day_plans[wd] = _DayPlan(week_day=wd, name=plan.get("Name", ""),
+                                     class_ids=classes, layout_id=plan.get("TimeLayoutId", ""))
+        with self._lock:
+            self._subjects = subjects
+            self._slots = slots
+            self._day_plans = day_plans
 
     def _sync_time_config(self):
-        from core.config import cfg
         if not cfg.linkageSyncTimeConfig.value or not self._data_dir:
             return
         settings_path = os.path.join(self._data_dir, _SETTINGS_FILE)
@@ -591,32 +601,12 @@ class LinkageBridge(QObject):
         n_classes = sum(1 for s in self._slots[:slot_idx + 1] if s.time_type == 0)
         return max(0, n_classes - 1 + offset)
 
-    def _commit(self, new_state: LinkageState) -> bool:
-        with self._lock:
-            old = self._state
-            old_ts = self._prev_state
-            self._state = new_state
-            self.stateChanged.emit(new_state)
-            if old.is_connected != new_state.is_connected:
-                self.connectedChanged.emit(new_state.is_connected)
-            changed = new_state.time_state != old_ts
-            if changed:
-                self._prev_state = new_state.time_state
-                logger.info(f"[Linkage] {TimeState.display_name(old_ts)} -> {TimeState.display_name(new_state.time_state)}")
-            return changed
-
-
-
-
-
-
 
 # ClassWidgets 联动
 
 def _find_classwidgets_exe() -> str:
     """查找 ClassWidgets.exe 进程路径"""
-    path = _find_exe_by_psutil(["ClassWidgets.exe"])
-    return path or ""
+    return _find_exe_by_psutil(["ClassWidgets.exe"]) or ""
 
 
 def _find_classwidgets_data() -> str:
@@ -636,71 +626,31 @@ def _find_classwidgets_data() -> str:
     return ""
 
 
-class ClassWidgetsBridge(QObject):
+class ClassWidgetsBridge(_LinkageBridgeBase):
     """ClassWidgets 配置桥接"""
 
-    stateChanged = pyqtSignal(object)
-    connectedChanged = pyqtSignal(bool)
-    errorOccurred = pyqtSignal(str)
+    _TAG = "CW-Linkage"
+    _THREAD_NAME = "cw-linkage"
+    _CFG_PATH_ATTR = "classWidgetsDataPath"
+    _cw_cache_file = None
+    _cw_cache_mtime = -1.0
+    _cw_cache_data = None
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._config_dir = ""
-        self._state = LinkageState()
-        self._running = False
-        self._thread = None
-        self._lock = threading.Lock()
-        self._poll_interval = 5
-        self._prev_state = TimeState.NONE
-        self._consecutive_failures = 0
-        self._max_failures_before_redetect = 3
+    def _find_data(self) -> str:
+        return _find_classwidgets_data()
 
-    @property
-    def poll_interval(self):
-        return self._poll_interval
-
-    @poll_interval.setter
-    def poll_interval(self, v):
-        self._poll_interval = max(1, min(30, v))
-
-    @property
-    def is_running(self):
-        return self._running
-
-    # 生命周期
-
-    def set_data_path(self, path: str):
-        self._config_dir = path.strip()
-
-    def auto_detect(self) -> str:
+    def _auto_detect_silent(self):
+        """静默检测 成功则保存路径"""
         path = _find_classwidgets_data()
         if path:
             self.set_data_path(path)
-        return path
+            self._consecutive_failures = 0
+            try:
+                cfg.classWidgetsDataPath.value = path
+            except Exception:
+                pass
+            logger.info(f"[CW-Linkage] 检测到: {path}")
 
-    def start(self):
-        if self._running:
-            return
-        self._consecutive_failures = 0
-        self._running = True
-        self._thread = threading.Thread(target=self._loop, daemon=True, name="cw-linkage")
-        self._thread.start()
-        logger.info(f"[CW-Linkage] 启动 (路径: {self._config_dir or '未设置'})")
-
-    def stop(self):
-        self._running = False
-        if self._thread:
-            self._thread.join(timeout=3)
-            self._thread = None
-        logger.info("[CW-Linkage] 停止")
-
-    # 对外查询
-
-    def test_connection(self) -> tuple[bool, str]:
-        sched_file = self._resolve_schedule_path()
-        if sched_file:
-            return True, f"ClassWidgets (课表: {os.path.basename(sched_file)})"
-        return False, "未找到课表文件"
 
     def get_today_schedule(self) -> list:
         """返回今日课表"""
@@ -779,11 +729,9 @@ class ClassWidgetsBridge(QObject):
             result[py_wd] = self.get_schedule_by_weekday(py_wd)
         return result
 
-    # 课表文件解析
-
     def _resolve_schedule_path(self) -> str:
         """config.ini 读课表名 去 schedule 目录找课表"""
-        config_path = os.path.join(self._config_dir, "config.ini")
+        config_path = os.path.join(self._data_dir, "config.ini")
         name = ""
         if os.path.isfile(config_path):
             try:
@@ -798,7 +746,7 @@ class ClassWidgetsBridge(QObject):
                     name = cp.get('General', 'schedule', fallback='').strip()
                 except Exception:
                     pass
-        sched_dir = os.path.join(self._config_dir, "schedule")
+        sched_dir = os.path.join(self._data_dir, "schedule")
         if not os.path.isdir(sched_dir):
             return ""
         if name and os.path.isfile(os.path.join(sched_dir, name)):
@@ -816,37 +764,21 @@ class ClassWidgetsBridge(QObject):
         if not sched_file:
             return {}
         try:
+            mtime = os.path.getmtime(sched_file)
+        except OSError:
+            return {}
+        if self._cw_cache_file == sched_file and self._cw_cache_mtime == mtime \
+                and self._cw_cache_data is not None:
+            return self._cw_cache_data
+        try:
             with open(sched_file, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
         except Exception:
             return {}
-
-    # 状态计算
-
-    def _loop(self):
-        while self._running:
-            try:
-                # 没有路径时自动检测
-                if not self._config_dir:
-                    self._auto_detect_silent()
-                st = self._compute_state()
-                self._commit(st)
-            except Exception as e:
-                logger.debug(f"[CW-Linkage] 循环异常: {e}")
-            _time.sleep(self._poll_interval)
-
-    def _auto_detect_silent(self):
-        """静默检测 成功则保存路径"""
-        path = _find_classwidgets_data()
-        if path:
-            self.set_data_path(path)
-            self._consecutive_failures = 0
-            try:
-                from core.config import cfg
-                cfg.classWidgetsDataPath.value = path
-            except Exception:
-                pass
-            logger.info(f"[CW-Linkage] 检测到: {path}")
+        self._cw_cache_file = sched_file
+        self._cw_cache_mtime = mtime
+        self._cw_cache_data = data
+        return data
 
     def _compute_state(self) -> LinkageState:
         now = precise_now()
@@ -935,7 +867,7 @@ class ClassWidgetsBridge(QObject):
         return st
 
     def _parse_schedule(self, data: dict, now: datetime) -> list:
-        """解析 cw 课表 json → _CWTimeSlot 列表"""
+        """解析 cw 课表 json > _CWTimeSlot 列表"""
         # cw到底怎么想的 这时间段弄得什么幌子啊 为啥按照添加顺序写json 
         # 为啥cw不整个hh mm ss-hh mm ss写json里 ci那样多好  
         slots = []
@@ -969,7 +901,11 @@ class ClassWidgetsBridge(QObject):
             start_t = current_time
             end_h = start_t.hour + (start_t.minute + duration_min) // 60
             end_m = (start_t.minute + duration_min) % 60
-            end_t = _dt_time(min(end_h, 23), end_m)
+            if end_h >= 24:
+                # 跨天时段无法用 time 表示,钳到 23:59 保持 end>=start
+                end_t = _dt_time(23, 59)
+            else:
+                end_t = _dt_time(end_h, end_m)
             current_time = end_t
             if unit_type == 0:  # 上课
                 class_counter += 1
@@ -992,30 +928,3 @@ class ClassWidgetsBridge(QObject):
         except Exception:
             pass
         return 0
-
-    def _try_redetect(self):
-        new_path = _find_classwidgets_data()
-        if new_path and new_path != self._config_dir:
-            logger.info(f"[CW-Linkage] 检测到新路径: {new_path}")
-            self.set_data_path(new_path)
-            self._consecutive_failures = 0
-            try:
-                from core.config import cfg
-                cfg.classWidgetsDataPath.value = new_path
-            except Exception:
-                pass
-            self.errorOccurred.emit(f"REDIRECT:{new_path}")
-
-    def _commit(self, new_state: LinkageState) -> bool:
-        with self._lock:
-            old = self._state
-            old_ts = self._prev_state
-            self._state = new_state
-            self.stateChanged.emit(new_state)
-            if old.is_connected != new_state.is_connected:
-                self.connectedChanged.emit(new_state.is_connected)
-            changed = new_state.time_state != old_ts
-            if changed:
-                self._prev_state = new_state.time_state
-                logger.info(f"[CW-Linkage] {TimeState.display_name(old_ts)} -> {TimeState.display_name(new_state.time_state)}")
-            return changed

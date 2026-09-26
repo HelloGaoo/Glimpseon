@@ -59,15 +59,6 @@ class MediaInfo:
     def is_valid(self) -> bool:
         return bool(self.title or self.artist or self.song_id)
 
-    def get_progress_percent(self) -> float:
-        return min(1.0, max(0.0, self.position_ms / self.duration_ms)) if self.duration_ms > 0 else 0.0
-
-    @staticmethod
-    def format_time(ms: int) -> str:
-        s = max(0, ms // 1000)
-        return f"{s // 60}:{s % 60:02d}"
-
-
 @dataclass
 class LyricLine:
     """单行歌词"""
@@ -253,12 +244,8 @@ class NeteaseCloudMusic:
     # 内存读取
 
     def _check_deps(self) -> bool:
-        try:
-            import pymem
-            import psutil
-            return True
-        except ImportError:
-            return False
+        # pymem/psutil 在模块顶部已硬导入,缺依赖时本模块导入即失败,守卫恒真
+        return True
 
     def _read_memory(self) -> Optional[Dict[str, Any]]:
         if not self._available:
@@ -1252,18 +1239,6 @@ def get_service(app_name: str):
         if s.name.lower() == al:
             return s
     return _gsmtc
-
-
-def get_netease() -> NeteaseCloudMusic:
-    return _netease
-
-
-def get_gstmtc() -> GsmTc:
-    return _gsmtc
-
-
-def media_play_pause() -> bool:
-    return _gsmtc.play_pause()
 
 
 def media_control(action: str) -> bool:

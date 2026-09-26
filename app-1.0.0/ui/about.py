@@ -51,7 +51,7 @@ from qfluentwidgets import (
 from core.config import cfg
 from core.constants import PACKAGE_ROOT, APP_DIR, APP_ICON, get_resPath, load_qss, VERSION, BUILD_DATE, FONT_PRIMARY
 from core.utils import tr, TranslatableWidget, FUI
-from core.updater import check_github_version_legacy, get_github_changelog, download_update, extract_update, create_update_script
+from core.updater import check_github_version_legacy, get_github_changelog, download_update, extract_update, deploy_update, cleanup_update_files, create_update_script
 
 from .common import show_text_file, HTML_BASE_URL
 
@@ -106,7 +106,8 @@ class AboutInterface(ScrollArea, TranslatableWidget):
         self.titleLabel.setObjectName('settingLabel')
         self.titleLabel.move(60, 63)
 
-        self._connectSignalToSlot()
+        self._progress_signal.connect(
+            lambda p: self.updateStatusLabel.setText(tr("update.downloading_progress").format(percent=p)))
         self._check_result_signal.connect(self._on_check_result)
         self._changelog_loaded_signal.connect(self._on_changelog_loaded)
         self.setStyleSheet(load_qss('about.qss'))
@@ -171,15 +172,9 @@ class AboutInterface(ScrollArea, TranslatableWidget):
         lay.setContentsMargins(20, 16, 20, 16)
         lay.setSpacing(4)
 
-        # verLabel = BodyLabel(f"v{VERSION}", card)
-        # verLabel.setObjectName("infoVersionLabel")
-        # dateLabel = CaptionLabel(f"{tr('about.build_date')}: {BUILD_DATE}", card)
-        # dateLabel.setObjectName("infoDateLabel")
         authorLabel = CaptionLabel(f"{tr('about.author')}: HelloGaoo", card)
         authorLabel.setObjectName("infoAuthorLabel")
 
-        # lay.addWidget(verLabel)
-        # lay.addWidget(dateLabel)
         lay.addWidget(authorLabel)
 
         layout.addWidget(card)
@@ -336,9 +331,9 @@ class AboutInterface(ScrollArea, TranslatableWidget):
         layout.addWidget(self.autoUpdateCard)
 
 
-    def _connectSignalToSlot(self):
-        pass
+    _progress_signal = pyqtSignal(str)
 
+    _progress_signal = pyqtSignal(str)
 
     def __setUpdateStatus(self, status: str):
         colors = {
@@ -436,10 +431,11 @@ class AboutInterface(ScrollArea, TranslatableWidget):
     def _is_newer_version(remote: str, current: str) -> bool:
         try:
             def _parse(v):
-                return tuple(int(p) for p in v.strip().split('.'))
+                return tuple(int(p) for p in v.strip().lstrip('vV').split('.'))
             return _parse(remote) > _parse(current)
         except (ValueError, AttributeError):
-            return remote != current
+            # 任一侧不可解析时不比较,避免把乱码版本误报成"有更新"
+            return False
 
     @pyqtSlot(object)
     def _on_check_result(self, result: object):
@@ -464,7 +460,6 @@ class AboutInterface(ScrollArea, TranslatableWidget):
             if has_update:
                 self.has_new_version = True
                 self.new_version = github_version
-                self.build_date = github_build_date
                 self.update_url = result.get('update_url')
 
                 self.updateStatusLabel.setText(tr("update.new_version_found").format(version=github_version))
@@ -506,52 +501,29 @@ class AboutInterface(ScrollArea, TranslatableWidget):
         self.updateStatusLabel.setText(tr("update.downloading"))
         self.__setUpdateStatus('downloading')
 
-        update_folder = os.path.join(PACKAGE_ROOT, 'update_temp')
-        download_path = os.path.join(update_folder, 'update.7z')
         backup_folder = os.path.join(PACKAGE_ROOT, 'update_backup')
 
         def download_thread():
             try:
-                if os.path.exists(update_folder):
-                    shutil.rmtree(update_folder)
-                os.makedirs(update_folder)
-
                 def progress_callback(current, total):
+                    # 工作线程内不可用 QTimer,经信号回主线程
                     percent = (current / total) * 100
-                    QTimer.singleShot(0, lambda p=percent: self.updateStatusLabel.setText(tr("update.downloading_progress").format(percent=f"{p:.1f}")))
+                    self._progress_signal.emit(f"{percent:.1f}")
 
                 logger.info(f"正在从 {self.update_url} 下载更新")
-                download_success = False
-                max_download_retries = 3
-
-                for retry in range(max_download_retries):
-                    try:
-                        if retry > 0:
-                            logger.info(f"下载更新重试 {retry}/{max_download_retries}")
-                            QTimer.singleShot(0, lambda r=retry, m=max_download_retries: self.updateStatusLabel.setText(tr("update.download_retry").format(retry=r, max_retries=m)))
-
-                        if download_update(download_path, progress_callback):
-                            download_success = True
-                            break
-                        else:
-                            if os.path.exists(download_path):
-                                os.remove(download_path)
-                    except Exception as e:
-                        logger.warning(f"下载尝试 {retry + 1} 失败：{str(e)}")
-                        if os.path.exists(download_path):
-                            os.remove(download_path)
-
-                if not download_success:
+                # download_update 决定临时路径 对超时重试 返回实际 zip 路径
+                download_path = download_update(self.update_url, progress_callback)
+                if not download_path:
                     raise Exception("下载更新失败")
 
                 QTimer.singleShot(0, lambda: self.updateStatusLabel.setText(tr("update.extracting")))
 
-                extract_folder = os.path.join(update_folder, 'extracted')
-                if not extract_update(download_path, extract_folder):
+                # 按新版本号解压到 app-<version> 写入 record.json
+                new_version_dir = extract_update(download_path, self.new_version)
+                if not new_version_dir:
                     raise Exception("解压更新失败")
 
-                if os.path.exists(download_path):
-                    os.remove(download_path)
+                cleanup_update_files()
 
                 if auto_update:
                     QTimer.singleShot(0, lambda: self.updateStatusLabel.setText(tr("update.backing_up")))
@@ -564,7 +536,10 @@ class AboutInterface(ScrollArea, TranslatableWidget):
                     except Exception as e:
                         logger.warning(f"创建备份失败：{str(e)}")
 
-                script_path = create_update_script(APP_DIR, extract_folder)
+                if not deploy_update(new_version_dir):
+                    raise Exception("激活新版本失败")
+
+                script_path = create_update_script(new_version_dir)
                 if not script_path:
                     raise Exception("创建更新脚本失败")
                 QTimer.singleShot(0, lambda: self.updateStatusLabel.setText(tr("update.preparing")))
@@ -581,11 +556,7 @@ class AboutInterface(ScrollArea, TranslatableWidget):
             except Exception as e:
                 error_msg = str(e)
                 logger.error(f"更新失败：{error_msg}")
-                if os.path.exists(update_folder):
-                    try:
-                        shutil.rmtree(update_folder)
-                    except Exception:
-                        pass
+                cleanup_update_files()
                 QTimer.singleShot(0, lambda msg=error_msg: self._updateErrorState(msg))
                 self.has_new_version = False
 
@@ -606,11 +577,6 @@ class AboutInterface(ScrollArea, TranslatableWidget):
     def _showTechDialog(self):
         w = _TechDialog(self.window())
         w.exec()
-
-    def resizeEvent(self, event):
-        """调整图标大小"""
-        super().resizeEvent(event)
-
 
 class _TechDialog(MessageBoxBase):
     """鸣谢弹窗"""

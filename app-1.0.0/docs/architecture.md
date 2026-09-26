@@ -1,7 +1,7 @@
 # 架构总览
 
 > \[!NOTE]
-> 编写者：HelloGaoo　最后修改：2026/09/12
+> 编写者：HelloGaoo　最后修改：2026/09/26
 
 ## 1. 技术栈
 
@@ -17,7 +17,7 @@
 | 国际化    | `TranslationManager` + json              |
 | 打包     | PyInstaller 6.20                          |
 | 媒体/OCR | easyocr、pytesseract、opencv-headless、torch |
-| 网络     | requests、aria2c（外部）、7z（外部）                |
+| 网络     | requests                                   |
 
 完整依赖见 [requirements.txt](https://github.com/HelloGaoo/Glimpseon/blob/main/requirements.txt)。
 
@@ -57,9 +57,9 @@ graph TD
 
 ## 4. 数据处理（以壁纸为例）
 
-壁纸在 `Preloader._load_wp()`（QThread）中预加载：读缓存（`get_cached_content`，过期也用旧的）→ 未命中则请求 API 落盘 → `_manageWallpaperLimit()` 控制数量 → `save_cache()` → `sig_wp.emit(path, src, url)` 回主线程。
+壁纸在 `Preloader._load_wp()`（QThread）中预加载：读缓存（`get_cached_content`，过期也用旧的）→ 未命中则请求 API 落盘 → `historyManager.sync_cleanup()` 控制数量 → `save_cache()` → `sig_wp.emit(path, src, url)` 回主线程。
 
-主线程槽 `_upd_wp()` 依次：`QPixmap` 载入 → `_updateMainWindowBackground()` 设为主窗口背景 → `_applyEffects()` 模糊/亮度（调 `Glimpseon_native`）→ `infoCard.updateInfo()` 更新信息卡 → `historyManager.add()` 写入历史 → `wallpaperChanged.emit()` 通知主界面刷新。
+主线程槽 `_upd_wp()` 依次：`QPixmap` 载入 → `_updateMainWindowBackground()` 设为主窗口背景 → `_applyEffects()` 模糊/亮度（调 `Glimpseon_native`）→ `infoCard.updateInfo()` 更新信息卡 → `historyManager.add()` 写入历史。
 
 完整时序见 [启动流程](launch-flow.md)。
 
@@ -102,7 +102,8 @@ data/
 ├── icon/        图标
 ├── wallpaper/   壁纸
 ├── classphotos/ 照片
-└── notes/       便签
+├── notes/       便签
+└── ql_icon/     快捷启动图标缓存（懒创建）
 ```
 
-软件启动时调用 `ensure_data_dirs()`
+`ensure_data_dirs()` 创建上表除 `ql_icon/` 外的全部目录

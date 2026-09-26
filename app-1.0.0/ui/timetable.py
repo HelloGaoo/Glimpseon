@@ -3,7 +3,9 @@
 """
 
 import os
-import sys
+import shutil
+import datetime as _dt
+from datetime import time as _time
 
 from PyQt6.QtCore import Qt, QTime, QTimer, pyqtSignal
 from PyQt6.QtGui import QFontMetrics
@@ -31,7 +33,6 @@ from qfluentwidgets import (
     TableWidget,
     TimePicker,
     ToolButton,
-    TransparentToolButton,
 )
 
 from core.config import cfg
@@ -57,13 +58,6 @@ SUBJECT_FULL = {
     "班": "班会", "社": "社团", "心": "心理", "信": "信息技术", "考": "考试", "体": "体育",
     "早": "早读", "自": "自习"
 }
-
-
-def _add_minutes(time_str: str, minutes: int) -> str:
-    """时间加法"""
-    h, m = map(int, time_str.split(":"))
-    total = h * 60 + m + minutes
-    return f"{total // 60:02d}:{total % 60:02d}"
 
 
 class TimetablePage(ScrollArea, TranslatableWidget):
@@ -459,10 +453,8 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         self._scheduleChangedTimer.timeout.connect(self.scheduleChanged.emit)
 
         current_source = cfg.profileSource.value
-        if current_source == "Glimpseon":
-            self._loadProfile(ensure_default_profile())
-        else:
-            self._loadProfile(ensure_default_profile())
+        self._loadProfile(ensure_default_profile())
+        if current_source != "Glimpseon":
             self._sourceCombo.blockSignals(True)
             self._sourceCombo.setCurrentIndex(
                 {"classisland": 1, "classwidgets": 2}.get(current_source, 0)
@@ -477,8 +469,10 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         path = get_profile_path(name)
         self._profile = TimetableProfile.load(path)
         self._profileLabel.setText(name)
+        self._block_save = True
         self._classDurSpin.setValue(self._profile.default_class_duration)
         self._breakDurSpin.setValue(self._profile.default_break_duration)
+        self._block_save = False
         self._refreshTables()
         self._syncTimePickers()
 
@@ -598,25 +592,25 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         original_row = -1
 
         sel_time = self.timeTable.selectedItems()
-        if sel_time:
+        sel_course = self.courseTable.selectedItems()
+        nb = self._nonBreakIndices(self._profile.periods)
+        if self._activeTable == "course" and sel_course:
+            source_table = "course"
+            original_row = sel_course[0].row()
+            if original_row < len(nb):
+                period_idx = nb[original_row]
+        elif sel_time:
             source_table = "time"
             original_row = sel_time[0].row()
             period_idx = original_row
-        else:
-            sel_course = self.courseTable.selectedItems()
-            if sel_course:
-                source_table = "course"
-                original_row = sel_course[0].row()
-                nb = self._nonBreakIndices(self._profile.periods)
-                if original_row < len(nb):
-                    period_idx = nb[original_row]
+        elif sel_course:
+            source_table = "course"
+            original_row = sel_course[0].row()
+            if original_row < len(nb):
+                period_idx = nb[original_row]
 
         if period_idx < 0 or period_idx >= self._profile.period_count():
             return
-
-        # 记录下一行
-        total_rows = self._profile.period_count()
-        next_row = original_row if original_row < total_rows - 1 else total_rows - 2
 
         # 删除
         self._profile.remove_period(period_idx)
@@ -624,14 +618,17 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         self._saveProfile()
         self._syncTimePickers()
 
-        # 选中下一行
-        if next_row >= 0:
-            if source_table == "time":
+        # 选中下一行 行数量纲按来源表取(课程表按非课间行数)
+        if source_table == "time":
+            total_rows = self._profile.period_count()
+            next_row = original_row if original_row < total_rows - 1 else total_rows - 2
+            if next_row >= 0:
                 self.timeTable.selectRow(next_row)
-            elif source_table == "course":
-                nb = self._nonBreakIndices(self._profile.periods)
-                if next_row < len(nb):
-                    self.courseTable.setCurrentCell(next_row, 1)
+        elif source_table == "course":
+            nb = self._nonBreakIndices(self._profile.periods)
+            next_row = original_row if original_row < len(nb) - 1 else len(nb) - 2
+            if 0 <= next_row < len(nb):
+                self.courseTable.setCurrentCell(next_row, 1)
 
 
     def _syncTimePickers(self):
@@ -654,23 +651,24 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         """保存课程表单元格变更"""
         if self._block_save or self._profile is None:
             return
-        if col == 0:  # 时间段列不可编辑
-            return
-        nb_indices = self._nonBreakIndices(self._profile.periods)
-        if row >= len(nb_indices):
-            return
-        period_idx = nb_indices[row]
         item = self.courseTable.item(row, col)
         text = item.text() if item else ""
-        day = DAYS[col - 1]
-        key = str(period_idx)
-        if key not in self._profile.courses:
-            self._profile.courses[key] = {}
-        self._profile.courses[key][day] = text
-        self._saveProfile()
+        if not self._write_course_cell(row, col, text):
+            return
         # 同步到右侧面板
         if self._activeTable == "course":
             self._updateCourseSettings()
+
+    def _write_course_cell(self, row: int, col: int, text: str) -> bool:
+        """写入课程表单元格并保存"""
+        if col == 0 or self._profile is None:  # 时间段列不可编辑
+            return False
+        nb = self._nonBreakIndices(self._profile.periods)
+        if row >= len(nb):
+            return False
+        self._profile.courses.setdefault(str(nb[row]), {})[DAYS[col - 1]] = text
+        self._saveProfile()
+        return True
 
     # 右侧专栏在选中后改变显示内容
     def _onTimeTableSelection(self):
@@ -763,19 +761,12 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         if not sel:
             return
         row, col = sel[0].row(), sel[0].column()
-        if col == 0:
-            return
         nb = self._nonBreakIndices(self._profile.periods)
-        if row >= len(nb):
-            return
-        period_idx = nb[row]
 
         # 录入科目
         full_name = SUBJECT_FULL.get(subject, subject)
-        key = str(period_idx)
-        day = DAYS[col - 1]
-        self._profile.courses.setdefault(key, {})[day] = full_name
-        self._saveProfile()
+        if not self._write_course_cell(row, col, full_name):
+            return
 
         # 同步到表格
         self._block_save = True
@@ -785,20 +776,15 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         self._block_save = False
 
         # 跳到当天的下一时间段 录完当天跳下一天
-        next_row = row + 1  # 同一天的下一时间段
+        next_row = row + 1
         next_col = col
-
-        if next_row >= len(nb):  
+        if next_row >= len(nb):
             next_row = 0
             next_col = col + 1
-            if next_col > 7: 
+            if next_col > 7:
                 return
-
-        # 有下一格子 选中它
-        if next_row < len(nb) and next_col <= 7:
-            self.courseTable.setCurrentCell(next_row, next_col)
-
-            QTimer.singleShot(0, self._updateCourseSettings)
+        # 选中下一格(setCurrentCell 自身会触发右侧面板刷新)
+        self.courseTable.setCurrentCell(next_row, next_col)
 
     def _onCourseSubjectChanged(self, text: str):
         """课程设置的科目输入变更"""
@@ -808,20 +794,10 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         if not sel:
             return
         row, col = sel[0].row(), sel[0].column()
-        if col == 0:
-            return
-        nb = self._nonBreakIndices(self._profile.periods)
-        if row >= len(nb):
-            return
-        period_idx = nb[row]
 
         # 更新 profile
-        key = str(period_idx)
-        day = DAYS[col - 1]
-        if key not in self._profile.courses:
-            self._profile.courses[key] = {}
-        self._profile.courses[key][day] = text
-        self._saveProfile()
+        if not self._write_course_cell(row, col, text):
+            return
 
         # 同步到表格
         self._block_save = True
@@ -946,16 +922,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         )
         if not file_path:
             return
-        import shutil
-        import os
-        filename = os.path.basename(file_path)
-        name = os.path.splitext(filename)[0]
-        dest_path = os.path.join(PROFILES_DIR, filename)
-        src_dir = os.path.normcase(os.path.dirname(file_path))
-        dst_dir = os.path.normcase(PROFILES_DIR)
-        if src_dir != dst_dir:
-            shutil.copy(file_path, dest_path)
-        self._loadProfile(name)
+        self._importProfileFrom(file_path)
 
     def _onExportProfile(self):
         """导出档案 / 打开数据目录"""
@@ -979,9 +946,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         )
         if not file_path:
             return
-        import shutil
-        src_path = get_profile_path(self._current_profile_name)
-        shutil.copy(src_path, file_path)
+        shutil.copy(get_profile_path(self._current_profile_name), file_path)
 
     def _onOpenFolder(self):
         """选择档案 / 手动选择数据目录"""
@@ -1003,7 +968,6 @@ class TimetablePage(ScrollArea, TranslatableWidget):
                 self._cwBridge.start()
             self._updateLinkagePathLabel()
             return
-        import os
         os.makedirs(PROFILES_DIR, exist_ok=True)
         file_path, _ = QFileDialog.getOpenFileName(
             self,
@@ -1013,13 +977,14 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         )
         if not file_path:
             return
-        name = os.path.splitext(os.path.basename(file_path))[0]
-        src_dir = os.path.normcase(os.path.dirname(file_path))
-        dst_dir = os.path.normcase(PROFILES_DIR)
-        if src_dir != dst_dir:
-            import shutil
-            dest_path = os.path.join(PROFILES_DIR, os.path.basename(file_path))
-            shutil.copy(file_path, dest_path)
+        self._importProfileFrom(file_path)
+
+    def _importProfileFrom(self, file_path: str):
+        """外部档案拷入档案目录并加载"""
+        filename = os.path.basename(file_path)
+        name = os.path.splitext(filename)[0]
+        if os.path.normcase(os.path.dirname(file_path)) != os.path.normcase(PROFILES_DIR):
+            shutil.copy(file_path, os.path.join(PROFILES_DIR, filename))
         self._loadProfile(name)
 
     def _onDurationChanged(self):
@@ -1037,18 +1002,8 @@ class TimetablePage(ScrollArea, TranslatableWidget):
     def bridge(self):
         return self._activeBridge
 
-    @property
-    def ciBridge(self):
-        return self._ciBridge
-
-    @property
-    def cwBridge(self):
-        return self._cwBridge
-
     def get_today_schedule(self) -> list:
         """返回今日课表"""
-        from datetime import datetime as _dt, time as _time
-
         if self._activeBridge:
             try:
                 return self._activeBridge.get_today_schedule()
@@ -1077,8 +1032,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
                 is_current = False
 
             if ptype in ("课间", "活动"):
-                break_name = ptype if ptype == "活动" else "课间"
-                result.append(("", "", start, end, 0, is_current, True, break_name))
+                result.append(("", "", start, end, 0, is_current, True, ptype))
             else:
                 class_counter += 1
                 courses = self._profile.courses.get(str(i), {})
@@ -1089,8 +1043,6 @@ class TimetablePage(ScrollArea, TranslatableWidget):
 
     def get_schedule_by_weekday(self, weekday: int) -> list:
         """返回指定星期课表"""
-        from datetime import time as _time
-
         if self._activeBridge:
             try:
                 # ci 0=周日..6=周六  cw 0=周一..6=周日
@@ -1115,8 +1067,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             ptype = p.get("type", "")
 
             if ptype in ("课间", "活动"):
-                break_name = ptype if ptype == "活动" else "课间"
-                result.append(("", "", start, end, 0, False, True, break_name))
+                result.append(("", "", start, end, 0, False, True, ptype))
             else:
                 class_counter += 1
                 courses = self._profile.courses.get(str(i), {})
@@ -1148,39 +1099,29 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             self._openFolderBtn.setToolTip(tr("timetable.profile_open_folder"))
             self._refreshTables()
         elif source == "classisland":
-            self._linkageMode = True
-            self._activeBridge = self._ciBridge
-            self._cwBridge.stop()
-            self._ciBridge.set_data_path(cfg.linkageDataPath.value)
-            self._ciBridge.poll_interval = 1
-            if not cfg.linkageDataPath.value:
-                self._onAutoDetect("classisland")
-            else:
-                self._ciBridge.start()
-            self._setEditModeEnabled(False)
-            self._updateLinkagePathLabel()
-            self._refreshLinkageTables()
-            self._linkageRefreshTimer.start()
-            self._importBtn.setToolTip(tr("timetable.btn_auto_detect"))
-            self._exportBtn.setToolTip(tr("timetable.btn_open_data_dir"))
-            self._openFolderBtn.setToolTip(tr("timetable.btn_select_dir"))
+            self._enterLinkage(self._ciBridge, "linkageDataPath")
         elif source == "classwidgets":
-            self._linkageMode = True
-            self._activeBridge = self._cwBridge
-            self._ciBridge.stop()
-            self._cwBridge.set_data_path(cfg.classWidgetsDataPath.value)
-            self._cwBridge.poll_interval = 1
-            if not cfg.classWidgetsDataPath.value:
-                self._onAutoDetect("classwidgets")
-            else:
-                self._cwBridge.start()
-            self._setEditModeEnabled(False)
-            self._updateLinkagePathLabel()
-            self._refreshLinkageTables()
-            self._linkageRefreshTimer.start()
-            self._importBtn.setToolTip(tr("timetable.btn_auto_detect"))
-            self._exportBtn.setToolTip(tr("timetable.btn_open_data_dir"))
-            self._openFolderBtn.setToolTip(tr("timetable.btn_select_dir"))
+            self._enterLinkage(self._cwBridge, "classWidgetsDataPath")
+
+    def _enterLinkage(self, bridge, path_attr: str):
+        """进入联动模式并启动指定桥"""
+        self._linkageMode = True
+        self._activeBridge = bridge
+        (self._cwBridge if bridge is self._ciBridge else self._ciBridge).stop()
+        path = getattr(cfg, path_attr).value
+        bridge.set_data_path(path)
+        bridge.poll_interval = 1
+        if path:
+            bridge.start()
+        else:
+            self._onAutoDetect("classisland" if bridge is self._ciBridge else "classwidgets")
+        self._setEditModeEnabled(False)
+        self._updateLinkagePathLabel()
+        self._refreshLinkageTables()
+        self._linkageRefreshTimer.start()
+        self._importBtn.setToolTip(tr("timetable.btn_auto_detect"))
+        self._exportBtn.setToolTip(tr("timetable.btn_open_data_dir"))
+        self._openFolderBtn.setToolTip(tr("timetable.btn_select_dir"))
 
     def _setEditModeEnabled(self, enabled: bool):
         """禁用/启用手动编辑控件"""
@@ -1221,37 +1162,23 @@ class TimetablePage(ScrollArea, TranslatableWidget):
     def _onAutoDetect(self, source: str):
         """自动检测联动路径"""
         if source == "classisland":
-            path = self._ciBridge.auto_detect()
-            if path:
-                cfg.linkageDataPath.value = path
-                self._ciBridge.start()
-                self._updateLinkagePathLabel()
-                InfoBar.success(
-                    title=tr("timetable.auto_detect"), content=path,
-                    parent=self, position=InfoBarPosition.TOP, duration=3000,
-                )
-            else:
-                InfoBar.error(
-                    title=tr("timetable.auto_detect"),
-                    content="ClassIsland not found",
-                    parent=self, position=InfoBarPosition.TOP, duration=3000,
-                )
-        elif source == "classwidgets":
-            path = self._cwBridge.auto_detect()
-            if path:
-                cfg.classWidgetsDataPath.value = path
-                self._cwBridge.start()
-                self._updateLinkagePathLabel()
-                InfoBar.success(
-                    title=tr("timetable.auto_detect"), content=path,
-                    parent=self, position=InfoBarPosition.TOP, duration=3000,
-                )
-            else:
-                InfoBar.error(
-                    title=tr("timetable.auto_detect"),
-                    content="ClassWidgets not found",
-                    parent=self, position=InfoBarPosition.TOP, duration=3000,
-                )
+            bridge, path_attr, missing = self._ciBridge, "linkageDataPath", "ClassIsland not found"
+        else:
+            bridge, path_attr, missing = self._cwBridge, "classWidgetsDataPath", "ClassWidgets not found"
+        path = bridge.auto_detect()
+        if path:
+            getattr(cfg, path_attr).value = path
+            bridge.start()
+            self._updateLinkagePathLabel()
+            InfoBar.success(
+                title=tr("timetable.auto_detect"), content=path,
+                parent=self, position=InfoBarPosition.TOP, duration=3000,
+            )
+        else:
+            InfoBar.error(
+                title=tr("timetable.auto_detect"), content=missing,
+                parent=self, position=InfoBarPosition.TOP, duration=3000,
+            )
 
     def _refreshLinkageTables(self):
         """获取一周数据"""
@@ -1261,7 +1188,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
 
         week_data = self._activeBridge.get_week_schedule()
 
-        # ci 返回 {1=Mon..7=Sun} ci 返回 {0=Mon..6=Sun}
+        # ci 返回 {1=Mon..7=Sun} cw 返回 {0=Mon..6=Sun}
         # 统一为 0=Mon..6=Sun
         if self._activeBridge is self._ciBridge:
             # ci
@@ -1271,7 +1198,6 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             schedules = [week_data.get(i, []) for i in range(7)]
 
         # 构建时间表
-        import datetime as _dt
         today_wd = _dt.date.today().weekday()  # 0=周一..6=周日
         today_schedule = schedules[today_wd] if today_wd < len(schedules) else []
         self.timeTable.setRowCount(0)

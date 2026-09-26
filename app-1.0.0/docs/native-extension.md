@@ -1,7 +1,7 @@
 # 原生扩展（glimpseon\_native/）
 
 > [!NOTE]
-> 编写者：HelloGaoo　最后修改：2026/09/12
+> 编写者：HelloGaoo　最后修改：2026/09/26
 
 `glimpseon_native` 是用 C++17 + pybind11 编写的，编译为 `Glimpseon_native.pyd`（cp311-win\_amd64）。Python通过 `import Glimpseon_native` 调用。我不会c++，所以此扩展与此文档由ai生成。
 
@@ -55,7 +55,7 @@ cmake --build build --config Release
 | 函数                          | 签名                                                       | 说明            |
 | --------------------------- | -------------------------------------------------------- | ------------- |
 | `set_wallpaper`             | `(path: str) -> bool`                                    | 设置桌面壁纸        |
-| `blur_image`                | `(input: bytes, w: int, h: int, radius: float) -> bytes` | 高斯模糊（BGRA）    |
+| `blur_image`                | `(input: bytes, width: int, height: int, radius: float) -> bytes` | 高斯模糊（BGRA）    |
 | `install_hook`              | `() -> None`                                             | 安装全局低级钩子      |
 | `uninstall_hook`            | `() -> None`                                             | 卸载钩子          |
 | `was_page_operation_recent` | `(ms_threshold: int) -> bool`                            | 最近是否有翻页/滚轮操作  |

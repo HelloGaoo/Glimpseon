@@ -1,7 +1,7 @@
 # 组件系统
 
 > \[!NOTE]
-> 编写者：HelloGaoo　最后修改：2026/09/12
+> 编写者：HelloGaoo　最后修改：2026/09/26
 
 Glimpseon 定位是桌面组件化信息看板。
 
@@ -98,34 +98,29 @@ class GridMetrics:
 
 `calculate_grid_metrics(canvas_size, GridSettings) → GridMetrics`。短边格数固定为 `short_side_cells`（横屏定行数，竖屏定列数），另一方向按可用尺寸与 `gap_ratio` 推格数；边距由 `inset_percent` 控制，上限 80px。
 
-### 2.2 坐标换算
+### 2.2 坐标换算（HomeInterface）
 
-- `get_cell_rect(metrics, col, row, w_cells, h_cells) → QRect`：格子坐标 → 屏幕像素矩形。
-- `point_to_cell(metrics, point) → (row, column)`：屏幕点 → 格子坐标，网格外或间隙中返回 `(-1, -1)`。
+- `_update_grid_metrics()`：界面尺寸变化时重算 `GridMetrics`（内部即调 `calculate_grid_metrics`）。
+- `_snap_to_grid(x, y, width, height, threshold) → (x, y)`：拖拽释放时自由吸附——组件 left/right/top/bottom 四边各自在 `threshold` 内找最近网格线（`inset + i*pitch`），任一边吸附成功即移动该边，否则保持原值。
 
-### 2.3 碰撞检测
+### 2.3 碰撞检测（HomeInterface）
 
-`check_collision(placements, target_row, target_col, w, h, exclude_id, page_index)`：同页、已启用、非自身的组件矩形是否重叠。`_rects_overlap` 用行列闭区间判断。
+`_check_pixel_collision(x, y, width, height) → bool`：拖放落点与所有**可见**组件容器做像素级 AABB 重叠测试（分离轴判交），命中任一即返回 `True`。
 
 ***
 
 ## 3. 组件注册（ComponentRegistry）
 
 ```python
-class ComponentRegistry(QObject):
-    definitions_changed = pyqtSignal()
+class ComponentRegistry(QObject): ...
 ```
 
-| 方法                                          | 作用              |
-| ------------------------------------------- | --------------- |
-| `register(definition)`                      | 注册单个，发信号        |
-| `register_batch(definitions)`               | 批量注册            |
-| `unregister(id)`                            | 注销              |
-| `get_definition(id)` / `has_definition(id)` | 查询              |
-| `get_all_definitions()`                     | 全部              |
-| `get_definitions_by_category(cat)`          | 按分类             |
-| `get_categories()`                          | 所有分类            |
-| `load_from_json(path, component_classes)`   | 从 json 加载并绑定实现类 |
+| 方法                                   | 作用    |
+| ------------------------------------ | ----- |
+| `register_batch(definitions)`        | 批量注册  |
+| `get_definition(id)`                 | 单个查询  |
+| `get_definitions_by_category(cat)`   | 按分类查询 |
+| `get_categories()`                   | 所有分类  |
 
 ### 3.1 内置组件
 
@@ -139,44 +134,48 @@ class ComponentRegistry(QObject):
 
 ```
 QWidget
- └─ DraggableWidget 
-     └─ DraggableContainer
-         ├─ DigitalClockComponent
-         ├─ SquareClock1Component
-        ├─ SquareClock2Component
-         ├─ WeatherComponentBase
-         │   ├─ WeatherIconTempComponent
-         │   ├─ WeatherHourlyComponent
-         │   └─ WeatherWeeklyComponent
-         ├─ PoetryOneLineComponent
-         ├─ NewsComponent
-         │   └─ NewsBaidu/Weibo/...Component
-         ├─ HistoryTodayComponent
-         ├─ DailyWordComponent
-         ├─ DailySentenceComponent
-         ├─ CountdownEventComponent
-         ├─ TimerCountdownComponent
-         ├─ SchoolInfoComponent
-         ├─ MediaPlayerComponent
-         ├─ QuickLaunchDockComponent
-         ├─ QuickLaunchGridComponent 
-         ├─ TimetablePreviewComponent
-        ├─ TimetableNowLessonComponent
-        ├─ TimetableTimelineComponent
-         ├─ CalculatorComponent
-         ├─ WritingPadComponent
-         ├─ ClassAlbumBaseComponent
-         │   ├─ ClassAlbumHorizontalComponent
-         │   └─ ClassAlbumVerticalComponent
-         ├─ StickyNoteComponent
-        ├─ CalendarMonthComponent
-        ├─ MiniCalendarComponent
-        └─ NavigationPage
+ ├─ DraggableWidget
+ │   └─ DraggableContainer
+ │       ├─ DigitalClockComponent
+ │       ├─ WeatherComponentBase
+ │       │   ├─ WeatherIconTempComponent
+ │       │   ├─ WeatherHourlyComponent
+ │       │   └─ WeatherWeeklyComponent
+ │       ├─ PoetryOneLineComponent
+ │       ├─ NewsComponent              # type() 按 _NEWS_SOURCES 生成 NewsComponent_{key} 子类
+ │       ├─ HistoryTodayComponent
+ │       ├─ CountdownEventComponent
+ │       ├─ TimerCountdownComponent
+ │       ├─ SchoolInfoComponent
+ │       ├─ MediaPlayerComponent
+ │       ├─ QuickLaunchDockComponent
+ │       ├─ QuickLaunchGridComponent
+ │       ├─ TimetablePreviewComponent
+ │       ├─ TimetableNowLessonComponent
+ │       ├─ CalculatorComponent
+ │       ├─ WritingPadComponent
+ │       ├─ ClassAlbumComponent
+ │       │   └─ ClassAlbumVerticalComponent
+ │       ├─ StickyNoteComponent
+ │       └─ CalendarMonthComponent
+ └─ _HtmlCardComponent（DraggableContainer 子类 HTML 基类）
+     ├─ _SvgClockComponent
+     │   ├─ SquareClock1Component
+     │   └─ SquareClock2Component
+     ├─ MiniCalendarComponent
+     ├─ TimetableTimelineComponent
+     ├─ HomeworkBoardComponent
+     ├─ DailyWordComponent
+     ├─ DailySentenceComponent
+     ├─ PerformanceMonitorComponent
+     └─ NetworkSpeedComponent
+
+NavigationPage（QWidget）          
 ```
 
 ### 4.2 DraggableWidget 编辑能力
 
-- **选中框**：主题色（`_cached_primary_color`，默认 `#30c361`）边框 + 同色多层发光。
+- **选中框**：主题色（`_accent_color()`，默认 `#30c361`）边框 + 同色发光。
 - **缩放柄**：右下角圆弧柄。
 - **编辑/删除按钮**：hover 区分编辑/删除配色；使用全局 `componentCardOpacity` / `componentCardRadius`。
 - **移动事件触发按钮重定位。**
@@ -205,30 +204,27 @@ QWidget
 
 ### 5.1 进入/退出
 
-`HomeInterface.isEditMode` 切换。编辑模式下：
+`HomeInterface._edit_mode_active` 切换（`_enterEditMode` / `_exitEditMode`）。编辑模式下：
 
 - 显示 `_GridOverlay` 网格背景。
-- 显示 `GuideLineOverlay` 参考线。
 - 组件显示选中框（主题色）、缩放柄、编辑/删除按钮。
 
 ### 5.2 拖拽与缩放
 
 - 拖拽：`DraggableWidget` 处理鼠标事件，按 `ResizeMode` 限制方向。
-- 吸附：基于 `GridLayoutService` 的格子坐标对齐。
-- 碰撞：`check_collision` 重叠提醒。
+- 吸附：释放时 `_snap_to_grid` 四边对齐最近网格线（见 [2.2](#22-坐标换算homeinterface)）。
+- 碰撞：`_check_pixel_collision` 像素重叠检测（见 [2.3](#23-碰撞检测homeinterface)）。
 - 缩放：**dpi**——每个组件都有缩放百分比（1\~300，1），右下角调整这个
 
 #### 缩放机制（DraggableContainer）
 
 | 成员                    | 作用                                                                                                                          |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `_dpi`               | 缩放（1\~300），由 `_init_dpi` 从存档读入，`set_dpi` 修改                      |
+| `_dpi`               | 缩放（1\~300），由 `_init_dpi` 从存档读入，拖拽缩放在 `mouseMoveEvent` 中更新                                                                 |
 | `_scaled_px(base)`    | 按 `_scale_factor` 缩放基准像素，子类字号/图标/固定尺寸/圆角统一经它换算                                                                   |
 | `apply_scale(factor)` | 子类按 factor 重应用样式；由基类在缩放变化时调用                                                                                                |
-| `_scale_layouts()`    | 遍历 `findChildren(QLayout)`，按 `_scale_factor` 等比缩放所有子布局的 `contentsMargins` 与 `spacing`；首次调用缓存基准值（`_layout_bases`），后续始终基于基准重算 |
-| `_applied_factor`     | 上次已应用到样式的缩放因子，判断是否还有未应用的差异                                                                                                  |
 | `_scale_timer`        | 拖拽缩放节流定时器                                                                                                          |
-| `_apply_scale_now()`  | 统一入口：执行 `apply_scale` + `_scale_layouts` 并同步 `_applied_factor`                                                              |
+| `_apply_scale_now()`  | 统一入口：执行 `apply_scale`，并按 `_layout_bases` 基准等比缩放全部子布局的 `contentsMargins` 与 `spacing`（首次调用缓存基准值）；`_applying_scale` 防重入 |
 
 流程：拖拽手柄 → 位移换算为 `_dpi`（1%  1\~300）→ 占位尺寸重设为 `_base_size × dpi/100` → `_scale_timer` 节流触发 `_apply_scale_now()` → 松手应用并 `save_components` 保存 `scale` 与实际尺寸。
 
@@ -303,7 +299,7 @@ def _apply_style(self):
 | `_erase_speed_timer` | `_sample_erase_speed`  | 采样擦除速度（EMA 平滑）                |
 | `_erase_loop_timer`  | `_erase_loop_tick`     | 擦除主循环                         |
 
-擦除状态按触点 tid 分组维护（`_erase_prev_pos` / `_erase_speed` / `_erase_rubber` / `_erase_trubber` / `_erase_cursors` 等）：目标直径随擦除速度变化，实际直径 `rubber` 平滑追随目标；橡皮尺寸经 `drawingScale` 适配屏幕分辨率。实际擦除用 `CompositionMode_DestinationOut`：移动画线（`RoundCap` / `RoundJoin`），原地画实心圆。
+擦除状态按触点 tid 分组维护（`_erase_prev_pos` / `_erase_speed` / `_erase_rubber` / `_erase_cursors` 等）：目标直径随擦除速度变化，实际直径 `rubber` 平滑追随目标；橡皮尺寸经 `drawingScale` 适配屏幕分辨率。实际擦除用 `CompositionMode_DestinationOut`：移动画线（`RoundCap` / `RoundJoin`），原地画实心圆。
 
 ### 6.3 定时器循环而非事件驱动
 
@@ -312,6 +308,7 @@ def _apply_style(self):
 ### 6.4 撤回与重建
 
 - `_undo_last_stroke`：`_history.pop()` → `_rebuild_buffer()`。
+- `_history` 上限 300 条。
 - `_rebuild_buffer`：按 `_history` 顺序重放所有 `draw` 笔画与 `erase` 会话。
 - `clear_all`：清空全部历史与 buffer。
 
@@ -356,7 +353,7 @@ def _apply_style(self):
 
 ### 7.5 缓存与播放控制
 
-- `_info_cache`（`OrderedDict` LRU）：以 `title_artist` 为 key 缓存详情补全结果；`clear_cache()` 清空并 `close_media()` 释放资源。
+- `_info_cache`（`OrderedDict` LRU，上限 50）：以 `title_artist` 为 key 缓存详情补全结果。
 - 播放/暂停：先立即更新图标，后台 `media_control()` 后由 `_sync_confirm_timer` 轮询 SMTC 真实状态确认，同步期间旧状态不覆盖图标（`_playing_sync_pending`）。
 - 上一首/下一首：后台 `media_next()` / `media_prev()`，随后重新完整拉取。
 - 歌词行定位带 `cfg.mediaLyricsAdvance` 提前量；浏览器源无艺术家时标题换行显示并隐藏歌词行。
@@ -464,9 +461,9 @@ class CheckinComponent(DraggableContainer):
 - 通过 `component_data["config"]` 读取独立配置。
 - **背景必须走统一方法**：`_apply_style()` 中调 `self._apply_card_style()`；若用整份样式表覆盖自身，则需把 `{self._card_bg_css()}` 拼在样式表最前面（见 [5.3 统一卡片背景](#53-统一卡片背景draggablecontainer)）。不要自行写 `background-color`。
 - 实现主题切换响应（`_apply_style` / 重载 `_onThemeChanged`）。
-- 若需随缩放，实现 `apply_scale(factor)`：内部字号/图标/固定尺寸/圆角一律用 `self._scaled_px(base)`；子布局边距/间距由基类 `_scale_layouts()` 自动等比缩放，无需手动处理。
+- 若需随缩放，实现 `apply_scale(factor)`：内部字号/图标/固定尺寸/圆角一律用 `self._scaled_px(base)`；子布局边距/间距由基类 `_apply_scale_now()` 自动等比缩放，无需手动处理。
 - 初始化与 `apply_scale` 必须同步：`_setup_ui` 中用过 `_scaled_px` 的固定尺寸（行高/列宽/图标底图等），`apply_scale` 中必须重新设置。
-- 调用 `self._set_natural_size(w, h)` 设自然尺寸，`self._size_explicitly_set = True`。
+- `resize` 到自然尺寸后置 `self._size_explicitly_set = True`。
 
 **步骤 3：绑定 class**
 

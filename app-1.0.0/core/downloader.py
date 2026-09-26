@@ -28,7 +28,7 @@ import requests
 import zipfile
 from win32com.client import Dispatch
 
-from core.constants import PACKAGE_ROOT, APP_DIR, DATA_LOG, DATA_CACHE, DATA_TEMP
+from core.constants import DATA_CACHE, DATA_TEMP
 from core.logger import logger
 from core.utils import tr
 
@@ -92,13 +92,6 @@ DOWNLOAD_SOURCES = {
     }
 }
 
-
-def get_source_name(source_key: str) -> str:
-    """下载源翻译后显示的名称"""
-    if source_key in DOWNLOAD_SOURCES:
-        return tr(DOWNLOAD_SOURCES[source_key]["name_key"])
-    return source_key
-
 DEFAULT_SOURCE = "hk"
 import threading
 _current_source = DEFAULT_SOURCE
@@ -114,13 +107,8 @@ def set_download_src(source_key):
             _current_source = DEFAULT_SOURCE
 
 
-LOGS_DIR = DATA_LOG
 CACHE_DIR = DATA_CACHE
 TEMP_DIR = DATA_TEMP
-TOOLS_DIR = os.path.join(APP_DIR, "Tools")
-UPDATE_DIR = os.path.join(PACKAGE_ROOT, "update_temp")
-
-SEVEN_ZIP_PATH = os.path.join(TOOLS_DIR, "7z.exe")
 
 DEFAULT_PHASE_ALLOCATION = {
     'download': 70,
@@ -155,16 +143,23 @@ class Downloader:
         return offsets
 
     def _update_progress(self, software_name, phase, phase_percent, allocation=None):
-        """更新进度"""
-        # 以前会有卡在70%或0% 或100%又退到70%的问题
+        """更新进度
+
+        Returns:
+            折算后的总进度百分比
+        """
         if allocation is None:
             allocation = DEFAULT_PHASE_ALLOCATION
         offsets = self._calc_phase_offsets(allocation)
         phase_alloc = allocation.get(phase, 0)
         start = offsets.get(phase, 0)
-        total = start + (phase_percent / 100.0) * phase_alloc
-        total = round(total, 1)
+        total = round(start + (phase_percent / 100.0) * phase_alloc, 1)
         self.set_progress(software_name, total)
+        return total
+
+    def reset_progress(self, software_name):
+        """清掉某软件的进度记录"""
+        self._last_progress.pop(software_name, None)
     
     def _wait_process(self, software_name, process_name, timeout=30, check_interval=1):
         if self.installer_logger:
@@ -933,13 +928,7 @@ class Downloader:
 
         def _internal_progress(p):
             try:
-                float_p = float(p)
-                self._update_progress(software_name, 'download', float_p, allocation)
-                # 总进度
-                offsets = self._calc_phase_offsets(allocation)
-                start = offsets.get('download', 0)
-                total = start + (float_p / 100.0) * allocation.get('download', 0)
-                total = round(total, 1)
+                total = self._update_progress(software_name, 'download', float(p), allocation)
             except Exception:
                 total = None
             if progress_callback:
@@ -1062,10 +1051,11 @@ class Downloader:
         
         try:
             if installer_path.endswith('.exe'):
+                # 管道内容无人读取,安装器写满缓冲后会永久阻塞,这里直接丢弃
                 process = _popen_low_priority(
                     [installer_path, '/S'],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
                     shell=False
                 )
     

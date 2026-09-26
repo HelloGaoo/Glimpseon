@@ -19,10 +19,11 @@
 """
 
 import json
+import logging
 import os
 from datetime import datetime
 
-from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QIcon
 from PyQt6.QtWidgets import QApplication, QFileDialog, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from qfluentwidgets import (
@@ -52,36 +53,17 @@ from qfluentwidgets import (
 )
 
 from core.config import cfg, default_cfg, ConfigItem, CONFIG_PATH
-from core.constants import BASE_DIR, DATA_CONFIG, load_qss, clear_qss_cache, APP_ICON, get_resPath, FONT_PRIMARY
+from core.constants import DATA_CONFIG, load_qss, clear_qss_cache, APP_ICON, get_resPath, FONT_PRIMARY
 from core.utils import _load_app_fonts, apply_fonts, tr, get_time_sync_service, get_cached_content, save_cache, FUI
 from core.logger import log_dir
 
+logger = logging.getLogger("Glimpseon.ui.settings")
 
-class LineEditSettingCard(SettingCard):
-    """LineEdit设置卡片"""
 
-    def __init__(self, configItem, icon, title, content=None, parent=None):
-        super().__init__(icon, title, content, parent)
-        self.configItem = configItem
-        self.lineEdit = LineEdit(self)
-
-        self.hBoxLayout.addWidget(self.lineEdit, 0, Qt.AlignmentFlag.AlignRight)
-        self.hBoxLayout.addSpacing(16)
-
-        value = qconfig.get(configItem)
-        self.lineEdit.setText(str(value))
-        self.lineEdit.textChanged.connect(self.__onTextChanged)
-        configItem.valueChanged.connect(self.setValue)
-
-    def __onTextChanged(self, text):
-        try:
-            value = float(text)
-            qconfig.set(self.configItem, value)
-        except ValueError:
-            pass
-
-    def setValue(self, value):
-        self.lineEdit.setText(str(value))
+def _apply_setting_qss(widget):
+    qss = load_qss('setting.qss')
+    if qss:
+        widget.setStyleSheet(qss)
 
 
 class SpinBoxSettingCard(SettingCard):
@@ -225,8 +207,6 @@ class DualButtonSettingCard(SettingCard):
         self.hBoxLayout.addWidget(container, 0, Qt.AlignmentFlag.AlignRight)
         self.hBoxLayout.addSpacing(16)
 
-
-
 class SettingsSubPage(ScrollArea):
     """设置子页面基类"""
 
@@ -255,9 +235,8 @@ class SettingsSubPage(ScrollArea):
 class GeneralPage(SettingsSubPage):
     """通用设置页面"""
 
-    def __init__(self, main_window, parent=None):
+    def __init__(self, parent=None):
         super().__init__(tr("settings.general"), parent)
-        self.main_window = main_window
 
         self.autoStartCard = SwitchSettingCard(
             FUI.PLAY,
@@ -300,9 +279,8 @@ class GeneralPage(SettingsSubPage):
 class TimePage(SettingsSubPage):
     """时间设置页面"""
 
-    def __init__(self, main_window, parent=None):
+    def __init__(self, parent=None):
         super().__init__(tr("settings.time"), parent)
-        self.main_window = main_window
 
         self.usePreciseTimeCard = SwitchSettingCard(
             FUI.DATE_TIME,
@@ -350,25 +328,18 @@ class TimePage(SettingsSubPage):
         self.vBoxLayout.addStretch()
 
         self.__connectSignalToSlot()
-        self.__initAutoSyncTimer()
 
     def __connectSignalToSlot(self):
         self.timeSyncStatusCard.syncBtn.clicked.connect(self.__onManualSync)
-        cfg.usePreciseTime.valueChanged.connect(self.__onUsePreciseTimeChanged)
+        cfg.usePreciseTime.valueChanged.connect(
+            lambda _enabled: self.__updateSyncStatus())
+        cfg.lastSyncTime.valueChanged.connect(
+            lambda _t: self.__updateSyncStatus())
         self.__updateSyncStatus()
 
-    def __initAutoSyncTimer(self):
-        self._autoSyncTimer = QTimer(self)
-        self._autoSyncTimer.setInterval(5 * 60 * 1000)
-        self._autoSyncTimer.timeout.connect(self.__onManualSync)
-        if cfg.usePreciseTime.value:
-            self._autoSyncTimer.start()
-
     def __onManualSync(self):
-        from PyQt6.QtCore import QThread, pyqtSignal
-
         class SyncWorker(QThread):
-            finished = pyqtSignal(bool, str)
+            result_ready = pyqtSignal(bool, str)
 
             def run(self):
                 service = get_time_sync_service()
@@ -378,10 +349,10 @@ class TimePage(SettingsSubPage):
                 if ok and service.last_sync_time:
                     sync_str = service.last_sync_time.strftime("%H:%M:%S")
                     cfg.lastSyncTime.value = sync_str
-                self.finished.emit(ok, sync_str)
+                self.result_ready.emit(ok, sync_str)
 
         self._sync_worker = SyncWorker()
-        self._sync_worker.finished.connect(self._onSyncFinished)
+        self._sync_worker.result_ready.connect(self._onSyncFinished)
         self.timeSyncStatusCard.syncBtn.setEnabled(False)
         self.timeSyncStatusCard.syncBtn.setText(tr("settings.precise_time_syncing"))
         self._sync_worker.start()
@@ -401,14 +372,6 @@ class TimePage(SettingsSubPage):
             service = get_time_sync_service()
             err_msg = service.last_error or tr("settings.precise_time_sync_failed")
             InfoBar.error(tr("dialog.error"), err_msg, duration=5000, parent=self)
-
-    def __onUsePreciseTimeChanged(self, enabled: bool):
-        self.__updateSyncStatus()
-        if enabled and cfg.usePreciseTime.value:
-            self.__onManualSync()
-            self._autoSyncTimer.start()
-        else:
-            self._autoSyncTimer.stop()
 
     def __updateSyncStatus(self):
         sync_time = cfg.lastSyncTime.value
@@ -432,6 +395,9 @@ class _LatLonSettingCard(SettingCard):
             edit.setText(str(qconfig.get(item)))
             edit.textChanged.connect(
                 lambda text, it=item: self._apply(it, text))
+            # 导配置/向导几何编码/选城都会写这两个值,不反向同步会一直显示旧坐标
+            item.valueChanged.connect(
+                lambda value, e=edit: e.setText(str(value)))
 
         box = QHBoxLayout()
         box.setSpacing(8)
@@ -481,11 +447,11 @@ class _WeatherMetricCard(CardWidget):
         self.titleLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.dash = _DashSeparator(self)
-        self.dash_layout = QHBoxLayout()
-        self.dash_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.dash_layout.addWidget(self.dash)
+        dash_layout = QHBoxLayout()
+        dash_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        dash_layout.addWidget(self.dash)
         dash_host = QWidget(self)
-        dash_host.setLayout(self.dash_layout)
+        dash_host.setLayout(dash_layout)
 
         self.valueLabel = StrongBodyLabel("--", self)
         self.valueLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -514,9 +480,8 @@ class _WeatherFetchWorker(QThread):
 class WeatherPage(SettingsSubPage):
     """天气设置页面"""
 
-    def __init__(self, main_window, parent=None):
+    def __init__(self, parent=None):
         super().__init__(tr("settings.weather"), parent)
-        self.main_window = main_window
         self._worker = None
         self._icon_name = "2.svg"
 
@@ -528,7 +493,7 @@ class WeatherPage(SettingsSubPage):
         self._apply_theme_text()
         self._load_cached()
 
-        cfg.themeChanged.connect(self._on_theme_changed)
+        cfg.themeChanged.connect(lambda _theme: self._apply_theme_text())
         self.vBoxLayout.addStretch()
 
     # 顶部
@@ -712,9 +677,6 @@ class WeatherPage(SettingsSubPage):
             card.dash.update()
         self._render_icon()
 
-    def _on_theme_changed(self, theme):
-        self._apply_theme_text()
-
     # 数据
 
     def _load_cached(self):
@@ -854,9 +816,8 @@ class WeatherPage(SettingsSubPage):
 class AppearancePage(SettingsSubPage):
     """外观设置页面"""
 
-    def __init__(self, main_window, parent=None):
+    def __init__(self, parent=None):
         super().__init__(tr("settings.appearance"), parent)
-        self.main_window = main_window
 
         self.themeCard = ComboBoxSettingCard(
             cfg.themeMode,
@@ -895,9 +856,7 @@ class AppearancePage(SettingsSubPage):
         cfg.appRestartSig.connect(self.__showRestartTooltip)
 
     def __onThemeChanged(self, theme: Theme):
-        qss = load_qss('setting.qss')
-        if qss:
-            self.setStyleSheet(qss)
+        _apply_setting_qss(self)
 
     def __showRestartTooltip(self):
         InfoBar.warning(
@@ -911,9 +870,8 @@ class AppearancePage(SettingsSubPage):
 class LogPage(SettingsSubPage):
     """日志设置页面"""
 
-    def __init__(self, main_window, parent=None):
+    def __init__(self, parent=None):
         super().__init__(tr("settings.log"), parent)
-        self.main_window = main_window
 
         self.disableLogCard = SwitchSettingCard(
             FUI.CLOSE,
@@ -995,13 +953,17 @@ class LogPage(SettingsSubPage):
                     log_files.sort()
                     current_log_file = log_files[-1][1] if log_files else None
                     deleted_count = 0
+                    failed_count = 0
                     for file in os.listdir(log_dir):
                         if file.endswith(".log") and file != current_log_file:
                             try:
                                 os.remove(os.path.join(log_dir, file))
                                 deleted_count += 1
-                            except Exception:
-                                pass
+                            except OSError as e:
+                                failed_count += 1
+                                logger.warning(f"删除日志失败 {file}: {e}")
+                    if failed_count:
+                        logger.warning(f"日志清理: 成功 {deleted_count} 个, 失败 {failed_count} 个")
                     if deleted_count > 0:
                         InfoBar.success(
                             tr("wizard.success_title"),
@@ -1121,18 +1083,7 @@ class AdvancedPage(SettingsSubPage):
                 default_config = default_cfg()
                 with open(config_path, "w", encoding="utf-8") as f:
                     json.dump(default_config, f, ensure_ascii=False, indent=4)
-                lang_item = cfg.language
-                reconnected = False
-                try:
-                    lang_item.valueChanged.disconnect(self.main_window._onLanguageConfigChanged)
-                    reconnected = True
-                except TypeError:
-                    pass
-                try:
-                    qconfig.load(config_path, cfg)
-                finally:
-                    if reconnected:
-                        lang_item.valueChanged.connect(self.main_window._onLanguageConfigChanged)
+                qconfig.load(config_path, cfg)
                 self._refreshAllConfigUI()
                 InfoBar.success(
                     tr("wizard.success_title"),
@@ -1248,15 +1199,27 @@ class AdvancedPage(SettingsSubPage):
             )
 
     def _refreshAllConfigUI(self):
-        """刷新"""
-        for attr_name in dir(cfg):
-            if not attr_name.startswith("_"):
+        """把各配置项当前值广播给界面控件"""
+        # 语言项变更会弹"需重启"提示;重置/导入只是刷新显示,广播期间临时断开
+        lang_item = cfg.language
+        lang_handler = getattr(self.main_window, '_onLanguageConfigChanged', None)
+        detached = False
+        if lang_handler is not None:
+            try:
+                lang_item.valueChanged.disconnect(lang_handler)
+                detached = True
+            except TypeError:
+                pass
+        try:
+            for attr_name in dir(cfg):
+                if attr_name.startswith("_"):
+                    continue
                 attr = getattr(cfg, attr_name)
-                if isinstance(attr, ConfigItem) and hasattr(attr, "valueChanged"):
+                if isinstance(attr, ConfigItem):
                     attr.valueChanged.emit(attr.value)
-
-        mw = self.main_window
-        mw.refresh_quick_launch()
+        finally:
+            if detached:
+                lang_item.valueChanged.connect(lang_handler)
 
         app = QApplication.instance()
         if app:
@@ -1390,9 +1353,8 @@ class _CornerRadiusPreviewWidget(QWidget):
 class GridPage(SettingsSubPage):
     """网格设置页面"""
 
-    def __init__(self, main_window, parent=None):
+    def __init__(self, parent=None):
         super().__init__(tr("settings.grid.title"), parent)
-        self.main_window = main_window
 
         # 网格预览 卡片预览
         self.gridPreviewWidget = _GridPreviewWidget(self.scrollWidget)
@@ -1497,31 +1459,28 @@ class SettingsWindow(FluentWindow):
         self._applyTheme()
 
         # 显示在屏幕中央
-        self._centerOnScreen()
-
-    def _centerOnScreen(self):
         screen = QApplication.primaryScreen()
         if screen:
             center = screen.availableGeometry().center()
             self.move(center.x() - self.width() // 2, center.y() - self.height() // 2)
 
     def _initPages(self):
-        self.generalPage = GeneralPage(self.main_window, self)
+        self.generalPage = GeneralPage(self)
         self.generalPage.setObjectName("generalPage")
 
-        self.logPage = LogPage(self.main_window, self)
+        self.logPage = LogPage(self)
         self.logPage.setObjectName("logPage")
 
-        self.timePage = TimePage(self.main_window, self)
+        self.timePage = TimePage(self)
         self.timePage.setObjectName("timePage")
 
-        self.appearancePage = AppearancePage(self.main_window, self)
+        self.appearancePage = AppearancePage(self)
         self.appearancePage.setObjectName("appearancePage")
 
-        self.weatherPage = WeatherPage(self.main_window, self)
+        self.weatherPage = WeatherPage(self)
         self.weatherPage.setObjectName("weatherPage")
 
-        self.gridPage = GridPage(self.main_window, self)
+        self.gridPage = GridPage(self)
         self.gridPage.setObjectName("gridPage")
 
         self.advancedPage = AdvancedPage(self.main_window, self)
@@ -1546,11 +1505,7 @@ class SettingsWindow(FluentWindow):
             theme = Theme.DARK if isDarkTheme() else Theme.LIGHT
         if theme != cfg.theme:
             setTheme(theme)
-        qss = load_qss('setting.qss')
-        if qss:
-            self.setStyleSheet(qss)
+        _apply_setting_qss(self)
 
     def closeEvent(self, event):
-        if hasattr(self, '_autoSyncTimer'):
-            self._autoSyncTimer.stop()
         event.accept()

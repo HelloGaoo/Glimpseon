@@ -40,7 +40,6 @@ from core.constants import APP_NAME
 ensure_data_dirs()
 
 log_dir = DATA_LOG
-if not os.path.exists(log_dir): os.makedirs(log_dir)
 
 DEFAULT_LOG_LEVEL = logging.INFO
 LOG_FORMAT = '%(precise_time)s|%(levelname)s|%(caller_info)s|%(module)s:%(lineno)d|%(message)s'
@@ -173,8 +172,8 @@ class Logger:
             if not file.endswith('.log') or file.endswith('.zip'): continue
             file_path = os.path.join(log_dir, file)
             if not _safe_call(lambda: os.path.isfile(file_path)): continue
-            mtime = _safe_call(lambda: os.path.getmtime(file_path))
-            if mtime is None: continue
+            mtime = _safe_call(lambda: os.path.getmtime(file_path), default=None)
+            if not mtime: continue
             age_hours = (datetime.now().timestamp() - mtime) / 3600
             if age_hours > 24:
                 zip_path = file_path + '.zip'
@@ -218,10 +217,7 @@ class Logger:
         self.file_handler.setLevel(log_level)
         self.console_handler = logging.StreamHandler()
         self.console_handler.setLevel(log_level)
-        formatter = logging.Formatter(
-            LOG_FORMAT,
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
+        formatter = logging.Formatter(LOG_FORMAT)
         self.file_handler.setFormatter(formatter)
         self.console_handler.setFormatter(formatter)
         self.logger.addHandler(self.file_handler)

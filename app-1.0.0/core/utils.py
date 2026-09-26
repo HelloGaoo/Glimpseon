@@ -35,16 +35,12 @@ from typing import Any, Dict, List, Optional
 
 from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QFont, QFontDatabase
-from PyQt6.QtWidgets import QApplication, QWidget
+from PyQt6.QtWidgets import QApplication
 from qfluentwidgets import setFontFamilies
 
 from core.constants import PACKAGE_ROOT, APP_DIR, MEIPASS_DIR, DATA_CACHE, get_resPath, APP_NAME
 from core.config import cfg, save_cfg
 from core.logger import logger
-
-kernel32 = ctypes.windll.kernel32
-ERROR_ALREADY_EXISTS = 183
-MutexHandle = wintypes.HANDLE
 
 
 class SingleInstanceManager:
@@ -296,10 +292,6 @@ def resolve_font_family() -> str:
         if "HarmonyOS" in family or "Harmony" in family:
             return family
 
-    for family in FONT_FAMILY_CANDIDATES:
-        if family in available_families and family not in {"sans-serif"}:
-            return family
-
     return "Microsoft YaHei UI"
 
 
@@ -351,10 +343,7 @@ def initialize_fonts(app: QApplication, install_to_system: bool = True):
     logger.info("字体初始化完成")
 
 
-CACHE_DIR = "data/cache"
-
-INTERVAL_MAP = {
-    "从不": 0,
+INTERVAL_MAP = {    "从不": 0,
     "5 分钟": 300,
     "10 分钟": 600,
     "15 分钟": 900,
@@ -467,27 +456,6 @@ def get_cached_content(cache_name: str, ignore_expiry: bool = False) -> Optional
     if cache_data:
         return cache_data.get("content")
     return None
-
-
-def clear_cache(cache_name: str):
-    cache_path = get_cache_path(cache_name)
-    if os.path.exists(cache_path):
-        try:
-            os.remove(cache_path)
-            logger.info(f"缓存已清除: {cache_name}")
-        except Exception as e:
-            logger.error(f"清除缓存失败 {cache_name}: {e}")
-
-
-def clear_all_cache():
-    cache_dir = get_cache_dir()
-    for filename in os.listdir(cache_dir):
-        if filename.endswith('.json'):
-            try:
-                os.remove(os.path.join(cache_dir, filename))
-                logger.info(f"缓存已删除: {filename}")
-            except Exception as e:
-                logger.error(f"删除缓存失败 {filename}: {e}")
 
 
 def extract_files():
@@ -623,15 +591,6 @@ def sync_autostart_cfg():
 def auto_start_launch():
     return '--autostart' in sys.argv or '/autostart' in sys.argv
 
-
-
-
-
-
-
-
-
-
 _i18n_logger = logging.getLogger("Glimpseon.core.i18n")
 class LanguageCode(Enum):
     ZH_CN = "zh_CN"
@@ -663,9 +622,6 @@ class TranslationManager(QObject):
                     _i18n_logger.error(f"Failed to load translation {lang_code.value}: {e}")
             else:
                 _i18n_logger.warning(f"Translation file not found: {file_path}")
-
-    def get_available_languages(self) -> List[str]:
-        return [lang.value for lang in LanguageCode]
 
     def set_language(self, language_code: str) -> bool:
         if language_code not in [lang.value for lang in LanguageCode]:
@@ -713,8 +669,6 @@ def tr(key: str, **kwargs) -> str:
 # 精确时间同步
 
 _NTP_PORT = 123
-_NTP_VERSION = 3
-_NTP_MODE_CLIENT = 3
 _NTP_PACKET_FORMAT = "!II"
 _NTP_DELTA = 2208988800  # 1900-01-01 到 1970-01-01 的秒数
 _NTP_TIMEOUT = 5
@@ -838,14 +792,8 @@ def precise_now() -> datetime:
 
 def precise_time_str() -> str:
     """基准时间字符串"""
-    now = precise_now()
-    if cfg.usePreciseTime.value:
-        try:
-            service = get_time_sync_service()
-            now = service.get_precise_now()
-        except Exception:
-            pass
-    return now.strftime('%Y-%m-%d %H:%M:%S')
+    # precise_now 已含 NTP 偏移与 timeOffset;另取 get_precise_now 会丢掉 timeOffset
+    return precise_now().strftime('%Y-%m-%d %H:%M:%S')
 
 
 # Mixin
@@ -854,8 +802,6 @@ class TranslatableWidget:
     def setup_translatable_ui(self):
         pass
 
-
-
 # FluentUI System Icons 
 from qfluentwidgets.common.icon import FluentIconBase, Theme, getIconColor
 from PyQt6.QtGui import QIcon
@@ -863,11 +809,10 @@ from PyQt6.QtGui import QIcon
 
 class _FluentUIIconInstance(FluentIconBase):
     """FluentUI 图标载体类"""
-    
+
     def __init__(self, icon_name: str):
-        """Parameters"""
         self._icon_name = icon_name
-    
+
     def path(self, theme=Theme.AUTO) -> str:
         """获取SVG 路径"""
         # qfluentwidgets 的 getIconColor 函数获取主题色
@@ -883,14 +828,10 @@ class _FluentUIIconInstance(FluentIconBase):
 
         svg_path_32 = os.path.join(APP_DIR, "resource", "fluent", theme_dir, icon_filename_32)
         svg_path_24 = os.path.join(APP_DIR, "resource", "fluent", theme_dir, icon_filename_24)
-        
+
         if os.path.exists(svg_path_32):
             return svg_path_32
-        elif os.path.exists(svg_path_24):
-            return svg_path_24
-        else:
-            # logger.warning(f"FluentUI 图标文件不存在: {svg_path_24}")
-            return svg_path_24
+        return svg_path_24
     
     def __repr__(self) -> str:
         return f"<FluentUIIcon: {self._icon_name}>"
@@ -1027,4 +968,3 @@ class _FluentUIIconNamespace:
 FUI = _FluentUIIconNamespace()
 
 # 别名
-FluentUIIcon = FUI

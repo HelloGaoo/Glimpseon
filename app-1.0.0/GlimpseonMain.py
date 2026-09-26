@@ -23,12 +23,12 @@ import logging
 import os
 import platform
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, wait
-import win32gui
 import win32con
 
-from PyQt6.QtCore import QEvent, QLocale, Qt, QThread, QTime, QTimer, QTranslator, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QEvent, QLocale, Qt, QThread, QTime, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QIcon, QPixmap, QFont
 from PyQt6.QtWidgets import QApplication, QHBoxLayout, QLabel, QSizePolicy, QSystemTrayIcon, QVBoxLayout, QWidget
 from qfluentwidgets import (
@@ -48,8 +48,13 @@ from qfluentwidgets import (
     Theme,
     isDarkTheme,
 )
-from qfluentwidgets.common.style_sheet import updateStyleSheet
 from pycaw.pycaw import AudioUtilities
+from qfluentwidgets.common.style_sheet import updateStyleSheet
+from qfluentwidgets.common.style_sheet import updateStyleSheet
+from qfluentwidgets.common.style_sheet import updateStyleSheet
+from qfluentwidgets.common.style_sheet import updateStyleSheet
+from qfluentwidgets.common.style_sheet import updateStyleSheet
+from qfluentwidgets.common.style_sheet import updateStyleSheet
 
 from core.config import cfg, save_cfg, Language
 from core.constants import APP_NAME, APP_ICON, APP_DIR, BASE_DIR, DATA_CONFIG, WALLPAPER_DIR, get_resPath, load_qss, clear_qss_cache, ensure_data_dirs, VERSION, FONT_PRIMARY, FONT_FAMILY
@@ -71,6 +76,7 @@ from core.utils import (
     auto_start_launch,
     tr,
     get_translation_manager,
+    get_time_sync_service,
     LanguageCode,
     TranslatableWidget,
     FUI,
@@ -82,7 +88,6 @@ from ui.home import HomeInterface
 from ui.debug import DebugPanel
 from ui.timetable import TimetablePage
 from ui.wallpaper import WallpaperInterface
-from resource.url_dir import url_dir
 
 if ctypes.sizeof(ctypes.c_void_p) == 8:
     _WPARAM = ctypes.c_uint64
@@ -171,10 +176,9 @@ class SplashScreen(QWidget, TranslatableWidget):
 
     def _loadResourcesAsync(self):
         self._loadIcon()
-        self._loadQss()
+        self.setStyleSheet(load_qss('app.qss'))
 
     def _initUI(self):
-        """初始化 UI"""
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setFixedSize(360, 160)
@@ -205,7 +209,7 @@ class SplashScreen(QWidget, TranslatableWidget):
         header_layout.addLayout(title_layout)
         header_layout.addStretch()
         content_layout.addLayout(header_layout)
-        self.status_label = BodyLabel(tr("splash.initializing"))  # 正在初始化...
+        self.status_label = BodyLabel(tr("splash.initializing"))  # 正在初始化
         self.status_label.setObjectName("statusLabel")
         content_layout.addWidget(self.status_label)
         content_layout.addStretch(1)
@@ -220,26 +224,23 @@ class SplashScreen(QWidget, TranslatableWidget):
         content_layout.addWidget(self.progress_bar)
         self.centerOnScreen()
 
-    def _loadQss(self):
-        """加载 QSS"""
-        self.setStyleSheet(load_qss('app.qss'))
-
     def _loadIcon(self):
         """加载图标"""
-        logger.info(f"[Splash] icon_path={self.icon_path}, exists={os.path.exists(self.icon_path) if self.icon_path else 'N/A'}")
+        logger.info(f"icon_path={self.icon_path}, exists={os.path.exists(self.icon_path) if self.icon_path else 'N/A'}")
         if self.icon_path and os.path.exists(self.icon_path):
             pixmap = QPixmap(self.icon_path)
             if pixmap.isNull():
-                logger.warning(f"[Splash] 图标加载失败: {self.icon_path}")
+                logger.warning(f"图标加载失败: {self.icon_path}")
             else:
                 self.icon_label.setPixmap(pixmap.scaled(
                     64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
                 ))
         else:
-            logger.warning(f"[Splash] 图标文件: {self.icon_path}")
-            
+            logger.warning(f"图标文件不存在: {self.icon_path}")
+
+
     def centerOnScreen(self):
-        """将窗口居中显示"""
+        """窗口居中"""
         screen = QApplication.primaryScreen()
         if screen:
             screen_rect = screen.availableGeometry()
@@ -274,10 +275,6 @@ class SplashScreen(QWidget, TranslatableWidget):
             self._anim_timer.stop()
 
     def waitForProgress(self, target: int = 100, timeout: float = 3.0):
-        # try:
-        # target = int(max(0, min(100, target)))
-        # except Exception:
-        #     target = 100
         end = time.time() + float(timeout)
         while time.time() < end and self._current_progress < target:
             QApplication.processEvents()
@@ -287,20 +284,17 @@ class SplashScreen(QWidget, TranslatableWidget):
         pass
 
 
-# WizardWindow 向导窗口
 import win32com.client
 from pathlib import Path
 from PyQt6.QtCore import QByteArray, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import QVBoxLayout, QDialog, QStackedWidget, QGraphicsOpacityEffect
+from PyQt6.QtWidgets import QDialog, QStackedWidget, QGraphicsOpacityEffect
 from qfluentwidgets import (
-    BodyLabel,
     CheckBox,
     ComboBoxSettingCard,
     CustomColorSettingCard,
     PrimaryPushButton,
     PushButton,
-    StrongBodyLabel,
     SwitchSettingCard,
     LineEdit,
     ToolButton,
@@ -342,7 +336,7 @@ class WizardWindow(QDialog, TranslatableWidget):
 
         self.__setQss()
 
-        # 第 1 页：欢迎页面
+        # 1
         self.page1 = QWidget()
         self.page1Layout = QVBoxLayout(self.page1)
         self.page1Layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -373,7 +367,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         self.page1Layout.addLayout(self.headerLayout)
         self.page1Layout.addWidget(self.nextButton, 0, Qt.AlignmentFlag.AlignCenter)
 
-        # 第 2 页：软件使用协议
+        # 2
         self.page2 = QWidget()
         self.page2Layout = QVBoxLayout(self.page2)
         self.page2Layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignCenter)
@@ -423,7 +417,11 @@ class WizardWindow(QDialog, TranslatableWidget):
                 uri = ""
             theme_color = cfg.themeColor.value.name()
             link_style = f'color:{theme_color}; text-decoration:underline;'
-            lbl.setText(f'<span style="font-family: {FONT_FAMILY}; font-size:16px;">{tr("wizard.agreement_check")}&nbsp;<a href="{uri}" style="{link_style}">{link_text}</a></span>')  # 我已阅读并同意
+            if uri:
+                lbl.setText(f'<span style="font-family: {FONT_FAMILY}; font-size:16px;">{tr("wizard.agreement_check")}&nbsp;<a href="{uri}" style="{link_style}">{link_text}</a></span>')
+            else:
+                # 无有效目标文件时不渲染链接,避免点击必报错
+                lbl.setText(f'<span style="font-family: {FONT_FAMILY}; font-size:16px;">{tr("wizard.agreement_check")}&nbsp;{link_text}</span>')
             lbl.setOpenExternalLinks(False)
 
             def _on_link_activated(url):
@@ -484,7 +482,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         self.stackedWidget.addWidget(self.page1)
         self.stackedWidget.addWidget(self.page2)
 
-        # 第 3 页：基本设置
+        #3
         self.page3 = QWidget()
         self.page3Layout = QVBoxLayout(self.page3)
         self.page3Layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignCenter)
@@ -558,7 +556,7 @@ class WizardWindow(QDialog, TranslatableWidget):
 
         self.stackedWidget.addWidget(self.page3)
 
-        # 第 4 页：外观设置
+        # 4
         self.page4 = QWidget()
         self.page4Layout = QVBoxLayout(self.page4)
         self.page4Layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignCenter)
@@ -621,7 +619,7 @@ class WizardWindow(QDialog, TranslatableWidget):
 
         self.stackedWidget.addWidget(self.page4)
 
-        # 第 5 页：学校信息设置
+        # 5
         self.page5 = QWidget()
         self.page5Layout = QVBoxLayout(self.page5)
         self.page5Layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignCenter)
@@ -669,8 +667,6 @@ class WizardWindow(QDialog, TranslatableWidget):
         city_label.setFixedWidth(120)
         city_row_layout.addWidget(city_label)
 
-        # self.cityDisplayButton = PushButton(cfg.city.value, self.page5)
-        # self.cityDisplayButton.setFixedWidth(400)
         self.cityDisplayButton = PushButton(self.page5)
         _city = cfg.city.value
         if not _city or _city in ("点击选择", "Click to select", "點據選擇"):
@@ -764,13 +760,13 @@ class WizardWindow(QDialog, TranslatableWidget):
 
         self.stackedWidget.addWidget(self.page5)
 
-        self.nextButton.clicked.connect(self._onNextClicked)
-        self.agreeButton.clicked.connect(self._onAgreeClicked)
+        self.nextButton.clicked.connect(lambda: self._setCurrentIndexAnimated(1))
+        self.agreeButton.clicked.connect(lambda: self._setCurrentIndexAnimated(2))
         self.openSourceCheckBox.stateChanged.connect(self._onCheckBoxChanged)
         self.userAgreementCheckBox.stateChanged.connect(self._onCheckBoxChanged)
         self.privacyCheckBox.stateChanged.connect(self._onCheckBoxChanged)
         self.finishButton.clicked.connect(self._onFinishClicked)
-        self.finishButton2.clicked.connect(self._onFinishClicked2)
+        self.finishButton2.clicked.connect(lambda: self._setCurrentIndexAnimated(4))
         self.finishButton3.clicked.connect(self._onFinishClicked3)
         self.themeColorCard.colorChanged.connect(self._onColorChanged)
 
@@ -789,9 +785,6 @@ class WizardWindow(QDialog, TranslatableWidget):
             event.accept()
         else:
             event.ignore()
-
-    def _onNextClicked(self):
-        self._setCurrentIndexAnimated(1)
 
     def _setCurrentIndexAnimated(self, index, duration=300):
         effect = self.stackedWidget.graphicsEffect()
@@ -813,11 +806,9 @@ class WizardWindow(QDialog, TranslatableWidget):
             anim2.setStartValue(0.0)
             anim2.setEndValue(1.0)
             anim2.setEasingCurve(QEasingCurve.Type.InOutQuad)
-            self._current_animation = anim2
             anim2.start()
 
         anim.finished.connect(_after_fade_out)
-        self._current_animation = anim
         anim.start()
 
     def _onCheckBoxChanged(self, state):
@@ -825,9 +816,6 @@ class WizardWindow(QDialog, TranslatableWidget):
                       self.userAgreementCheckBox.isChecked() and
                       self.privacyCheckBox.isChecked())
         self.agreeButton.setEnabled(all_checked)
-
-    def _onAgreeClicked(self):
-        self._setCurrentIndexAnimated(2)
 
     def _onFinishClicked(self):
         cfg.autoStart.value = self.autoStartSwitch.isChecked()
@@ -839,18 +827,15 @@ class WizardWindow(QDialog, TranslatableWidget):
 
         self._setCurrentIndexAnimated(3)
 
-    def _onFinishClicked2(self):
-        self._setCurrentIndexAnimated(4)
-
     def _onFinishClicked3(self):
-        """保存学校信息设置并完成向导"""
+        """保存学校信息完成向导"""
         from services.weather import RegionDatabase
-        
+
         city = self.cityDisplayButton.text()
         cfg.city.value = city
         cfg.school.value = self.schoolLineEdit.text().strip()
         cfg.schoolClass.value = self.classLineEdit.text().strip()
-        
+
         # 获取经纬度
         db = RegionDatabase()
         lon, lat = db.get_coordinates(city)
@@ -858,12 +843,12 @@ class WizardWindow(QDialog, TranslatableWidget):
             cfg.longitude.value = lon
             cfg.latitude.value = lat
             logger.info(f"向导：城市={city}, 经纬度=({lon}, {lat})")
-        
+
         complete_wizard()
         self.accept()
 
     def _onCityButtonClicked(self):
-        """打开城市选择对话框"""
+        """打开城市选择"""
         dialog = RegionSelectorDialog(self)
         if dialog.exec():
             selected_city = dialog.get_selected_region()
@@ -871,7 +856,7 @@ class WizardWindow(QDialog, TranslatableWidget):
                 self.cityDisplayButton.setText(selected_city)
 
     def _onCountdownConfigClicked(self):
-        """打开倒计时添加对话框"""
+        """打开倒计时添加"""
         try:
             from ui.home import CountdownEditDialog
             dialog = CountdownEditDialog(self)
@@ -909,11 +894,6 @@ class WizardWindow(QDialog, TranslatableWidget):
             desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
             shortcut_path = os.path.join(desktop_path, "Glimpseon.lnk")
 
-            # if getattr(sys, 'frozen', False):
-            #     exe_path = sys.executable
-            # else:
-            #     exe_path = sys.executable
-            #     pass
             exe_path = sys.executable
 
             shell = win32com.client.Dispatch('WScript.Shell')
@@ -939,31 +919,12 @@ class WizardWindow(QDialog, TranslatableWidget):
                 duration=5000
             )  # 提示 / 创建快捷方式失败：{error}
 
-    def _onThemeChanged(self, index):
-        """主题变更"""
-        from core.utils import apply_theme
-        apply_theme(cfg.themeMode.value)
-        self.__setQss()
-        def update_widget_style(widget):
-            widget.style().unpolish(widget)
-            widget.style().polish(widget)
-            widget.update()
-            for child in widget.children():
-                if hasattr(child, 'style'):
-                    update_widget_style(child)
-
-        update_widget_style(self)
-
     def _onColorChanged(self, color):
         """颜色变更"""
         try:
             setThemeColor(color)
         except Exception:
-            theme_color = cfg.themeColor.value
-            try:
-                setThemeColor(theme_color)
-            except Exception:
-                pass
+            logger.warning("主题色应用失败")
 
     def __setQss(self):
         self.setStyleSheet(load_qss('app.qss'))
@@ -974,10 +935,6 @@ class MainWindow(FluentWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(APP_NAME)
-        # self.setWindowFlags(self.windowFlags() | Qt.WindowType.FramelessWindowHint)
-        # self.setSystemTitleBarButtonVisible(False)
-        # self.updateFrameless()
-
         setTheme(cfg.themeMode.value)
 
         icon_path = get_resPath(APP_ICON)
@@ -985,8 +942,6 @@ class MainWindow(FluentWindow):
             self.setWindowIcon(QIcon(icon_path))
         else:
             logger.warning("窗口图标文件不存在")
-
-        self.isEditMode = False
 
         _t_i18n = time.time()
         self._initTranslation()
@@ -997,10 +952,6 @@ class MainWindow(FluentWindow):
         logger.info(f"_initNavigation 导航 总耗时{time.time()-_t_nav:.2f}s")
 
         self._normal_size = (1050, 750)
-        self._is_maximized = False
-        self._resize_timer = QTimer(self)
-        self._resize_timer.setSingleShot(True)
-        # self._resize_timer.timeout.connect(self._checkWindowSize)
         self.resize(*self._normal_size)
         self.setMinimumSize(*self._normal_size)
         if not self._loadWindowPosition():
@@ -1014,30 +965,22 @@ class MainWindow(FluentWindow):
         cfg.autoStart.valueChanged.connect(lambda value: set_autostart(value))
 
         self._initIdleDetection()
+        self._initTimeSync()
         self._initThemeConnections()
         self._initSystemThemeMonitor()
 
-        self.navigationInterface.installEventFilter(self)
-
         logger.info("主窗口初始化完成")
 
-        # _t_i18n = time.time()
-        # self._initTranslation()
-        # logger.info(f"翻译系统初始化 耗时{time.time()-_t_i18n:.2f}s")
- 
     def disable_menu_button(self):
         """禁用系统菜单中的 还原/移动/大小 选项"""
         try:
             hwnd = int(self.winId())
             hMenu = ctypes.windll.user32.GetSystemMenu(hwnd, False)
             if hMenu:
-                # 灰化还原 (SC_RESTORE)
                 ctypes.windll.user32.EnableMenuItem(hMenu, 0xF120,
                                                     win32con.MF_BYCOMMAND | win32con.MF_GRAYED)
-                # 灰化移动 (SC_MOVE)
                 ctypes.windll.user32.EnableMenuItem(hMenu, 0xF010,
                                                     win32con.MF_BYCOMMAND | win32con.MF_GRAYED)
-                # 灰化大小 (SC_SIZE)
                 ctypes.windll.user32.EnableMenuItem(hMenu, 0xF000,
                                                     win32con.MF_BYCOMMAND | win32con.MF_GRAYED)
         except Exception:
@@ -1049,17 +992,16 @@ class MainWindow(FluentWindow):
         if not hasattr(self, '_menu_disabled'):
             self._menu_disabled = True
             QTimer.singleShot(100, self.disable_menu_button)
-        # 启动期原生窗口可能被重建
         QTimer.singleShot(0, self._restore_window_effects)
 
     def _restore_window_effects(self):
-        """重新应用 DWM 窗口动画和阴影效果"""
+        """重新应用 DWM和阴影"""
         try:
             self.windowEffect.addWindowAnimation(self.winId())
             self.windowEffect.addShadowEffect(self.winId())
         except Exception:
             logger.exception("恢复窗口动画/阴影失败")
-            
+
     def _initNavigation(self):
         """初始化导航"""
         _t = time.time()
@@ -1094,7 +1036,7 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.downloadInterface, FUI.DOWNLOAD, tr("navigation.download"))  # 软件下载
 
         def _populateDownload():
-            """填充软件下载界面"""
+            """填充软件下载"""
             for category in SOFTWARE_CATEGORIES:
                 self.downloadInterface.addSection(tr(category["name_key"]))
                 for software in category["software"]:
@@ -1104,7 +1046,7 @@ class MainWindow(FluentWindow):
             self.downloadInterface._onDataPopulated()
         QTimer.singleShot(0, _populateDownload)
         logger.info(f"DownloadInterface 耗时{time.time()-_t:.2f}s")
-        
+
         _t = time.time()
         self.aboutInterface = AboutInterface(parent=self)
         self.addSubInterface(self.aboutInterface, FUI.INFO, tr("navigation.about"), NavigationItemPosition.BOTTOM)  # 关于
@@ -1121,17 +1063,35 @@ class MainWindow(FluentWindow):
         """初始化空闲检测"""
         self.idleTimer = QTimer(self)
         self.idleTimer.timeout.connect(self._checkIdle)
-        self.lastMouseActivity = QTime.currentTime()
-        self.lastKeyboardActivity = QTime.currentTime()
-        self._minimized_flag = False
         self.idleCheckInterval = 10000
         self.hasTriggeredAutoOpen = False
-        self.isVideoPlaying = False
         self.maxMinimizeNotifications = 5
         cfg.autoOpenOnIdle.valueChanged.connect(self._updateIdleTimer)
         cfg.idleMinutes.valueChanged.connect(self._updateIdleTimer)
         self._updateIdleTimer()
         self._installGlobalHooks()
+
+    def _initTimeSync(self):
+        """NTP 周期同步"""
+        self._ntp_timer = QTimer(self)
+        self._ntp_timer.timeout.connect(self._syncNtpBackground)
+        self._ntp_timer.start(5 * 60 * 1000)
+        if cfg.usePreciseTime.value:
+            self._syncNtpBackground()
+
+    def _syncNtpBackground(self):
+        """同步 写回"""
+        if not cfg.usePreciseTime.value:
+            return
+        def _do_sync():
+            try:
+                service = get_time_sync_service()
+                if service.sync(cfg.timeServer.value) and service.last_sync_time:
+                    cfg.lastSyncTime.value = service.last_sync_time.strftime("%H:%M:%S")
+                    logger.info(f"[NTP] 同步成功 偏移 {service.offset.total_seconds():+.3f}s")
+            except Exception as e:
+                logger.warning(f"[NTP] 后台同步失败: {e}")
+        threading.Thread(target=_do_sync, daemon=True, name="ntp-sync").start()
 
     def _initThemeConnections(self):
         """初始化主题连接"""
@@ -1160,14 +1120,9 @@ class MainWindow(FluentWindow):
             self._themeCheckTimer.start()
             self._checkSystemTheme()
         else:
+            # 库内 qconfig.set 已写入 theme 并 emit 过 themeChanged,这里只重刷样式
             self._themeCheckTimer.stop()
-            if mode == Theme.DARK:
-                cfg.theme = Theme.DARK
-            else:
-                cfg.theme = Theme.LIGHT
-            setTheme(cfg.theme)
-
-        cfg.themeChanged.emit(cfg.theme)
+            setTheme(mode)
 
     def _checkSystemTheme(self):
         """检查系统主题变更"""
@@ -1180,14 +1135,13 @@ class MainWindow(FluentWindow):
                 logger.info(f"系统主题已变更: {cfg.theme} → {current_theme}")
                 clear_qss_cache()
                 cfg.theme = current_theme
-                setTheme(current_theme)
+                updateStyleSheet()
                 cfg.themeChanged.emit(cfg.theme)
         except Exception as e:
             logger.warning(f"检查系统主题出错: {e}")
 
     def _onDebugModeChanged(self, value):
         """调试模式变更"""
-        self.debugNavItem.setVisible(value)
         self.debugNavItem.setVisible(value)
         if not value and self.stackedWidget.currentWidget() == self.debugPanel:
             self.switchTo(self.homeInterface)
@@ -1232,7 +1186,6 @@ class MainWindow(FluentWindow):
 
     def _onLanguageConfigChanged(self, new_language):
         """语言切换回调重启提示"""
-        from qfluentwidgets import MessageBox
         from core.utils import request_restart
 
         # 弹在当前活动窗口
@@ -1248,20 +1201,8 @@ class MainWindow(FluentWindow):
         if w.exec():
             request_restart()
 
-    # def updateInterfaceText(self, interface, text: str, position=None):
-    #     """更新子界面导航"""
-    #     try:
-    #         if hasattr(interface, 'objectName'):
-    #             route_key = interface.objectName()
-    #             if hasattr(self.navigationInterface, 'panel'):
-    #                 item = self.navigationInterface.panel.items.get(route_key)
-    #                 if item and hasattr(item, 'setText'):
-    #                     item.setText(text)
-    #     except Exception as e:
-    #         logger.warning(f"更新界面文本失败 [{interface.objectName() if hasattr(interface, 'objectName') else 'unknown'}]: {e}")
-
     def keyPressEvent(self, event):
-        """键盘事件"""
+        """键盘"""
         if event.key() == Qt.Key.Key_F12:
             if cfg.debugMode.value and hasattr(self, 'debugPanel'):
                 self.switchTo(self.debugPanel)
@@ -1280,33 +1221,13 @@ class MainWindow(FluentWindow):
         super().keyPressEvent(event)
 
     def event(self, e):
-        """补回窗口动画/阴影属性"""
+        """补回窗口动画/阴影"""
         if e.type() == QEvent.Type.WinIdChange:
             QTimer.singleShot(0, self._restore_window_effects)
         return super().event(e)
 
-    def eventFilter(self, obj, event):
-        """事件过滤器"""
-        if hasattr(self, 'isEditMode') and self.isEditMode:
-            if event.type() == QEvent.Type.MouseButtonRelease:
-                nav_interface = getattr(self, 'navigationInterface', None)
-                if nav_interface and obj == nav_interface:
-                    return True
-        return super().eventFilter(obj, event)
-
-    # def _checkWindowSize(self):
-    #     if not hasattr(self, '_normal_size'):
-    #         return
-    #     if self.isFullScreen():
-    #         return
-    #     self.showMaximized()
-
     def changeEvent(self, event):
-        """窗口变更事件"""
-        # super().changeEvent(event)
-        # if event.type() == QEvent.Type.WindowStateChange:
-        #     if not self.isMinimized() and not self.isFullScreen():
-        #         QTimer.singleShot(0, self._forceFullScreen)
+        """窗口变更"""
         super().changeEvent(event)
         if event.type() == QEvent.Type.WindowStateChange:
             if not self.isMaximized() and not self.isMinimized():
@@ -1317,12 +1238,6 @@ class MainWindow(FluentWindow):
         if not self.isMinimized():
             self.showMaximized()
 
-    def resizeEvent(self, event):
-        """窗口调整事件"""
-        super().resizeEvent(event)
-        # if hasattr(self, '_normal_size') and hasattr(self, '_resize_timer'):
-        #     self._resize_timer.start(50)
-
     def moveToCenter(self):
         """将窗口移动到屏幕中心"""
         screen = QApplication.primaryScreen()
@@ -1332,7 +1247,7 @@ class MainWindow(FluentWindow):
             self.move(w // 2 - self.width() // 2, h // 2 - self.height() // 2)
 
     def initSystemTray(self):
-        """初始化系统托盘"""
+        """初始化托盘"""
         icon_path = get_resPath(APP_ICON)
         if os.path.exists(icon_path):
             self.tray_icon = QSystemTrayIcon(QIcon(icon_path), self)
@@ -1358,7 +1273,7 @@ class MainWindow(FluentWindow):
         self.tray_icon.show()
 
     def _onTrayIconActivated(self, reason):
-        """托盘图标激活事件"""
+        """托盘图标激活"""
         if reason in (QSystemTrayIcon.ActivationReason.DoubleClick, QSystemTrayIcon.ActivationReason.Trigger):
             if self.isMinimized() or not self.isVisible():
                 self.showMaximized()
@@ -1399,18 +1314,14 @@ class MainWindow(FluentWindow):
             self.hasTriggeredAutoOpen = False
             return
         if self.isVisible():
-            self.lastMouseActivity = QTime.currentTime()
             self.hasTriggeredAutoOpen = False
             return
 
         try:
-            if self.isVideoPlaying:
-                return
             from Glimpseon_native import idle_get_milliseconds
             idle_time_ms = idle_get_milliseconds()
-            if idle_time_ms < 0: return 
+            if idle_time_ms < 0: return
 
-            now = QTime.currentTime()
             try:
                 from Glimpseon_native import was_page_operation_recent
                 is_recent_page_operation = was_page_operation_recent(5000)
@@ -1422,11 +1333,9 @@ class MainWindow(FluentWindow):
 
             if idle_time_ms > idle_threshold and not self.hasTriggeredAutoOpen and not is_recent_page_operation:
                 if self._isMediaPlaying():
-                    self.lastMouseActivity = QTime.currentTime()
                     return
                 logger.info(f"空闲{idle_minutes}分钟 自动打开界面")
                 self._autoOpenFromMinimized()
-                self.lastMouseActivity = QTime.currentTime()
                 self.hasTriggeredAutoOpen = True
         except Exception as e:
             logger.error(f"检测空闲时间失败：{e}")
@@ -1438,40 +1347,16 @@ class MainWindow(FluentWindow):
         self.activateWindow()
 
     def _installGlobalHooks(self):
-        """安装全局钩子"""
+        """钩子"""
         try:
             from Glimpseon_native import install_hook
             install_hook()
         except Exception as e:
             logger.error(f"全局钩子安装失败：{e}")
 
-    def setVideoPlaying(self, playing):
-        """设置视频播放状态"""
-        self.isVideoPlaying = playing
-
-    def showMaximized(self):
-        """最大化窗口"""
-        self._is_maximized = True
-        super().showMaximized()
-
     def showNormal(self):
         """显示窗口"""
         self._forceFullScreen()
-
-    def _lockWindowFullScreen(self):
-        """锁定全屏"""
-        try:
-            hwnd = int(self.winId())
-            style = ctypes.windll.user32.GetWindowLongW(hwnd, -16)  # GWL_STYLE
-            new_style = style & ~0x10000 & ~0x40000  # 去掉 WS_MAXIMIZEBOX | WS_THICKFRAME
-            if new_style != style:
-                ctypes.windll.user32.SetWindowLongW(hwnd, -16, new_style)
-                ctypes.windll.user32.SetWindowPos(
-                    hwnd, 0, 0, 0, 0, 0,
-                    0x0020 | 0x0002 | 0x0001 | 0x0004  # SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER
-                )
-        except Exception:
-            pass
 
     def nativeEvent(self, eventType, message):
         try:
@@ -1541,8 +1426,6 @@ class MainWindow(FluentWindow):
 
         if cfg.closeAction.value == "minimize":
             event.ignore()
-            if cfg.autoOpenOnIdle.value:
-                self.idleTimer.start(self.idleCheckInterval)
             self.hide()
             if cfg.minimizeNotificationCount.value < self.maxMinimizeNotifications:
                 self.tray_icon.showMessage(APP_NAME, tr("tray.minimize_message"), QSystemTrayIcon.MessageIcon.Information, 2000)  # 应用已最小化到系统托盘
@@ -1557,11 +1440,6 @@ class MainWindow(FluentWindow):
             release_single_instance()
             QApplication.quit()
 
-    def saveComponentPositions(self):
-        """保存组件位置"""
-        if hasattr(self, 'homeInterface'):
-            self.homeInterface.saveComponentPositions()
-
     def _loadWindowPosition(self):
         """加载窗口位置"""
         try:
@@ -1574,7 +1452,6 @@ class MainWindow(FluentWindow):
                 return False
             window_pos = positions["window"]
             if window_pos.get("maximized", False):
-                self._is_maximized = True
                 self.setMinimumSize(0, 0)
                 self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
                 QTimer.singleShot(100, self.showMaximized)
@@ -1590,11 +1467,6 @@ class MainWindow(FluentWindow):
         except Exception as e:
             logger.error(f"加载窗口位置失败: {e}")
             return False
-
-    # 刷新委托到 homeInterface
-    def refresh_quick_launch(self):
-        hi = getattr(self, 'homeInterface', None)
-        if hi and hasattr(hi, '_updateQuickLaunch'): hi._updateQuickLaunch()
 
 
 class Preloader(QThread):
@@ -1641,9 +1513,9 @@ class Preloader(QThread):
         if resp.status_code == 200:
             d = WALLPAPER_DIR  # os.path.join(BASE_DIR, 'wallpaper')
             os.makedirs(d, exist_ok=True)
-            p = os.path.join(d, f"wp_{datetime.datetime.now().strftime('%H%M%S')}.jpg")
+            p = os.path.join(d, f"wallpaper_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
             with open(p, 'wb') as f: f.write(resp.content)
-            wp._manageWallpaperLimit(d, cfg.wallpaperSaveLimit.value)
+            wp.historyManager.sync_cleanup(cfg.wallpaperSaveLimit.value)
             save_cache("wallpaper", {"path": p, "source": src, "url": url}, cfg.autoGetInterval.value)
             if not self._stop: self.sig_wp.emit(p, src, url)
             return
@@ -1686,14 +1558,14 @@ class Preloader(QThread):
             return
 
         if self._stop: return
-        
+
         city_name = cfg.city.value
         if city_name:
             lon, lat = RegionDatabase().get_coordinates(city_name)
             if lon is not None and lat is not None:
                 cfg.longitude.value = lon
                 cfg.latitude.value = lat
-        
+
         try:
             ws = WeatherService()
             data = ws.fetch_all()
@@ -1740,15 +1612,32 @@ if __name__ == "__main__":
     init_exhook()
     atexit.register(release_single_instance)
 
+    if not verify_single_instance():
+        temp_widget = QWidget()
+        temp_widget.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
+        temp_widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        screen = QApplication.primaryScreen()
+        if screen:
+            screen_rect = screen.availableGeometry()
+            temp_widget.setGeometry(screen_rect)
+        temp_widget.show()
+        title = tr("dialog.instance_running", app=APP_NAME)  # {app} 已有实例运行
+        content = tr("dialog.instance_running_detail", app=APP_NAME)  # 检测到{app} 已有一个实例在运行中
+        w = MessageBox(title, content, temp_widget)
+        w.yesButton.setText(tr("common.cancel"))  # 取消
+        w.hideCancelButton()
+        w.exec()
+        sys.exit(0)
+
     _extract_future = None
     executor = ThreadPoolExecutor(max_workers=2)
-    
+
     def _background_extract():
         try:
             extract_files()
         except Exception:
             logger.exception("资源提取失败")
-    
+
     _extract_future = executor.submit(_background_extract)
 
     if check_wizard_needed():
@@ -1805,32 +1694,13 @@ if __name__ == "__main__":
     app.installTranslator(fluentTranslator)
     logger.info(f"语言配置: {cfg.language.value}，耗时{time.time()-_t:.2f}s")
 
-    if not verify_single_instance():
-        # utils还有一个check_single_instance函数
-        splash.close()
-        temp_widget = QWidget()
-        temp_widget.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
-        temp_widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        screen = QApplication.primaryScreen()
-        if screen:
-            screen_rect = screen.availableGeometry()
-            temp_widget.setGeometry(screen_rect)
-        temp_widget.show()
-        title = tr("dialog.instance_running", app=APP_NAME)  # {app} 已有实例运行
-        content = tr("dialog.instance_running_detail", app=APP_NAME)  # 检测到{app} 已有一个实例在运行中，请勿重复启动。\n\n(您可在【设置】中启用【允许重复启动】，可能会有不可言喻的问题。)
-        w = MessageBox(title, content, temp_widget)
-        w.yesButton.setText(tr("common.cancel"))  # 取消
-        w.hideCancelButton()
-        w.exec()
-        sys.exit(0)
-
     splash.updateStatus(tr("splash.initializing_fonts"))  # 正在初始化字体
     splash.setProgress(30)
     allow_ui_update(0.06)
-    
+
     if _extract_future:
          _extract_future.result(timeout=10)
-    
+
     _t = time.time()
     initialize_fonts(app, install_to_system=True)
     logger.info(f"字体初始化 耗时{time.time()-_t:.2f}s")
@@ -1882,7 +1752,6 @@ if __name__ == "__main__":
     logger.info(f"学校信息配置：启用={cfg.showSchoolInfo.value}, 学校={cfg.school.value}, 班级={cfg.schoolClass.value}")
     logger.info(f"快捷启动栏配置：启用={cfg.showQuickLaunch.value}, 图标大小={cfg.quickLaunchIconSize.value}, 应用数量={len(cfg.quickLaunchApps.value)}")
     logger.info(f"自动配置：空闲自动打开={cfg.autoOpenOnIdle.value}, 空闲分钟={cfg.idleMinutes.value}, 自动检查更新={cfg.autoCheckUpdate.value}")
-    # logger.info(f"版本号：{VERSION} 构建日期：{BUILD_DATE}")
     from core.paths import VERSION, BUILD_DATE
     logger.info(f"版本号：{VERSION} 构建日期：{BUILD_DATE}")
     logger.info(f"系统版本：Windows {platform.version()} Python 版本：{platform.python_version()}")
@@ -1917,7 +1786,6 @@ if __name__ == "__main__":
                 wp._applyEffects()
                 wp.infoCard.updateInfo(path, src)
                 wp.historyManager.add(path, src, url)
-                wp.wallpaperChanged.emit()
         except Exception as e:
             logger.error(f"[PRELOAD-UI] wp: {e}")
 
@@ -1927,7 +1795,6 @@ if __name__ == "__main__":
             if not hi: return
             # 更新缓存
             hi._cached_weather = weather_data
-            hi.current_weather_code = weather_data.get('weather_code')
             hi.weather_updated.emit(weather_data)
         except Exception as e:
             logger.error(f"[PRELOAD-UI] wt: {e}")
@@ -1963,10 +1830,6 @@ if __name__ == "__main__":
         if time.time() - t0 > 12:
             loader.cancel()
             loader.wait(5000)
-            # QThread.terminate()
-            # if loader.isRunning():
-            #     loader.terminate()
-            #     loader.wait(1000)
             break
 
     logger.info(f"预加载 {time.time()-t0:.2f}s")

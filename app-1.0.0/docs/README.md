@@ -1,7 +1,7 @@
 # Glimpseon 1.0.0 开发者文档
 
 > \[!NOTE]
-> 编写者：HelloGaoo　最后修改：2026/09/12
+> 编写者：HelloGaoo　最后修改：2026/09/26
 
 Glimpseon 是一款基于 PyQt6 Fluent Widgets 的 Windows 桌面组件信息看板
 

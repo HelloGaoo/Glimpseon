@@ -1,7 +1,7 @@
 # 目录结构
 
 > [!NOTE]
-> 编写者：HelloGaoo　最后修改：2026/09/12
+> 编写者：HelloGaoo　最后修改：2026/09/26
 
 本文档说明仓库及运行期目录组织，路径相对仓库根书写。
 
@@ -33,8 +33,10 @@ app-1.0.0/
 ├── resource/               # 静态资源
 ├── font/                   # 内嵌字体（HarmonyOS Sans）
 ├── locale/                 # 国际化语言包
+├── data/                   # 运行期数据（见 [架构总览 - 数据目录](architecture.md#7-数据目录)）
+├── test/                   # 测试脚本
 ├── glimpseon_native/       # C++ 原生扩展源码 + 构建
-├── Tools/                  # 外部工具（7z.exe / aria2c.exe）
+├── Tools/                  # 遗外部工具（7z.exe / aria2c.exe）
 └── docs/                   # 本开发者文档
 ```
 

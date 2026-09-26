@@ -1,7 +1,7 @@
 # 配置系统
 
 > [!NOTE]
-> 编写者：HelloGaoo　最后修改：2026/09/12
+> 编写者：HelloGaoo　最后修改：2026/09/26
 
 [源码](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/core/config.py)
 
@@ -73,7 +73,7 @@ cfg.clockSize.value = 100   # 修改即触发保存
 | `LogLevel`   | `INFO`  | `DEBUG/INFO/WARNING/ERROR` | restart         |
 | `DisableLog` | `False` | bool                       | restart         |
 | `MaxCount`   | `50`    | 10\~500                    | DebugMode 下强制 3 |
-| `MaxDays`    | `7`     | 30\~365                    | DebugMode 下强制 1 |
+| `MaxDays`    | `30`    | 30\~365                    | DebugMode 下强制 1 |
 
 ### Wallpaper
 
@@ -124,10 +124,12 @@ cfg.clockSize.value = 100   # 修改即触发保存
 | `WeatherTextColor` | `#FFFFFF`  | 颜色                                  | <br /> |
 | `WeatherIconSize`  | `64`       | 32\~200                             | <br /> |
 | `UpdateInterval`   | `5m`       | `never/5m/15m/30m/1h/3h/6h/12h/24h` | <br /> |
-| `City`             | `""`       | 字符串                                 | <br /> |
-| `CityCode`         | `""`       | 字符串                                 | <br /> |
+| `City`             | `北京市`   | 字符串                                 | <br /> |
+| `Source`           | `city`     | `city/coords`                       | 定位来源：城市名/经纬度 |
 | `Latitude`         | `39.9042`  | float                               | <br /> |
 | `Longitude`        | `116.4074` | float                               | <br /> |
+| `Unit`             | `c`        | `c/f`                               | 温度单位 |
+| `AlertExcluded`    | `""`       | 字符串                                 | 排除的预警类型 |
 
 ### Countdown
 
@@ -215,7 +217,7 @@ cfg.clockSize.value = 100   # 修改即触发保存
 
 | 键                | 默认               | 备注     |
 | ---------------- | ---------------- | ------ |
-| `UsePreciseTime` | `False`          | bool   |
+| `UsePreciseTime` | `True`           | bool   |
 | `TimeServer`     | `ntp.aliyun.com` | <br /> |
 | `LastSyncTime`   | `""`             | <br /> |
 

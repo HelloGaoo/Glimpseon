@@ -2,9 +2,7 @@
 通知页面
 """
 
-import os
 import logging
-import sys
 import uuid
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QDateTime, QDate, QTime
@@ -15,7 +13,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PyQt6.QtGui import QColor, QFont, QIntValidator
+from PyQt6.QtGui import QColor, QFont, QPainter
 from qfluentwidgets import (
     BodyLabel,
     CardWidget,
@@ -33,7 +31,6 @@ from qfluentwidgets import (
     InfoBar,
     InfoBarPosition,
     Dialog,
-    LineEdit,
     TableWidget,
     SwitchButton,
 )
@@ -45,6 +42,36 @@ from core.notification import NotifType
 from qfluentwidgets import MessageBox
 
 logger = logging.getLogger("Glimpseon.ui.notification")
+
+WEIGHT_BY_INDEX = {0: QFont.Weight.Normal, 1: QFont.Weight.Bold, 2: QFont.Weight.Black}
+TTS_VOICES = (
+    "zh-CN-XiaoxiaoNeural",
+    "zh-CN-XiaoyiNeural",
+    "zh-CN-YunxiNeural",
+    "zh-CN-YunjianNeural",
+    "zh-CN-YunyangNeural",
+    "zh-CN-YunxiaNeural",
+)
+
+
+def _paint_color_btn(btn, color: QColor):
+    """颜色按钮填色"""
+    btn.setStyleSheet(f"background-color: {color.name()};")
+
+
+def _populate_type_combo(combo):
+    """填通知类型下拉项"""
+    combo.addItem(tr("notification.type_scroll"), userData=NotifType.SCROLL)
+    combo.addItem(tr("notification.type_corner"), userData=NotifType.CORNER)
+    combo.addItem(tr("notification.type_fullscreen"), userData=NotifType.FULLSCREEN)
+
+
+def _populate_weight_combo(combo):
+    """填字重下拉项(存下标)"""
+    combo.addItem(tr("common.normal"))
+    combo.addItem(tr("common.bold"))
+    combo.addItem(tr("common.black"))
+
 
 def _type_label(t: str) -> str:
     m = {
@@ -88,7 +115,6 @@ class _PreviewWidget(QWidget):
         self.update()
 
     def paintEvent(self, event):
-        from PyQt6.QtGui import QPainter
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -129,8 +155,6 @@ class _ConfigEditDialog(Dialog):
         layout.setSpacing(10)
         layout.setContentsMargins(12, 8, 12, 8)
 
-        row_style = "margin-top: 2px; margin-bottom: 2px;"
-
         # 内容
         layout.addWidget(BodyLabel(tr("notification.content_label") + ":"))
         self._content_edit = TextEdit(w)
@@ -144,9 +168,7 @@ class _ConfigEditDialog(Dialog):
         r1.setContentsMargins(0, 0, 0, 0)
         r1.addWidget(BodyLabel(tr("notification.type_label") + ":"))
         self._type_combo = ComboBox(w)
-        self._type_combo.addItem(tr("notification.type_scroll"), userData=NotifType.SCROLL)
-        self._type_combo.addItem(tr("notification.type_corner"), userData=NotifType.CORNER)
-        self._type_combo.addItem(tr("notification.type_fullscreen"), userData=NotifType.FULLSCREEN)
+        _populate_type_combo(self._type_combo)
         type_map = {NotifType.SCROLL: 0, NotifType.CORNER: 1, NotifType.FULLSCREEN: 2}
         self._type_combo.setCurrentIndex(type_map.get(data.get("type", NotifType.SCROLL), 0))
         self._type_combo.setMinimumWidth(160)
@@ -160,7 +182,7 @@ class _ConfigEditDialog(Dialog):
         color_row.setSpacing(20)
         color_row.setContentsMargins(0, 0, 0, 0)
 
-        def _color_group(label, default_color):
+        def _color_group(label):
             g = QHBoxLayout()
             g.setSpacing(6)
             g.addWidget(BodyLabel(label + ":"))
@@ -169,18 +191,16 @@ class _ConfigEditDialog(Dialog):
             btn.setFixedSize(32, 28)
             return g, btn
 
-        g1, self._bg_btn = _color_group(tr("notification.bg_color"), QColor(0, 0, 0, 180))
-        g2, self._fg_btn = _color_group(tr("notification.text_color"), QColor(255, 255, 255))
+        g1, self._bg_btn = _color_group(tr("notification.bg_color"))
+        g2, self._fg_btn = _color_group(tr("notification.text_color"))
 
         # 初始颜色
-        self._edit_bg = QColor(
-            data.get("bg_color", "#000000")
-        ) if data.get("bg_color") else QColor(0, 0, 0)
+        self._edit_bg = QColor(data.get("bg_color") or "#000000")
         self._edit_bg.setAlpha(data.get("bg_alpha", 180))
         self._edit_fg = QColor(data.get("text_color", "#ffffff"))
 
-        self._update_edit_color_btn(self._bg_btn, self._edit_bg)
-        self._update_edit_color_btn(self._fg_btn, self._edit_fg)
+        _paint_color_btn(self._bg_btn, self._edit_bg)
+        _paint_color_btn(self._fg_btn, self._edit_fg)
         self._bg_btn.clicked.connect(lambda: self._edit_pick_color("bg"))
         self._fg_btn.clicked.connect(lambda: self._edit_pick_color("fg"))
 
@@ -211,11 +231,10 @@ class _ConfigEditDialog(Dialog):
         fg2.setSpacing(6)
         fg2.addWidget(BodyLabel(tr("notification.font_weight") + ":"))
         self._weight_combo = ComboBox(w)
-        self._weight_combo.addItem(tr("common.normal"), userData=QFont.Weight.Normal)
-        self._weight_combo.addItem(tr("common.bold"), userData=QFont.Weight.Bold)
-        self._weight_combo.addItem(tr("common.black"), userData=QFont.Weight.Black)
-        wmap = {QFont.Weight.Normal: 0, QFont.Weight.Bold: 1, QFont.Weight.Black: 2}
-        self._weight_combo.setCurrentIndex(wmap.get(data.get("font_weight", QFont.Weight.Bold), 1))
+        _populate_weight_combo(self._weight_combo)
+        # 队列里存的是下标(0/1/2);历史数据可能存成 QFont.Weight,兜底为 Bold
+        _fw = data.get("font_weight", 1)
+        self._weight_combo.setCurrentIndex(_fw if isinstance(_fw, int) and 0 <= _fw <= 2 else 1)
         self._weight_combo.setMinimumWidth(130)
         self._weight_combo.setObjectName("_weight_combo")
         fg2.addWidget(self._weight_combo)
@@ -261,14 +280,7 @@ class _ConfigEditDialog(Dialog):
         tts_voice_group.addWidget(BodyLabel(tr("notification.tts_voice_label") + ":"))
         self._tts_voice_combo = ComboBox(w)
         self._tts_voice_combo.addItem(tr("notification.tts_no_speak"), userData="done")
-        for voice in [
-            "zh-CN-XiaoxiaoNeural",
-            "zh-CN-XiaoyiNeural",
-            "zh-CN-YunxiNeural",
-            "zh-CN-YunjianNeural",
-            "zh-CN-YunyangNeural",
-            "zh-CN-YunxiaNeural",
-        ]:
+        for voice in TTS_VOICES:
             self._tts_voice_combo.addItem(voice, userData=voice)
         voice_index = 0
         if data.get("tts_voice"):
@@ -320,7 +332,6 @@ class _ConfigEditDialog(Dialog):
         self._bg_height_spin.setValue(cfg.scrollBannerBgHeight.value)
         self._bg_height_spin.setFixedWidth(120)
         self._bg_height_spin.setObjectName("_bg_height_spin")
-        self._bg_height_spin.valueChanged.connect(lambda v: cfg.set(cfg.scrollBannerBgHeight, v))
         bg1.addWidget(self._bg_height_spin)
         brrow.addLayout(bg1)
 
@@ -331,9 +342,6 @@ class _ConfigEditDialog(Dialog):
         self._mouse_switch.setOnText(tr("common.on"))
         self._mouse_switch.setOffText(tr("common.off"))
         self._mouse_switch.setChecked(cfg.scrollBannerMouseThrough.value)
-        self._mouse_switch.checkedChanged.connect(
-            lambda v: cfg.set(cfg.scrollBannerMouseThrough, v)
-        )
         bg2.addWidget(self._mouse_switch)
         brrow.addLayout(bg2)
         brrow.addStretch()
@@ -365,12 +373,9 @@ class _ConfigEditDialog(Dialog):
         self.yesButton.setText(tr("common.confirm"))
         self.cancelButton.setText(tr("common.cancel"))
 
-    def _update_edit_color_btn(self, btn, color):
-        btn.setStyleSheet(f"background-color:{color.name()};")
-
     def _edit_pick_color(self, tag):
         old = self._edit_bg if tag == "bg" else self._edit_fg
-        title = self.tr("common.color_pick") if hasattr(self, "tr") else tr("common.color_pick")
+        title = tr("common.color_pick")
         dlg = ColorDialog(old, title, self, enableAlpha=(tag == "bg"))
         if dlg.exec():
             c = dlg.color
@@ -379,7 +384,12 @@ class _ConfigEditDialog(Dialog):
             else:
                 self._edit_fg = c
             btn = self._bg_btn if tag == "bg" else self._fg_btn
-            self._update_edit_color_btn(btn, c)
+            _paint_color_btn(btn, c)
+
+    def apply_global_config(self):
+        """把横幅设置写入配置"""
+        cfg.set(cfg.scrollBannerBgHeight, self._bg_height_spin.value())
+        cfg.set(cfg.scrollBannerMouseThrough, self._mouse_switch.isChecked())
 
     def get_data(self) -> dict:
         data = dict(self._result_data)
@@ -389,9 +399,12 @@ class _ConfigEditDialog(Dialog):
         data["bg_alpha"] = self._edit_bg.alpha()
         data["text_color"] = self._edit_fg.name()
         data["font_size"] = self._size_spin.value()
-        data["font_weight"] = self._weight_combo.currentData()
+        data["font_weight"] = self._weight_combo.currentIndex()
         data["speed"] = self._speed_spin.value()
         data["duration"] = self._dur_spin.value()
+        data["tts_voice"] = self._tts_voice_combo.currentData()
+        data["tts_rate"] = self._tts_rate_spin.value()
+        data["tts_volume"] = self._tts_volume_spin.value()
         if hasattr(self, "_date_picker"):
             data["_fire_time"] = QDateTime(
                 self._date_picker.date, self._time_picker.time
@@ -539,9 +552,7 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         type_label = BodyLabel(tr("notification.type_label"), config_card)
         type_label.setFixedWidth(95)
         self.typeCombo = ComboBox(config_card)
-        self.typeCombo.addItem(tr("notification.type_scroll"), userData=NotifType.SCROLL)
-        self.typeCombo.addItem(tr("notification.type_corner"), userData=NotifType.CORNER)
-        self.typeCombo.addItem(tr("notification.type_fullscreen"), userData=NotifType.FULLSCREEN)
+        _populate_type_combo(self.typeCombo)
         self.typeCombo.setCurrentIndex(0)
         self.typeCombo.setMinimumWidth(150)
         type_row.addWidget(type_label)
@@ -557,14 +568,7 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         tts_voice_label.setFixedWidth(95)
         self.ttsVoiceCombo = ComboBox(config_card)
         self.ttsVoiceCombo.addItem(tr("notification.tts_no_speak"), userData="done")
-        for voice in [
-            "zh-CN-XiaoxiaoNeural",
-            "zh-CN-XiaoyiNeural",
-            "zh-CN-YunxiNeural",
-            "zh-CN-YunjianNeural",
-            "zh-CN-YunyangNeural",
-            "zh-CN-YunxiaNeural",
-        ]:
+        for voice in TTS_VOICES:
             self.ttsVoiceCombo.addItem(voice, userData=voice)
         self.ttsVoiceCombo.setCurrentIndex(1)
         self.ttsVoiceCombo.setMinimumWidth(150)
@@ -616,7 +620,7 @@ class NotificationPage(ScrollArea, TranslatableWidget):
             setattr(self, f"{tag}ColorBtn", btn)
             color = QColor(0, 0, 0, 180) if tag == "bg" else QColor(255, 255, 255)
             setattr(self, attr, color)
-            self._update_color_btn(btn, color)
+            _paint_color_btn(btn, color)
             btn.clicked.connect(lambda checked, t=tag: self._pick_color(t))
             group.addWidget(lb)
             group.addWidget(btn)
@@ -647,9 +651,7 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         weight_label = BodyLabel(tr("notification.font_weight"), config_card)
         weight_label.setFixedWidth(95)
         self.fontWeightCombo = ComboBox(config_card)
-        self.fontWeightCombo.addItem(tr("common.normal"), userData=QFont.Weight.Normal)
-        self.fontWeightCombo.addItem(tr("common.bold"), userData=QFont.Weight.Bold)
-        self.fontWeightCombo.addItem(tr("common.black"), userData=QFont.Weight.Black)
+        _populate_weight_combo(self.fontWeightCombo)
         self.fontWeightCombo.setCurrentIndex(1)
         self.fontWeightCombo.setMinimumWidth(140)
         self.fontWeightCombo.currentIndexChanged.connect(self._update_preview)
@@ -880,6 +882,13 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         data = self._queue[0]
         if "_uid" not in data:
             data["_uid"] = str(uuid.uuid4())
+        # 右下角通知即时弹且不回执,不能占住队列
+        if data.get("type") == NotifType.CORNER:
+            self._queue.pop(0)
+            self._refresh_queue_table()
+            self.send_notification.emit(data)
+            self._send_next()
+            return
         self._is_showing = True
         self._showing_notif_uid = data["_uid"]
         self._refresh_queue_table()
@@ -897,11 +906,6 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         self._refresh_queue_table()
         if self._queue:
             self._send_next()
-
-    def _q_showing_notif_uid(self):
-        if self._queue and "_uid" in self._queue[0]:
-            return self._queue[0]["_uid"]
-        return ""
 
     # 上下移动
     def _move_up(self):
@@ -922,9 +926,6 @@ class NotificationPage(ScrollArea, TranslatableWidget):
 
     # 颜色按钮
 
-    def _update_color_btn(self, btn: PushButton, color: QColor):
-        btn.setStyleSheet(f"background-color: {color.name()};")
-
     def _pick_color(self, target: str):
         attr = "_bg_color" if target == "bg" else "_fg_color"
         init = getattr(self, attr)
@@ -935,8 +936,11 @@ class NotificationPage(ScrollArea, TranslatableWidget):
             color = dlg.color
             setattr(self, attr, color)
             btn = self.bgColorBtn if target == "bg" else self.fgColorBtn
-            self._update_color_btn(btn, color)
-            self.previewWidget.set_bg_color(color) if target == "bg" else self.previewWidget.set_text_color(color)
+            _paint_color_btn(btn, color)
+            if target == "bg":
+                self.previewWidget.set_bg_color(color)
+            else:
+                self.previewWidget.set_text_color(color)
         else:
             if target == "bg":
                 self.previewWidget.set_bg_color(self._bg_color)
@@ -952,11 +956,10 @@ class NotificationPage(ScrollArea, TranslatableWidget):
     # 预览更新
 
     def _update_preview(self):
-        text = self.contentEdit.toPlainText().strip()
-        self.previewWidget._text = text
-        self.previewWidget._font_size = self.fontSizeSpin.value()
-        self.previewWidget._font_weight = self.fontWeightCombo.currentData()
-        self.previewWidget.update()
+        self.previewWidget.set_preview_text(self.contentEdit.toPlainText().strip())
+        self.previewWidget.set_font_size(self.fontSizeSpin.value())
+        self.previewWidget.set_font_weight(
+            WEIGHT_BY_INDEX.get(self.fontWeightCombo.currentIndex(), QFont.Weight.Bold))
 
     # 构建数据
 
@@ -1048,6 +1051,7 @@ class NotificationPage(ScrollArea, TranslatableWidget):
             return
         dlg = _ConfigEditDialog(self._queue[row], self.window())
         if dlg.exec():
+            dlg.apply_global_config()
             self._queue[row] = dlg.get_data()
             self._refresh_queue_table()
             InfoBar.success(
@@ -1143,20 +1147,22 @@ class NotificationPage(ScrollArea, TranslatableWidget):
     def _check_scheduled(self):
         """10秒检查否有定时任务"""
         now = QDateTime.currentDateTime()
-        fired = False
-        for i, item in enumerate(self._queue[:]):
-            if item.get("_scheduled"):
-                fire_time = item.get("_fire_time")
-                if fire_time and fire_time <= now:
-                    item.pop("_scheduled", None)
-                    item.pop("_fire_time", None)
-                    self._queue.pop(i)
-                    self._queue.insert(0, item)
-                    self._refresh_queue_table()
-                    fired = True
-                    logger.info(f"定时任务到期: {item.get('content', '')}")
-        if fired and not self._is_showing:
-            self._send_next()
+        # 先只读收集到期项,再按对象身份从活列表移除(按快照索引 pop 会错弹)
+        due = [it for it in self._queue
+               if it.get("_scheduled") and it.get("_fire_time") and it.get("_fire_time") <= now]
+        for item in due:
+            item.pop("_scheduled", None)
+            item.pop("_fire_time", None)
+            try:
+                self._queue.remove(item)
+            except ValueError:
+                pass
+            self._queue.insert(0, item)
+            logger.info(f"定时任务到期: {item.get('content', '')}")
+        if due:
+            self._refresh_queue_table()
+            if not self._is_showing:
+                self._send_next()
 
     def _onThemeChanged(self, theme: Theme):
         self.setStyleSheet(load_qss("notification.qss"))

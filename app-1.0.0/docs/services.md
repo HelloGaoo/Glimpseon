@@ -1,7 +1,7 @@
 # 服务模块（services/）
 
 > \[!NOTE]
-> 编写者：HelloGaoo　最后修改：2026/09/12
+> 编写者：HelloGaoo　最后修改：2026/09/26
 
 `services/` 是数据获取层，从网络或系统获取外部数据。所有服务统一使用 `core.utils` 的文件缓存机制（`save_cache` / `get_cached_content`）减少请求。
 
@@ -24,7 +24,7 @@
 | 类                                      | 作用                                                                           |
 | -------------------------------------- | ---------------------------------------------------------------------------- |
 | `WeatherService`                       | 天气获取主服务，含天气代码映射表 `WEATHER_MAP` / `ICON_MAP` / `WEATHER_TEXT_MAP`             |
-| `RegionDatabase`                       | 基于 SQLite 读取 `resource/city.db`，提供 `get_coordinates(city_name) → (lon, lat)` |
+| `RegionDatabase`                       | 基于 SQLite 读取 `resource/city.db`，提供 `search(keyword)`（与 `get_coordinates(city_name) → (lon, lat)` |
 | `RegionSelectorDialog(MessageBoxBase)` | 城市选择对话框（搜索 + 列表）                                                             |
 
 ### 1.3 天气代码体系
@@ -32,6 +32,9 @@
 - `WEATHER_MAP`：0\~20 基础天气代码 → 中文名 + SVG 文件名。
 - `ICON_MAP`：扩展天气代码（含 21\~99）→ 图标 SVG 映射。
 - `WEATHER_TEXT_MAP`：天气代码 → i18n 键（如 `weather.sunny`），通过 `tr()` 翻译。
+- `WEATHER_COMBINED_TEXT_MAP`：组合天气代码（21\~28）→ 两个 i18n 键拼接（如「小雨 - 中雨」）。
+- `WEATHER_NIGHT_MAP`：夜间代码（50\~77）→ 白天 i18n 键，显示时追加「(夜间)」后缀。
+- `get_weather_text(code, tr_func)` 按上述三表顺序查找，全未命中返回 `weather.unknown`。
 - 图标资源位于 `resource/icons/weather/`，含 `alerts/`（蓝/橙/红/黄预警）与 `reminders/`（高低温/降雨提醒）。
 
 ### 1.4 刷新与缓存
@@ -114,9 +117,8 @@
 模块函数只做路由，不承担聚合逻辑：
 
 - `get_media_info()`：按序探测四个源，首个返回有效信息者胜出。
-- `get_service(app_name)`：按应用名关键词分发（`kugou`/`qqmusic`/`netease`/`cloudmusic`），未知应用回退 `_gsmtc`。
-- `get_netease()` / `get_gstmtc()`：获取特定源实例。
-- `media_control(action)` / `media_next()` / `media_prev()` / `media_play_pause()`：向当前 SMTC 会话发送控制命令。
+- `get_service(app_name)`：按应用名关键词分发（`kugou`/`qqmusic`/`netease`/`cloudmusic`，另有源名精确匹配），未知应用回退 `_gsmtc`。
+- `media_control(action)` / `media_next()` / `media_prev()`：向当前 SMTC 会话发送控制命令。
 - `close()`：释放所有源资源（session/event loop），`_api_get` 支持 close 后惰性重建 session。
 
 ### 4.4 与 UI 协作
@@ -131,7 +133,7 @@ UI 端 `MediaPlayerComponent` 用 `threading.Thread`（daemon）+ pyqtSignal 在
 
 ### 5.1 数据源
 
-- API：`https://tmini.net/api/today`（GET，参数 `type=json`，可选 `ckey`）
+- API：`https://tmini.net/api/today`（GET，参数 `type=json`）
 - 返回：`{code, date, events: [{title, year, desc, link}]}`
 
 ### 5.2 HistoryService

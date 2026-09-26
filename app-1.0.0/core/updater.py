@@ -75,11 +75,27 @@ def check_github_version(max_retries=3):
         'error': None
     }
 
-    try:
-        logger.info(f"获取版本信息：{GITHUB_API}")
-        response = requests.get(GITHUB_API, timeout=10, verify=False)
-        response.raise_for_status()
+    response = None
+    last_err = None
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"获取版本信息：{GITHUB_API}")
+            response = requests.get(GITHUB_API, timeout=10, verify=False)
+            response.raise_for_status()
+            break
+        except requests.exceptions.Timeout:
+            last_err = "请求超时"
+            logger.warning(f"{last_err} ({attempt + 1}/{max_retries})")
+        except requests.exceptions.RequestException as e:
+            last_err = f"网络错误：{str(e)}"
+            logger.warning(f"{last_err} ({attempt + 1}/{max_retries})")
 
+    if response is None:
+        result['error'] = last_err or "请求失败"
+        logger.error(result['error'])
+        return result
+
+    try:
         release_info = response.json()
         latest_version = release_info.get('tag_name', '')
 
@@ -102,12 +118,6 @@ def check_github_version(max_retries=3):
         result['success'] = True
         logger.info(f"最新版本：{latest_version}")
 
-    except requests.exceptions.Timeout:
-        result['error'] = "请求超时"
-        logger.error(result['error'])
-    except requests.exceptions.RequestException as e:
-        result['error'] = f"网络错误：{str(e)}"
-        logger.error(result['error'])
     except Exception as e:
         result['error'] = f"解析错误：{str(e)}"
         logger.error(result['error'])
@@ -235,26 +245,6 @@ def cleanup_update_files():
         logger.info("已清理更新临时文件")
     except Exception as e:
         logger.warning(f"清理临时文件失败：{e}")
-
-
-def cleanup_old_versions():
-    package_root = Path(PACKAGE_ROOT)
-
-    for app_dir in package_root.glob("app-*"):
-        if not app_dir.is_dir():
-            continue
-
-        record_path = app_dir / "record.json"
-        if not record_path.exists():
-            continue
-
-        record = load_record(record_path)
-        if record and record.get("current", 0) == 0:
-            try:
-                shutil.rmtree(app_dir)
-                logger.info(f"已清理旧版本: {app_dir.name}")
-            except Exception as e:
-                logger.warning(f"清理旧版本失败 {app_dir}: {e}")
 
 
 def create_update_script(new_version_dir):

@@ -34,6 +34,10 @@ import uuid
 
 logger = logging.getLogger("Glimpseon.core.notification")
 
+# 0=Normal 1=Bold 2=Black
+_WEIGHT_MAP = {0: QFont.Weight.Normal, 1: QFont.Weight.Bold, 2: QFont.Weight.Black}
+
+
 class NotifType:
     SCROLL = "scroll"
     CORNER = "corner"
@@ -130,10 +134,8 @@ class ScrollBanner(_BasePopup):
         self.setGeometry(0, 60, screen.width(), banner_height)
 
         self.label = BodyLabel(self.text, self)
-        weight_map = {0: QFont.Weight.Normal, 1: QFont.Weight.Bold, 2: QFont.Weight.Black}
-        weight = weight_map.get(self._font_weight, QFont.Weight.Bold)
         font = QFont(FONT_PRIMARY, self._font_size)
-        font.setWeight(weight)
+        font.setWeight(_WEIGHT_MAP.get(self._font_weight, QFont.Weight.Bold))
         self.label.setFont(font)
         self.label.setStyleSheet(
             f"color: {self._text_color}; background: transparent;"
@@ -164,7 +166,7 @@ class ScrollBanner(_BasePopup):
 
         if self._scroll_offset + self.label.width() <= 0:
             self._completed_loops += 1
-            if self._must_finish and self._completed_loops >= 2:
+            if self._must_finish:
                 self._timer.stop()
                 self.close()
                 return
@@ -188,7 +190,11 @@ class ScrollBanner(_BasePopup):
         force_topmost(int(self.winId()))
 
     def _fade_out(self):
+        """时长到点:本轮滚完即关(已滚过一轮则立刻关)"""
         self._must_finish = True
+        if self._completed_loops >= 1:
+            self._timer.stop()
+            self.close()
 
     def closeEvent(self, event):
         self._timer.stop()
@@ -224,10 +230,8 @@ class FullScreenPopup(_BasePopup):
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.label = BodyLabel(self.text, self)
-        weight_map = {0: QFont.Weight.Normal, 1: QFont.Weight.Bold, 2: QFont.Weight.Black}
-        weight = weight_map.get(self._font_weight, QFont.Weight.Bold)
         font = QFont(FONT_PRIMARY, self._font_size)
-        font.setWeight(weight)
+        font.setWeight(_WEIGHT_MAP.get(self._font_weight, QFont.Weight.Bold))
         self.label.setFont(font)
         self.label.setStyleSheet(
             f"color: {self._text_color}; background: transparent;"
@@ -239,9 +243,12 @@ class FullScreenPopup(_BasePopup):
     def paintEvent(self, event):
         from PyQt6.QtGui import QPainter, QColor
         painter = QPainter(self)
-        painter.setBrush(QColor(self._bg_color))
+        bg = QColor(self._bg_color)
+        bg.setAlpha(self._bg_alpha)
+        painter.setBrush(bg)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRect(self.rect())
+        painter.end()
 
     def _show_and_close(self):
         self.show()
@@ -262,9 +269,8 @@ class NotificationManager(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._active_windows = []   # 防止窗口回收
+        self._active_windows = []   # 持有弹窗防止被回收
         self._is_showing = False    # 是否正在滚动/全屏
-        self._queue = []            # 等待的滚动/全屏
 
         # TTS
         self._tts_voice = "zh-CN-XiaoxiaoNeural"
@@ -288,27 +294,38 @@ class NotificationManager(QObject):
         if self._tts_voice == "done":
             return
 
+        # 取快照
+        voice, rate, volume = self._tts_voice, self._tts_rate, self._tts_volume
+
         def run_async():
+            text_file = f"tts_text_{uuid.uuid4().hex[:8]}.txt"
+            temp_file = f"tts_{uuid.uuid4().hex[:8]}.mp3"
             try:
-                temp_file = f"tts_{uuid.uuid4().hex[:8]}.mp3"
-                text_file = f"tts_text_{uuid.uuid4().hex[:8]}.txt"
                 with open(text_file, "w", encoding="utf-8") as f:
                     f.write(text)
-
                 cmd = [
                     "edge-tts",
-                    "--voice", self._tts_voice,
-                    "--rate", self._tts_rate,
-                    "--volume", self._tts_volume,
+                    "--voice", voice,
+                    "--rate", rate,
+                    "--volume", volume,
                     "-f", text_file,
                     "--write-media", temp_file
                 ]
                 subprocess.run(cmd, check=True, capture_output=True)
-                os.remove(text_file)
-
                 self.play_audio_signal.emit(temp_file)
             except Exception as e:
                 logger.error(f"TTS 生成失败: {e}")
+                try:
+                    if os.path.exists(temp_file):
+                        os.remove(temp_file)
+                except Exception:
+                    pass
+            finally:
+                try:
+                    if os.path.exists(text_file):
+                        os.remove(text_file)
+                except Exception:
+                    pass
 
         threading.Thread(target=run_async, daemon=True).start()
 
@@ -398,47 +415,45 @@ class NotificationManager(QObject):
             logger.warning("通知内容为空")
             return
 
-        if self._tts_voice != "done":
-            self._speak_text(content)
+        self._speak_text(content)
 
-        # 右下角通知不排队
+        # 右下角通知即时弹
         if notif_type == NotifType.CORNER:
             self._show_corner(content, duration)
-            return
-
-        # 滚动/全屏通知排队
-        if self._is_showing:
-            self._queue.append(data)
+        elif notif_type == NotifType.SCROLL:
+            self._show_scroll(content, speed, duration, bg_color, bg_alpha, text_color, font_size, font_weight)
+        elif notif_type == NotifType.FULLSCREEN:
+            self._show_fullscreen(content, duration, bg_color, bg_alpha, text_color, font_size, font_weight)
         else:
-            if notif_type == NotifType.SCROLL:
-                self._show_scroll(content, speed, duration, bg_color, bg_alpha, text_color, font_size, font_weight)
-            elif notif_type == NotifType.FULLSCREEN:
-                self._show_fullscreen(content, duration, bg_color, bg_alpha, text_color, font_size, font_weight)
-            else:
-                logger.warning(f"未知通知类型: {notif_type}")
+            logger.warning(f"未知通知类型: {notif_type}")
 
     def _show_scroll(self, text, speed, duration, bg_color, bg_alpha, text_color, font_size, font_weight):
-        pixels_per_second = 30 + (speed - 1) * 20
         from core.config import cfg
-        bg_height = cfg.get(cfg.scrollBannerBgHeight)
-        mouse_through = cfg.get(cfg.scrollBannerMouseThrough)
-        banner = ScrollBanner(text, pixels_per_second, duration,
+        banner = ScrollBanner(text, 30 + (speed - 1) * 20, duration,
                               bg_color, bg_alpha, text_color, font_size, font_weight,
-                              bg_height=bg_height, mouse_through=mouse_through)
-        banner.finished.connect(self._on_notification_finished)
-        banner.destroyed.connect(lambda: self._active_windows.remove(banner))
-        self._active_windows.append(banner)
-        self._is_showing = True
-        banner.show()
+                              bg_height=cfg.get(cfg.scrollBannerBgHeight),
+                              mouse_through=cfg.get(cfg.scrollBannerMouseThrough))
+        self._present(banner)
 
     def _show_fullscreen(self, text, duration, bg_color, bg_alpha, text_color, font_size, font_weight):
         popup = FullScreenPopup(text, duration,
                                  bg_color, bg_alpha, text_color, font_size, font_weight)
-        popup.finished.connect(self._on_notification_finished)
-        popup.destroyed.connect(lambda: self._active_windows.remove(popup))
+        self._present(popup)
+
+    def _present(self, popup):
+        """登记弹窗,结束后自行回收"""
+        popup.finished.connect(lambda p=popup: self._release(p))
         self._active_windows.append(popup)
         self._is_showing = True
-        popup.show()
+
+    def _release(self, popup):
+        """弹窗收尾:移出持有列表并销毁,再派发下一条"""
+        try:
+            self._active_windows.remove(popup)
+        except ValueError:
+            pass
+        popup.deleteLater()
+        self._on_notification_finished()
 
     def _show_corner(self, text, duration):
         plyer_notification.notify(
@@ -448,9 +463,6 @@ class NotificationManager(QObject):
         )
 
     def _on_notification_finished(self):
-        """当前通知结束 下一个"""
+        """当前通知结束,通知界面派发下一条"""
         self._is_showing = False
         self.notification_finished.emit()
-        if self._queue:
-            next_data = self._queue.pop(0)
-            self.handle_notification(next_data)

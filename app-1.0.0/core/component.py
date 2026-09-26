@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional, Type, Any
 
-from PyQt6.QtCore import QObject, pyqtSignal, QPoint, QRect
+from PyQt6.QtCore import QObject, pyqtSignal
 
 logger = logging.getLogger("Glimpseon.core.component")
 
@@ -123,13 +123,6 @@ class GridMetrics:
         """格子间距（格子大小 + 间隙）"""
         return self.cell_size + self.gap_px
 
-
-
-
-
-
-
-
 class GridLayoutService:
     """网格布局计算"""
     
@@ -202,146 +195,28 @@ class GridLayoutService:
         """计算边距"""
         if host_width <= 1 or host_height <= 1:
             return 0
-        
+
         cells = max(1, short_side_cells)
         short_side_px = max(1, min(host_width, host_height))
         base_cell = short_side_px / cells
         inset_ratio = max(0, min(30, inset_percent)) / 100.0
         return max(0, min(80, base_cell * inset_ratio))
-    
-    def get_cell_rect(
-        self,
-        metrics: GridMetrics,
-        column: int,
-        row: int,
-        width_cells: int = 1,
-        height_cells: int = 1
-    ) -> QRect:
-        """获取格子的屏幕坐标"""
-        x = metrics.edge_inset_px + column * metrics.pitch
-        y = metrics.edge_inset_px + row * metrics.pitch
-        w = width_cells * metrics.cell_size + max(0, width_cells - 1) * metrics.gap_px
-        h = height_cells * metrics.cell_size + max(0, height_cells - 1) * metrics.gap_px
-        return QRect(int(x), int(y), int(w), int(h))
-    
-    def point_to_cell(
-        self,
-        metrics: GridMetrics,
-        point: QPoint
-    ) -> tuple:
-        """屏幕坐标转格子坐标 网格外返回 (-1, -1)"""
-        if metrics.cell_size <= 0:
-            return (-1, -1)
-
-        # 相对于网格起点
-        rel_x = point.x() - metrics.edge_inset_px
-        rel_y = point.y() - metrics.edge_inset_px
-
-        # 完全在网格之外
-        if rel_x < 0 or rel_y < 0:
-            return (-1, -1)
-        if rel_x > metrics.grid_width_px or rel_y > metrics.grid_height_px:
-            return (-1, -1)
-
-        # 格子索引
-        column = int(rel_x / metrics.pitch)
-        row = int(rel_y / metrics.pitch)
-
-        # 检查是否在间隙中
-        cell_local_x = rel_x - column * metrics.pitch
-        cell_local_y = rel_y - row * metrics.pitch
-        if cell_local_x > metrics.cell_size or cell_local_y > metrics.cell_size:
-            return (-1, -1)  # 在间隙中
-
-        # 边界检查
-        column = max(0, min(column, metrics.column_count - 1))
-        row = max(0, min(row, metrics.row_count - 1))
-        
-        return (row, column)
-    
-    def check_collision(
-        self,
-        placements: list,
-        target_row: int,
-        target_column: int,
-        width_cells: int,
-        height_cells: int,
-        exclude_placement_id: Optional[str] = None,
-        page_index: int = 0
-    ) -> bool:
-        """碰撞检测"""
-        for p in placements:
-            if p.placement_id == exclude_placement_id:
-                continue
-            if p.page_index != page_index:
-                continue
-            if not p.enabled:
-                continue
-            
-            if self._rects_overlap(
-                target_row, target_column, width_cells, height_cells,
-                p.row, p.column, p.width_cells, p.height_cells
-            ):
-                return True
-        
-        return False
-    
-    def _rects_overlap(
-        self,
-        r1_row: int, r1_col: int, r1_w: int, r1_h: int,
-        r2_row: int, r2_col: int, r2_w: int, r2_h: int
-    ) -> bool:
-        """检查重叠"""
-        # 矩形1范围
-        r1_row_end = r1_row + r1_h - 1
-        r1_col_end = r1_col + r1_w - 1
-        
-        # 矩形2范围
-        r2_row_end = r2_row + r2_h - 1
-        r2_col_end = r2_col + r2_w - 1
-        
-        # 检查重叠
-        if r1_row > r2_row_end or r2_row > r1_row_end:
-            return False
-        if r1_col > r2_col_end or r2_col > r1_col_end:
-            return False
-        
-        return True
 
 
 class ComponentRegistry(QObject):
     """组件注册"""
     
-    definitions_changed = pyqtSignal()
-    
     def __init__(self, parent=None):
         super().__init__(parent)
         self._definitions: Dict[str, ComponentDefinition] = {}
-    
-    def register(self, definition: ComponentDefinition):
-        if definition.id:
-            self._definitions[definition.id] = definition
-            self.definitions_changed.emit()
     
     def register_batch(self, definitions: List[ComponentDefinition]):
         for d in definitions:
             if d.id:
                 self._definitions[d.id] = d
-        self.definitions_changed.emit()
-    
-    def unregister(self, component_id: str):
-        if component_id in self._definitions:
-            del self._definitions[component_id]
-            self.definitions_changed.emit()
     
     def get_definition(self, component_id: str) -> Optional[ComponentDefinition]:
         return self._definitions.get(component_id)
-    
-    def has_definition(self, component_id: str) -> bool:
-        return component_id in self._definitions
-    
-    def get_all_definitions(self) -> List[ComponentDefinition]:
-        return list(self._definitions.values())
     
     def get_definitions_by_category(self, category: str) -> List[ComponentDefinition]:
         return [d for d in self._definitions.values() if d.category == category]
@@ -349,28 +224,6 @@ class ComponentRegistry(QObject):
     def get_categories(self) -> List[str]:
         return sorted(set(d.category for d in self._definitions.values()))
     
-    def load_from_json(self, path: str, component_classes: Optional[Dict[str, Type]] = None):
-        try:
-            with open(path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            for comp_data in data.get("components", []):
-                try:
-                    comp_class = None
-                    if component_classes:
-                        comp_class = component_classes.get(comp_data.get("id"))
-
-                    definition = ComponentDefinition.from_dict(comp_data, comp_class)
-                    self.register(definition)
-                except Exception as e:
-                    logger.warning(f"跳过: {e} data={comp_data}")
-            
-            logger.info(f"加载 {len(self._definitions)} 个组件:{path}")
-        except FileNotFoundError:
-            logger.warning(f"文件不存在: {path}")
-        except Exception as e:
-            logger.error(f"加载失败: {e}")
-            
 
 
 BUILTIN_COMPONENT_DEFINITIONS = [
@@ -952,23 +805,6 @@ class PageManager:
             self._current_page -= 1
         self.save()
         return True
-
-    def is_nav_page(self, index: int) -> bool:
-        p = self.get_page(index)
-        return p is not None and p.type == "nav"
-
-    # 如下是获取/设置组件列表
-    def get_page_components(self, index: int) -> list:
-        """信息页"""
-        p = self.get_page(index)
-        if p and p.type == "info":
-            return p.components
-        return []
-
-    def set_page_components(self, index: int, components: list):
-        if 0 <= index < len(self._pages) and self._pages[index].type == "info":
-            self._pages[index].components = components
-            self.save()
 
     def get_page_items(self, index: int) -> list:
         """导航页"""

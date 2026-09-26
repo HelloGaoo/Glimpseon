@@ -1,7 +1,7 @@
 # 核心模块（core/）
 
 > [!NOTE]
-> 编写者：HelloGaoo　最后修改：2026/09/12
+> 编写者：HelloGaoo　最后修改：2026/09/26
 
 `core/` 所有路径、常量、配置、日志、工具函数集中于此，被 `ui/`、`services/`、主程序复用。
 
@@ -46,8 +46,11 @@
 | ------------------- | ---------------------------------------------- |
 | `APP_NAME`          | `"Glimpseon"`                                  |
 | `APP_ICON`          | `"resource/icons/CY.png"`                      |
-| `TIMETABLE_SOURCES` | `["Glimpseon", "ClassIsland", "ClassWidgets"]` |
+| `TIMETABLE_SOURCES` | `["Glimpseon", "ClassIsland", "ClassWidgets"]`（另有 `TIMETABLE_SOURCE_*` 三个） |
 | `NEWS_ICONS`        | 新闻源 logo 路径映射                                  |
+| `FONT_PRIMARY`      | `"HarmonyOS Sans"`                    |
+| `FONT_FAMILY`       | CSS 字体回退链（QSS/HTML）            |
+| `FALLBACK_FONT_QSS` | 字体回退样式表                    |
 | `RESOURCE_*`        | 资源子目录别名                                        |
 | `get_resPath`       | `get_resource_path` 的别名                        |
 
@@ -60,9 +63,8 @@ def load_qss(qss_filename) -> str
 def clear_qss_cache()
 ```
 
-- `load_qss` 根据 `isDarkTheme()` 选择 `resource/qss/{light|dark}/<filename>`。
-- 切主题后调 `clear_qss_cache()` 清空缓存！！不然就卡死/样式卡两种中间。
-- 文件以 `utf-8-sig` 读取（兼容 BOM）。
+- `load_qss` 根据 `isDarkTheme()` 选择 `resource/qss/{light|dark}/<filename>`，拼`FALLBACK_FONT_QSS`在最前 ）。
+- 文件不存在： warning + 返回空串；文件以 `utf-8-sig` 读取（兼容 BOM）。
 
 ***
 
@@ -88,10 +90,10 @@ def clear_qss_cache()
 | `Appearance`   | `backgroundBlurRadius`                                                                                                                                                                                                                                |
 | `Time`         | `showClock`、`showClockSeconds`、`showLunarCalendar`、`clockColor`、`clockSize`、`dateSize`、`timeOffset`、`autoTimeOffset*`                                                                                                                                 |
 | `Poetry`       | `showPoetry`、`poetryApiUrl`、`poetryUpdateInterval`、`poetrySize`、`poetryTextColor`                                                                                                                                                                     |
-| `Weather`      | `showWeather`、`weatherSize`、`weatherTextColor`、`weatherIconSize`、`weatherUpdateInterval`、`city`、`cityCode`、`latitude`、`longitude`                                                                                                                     |
+| `Weather`      | `showWeather`、`weatherSize`、`weatherTextColor`、`weatherIconSize`、`weatherUpdateInterval`、`city`、`weatherSource`、`latitude`、`longitude`、`weatherUnit`、`weatherAlertExcluded`                                                                         |
 | `Countdown`    | `showCountdown`、`countdownDisplayMode`、颜色/字号、`countdownCarouselInterval`、`countdownList`                                                                                                                                                              |
 | `School`       | `school`、`schoolClass`、`showSchoolInfo`、颜色/字号                                                                                                                                                                                                         |
-| `QuickLaunch`  | `showQuickLaunch`、`quickLaunchApps`、`quickLaunchIconSize`、`quickLaunchIconSpacing`、`showLabels`、`offsetY`                                                                                                                                             |
+| `QuickLaunch`  | `showQuickLaunch`、`quickLaunchApps`、`quickLaunchIconSize`、`quickLaunchIconSpacing`、`quickLaunchShowLabels`、`quickLaunchOffsetY`                                                                                                                        |
 | `Media`        | `showMediaInfo`、`showMediaCover`、`showMediaLyrics`、`mediaUpdateInterval`、`mediaTextSize`、`mediaCoverSize`、`mediaLyricsSize`、`mediaLyricsAdvance`、`mediaUseCustomBg`、`mediaBgOpacity`、`mediaBorderRadius`、颜色配置                                         |
 | `Linkage`      | `linkageEnabled`、`linkageDataPath`、`linkagePollInterval`、`linkageSyncTimeConfig`                                                                                                                                                                      |
 | `ClassWidgets` | `classWidgetsEnabled`、`classWidgetsDataPath`、`classWidgetsPollInterval`                                                                                                                                                                               |
@@ -114,7 +116,7 @@ for attr_name in dir(cfg):
 
 导入期遍历所有 `ConfigItem`，连接 `valueChanged` 到 `save_cfg`，因此修改 `cfg.xxx.value` 即自动持久化。
 
-带 `restart=True` 的项（如 `language`、`dpiScale`、`enableGpuAcceleration`）变更后需重启生效。
+带 `restart=True` 的项（`dpiScale`、`language`、`logLevel`、`disableLog`、`enableGpuAcceleration`）变更后需重启生效；重启由调用方走 `core.utils.request_restart()`：置 `_pending_restart` → 关闭全部窗口退出，启动器检测 `is_restart_pending()` 后重启子进程。
 
 ### 3.4 API
 
@@ -196,12 +198,11 @@ for attr_name in dir(cfg):
 - `save_cache(name, content, interval_str)`
 - `load_cache(name, ignore_expiry=False)` → `{content, expiry}`
 - `get_cached_content(name, ignore_expiry=False)` → 直接返回 content
-- `clear_cache(name)` / `clear_all_cache()`
 - `parse_interval("30m")` → 秒数
 
 ### 5.4 资源解包
 
-- `extract_files()`：从 `_MEIPASS` 提取 `Tools/`（7z、aria2c）等外部工具到 `PACKAGE_ROOT`
+- `extract_files()`：从 `_MEIPASS` 提取 `resource/`、`font/`、`data/` 到 `APP_DIR`（data 亦复制到 `PACKAGE_ROOT`）
 
 ### 5.5 自启动
 
@@ -213,7 +214,7 @@ for attr_name in dir(cfg):
 ### 5.6 翻译系统
 
 - `LanguageCode(Enum)`：`ZH_CN / ZH_TW / EN_US`。
-- `TranslationManager(QObject)`：加载 `locale/{lang}.json`，`set_language(code)`，带 `language_changed` 信号。
+- `TranslationManager(QObject)`：加载 `locale/{lang}.json`，`set_language(code)` 切换并重载语言包。
 - `tr(key, **kwargs)`：全局翻译查找，支持 `str.format` 插值。
 - `TranslatableWidget`：可翻译控件基类，提供 `retranslate` 钩子。
 
@@ -247,7 +248,7 @@ for attr_name in dir(cfg):
 ### 6.2 服务类
 
 - `GridLayoutService`：根据画布尺寸 + `GridSettings` 计算 `GridMetrics`，提供格子↔像素换算。
-- `ComponentRegistry(QObject)`：组件注册表，`register` / `register_batch` / `unregister` / `get_definitions_by_category` / `load_from_json`，发 `definitions_changed` 信号。
+- `ComponentRegistry`：组件注册表，`register_batch` / `get_definition` / `get_definitions_by_category` / `get_categories`。
 - `PageManager`：页面增删改查与持久化。
 
 ### 6.3 内置组件
@@ -289,8 +290,8 @@ for attr_name in dir(cfg):
 
 ### 8.1 main
 
-- `DOWNLOAD_SOURCES`：`original`（GitHub 直连）/ `hk` / `cloudflare` / `edgeone` / `geekertao` 
-- `set_priority_pid(pid, level)`：通过 `SetPriorityClass` 调进程优先级（默认 `below_normal`，避免下载抢占）。
+- `DOWNLOAD_SOURCES`：下载镜像表（dict）：`original`（GitHub 直连）/ `hk` / `cloudflare` / `edgeone` / `geekertao`
+- `set_priority_pid(pid, level='below_normal')`：通过 `SetPriorityClass` 调进程优先级（默认 `below_normal`）。
 - `SEVEN_ZIP_PASSWORD`：加密 7z 包统一密码。
 - `Downloader` 类：封装下载 + 解压 + 静默安装（COM `Dispatch`）流程。
 - `cleanup_temp_directory(temp_dir, logger)`：清理临时目录。
@@ -310,7 +311,7 @@ def _install_<软件名>(self, software_name, cache_file,
 
 ### 8.3 外部工具
 
-使用 `Tools/7z.exe`、`Tools/aria2c.exe`（由 `extract_files()` 释放）。
+无
 
 ***
 
@@ -365,7 +366,7 @@ def _install_<软件名>(self, software_name, cache_file,
 | `extract_update(archive_path, target_version)`         | 解压为新 `app-{version}` 目录                        |
 | `deploy_update(new_version_dir)`                       | 写新 `record.json`（`current=1`），旧版本 `deactivate` |
 | `create_update_script(new_version_dir)`                | 生成切换脚本                                         |
-| `cleanup_update_files()` / `cleanup_old_versions()`    | 清理临时与旧版本                                       |
+| `cleanup_update_files()`                               | 清理下载临时文件                                    |
 
 依赖 `core.record` 的 `create_record` / `save_record` / `load_record` / `deactivate_version`。
 

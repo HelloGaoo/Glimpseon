@@ -1,7 +1,7 @@
 # 启动流程
 
 > [!NOTE]
-> 编写者：HelloGaoo　最后修改：2026/09/12
+> 编写者：HelloGaoo　最后修改：2026/09/26
 
 本文档梳理从用户启动到主窗口就绪的完整时序，涵盖启动器、闪屏、向导、主窗口、预加载各阶段。
 
@@ -49,17 +49,27 @@ find_app()
 
 ```
 auto_start_launch = auto_start_launch()       # 检测自启动
+os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--process-per-site")
 setHighDpiScaleFactorRoundingPolicy(PassThrough)
 if cfg.enableGpuAcceleration:
     setAttribute(AA_UseOpenGLES)
+from PyQt6 import QtWebEngineWidgets          # 必须在 QApplication 前导入
+setAttribute(AA_ShareOpenGLContexts)
 app = QApplication(sys.argv)
 init_exhook()                                  # 安装异常钩子
 atexit.register(release_single_instance)
-executor = ThreadPoolExecutor(max_workers=2)
-_extract_future = executor.submit(extract_files)   # 后台释放 Tools/（另一下载器项目遗留，当前基本未用到。。完全用不到 占地方。）
 ```
 
-### 3.2 向导（首次运行）
+### 3.2 单实例检查
+
+```
+if not verify_single_instance():
+    # 提示已有实例 sys.exit(0)
+```
+
+`verify_single_instance` 在 `allowMultipleInstances` 或 `debugMode` 为真时放行。
+
+### 3.3 向导（首次运行）
 
 ```
 if check_wizard_needed():                      # Setup_Wizard.json completed != 1
@@ -70,47 +80,31 @@ if check_wizard_needed():                      # Setup_Wizard.json completed != 
 
 向导 5 页：欢迎 → 协议（开源协议/用户协议/隐私）→ 基本设置（自启/空闲/桌面快捷方式）→ 外观（主题/颜色）→ 学校信息（城市/学校/班级）。完成后写 `completed: 1`。
 
-### 3.3 闪屏显示
+### 3.4 闪屏显示与后台任务
 
 ```
 splash = SplashScreen(APP_NAME, VERSION, icon_path)
 splash.show(); splash.setProgress(0)
+allow_ui_update()                  
+executor.submit(_background_extract)   future = executor.submit(_background_init) 
+atexit.register(lambda: executor.shutdown(wait=False))
 ```
 
-`SplashScreen` 无边框置顶，进度条带定时器动画（`_advance_progress`）。
-
-### 3.4 后台初始化任务
+### 3.5 翻译与字体
 
 ```
-def _background_init():
-    cleanup_temp_directory()        # 清理 data/temp
-executor.submit(_background_init)
-```
-
-### 3.5 单实例检查
-
-```
-if not verify_single_instance():
-    # 弹出「已有实例运行」对话框后 sys.exit(0)
-```
-
-`verify_single_instance` 在 `allowMultipleInstances` 或 `debugMode` 为真时放行。
-
-### 3.6 字体初始化
-
-```
-_extract_future.result()            # 等待 Tools 释放
+FluentTranslator 安装（按 cfg.language 建 QLocale）
+_extract_future.result(timeout=10) 
 initialize_fonts(app, install_to_system=True)  # 装 HarmonyOS Sans 到系统
 ```
 
-### 3.7 日志配置
+### 3.6 日志配置
 
 ```
 logger.update_cfg(disable_log, log_level, max_count, max_days)
-# DebugMode 下强制最小值
+# DebugMode 下强制 max_count=3、max_days=1
 ```
-
-随后打印`logger.info` 记录所有配置项。
+ `logger.info` 记录所有配置项与版本/系统信息。
 
 ***
 
@@ -120,13 +114,15 @@ logger.update_cfg(disable_log, log_level, max_count, max_days)
 
 ```
 window = MainWindow()
-  ├─ setTheme(cfg.themeMode.value)
+  ├─ setTheme(cfg.themeMode.value) / 窗口图标
   ├─ _initTranslation()           # 安装 FluentTranslator 与 翻译
   ├─ _initNavigation()            # 注册各子界面（见下）
-  ├─ resize(1050, 750) / moveToCenter / _loadWindowPosition
+  ├─ resize(1050, 750) + setMinimumSize
+  ├─ _loadWindowPosition()        # 失败回退 moveToCenter
   ├─ initSystemTray()             # 系统托盘
   ├─ sync_autostart_cfg()         # 同步注册表自启
   ├─ _initIdleDetection()         # 空闲检测 / 全局钩子
+  ├─ _initTimeSync()              # NTP 时间同步服务
   ├─ _initThemeConnections()      # 主题信号广播
   └─ _initSystemThemeMonitor()    # 轮询系统主题（auto）
 ```
@@ -168,7 +164,7 @@ loader.start()
 2. get_cached_content("wallpaper", ignore_expiry=True)  # 过期也用旧的
    └─ 命中 → sig_wp.emit(path, src, url)
 3. requests.get(API, stream=True)
-   └─ 200 → 落盘 wp_HHMMSS.jpg → _manageWallpaperLimit → save_cache → emit
+   └─ 200 → 落盘 wp_HHMMSS.jpg → historyManager.sync_cleanup → save_cache → emit
 4. 失败 → 默认壁纸 resource/wallpaper/default.jpg
 5. 再失败 → data/wallpaper/ 下最新 wallpaper_*.jpg
 ```
@@ -192,9 +188,10 @@ loader.start()
 
 ### 5.4 主线程槽
 
-- `_upd_wp`：设 `current_pixmap` → `_updateMainWindowBackground` → `_applyEffects`（模糊）→ `infoCard.updateInfo` → `historyManager.add` → `wallpaperChanged.emit()`。
+- `_upd_wp`：设 `current_pixmap` / `current_wallpaper_path` → `_updateMainWindowBackground` → `_applyEffects`（模糊）→ `infoCard.updateInfo` → `historyManager.add`（不 emit `wallpaperChanged`，壁纸页自身状态已同步）。
 - `_update_weather_display`：更新 `_cached_weather` → `weather_updated.emit`。
 - `_upd_po`：更新 `_cached_poetry` → `poetry_updated.emit`。
+- 槽在 `MainWindow` 创建后定义
 
 ### 5.5 自动更新检查
 
@@ -216,20 +213,25 @@ while loader.isRunning():
 ## 6. 阶段 5：收尾
 
 ```
-splash.setProgress(95)
-allow_ui_update()
-splash.setProgress(100)
-splash.waitForProgress()    # 等进度条动画到 100
-allow_ui_update()
+等待后台 future 完成（5s 超时）              # 创建主窗口之前
+splash.setProgress(70) → waitForProgress(70)
+window = MainWindow()
+Preloader 启动（75%）→ autoCheckUpdate → checkUpdateAuto()
+等待 loader（12s 超时 cancel + wait(5000)）
+splash.setProgress(95) → 100 → waitForProgress(100)
 splash.close()
+window.switchTo(window.downloadInterface)   # QTBUG-109424：首个 QWebEngineView
+                                         
 window.showMaximized()
 tray_icon.show()
+allow_ui_update(0.3)
+window.switchTo(window.homeInterface)       # 切回主页
 sys.exit(app.exec())
+# 退出后：is_restart_pending() 为真则 subprocess 重启自身
 ```
 
 > [!NOTE]
-> **顺序说明**：当前实现是先 `splash.close()` 再 `window.showMaximized()`。`close` 前的 `allow_ui_update()` 让事件循环处理完闪屏末帧与待绘制事件，避免主窗口显示瞬间的白屏。
-
+> **退出重启**：`app.exec()` 返回后检查 `is_restart_pending()`（`core.utils.request_restart()` 置位），为真则 `subprocess` 重新拉起——配置"重启生效"是这样的
 ***
 
 ## 7. 启动耗时埋点

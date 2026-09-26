@@ -143,8 +143,7 @@ class WeatherService:
             result[code] = WeatherService.get_weather_text(code, tr_func)
         return result
 
-    def __init__(self, city_code: str = "101010100"):
-        self.city_code = city_code
+    def __init__(self):
         self.base_url = WEATHER_API_URL
         self.api_params = {
             "appKey": WEATHER_API_APPKEY,
@@ -152,9 +151,6 @@ class WeatherService:
             "isGlobal": False,
             "locale": "zh_cn"
         }
-
-    def set_city_code(self, city_code: str):
-        self.city_code = city_code
 
     def fetch_all(self) -> Optional[Dict[str, Any]]:
         try:
@@ -175,20 +171,11 @@ class WeatherService:
                 return None
 
             data = response.json()
-            logger.info(f"[API] {json.dumps(data, ensure_ascii=False)}")
+            logger.debug(f"[API] {json.dumps(data, ensure_ascii=False)}")
 
             if 'current' not in data:
                 logger.error("天气返回不完整")
                 return None
-
-            current = data['current']
-
-            weather_code = current.get('weather', 0)
-            try:
-                weather_code = int(weather_code)
-            except (ValueError, TypeError):
-                logger.warning(f"天气代码无效：{weather_code}")
-                weather_code = 0
 
             logger.info("天气数据获取成功")
             return data

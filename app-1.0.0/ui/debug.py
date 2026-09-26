@@ -18,15 +18,15 @@
 调试面板
 """
 
+import copy
 import os
-import sys
 import socket
-import subprocess
 import time
 import datetime
+from concurrent.futures import ThreadPoolExecutor
 import psutil
 import requests
-from PyQt6.QtCore import QEvent, QTimer, Qt
+from PyQt6.QtCore import pyqtSignal, QEvent, QTimer, Qt
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
@@ -47,22 +47,23 @@ from qfluentwidgets import (
     ProgressBar,
     PushButton,
     ScrollArea,
-    setTheme,
     SpinBox,
     StrongBodyLabel,
     SubtitleLabel,
     TextEdit,
     ToggleButton,
 )
-from PyQt6.QtCore import pyqtSignal
 
 from core.config import cfg
 from core.constants import BASE_DIR, WALLPAPER_DIR, DATA_CONFIG, DATA_LOG, get_resPath, load_qss, RESOURCE_ICONS, clear_qss_cache
-from core.utils import tr, TranslatableWidget, FUI
+from core.utils import tr, TranslatableWidget, FUI, save_cache, get_cached_content, request_restart
 from core.logger import logger
-from services.weather import WeatherService, RegionDatabase
+from services.weather import WeatherService
 
-from .common import BaseScrollAreaInterface, show_text_file
+from .common import BaseScrollAreaInterface
+
+FPS_TIMER_MS = 100
+RESOURCE_TIMER_MS = 10000
 
 
 class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
@@ -79,8 +80,6 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         self.lastFpsTime = time.time()
         self.currentFps = 0
         self.process = psutil.Process(os.getpid())
-        self.lastGeometry = None
-        self.lastCurrentWidget = None
 
         try:
             cpu_times = self.process.cpu_times()
@@ -91,8 +90,9 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             self.last_cpu_time = time.time()
 
         self.elementCheckEnabled = False
-        self.elementCheckOverlay = None
         self._popOutWindow = None
+        self._savedWeather = None
+        self._diagExecutor = None
 
         self._initUI()
         self._setupTimers()
@@ -108,21 +108,20 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         scrollLayout = QVBoxLayout(self.scrollWidget)
         scrollLayout.setSpacing(15)
         scrollLayout.setContentsMargins(60, 10, 60, 20)
-        scrollLayout.addWidget(self._createSystemMonitorCard())
-        scrollLayout.addWidget(self._createQuickActionsCard())
-        scrollLayout.addWidget(self._createNetworkDiagCard())
-        scrollLayout.addWidget(self._createAPITestCard())
-        self._weatherGridCreated = False
-        scrollLayout.addWidget(self._createWeatherDebugCardShell())
-
-        scrollLayout.addWidget(self._createElementCheckCard())
-        scrollLayout.addWidget(self._createBatchWallpaperCard())
+        self._buildCardsInto(scrollLayout)
         self._loadStyleSheet()
-        QTimer.singleShot(500, self._refreshComponentTree)
-        QTimer.singleShot(1000, self._installEventFilter)
+        # 等主窗口建好再装事件过滤器
+        QTimer.singleShot(1000, lambda: self.mainWindow and self.mainWindow.installEventFilter(self))
 
-    def _installEventFilter(self):
-        if self.mainWindow: self.mainWindow.installEventFilter(self)
+    def _buildCardsInto(self, layout):
+        self._weatherGridCreated = False
+        layout.addWidget(self._createSystemMonitorCard())
+        layout.addWidget(self._createQuickActionsCard())
+        layout.addWidget(self._createNetworkDiagCard())
+        layout.addWidget(self._createAPITestCard())
+        layout.addWidget(self._createWeatherDebugCardShell())
+        layout.addWidget(self._createElementCheckCard())
+        layout.addWidget(self._createBatchWallpaperCard())
 
     def _cardTitle(self, icon, text, parent=None):
         layout = QHBoxLayout()
@@ -274,7 +273,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
 
         btnRow = QHBoxLayout()
         self.networkTestBtn = PrimaryPushButton(FUI.PLAY, tr("debug.btn_start_diag"), card)  # 开始诊断
-        self.networkTestBtn.clicked.connect(self._runNetworkDiag)
+        self.networkTestBtn.clicked.connect(lambda: self._runNetworkDiag())
         btnRow.addWidget(self.networkTestBtn)
         self.networkTestAllBtn = PushButton(tr("debug.btn_test_all"), card)  # 测试全部
         self.networkTestAllBtn.clicked.connect(self._runNetworkDiagAll)
@@ -340,25 +339,6 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.addLayout(self._cardTitle(FUI.CLOUD, tr("debug.title_weather_sim"), card))  # 天气模拟
 
-        # weatherCodeMap = {
-        #     0: tr("weather.sunny"), 1: tr("weather.cloudy"), 2: tr("weather.overcast"), 3: tr("weather.shower"), 4: tr("weather.thundershower"),
-        #     5: tr("weather.thundershower_with_hail"), 6: tr("weather.sleet"), 7: tr("weather.light_rain"), 8: tr("weather.moderate_rain"),
-        #     9: tr("weather.heavy_rain"), 10: tr("weather.rainstorm"), 11: tr("weather.heavy_rainstorm"), 12: tr("weather.extreme_rainstorm"),
-        #     13: tr("weather.snow_flurry"), 14: tr("weather.light_snow"), 15: tr("weather.moderate_snow"), 16: tr("weather.heavy_snow"), 17: tr("weather.snowstorm"),
-        #     18: tr("weather.fog"), 19: tr("weather.freezing_rain"), 20: tr("weather.sandstorm"), 21: f"{tr('weather.light_rain')} - {tr('weather.moderate_rain')}",
-        #     22: f"{tr('weather.moderate_rain')} - {tr('weather.heavy_rain')}", 23: f"{tr('weather.heavy_rain')} - {tr('weather.rainstorm')}", 24: f"{tr('weather.rainstorm')} - {tr('weather.heavy_rainstorm')}",
-        #     25: f"{tr('weather.heavy_rainstorm')} - {tr('weather.extreme_rainstorm')}", 26: f"{tr('weather.light_snow')} - {tr('weather.moderate_snow')}", 27: f"{tr('weather.moderate_snow')} - {tr('weather.heavy_snow')}",
-        #     28: f"{tr('weather.heavy_snow')} - {tr('weather.snowstorm')}", 29: tr("weather.dust"), 30: tr("weather.sand"), 31: tr("weather.strong_sandstorm"),
-        #     32: tr("weather.squall"), 33: tr("weather.tornado"), 34: tr("weather.weak_blowing_snow"), 35: tr("weather.light_fog"),
-        #     50: f"{tr('weather.sunny')}({tr('weather.night')})", 51: f"{tr('weather.cloudy')}({tr('weather.night')})", 52: f"{tr('weather.overcast')}({tr('weather.night')})", 53: tr("weather.haze"),
-        #     54: f"{tr('weather.light_rain')}({tr('weather.night')})", 55: f"{tr('weather.moderate_rain')}({tr('weather.night')})", 56: f"{tr('weather.heavy_rain')}({tr('weather.night')})", 57: f"{tr('weather.rainstorm')}({tr('weather.night')})",
-        #     58: f"{tr('weather.thundershower')}({tr('weather.night')})", 59: f"{tr('weather.hail')}({tr('weather.night')})", 60: f"{tr('weather.light_snow')}({tr('weather.night')})", 61: f"{tr('weather.moderate_snow')}({tr('weather.night')})",
-        #     62: f"{tr('weather.heavy_snow')}({tr('weather.night')})", 63: f"{tr('weather.fog')}({tr('weather.night')})", 64: f"{tr('weather.haze')}({tr('weather.night')})", 65: f"{tr('weather.sand_dust')}({tr('weather.night')})",
-        #     66: f"{tr('weather.strong_wind')}({tr('weather.night')})", 67: f"{tr('weather.typhoon')}({tr('weather.night')})", 68: f"{tr('weather.rainstorm')}({tr('weather.night')})", 69: f"{tr('weather.snowstorm')}({tr('weather.night')})",
-        #     70: f"{tr('weather.sleet')}({tr('weather.night')})", 71: f"{tr('weather.freezing_rain')}({tr('weather.night')})", 72: f"{tr('weather.rime')}({tr('weather.night')})", 73: f"{tr('weather.frost')}({tr('weather.night')})",
-        #     74: f"{tr('weather.sandstorm')}({tr('weather.night')})", 75: f"{tr('weather.sand')}({tr('weather.night')})", 76: f"{tr('weather.dust')}({tr('weather.night')})", 77: f"{tr('weather.strong_sandstorm')}({tr('weather.night')})",
-        #     99: tr("weather.unknown"),
-        # }
         self.weatherCodeMap = WeatherService.build_weather_code_map(tr)
 
         selectRow = QHBoxLayout()
@@ -428,21 +408,6 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         return card
 
     def _populateWeatherIconGrid(self):
-        # icon_map = {
-        #     0: "0.svg", 1: "1.svg", 2: "2.svg", 3: "7.svg", 4: "4.svg",
-        #     5: "5.svg", 6: "19.svg", 7: "7.svg", 8: "8.svg", 9: "9.svg",
-        #     10: "10.svg", 11: "11.svg", 12: "11.svg", 13: "14.svg", 14: "14.svg",
-        #     15: "15.svg", 16: "16.svg", 17: "17.svg", 18: "18.svg", 19: "19.svg",
-        #     20: "20.svg", 21: "7.svg", 22: "8.svg", 23: "9.svg", 24: "10.svg",
-        #     25: "11.svg", 26: "14.svg", 27: "15.svg", 28: "16.svg", 29: "18.svg",
-        #     30: "20.svg", 31: "20.svg", 32: "3.svg", 33: "3.svg", 34: "16.svg",
-        #     35: "18.svg", 50: "0.svg", 51: "1.svg", 52: "2.svg", 53: "18.svg",
-        #     54: "7.svg", 55: "8.svg", 56: "9.svg", 57: "10.svg", 58: "4.svg",
-        #     59: "5.svg", 60: "14.svg", 61: "15.svg", 62: "16.svg", 63: "18.svg",
-        #     64: "18.svg", 65: "18.svg", 66: "3.svg", 67: "3.svg", 68: "11.svg",
-        #     69: "17.svg", 70: "19.svg", 71: "19.svg", 72: "18.svg", 73: "18.svg",
-        #     74: "20.svg", 75: "20.svg", 76: "18.svg", 77: "20.svg", 99: "0.svg",
-        # }
         card = self._weatherDebugCard
         col = 0
         row = 0
@@ -458,7 +423,6 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         item = CardWidget()
         item.setFixedSize(115, 80)
         item.setCursor(Qt.CursorShape.PointingHandCursor)
-        item._weatherCode = code
         layout = QVBoxLayout(item)
         layout.setContentsMargins(4, 6, 4, 4)
         layout.setSpacing(2)
@@ -484,10 +448,9 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         return item
 
     def _onGridItemClick(self, code):
-        for i in range(self.weatherCodeCombo.count()):
-            if self.weatherCodeCombo.itemData(i) == code:
-                self.weatherCodeCombo.setCurrentIndex(i)
-                break
+        idx = self.weatherCodeCombo.findData(code)
+        if idx >= 0:
+            self.weatherCodeCombo.setCurrentIndex(idx)
 
     def _onWeatherCodeChanged(self, index):
         code = self.weatherCodeCombo.currentData()
@@ -496,21 +459,6 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         self._previewWeatherIcon(code)
 
     def _previewWeatherIcon(self, code):
-        # icon_map = {
-        #     0: "0.svg", 1: "1.svg", 2: "2.svg", 3: "7.svg", 4: "4.svg",
-        #     5: "5.svg", 6: "19.svg", 7: "7.svg", 8: "8.svg", 9: "9.svg",
-        #     10: "10.svg", 11: "11.svg", 12: "11.svg", 13: "14.svg", 14: "14.svg",
-        #     15: "15.svg", 16: "16.svg", 17: "17.svg", 18: "18.svg", 19: "19.svg",
-        #     20: "20.svg", 21: "7.svg", 22: "8.svg", 23: "9.svg", 24: "10.svg",
-        #     25: "11.svg", 26: "14.svg", 27: "15.svg", 28: "16.svg", 29: "18.svg",
-        #     30: "20.svg", 31: "20.svg", 32: "3.svg", 33: "3.svg", 34: "16.svg",
-        #     35: "18.svg", 50: "0.svg", 51: "1.svg", 52: "2.svg", 53: "18.svg",
-        #     54: "7.svg", 55: "8.svg", 56: "9.svg", 57: "10.svg", 58: "4.svg",
-        #     59: "5.svg", 60: "14.svg", 61: "15.svg", 62: "16.svg", 63: "18.svg",
-        #     64: "18.svg", 65: "18.svg", 66: "3.svg", 67: "3.svg", 68: "11.svg",
-        #     69: "17.svg", 70: "19.svg", 71: "19.svg", 72: "18.svg", 73: "18.svg",
-        #     74: "20.svg", 75: "20.svg", 76: "18.svg", 77: "20.svg", 99: "0.svg",
-        # }
         icon_file = WeatherService.ICON_MAP.get(code, "0.svg")
         icon_path = get_resPath(os.path.join(RESOURCE_ICONS, "weather", icon_file))
         if os.path.exists(icon_path):
@@ -519,33 +467,43 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
 
     def _applyWeatherToMain(self):
         code = self.weatherCodeCombo.currentData()
-        if code is None: return
-        mw = self.mainWindow
-        home = mw.homeInterface
-        if home is None or not hasattr(home, 'weatherTempLabel'): return
-        self._savedWeatherCode = getattr(home, 'current_weather_code', None)
-        self._savedWeatherTemp = home.weatherTempLabel.text()
-        home.current_weather_code = code
+        if code is None:
+            return
+        home = getattr(self.mainWindow, 'homeInterface', None)
+        if home is None:
+            return
+        # 以缓存真值结构为底,只覆盖天气码与温度,再走既有广播链刷新各天气组件
+        data = get_cached_content("weather", ignore_expiry=True)
+        if data is None:
+            InfoBar.warning(title=tr("debug.title_weather_sim"), content=tr("debug.status_empty_data"),
+                            parent=self, duration=2500)
+            return
+        if self._savedWeather is None:
+            self._savedWeather = copy.deepcopy(data)
+        current = data.setdefault("current", {})
+        current["weather"] = int(code)
         temp_text = self.weatherTempInput.text().strip()
         if temp_text:
-            home.weatherTempLabel.setText(temp_text)
-        else:
-            name = self.weatherCodeMap.get(code, "")
-            home.weatherTempLabel.setText(f"模拟: {name}")
-        if hasattr(home, '_updateWeatherIcon'):
-            home._updateWeatherIcon()
-        InfoBar.success(title=tr("debug.title_weather_sim"), content=tr("debug.weather_sim_applied").format(code=code, name=self.weatherCodeMap.get(code, '')), parent=self, duration=2500)
+            try:
+                current.setdefault("temperature", {})["value"] = float(temp_text)
+            except ValueError:
+                pass
+        save_cache("weather", data, cfg.weatherUpdateInterval.value)
+        home.weather_updated.emit(data)
+        InfoBar.success(title=tr("debug.title_weather_sim"),
+                        content=tr("debug.weather_sim_applied").format(code=code, name=self.weatherCodeMap.get(code, '')),
+                        parent=self, duration=2500)
 
     def _resetWeatherDebug(self):
         self.weatherCodeCombo.setCurrentIndex(0)
-        self._onWeatherCodeChanged(0)
         self.weatherTempInput.clear()
-        if hasattr(self, '_savedWeatherCode'): del self._savedWeatherCode
-        if hasattr(self, '_savedWeatherTemp'): del self._savedWeatherTemp
-        mw = self.mainWindow
-        home = getattr(mw, 'homeInterface', None)
-        if home and hasattr(home, '_refreshWeather'):
-            home._refreshWeather()
+        if self._savedWeather is None:
+            return
+        save_cache("weather", self._savedWeather, cfg.weatherUpdateInterval.value)
+        home = getattr(self.mainWindow, 'homeInterface', None)
+        if home is not None:
+            home.weather_updated.emit(self._savedWeather)
+        self._savedWeather = None
 
     def _createElementCheckCard(self):
         card = CardWidget()
@@ -629,7 +587,10 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         QTimer.singleShot(100, self._batchGetNextWallpaper)
 
     def _batchGetNextWallpaper(self):
-        if not self._batchRunning or self._batchWallpaperIndex >= self._batchWallpaperCount:
+        # 停止后残留的定时回调直接退出,汇总只由停止路径做一次
+        if not self._batchRunning:
+            return
+        if self._batchWallpaperIndex >= self._batchWallpaperCount:
             self._finishBatchWallpaper()
             return
         idx = self._batchWallpaperIndex + 1
@@ -641,7 +602,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             url, source = wallpaper._getApiUrl()
             response = requests.get(url, stream=True, timeout=10)
             if response.status_code == 200:
-                wallpaper_dir = WALLPAPER_DIR  # os.path.join(BASE_DIR, 'wallpaper')
+                wallpaper_dir = WALLPAPER_DIR
                 if not os.path.exists(wallpaper_dir): os.makedirs(wallpaper_dir)
                 current_date = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
                 wallpaper_path = os.path.join(wallpaper_dir, f'wallpaper_{current_date}.jpg')
@@ -650,11 +611,9 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
                 wallpaper.current_wallpaper_path = wallpaper_path
                 wallpaper.current_wallpaper_source = source
                 if not wallpaper.current_pixmap.isNull():
-                    wallpaper._updateBackground()
+                    wallpaper._applyEffects()
                     wallpaper._updateMainWindowBackground()
                     wallpaper.historyManager.add(wallpaper_path, source, url)
-                    if hasattr(wallpaper, 'historyWidget'):
-                        wallpaper.historyWidget.refresh()
                 wallpaper.infoCard.updateInfo(wallpaper_path, source)
                 self._batchSuccess += 1
                 self.batchWallpaperLog.append(f"[{idx}/{total}] 成功 - {source}")
@@ -665,18 +624,18 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             self._batchFail += 1
             self.batchWallpaperLog.append(f"[{idx}/{total}] 错误 - {str(e)}")
         self._batchWallpaperIndex += 1
-        self._updateBatchProgress()
+        self.batchWallpaperProgress.setValue(
+            int(self._batchWallpaperIndex / self._batchWallpaperCount * 100))
         QTimer.singleShot(800, self._batchGetNextWallpaper)
 
-    def _updateBatchProgress(self):
-        total = self._batchWallpaperCount
-        done = self._batchWallpaperIndex
-        self.batchWallpaperProgress.setValue(int(done / total * 100))
-
     def _stopBatchWallpaper(self):
+        if not self._batchRunning:
+            return
         self._batchRunning = False
         self.batchWallpaperLog.append(tr("debug.stopped"))  # 已停止
-        self._finishBatchWallpaper()
+        self.batchWallpaperLog.append(f"成功 {getattr(self, '_batchSuccess', 0)} 张，失败 {getattr(self, '_batchFail', 0)} 张")
+        self.batchWallpaperBtn.setEnabled(True)
+        self.batchWallpaperStopBtn.setEnabled(False)
 
     def _finishBatchWallpaper(self):
         self._batchRunning = False
@@ -700,15 +659,12 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
 
     def _restartApp(self):
         InfoBar.info(title=tr("debug.btn_restart_app"), content=tr("debug.restarting"), parent=self, duration=2000)
-        QTimer.singleShot(800, self._doRestartApp)
+        QTimer.singleShot(800, request_restart)
 
-    def _doRestartApp(self):
-        from core.utils import request_restart
-        request_restart()
-
-    def _runNetworkDiag(self):
+    def _runNetworkDiag(self, reset_log: bool = True):
         target = self.networkTargetCombo.currentText().strip()
-        if not target: return
+        if not target:
+            return
 
         def _diag():
             results = []
@@ -759,20 +715,18 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             results.append("--- 诊断完成 ---")
             return results
 
-        self.networkLogEdit.clear()
+        if reset_log:
+            self.networkLogEdit.clear()
         self.networkLogEdit.append(f"[{time.strftime('%H:%M:%S')}] 正在诊断: {target}...")
 
-        from concurrent.futures import ThreadPoolExecutor
-        executor = ThreadPoolExecutor(max_workers=1)
-        future = executor.submit(_diag)
-        future._executor = executor
+        if self._diagExecutor is None:
+            self._diagExecutor = ThreadPoolExecutor(max_workers=2)
+        future = self._diagExecutor.submit(_diag)
         future.add_done_callback(lambda f: self._diag_result.emit(f))
 
     def _handle_diag_result(self, future):
-        executor = getattr(future, '_executor', None)
         try:
             results = future.result()
-            self.networkLogEdit.clear()
             for r in results:
                 if isinstance(r, tuple):
                     if r[0] == "dns":
@@ -798,9 +752,6 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
                     self.networkLogEdit.append(r)
         except Exception as e:
             self.networkLogEdit.append(f"诊断异常: {e}")
-        finally:
-            if executor is not None:
-                executor.shutdown(wait=False)
 
     def _runNetworkDiagAll(self):
         combo = self.networkTargetCombo
@@ -811,26 +762,15 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         for idx, target in enumerate(items):
             combo.setCurrentIndex(idx)
             self.networkLogEdit.append(f"\n{'='*30} [{idx+1}/{len(items)}] {target} {'='*30}")
-            # 单目标诊断
-            self._runNetworkDiag()
+            self._runNetworkDiag(reset_log=False)
         combo.setCurrentIndex(original)
 
     def _setupTimers(self):
         self.fpsTimer = QTimer(self)
         self.fpsTimer.timeout.connect(self._updateDebugInfo)
-        self.fpsTimer.start(100)
         self.resourceTimer = QTimer(self)
         self.resourceTimer.timeout.connect(self._updateResourceMonitor)
-        self.resourceTimer.start(10000)
-        self.windowTimer = QTimer(self)
-        self.windowTimer.timeout.connect(self._updateWindowDebug)
-        self.windowTimer.start(2000)
-        self.fpsCheckTimer = QTimer(self)
-        self.fpsCheckTimer.timeout.connect(self._updateFPS)
-        self.fpsCheckTimer.start(16)
-        self.changeTimer = QTimer(self)
-        self.changeTimer.timeout.connect(self._checkWindowChanges)
-        self.changeTimer.start(50)
+        self._startTimers()
 
     def _loadStyleSheet(self):
         self.setStyleSheet(load_qss('debug.qss'))
@@ -839,7 +779,9 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         self._loadStyleSheet()
 
     def eventFilter(self, obj, event):
-        if not hasattr(self, 'elementCheckEnabled'): return super().eventFilter(obj, event)
+        # super().__init__ 期间就会派发事件,那时 mainWindow/elementCheckEnabled 还没赋值
+        if not hasattr(self, 'elementCheckEnabled'):
+            return super().eventFilter(obj, event)
         if obj == self.mainWindow and event.type() == QEvent.Type.Paint and hasattr(self, 'debugUpdateToggle') and self.debugUpdateToggle.isChecked():
             self.frameCount += 1
             currentTime = time.time()
@@ -862,38 +804,6 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
                 element_info.append(f"大    小：{geom.width()}x{geom.height()}")
             self.elementInfoEdit.setText("\n".join(element_info))
         return super().eventFilter(obj, event)
-
-    def _updateFPS(self):
-        if not self.debugUpdateToggle.isChecked(): return
-        if self.mainWindow.isVisible():
-            self.frameCount += 1
-            currentTime = time.time()
-            if currentTime - self.lastFpsTime >= 0.5:
-                self.currentFps = self.frameCount / (currentTime - self.lastFpsTime)
-                self.fpsLabel.setText(f"{self.currentFps:.1f}")
-                self.frameCount = 0
-                self.lastFpsTime = currentTime
-
-    def _checkWindowChanges(self):
-        if not self.debugUpdateToggle.isChecked(): return
-        current_widget = self.mainWindow.stackedWidget.currentWidget()
-        widget_changed = False
-        if current_widget != self.lastCurrentWidget:
-            self.lastCurrentWidget = current_widget
-            widget_changed = True
-        current_geometry = self.mainWindow.geometry()
-        geometry_changed = False
-        if current_geometry != self.lastGeometry:
-            self.lastGeometry = current_geometry
-            geometry_changed = True
-        if widget_changed or geometry_changed:
-            self.frameCount += 1
-            currentTime = time.time()
-            if currentTime - self.lastFpsTime >= 0.5:
-                self.currentFps = self.frameCount / (currentTime - self.lastFpsTime)
-                self.fpsLabel.setText(f"{self.currentFps:.1f}")
-                self.frameCount = 0
-                self.lastFpsTime = currentTime
 
     def _updateDebugInfo(self):
         if not self.debugUpdateToggle.isChecked(): return
@@ -922,30 +832,34 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             self.cpuLabel.setText("N/A")
         self.windowStateLabel.setText(tr("debug.status_visible") if self.mainWindow.isVisible() else tr("debug.status_hidden"))  # 可见 / 隐藏
 
+    @staticmethod
+    def _iter_wallpaper_files():
+        """壁纸目录下全部文件路径"""
+        d = os.path.normpath(WALLPAPER_DIR)
+        if not os.path.exists(d):
+            return
+        for root, _dirs, files in os.walk(d):
+            for f in files:
+                yield os.path.join(root, f)
+
     def _updateResourceMonitor(self):
         try:
-            wallpaper_dir = os.path.normpath(WALLPAPER_DIR)  # os.path.join(BASE_DIR, 'wallpaper')
-            if os.path.exists(wallpaper_dir):
-                total_size = 0
-                file_count = 0
-                for root, dirs, files in os.walk(wallpaper_dir):
-                    for f in files:
-                        fp = os.path.join(root, f)
-                        try:
-                            total_size += os.path.getsize(fp)
-                            file_count += 1
-                        except Exception:
-                            pass
-                self.wallpaperSizeLabel.setText(f"{total_size / 1024 / 1024:.1f} MB")
-                self.wallpaperCountLabel.setText(str(file_count))
-            else:
+            if not os.path.exists(os.path.normpath(WALLPAPER_DIR)):
                 self.wallpaperSizeLabel.setText("-")
                 self.wallpaperCountLabel.setText("0")
+                return
+            total_size = 0
+            file_count = 0
+            for fp in self._iter_wallpaper_files():
+                try:
+                    total_size += os.path.getsize(fp)
+                    file_count += 1
+                except Exception:
+                    pass
+            self.wallpaperSizeLabel.setText(f"{total_size / 1024 / 1024:.1f} MB")
+            self.wallpaperCountLabel.setText(str(file_count))
         except Exception as e:
             logger.error(f"更新资源监控失败：{e}")
-
-    def _updateWindowDebug(self):
-        pass
 
     def _testPoetryAPI(self):
         start_time = time.time()
@@ -965,15 +879,27 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
     def _testWeatherAPI(self):
         start_time = time.time()
         try:
-            city_name = cfg.city.value if hasattr(cfg, 'city') and cfg.city.value else "北京"
-            city_code = "101010100"
-            weather_service = WeatherService(city_code)
-            weather_data = weather_service.fetch_all()
+            weather_data = WeatherService().fetch_all()
             elapsed = (time.time() - start_time) * 1000
-            if weather_data:
-                self.weatherResultLabel.setText(f"成功 ({elapsed:.0f}ms): {weather_data['weather']} {weather_data['current_temp']}{weather_data['temp_unit']}")
-                self.rawDataEdit.setText(f"温度：{weather_data['current_temp']}{weather_data['temp_unit']}\n天气：{weather_data['weather']}\n代码：{weather_data['weather_code']}\n逐小时：{len(weather_data.get('forecast_hourly', {}).get('temperature', {}).get('value', []))}条\n每日：{len(weather_data.get('forecast_daily', {}).get('temperature', {}).get('value', []))}条")
-                InfoBar.success(title=tr("debug.api_test"), content=tr("debug.weather_api_success").format(weather=weather_data['weather'], temp=f"{weather_data['current_temp']}{weather_data['temp_unit']}"), parent=self, duration=2000)
+            current = (weather_data or {}).get("current", {})
+            if weather_data and current:
+                temp_block = current.get("temperature", {})
+                temp = temp_block.get("value", "--")
+                unit = temp_block.get("unit", "℃")
+                try:
+                    code = int(current.get("weather", 0) or 0)
+                except (TypeError, ValueError):
+                    code = 0
+                name = self.weatherCodeMap.get(code, "")
+                hourly = weather_data.get("forecastHourly", {}).get("temperature", {}).get("value", [])
+                daily = weather_data.get("forecastDaily", {}).get("temperature", {}).get("value", [])
+                self.weatherResultLabel.setText(f"成功 ({elapsed:.0f}ms): {name} {temp}{unit}")
+                self.rawDataEdit.setText(
+                    f"温度：{temp}{unit}\n天气：{name}\n代码：{code}\n"
+                    f"逐小时：{len(hourly)}条\n每日：{len(daily)}条")
+                InfoBar.success(title=tr("debug.api_test"),
+                                content=tr("debug.weather_api_success").format(weather=name, temp=f"{temp}{unit}"),
+                                parent=self, duration=2000)
             else:
                 self.weatherResultLabel.setText(f"失败 ({elapsed:.0f}ms): 未获取到数据")
                 self.rawDataEdit.setText(tr("debug.status_empty_data"))  # 暂无数据
@@ -986,23 +912,20 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
 
     def _clearCache(self):
         try:
-            wallpaper_dir = os.path.normpath(WALLPAPER_DIR)  # os.path.join(BASE_DIR, 'wallpaper')
-            if os.path.exists(wallpaper_dir):
-                deleted_count = 0
-                deleted_size = 0
-                for root, dirs, files in os.walk(wallpaper_dir):
-                    for f in files:
-                        fp = os.path.join(root, f)
-                        try:
-                            deleted_size += os.path.getsize(fp)
-                            os.remove(fp)
-                            deleted_count += 1
-                        except Exception as e:
-                            logger.warning(f"删除壁纸文件失败：{fp}, {e}")
-                self._updateResourceMonitor()
-                InfoBar.success(title=tr("debug.clear_complete"), content=tr("debug.clear_cache_result").format(count=deleted_count, size=f"{deleted_size / 1024:.1f}"), parent=self, duration=3000)
-            else:
+            if not os.path.exists(os.path.normpath(WALLPAPER_DIR)):
                 InfoBar.info(title=tr("debug.btn_clear_cache"), content=tr("debug.wallpaper_folder_not_exist"), parent=self, duration=2000)
+                return
+            deleted_count = 0
+            deleted_size = 0
+            for fp in self._iter_wallpaper_files():
+                try:
+                    deleted_size += os.path.getsize(fp)
+                    os.remove(fp)
+                    deleted_count += 1
+                except Exception as e:
+                    logger.warning(f"删除壁纸文件失败：{fp}, {e}")
+            self._updateResourceMonitor()
+            InfoBar.success(title=tr("debug.clear_complete"), content=tr("debug.clear_cache_result").format(count=deleted_count, size=f"{deleted_size / 1024:.1f}"), parent=self, duration=3000)
         except Exception as e:
             logger.error(f"清理缓存失败：{e}")
             InfoBar.error(title=tr("debug.clear_failed"), content=str(e), parent=self, duration=3000)
@@ -1010,17 +933,23 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
     def _clearLogs(self):
         try:
             log_dir = os.path.normpath(DATA_LOG)
-            if os.path.exists(log_dir):
-                for root, dirs, files in os.walk(log_dir):
-                    for f in files:
-                        if f.endswith('.log'):
-                            fp = os.path.join(root, f)
-                            try:
-                                os.remove(fp)
-                            except Exception:
-                                pass
-                InfoBar.success(title=tr("debug.btn_clear_logs"), content=tr("debug.logs_cleared"), parent=self, duration=2000)
-                self._updateResourceMonitor()
+            if not os.path.exists(log_dir):
+                return
+            removed = 0
+            failed = 0
+            for root, _dirs, files in os.walk(log_dir):
+                for f in files:
+                    if not (f.endswith('.log') or f.endswith('.log.zip')):
+                        continue
+                    try:
+                        os.remove(os.path.join(root, f))
+                        removed += 1
+                    except Exception:
+                        # 正在写入的日志被 RotatingFileHandler 持有,Windows 下删不掉
+                        failed += 1
+            if failed:
+                logger.warning(f"日志清理: 成功 {removed} 个, 失败 {failed} 个(正在写入)")
+            InfoBar.success(title=tr("debug.btn_clear_logs"), content=tr("debug.logs_cleared"), parent=self, duration=2000)
         except Exception as e:
             logger.error(f"清理日志失败：{e}")
             InfoBar.error(title=tr("debug.clear_failed"), content=str(e), parent=self, duration=3000)
@@ -1043,11 +972,8 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             QApplication.instance().removeEventFilter(self)
             InfoBar.info(title=tr("debug.title_element_check"), content=tr("debug.element_check_disabled"), parent=self, duration=2000)
 
-    def _refreshComponentTree(self):
-        pass
-
     def _togglePopOut(self):
-        if hasattr(self, '_popOutWindow') and self._popOutWindow is not None:
+        if self._popOutWindow is not None:
             self._restoreFromPopOut()
         else:
             self._popOut()
@@ -1067,19 +993,18 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
     def _stopTimers(self):
         self.fpsTimer.stop()
         self.resourceTimer.stop()
-        self.windowTimer.stop()
-        self.fpsCheckTimer.stop()
-        self.changeTimer.stop()
 
     def _startTimers(self):
-        self.fpsTimer.start(100)
-        self.resourceTimer.start(10000)
-        self.windowTimer.start(2000)
-        self.fpsCheckTimer.start(16)
-        self.changeTimer.start(50)
+        self.fpsTimer.start(FPS_TIMER_MS)
+        self.resourceTimer.start(RESOURCE_TIMER_MS)
 
     def _popOut(self):
         try:
+            screen_obj = QApplication.primaryScreen()
+            if screen_obj is None:
+                return
+            screen = screen_obj.availableGeometry()
+
             self._savedViewportMargins = self.viewportMargins()
             self.setViewportMargins(0, 0, 0, 0)
             self._saveWidgetRefs()
@@ -1098,9 +1023,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             self._popOutWindow.setObjectName('debug')
             self._popOutWindow.setWindowTitle(tr("debug.panel_title"))
             self._popOutWindow.setFixedSize(850, 750)
-
-            qss = load_qss('debug.qss')
-            self._popOutWindow.setStyleSheet(qss)
+            self._popOutWindow.setStyleSheet(load_qss('debug.qss'))
 
             outer_layout = QVBoxLayout(self._popOutWindow)
             outer_layout.setContentsMargins(0, 0, 0, 0)
@@ -1111,38 +1034,24 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             content_layout = QVBoxLayout(container)
             content_layout.setContentsMargins(36, 20, 36, 20)
             content_layout.setSpacing(15)
-
-            content_layout.addWidget(self._createSystemMonitorCard())
-            content_layout.addWidget(self._createQuickActionsCard())
-            content_layout.addWidget(self._createNetworkDiagCard())
-            content_layout.addWidget(self._createAPITestCard())
-            content_layout.addWidget(self._createWeatherDebugCardShell())
-            content_layout.addWidget(self._createElementCheckCard())
-            content_layout.addWidget(self._createBatchWallpaperCard())
+            self._buildCardsInto(content_layout)
+            self._populateWeatherIconGrid()
 
             scroll = ScrollArea(self._popOutWindow)
             scroll.setObjectName("debugScroll")
             scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
             scroll.setWidgetResizable(True)
             scroll.setWidget(container)
-            self._popOutContentContainer = container
             outer_layout.addWidget(scroll)
 
-            screen_obj = QApplication.primaryScreen()
-            if not screen_obj: return
-            screen = screen_obj.availableGeometry()
-            x = (screen.width() - self._popOutWindow.width()) // 2
-            y = (screen.height() - self._popOutWindow.height()) // 2
-            self._popOutWindow.move(x, y)
-
+            self._popOutWindow.move((screen.width() - self._popOutWindow.width()) // 2,
+                                    (screen.height() - self._popOutWindow.height()) // 2)
             self._popOutWindow.show()
             self.popOutButton.setText(tr("debug.btn_restore_panel"))  # 还原面板
 
             mw = self.mainWindow
             if hasattr(mw, 'debugNavItem'): mw.debugNavItem.setVisible(False)
             if hasattr(mw, 'homeInterface'): mw.switchTo(mw.homeInterface)
-
-            QTimer.singleShot(300, self._refreshComponentTree)
         except Exception as e:
             logger.error(f"弹出调试面板失败: {e}")
             self._safeCleanupPopOut()
@@ -1151,8 +1060,8 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         pop_win = getattr(self, '_popOutWindow', None)
         if pop_win is None: return
         self._stopTimers()
+        self._popOutWindow.deleteLater()
         self._popOutWindow = None
-        self._popOutContentContainer = None
         self._restoreWidgetRefs()
         if hasattr(self, '_savedViewportMargins'): self.setViewportMargins(self._savedViewportMargins)
         self.popOutButton.setText(tr("debug.btn_popout"))  # 弹出面板
@@ -1166,7 +1075,6 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         pop_win = getattr(self, '_popOutWindow', None)
         if pop_win is not None:
             self._popOutWindow = None
-            self._popOutContentContainer = None
             if hasattr(pop_win, '_panel_ref'): pop_win._panel_ref = None
             pop_win.hide()
             pop_win.deleteLater()
