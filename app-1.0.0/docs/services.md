@@ -24,16 +24,16 @@
 | 类                                      | 作用                                                                           |
 | -------------------------------------- | ---------------------------------------------------------------------------- |
 | `WeatherService`                       | 天气获取主服务，含天气代码映射表 `WEATHER_MAP` / `ICON_MAP` / `WEATHER_TEXT_MAP`             |
-| `RegionDatabase`                       | 基于 SQLite 读取 `resource/city.db`，提供 `search(keyword)`（与 `get_coordinates(city_name) → (lon, lat)` |
+| `RegionDatabase`                       | 基于 SQLite 读取 `resource/city.db`，提供 `search(keyword)`（与 `get_coordinates(city_name) -> (lon, lat)` |
 | `RegionSelectorDialog(MessageBoxBase)` | 城市选择对话框（搜索 + 列表）                                                             |
 
 ### 1.3 天气代码体系
 
-- `WEATHER_MAP`：0\~20 基础天气代码 → 中文名 + SVG 文件名。
-- `ICON_MAP`：扩展天气代码（含 21\~99）→ 图标 SVG 映射。
-- `WEATHER_TEXT_MAP`：天气代码 → i18n 键（如 `weather.sunny`），通过 `tr()` 翻译。
-- `WEATHER_COMBINED_TEXT_MAP`：组合天气代码（21\~28）→ 两个 i18n 键拼接（如「小雨 - 中雨」）。
-- `WEATHER_NIGHT_MAP`：夜间代码（50\~77）→ 白天 i18n 键，显示时追加「(夜间)」后缀。
+- `WEATHER_MAP`：0\~20 基础天气代码 -> 中文名 + SVG 文件名。
+- `ICON_MAP`：扩展天气代码（含 21\~99）-> 图标 SVG 映射。
+- `WEATHER_TEXT_MAP`：天气代码 -> i18n 键（如 `weather.sunny`），通过 `tr()` 翻译。
+- `WEATHER_COMBINED_TEXT_MAP`：组合天气代码（21\~28）-> 两个 i18n 键拼接（如「小雨 - 中雨」）。
+- `WEATHER_NIGHT_MAP`：夜间代码（50\~77）-> 白天 i18n 键，显示时追加「(夜间)」后缀。
 - `get_weather_text(code, tr_func)` 按上述三表顺序查找，全未命中返回 `weather.unknown`。
 - 图标资源位于 `resource/icons/weather/`，含 `alerts/`（蓝/橙/红/黄预警）与 `reminders/`（高低温/降雨提醒）。
 

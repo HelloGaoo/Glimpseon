@@ -35,11 +35,11 @@ class PoetryService:
             api_url = cfg.poetryApiUrl.value
 
         try:
-            logger.debug(f"一言api url: {api_url}")
+            logger.debug(f"一言 api {api_url}")
             response = requests.get(api_url, timeout=10)
 
             if response.status_code == 200:
-                logger.debug(f"一言 请求成功：{response.status_code}")
+                logger.debug(f"一言 已请求 {response.status_code}")
                 text = response.text.strip()
                 if text:
                     try:
@@ -50,23 +50,25 @@ class PoetryService:
                             if source:
                                 return f"{hitokoto}——{source}"
                             return hitokoto
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"一言 json 解析失败 用原始文本: {e}")
                     # 非 json
+                    logger.debug(f"一言返回非 json 文本 长度 {len(text)}")
                     return text
                 logger.warning("一言 返回空内容")
                 return FALLBACK_POETRY
             else:
-                logger.error(f"一言 请求失败：{response.status_code}")
+                logger.error(f"一言 请求失败 {response.status_code}")
                 return FALLBACK_POETRY
         except Exception as e:
-            logger.error(f"获取一言失败：{e}")
+            logger.error(f"获取一言失败 {e}")
             return FALLBACK_POETRY
 
     @staticmethod
     def get_poetry_with_cache() -> str:
         cached = get_cached_content("poetry")
         if cached:
+            logger.debug("一言缓存命中")
             return cached
 
         text = PoetryService.get_poetry()

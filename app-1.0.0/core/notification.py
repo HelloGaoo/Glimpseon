@@ -17,6 +17,7 @@
 """通知模块"""
 import logging
 import os
+import sys
 from PyQt6.QtCore import (
     QObject, QTimer, pyqtSlot, Qt, pyqtSignal,
 )
@@ -58,7 +59,8 @@ try:
             0, 0, 0, 0,
             SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
         )
-except ImportError:
+except ImportError as e:
+    logger.debug(f"窗口置顶不可用 {e}")
     def force_topmost(hwnd): pass
 
 
@@ -88,8 +90,8 @@ class _BasePopup(QFrame):
             GWL_EXSTYLE = -20
             current = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
             ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, current | 0x20)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"鼠标穿透设置失败: {e}")
 
     def show(self):
         super().show()
@@ -100,8 +102,9 @@ class _BasePopup(QFrame):
                 0x0002 | 0x0001 | 0x0040  # SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW
             )
             self._apply_mouse_through()
-        except Exception:
-            pass
+            logger.debug(f"弹窗已显示并置顶 mouse_through={self._mouse_through}")
+        except Exception as e:
+            logger.warning(f"弹窗置顶失败: {e}")
 
 
 class ScrollBanner(_BasePopup):
@@ -150,6 +153,7 @@ class ScrollBanner(_BasePopup):
         self.show()
         self._timer.timeout.connect(self._scroll_step)
         self._timer.start(16)
+        logger.debug(f"滚动动画已启动 速度 {self.pixels_per_second}px/s 刷新间隔 16ms 时长 {self.duration}s")
         QTimer.singleShot(self.duration * 1000, self._fade_out)
 
     def _scroll_step(self):
@@ -198,6 +202,7 @@ class ScrollBanner(_BasePopup):
 
     def closeEvent(self, event):
         self._timer.stop()
+        logger.debug(f"滚动横幅关闭 {self._completed_loops}轮")
         self.finished.emit()
         super().closeEvent(event)
 
@@ -284,6 +289,7 @@ class NotificationManager(QObject):
 
 
         self.play_audio_signal.connect(self._play_audio)
+        logger.debug(f"通知管理器就绪 voice={self._tts_voice} rate={self._tts_rate} volume={self._tts_volume}")
 
     def _format_tts_percent(self, value: int) -> str:
         delta = value - 100
@@ -292,8 +298,10 @@ class NotificationManager(QObject):
 
     def _speak_text(self, text: str):
         if self._tts_voice == "done":
+            logger.info("TTS 已禁用")
             return
 
+        logger.info(f"TTS 合成 voice={self._tts_voice} rate={self._tts_rate} volume={self._tts_volume}")
         # 取快照
         voice, rate, volume = self._tts_voice, self._tts_rate, self._tts_volume
 
@@ -303,15 +311,15 @@ class NotificationManager(QObject):
             try:
                 with open(text_file, "w", encoding="utf-8") as f:
                     f.write(text)
-                cmd = [
-                    "edge-tts",
-                    "--voice", voice,
-                    "--rate", rate,
-                    "--volume", volume,
-                    "-f", text_file,
-                    "--write-media", temp_file
-                ]
-                subprocess.run(cmd, check=True, capture_output=True)
+                args = ["--voice", voice, "--rate", rate, "--volume", volume, "-f", text_file, "--write-media", temp_file]
+                # 优先随解释器调模块（PATH 里未必有 edge-tts.exe），失败用裸命令
+                cmd = [sys.executable, "-m", "edge_tts", *args]
+                try:
+                    subprocess.run(cmd, check=True, capture_output=True)
+                except FileNotFoundError:
+                    cmd = ["edge-tts", *args]
+                    subprocess.run(cmd, check=True, capture_output=True)
+                logger.debug(f"TTS 已合成 {len(text)}字符 {temp_file}")
                 self.play_audio_signal.emit(temp_file)
             except Exception as e:
                 logger.error(f"TTS 生成失败: {e}")
@@ -358,6 +366,7 @@ class NotificationManager(QObject):
 
         # 清理文件
         def on_media_status_changed(status):
+            logger.debug(f"播放器状态变化 {status}")
             if status == QMediaPlayer.MediaStatus.EndOfMedia:
                 QTimer.singleShot(500, self.off_audio)
             elif status == QMediaPlayer.MediaStatus.InvalidMedia:
@@ -371,6 +380,7 @@ class NotificationManager(QObject):
         self._player.errorOccurred.connect(on_error)
 
         # 开始播放
+        logger.info(f"播放 TTS {file_path}")
         self._player.play()
 
     def off_audio(self):
@@ -392,9 +402,10 @@ class NotificationManager(QObject):
                     if attempt < 3:
                         QTimer.singleShot(300 * (attempt + 1), lambda: delete_with_retry(path, attempt + 1))
                     else:
-                        logger.warning(f"无法删除临时文件: {path}")
+                        logger.warning(f"临时文件删除失败 {path}")
             delete_with_retry(self._current_audio_file)
             self._current_audio_file = ""
+        logger.debug("音频播放已清理")
 
     @pyqtSlot(dict)
     def handle_notification(self, data: dict):
@@ -415,6 +426,7 @@ class NotificationManager(QObject):
             logger.warning("通知内容为空")
             return
 
+        logger.info(f"显示通知: type={notif_type} 时长={duration}s 内容: {content[:40]}")
         self._speak_text(content)
 
         # 右下角通知即时弹
@@ -429,15 +441,18 @@ class NotificationManager(QObject):
 
     def _show_scroll(self, text, speed, duration, bg_color, bg_alpha, text_color, font_size, font_weight):
         from core.config import cfg
-        banner = ScrollBanner(text, 30 + (speed - 1) * 20, duration,
+        px_speed = 30 + (speed - 1) * 20
+        banner = ScrollBanner(text, px_speed, duration,
                               bg_color, bg_alpha, text_color, font_size, font_weight,
                               bg_height=cfg.get(cfg.scrollBannerBgHeight),
                               mouse_through=cfg.get(cfg.scrollBannerMouseThrough))
+        logger.info(f"横幅速度 {px_speed}px/s 时长 {duration}s 背景 {bg_color}/{bg_alpha} 文字 {text_color}/{font_size}px/字重{font_weight}")
         self._present(banner)
 
     def _show_fullscreen(self, text, duration, bg_color, bg_alpha, text_color, font_size, font_weight):
         popup = FullScreenPopup(text, duration,
                                  bg_color, bg_alpha, text_color, font_size, font_weight)
+        logger.info(f"全屏通知 {duration}s 背景 {bg_color}/{bg_alpha} 文字 {text_color}/{font_size}px/字重{font_weight}")
         self._present(popup)
 
     def _present(self, popup):
@@ -461,6 +476,7 @@ class NotificationManager(QObject):
             message=text,
             timeout=duration,
         )
+        logger.info(f"右下角通知已弹出 时长 {duration}s 内容: {text[:40]}")
 
     def _on_notification_finished(self):
         """当前通知结束,通知界面派发下一条"""

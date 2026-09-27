@@ -40,10 +40,17 @@ def scan_files(directory: Path) -> dict:
             except Exception as e:
                 logger.warning(f"扫描文件失败 {file}: {e}")
 
+    total_size = sum(info["size"] for info in files.values())
+    if len(files) > 1000:
+        logger.warning(f"扫描目录文件数偏大: {directory} ({len(files)}个文件 共{total_size}字节)")
+    elif len(files) == 0:
+        logger.debug(f"扫描目录为空或不存在可记录文件: {directory}")
+    logger.debug(f"已扫描 {directory} {len(files)}文件 {total_size}字节")
     return files
 
 
 def create_record(version: str, app_dir: Path, current: int = 1, partial: bool = False) -> dict:
+    logger.debug(f"创建版本记录: {version} (current={current} partial={partial})")
     return {
         "current": current,
         "partial": partial,
@@ -71,8 +78,13 @@ def load_record(record_path: Path) -> dict:
     try:
         record_path = Path(record_path)
         if not record_path.exists():
+            logger.debug(f"record.json 不存在: {record_path}")
             return None
-        return json.loads(record_path.read_text(encoding="utf-8"))
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        if not isinstance(record, dict) or "files" not in record:
+            logger.warning(f"record.json缺files字段 {record_path}")
+        logger.debug(f"record.json 已加载 {record_path} 版本 {record.get('version')}")
+        return record
     except Exception as e:
         logger.error(f"加载 record.json 失败: {e}")
         return None
@@ -87,3 +99,5 @@ def deactivate_version(version_dir: Path):
         record["current"] = 0
         save_record(record, record_path)
         logger.info(f"版本已取消激活: {version_dir}")
+    else:
+        logger.debug(f"record.json 缺失 {record_path}")

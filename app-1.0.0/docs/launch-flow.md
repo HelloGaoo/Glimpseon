@@ -19,7 +19,7 @@ find_app()
   ├─ 读取各 app-*/record.json
   │    └─ 跳过 partial=true 的目录
   ├─ 解析版本号 tuple (major, minor, patch)
-  ├─ 排序：current(降序) → 版本号(降序)
+  ├─ 排序：current(降序) -> 版本号(降序)
   ├─ 选中首个，注入环境变量：
   │    Glimpseon_PackageRoot = 根目录
   │    Glimpseon_AppDir      = 选中 app 目录
@@ -36,7 +36,7 @@ find_app()
 导入期即执行的初始化（模块导入顺序敏感）：
 
 1. **路径推导**：[core/paths.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/core/paths.py) 读取环境变量，计算 `PACKAGE_ROOT` / `APP_DIR` / `DATA_*`，`ensure_data_dirs()` 建目录。
-2. **配置加载**：[core/config.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/core/config.py) `qconfig.load(CONFIG_PATH, cfg)`，连接所有 `valueChanged → save_cfg`。
+2. **配置加载**：[core/config.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/core/config.py) `qconfig.load(CONFIG_PATH, cfg)`，连接所有 `valueChanged -> save_cfg`。
 3. **日志器**：[core/logger.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/core/logger.py) 必须先 `logging.setLoggerClass(CustomLogger)` 再创建 `Glimpseon` logger，否则 `precise_time` / `caller_info` 字段缺失。
 
 ***
@@ -78,7 +78,7 @@ if check_wizard_needed():                      # Setup_Wizard.json completed != 
     wizard.exec()
 ```
 
-向导 5 页：欢迎 → 协议（开源协议/用户协议/隐私）→ 基本设置（自启/空闲/桌面快捷方式）→ 外观（主题/颜色）→ 学校信息（城市/学校/班级）。完成后写 `completed: 1`。
+向导 5 页：欢迎 -> 协议（开源协议/用户协议/隐私）-> 基本设置（自启/空闲/桌面快捷方式）-> 外观（主题/颜色）-> 学校信息（城市/学校/班级）。完成后写 `completed: 1`。
 
 ### 3.4 闪屏显示与后台任务
 
@@ -139,9 +139,9 @@ window = MainWindow()
 | 6（底部） | `AboutInterface`     | `FUI.INFO`            | 关于              |
 | 7（底部） | `DebugPanel`         | `FUI.DEVELOPER_TOOLS` | 调试（仅 debugMode） |
 
-`NotificationManager` 在通知页之后创建，连接 `send_notification → handle_notification`。
+`NotificationManager` 在通知页之后创建，连接 `send_notification -> handle_notification`。
 
-下载页数据通过 `QTimer.singleShot(0, _populateDownload)` 异步填充：`addSection()` / `addSoftware()` 只入队数据，`_onDataPopulated()` → `_requestRender()` 时才生成整页 HTML（`_build_html()` → `setHtml`）。此时页面尚未显示，渲染被挂起（`_pendingLayout`），等首次 `showEvent` 再执行。
+下载页数据通过 `QTimer.singleShot(0, _populateDownload)` 异步填充：`addSection()` / `addSoftware()` 只入队数据，`_onDataPopulated()` -> `_requestRender()` 时才生成整页 HTML（`_build_html()` -> `setHtml`）。此时页面尚未显示，渲染被挂起（`_pendingLayout`），等首次 `showEvent` 再执行。
 
 ***
 
@@ -160,37 +160,37 @@ loader.start()
 ### 5.1 \_load\_wp（壁纸）
 
 ```
-1. 若已有 current_pixmap → 跳过
+1. 若已有 current_pixmap -> 跳过
 2. get_cached_content("wallpaper", ignore_expiry=True)  # 过期也用旧的
-   └─ 命中 → sig_wp.emit(path, src, url)
+   └─ 命中 -> sig_wp.emit(path, src, url)
 3. requests.get(API, stream=True)
-   └─ 200 → 落盘 wp_HHMMSS.jpg → historyManager.sync_cleanup → save_cache → emit
-4. 失败 → 默认壁纸 resource/wallpaper/default.jpg
-5. 再失败 → data/wallpaper/ 下最新 wallpaper_*.jpg
+   └─ 200 -> 落盘 wp_HHMMSS.jpg -> historyManager.sync_cleanup -> save_cache -> emit
+4. 失败 -> 默认壁纸 resource/wallpaper/default.jpg
+5. 再失败 -> data/wallpaper/ 下最新 wallpaper_*.jpg
 ```
 
 ### 5.2 \_load\_wt（天气）
 
 ```
-1. cfg.showWeather 为假 → 跳过
-2. get_cached_content("weather") 命中 → sig_wt.emit(data)
-3. RegionDatabase().get_coordinates(city) → 更新经纬度
-4. WeatherService().fetch_all() → save_cache → emit
+1. cfg.showWeather 为假 -> 跳过
+2. get_cached_content("weather") 命中 -> sig_wt.emit(data)
+3. RegionDatabase().get_coordinates(city) -> 更新经纬度
+4. WeatherService().fetch_all() -> save_cache -> emit
 ```
 
 ### 5.3 \_load\_po（一言）
 
 ```
-1. cfg.showPoetry 为假 → 跳过
-2. get_cached_content("poetry") 命中 → sig_po.emit(text)
-3. PoetryService.get_poetry() → save_cache → emit
+1. cfg.showPoetry 为假 -> 跳过
+2. get_cached_content("poetry") 命中 -> sig_po.emit(text)
+3. PoetryService.get_poetry() -> save_cache -> emit
 ```
 
 ### 5.4 主线程槽
 
-- `_upd_wp`：设 `current_pixmap` / `current_wallpaper_path` → `_updateMainWindowBackground` → `_applyEffects`（模糊）→ `infoCard.updateInfo` → `historyManager.add`（不 emit `wallpaperChanged`，壁纸页自身状态已同步）。
-- `_update_weather_display`：更新 `_cached_weather` → `weather_updated.emit`。
-- `_upd_po`：更新 `_cached_poetry` → `poetry_updated.emit`。
+- `_upd_wp`：设 `current_pixmap` / `current_wallpaper_path` -> `_updateMainWindowBackground` -> `_applyEffects`（模糊）-> `infoCard.updateInfo` -> `historyManager.add`（不 emit `wallpaperChanged`，壁纸页自身状态已同步）。
+- `_update_weather_display`：更新 `_cached_weather` -> `weather_updated.emit`。
+- `_upd_po`：更新 `_cached_poetry` -> `poetry_updated.emit`。
 - 槽在 `MainWindow` 创建后定义
 
 ### 5.5 自动更新检查
@@ -214,11 +214,11 @@ while loader.isRunning():
 
 ```
 等待后台 future 完成（5s 超时）              # 创建主窗口之前
-splash.setProgress(70) → waitForProgress(70)
+splash.setProgress(70) -> waitForProgress(70)
 window = MainWindow()
-Preloader 启动（75%）→ autoCheckUpdate → checkUpdateAuto()
+Preloader 启动（75%）-> autoCheckUpdate -> checkUpdateAuto()
 等待 loader（12s 超时 cancel + wait(5000)）
-splash.setProgress(95) → 100 → waitForProgress(100)
+splash.setProgress(95) -> 100 -> waitForProgress(100)
 splash.close()
 window.switchTo(window.downloadInterface)   # QTBUG-109424：首个 QWebEngineView
                                          

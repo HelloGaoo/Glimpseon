@@ -234,23 +234,29 @@ SOFTWARE_CATEGORIES = [
     }
 ]
 
+logger.info(f"软件列表已加载 {len(SOFTWARE_CATEGORIES)}分类 {sum(len(c['software']) for c in SOFTWARE_CATEGORIES)}软件")
+
 
 def get_software_icon_path(icon_filename):
     if not icon_filename:
+        logger.debug("无图标 用默认图标")
         return get_resPath(APP_ICON)
 
     # 1. 从 APP_DIR/resource/icons/software_icon/ 查找（应用资源）
     icon_path = get_resPath(os.path.join("resource", "icons", "software_icon", icon_filename))
     if os.path.exists(icon_path):
+        logger.debug(f"命中应用软件图标: {icon_path}")
         return icon_path
 
     # 2. 从 APP_DIR/resource/icons/default_icon/ 查找（默认图标）
     default_icon_path = get_resPath(os.path.join("resource", "icons", "default_icon", icon_filename))
     if os.path.exists(default_icon_path):
+        logger.debug(f"命中默认图标目录: {default_icon_path}")
         return default_icon_path
 
     if icon_filename in ['exe.ico', 'default.ico']:
-        logger.warning(f'默认图标文件不存在: {icon_filename}，将使用透明图标')
+        logger.warning(f'默认图标缺失: {icon_filename} 用透明图标')
         return None
 
+    logger.debug(f"未找到图标 {icon_filename} 改用应用默认图标")
     return get_resPath(APP_ICON)

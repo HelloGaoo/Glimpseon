@@ -133,7 +133,9 @@ class GridLayoutService:
         settings: GridSettings
     ) -> GridMetrics:
         """计算网格尺寸"""
+        logger.debug(f"[GridLayout] 宿主 {host_width:.0f}x{host_height:.0f} 短边格数={settings.short_side_cells}")
         if host_width <= 1 or host_height <= 1:
+            logger.debug(f"[GridLayout] 宿主尺寸过小 返回空网格")
             return GridMetrics(0, 0, 0, 0, 0, 0, 0)
         
         short_side_cells = max(1, settings.short_side_cells)
@@ -161,7 +163,8 @@ class GridLayoutService:
             column_count = max(1, int((available_width + gap_px) // pitch))
             grid_width = column_count * cell_size + max(0, column_count - 1) * gap_px
             grid_height = row_count * cell_size + max(0, row_count - 1) * gap_px
-            
+
+            logger.debug(f"[GridLayout] 横向: {column_count}列x{row_count}行 格子={cell_size:.1f}px 间距={gap_px:.1f}px")
             return GridMetrics(
                 column_count, row_count, cell_size, gap_px, edge_inset_px,
                 grid_width, grid_height
@@ -179,7 +182,8 @@ class GridLayoutService:
             row_count = max(1, int((available_height + gap_px) // pitch))
             grid_width = column_count * cell_size + max(0, column_count - 1) * gap_px
             grid_height = row_count * cell_size + max(0, row_count - 1) * gap_px
-            
+
+            logger.debug(f"[GridLayout] 纵向: {column_count}列x{row_count}行 格子={cell_size:.1f}px 间距={gap_px:.1f}px")
             return GridMetrics(
                 column_count, row_count, cell_size, gap_px, edge_inset_px,
                 grid_width, grid_height
@@ -214,9 +218,13 @@ class ComponentRegistry(QObject):
         for d in definitions:
             if d.id:
                 self._definitions[d.id] = d
-    
+        logger.debug(f"[ComponentRegistry] 批量注册{len(definitions)}个组件 当前总数 {len(self._definitions)}")
+
     def get_definition(self, component_id: str) -> Optional[ComponentDefinition]:
-        return self._definitions.get(component_id)
+        d = self._definitions.get(component_id)
+        if d is None:
+            logger.debug(f"[ComponentRegistry] 未找到组件定义: {component_id}")
+        return d
     
     def get_definitions_by_category(self, category: str) -> List[ComponentDefinition]:
         return [d for d in self._definitions.values() if d.category == category]
@@ -722,6 +730,7 @@ class PageManager:
         if os.path.exists(self._layout_file):
             self._load_unified()
         else:
+            logger.info(f"[PageManager] 布局缺失 {self._layout_file} 用默认页面")
             self._pages = [PageMeta.from_dict(p) for p in self.DEFAULT_PAGES]
             self._current_page = 0
             self.save()
@@ -735,6 +744,7 @@ class PageManager:
                 pages_data = self.DEFAULT_PAGES
             self._pages = [PageMeta.from_dict(p) for p in pages_data]
             self._current_page = max(0, min(int(data.get("current_page", 0)), len(self._pages) - 1))
+            logger.info(f"[PageManager] 已加载布局: {len(self._pages)}页 当前页={self._current_page}")
         except Exception as e:
             logger.error(f"[PageManager] 加载失败: {e}")
             self._pages = [PageMeta.from_dict(p) for p in self.DEFAULT_PAGES]
@@ -749,6 +759,7 @@ class PageManager:
             }
             with open(self._layout_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
+            logger.debug(f"[PageManager] 布局已保存: {self._layout_file} ({len(self._pages)}页)")
         except Exception as e:
             logger.error(f"[PageManager] 保存失败: {e}")
 
@@ -768,11 +779,13 @@ class PageManager:
 
     def set_current_page(self, index: int):
         if 0 <= index < len(self._pages):
+            logger.info(f"[PageManager] 切换页面: {self._current_page} -> {index}")
             self._current_page = index
 
     def add_page(self, name: str = "", page_type: str = "info") -> int:
         """添加页面 返回 新页面 index/失败 -1"""
         if len(self._pages) >= self.MAX_PAGES:
+            logger.warning(f"[PageManager] 页面已达上限 {self.MAX_PAGES}")
             return -1
         if not name:
             info_count = sum(1 for p in self._pages if p.type == "info")
@@ -783,20 +796,27 @@ class PageManager:
                 name = f"信息页 {info_count + 1}"
         self._pages.append(PageMeta(name=name, type=page_type))
         self.save()
-        return len(self._pages) - 1
+        new_index = len(self._pages) - 1
+        logger.info(f"[PageManager] 新增页面: name='{name}' type={page_type} index={new_index}")
+        return new_index
 
     def rename_page(self, index: int, name: str):
         if 0 <= index < len(self._pages):
+            old_name = self._pages[index].name
+            logger.info(f"[PageManager] 重命名页面: index={index} '{old_name}' -> '{name}'")
             self._pages[index].name = name
             self.save()
 
     def delete_page(self, index: int) -> bool:
         """删除页面 至少一 导航页不能删"""
         if len(self._pages) <= 1:
+            logger.warning(f"[PageManager] 删除失败: 至少保留一页")
             return False
         if not (0 <= index < len(self._pages)):
+            logger.warning(f"[PageManager] 删除失败: 索引越界 {index}")
             return False
         if self._pages[index].type == "nav":
+            logger.warning(f"[PageManager] 删除失败: 导航页不可删除 (index={index})")
             return False
         del self._pages[index]
         if self._current_page >= len(self._pages):
@@ -804,6 +824,7 @@ class PageManager:
         elif self._current_page > index:
             self._current_page -= 1
         self.save()
+        logger.info(f"[PageManager] 已删除页面 index={index} 剩余{len(self._pages)}页 当前页={self._current_page}")
         return True
 
     def get_page_items(self, index: int) -> list:
@@ -815,5 +836,6 @@ class PageManager:
 
     def set_page_items(self, index: int, items: list):
         if 0 <= index < len(self._pages) and self._pages[index].type == "nav":
+            logger.info(f"[PageManager] 更新导航项: index={index} {len(items)}项")
             self._pages[index].items = items
             self.save()

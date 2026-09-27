@@ -185,7 +185,7 @@ html组件通过 `create_html_view()`（[ui/common.py](https://github.com/HelloG
 | `_PreviewWidget(QWidget)`                          | 通知预览            |
 | `_ConfigEditDialog(Dialog)`                        | 通知配置编辑          |
 
-**信号**：`send_notification` → 连接到 `NotificationManager.handle_notification`；`notification_finished` 回调 `_on_notification_shown`。
+**信号**：`send_notification` -> 连接到 `NotificationManager.handle_notification`；`notification_finished` 回调 `_on_notification_shown`。
 
 ***
 
@@ -222,7 +222,7 @@ html组件通过 `create_html_view()`（[ui/common.py](https://github.com/HelloG
 
 - 数据源：`SOFTWARE_CATEGORIES`（`resource/software_list.py`）、图标 `get_software_icon_path()`、下载链接 `resource/url_dir.py` 的 `url_dir`。
 - 对外api：`addSection()` / `addSoftware()` / `_onDataPopulated()`。
-- `_onDataPopulated()` → `_requestRender()`：可见即渲染，隐藏则挂起到首次 `showEvent`。
+- `_onDataPopulated()` -> `_requestRender()`：可见即渲染，隐藏则挂起到首次 `showEvent`。
 - 调色板由 `isDarkTheme()` 选；主题色取 `QColor(cfg.themeColor.value).name()`（取值可能是 `str` 或 `QColor`）。
 - `cfg.themeChanged` / `cfg.themeColor.valueChanged` 触发重渲染。
 
@@ -232,14 +232,14 @@ html组件通过 `create_html_view()`（[ui/common.py](https://github.com/HelloG
 
 ### 7.4 下载流程
 
-单个：`bridge.download(name)` → 确认框 → 工作线程 `_findCacheFile()` / `_get_url()`（按 `cfg.downloadSource` 拼前缀）→ `downloader._install_<名称>()`（契约见 [core-modules.md 8](core-modules.md)）→ 进度回调。
+单个：`bridge.download(name)` -> 确认框 -> 工作线程 `_findCacheFile()` / `_get_url()`（按 `cfg.downloadSource` 拼前缀）-> `downloader._install_<名称>()`（契约见 [core-modules.md 8](core-modules.md)）-> 进度回调。
 
-批量：`bridge.startBatch(names_json)` → `ThreadPoolExecutor` → `_sigBatchDone` 清空勾选。
+批量：`bridge.startBatch(names_json)` -> `ThreadPoolExecutor` -> `_sigBatchDone` 清空勾选。
 
 | 方向 | 成员 |
 | --- | --- |
-| JS → Python | `download` / `openLink` / `setMode` / `setSource` / `startBatch` / `confirmResult` |
-| Python → JS | `window.glimpseon.uiStart` / `uiProgress` / `uiError` / `uiBatchDone` / `toast` / `confirm`、`window.relayout()` |
+| JS -> Python | `download` / `openLink` / `setMode` / `setSource` / `startBatch` / `confirmResult` |
+| Python -> JS | `window.glimpseon.uiStart` / `uiProgress` / `uiError` / `uiBatchDone` / `toast` / `confirm`、`window.relayout()` |
 
 ### 7.5 线程
 
@@ -315,11 +315,11 @@ html组件通过 `create_html_view()`（[ui/common.py](https://github.com/HelloG
 `MainWindow._initThemeConnections()` 将 `cfg.themeChanged` 连接到各界面的 `_onThemeChanged`：
 
 ```
-cfg.themeChanged → downloadInterface / wallpaper / notificationPage /
+cfg.themeChanged -> downloadInterface / wallpaper / notificationPage /
                    timetablePage / aboutInterface / _onDebugPanelThemeChanged
 ```
 
-切换流程：`_onThemeModeChanged` → `clear_qss_cache()` → AUTO 模式启动 `_themeCheckTimer` 轮询系统主题，非 AUTO 直接 `setTheme()`（库内 `qconfig.set` 已 emit `themeChanged`，各界面自行重载 QSS）。
+切换流程：`_onThemeModeChanged` -> `clear_qss_cache()` -> AUTO 模式启动 `_themeCheckTimer` 轮询系统主题，非 AUTO 直接 `setTheme()`（库内 `qconfig.set` 已 emit `themeChanged`，各界面自行重载 QSS）。
 
 主题色单独广播：`cfg.themeColor.valueChanged`
 
@@ -353,7 +353,7 @@ cfg.themeChanged → downloadInterface / wallpaper / notificationPage /
 
 | 方向 | 做法 |
 | --- | --- |
-| JS → Python | `QWebChannel` 注册 `bridge`，方法 `@pyqtSlot`；页面引 `qrc:///qtwebchannel/qwebchannel.js` |
-| Python → JS | `runJavaScript("window.glimpseon.xxx(...)")`，参数 `json.dumps` 转义 |
+| JS -> Python | `QWebChannel` 注册 `bridge`，方法 `@pyqtSlot`；页面引 `qrc:///qtwebchannel/qwebchannel.js` |
+| Python -> JS | `runJavaScript("window.glimpseon.xxx(...)")`，参数 `json.dumps` 转义 |
 | 确认框 | Python 下发 `confirm(id, title, content)`，JS 回 `confirmResult(id, ok)`，`{id: callback}` 承接 |
 | 尺寸 | `showEvent` / `resizeEvent` 通知 js 重排（隐藏时视口宽度为 0） |

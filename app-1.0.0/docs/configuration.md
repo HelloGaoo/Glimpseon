@@ -35,7 +35,7 @@ themeMode = OptionsConfigItem(
 
 ### 1.3 自动保存
 
-导入期遍历所有 `ConfigItem`，连接 `valueChanged → _on_config_changed → save_cfg()`。因此：
+导入期遍历所有 `ConfigItem`，连接 `valueChanged -> _on_config_changed -> save_cfg()`。因此：
 
 ```python
 cfg.clockSize.value = 100   # 修改即触发保存

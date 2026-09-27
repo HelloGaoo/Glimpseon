@@ -109,8 +109,8 @@ class PageIndicator(QWidget):
             self._active_color = theme_color
         try:
             cfg.themeColor.valueChanged.connect(self._onThemeColorChanged)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[HOME] 主题色信号连接失败: {e}")
 
     def _onThemeColorChanged(self):
         c = cfg.themeColor.value
@@ -118,10 +118,12 @@ class PageIndicator(QWidget):
             self._active_color = QColor(c)
         else:
             self._active_color = c
+        logger.debug(f"[HOME] 主题色变更: color={c}")
         self.update()
 
     def set_count(self, count: int):
         self._count = max(0, count)
+        logger.debug(f"[HOME] 页面指示器数量更新: count={self._count}")
         if self._current >= self._count:
             self._current = max(0, self._count - 1)
         self._updateGeometry()
@@ -129,8 +131,12 @@ class PageIndicator(QWidget):
 
     def set_current(self, index: int):
         if 0 <= index < self._count:
+            if self._current != index:
+                logger.debug(f"[HOME] 页面指示器当前页更新: {self._current} -> {index}")
             self._current = index
             self.update()
+        else:
+            logger.debug(f"[HOME] 页面指示器越界 index={index} count={self._count}")
 
     def _updateGeometry(self):
         w = self._count * (self._dot_radius * 2) + max(0, self._count - 1) * self._dot_gap
@@ -162,6 +168,7 @@ class PageIndicator(QWidget):
         if event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton):
             idx = self._hitTest(event.position().toPoint())
             if idx >= 0:
+                logger.debug(f"[HOME] 页面指示器点击: page={idx}")
                 self.pageClicked.emit(idx)
                 event.accept()
                 return
@@ -197,6 +204,7 @@ class HomeInterface(QWidget, TranslatableWidget):
         super().__init__(parent)
         self.mainWindow = mainWindow
         self.setObjectName("home")
+        logger.debug(f"[HOME] HomeInterface 初始化 mainWindow={type(mainWindow).__name__}")
 
         # 拖拽预览
         self._drag_preview_def = None
@@ -281,6 +289,8 @@ class HomeInterface(QWidget, TranslatableWidget):
         self._grid_metrics = self.grid_service.calculate_grid_metrics(
             self.width(), self.height(), self.grid_settings
         )
+        m = self._grid_metrics
+        logger.debug(f"[HOME] 网格 cell={m.cell_size if m else None} 列={m.column_count if m else None}行={m.row_count if m else None} 窗口={self.width()}x{self.height()}")
 
     def _onGridSettingsChanged(self):
         """网格配置变化时更新网格设置"""
@@ -295,6 +305,7 @@ class HomeInterface(QWidget, TranslatableWidget):
         # 网格度量同步到覆盖层
         if hasattr(self, '_grid_overlay') and self._grid_overlay:
             self._grid_overlay.update_grid_metrics(self._grid_metrics)
+        logger.debug(f"[HOME] 网格设置变更: short_side_cells={short_side_cells} inset_percent={inset_percent}")
     def _initBackground(self):
         self.homeBackgroundImage = QLabel()
         self.homeBackgroundImage.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -307,6 +318,7 @@ class HomeInterface(QWidget, TranslatableWidget):
         self.homeDimOverlay = QWidget()
         self.homeDimOverlay.setObjectName("dimOverlay")
         self.homeDimOverlay.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        logger.debug("[HOME] 背景层就绪 背景图+暗化遮罩")
     def _initLayout(self):
         self.homeContent = QWidget(self)
         self.homeContent.setObjectName("homeContent")
@@ -339,6 +351,7 @@ class HomeInterface(QWidget, TranslatableWidget):
         self._grid_overlay.setObjectName("gridOverlay")
         self._grid_overlay.hide()
         self._grid_overlay.setup(self)
+        logger.debug(f"[HOME] 布局就绪 内容区={self.homeContent.width()}x{self.homeContent.height()}")
 
     def _initPages(self):
         """根据 PageManager 创建所有页面 widget"""
@@ -360,11 +373,13 @@ class HomeInterface(QWidget, TranslatableWidget):
             self._currentPageIndex = 0
         self._layoutPages()
         self._applyPageVisibility()
+        logger.debug(f"[HOME] 页面就绪 {len(self._page_widgets)}页 当前={self._currentPageIndex}")
 
     def _layoutPages(self):
         """所有页面横向排列在 pagesStack 内 第 i 页 move(i*width, 0)
         pagesStack 自身偏移到 -currentPage*width"""
         if not hasattr(self, 'pagesContainer') or not self.pagesContainer:
+            logger.warning("[HOME] pagesContainer 尚未创建")
             return
         w = self.pagesContainer.width()
         h = self.pagesContainer.height()
@@ -375,6 +390,7 @@ class HomeInterface(QWidget, TranslatableWidget):
         # pagesStack 宽度 = 页数 * 单页宽度
         self.pagesStack.setFixedSize(n * w, h)
         self.pagesStack.move(-self._currentPageIndex * w, 0)
+        logger.debug(f"[HOME] 页面布局重排: 页数={n} 单页尺寸={w}x{h}")
 
     def _applyPageVisibility(self, visible_pages=None):
         """设置组件可见性"""
@@ -386,6 +402,10 @@ class HomeInterface(QWidget, TranslatableWidget):
         else:
             visible_pages = set(visible_pages)
         visible_pages.add(cur)
+        vis_key = (cur, tuple(sorted(visible_pages)))
+        if getattr(self, '_last_vis_key', None) != vis_key:
+            self._last_vis_key = vis_key
+            logger.debug(f"[HOME] 可见 当前={cur} 可见={sorted(visible_pages)} 组件={len(self.component_manager.components)}")
         for comp_id, instance in self.component_manager.components.items():
             try:
                 page_idx = self.component_manager.get_component_page(comp_id)
@@ -414,27 +434,31 @@ class HomeInterface(QWidget, TranslatableWidget):
         if self._page_anim:
             anim = self._page_anim
             self._page_anim = None
+            logger.debug("[HOME] 翻页动画被中断并停止")
             try:
                 anim.finished.disconnect()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"[HOME] 动画信号断开失败: {e}")
             anim.stop()
 
     def _goToPage(self, index: int, animate: bool = True):
         """切换到某页面"""
         if not (0 <= index < len(self._page_widgets)):
+            logger.debug(f"[HOME] 翻页目标越界 index={index} 页数={len(self._page_widgets)}")
             return
         if hasattr(self, '_deselectAll'):
             try:
                 self._deselectAll()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"[HOME] 翻页前取消选择失败: {e}")
 
         self._stopPageAnim()
 
         old_index = self._currentPageIndex
         self._currentPageIndex = index
         self.page_manager.set_current_page(index)
+        if old_index != index:
+            logger.debug(f"[HOME] 翻页: {old_index} -> {index}")
 
         w = self.pagesContainer.width()
         target_x = -index * w
@@ -446,6 +470,7 @@ class HomeInterface(QWidget, TranslatableWidget):
         if animate:
             cur_x = self.pagesStack.x()
             if cur_x == target_x:
+                logger.debug(f"[HOME] 翻页目标已就位 index={index}")
                 self._onPageAnimFinished()
             else:
                 # QPropertyAnimation 在 C++ 动画 pos 属性
@@ -466,6 +491,7 @@ class HomeInterface(QWidget, TranslatableWidget):
 
     def _onPageAnimFinished(self):
         self._page_anim = None
+        logger.debug(f"[HOME] 翻页动画完成 当前页={self._currentPageIndex}")
         # snap 到当前页的精确位置
         w = self.pagesContainer.width()
         if w > 0:
@@ -491,7 +517,9 @@ class HomeInterface(QWidget, TranslatableWidget):
             return
         expected_x = -self._currentPageIndex * w
         if self.pagesStack.x() != expected_x:
+            actual_x = self.pagesStack.x()
             self.pagesStack.move(expected_x, 0)
+            logger.warning(f"[HOME] 页面位置异常已修正: x={actual_x} -> {expected_x} 当前页={self._currentPageIndex}")
 
     def _initBottomBar(self):
         """底部栏"""
@@ -556,6 +584,7 @@ class HomeInterface(QWidget, TranslatableWidget):
         barLayout.addWidget(self.menuBtn)
 
         self._updateBottomBarPosition()
+        logger.debug(f"[HOME] 底栏 尺寸={self.bottomBar.width()}x{self.bottomBar.height()} 控件={self.bottomBar.layout().count()} 页数={self.page_manager.page_count()}")
 
     def _refreshAddPageBtn(self):
         """添加页面按钮文案"""
@@ -563,14 +592,17 @@ class HomeInterface(QWidget, TranslatableWidget):
             return
         total = self.page_manager.page_count()
         self.addPageBtn.setText(tr("home.add_page_with_count", count=total))
+        logger.debug(f"[HOME] 添加页面按钮文案刷新: total={total}")
 
     def _addNewPage(self):
         """添加新信息页"""
         new_index = self.page_manager.add_page(page_type="info")
         if new_index < 0:
+            logger.debug("[HOME] 新增页面被拒绝: 已达页数上限")
             InfoBar.warning(title=tr("home.page_limit"),
                             content="", parent=self, duration=2000)
             return
+        logger.info(f"[HOME] 新增信息页: index={new_index}")
         # 新建对应页 widget
         page = QWidget(self.pagesStack)
         page.setObjectName("infoPageWidget")
@@ -598,14 +630,21 @@ class HomeInterface(QWidget, TranslatableWidget):
             new_name = edit.text().strip()
             if new_name:
                 self.page_manager.rename_page(index, new_name)
+                logger.info(f"[HOME] 页面重命名: index={index} {meta.name} -> {new_name}")
+            else:
+                logger.debug(f"[HOME] 页面重命名取消: 名称为空 index={index}")
+        else:
+            logger.debug(f"[HOME] 页面重命名对话框已取消: index={index}")
 
     def _deletePage(self, index: int):
         """删除页面"""
         from qfluentwidgets import MessageBox
         meta = self.page_manager.get_page(index)
         if meta is None or meta.type == "nav":
+            logger.debug(f"[HOME] 删除页面被拒绝: index={index} 页面不存在或为导航页")
             return
         if self.page_manager.page_count() <= 1:
+            logger.debug("[HOME] 删除页面被拒绝: 仅剩最后一页")
             return
 
         # 找一个信息页作为 fallback
@@ -626,6 +665,7 @@ class HomeInterface(QWidget, TranslatableWidget):
             self.window(),
         )
         if not msg_box.exec():
+            logger.debug(f"[HOME] 删除页面已取消: index={index} name={meta.name}")
             return
 
         # 迁移或删除被删页的组件
@@ -642,6 +682,7 @@ class HomeInterface(QWidget, TranslatableWidget):
                     to_remove.append(comp_id)
         for cid in to_remove:
             self.component_manager.remove_component(cid)
+        logger.info(f"[HOME] 删页 index={index} name={meta.name} 迁移至页={fallback} 移除组件{len(to_remove)}个")
 
         # 调整其他组件的 page_index
         self.component_manager.shift_pages_after_delete(index, fallback_index=fallback if fallback >= 0 else 0)
@@ -682,18 +723,22 @@ class HomeInterface(QWidget, TranslatableWidget):
         x = (parent.width() - self.bottomBar.width()) // 2
         y = parent.height() - self.bottomBar.height() - 25
         self.bottomBar.move(x, y)
+        logger.debug(f"[HOME] 底栏位置更新: pos=({x},{y}) 父容器={parent.width()}x{parent.height()}")
 
     def _openSettingsWindow(self):
         from ui.settings import SettingsWindow
         if not hasattr(self, '_settings_window') or self._settings_window is None:
+            logger.debug("[HOME] 首次打开设置窗口")
             self._settings_window = SettingsWindow(self.mainWindow)
         self._settings_window.show()
         self._settings_window.raise_()
         self._settings_window.activateWindow()
+        logger.debug("[HOME] 设置窗口已打开")
 
     def _openComponentEditWindow(self):
         from ui.component import ComponentLibraryWindow
         if not hasattr(self, '_component_library_window') or self._component_library_window is None:
+            logger.debug("[HOME] 首次创建组件编辑窗口")
             self._component_library_window = ComponentLibraryWindow(self.component_registry)
             self._component_library_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
             self._component_library_window.installEventFilter(self)
@@ -701,6 +746,7 @@ class HomeInterface(QWidget, TranslatableWidget):
 
         # 进入编辑模式
         self._enterEditMode()
+        logger.debug("[HOME] 打开组件编辑窗口")
 
         self._component_library_window.show()
         self._component_library_window.raise_()
@@ -708,10 +754,12 @@ class HomeInterface(QWidget, TranslatableWidget):
 
     def _on_component_library_destroyed(self):
         self._component_library_window = None
+        logger.debug("[HOME] 组件编辑窗口已销毁 退出编辑模式")
         self._exitEditMode()
 
     def eventFilter(self, obj, event):
         if obj == self._component_library_window and event.type() == QEvent.Type.Close:
+            logger.debug("[HOME] 事件过滤: 组件编辑窗口收到 Close 退出编辑模式")
             self._exitEditMode()
         return super().eventFilter(obj, event)
 
@@ -721,6 +769,7 @@ class HomeInterface(QWidget, TranslatableWidget):
             # 导航页时不接受拖入组件
             meta = self.page_manager.get_page(self._currentPageIndex) if hasattr(self, 'page_manager') else None
             if meta is not None and meta.type == "nav":
+                logger.debug("[HOME] 导航页 拒绝拖入")
                 event.ignore()
                 return
             event.acceptProposedAction()
@@ -733,7 +782,7 @@ class HomeInterface(QWidget, TranslatableWidget):
             else:
                 self._drag_preview_def = self.component_registry.get_definition(data)
 
-            logger.info(f"dragEnter: component={data}, def={self._drag_preview_def}")
+            logger.info(f"dragEnter: component={data} def={self._drag_preview_def}")
 
             from ui.component import COMPONENT_STYLES
             comp_type, comp_style = self._resolve_component_type_style(data)
@@ -762,7 +811,7 @@ class HomeInterface(QWidget, TranslatableWidget):
                 self._drag_preview_size = style_info.get("default_size", (200, 80))
 
             self._update_grid_metrics()
-            logger.info(f"grid_metrics cell_size={self._grid_metrics.cell_size if self._grid_metrics else 'None'}")
+            logger.info(f"grid cell={self._grid_metrics.cell_size if self._grid_metrics else 'None'}")
 
             if hasattr(self, '_drag_preview_size') and self._drag_preview_size:
                 self._drag_preview_width = self._drag_preview_size[0]
@@ -775,6 +824,7 @@ class HomeInterface(QWidget, TranslatableWidget):
 
             self.update()
         else:
+            logger.debug("[HOME] 拖拽进入 MIME 不匹配")
             event.ignore()
 
     def dragMoveEvent(self, event):
@@ -808,6 +858,9 @@ class HomeInterface(QWidget, TranslatableWidget):
             self._drag_preview_collision = self._check_pixel_collision(
                 snapped_x, snapped_y, comp_width, comp_height
             )
+            if self._drag_preview_collision != getattr(self, '_last_drag_collision_logged', None):
+                logger.debug(f"[HOME] 碰撞={self._drag_preview_collision} pos=({snapped_x:.0f},{snapped_y:.0f})")
+                self._last_drag_collision_logged = self._drag_preview_collision
 
             if hasattr(self, '_grid_overlay') and self._grid_overlay:
                 self._grid_overlay.update_preview_pixel(
@@ -850,6 +903,8 @@ class HomeInterface(QWidget, TranslatableWidget):
         final_x = snapped_left if snapped_left != left else (snapped_right - width if snapped_right != right else x)
         final_y = snapped_top if snapped_top != top else (snapped_bottom - height if snapped_bottom != bottom else y)
 
+        if final_x != x or final_y != y:
+            logger.debug(f"[HOME] 网格吸附 ({x:.0f},{y:.0f}) -> ({final_x:.0f},{final_y:.0f})")
         return (final_x, final_y)
 
     def _check_pixel_collision(self, x: float, y: float, width: float, height: float) -> bool:
@@ -875,6 +930,7 @@ class HomeInterface(QWidget, TranslatableWidget):
         self._drag_preview_width = 0
         self._drag_preview_height = 0
         self._drag_preview_collision = False
+        logger.debug("[HOME] 拖拽离开: 预览状态已重置")
 
         if hasattr(self, '_grid_overlay') and self._grid_overlay:
             if not self._edit_mode_active:
@@ -916,7 +972,7 @@ class HomeInterface(QWidget, TranslatableWidget):
 
         drop_pos = event.position()
 
-        logger.info(f"dropEvent: saved=({saved_x},{saved_y},{saved_w},{saved_h}), has_valid_preview={has_valid_preview}")
+        logger.info(f"dropEvent: saved=({saved_x},{saved_y},{saved_w},{saved_h}) has_valid_preview={has_valid_preview}")
 
         if hasattr(self, 'component_manager') and self.component_manager:
             comp_id = self.component_manager.add_component(component_type, component_style,
@@ -960,8 +1016,8 @@ class HomeInterface(QWidget, TranslatableWidget):
                         comp.setDraggable(True)
                         try:
                             comp.selected.connect(self._selectComponent)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.debug(f"[HOME] 组件 selected 信号连接失败: {e}")
 
                 event.acceptProposedAction()
                 self.update()
@@ -998,8 +1054,8 @@ class HomeInterface(QWidget, TranslatableWidget):
                 potential_style = '_'.join(parts[i:])
                 if potential_type in COMPONENT_STYLES and potential_style in COMPONENT_STYLES[potential_type]:
                     return (potential_type, potential_style)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[_resolve_component_type_style] 组件标识解析失败 用朴素解析: {component_id} {e}")
         parts = component_id.replace('|', '_').split('_')
         return (parts[0], '_'.join(parts[1:]))
 
@@ -1025,6 +1081,7 @@ class HomeInterface(QWidget, TranslatableWidget):
         shutdown_action.triggered.connect(lambda: os.system('shutdown /s /t 0'))
         menu.addAction(shutdown_action)
 
+        logger.info(f"[HOME] 打开底部菜单: {len(menu.actions())}项")
         menu.exec(self.menuBtn.mapToGlobal(
             self.menuBtn.rect().bottomRight()
         ))
@@ -1034,8 +1091,8 @@ class HomeInterface(QWidget, TranslatableWidget):
         self._edit_mode_active = True
         # 更新网格度量
         self._update_grid_metrics()
-        logger.info(f"进入编辑模式: grid_metrics={self._grid_metrics}, "
-                    f"cell_size={self._grid_metrics.cell_size if self._grid_metrics else 'None'}")
+        logger.info(f"进入编辑 "
+                    f"cell={self._grid_metrics.cell_size if self._grid_metrics else 'None'}")
         # 显示网格（信息页）
         meta = self.page_manager.get_page(self._currentPageIndex) if hasattr(self, 'page_manager') else None
         if hasattr(self, '_grid_overlay') and self._grid_overlay:
@@ -1063,6 +1120,7 @@ class HomeInterface(QWidget, TranslatableWidget):
         if container:
             container.setSelected(True)
             container.showEditControls(True)
+        logger.debug(f"[HOME] 选中组件: id={component_id} 找到容器={container is not None}")
 
     def _deselectAll(self):
         """取消所有组件选中"""
@@ -1071,10 +1129,14 @@ class HomeInterface(QWidget, TranslatableWidget):
             if old:
                 old.setSelected(False)
                 old.showEditControls(False)
+            logger.debug(f"[HOME] 取消选中组件: id={self._edit_selected_placement_id} 找到容器={old is not None}")
         self._edit_selected_placement_id = None
 
     def deleteSelectedComponent(self, component_id: str):
         """删除组件"""
+        container = self.component_manager.components.get(component_id)
+        pos = f"({container.x()},{container.y()})" if container else "未知"
+        logger.info(f"[HOME] 删除选中组件: id={component_id} 位置={pos}")
         self._deselectAll()
         self.component_manager.remove_component(component_id)
         self._draggable_widgets = [
@@ -1084,6 +1146,8 @@ class HomeInterface(QWidget, TranslatableWidget):
 
     def mousePressEvent(self, event):
         if self._edit_mode_active and event.button() == Qt.MouseButton.LeftButton:
+            if self._edit_selected_placement_id:
+                logger.debug("[HOME] 点空白 取消选中")
             self._deselectAll()
         # 翻页拖拽：记录起点
         if event.button() == Qt.MouseButton.LeftButton:
@@ -1100,6 +1164,7 @@ class HomeInterface(QWidget, TranslatableWidget):
                 self._swipe_last_dx = 0
                 self.grabMouse()
                 self._swipe_watchdog.start()
+                logger.debug(f"[HOME] 手势 start=({self._swipe_start_x:.0f},{self._swipe_start_y:.0f}) 类型={'nav' if meta and meta.type == 'nav' else 'info'}")
                 event.accept()
                 return
         super().mousePressEvent(event)
@@ -1144,16 +1209,19 @@ class HomeInterface(QWidget, TranslatableWidget):
         self._swipe_dragging = False
         self._swipe_start_x = None
         self._swipe_moved = False
+        direction = "右滑->上一页" if target < self._currentPageIndex else ("左滑->下一页" if target > self._currentPageIndex else "未跨页")
+        logger.debug(f"[HOME] 手势结束 dx={dx:.0f} 阈值={threshold:.0f} {direction} {self._currentPageIndex} -> {target}")
         self._goToPage(target, animate=True)
 
     def mouseReleaseEvent(self, event):
         """翻页释放"""
         if self._swipe_dragging and self._swipe_start_x is not None:
+            logger.debug("[HOME] 翻页手势释放 结算目标页")
             self._swipe_watchdog.stop()
             try:
                 self.releaseMouse()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"[HOME] releaseMouse 释放失败: {e}")
             dx = event.position().x() - self._swipe_start_x
             self._finish_swipe(dx)
             event.accept()
@@ -1168,10 +1236,11 @@ class HomeInterface(QWidget, TranslatableWidget):
         from PyQt6.QtWidgets import QApplication
         if not (QApplication.mouseButtons() & Qt.MouseButton.LeftButton):
             self._swipe_watchdog.stop()
+            logger.warning("[HOME] 翻页看门狗触发: 左键已释放但未收到 releaseEvent 强制结束滑动")
             try:
                 self.releaseMouse()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"[HOME] 看门狗 releaseMouse 失败: {e}")
             self._finish_swipe(self._swipe_last_dx)
 
     def wheelEvent(self, event):
@@ -1183,6 +1252,7 @@ class HomeInterface(QWidget, TranslatableWidget):
             if abs(dx) < 1 and abs(dy) != 0:
                 dx = -dy
             if abs(dx) > 30:
+                logger.debug(f"[HOME] 滚轮翻页: dx={dx} 当前页={self._currentPageIndex}")
                 if dx > 0:
                     self._goToPage(self._currentPageIndex - 1, animate=True)
                 else:
@@ -1195,19 +1265,24 @@ class HomeInterface(QWidget, TranslatableWidget):
         """Delete 键删除选中组件 方向键翻页"""
         if self._edit_mode_active and self._edit_selected_placement_id:
             if event.key() == Qt.Key.Key_Delete:
+                logger.info(f"[HOME] 按键 Delete: 删除选中组件 {self._edit_selected_placement_id}")
                 self.deleteSelectedComponent(self._edit_selected_placement_id)
                 return
 
         if event.key() == Qt.Key.Key_Left:
+            logger.debug(f"[HOME] 按键 Left: 翻到上一页 当前页={self._currentPageIndex}")
             self._goToPage(self._currentPageIndex - 1, animate=True)
             return
         if event.key() == Qt.Key.Key_Right:
+            logger.debug(f"[HOME] 按键 Right: 翻到下一页 当前页={self._currentPageIndex}")
             self._goToPage(self._currentPageIndex + 1, animate=True)
             return
         super().keyPressEvent(event)
 
     def _exitEditMode(self):
         """退出编辑模式"""
+        if self._edit_mode_active:
+            logger.debug("[HOME] 退出编辑模式")
         self._edit_mode_active = False
         self._deselectAll()
         # 隐藏网格
@@ -1229,7 +1304,7 @@ class HomeInterface(QWidget, TranslatableWidget):
 
         if hasattr(self, 'component_manager') and self.component_manager:
             containers = self.component_manager.get_all_containers()
-            logger.info(f"component_manager 有 {len(containers)} 个容器")
+            logger.info(f"component_manager 有{len(containers)}个容器")
             for container in containers:
                 if container not in self._draggable_widgets:
                     self._draggable_widgets.append(container)
@@ -1241,10 +1316,10 @@ class HomeInterface(QWidget, TranslatableWidget):
                 if child not in self._draggable_widgets:
                     self._draggable_widgets.append(child)
                     logger.info(f"findChildren 补充: {child}")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[HOME] DraggableContainer 导入/遍历失败 拖拽列表可能不完整: {e}")
 
-        logger.info(f"拖拽列表共有 {len(self._draggable_widgets)} 个组件，设置draggable={enabled}")
+        logger.info(f"拖拽列表共有{len(self._draggable_widgets)}个组件 设置draggable={enabled}")
 
         # 清理被删除的组件引用
         self._draggable_widgets = [
@@ -1264,7 +1339,7 @@ class HomeInterface(QWidget, TranslatableWidget):
                     if enabled:
                         widget.selected.connect(self._selectComponent)
                 except Exception as e:
-                    logger.warning(f"设置组件可拖动状态失败: {e}")
+                    logger.warning(f"设置组件可拖动状态失败, {e}")
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -1294,6 +1369,7 @@ class HomeInterface(QWidget, TranslatableWidget):
                         pass
 
         self._updateBottomBarPosition()
+        logger.debug(f"[HOME] 窗口尺寸变更: {available_width}x{available_height}")
 
     def _apply_background_size(self):
         """把模糊版/原图按当前窗口尺寸缩放后贴到背景"""
@@ -1313,8 +1389,9 @@ class HomeInterface(QWidget, TranslatableWidget):
                                                Qt.AspectRatioMode.IgnoreAspectRatio,
                                                Qt.TransformationMode.SmoothTransformation)
                 )
+            logger.debug(f"[HOME] 背景缩放 {available_width}x{available_height} 源={'模糊图' if getattr(self, '_blurredOriginalPixmap', None) is not None else '原图'}")
         except Exception as e:
-            logger.error(f"背景缩放错误：{e}")
+            logger.error(f"背景缩放错误 {e}")
 
     def _computeBlurredBackground(self):
         if not hasattr(self, 'originalPixmap') or self.originalPixmap is None or self.originalPixmap.isNull():
@@ -1334,7 +1411,7 @@ class HomeInterface(QWidget, TranslatableWidget):
             elapsed = (time.perf_counter() - t0) * 1000
             blurred_qimage = QImage(blurred_bytes, qimg.width(), qimg.height(), QImage.Format.Format_ARGB32)
             self._blurredOriginalPixmap = QPixmap.fromImage(blurred_qimage)
-            logger.info(f"[HOME-BLUR] 模糊完成: {qimg.width()}x{qimg.height()}, radius={blur_radius}, {elapsed:.1f}ms")
+            logger.info(f"[HOME-BLUR] 已模糊 {qimg.width()}x{qimg.height()} radius={blur_radius} {elapsed:.1f}ms")
         except Exception as e:
             logger.error(f"[HOME-BLUR] 模糊失败: {e}")
             self._blurredOriginalPixmap = None
@@ -1344,6 +1421,7 @@ class HomeInterface(QWidget, TranslatableWidget):
         base_qss = load_qss('home.qss')
         card_qss = self._buildComponentCardQss()
         self.setStyleSheet(base_qss + "\n" + card_qss)
+        logger.debug("[HOME] 主题样式已更新")
 
     def _buildComponentCardQss(self):
         opacity = cfg.componentCardOpacity.value / 100.0
@@ -1364,6 +1442,7 @@ class HomeInterface(QWidget, TranslatableWidget):
             "#newsTenxunwangContainer", "#newsCCTVContainer", "#writingPadContainer",
         ]
         hover_bg = "rgba(255, 255, 255, 0.12)" if dark else "rgba(0, 0, 0, 0.10)"
+        logger.debug(f"[HOME] 组件卡片样式构建: dark={dark} opacity={opacity:.2f} radius={radius}")
         return f"""
 {", ".join(card_names)} {{
     background-color: {bg_color};
@@ -1397,6 +1476,7 @@ class HomeInterface(QWidget, TranslatableWidget):
                 self.component_manager.save_components()
             except Exception as e:
                 logger.error(f"保存组件位置失败: {e}")
+            logger.debug(f"[HOME] 组件位置已保存 {len(self._draggable_widgets)}个")
 
 class CountdownEditDialog(MessageBoxBase):
     """倒计时编辑对话框"""
@@ -1437,8 +1517,8 @@ class CountdownEditDialog(MessageBoxBase):
                 try:
                     dt = datetime.datetime.strptime(target_time, '%Y-%m-%d %H:%M')
                     self.datePicker.setDate(QDate(dt.year, dt.month, dt.day))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"[HOME] 倒计时目标日期解析失败: {target_time} {e}")
         else:
             now = datetime.datetime.now()
             self.datePicker.setDate(QDate(now.year, now.month, now.day))
@@ -1457,8 +1537,8 @@ class CountdownEditDialog(MessageBoxBase):
                 try:
                     dt = datetime.datetime.strptime(target_time, '%Y-%m-%d %H:%M')
                     self.timePicker.setTime(QTime(dt.hour, dt.minute))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"[HOME] 倒计时目标时间解析失败: {target_time} {e}")
         else:
             self.timePicker.setTime(QTime(0, 0))
         self.viewLayout.addWidget(self.timePicker)
@@ -1467,23 +1547,26 @@ class CountdownEditDialog(MessageBoxBase):
         self.cancelButton.setText(tr("common.cancel"))
 
         self.widget.setMinimumWidth(360)
+        logger.debug(f"[HOME] 打开倒计时编辑对话框: {'编辑' if self._countdown_data else '新增'}")
 
         try:
             self.yesButton.clicked.disconnect()
-        except TypeError:
-            pass
+        except TypeError as e:
+            logger.debug(f"[HOME] 确认按钮信号断开跳过: {e}")
         self.yesButton.clicked.connect(self._on_ok)
 
     def _on_ok(self):
         try:
             title_text = self.titleEdit.text().strip()
             if not title_text:
+                logger.warning("[HOME] 倒计时保存校验失败: 名称不能为空")
                 InfoBar.error(tr("common.error"), tr("home.enter_target_name"), parent=self, duration=3000)
                 return
 
             qdate = self.datePicker.date
             qtime = self.timePicker.time
             if not qdate.isValid() or not qtime.isValid():
+                logger.warning(f"[HOME] 倒计时保存校验失败: 日期或时间无效 date={qdate} time={qtime}")
                 InfoBar.error(tr("common.error"), tr("home.enter_valid_datetime"), parent=self, duration=3000)
                 return
             dt = datetime.datetime(qdate.year(), qdate.month(), qdate.day(), qtime.hour(), qtime.minute())
@@ -1491,9 +1574,10 @@ class CountdownEditDialog(MessageBoxBase):
                 'title': title_text,
                 'target_time': dt.strftime('%Y-%m-%d %H:%M')
             }
+            logger.info(f"[HOME] 倒计时已保存 标题={title_text} 目标={dt}")
             self.accept()
         except Exception as e:
-            logger.error(f'保存倒计时失败：{e}')
+            logger.error(f'保存倒计时失败 {e}')
             InfoBar.error(tr("common.error"), tr("home.enter_valid_datetime_error", error=str(e)), parent=self, duration=5000)
 
     def get_countdown(self):
@@ -1566,11 +1650,12 @@ class AppEditDialog(MessageBoxBase):
         self.yesButton.setText(tr("common.confirm"))
         self.cancelButton.setText(tr("common.cancel"))
         self.widget.setMinimumWidth(400)
+        logger.debug(f"[HOME] 编辑对话框 {'编辑' if self._app_data else '新增'} 应用={self._app_data.get('name', '') if self._app_data else ''}")
 
         try:
             self.yesButton.clicked.disconnect()
-        except TypeError:
-            pass
+        except TypeError as e:
+            logger.debug(f"[HOME] 确认按钮信号断开跳过: {e}")
         self.yesButton.clicked.connect(self._on_ok)
 
         self._icon_filename = self._app_data.get('icon', '') if self._app_data else ''
@@ -1578,6 +1663,7 @@ class AppEditDialog(MessageBoxBase):
             self._load_icon_preview(self._icon_filename)
 
     def _set_default_icon(self):
+        logger.debug("[HOME] 应用图标改用默认图标")
         default_icon = QIcon.fromTheme('application-x-executable')
         if default_icon.isNull():
             pixmap = QPixmap(48, 48)
@@ -1596,6 +1682,7 @@ class AppEditDialog(MessageBoxBase):
             else:
                 self._set_default_icon()
         else:
+            logger.warning(f"[HOME] 图标缺失 用默认: {icon_path}")
             self._set_default_icon()
 
     def _get_icon_name(self):
@@ -1604,19 +1691,24 @@ class AppEditDialog(MessageBoxBase):
             cleaned_name = re.sub(r'[^\w\u4e00-\u9fff]', '', name_text)
             if cleaned_name:
                 return cleaned_name + '.ico'
+        logger.debug(f"[HOME] 图标名无效 用 default.ico: 输入={name_text!r}")
         return 'default.ico'
 
     def _on_path_changed(self, path):
         if path.lower().endswith('.exe') and os.path.exists(path):
             base_name = os.path.splitext(os.path.basename(path))[0]
+            logger.debug(f"[HOME] 应用路径变更: path={path} 自动填名={base_name}")
             self.nameEdit.setText(base_name)
             self._do_extract_icon(path)
+        else:
+            logger.debug(f"[HOME] 自动填名 非exe或不存在 path={path}")
 
     def _do_extract_icon(self, exe_path):
         from ui.component import extract_app_icon
         name = self._get_icon_name()
         base = os.path.splitext(name)[0] if name else None
         icon_path = extract_app_icon(exe_path, base) or 'exe.ico'
+        logger.debug(f"[HOME] 从 exe 提取图标: exe={exe_path} icon={icon_path}")
         if icon_path:
             self._icon_filename = icon_path
             self.iconPathEdit.setText('')
@@ -1624,6 +1716,7 @@ class AppEditDialog(MessageBoxBase):
 
     def _on_icon_path_changed(self, path):
         if path:
+            logger.debug(f"[HOME] 图标路径输入变更: path={path}")
             self._icon_filename = path
             self._load_icon_preview(path)
 
@@ -1638,6 +1731,9 @@ class AppEditDialog(MessageBoxBase):
 
         if file_path:
             self.iconPathEdit.setText(file_path)
+            logger.debug(f"[HOME] 选择图标文件: {file_path}")
+        else:
+            logger.debug("[HOME] 图标文件选择已取消")
 
     def _on_browse(self):
 
@@ -1650,10 +1746,14 @@ class AppEditDialog(MessageBoxBase):
 
         if file_path:
             self.pathEdit.setText(file_path)
+            logger.debug(f"[HOME] 选择应用程序: {file_path}")
+        else:
+            logger.debug("[HOME] 应用程序选择已取消")
 
     def _on_ok(self):
         name_text = self.nameEdit.text().strip()
         if not name_text:
+            logger.warning("[HOME] 应用保存校验失败: 名称不能为空")
             InfoBar.error(tr("dialog.error"), tr("home.enter_target_name"), parent=self, duration=2000)
             return
 
@@ -1672,6 +1772,7 @@ class AppEditDialog(MessageBoxBase):
             'path': path_text,
             'icon': icon_val
         }
+        logger.info(f"[HOME] 应用已保存 name={name_text} path={path_text} icon={icon_val}")
         self.accept()
 
     def get_app_data(self):
@@ -1700,6 +1801,7 @@ class _GridOverlay(QWidget):
 
     def eventFilter(self, obj, event):
         if obj is self.parent() and event.type() == QEvent.Type.Resize:
+            logger.debug(f"[HOME] 网格覆盖层随父窗口调整: {self.parent().width()}x{self.parent().height()}")
             self.setGeometry(self.parent().rect())
             if self._home:
                 self._home._update_grid_metrics()
@@ -1710,16 +1812,20 @@ class _GridOverlay(QWidget):
     def setup(self, home_interface):
         """设置 HomeInterface 引用"""
         self._home = home_interface
+        logger.debug("[HOME] 网格覆盖层已挂接主界面")
 
     def update_grid_metrics(self, metrics):
         """更新网格度量并重绘"""
         self._grid_metrics = metrics
+        logger.debug(f"[HOME] 覆盖层网格度量更新: cell={metrics.cell_size if metrics else None}")
         if metrics:
             self.setGeometry(self.parent().rect())
         self.update()
 
     def show_preview(self, visible: bool):
         """显示/隐藏预览框"""
+        if visible != self._preview_visible:
+            logger.debug(f"[HOME] 网格预览框切换: visible={visible}")
         self._preview_visible = visible
         if not visible:
             self._preview_x = 0

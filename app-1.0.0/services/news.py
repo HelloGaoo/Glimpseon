@@ -39,6 +39,7 @@ class NewsService:
         session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         })
+        logger.debug("已创建新闻请求会话")
         return session
 
     @staticmethod
@@ -60,13 +61,14 @@ class NewsService:
         if use_cache:
             cached = get_cached_content(cache_name)
             if cached is not None:
+                logger.debug("央视新闻缓存命中")
                 return cached
 
         with cls._create_session() as session:
             try:
                 response = session.get(CCTV_NEWS_API_URL, timeout=10)
                 if response.status_code != 200:
-                    logger.error(f"央视新闻请求失败：{response.status_code}")
+                    logger.error(f"央视新闻请求失败 {response.status_code}")
                     return None
 
                 data = cls._parse_response_json(response)
@@ -85,29 +87,32 @@ class NewsService:
                     return None
 
                 cls._save_cache(cache_name, news_list)
+                top = "; ".join((n.get("title") or n.get("name") or "")[:20] for n in news_list[:3] if isinstance(n, dict))
+                logger.info(f"央视新闻已获取 {len(news_list)}条 {top}")
                 return news_list
             except requests.exceptions.RequestException as e:
-                logger.error(f"央视新闻请求异常：{e}")
+                logger.error(f"央视新闻请求异常 {e}")
                 return None
 
     @classmethod
     def fetch_daily_news(cls, platform: str, use_cache: bool = True) -> Optional[List[Dict[str, Any]]]:
         platform = platform.strip().lower()
         if platform not in SUPPORTED_PLATFORMS:
-            logger.warning(f"不支持的平台：{platform}")
+            logger.warning(f"不支持的平台 {platform}")
             return None
 
         cache_name = f"news_{platform}"
         if use_cache:
             cached = get_cached_content(cache_name)
             if cached is not None:
+                logger.debug(f"每日新闻缓存命中: {platform}")
                 return cached
 
         with cls._create_session() as session:
             try:
                 response = session.get(DAILY_NEWS_API_URL, params={"platform": platform}, timeout=10)
                 if response.status_code != 200:
-                    logger.error(f"每日新闻请求失败：{response.status_code}")
+                    logger.error(f"每日新闻请求失败 {response.status_code}")
                     return None
 
                 data = cls._parse_response_json(response)
@@ -127,9 +132,11 @@ class NewsService:
                     return None
 
                 cls._save_cache(cache_name, news_list)
+                top = "; ".join((n.get("title") or n.get("name") or "")[:20] for n in news_list[:3] if isinstance(n, dict))
+                logger.info(f"每日新闻已获取 {platform} {len(news_list)}条 {top}")
                 return news_list
             except requests.exceptions.RequestException as e:
-                logger.error(f"每日新闻请求异常：{e}")
+                logger.error(f"每日新闻请求异常 {e}")
                 return None
 
     @classmethod
@@ -137,4 +144,6 @@ class NewsService:
         result = {}
         for platform in SUPPORTED_PLATFORMS:
             result[platform] = cls.fetch_daily_news(platform, use_cache=use_cache)
+        ok = sum(1 for v in result.values() if v is not None)
+        logger.info(f"每日新闻已获取 {ok}/{len(result)}平台")
         return result

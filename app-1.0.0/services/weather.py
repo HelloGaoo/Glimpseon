@@ -141,6 +141,7 @@ class WeatherService:
         all_codes.update(WeatherService.WEATHER_NIGHT_MAP.keys())
         for code in all_codes:
             result[code] = WeatherService.get_weather_text(code, tr_func)
+        logger.debug(f"天气代码映射已构建 {len(result)}项")
         return result
 
     def __init__(self):
@@ -151,11 +152,14 @@ class WeatherService:
             "isGlobal": False,
             "locale": "zh_cn"
         }
+        logger.debug(f"天气服务就绪 api={self.base_url} appKey={WEATHER_API_APPKEY} locale=zh_cn")
 
     def fetch_all(self) -> Optional[Dict[str, Any]]:
         try:
             lat = cfg.latitude.value if cfg.latitude.value else 39.9042
             lon = cfg.longitude.value if cfg.longitude.value else 116.4074
+            if not cfg.latitude.value or not cfg.longitude.value:
+                logger.info("经纬度未配置 用默认坐标 (北京)")
 
             params = {
                 **self.api_params,
@@ -163,11 +167,11 @@ class WeatherService:
                 "longitude": str(lon)
             }
 
-            logger.info(f"请求天气API，经纬度：{lat}, {lon}")
+            logger.info(f"请求天气API 经纬度 {lat} {lon}")
             response = requests.get(self.base_url, params=params, timeout=10)
 
             if response.status_code != 200:
-                logger.error(f"天气 API 请求失败，状态码：{response.status_code}")
+                logger.error(f"天气 api 请求失败 状态码 {response.status_code}")
                 return None
 
             data = response.json()
@@ -177,18 +181,62 @@ class WeatherService:
                 logger.error("天气返回不完整")
                 return None
 
-            logger.info("天气数据获取成功")
+            logger.info("天气已获取")
             return data
 
         except requests.exceptions.Timeout:
-            logger.error("天气 API 请求超时")
+            logger.error("天气 api 请求超时")
             return None
         except requests.exceptions.RequestException as e:
-            logger.error(f"天气 API 请求异常：{e}")
+            logger.error(f"天气 api 请求异常 {e}")
             return None
         except Exception as e:
-            logger.error(f"解析天气数据失败：{e}")
+            logger.error(f"解析天气数据失败 {e}")
             return None
+
+    _icon_base_logged = False
+
+    @staticmethod
+    def _parse_current(data):
+        """fetch_all 结构 > (温度, 天气码)
+
+        Args:
+            data: fetch_all dict/None
+        """
+        current = (data or {}).get("current", {})
+        raw = current.get("temperature", {}).get("value", "--")
+        try:
+            temp = int(round(float(raw)))
+        except (ValueError, TypeError):
+            logger.debug(f"温度值 {raw!r} 转换失败 用原始文本")
+            temp = raw
+        try:
+            code = int(current.get("weather", 0))
+        except (ValueError, TypeError):
+            logger.debug(f"天气代码 {current.get('weather')!r} 转换失败 按 0 处理")
+            code = 0
+        return temp, code
+
+    @staticmethod
+    def parse_current(data: Optional[Dict[str, Any]]) -> tuple:
+        """从 fetch_all 原始结构提取 (温度, 天气码)
+
+        Args:
+            data: fetch_all dict/None
+        """
+        current = (data or {}).get("current", {})
+        raw = current.get("temperature", {}).get("value", "--")
+        try:
+            temp = int(round(float(raw)))
+        except (ValueError, TypeError):
+            logger.debug(f"温度值 {raw!r} 转换失败 用原始文本")
+            temp = raw
+        try:
+            code = int(current.get("weather", 0))
+        except (ValueError, TypeError):
+            logger.debug(f"天气代码 {current.get('weather')!r} 转换失败 按 0 处理")
+            code = 0
+        return temp, code
 
     @staticmethod
     def get_weather_icon_path(icon_name: str) -> str:
@@ -198,12 +246,17 @@ class WeatherService:
         else:
             base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-        return os.path.join(base_dir, 'resource', 'icons', 'weather', icon_name)
+        result = os.path.join(base_dir, 'resource', 'icons', 'weather', icon_name)
+        if not WeatherService._icon_base_logged:
+            WeatherService._icon_base_logged = True
+            logger.debug(f"天气图标目录基准: {result}")
+        return result
 
     @staticmethod
     def parse_hourly(hourly: dict) -> Optional[Dict[str, Any]]:
         """解析 forecastHourly"""
         if not hourly:
+            logger.warning("小时预报缺失字段 forecastHourly")
             return None
 
         temps_obj = hourly.get("temperature", {})
@@ -212,19 +265,25 @@ class WeatherService:
         weather_values = weathers_obj.get("value", [])
         temp_unit = temps_obj.get("unit", "℃")
         pub_time = temps_obj.get("pubTime", "")
+        if not temp_values:
+            logger.warning("小时温度数据为空 解析结果将为空列表")
+        elif len(weather_values) < min(24, len(temp_values)):
+            logger.debug(f"小时天气数据不足 ({len(weather_values)}/{min(24, len(temp_values))}) 缺失小时按晴(0)处理")
 
         hours = []
         for i in range(min(24, len(temp_values))):
             weather_code = 0
             if i < len(weather_values):
                 val = weather_values[i]
-                try:
-                    weather_code = int(val)
-                except (ValueError, TypeError):
-                    if isinstance(val, dict):
-                        weather_code = int(val.get("day", val.get("night", 0)))
-                    elif isinstance(val, list) and len(val) > 0:
-                        weather_code = int(val[0])
+                if isinstance(val, dict):
+                    weather_code = int(val.get("day", val.get("night", 0)))
+                elif isinstance(val, list) and len(val) > 0:
+                    weather_code = int(val[0])
+                else:
+                    try:
+                        weather_code = int(val)
+                    except (ValueError, TypeError):
+                        logger.debug(f"小时天气代码类型转换失败 第{i}小时 weather={val} 按 0 处理")
 
             icon_name = WeatherService.ICON_MAP.get(weather_code, "2.svg")
             hours.append({
@@ -233,6 +292,7 @@ class WeatherService:
                 "icon": icon_name,
             })
 
+        logger.info(f"小时预报已解析 {len(hours)}小时 单位 {temp_unit} 发布 {pub_time}")
         return {
             "hours": hours,
             "unit": temp_unit,
@@ -243,6 +303,7 @@ class WeatherService:
     def parse_daily(daily: dict) -> Optional[Dict[str, Any]]:
         """解析 forecastDaily"""
         if not daily:
+            logger.warning("每日预报缺失字段 forecastDaily")
             return None
 
         weather_obj = daily.get("weather", {})
@@ -250,27 +311,33 @@ class WeatherService:
 
         temp_obj = daily.get("temperature", {})
         temp_values = temp_obj.get("value", [])
+        if not weather_values:
+            logger.debug("每日天气数据为空 各天天气按晴(0)处理")
+        if not temp_values:
+            logger.warning("每日温度数据为空")
 
         days = []
         for i in range(min(15, len(temp_values))):
             weather_code = 0
             if i < len(weather_values):
                 val = weather_values[i]
-                try:
-                    weather_code = int(val)
-                except (ValueError, TypeError):
-                    if isinstance(val, dict):
-                        # API 返回 {'from': 白天code, 'to': 夜间code} / {'day': ..., 'night': ...}
-                        weather_code = int(val.get("from", val.get("day", val.get("night", 0))))
-                    elif isinstance(val, list) and len(val) > 0:
-                        weather_code = int(val[0])
+                if isinstance(val, dict):
+                    # api 返回 {'from': 白天code, 'to': 夜间code} / {'day': ..., 'night': ...}
+                    weather_code = int(val.get("from", val.get("day", val.get("night", 0))))
+                elif isinstance(val, list) and len(val) > 0:
+                    weather_code = int(val[0])
+                else:
+                    try:
+                        weather_code = int(val)
+                    except (ValueError, TypeError):
+                        logger.debug(f"每日天气代码类型转换失败 第{i}天 weather={val} 按 0 处理")
 
             high = "--"
             low = "--"
             if i < len(temp_values):
                 val = temp_values[i]
                 if isinstance(val, dict):
-                    # API 返回 {'from': 高温, 'to': 低温}
+                    # api 返回 {'from': 高温, 'to': 低温}
                     from_val = val.get("from", val.get("value", "--"))
                     to_val = val.get("to", val.get("value", "--"))
                     # 根据数值大小判断高低
@@ -280,6 +347,7 @@ class WeatherService:
                         high = str(max(from_num, to_num))
                         low = str(min(from_num, to_num))
                     except (ValueError, TypeError):
+                        logger.warning(f"每日温度转换失败 第{i}天 temperature={from_val}/{to_val} 用原始文本")
                         high = str(from_val)
                         low = str(to_val)
                 elif isinstance(val, (list, tuple)):
@@ -297,6 +365,7 @@ class WeatherService:
                 "low": low,
             })
 
+        logger.info(f"每日预报已解析 {len(days)}天")
         return {"days": days}
 
 
@@ -305,13 +374,20 @@ class RegionDatabase:
 
     def __init__(self):
         self._db_path = get_resPath(os.path.join('resource', 'city.db'))
+        logger.debug(f"地区数据库路径: {self._db_path}")
+
+    _connect_logged = False
 
     def _connect(self):
+        if not RegionDatabase._connect_logged:
+            RegionDatabase._connect_logged = True
+            logger.debug(f"连接地区数据库: {self._db_path}")
         return sqlite3.connect(self._db_path)
 
     def search(self, keyword=None):
         try:
             if not os.path.exists(self._db_path):
+                logger.warning(f"地区数据库文件不存在 {self._db_path}")
                 return []
 
             with self._connect() as conn:
@@ -329,16 +405,19 @@ class RegionDatabase:
                     from pypinyin import lazy_pinyin
                     names.sort(key=lambda x: lazy_pinyin(x[0])[0][0].lower() if x else '')
                 except ImportError:
+                    logger.debug("pypinyin未安装")
                     names.sort()
-                
+
+                logger.debug(f"搜索地区 关键词={keyword!r} 命中{len(names)}条")
                 return names
         except Exception as err:
-            logger.error(f'搜索地区出错：{err}')
+            logger.error(f'搜索地区出错 {err}')
             return []
 
     def get_coordinates(self, region_name):
         try:
             if not os.path.exists(self._db_path):
+                logger.warning(f"地区数据库文件不存在 {self._db_path}")
                 return None, None
 
             with self._connect() as conn:
@@ -346,10 +425,12 @@ class RegionDatabase:
                 cursor.execute('SELECT longitude, latitude FROM regions WHERE name = ?', (region_name,))
                 result = cursor.fetchone()
                 if result:
+                    logger.debug(f"区域坐标查询命中 {region_name} -> 经度 {result[0]} 纬度 {result[1]}")
                     return result[0], result[1]
+                logger.debug(f"区域坐标查询未命中 {region_name}")
                 return None, None
         except Exception as err:
-            logger.error(f'获取经纬度失败：{err}')
+            logger.error(f'获取经纬度失败 {err}')
             return None, None
 
 
@@ -360,6 +441,7 @@ class RegionSelectorDialog(MessageBoxBase):
         self._database = RegionDatabase()
         self._init_ui()
         self._select_current()
+        logger.debug("地区选择对话框就绪")
 
     def _init_ui(self):
         title = SubtitleLabel()
@@ -389,11 +471,14 @@ class RegionSelectorDialog(MessageBoxBase):
         regions = self._database.search(keyword)
         self._region_list.addItems(regions)
         self._region_list.clearSelection()
+        logger.debug(f"地区列表已刷新 关键词={keyword!r} {len(regions)}条")
 
     def _on_search(self, text):
+        logger.debug(f"触发地区搜索 {text!r}")
         self._refresh_list(text if text.strip() else None)
 
     def _on_double_click(self, item):
+        logger.debug(f"双击选择地区: {item.text()}")
         self.yesButton.click()
 
     def _select_current(self):
@@ -404,9 +489,12 @@ class RegionSelectorDialog(MessageBoxBase):
                 if items:
                     self._region_list.setCurrentItem(items[0])
                     self._region_list.scrollToItem(items[0])
+                else:
+                    logger.debug(f"地区不在列表: {current}")
         except Exception as err:
-            logger.warning(f'选中当前地区失败：{err}')
+            logger.warning(f'选中当前地区失败 {err}')
 
     def get_selected_region(self):
         selected = self._region_list.selectedItems()
+        logger.info(f"用户选择地区 {selected[0].text() if selected else '未选择'}")
         return selected[0].text() if selected else None

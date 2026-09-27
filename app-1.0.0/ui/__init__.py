@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-UI 模块
+ui 模块
 """
 
 from .about import AboutInterface

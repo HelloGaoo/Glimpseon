@@ -81,7 +81,7 @@ class LanguageSerializer(ConfigSerializer):
         }
         result = mapping.get(value)
         if result is None:
-            logger.warning(f"未知: {value}")
+            logger.warning(f"未知语言值 {value} 用 Auto")
             return Language.AUTO
 
         return result
@@ -102,6 +102,7 @@ class LogLevelSerializer(ConfigSerializer):
         for level in LogLevel:
             if level.value == value:
                 return level
+        logger.warning(f"未知日志级别: {value} 用 Info")
         return LogLevel.INFO
 
 
@@ -113,6 +114,7 @@ class CountdownListSerializer(ConfigSerializer):
         return countdown_list
     def deserialize(self, value):
         if not value or not isinstance(value, list):
+            logger.warning(f"倒计时列表配置异常 用空列表: {type(value).__name__}")
             return []
         return value
 
@@ -126,6 +128,7 @@ class Config(QConfig):
     def __init__(self):
         super().__init__()
         self.file = Path(CONFIG_PATH)
+        logger.debug(f"配置对象就绪 {CONFIG_PATH}")
 
     themeMode = OptionsConfigItem(
         "MainWindow", "ThemeMode", Theme.AUTO, OptionsValidator([Theme.LIGHT, Theme.DARK, Theme.AUTO]), ThemeSerializer()
@@ -446,27 +449,34 @@ cfg = Config()
 try:
     qconfig.load(CONFIG_PATH, cfg)
 except Exception as e:
-    logger.error(f"设置配置路径失败：{e}")
+    logger.error(f"设置配置路径失败 {e}")
 
 _cfg_loaded = os.path.exists(CONFIG_PATH)
 if _cfg_loaded:
     logger.info(f"从 {CONFIG_PATH} 加载配置")
+else:
+    logger.info(f"配置不存在 用默认: {CONFIG_PATH}")
 
 def save_cfg():
     try:
         qconfig.save()
+        logger.debug(f"配置已保存: {CONFIG_PATH}")
     except Exception as e:
-        logger.error(f"保存配置失败：{e}")
+        logger.error(f"保存配置失败 {e}")
 
-def _on_config_changed(*args):
-    """配置改变时保存"""
+def _on_config_changed(item: ConfigItem, *args):
+    """配置改变时记录并保存"""
+    value = item.value
+    if hasattr(value, 'name'):
+        value = value.name() if hasattr(value, 'name') and callable(value.name) else value.value
+    logger.info(f"配置变更: {item.group}/{item.name} = {value}")
     save_cfg()
 
 for attr_name in dir(cfg):
     if not attr_name.startswith('_'):
         attr = getattr(cfg, attr_name)
         if isinstance(attr, ConfigItem) and hasattr(attr, 'valueChanged'):
-            attr.valueChanged.connect(_on_config_changed)
+            attr.valueChanged.connect(lambda *a, it=attr: _on_config_changed(it, *a))
 
 def default_cfg():
     """生成默认值"""
@@ -490,4 +500,5 @@ def default_cfg():
             "Segoe UI"
         ]
     }
+    logger.debug(f"已生成默认配置: {sum(len(v) for v in result.values() if isinstance(v, dict))}项")
     return result

@@ -61,6 +61,7 @@ def _paint_color_btn(btn, color: QColor):
 
 def _populate_type_combo(combo):
     """填通知类型下拉项"""
+    logger.debug("[NotificationPage] 填充通知类型下拉项")
     combo.addItem(tr("notification.type_scroll"), userData=NotifType.SCROLL)
     combo.addItem(tr("notification.type_corner"), userData=NotifType.CORNER)
     combo.addItem(tr("notification.type_fullscreen"), userData=NotifType.FULLSCREEN)
@@ -68,6 +69,7 @@ def _populate_type_combo(combo):
 
 def _populate_weight_combo(combo):
     """填字重下拉项(存下标)"""
+    logger.debug("[NotificationPage] 填充字重下拉项")
     combo.addItem(tr("common.normal"))
     combo.addItem(tr("common.bold"))
     combo.addItem(tr("common.black"))
@@ -79,7 +81,11 @@ def _type_label(t: str) -> str:
         NotifType.CORNER: tr("notification.type_corner"),
         NotifType.FULLSCREEN: tr("notification.type_fullscreen"),
     }
-    return m.get(t, t)
+    label = m.get(t)
+    if label is None:
+        logger.warning(f"未知通知类型 显示原始值: {t}")
+        return t
+    return label
 
 class _PreviewWidget(QWidget):
     """通知文本样式预览"""
@@ -93,24 +99,31 @@ class _PreviewWidget(QWidget):
         self._text_color = QColor(255, 255, 255)
         self._font_size = 24
         self._font_weight = QFont.Weight.Bold
+        logger.debug(f"[Preview] 创建 字号={self._font_size} "
+                     f"背景={self._bg_color.name()} 文字={self._text_color.name()}")
 
     def set_preview_text(self, text: str):
+        logger.debug(f"[Preview] 预览文本更新: '{text[:20]}'")
         self._text = text
         self.update()
 
     def set_bg_color(self, color: QColor):
+        logger.debug(f"[Preview] 预览背景色更新: {color.name()} alpha={color.alpha()}")
         self._bg_color = color
         self.update()
 
     def set_text_color(self, color: QColor):
+        logger.debug(f"[Preview] 预览文字色更新: {color.name()} alpha={color.alpha()}")
         self._text_color = color
         self.update()
 
     def set_font_size(self, size: int):
+        logger.debug(f"[Preview] 预览字号更新: {size}")
         self._font_size = size
         self.update()
 
     def set_font_weight(self, weight: QFont.Weight):
+        logger.debug(f"[Preview] 预览字重更新: {weight}")
         self._font_weight = weight
         self.update()
 
@@ -146,6 +159,8 @@ class _ConfigEditDialog(Dialog):
     """配置对话框"""
     def __init__(self, data: dict, parent=None):
         super().__init__(tr("notification.config_detail_title"), "", parent)
+        logger.debug(f"[ConfigEdit] 打开编辑 内容={str(data.get('content', ''))[:20]} "
+                     f"类型={data.get('type')} 字号={data.get('font_size')}")
         self.setMinimumWidth(620)
 
         self._result_data = dict(data)
@@ -232,7 +247,7 @@ class _ConfigEditDialog(Dialog):
         fg2.addWidget(BodyLabel(tr("notification.font_weight") + ":"))
         self._weight_combo = ComboBox(w)
         _populate_weight_combo(self._weight_combo)
-        # 队列里存的是下标(0/1/2);历史数据可能存成 QFont.Weight,兜底为 Bold
+        # 队列里存的是下标(0/1/2);历史数据可能存成 QFont.Weight 此时用 Bold
         _fw = data.get("font_weight", 1)
         self._weight_combo.setCurrentIndex(_fw if isinstance(_fw, int) and 0 <= _fw <= 2 else 1)
         self._weight_combo.setMinimumWidth(130)
@@ -383,13 +398,18 @@ class _ConfigEditDialog(Dialog):
                 self._edit_bg = c
             else:
                 self._edit_fg = c
+            logger.info(f"[ConfigEdit] 颜色选择确认({tag}): {c.name()} alpha={c.alpha()}")
             btn = self._bg_btn if tag == "bg" else self._fg_btn
             _paint_color_btn(btn, c)
+        else:
+            logger.debug(f"[ConfigEdit] 颜色选择取消({tag}) 保持原值 {old.name()}")
 
     def apply_global_config(self):
         """把横幅设置写入配置"""
         cfg.set(cfg.scrollBannerBgHeight, self._bg_height_spin.value())
         cfg.set(cfg.scrollBannerMouseThrough, self._mouse_switch.isChecked())
+        logger.info(f"[ConfigEdit] 横幅配置 高度={self._bg_height_spin.value()} "
+                    f"穿透={self._mouse_switch.isChecked()}")
 
     def get_data(self) -> dict:
         data = dict(self._result_data)
@@ -409,6 +429,8 @@ class _ConfigEditDialog(Dialog):
             data["_fire_time"] = QDateTime(
                 self._date_picker.date, self._time_picker.time
             )
+        logger.debug(f"[ConfigEdit] 收集 类型={data.get('type')} "
+                     f"内容={data.get('content', '')[:20]} 定时={data.get('_fire_time', '无')}")
         return data
 
 
@@ -427,6 +449,9 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         self._queue: list[dict] = []
         self._is_showing = False
         self._showing_notif_uid = ""
+        self._notifPageShown = False   # showEvent 日志守卫
+        self._lastQueueRows = -1       # 队列表格行数日志守卫
+        self._previewLogCount = 0      # 预览更新日志守卫
 
         self.scrollWidget = QWidget()
         self.scrollWidget.setObjectName("scrollWidget")
@@ -802,23 +827,32 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         self._schedule_check_timer = QTimer(self)
         self._schedule_check_timer.setInterval(10000)
         self._schedule_check_timer.timeout.connect(self._check_scheduled)
+        logger.debug(f"[NotificationPage] 定时检查定时器创建: 间隔={self._schedule_check_timer.interval()}ms")
 
         # 内容变更同步预览
         self.contentEdit.textChanged.connect(self._update_preview)
         self._update_preview()
+        logger.debug(f"[NotificationPage] 就绪 队列={len(self._queue)} 预览={'就绪' if self.previewWidget else '缺失'}")
 
     def showEvent(self, event):
         super().showEvent(event)
+        if not self._notifPageShown:
+            self._notifPageShown = True
+            logger.debug("[NotificationPage] 页面首次显示 启动定时检查")
+        else:
+            logger.debug("[NotificationPage] 页面显示 定时检查已启动")
         self._schedule_check_timer.start()
 
     def hideEvent(self, event):
         self._schedule_check_timer.stop()
+        logger.debug("[NotificationPage] 页面隐藏 定时检查已停止")
         super().hideEvent(event)
 
     # 队列管理
 
     def _add_to_queue(self, data: dict):
         self._queue.append(data)
+        logger.info(f"通知入队: {data.get('content', '')[:30]} 队列长度 {len(self._queue)}")
         self._refresh_queue_table()
         InfoBar.success(
             title=tr("common.tip"),
@@ -832,21 +866,29 @@ class NotificationPage(ScrollArea, TranslatableWidget):
             self._send_next()
 
     def _remove_from_queue(self, index: int):
-        if 0 <= index < len(self._queue):
-            item_uid = self._queue[index].get("_uid", "")
-            if item_uid and item_uid == self._showing_notif_uid:
-                InfoBar.warning(
-                    title=tr("common.tip"),
-                    content=tr("notification.cannot_delete_showing"),
-                    parent=self.window(),
-                    position=InfoBarPosition.TOP,
-                    duration=2000,
-                )
-                return
-            self._queue.pop(index)
-            self._refresh_queue_table()
+        if not 0 <= index < len(self._queue):
+            logger.debug(f"[NotificationPage] 出队取消: 索引越界 index={index} 队列长度={len(self._queue)}")
+            return
+        item_uid = self._queue[index].get("_uid", "")
+        if item_uid and item_uid == self._showing_notif_uid:
+            logger.debug(f"[NotificationPage] 出队拒绝 显示中 uid={item_uid}")
+            InfoBar.warning(
+                title=tr("common.tip"),
+                content=tr("notification.cannot_delete_showing"),
+                parent=self.window(),
+                position=InfoBarPosition.TOP,
+                duration=2000,
+            )
+            return
+        self._queue.pop(index)
+        logger.debug(f"通知出队: index={index} 剩余 {len(self._queue)}")
+        self._refresh_queue_table()
 
     def _refresh_queue_table(self):
+        # 行数变化守卫: 仅在数量变化时记日志
+        if len(self._queue) != self._lastQueueRows:
+            logger.debug(f"[NotificationPage] 队列表格刷新: 行数 {self._lastQueueRows} -> {len(self._queue)}")
+            self._lastQueueRows = len(self._queue)
         self.queueTable.setRowCount(len(self._queue))
         for i, item in enumerate(self._queue):
             self.queueTable.setItem(i, 0, QTableWidgetItem(str(i + 1)))
@@ -876,6 +918,8 @@ class NotificationPage(ScrollArea, TranslatableWidget):
     def _send_next(self):
         """从队列取第一个发送"""
         if not self._queue:
+            if self._is_showing:
+                logger.debug("[NotificationPage] 队列已空 结束显示状态")
             self._is_showing = False
             self._showing_notif_uid = ""
             return
@@ -884,6 +928,7 @@ class NotificationPage(ScrollArea, TranslatableWidget):
             data["_uid"] = str(uuid.uuid4())
         # 右下角通知即时弹且不回执,不能占住队列
         if data.get("type") == NotifType.CORNER:
+            logger.debug(f"[NotificationPage] 右下角通知即时发送不占队列: {str(data.get('content', ''))[:20]}")
             self._queue.pop(0)
             self._refresh_queue_table()
             self.send_notification.emit(data)
@@ -897,6 +942,7 @@ class NotificationPage(ScrollArea, TranslatableWidget):
 
     def _on_notification_shown(self):
         """通知显示完回调"""
+        logger.info(f"[NotificationPage] 通知显示完毕: uid={self._showing_notif_uid or '无'} 剩余队列 {len(self._queue)}")
         for i, item in enumerate(self._queue):
             if item.get("_uid", "") == self._showing_notif_uid:
                 self._queue.pop(i)
@@ -911,16 +957,20 @@ class NotificationPage(ScrollArea, TranslatableWidget):
     def _move_up(self):
         row = self.queueTable.currentRow()
         if row <= 0 or row >= len(self._queue):
+            logger.debug(f"[NotificationPage] 上移取消: 行无效 row={row} 队列长度={len(self._queue)}")
             return
         self._queue[row], self._queue[row - 1] = self._queue[row - 1], self._queue[row]
+        logger.debug(f"[NotificationPage] 任务上移: {row} -> {row - 1}")
         self._refresh_queue_table()
         self.queueTable.setCurrentCell(row - 1, 0)
 
     def _move_down(self):
         row = self.queueTable.currentRow()
         if row < 0 or row >= len(self._queue) - 1:
+            logger.debug(f"[NotificationPage] 下移取消: 行无效 row={row} 队列长度={len(self._queue)}")
             return
         self._queue[row], self._queue[row + 1] = self._queue[row + 1], self._queue[row]
+        logger.debug(f"[NotificationPage] 任务下移: {row} -> {row + 1}")
         self._refresh_queue_table()
         self.queueTable.setCurrentCell(row + 1, 0)
 
@@ -935,6 +985,7 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         if dlg.exec():
             color = dlg.color
             setattr(self, attr, color)
+            logger.info(f"[NotificationPage] 颜色选择确认({target}): {color.name()} alpha={color.alpha()}")
             btn = self.bgColorBtn if target == "bg" else self.fgColorBtn
             _paint_color_btn(btn, color)
             if target == "bg":
@@ -942,12 +993,14 @@ class NotificationPage(ScrollArea, TranslatableWidget):
             else:
                 self.previewWidget.set_text_color(color)
         else:
+            logger.debug(f"[NotificationPage] 颜色选择取消({target}) 保持原值 {getattr(self, attr).name()}")
             if target == "bg":
                 self.previewWidget.set_bg_color(self._bg_color)
             else:
                 self.previewWidget.set_text_color(self._fg_color)
 
     def _on_color_preview(self, color: QColor, target: str):
+        logger.debug(f"[NotificationPage] 颜色实时预览: target={target} {color.name()} alpha={color.alpha()}")
         if target == "bg":
             self.previewWidget.set_bg_color(color)
         else:
@@ -956,6 +1009,10 @@ class NotificationPage(ScrollArea, TranslatableWidget):
     # 预览更新
 
     def _update_preview(self):
+        # 守卫: 该槽由每次按键/调参触发, 仅首次记日志
+        self._previewLogCount += 1
+        if self._previewLogCount == 1:
+            logger.debug("[NotificationPage] 预览首次更新")
         self.previewWidget.set_preview_text(self.contentEdit.toPlainText().strip())
         self.previewWidget.set_font_size(self.fontSizeSpin.value())
         self.previewWidget.set_font_weight(
@@ -964,7 +1021,7 @@ class NotificationPage(ScrollArea, TranslatableWidget):
     # 构建数据
 
     def _build_notif_data(self) -> dict:
-        return {
+        data = {
             "type": self.typeCombo.currentData(),
             "content": self.contentEdit.toPlainText().strip(),
             "speed": self.speedSpin.value(),
@@ -978,6 +1035,11 @@ class NotificationPage(ScrollArea, TranslatableWidget):
             "tts_rate": self.ttsRateSpin.value(),
             "tts_volume": self.ttsVolumeSpin.value(),
         }
+        logger.debug(f"[NotificationPage] 构建 {data['type']} '{data['content'][:20]}' "
+                     f"{data['duration']}s {data['bg_color']}@{data['bg_alpha']}")
+        logger.debug(f"[NotificationPage] 构建续 字重={data['font_weight']} "
+                     f"{data['tts_rate']}/{data['tts_volume']}")
+        return data
 
     # 按钮动作
 
@@ -985,6 +1047,7 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         """加入队列"""
         content = self.contentEdit.toPlainText().strip()
         if not content:
+            logger.warning(f"[NotificationPage] 加入队列失败: 内容为空")
             w = MessageBox(tr("common.tip"), tr("notification.empty_content"), self.window())
             w.exec()
             return
@@ -994,6 +1057,7 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         """提高优先级"""
         row = self.queueTable.currentRow()
         if row < 0 or row >= len(self._queue):
+            logger.warning(f"[NotificationPage] 下一显示失败: 无选中任务 行={row} 队列长度={len(self._queue)}")
             InfoBar.warning(
                 title=tr("common.tip"),
                 content=tr("notification.select_task_first"),
@@ -1005,12 +1069,14 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         # 移到队首
         item = self._queue.pop(row)
         self._queue.insert(0, item)
+        logger.info(f"[NotificationPage] 手动触发显示: {str(item.get('content', ''))[:30]} 原位置 {row} -> 队首")
         self._refresh_queue_table()
         self.queueTable.setCurrentCell(0, 0)
         # 如果没有在显示 立即发送
         if not self._is_showing:
             self._send_next()
         else:
+            logger.info(f"[NotificationPage] 通知显示中 已置队首稍后发送 {str(item.get('content', ''))[:20]}")
             InfoBar.info(
                 title=tr("common.tip"),
                 content=tr("notification.will_display_next"),
@@ -1023,6 +1089,7 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         """删除选中任务"""
         row = self.queueTable.currentRow()
         if row < 0 or row >= len(self._queue):
+            logger.warning(f"[NotificationPage] 删除任务失败: 无选中任务 行={row} 队列长度={len(self._queue)}")
             InfoBar.warning(
                 title=tr("common.tip"),
                 content=tr("notification.select_task_first"),
@@ -1035,12 +1102,14 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         w.yesButton.setText(tr("common.confirm"))
         w.cancelButton.setText(tr("common.cancel"))
         if w.exec():
+            logger.info(f"[NotificationPage] 删除任务: {str(self._queue[row].get('content', ''))[:30]}行={row}")
             self._remove_from_queue(row)
 
     def _onShowConfig(self):
         """编辑选中任务配置"""
         row = self.queueTable.currentRow()
         if row < 0 or row >= len(self._queue):
+            logger.warning(f"[NotificationPage] 编辑配置失败: 无选中任务 行={row} 队列长度={len(self._queue)}")
             InfoBar.warning(
                 title=tr("common.tip"),
                 content=tr("notification.select_task_first"),
@@ -1049,11 +1118,13 @@ class NotificationPage(ScrollArea, TranslatableWidget):
                 duration=2000,
             )
             return
+        logger.debug(f"[NotificationPage] 打开任务配置编辑: 行={row} {str(self._queue[row].get('content', ''))[:30]}")
         dlg = _ConfigEditDialog(self._queue[row], self.window())
         if dlg.exec():
             dlg.apply_global_config()
             self._queue[row] = dlg.get_data()
             self._refresh_queue_table()
+            logger.info(f"[NotificationPage] 任务配置已更新: 行={row} 新内容={str(self._queue[row].get('content', ''))[:20]}")
             InfoBar.success(
                 title=tr("common.tip"),
                 content=tr("notification.config_updated"),
@@ -1064,6 +1135,7 @@ class NotificationPage(ScrollArea, TranslatableWidget):
 
     def _onScheduleClicked(self):
         """定时发送"""
+        logger.debug("[NotificationPage] 打开定时发送对话框")
         w = MessageBox(tr("notification.schedule_title"), "", self.window())
         w.setMinimumWidth(440)
         w.setMinimumHeight(320)
@@ -1095,11 +1167,13 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         w.cancelButton.setText(tr("common.cancel"))
 
         if not w.exec():
+            logger.debug("[NotificationPage] 定时发送对话框取消")
             return
 
         # 检查内容是否为空
         content = self.contentEdit.toPlainText().strip()
         if not content:
+            logger.warning("[NotificationPage] 定时发送失败: 内容为空")
             InfoBar.warning(
                 title=tr("common.tip"),
                 content=tr("notification.empty_content"),
@@ -1115,6 +1189,7 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         current_datetime = QDateTime.currentDateTime()
 
         if selected_datetime <= current_datetime:
+            logger.warning(f"[NotificationPage] 定时时间无效: {selected_datetime.toString('yyyy-MM-dd HH:mm')} 不晚于当前时间")
             InfoBar.error(
                 title=tr("common.tip"),
                 content=tr("notification.invalid_schedule_time"),
@@ -1155,14 +1230,16 @@ class NotificationPage(ScrollArea, TranslatableWidget):
             item.pop("_fire_time", None)
             try:
                 self._queue.remove(item)
-            except ValueError:
-                pass
+            except ValueError as e:
+                logger.debug(f"[通知] 定时任务从队列移除失败(可能已被移除): {item.get('content', '')} {e}")
             self._queue.insert(0, item)
             logger.info(f"定时任务到期: {item.get('content', '')}")
         if due:
+            logger.debug(f"[NotificationPage] 到期定时任务{len(due)}项 已移至队首")
             self._refresh_queue_table()
             if not self._is_showing:
                 self._send_next()
 
     def _onThemeChanged(self, theme: Theme):
+        logger.debug(f"[NotificationPage] 主题变更: {theme}")
         self.setStyleSheet(load_qss("notification.qss"))

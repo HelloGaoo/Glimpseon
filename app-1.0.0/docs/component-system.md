@@ -96,16 +96,16 @@ class GridMetrics:
 
 ### 2.1 calculate\_grid\_metrics
 
-`calculate_grid_metrics(canvas_size, GridSettings) → GridMetrics`。短边格数固定为 `short_side_cells`（横屏定行数，竖屏定列数），另一方向按可用尺寸与 `gap_ratio` 推格数；边距由 `inset_percent` 控制，上限 80px。
+`calculate_grid_metrics(canvas_size, GridSettings) -> GridMetrics`。短边格数固定为 `short_side_cells`（横屏定行数，竖屏定列数），另一方向按可用尺寸与 `gap_ratio` 推格数；边距由 `inset_percent` 控制，上限 80px。
 
 ### 2.2 坐标换算（HomeInterface）
 
 - `_update_grid_metrics()`：界面尺寸变化时重算 `GridMetrics`（内部即调 `calculate_grid_metrics`）。
-- `_snap_to_grid(x, y, width, height, threshold) → (x, y)`：拖拽释放时自由吸附——组件 left/right/top/bottom 四边各自在 `threshold` 内找最近网格线（`inset + i*pitch`），任一边吸附成功即移动该边，否则保持原值。
+- `_snap_to_grid(x, y, width, height, threshold) -> (x, y)`：拖拽释放时自由吸附——组件 left/right/top/bottom 四边各自在 `threshold` 内找最近网格线（`inset + i*pitch`），任一边吸附成功即移动该边，否则保持原值。
 
 ### 2.3 碰撞检测（HomeInterface）
 
-`_check_pixel_collision(x, y, width, height) → bool`：拖放落点与所有**可见**组件容器做像素级 AABB 重叠测试（分离轴判交），命中任一即返回 `True`。
+`_check_pixel_collision(x, y, width, height) -> bool`：拖放落点与所有**可见**组件容器做像素级 AABB 重叠测试（分离轴判交），命中任一即返回 `True`。
 
 ***
 
@@ -226,7 +226,7 @@ NavigationPage（QWidget）
 | `_scale_timer`        | 拖拽缩放节流定时器                                                                                                          |
 | `_apply_scale_now()`  | 统一入口：执行 `apply_scale`，并按 `_layout_bases` 基准等比缩放全部子布局的 `contentsMargins` 与 `spacing`（首次调用缓存基准值）；`_applying_scale` 防重入 |
 
-流程：拖拽手柄 → 位移换算为 `_dpi`（1%  1\~300）→ 占位尺寸重设为 `_base_size × dpi/100` → `_scale_timer` 节流触发 `_apply_scale_now()` → 松手应用并 `save_components` 保存 `scale` 与实际尺寸。
+流程：拖拽手柄 -> 位移换算为 `_dpi`（1%  1\~300）-> 占位尺寸重设为 `_base_size × dpi/100` -> `_scale_timer` 节流触发 `_apply_scale_now()` -> 松手应用并 `save_components` 保存 `scale` 与实际尺寸。
 
 ### 5.3 统一卡片背景（DraggableContainer）
 
@@ -249,7 +249,7 @@ NavigationPage（QWidget）
 - `opacity` / `radius` 传 `None` 即使用 `self._bg_opacity` / `self._corner_radius`，再为 `None` 则回退全局设置。
 - `border` 可选，用于给背景追加边框（如 `"1px solid rgba(0,0,0,0.06)"`，媒体播放器用）。
 
-`cfg.componentCardOpacity`、`cfg.componentCardRadius` 或 `cfg.themeChanged` 变化时，基类自动触发 `_on_card_config_changed()` → 重应用背景并调用子类 `_apply_style()`，因此全局设置/主题变化无需每个组件单独监听。组件级 `bg_opacity` / `corner_radius` 由配置面板写入 `component_data["config"]`，经基类 `apply_config(config)` 读取生效。
+`cfg.componentCardOpacity`、`cfg.componentCardRadius` 或 `cfg.themeChanged` 变化时，基类自动触发 `_on_card_config_changed()` -> 重应用背景并调用子类 `_apply_style()`，因此全局设置/主题变化无需每个组件单独监听。组件级 `bg_opacity` / `corner_radius` 由配置面板写入 `component_data["config"]`，经基类 `apply_config(config)` 读取生效。
 
 组件在 `_apply_style()` 中的两种标准写法（二选一）：
 
@@ -307,7 +307,7 @@ def _apply_style(self):
 
 ### 6.4 撤回与重建
 
-- `_undo_last_stroke`：`_history.pop()` → `_rebuild_buffer()`。
+- `_undo_last_stroke`：`_history.pop()` -> `_rebuild_buffer()`。
 - `_history` 上限 300 条。
 - `_rebuild_buffer`：按 `_history` 顺序重放所有 `draw` 笔画与 `erase` 会话。
 - `clear_all`：清空全部历史与 buffer。
@@ -329,17 +329,17 @@ def _apply_style(self):
 
 ### 7.2 线程化抓取
 
-`threading.Thread`（daemon）+ pyqtSignal 回主线程：`_spawn_media_fetch` → `_media_worker` → `_media_ready` → `_on_media`；详情经 `_fetch(m)` → `_detail_ready` → `_on_detail`。
+`threading.Thread`（daemon）+ pyqtSignal 回主线程：`_spawn_media_fetch` -> `_media_worker` -> `_media_ready` -> `_on_media`；详情经 `_fetch(m)` -> `_detail_ready` -> `_on_detail`。
 
 - `_fetching` 标志防重入，期间的新请求记入 `_pending_full`，完成后补抓。
 - `stop()`（`closeEvent` / `__del__` 调用）停掉全部定时器，防止线程残留。
 
 ### 7.3 封面来源优先级
 
-1. **SMTC 缩略图**：`m.thumbnail_data` 存在 → 直接 `_load_cover`，置 `_has_thumb`（优先级最高，不再被在线封面覆盖）。
+1. **SMTC 缩略图**：`m.thumbnail_data` 存在 -> 直接 `_load_cover`，置 `_has_thumb`（优先级最高，不再被在线封面覆盖）。
 2. **浏览器**：只等 `thumbnail_data`，不触发在线查询。
 3. **酷狗**：详情线程内额外借用 SMTC 会话缩略图作封面。
-4. **在线补全**：非浏览器 → `_fetch(m)`，仅 `not _has_thumb` 时应用封面。
+4. **在线补全**：非浏览器 -> `_fetch(m)`，仅 `not _has_thumb` 时应用封面。
 
 封面载入后加渐变阴影并淡入；默认封面 `_default_cover` 自绘圆角矩形 + 音符图标（主题自适应配色）。
 
@@ -365,16 +365,16 @@ def _apply_style(self):
 ```
 启动时:
   PageManager.load()
-    └─ 读 home_layout.json → PageMeta 列表
+    └─ 读 home_layout.json -> PageMeta 列表
   ComponentManager 按当前页 components 实例化
-    └─ COMPONENT_STYLES[comp_data["type"]][comp_data["style"]]["class"] → 实现类
+    └─ COMPONENT_STYLES[comp_data["type"]][comp_data["style"]]["class"] -> 实现类
     └─ comp_class(parent_widget, comp_data) 创建 UI
     └─ 应用 position/size/config
 
 编辑时:
-  拖拽/缩放 → 更新实例 position/size
-  配置弹窗 → 更新 config
-  保存 → PageManager.save() → home_layout.json
+  拖拽/缩放 -> 更新实例 position/size
+  配置弹窗 -> 更新 config
+  保存 -> PageManager.save() -> home_layout.json
 ```
 
 > \[!IMPORTANT]
@@ -390,7 +390,7 @@ def _apply_style(self):
 
 | 表                               | 位置                                                                                   | 作用                                                                     | 是否参与实例化                                                         |
 | ------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `COMPONENT_STYLES`              | [ui/component.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/component.py)     | `comp_type → comp_style → {name, class, default_config, default_size}` | **是**，`ComponentManager` 据此 `comp_class(parent, comp_data)` 实例化 |
+| `COMPONENT_STYLES`              | [ui/component.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/ui/component.py)     | `comp_type -> comp_style -> {name, class, default_config, default_size}` | **是**，`ComponentManager` 据此 `comp_class(parent, comp_data)` 实例化 |
 | `BUILTIN_COMPONENT_DEFINITIONS` | [core/component.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/core/component.py) | `ComponentDefinition` 列表（id/分类/格子数/resize\_mode）                       | 否，仅用于组件库窗口展示卡片                                                  |
 
 组件在 `home_layout.json` 中存储的是 `type` + `style`（如 `"type":"clock","style":"digital"`），而非 `ComponentDefinition.id`。`ComponentManager.load_components()` 通过 `COMPONENT_STYLES[type][style]["class"]` 取实现类。

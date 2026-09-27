@@ -37,6 +37,7 @@ from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QFont, QFontDatabase
 from PyQt6.QtWidgets import QApplication
 from qfluentwidgets import setFontFamilies
+from qfluentwidgets.common.config import qconfig
 
 from core.constants import PACKAGE_ROOT, APP_DIR, MEIPASS_DIR, DATA_CACHE, get_resPath, APP_NAME
 from core.config import cfg, save_cfg
@@ -51,9 +52,11 @@ class SingleInstanceManager:
 
     def try_acquire(self) -> bool:
         if self._is_owner:
+            logger.debug("互斥量已持有")
             return True
         from Glimpseon_native import acquire_mutex
         self._is_owner = acquire_mutex(self.MUTEX_NAME)
+        logger.debug(f"互斥量获取结果: {self._is_owner}")
         return self._is_owner
 
     def release(self):
@@ -62,6 +65,8 @@ class SingleInstanceManager:
             release_mutex()
             self._is_owner = False
             logger.info("互斥已释放")
+        else:
+            logger.debug("非互斥持有者 无需释放")
 
     @property
     def is_owner(self) -> bool:
@@ -74,16 +79,20 @@ _instance_manager: SingleInstanceManager = None
 def get_instance_manager() -> SingleInstanceManager:
     global _instance_manager
     if _instance_manager is None:
+        logger.debug("创建单实例管理器")
         _instance_manager = SingleInstanceManager()
     return _instance_manager
 
 
 def check_single_instance() -> bool:
     manager = get_instance_manager()
-    return manager.try_acquire()
+    result = manager.try_acquire()
+    logger.debug(f"单实例检查结果: {result}")
+    return result
 
 
 def release_single_instance():
+    logger.debug("释放单实例资源")
     manager = get_instance_manager()
     manager.release()
 
@@ -92,6 +101,8 @@ _pending_restart = False
 
 
 def is_restart_pending() -> bool:
+    if _pending_restart:
+        logger.debug("检测到重启挂起标志")
     return _pending_restart
 
 
@@ -105,6 +116,7 @@ def request_restart():
     except Exception:
         pass
     _pending_restart = True
+    logger.info("请求重启应用: 关闭所有窗口并退出")
     QApplication.closeAllWindows()
     QApplication.quit()
 
@@ -115,10 +127,18 @@ def apply_theme(theme):
     if theme == Theme.AUTO:
         import darkdetect
         t = darkdetect.theme()
+        logger.debug(f"自动主题检测结果: {t}")
         theme = Theme(t) if t else Theme.LIGHT
-    setTheme(theme)
+    # qconfig.load(配置, cfg) 把库 qconfig._cfg 指向项目 cfg 后, setTheme 内部
+    # "item is self._cfg.themeMode" 拿库 item 比项目 item 恒为 False,
+    # _theme 更新与 themeChanged 都被跳过, updateStyleSheet 会按旧主题刷组件——
+    # 故先同步 cfg.theme(库 _theme 与它同一存储)和库 item 值, 再 setTheme 刷样式
     cfg.theme = theme
+    qconfig.themeMode.value = theme
+    setTheme(theme)
     cfg.themeChanged.emit(theme)
+    from qfluentwidgets import isDarkTheme
+    logger.debug(f"主题已应用: {theme} isDarkTheme={isDarkTheme()}")
 
 
 def verify_single_instance():
@@ -126,9 +146,11 @@ def verify_single_instance():
     allow_multiple = cfg.allowMultipleInstances.value
     is_debug_mode = cfg.debugMode.value
     if allow_multiple or is_debug_mode:
+        logger.debug(f"跳过单实例检查 (允许多开={allow_multiple} 调试={is_debug_mode})")
         return True
     is_only_instance = check_single_instance()
     if is_only_instance:
+        logger.debug("单实例检查通过 允许启动")
         return True
     logger.info("已有实例运行")
     return False
@@ -167,7 +189,9 @@ FONT_FAMILY_CANDIDATES = [
 
 
 def _get_fontdir() -> str:
-    return get_resPath(os.path.join("font", "HarmonyOS_Sans"))
+    path = get_resPath(os.path.join("font", "HarmonyOS_Sans"))
+    logger.debug(f"字体目录: {path}")
+    return path
 
 
 def _check_fonts_installed() -> bool:
@@ -175,7 +199,9 @@ def _check_fonts_installed() -> bool:
     for font_file in HARMONYOS_FONT_FILES:
         system_font_path = os.path.join(system_font_dir, font_file)
         if not os.path.exists(system_font_path):
+            logger.debug(f"系统缺字体 {font_file}")
             return False
+    logger.debug("系统字体已全部安装")
     return True
 
 
@@ -184,31 +210,37 @@ def _install_system_fonts() -> bool:
     os.makedirs(system_font_dir, exist_ok=True)
     local_font_dir = _get_fontdir()
     if not os.path.exists(local_font_dir):
-        logger.warning(f"字体目录不存在：{local_font_dir}")
+        logger.warning(f"字体目录不存在 {local_font_dir}")
         return False
 
     installed_any = False
+    logger.debug(f"安装系统字体 {local_font_dir} -> {system_font_dir}")
     try:
         for font_file in HARMONYOS_FONT_FILES:
             local_font_path = os.path.join(local_font_dir, font_file)
             system_font_path = os.path.join(system_font_dir, font_file)
             if os.path.exists(local_font_path):
+                if os.path.exists(system_font_path):
+                    # 系统目录已有同名字体（无管理员权限时复制必然失败），跳过不告警
+                    continue
                 try:
                     shutil.copy2(local_font_path, system_font_path)
-                    logger.debug(f"已复制字体到系统目录：{font_file}")
+                    logger.debug(f"已复制字体到系统目录 {font_file}")
                 except Exception as e:
-                    logger.warning(f"复制字体失败 {font_file}：{e}")
+                    logger.warning(f"复制字体失败 {font_file} {e}")
+            else:
+                logger.debug(f"本地字体缺失 {font_file}")
 
                 try:
                     from Glimpseon_native import install_font
                     result = install_font(system_font_path)
                     if result > 0:
                         installed_any = True
-                        logger.debug(f"已注册字体：{font_file}")
+                        logger.debug(f"已注册字体 {font_file}")
                     else:
-                        logger.warning(f"AddFontResourceW 注册失败：{font_file}")
+                        logger.warning(f"AddFontResourceW 注册失败 {font_file}")
                 except Exception as e:
-                    logger.warning(f"注册字体失败 {font_file}：{e}")
+                    logger.warning(f"注册字体失败 {font_file} {e}")
 
         if installed_any:
             try:
@@ -222,18 +254,19 @@ def _install_system_fonts() -> bool:
                     SMTO_ABORTIFHUNG, 500, ctypes.byref(result)
                 )
             except Exception as e:
-                logger.warning(f"字体变更失败：{e}")
+                logger.warning(f"字体变更失败 {e}")
 
+        logger.info(f"系统字体安装完成 新装={installed_any}")
         return True
     except Exception as e:
-        logger.warning(f"安装字体失败：{e}")
+        logger.warning(f"安装字体失败 {e}")
         return False
 
 
 def _load_app_fonts(max_retries: int = 3, retry_delay: float = 0.1) -> bool:
     font_dir = _get_fontdir()
     if not os.path.exists(font_dir):
-        logger.warning(f"字体目录不存在：{font_dir}")
+        logger.warning(f"字体目录不存在 {font_dir}")
         return False
 
     font_loaded = False
@@ -243,7 +276,7 @@ def _load_app_fonts(max_retries: int = 3, retry_delay: float = 0.1) -> bool:
     for font_file in HARMONYOS_FONT_FILES:
         font_path = os.path.join(font_dir, font_file)
         if not os.path.exists(font_path):
-            logger.warning(f"字体文件不存在：{font_path}")
+            logger.warning(f"字体文件不存在 {font_path}")
             failed_fonts.append(font_file)
             continue
 
@@ -255,45 +288,54 @@ def _load_app_fonts(max_retries: int = 3, retry_delay: float = 0.1) -> bool:
                     loaded = True
                     font_loaded = True
                     registered_families.extend(QFontDatabase.applicationFontFamilies(font_id))
-                    logger.debug(f"成功加载字体：{font_file}")
+                    logger.debug(f"字体已加载 {font_file}")
                     break
                 else:
                     if attempt < max_retries - 1:
+                        logger.debug(f"字体加载重试 {attempt + 2}/{max_retries}: {font_file}")
                         time.sleep(retry_delay)
             except Exception as e:
-                logger.warning(f"加载字体 {font_file} 错误：{e}")
+                logger.warning(f"加载字体 {font_file} 错误 {e}")
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay)
 
         if not loaded:
             failed_fonts.append(font_file)
-            logger.warning(f"字体加载失败：{font_file}")
+            logger.warning(f"字体加载失败 {font_file}")
 
     if registered_families:
         global HARMONYOS_FONT_FAMILIES
+        logger.debug(f"以应用注册字族扩展候选列表: {registered_families}")
         HARMONYOS_FONT_FAMILIES = list(dict.fromkeys([*registered_families, *HARMONYOS_FONT_FAMILIES]))
 
     if font_loaded:
         if failed_fonts:
-            logger.warning(f"字体加载失败：{', '.join(failed_fonts)}")
+            logger.warning(f"字体加载失败 {', '.join(failed_fonts)}")
     else:
-        logger.warning("未成功加载字体")
+        logger.warning("应用字体未加载")
+    logger.debug(f"应用字体加载 {font_loaded} 注册字族 {len(registered_families)} 失败 {len(failed_fonts)}")
     return font_loaded
 
 
 def resolve_font_family() -> str:
     available_families = set(QFontDatabase.families())
+    logger.debug(f"解析字体族: 系统可用字体{len(available_families)}个")
     preferred_candidates = HARMONYOS_FONT_FAMILIES + FONT_FAMILY_CANDIDATES
     for family in preferred_candidates:
         if family in available_families:
+            logger.debug(f"命中首选字体族: {family}")
             return family
 
     for family in sorted(available_families):
         if "HarmonyOS" in family or "Harmony" in family:
+            logger.debug(f"模糊匹配 Harmony 字体族: {family}")
             return family
 
+    logger.warning("无首选字体族 用 Microsoft YaHei UI")
     return "Microsoft YaHei UI"
 
+
+_font_substitution_fallback_logged = False
 
 def apply_fonts(app: QApplication):
     font_family = resolve_font_family()
@@ -307,12 +349,16 @@ def apply_fonts(app: QApplication):
     ]
     if font_family not in fallback_families:
         fallback_families.insert(0, font_family)
+    logger.debug(f"最终字体族: {font_family} 备选链: {fallback_families}")
 
     substitution_chain = [family for family in [font_family, *fallback_families] if family and family != "sans-serif"]
     for family_name in ["HarmonyOS Sans", "HarmonyOS Sans SC", "HarmonyOS Sans TC", "HarmonyOS Sans HC", "HarmonyOS Sans B"]:
         try:
             QFont.insertSubstitutions(family_name, substitution_chain)
-        except Exception:
+        except Exception as e:
+            if not _font_substitution_fallback_logged:
+                _font_substitution_fallback_logged = True
+                logger.debug(f"字体替代链插入失败 用简化链（仅记录一次）: {family_name}: {e}")
             try:
                 QFont.insertSubstitutions(family_name, [font_family, *fallback_families])
             except Exception as e:
@@ -331,16 +377,17 @@ def apply_fonts(app: QApplication):
         "QSpinBox, QDoubleSpinBox, QDateTimeEdit, QHeaderView {{ "
         f"font-family: {css_family}; }}"
     )
-    logger.info(f"字体已设置为：{font_family}")
+    logger.info(f"字体已设置为 {font_family}")
 
 
 def initialize_fonts(app: QApplication, install_to_system: bool = True):
+    logger.debug(f"字体初始化 install_to_system={install_to_system}")
     if install_to_system:
         _install_system_fonts()
     
     _load_app_fonts(max_retries=3, retry_delay=0.1)
     apply_fonts(app)
-    logger.info("字体初始化完成")
+    logger.info("字体就绪")
 
 
 INTERVAL_MAP = {    "从不": 0,
@@ -383,18 +430,54 @@ INTERVAL_MAP = {    "从不": 0,
 }
 
 
+_cache_dir_ready_logged = False
+
 def get_cache_dir():
+    global _cache_dir_ready_logged
     os.makedirs(DATA_CACHE, exist_ok=True)
+    if not _cache_dir_ready_logged:
+        _cache_dir_ready_logged = True
+        logger.debug(f"缓存目录已就绪: {DATA_CACHE}")
     return DATA_CACHE
 
 
 def get_cache_path(cache_name: str) -> str:
     cache_dir = get_cache_dir()
-    return os.path.join(cache_dir, f"{cache_name}.json")
+    path = os.path.join(cache_dir, f"{cache_name}.json")
+    logger.debug(f"缓存路径: {cache_name} -> {path}")
+    return path
 
 
 def parse_interval(interval_str: str) -> int:
-    return INTERVAL_MAP.get(interval_str.strip(), 0)
+    seconds = INTERVAL_MAP.get(interval_str.strip(), 0)
+    if seconds == 0 and interval_str.strip():
+        logger.warning(f"未知间隔 '{interval_str}' 按 0 (从不) 处理")
+    else:
+        logger.debug(f"解析间隔 '{interval_str}' -> {seconds}秒")
+    return seconds
+
+
+def _cache_preview(content: Any, limit: int = 160) -> str:
+    """缓存内容摘要: 类型+条数+正文预览"""
+    try:
+        if isinstance(content, list):
+            body = json.dumps(content[:3], ensure_ascii=False) if content else "[]"
+            tag = f"list[{len(content)}]"
+        elif isinstance(content, dict):
+            keys = ",".join(list(content.keys())[:8])
+            body = json.dumps(content, ensure_ascii=False)
+            tag = f"dict[{keys[:60]}]"
+        elif isinstance(content, str):
+            body = content
+            tag = f"str[{len(content)}字符]"
+        else:
+            body = repr(content)
+            tag = type(content).__name__
+        body = body[:limit] + ("…" if len(body) > limit else "")
+        return f"{tag} {body}"
+    except Exception as e:
+        logger.warning(f"缓存摘要生成失败 用类型名: {e}")
+        return repr(type(content))
 
 
 def save_cache(cache_name: str, content: Any, interval_str: str = "30分钟"):
@@ -412,7 +495,7 @@ def save_cache(cache_name: str, content: Any, interval_str: str = "30分钟"):
     try:
         with open(cache_path, 'w', encoding='utf-8') as f:
             json.dump(cache_data, f, ensure_ascii=False, indent=2)
-        logger.debug(f"缓存已保存: {cache_name}, 过期时间: {interval_str}")
+        logger.info(f"缓存写入: {cache_name} (有效期: {interval_str}) 内容: {_cache_preview(content)}")
         return True
     except Exception as e:
         logger.error(f"保存缓存失败 {cache_name}: {e}")
@@ -423,6 +506,7 @@ def load_cache(cache_name: str, ignore_expiry: bool = False) -> Optional[dict]:
     cache_path = get_cache_path(cache_name)
 
     if not os.path.exists(cache_path):
+        logger.debug(f"缓存不存在: {cache_name}")
         return None
 
     try:
@@ -433,18 +517,18 @@ def load_cache(cache_name: str, ignore_expiry: bool = False) -> Optional[dict]:
         expires_at = cache_data.get("expires_at", 0)
 
         if expires_at == float('inf'):
-            logger.debug(f"读取缓存永不过期: {cache_name},")
+            logger.debug(f"读取缓存永不过期: {cache_name} 内容: {_cache_preview(cache_data.get('content'))}")
             return cache_data
 
         if now >= expires_at:
             if ignore_expiry:
-                logger.info(f"缓存过期临时使用: {cache_name}")
+                logger.info(f"缓存过期 用 {cache_name} (过期{int(now - expires_at)}秒) 内容: {_cache_preview(cache_data.get('content'))}")
                 return cache_data
             else:
-                logger.debug(f"缓存过期: {cache_name}")
+                logger.debug(f"缓存过期: {cache_name} (过期{int(now - expires_at)}s)")
                 return None
 
-        logger.debug(f"读取缓存成功: {cache_name} 剩余周期: {int(expires_at - now)}秒")
+        logger.debug(f"缓存命中: {cache_name} 剩余 {int(expires_at - now)}秒 内容: {_cache_preview(cache_data.get('content'))}")
         return cache_data
     except Exception as e:
         logger.error(f"读取缓存失败 {cache_name}: {e}")
@@ -455,10 +539,12 @@ def get_cached_content(cache_name: str, ignore_expiry: bool = False) -> Optional
     cache_data = load_cache(cache_name, ignore_expiry)
     if cache_data:
         return cache_data.get("content")
+    logger.debug(f"缓存内容不可用: {cache_name}")
     return None
 
 
 def extract_files():
+    logger.debug(f"检查内嵌资源提取: frozen={getattr(sys, 'frozen', False)} MEIPASS={MEIPASS_DIR}")
     if not getattr(sys, 'frozen', False) or not MEIPASS_DIR:
         return
 
@@ -473,6 +559,7 @@ def extract_files():
             dst_folder = os.path.join(APP_DIR, folder)
 
         if not os.path.exists(src_folder):
+            logger.debug(f"跳过提取 {folder}")
             continue
 
         if not os.path.exists(dst_folder):
@@ -487,6 +574,7 @@ def extract_files():
                 dst_root = os.path.join(dst_folder, rel_path) if rel_path != '.' else dst_folder
 
                 if not os.path.exists(dst_root):
+                    logger.debug(f"创建资源目录: {dst_root}")
                     os.makedirs(dst_root, exist_ok=True)
 
                 for file in files:
@@ -497,7 +585,7 @@ def extract_files():
                             shutil.copy2(src_file, dst_file)
                             logger.info(f"已提取文件: {os.path.join(folder, rel_path, file)}")
                         except Exception as e:
-                            logger.error(f"提取文件 {os.path.join(folder, rel_path, file)} 失败：{e}")
+                            logger.error(f"提取文件 {os.path.join(folder, rel_path, file)} 失败 {e}")
 # 到底在瞎写啥
 
 def check_autostart():
@@ -507,9 +595,11 @@ def check_autostart():
         try:
             value, _ = winreg.QueryValueEx(key, APP_NAME)
             winreg.CloseKey(key)
+            logger.debug(f"开机自启项已存在: {value}")
             return True, value
         except FileNotFoundError:
             winreg.CloseKey(key)
+            logger.debug("开机自启项不存在")
             return False, None
     except Exception as e:
         logger.error(f"开机自启动: {e}")
@@ -517,11 +607,13 @@ def check_autostart():
 
 
 def set_autostart(enabled, delay_seconds=5):
+    logger.info(f"开机自启 enabled={enabled} 延迟{delay_seconds}秒")
     try:
         key_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
         try:
             key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE)
         except FileNotFoundError:
+            logger.debug("注册表 Run 键不存在 已创建新键")
             key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path)
 
         if enabled:
@@ -541,6 +633,7 @@ def set_autostart(enabled, delay_seconds=5):
             winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, command)
             success, stored_value = check_autostart()
             if success and stored_value == command:
+                logger.info(f"开机自启已写入注册表: {command}")
                 return True
             else:
                 logger.error("设置开机自启动失败")
@@ -553,6 +646,7 @@ def set_autostart(enabled, delay_seconds=5):
             winreg.CloseKey(key)
             success, _ = check_autostart()
             if not success:
+                logger.info("开机自启项已从注册表删除")
                 return True
             else:
                 logger.error("删除开机自启动项失败")
@@ -571,7 +665,7 @@ def sync_autostart_cfg():
         config_auto_start = cfg.autoStart.value
         actual_auto_start, _ = check_autostart()
 
-        logger.info(f"同步自启动状态 - 配置: {config_auto_start}, 实际: {actual_auto_start}")
+        logger.info(f"同步自启动状态 - 配置: {config_auto_start} 实际: {actual_auto_start}")
 
         if config_auto_start != actual_auto_start:
             result = set_autostart(config_auto_start)
@@ -581,6 +675,7 @@ def sync_autostart_cfg():
                     cfg.autoStart.value = actual_auto_start
             return result
         else:
+            logger.debug("自启动无需同步")
             return True
 
     except Exception as e:
@@ -589,7 +684,9 @@ def sync_autostart_cfg():
 
 
 def auto_start_launch():
-    return '--autostart' in sys.argv or '/autostart' in sys.argv
+    is_autostart = '--autostart' in sys.argv or '/autostart' in sys.argv
+    logger.debug(f"自启动启动参数检测: {is_autostart}")
+    return is_autostart
 
 _i18n_logger = logging.getLogger("Glimpseon.core.i18n")
 class LanguageCode(Enum):
@@ -605,11 +702,12 @@ class TranslationManager(QObject):
         self._current_language = LanguageCode.ZH_CN.value
         self._translations: Dict[str, Dict[str, str]] = {}
         self._load_translations()
+        _i18n_logger.debug(f"翻译管理器就绪 语言={self._current_language} 加载={len(self._translations)}")
 
     def _load_translations(self):
         locale_dir = os.path.join(APP_DIR, "locale")
         if not os.path.exists(locale_dir):
-            _i18n_logger.warning(f"Locale directory not found: {locale_dir}")
+            _i18n_logger.warning(f"语言目录缺失 {locale_dir}")
             return
         for lang_code in LanguageCode:
             file_path = os.path.join(locale_dir, f"{lang_code.value}.json")
@@ -617,27 +715,31 @@ class TranslationManager(QObject):
                 try:
                     with open(file_path, "r", encoding="utf-8") as f:
                         self._translations[lang_code.value] = json.load(f)
-                    _i18n_logger.debug(f"Loaded translation: {lang_code.value}")
+                    _i18n_logger.debug(f"翻译已加载 {lang_code.value}")
                 except Exception as e:
-                    _i18n_logger.error(f"Failed to load translation {lang_code.value}: {e}")
+                    _i18n_logger.error(f"翻译加载失败 {lang_code.value}: {e}")
             else:
-                _i18n_logger.warning(f"Translation file not found: {file_path}")
+                _i18n_logger.warning(f"翻译文件缺失 {file_path}")
 
     def set_language(self, language_code: str) -> bool:
         if language_code not in [lang.value for lang in LanguageCode]:
             _i18n_logger.warning(f"无效语言代码: {language_code}")
             return False
         self._current_language = language_code
+        _i18n_logger.debug(f"语言已切换: {language_code}")
         return True
 
     def tr(self, key: str, **kwargs) -> str:
         lang_translations = self._translations.get(self._current_language, {})
         text = self._get_nested_value(lang_translations, key, key)
+        if text == key and key not in _tr_missing_logged:
+            _tr_missing_logged.add(key)
+            _i18n_logger.warning(f"翻译键缺失 用原键名: {key}")
         if kwargs:
             try:
                 text = text.format(**kwargs)
             except (KeyError, ValueError) as e:
-                _i18n_logger.debug(f"Translation format error for key '{key}': {e}")
+                _i18n_logger.debug(f"翻译格式错误 键={key}: {e}")
         return text
 
     @staticmethod
@@ -653,11 +755,13 @@ class TranslationManager(QObject):
 
 
 _translation_manager: Optional[TranslationManager] = None
+_tr_missing_logged: set = set()
 
 
 def get_translation_manager() -> TranslationManager:
     global _translation_manager
     if _translation_manager is None:
+        _i18n_logger.debug("创建全局翻译管理器")
         _translation_manager = TranslationManager()
     return _translation_manager
 
@@ -700,6 +804,8 @@ class TimeSyncService:
         return datetime.now() + self._offset
 
     def sync(self, server: str = "ntp.aliyun.com") -> bool:
+        start_ts = time.time()
+        _logger_ts.debug(f"[TimeSync] 开始同步: {server}")
         try:
             client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             client.settimeout(_NTP_TIMEOUT)
@@ -726,6 +832,7 @@ class TimeSyncService:
                 f"NTP={datetime.fromtimestamp(ntp_time, tz=timezone.utc).strftime('%H:%M:%S')} | "
                 f"偏移={self._offset.total_seconds():+.3f}s"
             )
+            _logger_ts.debug(f"[TimeSync] 同步耗时: {time.time() - start_ts:.3f} 秒")
             return True
 
         except socket.timeout:
@@ -752,6 +859,7 @@ _time_sync_service: Optional[TimeSyncService] = None
 def get_time_sync_service() -> TimeSyncService:
     global _time_sync_service
     if _time_sync_service is None:
+        _logger_ts.debug("创建 NTP 时间同步服务实例")
         _time_sync_service = TimeSyncService()
     return _time_sync_service
 
@@ -767,24 +875,32 @@ def _check_auto_time_offset():
     today = datetime.now().date()
     if _auto_offset_last_check is None:
         _auto_offset_last_check = today
+        _logger_ts.debug(f"自动时间偏移检查日期初始化: {today}")
         return
     if _auto_offset_last_check != today:
         current = int(cfg.timeOffset.value)
         increment = int(cfg.autoTimeOffsetIncrement.value)
         from qfluentwidgets import qconfig
         qconfig.set(cfg.timeOffset, current + increment)
+        _logger_ts.info(f"自动时间偏移调整: {current} -> {current + increment}")
         _auto_offset_last_check = today
 
 
+_precise_now_err_logged = False
+
 def precise_now() -> datetime:
     """全局当前时间"""
+    global _precise_now_err_logged
     now = datetime.now()
     if cfg.usePreciseTime.value:
         try:
             service = get_time_sync_service()
             now = service.get_precise_now()
-        except Exception:
-            pass
+        except Exception as e:
+            # 高频路径(每秒时钟/每条日志) — 守卫须先置位再记日志, 防止 _log->precise_time_str 递归
+            if not _precise_now_err_logged:
+                _precise_now_err_logged = True
+                logger.warning(f"精确时间获取失败 用系统时间(仅记录一次): {e}")
     _check_auto_time_offset()
     now += timedelta(seconds=int(cfg.timeOffset.value))
     return now
@@ -805,6 +921,10 @@ class TranslatableWidget:
 # FluentUI System Icons 
 from qfluentwidgets.common.icon import FluentIconBase, Theme, getIconColor
 from PyQt6.QtGui import QIcon
+
+
+_icon_svg_choice_logged = set()
+_icon_unknown_name_logged = set()
 
 
 class _FluentUIIconInstance(FluentIconBase):
@@ -830,7 +950,13 @@ class _FluentUIIconInstance(FluentIconBase):
         svg_path_24 = os.path.join(APP_DIR, "resource", "fluent", theme_dir, icon_filename_24)
 
         if os.path.exists(svg_path_32):
+            if self._icon_name not in _icon_svg_choice_logged:
+                _icon_svg_choice_logged.add(self._icon_name)
+                logger.debug(f"图标 SVG 解析({theme_dir}): {self._icon_name} -> 32px")
             return svg_path_32
+        if self._icon_name not in _icon_svg_choice_logged:
+            _icon_svg_choice_logged.add(self._icon_name)
+            logger.debug(f"图标 32px SVG 缺失 用 24px({theme_dir}): {self._icon_name}")
         return svg_path_24
     
     def __repr__(self) -> str:
@@ -955,6 +1081,9 @@ class _FluentUIIconNamespace:
     def __getattr__(self, name: str) -> _FluentUIIconInstance:
         """创建图标实例"""
         # 查映射表
+        if name not in _ICON_NAME_MAP and name not in _icon_unknown_name_logged:
+            _icon_unknown_name_logged.add(name)
+            logger.debug(f"图标名不在映射表中 直接用小写: {name}")
         icon_name = _ICON_NAME_MAP.get(name, name.lower())
 
         # 创建

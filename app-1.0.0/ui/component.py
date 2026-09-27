@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-UI 组件库
+ui 组件库
 """
 
 import ctypes
@@ -78,7 +78,7 @@ from PyQt6.QtWidgets import (
     QFileIconProvider, QGridLayout, QLabel, QSizePolicy, QWidget, QVBoxLayout, QHBoxLayout, QApplication, QGraphicsOpacityEffect,
     QStackedWidget, QListWidgetItem, QFileDialog, QLayout
 )
-from qfluentwidgets import InfoBar, isDarkTheme, RoundMenu, Action, FluentWindow, ScrollArea, PushButton, ToolButton, TransparentToolButton, StrongBodyLabel, CardWidget, BodyLabel, ComboBox, SpinBox, SwitchButton, HorizontalFlipView, VerticalFlipView, PrimaryPushButton, Pivot, MessageBoxBase, ProgressBar, LineEdit, ColorPickerButton, Slider, TextEdit, CaptionLabel, SubtitleLabel, FluentIcon, qconfig
+from qfluentwidgets import ProgressRing, InfoBar, isDarkTheme, RoundMenu, Action, FluentWindow, ScrollArea, PushButton, ToolButton, TransparentToolButton, StrongBodyLabel, CardWidget, BodyLabel, ComboBox, SpinBox, SwitchButton, HorizontalFlipView, VerticalFlipView, PrimaryPushButton, Pivot, MessageBoxBase, ProgressBar, LineEdit, ColorPickerButton, Slider, TextEdit, CaptionLabel, SubtitleLabel, FluentIcon, qconfig
 from win32com.shell import shell
 
 from core.config import cfg, save_cfg
@@ -121,6 +121,8 @@ def get_component_display_name(component_id: str) -> str:
     }
     m = re.match(r"comp_(.+)_\d+$", component_id)
     key = m.group(1) if m else component_id
+    if key not in name_map:
+        logger.warning(f"[组件] 未知的组件类型 {component_id} 直接显示原始 id")
     return name_map.get(key, component_id)
 
 def _theme_pair(dark, light):
@@ -150,6 +152,7 @@ def _svg_to_pixmap(icon_path: str, width: int, height: int, dpr: float = 1.0) ->
     """
     renderer = QSvgRenderer(icon_path)
     if not renderer.isValid():
+        logger.warning(f"[组件] SVG 渲染失败 返回空图 {icon_path}")
         return QPixmap()
     pm = QPixmap(int(width * dpr), int(height * dpr))
     pm.fill(Qt.GlobalColor.transparent)
@@ -220,6 +223,7 @@ def extract_app_icon(file_path, name=None, target_size=256):
         if pixmap.isNull():
             pixmap = icon.pixmap(32, 32)
         if pixmap.isNull():
+            logger.warning(f"[QL] 提取不到图标: {file_path}")
             return None
 
         if pixmap.width() < target_size:
@@ -233,6 +237,7 @@ def extract_app_icon(file_path, name=None, target_size=256):
         icon_dir = os.path.join(BASE_DIR, 'data', 'ql_icon')
         os.makedirs(icon_dir, exist_ok=True)
         pixmap.save(os.path.join(icon_dir, icon_filename), 'PNG')
+        logger.debug(f"[QL] 图标已提取: {icon_filename} ({pixmap.width()}x{pixmap.height()})")
         return icon_filename
     except Exception as e:
         logger.error(f"提取图标失败: {e}")
@@ -247,7 +252,7 @@ def resolve_app_from_path(file_path):
     real_path = file_path
     is_lnk = file_path.lower().endswith('.lnk')
 
-    # .lnk 经 COM 解析出真实目标,取不到回退原路径;名称取 .lnk 本身(带目标扩展名,不适合做显示名)
+    # .lnk 经 COM 解析出真实目标,取不到用原路径;名称取 .lnk 本身(带目标扩展名,不适合做显示名)
     if is_lnk:
         try:
             shortcut = pythoncom.CoCreateInstance(
@@ -256,8 +261,8 @@ def resolve_app_from_path(file_path):
             persist = shortcut.QueryInterface(pythoncom.IID_IPersistFile)
             persist.Load(file_path)
             real_path = shortcut.GetPath(shell.SLGP_RAWPATH)[0] or file_path
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[QL] 解析快捷方式失败 用原路径 {file_path}: {e}")
         name = os.path.splitext(os.path.basename(file_path))[0]
     else:
         name = os.path.splitext(os.path.basename(real_path))[0]
@@ -265,7 +270,7 @@ def resolve_app_from_path(file_path):
     if os.path.isdir(real_path):
         return {"name": name, "path": real_path, "icon": FOLDER_ICON, "type": "folder"}
 
-    # 提取不到图标回退 exe.ico;目标可能已被删,不存在时用原路径试
+    # 提取不到图标用 exe.ico;目标可能已被删,不存在时用原路径试
     icon_filename = extract_app_icon(
         real_path if os.path.exists(real_path) else file_path, name) or 'exe.ico'
 
@@ -289,7 +294,8 @@ def resolve_url_from_string(url_string, name=None):
             from urllib.parse import urlparse
             parsed = urlparse(url)
             name = parsed.netloc or url
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[QL] 解析网址名称失败 用原字符串 {url_string}: {e}")
             name = url
 
     icon_filename = 'url.ico' if os.path.exists(
@@ -563,6 +569,7 @@ class ComponentManager:
         self.home = home_interface
         self.components = {} 
         self._component_data = {}
+        logger.debug("[MGR] 组件管理器初始化")
 
     @property
     def page_manager(self):
@@ -596,6 +603,7 @@ class ComponentManager:
 
                 comp_class = style_info["class"]
                 try:
+                    _t0 = time.time()
                     parent_widget = self._get_parent_widget(page_index)
                     instance = comp_class(parent_widget, comp_data)
                     size_data = comp_data.get("size")
@@ -616,12 +624,13 @@ class ComponentManager:
                     self.components[comp_id] = instance
                     self._component_data[comp_id] = comp_data
                     total += 1
+                    logger.debug(f"[CM] 组件 {comp_id} 创建耗时 {(time.time() - _t0) * 1000:.1f}ms")
                     logger.info(f"加载组件: {comp_id} ({comp_type}/{comp_style}) page={page_index}")
                 except Exception as e:
                     logger.error(f"创建组件失败 {comp_id}: {e}")
             if total >= self.MAX_COMPONENTS:
                 break
-        logger.info(f"[ComponentManager] 共加载 {total} 个组件")
+        logger.info(f"[ComponentManager] 共加载{total}个组件")
 
     def save_components(self):
         pm = self.page_manager
@@ -650,6 +659,7 @@ class ComponentManager:
             if meta.type == "info":
                 meta.components = page_components.get(page_index, [])
 
+        logger.debug(f"[CM] 保存明细: {sum(len(v) for v in page_components.values())}个组件分布于{len(page_components)}页")
         pm.save()
         logger.info("[ComponentManager] 组件已保存")
 
@@ -740,6 +750,7 @@ class ComponentManager:
         """改组件归属页"""
         if comp_id in self._component_data:
             self._component_data[comp_id]["page_index"] = page_index
+            logger.info(f"[CM] 组件 {comp_id} 归属页改为 {page_index}")
             self.save_components()
 
     def shift_pages_after_delete(self, deleted_index: int, fallback_index: int = 0):
@@ -748,12 +759,17 @@ class ComponentManager:
         Args:
             fallback_index: 迁入目标页
         """
+        moved = 0
         for comp_id, stored in self._component_data.items():
             pi = stored.get("page_index", 0)
             if pi == deleted_index:
                 stored["page_index"] = fallback_index
+                moved += 1
             elif pi > deleted_index:
                 stored["page_index"] = pi - 1
+                moved += 1
+        if moved:
+            logger.info(f"[CM] 删除页面 {deleted_index} 后迁移{moved}个组件至页 {fallback_index}")
         self.save_components()
 
     def get_component_data(self, comp_id: str) -> dict:
@@ -770,13 +786,17 @@ class ComponentManager:
             return
 
         self._component_data[comp_id]["config"] = config
+        logger.info(f"[CM] 组件 {comp_id} 配置更新: 键={sorted(config.keys())}")
         self.save_components()
 
     def _get_parent_widget(self, page_index: int):
-        if hasattr(self.home, "get_info_page_widget"):
-            pw = self.home.get_info_page_widget(page_index)
-            if pw is not None:
-                return pw
+        try:
+            if hasattr(self.home, "get_info_page_widget"):
+                pw = self.home.get_info_page_widget(page_index)
+                if pw is not None:
+                    return pw
+        except Exception as e:
+            logger.warning(f"[CM] 获取页面容器失败(page={page_index}): {e}")
         return self.home
 
 
@@ -826,6 +846,7 @@ def _iter_drop_items(mime):
     Yields:
         条目 dict(name/path/icon/type)
     """
+    logger.debug("解析拖入条目")
     if mime.hasUrls():
         for url in mime.urls():
             path = url.toLocalFile()
@@ -845,7 +866,7 @@ def _launch_target(target, app_type):
     """启动条目目标
 
     Args:
-        target: exe 路径/目录/URL
+        target: exe 路径/目录/url
         app_type: app/folder/url
 
     Returns:
@@ -856,13 +877,17 @@ def _launch_target(target, app_type):
     try:
         if app_type == "url":
             webbrowser.open(target)
+            logger.info(f"[QL] 打开网址 {target}")
             return True, target
         if os.path.exists(target):
             os.startfile(target)
+            logger.info(f"[QL] 启动 {app_type}: {target}")
             return True, target
         key = "quick_launch.folder_not_exist" if app_type == "folder" else "quick_launch.path_not_exist"
+        logger.warning(f"[QL] 启动失败 {app_type} {target}")
         return False, tr(key, path=target)
     except Exception as e:
+        logger.error(f"[QL] 启动目标异常 {target}: {e}")
         return False, str(e)
 
 def _show_launch_result(host, app_name, info, success):
@@ -872,12 +897,12 @@ def _show_launch_result(host, app_name, info, success):
         info: 成功/失败原因
     """
     if success:
-        logger.info(f"已启动：{app_name} ({info})")
+        logger.info(f"已启动 {app_name} ({info})")
         InfoBar.success(tr("quick_launch.launch_success"),
                         tr("quick_launch.opening", name=app_name),
                         parent=host.window(), duration=2000)
     else:
-        logger.warning(f"启动失败：{app_name}, {info}")
+        logger.warning(f"启动失败 {app_name} {info}")
         InfoBar.error(tr("quick_launch.launch_failed"), f"{app_name}: {info}",
                       parent=host.window(), duration=3000)
 
@@ -905,13 +930,14 @@ def _build_item_menu(parent, title, on_open, on_edit, edit_text, on_delete):
     delete_action = Action(FUI.DELETE, tr("quick_launch.delete"), parent)
     delete_action.triggered.connect(on_delete)
     menu.addAction(delete_action)
+    logger.debug(f"[QL] 构建右键菜单: {title}")
     return menu
 
 def _color_name(value, fallback):
     """
     Args:
         value: ColorPickerButton.color
-        fallback: 回退值
+        fallback: 默认值
 
     Returns:
         颜色名
@@ -929,6 +955,7 @@ class DraggableWidget(QWidget):
     def __init__(self, parent=None, component_id: str = ""):
         super().__init__(parent)
         self.component_id = component_id
+        logger.debug(f"[DW] 初始化组件 {component_id}")
         self._dragging = False
         self._drag_start_pos = QPoint()
         self._widget_start_pos = QPoint()
@@ -952,9 +979,10 @@ class DraggableWidget(QWidget):
         for child in self.findChildren(QWidget):
             try:
                 child.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, enabled)
-            except RuntimeError:
-                pass
+            except RuntimeError as e:
+                logger.debug(f"[DW] 子控件已销毁 {e}")
         self._show_border = enabled
+        logger.debug(f"[DW] {self.component_id} 拖拽模式: {enabled}")
         self.update()
         if enabled:
             self.setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
@@ -964,6 +992,7 @@ class DraggableWidget(QWidget):
 
     def setSelected(self, selected: bool):
         self._selected = selected
+        logger.debug(f"[DW] {self.component_id} 选中: {selected}")
         self.update()
 
     def setPositionPercent(self, x: float, y: float):
@@ -1059,6 +1088,7 @@ class DraggableWidget(QWidget):
     def enterEvent(self, event):
         if self._draggable:
             self._hovered = True
+            logger.debug(f"[DW] {self.component_id} 悬停进入 (选中={self._selected})")
             if self._selected and self._hitResizeHandle(self.mapFromGlobal(QCursor.pos())):
                 self.setCursor(QCursor(Qt.CursorShape.SizeFDiagCursor))
             else:
@@ -1068,6 +1098,8 @@ class DraggableWidget(QWidget):
 
     def leaveEvent(self, event):
         self._hovered = False
+        if self._draggable:
+            logger.debug(f"[DW] {self.component_id} 悬停离开")
         if self._draggable and not self._dragging:self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
         self.update()
         super().leaveEvent(event)
@@ -1090,6 +1122,7 @@ class DraggableWidget(QWidget):
                     self._saved_min_size = self.minimumSize()
                     self.setMinimumSize(1, 1)
                     self.setCursor(QCursor(Qt.CursorShape.SizeFDiagCursor))
+                    logger.debug(f"[DW] {self.component_id} 缩放 初始 {self._resize_start_size.width()}x{self._resize_start_size.height()}")
                     event.accept()
                     return
 
@@ -1097,6 +1130,7 @@ class DraggableWidget(QWidget):
                 self._drag_start_pos = event.globalPosition().toPoint()
                 self._widget_start_pos = self.pos()
                 self.setCursor(QCursor(Qt.CursorShape.ClosedHandCursor))
+                logger.debug(f"[DW] {self.component_id} 拖拽 {self._widget_start_pos.x()},{self._widget_start_pos.y()}")
                 self.update()
                 self.raise_()
                 event.accept()
@@ -1109,6 +1143,7 @@ class DraggableWidget(QWidget):
 
     def mouseDoubleClickEvent(self, event):
         if self._draggable and event.button() == Qt.MouseButton.LeftButton:
+            logger.debug(f"[DW] {self.component_id} 双击 ({event.position().toPoint().x()},{event.position().toPoint().y()})")
             self._dragging = False
             self.setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
             event.accept()
@@ -1140,6 +1175,7 @@ class DraggableWidget(QWidget):
                 if base and not base.isEmpty():
                     self.resize(max(1, round(base.width() * f)),
                                 max(1, round(base.height() * f)))
+                    logger.debug(f"[DW] {self.component_id} 缩放至 {self.width()}x{self.height()} (DPI {new_dpi})")
                 if hasattr(self, '_scale_timer') and not self._scale_timer.isActive():
                     self._scale_timer.start()
             event.accept()
@@ -1204,6 +1240,7 @@ class DraggableWidget(QWidget):
         if (px, py) != (self._percent_x, self._percent_y):
             self._percent_x, self._percent_y = px, py
             self._save_position()
+            logger.debug(f"[DRAG] 组件 {self.component_id} 移动到 ({px:.3f} {py:.3f})")
         event.accept()
 
     def onParentResize(self):
@@ -1224,6 +1261,7 @@ class DraggableWidget(QWidget):
         if not allow_config:
             return False
         self._on_config_clicked()
+        logger.debug(f"[DRG] 组件配置入口触发 id={getattr(self, 'component_id', '?')}")
         event.accept()
         return True
 
@@ -1242,7 +1280,7 @@ class DraggableWidget(QWidget):
 
     def _calculatePercentFromPosition(self) -> tuple:
         """Returns:
-            (percent_x, percent_y),可用区域异常回退 (0.5, 0.5)
+            (percent_x, percent_y),可用区域异常用 (0.5, 0.5)
         """
         parent = self.parentWidget()
         if not parent:return (self._percent_x, self._percent_y)
@@ -1272,14 +1310,18 @@ class DraggableWidget(QWidget):
         if not self._selected:
             return False
         handle_zone = 24
-        return (pos.x() >= self.width() - handle_zone and
-                pos.y() >= self.height() - handle_zone)
+        hit = (pos.x() >= self.width() - handle_zone and
+               pos.y() >= self.height() - handle_zone)
+        if hit:
+            logger.debug(f"[DW] {self.component_id} 命中调整手柄 ({pos.x()},{pos.y()})")
+        return hit
 
     def _save_position(self):
         home = _find_ancestor(self.parentWidget(), 'component_manager')
         mgr = getattr(home, 'component_manager', None) if home else None
         if mgr:
             mgr.save_components()
+            logger.debug(f"[DW] 保存 {self.component_id} 位置 ({self._percent_x:.3f} {self._percent_y:.3f})")
 
 class DraggableContainer(DraggableWidget):
     """卡片容器基类"""
@@ -1326,6 +1368,7 @@ class DraggableContainer(DraggableWidget):
 
         cfg.themeChanged.connect(self._on_card_config_changed)
         qconfig.themeChangedFinished.connect(self._on_card_config_changed)
+        logger.debug(f"[DRG] 组件容器创建 id={getattr(self, 'component_id', '?')}")
 
     def _init_dpi(self, scale=None):
         """
@@ -1338,11 +1381,17 @@ class DraggableContainer(DraggableWidget):
         self._dpi = scale
         self._scale_factor = f
         self._base_size = QSize(max(1, round(w / f)), max(1, round(h / f)))
+        logger.debug(f"[CT] {self.component_id} DPI 初始化: {scale}% 基准 {w}x{h}")
         self.apply_scale(f)
 
     def apply_config(self, config: dict):
+        _old_op = getattr(self, "_bg_opacity", None)
+        _old_cr = getattr(self, "_corner_radius", None)
         self._bg_opacity = config.get("bg_opacity", self._bg_opacity)
         self._corner_radius = config.get("corner_radius", self._corner_radius)
+        logger.info(f"[CT] {self.component_id} 应用配置: 键={sorted(config.keys())}")
+        if (_old_op, _old_cr) != (self._bg_opacity, self._corner_radius):
+            logger.info(f"[CT] {self.component_id} 样式 bg {_old_op} -> {self._bg_opacity} 圆角 {_old_cr} -> {self._corner_radius}")
         self._on_card_config_changed()
 
     def setContentVisible(self, visible: bool):
@@ -1351,6 +1400,7 @@ class DraggableContainer(DraggableWidget):
             return
         self._content_state_applied = True
         self._content_visible = visible
+        logger.debug(f"[CT] {self.component_id} 内容可见性: {visible}")
         if visible:
             for i in range(self.inner_layout.count()):
                 item = self.inner_layout.itemAt(i)
@@ -1396,10 +1446,11 @@ class DraggableContainer(DraggableWidget):
             try:
                 cfg.componentCardOpacity.valueChanged.connect(self._update_edit_controls_style)
                 cfg.componentCardRadius.valueChanged.connect(self._update_edit_controls_style)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"[CT] 编辑控件样式联动配置连接失败: {e}")
         self._config_button.setVisible(visible)
         self._delete_button.setVisible(visible)
+        logger.debug(f"[CT] {self.component_id} 编辑控件可见: {visible}")
         if visible:
             self._config_button.reposition()
             self._config_button.raise_()
@@ -1416,6 +1467,11 @@ class DraggableContainer(DraggableWidget):
 
     def moveEvent(self, event):
         super().moveEvent(event)
+        _p = (self.x(), self.y())
+        _last = getattr(self, '_last_move_log_pos', None)
+        if _last is None or abs(_p[0] - _last[0]) + abs(_p[1] - _last[1]) >= 20:
+            self._last_move_log_pos = _p
+            logger.debug(f"[CT] {self.component_id} 移动到 ({_p[0]} {_p[1]})")
         if self._delete_button and self._delete_button.isVisible():
             self._delete_button.reposition()
         if self._config_button and self._config_button.isVisible():
@@ -1423,10 +1479,18 @@ class DraggableContainer(DraggableWidget):
 
     def showEvent(self, event):
         super().showEvent(event)
+        _first = not getattr(self, '_ct_shown_once', False)
+        self._ct_shown_once = True
+        if _first:
+            logger.debug(f"[CT] {self.component_id} 首次显示")
         if getattr(self, 'inner_layout', None):
             self.inner_layout.activate()
             if not getattr(self, '_size_explicitly_set', False):
                 self.adjustSize()
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        logger.debug(f"[CT] {self.component_id} 隐藏")
 
     def sizeHint(self) -> QSize:
         if getattr(self, '_size_explicitly_set', False):
@@ -1465,11 +1529,13 @@ class DraggableContainer(DraggableWidget):
         super().paintEvent(event)
 
     def _on_card_config_changed(self):
+        logger.debug(f"[CT] {self.component_id} 卡片配置变更")
         self._apply_card_style()
         if hasattr(self, '_apply_style'):
             self._apply_style()
 
     def _on_resize_debounce(self):
+        logger.debug(f"[CT] {self.component_id} 防抖后尺寸 {self.width()}x{self.height()}")
         if self._delete_button and self._delete_button.isVisible():
             self._delete_button.reposition()
         if self._config_button and self._config_button.isVisible():
@@ -1494,6 +1560,7 @@ class DraggableContainer(DraggableWidget):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._refresh)
         self.timer.start(interval_ms)
+        logger.debug(f"[CT] {self.component_id} 周期刷新已启动: {interval_ms}ms")
         self._refresh()
 
     def _transparent_widget(self, parent=None):
@@ -1509,6 +1576,8 @@ class DraggableContainer(DraggableWidget):
         """
         if not self._draggable:
             return
+        if phase == "start":
+            logger.debug(f"[CT] {self.component_id} 网页拖拽转发 ({x:.0f} {y:.0f})")
         z = view.zoomFactor() or 1.0
         gp = view.mapToGlobal(QPoint(int(x * z), int(y * z)))
         lp = self.mapFromGlobal(gp)
@@ -1563,19 +1632,24 @@ class DraggableContainer(DraggableWidget):
         return css + " }"
 
     def _doUpdateSize(self):
+        _old_size = self.size()
         self._update_pending = False
         self.inner_layout.activate()
         if not getattr(self, '_size_explicitly_set', False):
             self.adjustSize()
         self.updateGeometry()
+        if self.size() != _old_size:
+            logger.debug(f"[CT] {self.component_id} 尺寸 {_old_size.width()}x{_old_size.height()} -> {self.size().width()}x{self.size().height()}")
 
     def _update_edit_controls_style(self):
+        logger.debug(f"[CT] 组件 {self.component_id} 编辑控件样式刷新")
         if self._config_button and hasattr(self._config_button, 'apply_style'):
             self._config_button.apply_style()
         if self._delete_button and hasattr(self._delete_button, 'apply_style'):
             self._delete_button.apply_style()
 
     def _on_delete_clicked(self):
+        logger.info(f"[CT] 组件 {self.component_id} 请求删除")
         home = self._getHomeInterface()
         if home:
             home.deleteSelectedComponent(self.component_id)
@@ -1600,6 +1674,7 @@ class DraggableContainer(DraggableWidget):
 
             if result:
                 new_config = dialog.get_config()
+                logger.info(f"[CT] 组件 {self.component_id} 配置已保存: 键={sorted(new_config.keys())}")
                 home.component_manager.update_component_config(self.component_id, new_config)
                 if hasattr(self, 'apply_config'):
                     self.apply_config(new_config)
@@ -1716,7 +1791,7 @@ def _create_edit_controls(parent_widget, component_widget, on_delete_clicked, on
     return config_btn, delete_btn
 
 class _WebBridge(QObject):
-    """HTML 组件桥"""
+    """html 组件桥"""
 
     def __init__(self, on_drag, on_commit=None, parent=None):
         super().__init__(parent)
@@ -1728,12 +1803,14 @@ class _WebBridge(QObject):
         if self._on_commit is None:
             return
         try:
+            logger.debug(f"[WB] 网页提交内容 ({len(payload_json)} 字符)")
             self._on_commit(payload_json)
         except Exception as e:
             logger.warning(f"网页提交失败: {e}")
 
     @pyqtSlot(float, float)
     def drag_start(self, x: float, y: float):
+        logger.debug(f"[WB] 网页拖拽 ({x:.0f},{y:.0f})")
         self._on_drag("start", x, y)
 
     @pyqtSlot(float, float)
@@ -1742,10 +1819,11 @@ class _WebBridge(QObject):
 
     @pyqtSlot()
     def drag_end(self):
+        logger.debug("[WB] 网页拖拽结束")
         self._on_drag("end", 0.0, 0.0)
 
 def _install_web_view(container, bridge):
-    """建 HTML 视图
+    """建 html 视图
 
     Args:
         container: 容器
@@ -1764,10 +1842,11 @@ def _install_web_view(container, bridge):
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
     layout.addWidget(view, 1)
+    logger.debug(f"[WEB] 装配 组件={getattr(container, 'component_id', '?')} bridge={type(bridge).__name__}")
     return view, channel
 
 class _HtmlCardComponent(DraggableContainer):
-    """HTML 卡片组件基类"""
+    """html 卡片组件基类"""
 
     _view_mouse_transparent = True          # 视图是否鼠标穿透
     _connect_load_finished = False          # 是否接 webView 的 loadFinished
@@ -1788,10 +1867,33 @@ class _HtmlCardComponent(DraggableContainer):
         self.setMinimumSize(*self._min_size)
         self._size_explicitly_set = True
         self.resize(*self._default_size)
+        self._hook_web_lifecycle()
+        logger.debug(f"[HTML] 卡片视图就绪 id={self.component_id} 默认{self._default_size[0]}x{self._default_size[1]}")
         self._apply_style()
 
+    def _hook_web_lifecycle(self):
+        """挂载 WebEngine 页面生命周期日志（加载开始/完成、渲染进程终止）"""
+        _page = self.webView.page()
+        _cid = self.component_id
+        _page.loadStarted.connect(
+            lambda: logger.debug(f"[WEB] 组件 {_cid} 页面加载"))
+
+        def _on_web_load_finished(ok):
+            if not ok:
+                logger.warning(f"[WEB] 组件 {self.component_id} 页面加载失败")
+            elif not getattr(self, "_web_ok_logged", False):
+                self._web_ok_logged = True
+                logger.debug(f"[WEB] 组件 {self.component_id} 页面已加载")
+
+        _page.loadFinished.connect(_on_web_load_finished)
+        _page.renderProcessTerminated.connect(
+            lambda status, code: logger.error(
+                f"[WEB] 组件 {_cid} 渲染进程终止 状态={int(status)} 退出码={code}"))
+
     def _render(self):
-        self.webView.setHtml(self._build_html(), HTML_BASE_URL)
+        _html = self._build_html()
+        logger.debug(f"[HTML] 组件 {self.component_id} html 构建: {len(_html)} 字符")
+        self.webView.setHtml(_html, HTML_BASE_URL)
 
     def apply_scale(self, factor):
         self.webView.setZoomFactor(factor)
@@ -1821,6 +1923,7 @@ class ComponentConfigDialog(MessageBoxBase):
         self._setup_ui()
         for field in self._fields:
             field.load(self._config)
+        logger.debug(f"[CFG] 配置弹窗打开: 组件={component_id} 类型={self._comp_key} 配置项数={len(self._fields)}")
 
     def _setup_ui(self):
         self.setWindowTitle(tr("component_edit.config_title"))
@@ -1891,7 +1994,7 @@ class ComponentConfigDialog(MessageBoxBase):
         def __init__(self, key, label_text, default):
             """Args:
                 key: 配置字典键
-                default: 配置缺项时的兜底值
+                default: 配置缺项时的默认值
             """
             self.key = key
             self.label_text = label_text
@@ -1925,10 +2028,13 @@ class ComponentConfigDialog(MessageBoxBase):
             return row
 
         def load(self, config):
-            self._widget.setChecked(bool(config.get(self.key, self.default)))
+            val = bool(config.get(self.key, self.default))
+            logger.debug(f"[CFG] 开关字段回填: {self.key} = {val}")
+            self._widget.setChecked(val)
 
         def save(self, result):
             result[self.key] = self._widget.isChecked()
+            logger.debug(f"[CFG] 开关字段保存: {self.key} = {result[self.key]}")
 
     class _SpinField(_Field):
         """数值输入字段"""
@@ -1951,10 +2057,13 @@ class ComponentConfigDialog(MessageBoxBase):
             return row
 
         def load(self, config):
-            self._widget.setValue(int(config.get(self.key, self.default)))
+            val = int(config.get(self.key, self.default))
+            logger.debug(f"[CFG] 数值字段回填: {self.key} = {val}")
+            self._widget.setValue(val)
 
         def save(self, result):
             result[self.key] = self._widget.value()
+            logger.debug(f"[CFG] 数值字段保存: {self.key} = {result[self.key]}")
 
     class _TextField(_Field):
         """文本字段"""
@@ -1984,10 +2093,13 @@ class ComponentConfigDialog(MessageBoxBase):
             return row
 
         def load(self, config):
-            self._widget.setText(str(config.get(self.key, self.default)))
+            val = str(config.get(self.key, self.default))
+            logger.debug(f"[CFG] 文本字段回填: {self.key} = '{val[:30]}'")
+            self._widget.setText(val)
 
         def save(self, result):
             result[self.key] = self._widget.text()
+            logger.debug(f"[CFG] 文本字段保存: {self.key} = '{result[self.key]}'")
 
     class _SliderField(_Field):
         """滑块字段"""
@@ -2020,10 +2132,13 @@ class ComponentConfigDialog(MessageBoxBase):
             return row
 
         def load(self, config):
-            self._widget.setValue(int(config.get(self.key, self.default)))
+            val = int(config.get(self.key, self.default))
+            logger.debug(f"[CFG] 滑块字段回填: {self.key} = {val}")
+            self._widget.setValue(val)
 
         def save(self, result):
             result[self.key] = self._widget.value()
+            logger.debug(f"[CFG] 滑块字段保存: {self.key} = {result[self.key]} (范围 {self._min}~{self._max})")
 
     class _ColorField(_Field):
         """颜色字段"""
@@ -2054,13 +2169,15 @@ class ComponentConfigDialog(MessageBoxBase):
 
         def load(self, config):
             mode = config.get(self.key + "_mode", self.default)
-            self._combo.setCurrentIndex(1 if mode == "custom" else 0)
             color = config.get(self.key + "_color", self._default_color)
+            logger.debug(f"[CFG] 颜色字段回填: {self.key} mode={mode} color={color}")
+            self._combo.setCurrentIndex(1 if mode == "custom" else 0)
             self._picker.setColor(QColor(str(color)))
 
         def save(self, result):
             result[self.key + "_mode"] = "custom" if self._combo.currentIndex() == 1 else "opacity"
             result[self.key + "_color"] = _color_name(self._picker.color, "#ffffff")
+            logger.debug(f"[CFG] 颜色字段保存: {self.key} mode={result[self.key + '_mode']} color={result[self.key + '_color']}")
 
     class _DateField(_Field):
         """日期字段"""
@@ -2073,7 +2190,7 @@ class ComponentConfigDialog(MessageBoxBase):
             return self._picker is not None
 
         def build(self, dialog):
-            # DatePicker 用默认值(yyyy-MM-dd 解析成功才设);异常时降级 LineEdit + 占位提示
+            # DatePicker 用默认值(yyyy-MM-dd 解析成功才设);异常时用 LineEdit + 占位提示
             row = QHBoxLayout()
             row.setContentsMargins(0, 0, 0, 0)
             row.addWidget(BodyLabel(self.label_text, dialog))
@@ -2086,7 +2203,8 @@ class ComponentConfigDialog(MessageBoxBase):
                     self._picker.setDate(d)
                 self._picker.setFixedWidth(240)
                 row.addWidget(self._picker)
-            except Exception:
+            except Exception as e:
+                logger.debug(f"[CFG] DatePicker 不可用 用 LineEdit: {e}")
                 self._picker = None
                 self._edit = LineEdit(dialog)
                 self._edit.setPlaceholderText("YYYY-MM-DD")
@@ -2097,6 +2215,7 @@ class ComponentConfigDialog(MessageBoxBase):
 
         def load(self, config):
             val = str(config.get(self.key, self.default) or "")
+            logger.debug(f"[CFG] 日期字段回填: {self.key} = '{val}'")
             if self._use_picker():
                 d = QDate.fromString(val, "yyyy-MM-dd")
                 if d.isValid():
@@ -2107,8 +2226,10 @@ class ComponentConfigDialog(MessageBoxBase):
         def save(self, result):
             if self._use_picker():
                 result[self.key] = self._picker.date.toString("yyyy-MM-dd")
+                logger.debug(f"[CFG] 日期字段保存: {self.key} = {result[self.key]} (选择器)")
             elif self._edit is not None:
                 result[self.key] = self._edit.text()
+                logger.debug(f"[CFG] 日期字段保存: {self.key} = '{result[self.key]}' (手动输入)")
 
     class _PlainColorField(_Field):
         """纯颜色字段"""
@@ -2129,13 +2250,16 @@ class ComponentConfigDialog(MessageBoxBase):
             return row
 
         def load(self, config):
-            # 非法颜色回退 default
+            # 非法颜色用 default
             color = str(config.get(self.key, self.default) or self.default)
             c = QColor(color)
+            if not c.isValid():
+                logger.warning(f"[CFG] 颜色值非法 用默认 {self.key}: '{color}' -> {self.default}")
             self._picker.setColor(c if c.isValid() else QColor(self.default))
 
         def save(self, result):
             result[self.key] = _color_name(self._picker.color, self.default)
+            logger.debug(f"[CFG] 纯颜色字段保存: {self.key} = {result[self.key]}")
 
     class _AppListField(_Field):
         """应用列表字段"""
@@ -2230,6 +2354,7 @@ class ComponentConfigDialog(MessageBoxBase):
                     apps.append(result)
                     cfg.quickLaunchApps.value = apps
                     save_cfg()
+                    logger.info(f"[CFG] 启动项新增: {result.get('name', '?')} (type={result.get('type', 'app')})")
                     self._render_list()
 
         def _edit_app(self, idx):
@@ -2243,6 +2368,7 @@ class ComponentConfigDialog(MessageBoxBase):
             if rc:
                 result = d.get_app_data()
                 if result:
+                    logger.info(f"[CFG] 启动项修改 [{idx}]: '{apps[idx].get('name', '')}' -> '{result.get('name', '')}'")
                     apps[idx] = result
                     cfg.quickLaunchApps.value = apps
                     save_cfg()
@@ -2259,6 +2385,7 @@ class ComponentConfigDialog(MessageBoxBase):
                 self._dialog
             )
             if box.exec():
+                logger.info(f"[CFG] 启动项删除 [{idx}]: {name}")
                 apps.pop(idx)
                 cfg.quickLaunchApps.value = apps
                 save_cfg()
@@ -2405,6 +2532,7 @@ class ComponentConfigDialog(MessageBoxBase):
         result = dict(self._config)
         for field in self._fields:
             field.save(result)
+        logger.debug(f"[CFG] 配置已收集 键={sorted(result.keys())}")
         return result
 
 
@@ -2556,6 +2684,7 @@ class DigitalClockComponent(DraggableContainer):
         self._setup_ui()
         self._setup_timer()
         self._update_time()
+        logger.debug(f"[DC] 数字时钟就绪 id={self.component_id}")
 
     def _setup_ui(self):
         self.clockLabel = BodyLabel("00:00:00")
@@ -2582,6 +2711,7 @@ class DigitalClockComponent(DraggableContainer):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._update_time)
         self.timer.start(1000)
+        logger.debug("[CLK] 数字时钟秒级定时启动")
 
         cfg.showClock.valueChanged.connect(self._update_time)
         cfg.showClockSeconds.valueChanged.connect(self._update_time)
@@ -2609,13 +2739,20 @@ class DigitalClockComponent(DraggableContainer):
         currentTime = QTime.currentTime()
         currentDate = QDate.currentDate()
 
+        _hm = currentTime.toString("HH:mm")
+        if _hm != getattr(self, '_last_minute_key', ''):
+            self._last_minute_key = _hm
+            logger.debug(f"[DC] 时钟跨分钟: {_hm} (精确源={cfg.usePreciseTime.value})")
+
         if cfg.usePreciseTime.value:
             try:
                 pn = precise_now()
                 currentTime = QTime(pn.hour, pn.minute, pn.second)
                 currentDate = QDate(pn.year, pn.month, pn.day)
-            except Exception:
-                pass
+            except Exception as e:
+                if not getattr(self, "_precise_warned", False):
+                    self._precise_warned = True
+                    logger.warning(f"[DC] 精确时间源获取失败 用系统时间: {e}")
 
         if cfg.showClockSeconds.value:
             timeString = currentTime.toString("HH:mm:ss")
@@ -2647,6 +2784,7 @@ class DigitalClockComponent(DraggableContainer):
         color_str = clock_color.name() if hasattr(clock_color, 'name') else str(clock_color)
         clock_size = cfg.clockSize.value
         date_size = cfg.dateSize.value
+        logger.debug(f"[DC] 样式 颜色={color_str} 时钟={self._scaled_px(clock_size)}px 日期={self._scaled_px(date_size)}px")
 
         self.clockLabel.setStyleSheet(f"""
             color: {color_str};
@@ -2675,11 +2813,14 @@ class _SvgClockComponent(_HtmlCardComponent):
         super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
         self.setObjectName(self._object_name)
         self._setup_ui()
+        logger.debug(f"[SVGCLK] 表盘初始化 id={self.component_id} 容器={self._object_name} 半径系数={self._radius_scale}")
 
 
     def _build_html(self) -> str:
         theme = self._theme_dark if isDarkTheme() else self._theme_light
         radius = cfg.componentCardRadius.value * self._radius_scale
+        theme_name = "dark" if isDarkTheme() else "light"
+        logger.debug(f"[SVGCLK] 重建表盘 html: id={self.component_id} 主题={theme_name} 半径={radius}")
         return self._HTML_TEMPLATE.substitute(font=FONT_FAMILY, radius=radius, **theme)
 
     def _apply_style(self):
@@ -3022,6 +3163,7 @@ class CalendarMonthComponent(DraggableContainer):
         self._setup_ui()
         self._setup_timer()
         self._refresh_calendar()
+        logger.debug(f"[CAL] 月历就绪 id={self.component_id}")
 
     def _setup_ui(self):
         layout = self.inner_layout
@@ -3101,17 +3243,27 @@ class CalendarMonthComponent(DraggableContainer):
     def _setup_timer(self):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._check_day_change)
+        logger.debug("[CAL] 月历日切换定时器已创建")
 
     def showEvent(self, e):
         super().showEvent(e)
+        _first = not getattr(self, "_cal_shown_once", False)
+        self._cal_shown_once = True
+        if _first:
+            logger.debug(f"[CAL] 月历首次显示 id={self.component_id}")
         self._timer.start(60000)
 
     def hideEvent(self, e):
         self._timer.stop()
+        logger.debug(f"[CAL] 月历隐藏 定时器已停止 id={self.component_id}")
         super().hideEvent(e)
 
     def _check_day_change(self):
         t = QDate.currentDate()
+        last = getattr(self, "_last_seen_date", None)
+        if last is not None and t != last:
+            logger.info(f"[CAL] 跨日: {last.toString('yyyy-MM-dd')} -> {t.toString('yyyy-MM-dd')}")
+        self._last_seen_date = t
         if t.year() == self._display_year and t.month() == self._display_month:
             self._refresh_calendar()
 
@@ -3119,6 +3271,7 @@ class CalendarMonthComponent(DraggableContainer):
         total = self._display_year * 12 + (self._display_month - 1) + delta
         self._display_year, m = divmod(total, 12)
         self._display_month = m + 1
+        logger.debug(f"[CalendarComponent] 切换月份: {self._display_year}-{self._display_month:02d}")
         self._refresh_calendar()
 
     def _refresh_calendar(self):
@@ -3153,6 +3306,7 @@ class CalendarMonthComponent(DraggableContainer):
 
         # 填充本月
         day = 1
+        _lunar_marked = 0
         for r in range(6):
             for c in range(7):
                 if r == 0 and c < first_wd:
@@ -3169,6 +3323,8 @@ class CalendarMonthComponent(DraggableContainer):
                     sub = _short_holiday(holiday)
                 elif term:
                     sub = _short_holiday(term)
+                if sub:
+                    _lunar_marked += 1
 
                 self._cells[r][c].set_data(
                     day=day, sub_text=sub, is_current_month=True,
@@ -3178,6 +3334,8 @@ class CalendarMonthComponent(DraggableContainer):
                 day += 1
 
         self.updateSize()
+        logger.debug(f"[CAL] 月历农历/节日标注: {_lunar_marked}天 ({year}-{month:02d})")
+        logger.debug(f"[CAL] 月历已刷新 {year}-{month:02d} 今日 {today.month():02d}-{today.day():02d}")
 
     def apply_scale(self, factor):
         self._up_btn.setFixedSize(self._scaled_px(28), self._scaled_px(18))
@@ -3214,7 +3372,7 @@ class CalendarMonthComponent(DraggableContainer):
                 cell.update()
 
 class MiniCalendarComponent(_HtmlCardComponent):
-    """简约月历(HTML)"""
+    """简约月历(html)"""
     _view_mouse_transparent = False
     _min_size = (100, 100)
     _default_size = (200, 200)
@@ -3372,9 +3530,13 @@ class MiniCalendarComponent(_HtmlCardComponent):
         super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
         self.setObjectName(self._object_name)
         self._setup_ui()
+        logger.debug(f"[MCAL] 简约月历初始化 id={self.component_id} 容器={self._object_name}")
 
 
     def _build_html(self) -> str:
+        if not getattr(self, "_html_built_once", False):
+            self._html_built_once = True
+            logger.debug("[MCL] 迷你日历首次构建 html")
         theme = self._theme_dark if isDarkTheme() else self._theme_light
         return self._HTML_TEMPLATE.substitute(font=FONT_FAMILY, **theme)
 
@@ -3394,11 +3556,13 @@ class WeatherComponentBase(DraggableContainer):
             p = p.parentWidget()
         self._current_icon_path = None
         self._weather_fetching = False
+        logger.debug(f"[WX] 初始化 id={self.component_id} 信号={'有' if self._home_interface is not None else '无'}")
 
     def _setup_timer(self):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._refresh_weather)
         self.timer.start(1000)
+        logger.debug(f"[WX] 天气刷新定时器启动 id={self.component_id}")
         cfg.showWeather.valueChanged.connect(self._refresh_weather)
         cfg.weatherUpdateInterval.valueChanged.connect(self._update_interval)
         cfg.weatherTextColor.valueChanged.connect(self._apply_style)
@@ -3412,6 +3576,7 @@ class WeatherComponentBase(DraggableContainer):
         if event.button() == Qt.MouseButton.LeftButton and hasattr(self, 'cityLabel'):
             local_pos = self.cityLabel.mapFrom(self, event.pos())
             if self.cityLabel.rect().contains(local_pos):
+                logger.debug(f"[WX] 城市标签点击 id={getattr(self, 'component_id', '?')}")
                 self._onCityLabelClicked()
                 event.accept()
                 return
@@ -3432,7 +3597,7 @@ class WeatherComponentBase(DraggableContainer):
             if lon is not None and lat is not None:
                 cfg.longitude.value = lon
                 cfg.latitude.value = lat
-                logger.info(f"选择城市: {region} (经纬度: {lon}, {lat})")
+                logger.info(f"选择城市: {region} (经纬度: {lon} {lat})")
             self.cityLabel.setText(region)
 
             if self._weather_fetching:
@@ -3454,18 +3619,27 @@ class WeatherComponentBase(DraggableContainer):
             "10s": 10000, "30s": 30000, "1m": 60000,
             "5m": 300000, "10m": 600000, "30m": 1800000,
         }
+        _old = self.timer.interval()
         self.timer.setInterval(interval_map.get(cfg.weatherUpdateInterval.value, 300000))
+        if self.timer.interval() != _old:
+            logger.info(f"[WX] 组件 {self.component_id} 刷新间隔变更: {_old}ms -> {self.timer.interval()}ms")
 
     def _refresh_weather(self):
         if not cfg.showWeather.value:
+            if self.isVisible():
+                logger.debug(f"[WX] 组件 {self.component_id} 显示开关已关闭 隐藏组件")
             self.hide()
             return
+        if not self.isVisible():
+            logger.debug(f"[WX] 组件 {self.component_id} 显示开关已开启 恢复显示")
         self.show()
+        logger.debug(f"[WeatherComponent] 刷新 (城市: {cfg.city.value} 间隔: {cfg.weatherUpdateInterval.value})")
         self._update_from_cache()
 
     def _on_weather_fetched(self, data):
         self._weather_fetching = False
         if data:
+            logger.info(f"[WeatherComponent] 天气数据已更新并广播 (城市: {cfg.city.value})")
             if not save_cache("weather", data, cfg.weatherUpdateInterval.value):
                 logger.warning("缓存保存失败")
             if self._home_interface is not None:
@@ -3490,10 +3664,12 @@ class WeatherComponentBase(DraggableContainer):
         try:
             temp = int(round(float(raw)))
         except (ValueError, TypeError):
+            logger.warning(f"[WX] 温度解析失败 原样显示: '{raw}'")
             temp = raw
         try:
             code = int(current.get("weather", 0))
         except (ValueError, TypeError):
+            logger.warning(f"[WX] 天气码解析失败 用 0: {current.get('weather')!r}")
             code = 0
         return temp, code
 
@@ -3501,6 +3677,7 @@ class WeatherComponentBase(DraggableContainer):
         wd = get_cached_content("weather", ignore_expiry=True)
         if wd:
             temp, code = self._parse_current(wd)
+            logger.debug("[WX] 天气走缓存")
         else:
             temp, code = "--", 0
         return wd, temp, code
@@ -3514,6 +3691,7 @@ class WeatherIconTempComponent(WeatherComponentBase):
         self.setObjectName("weatherContainer")
         self._setup_ui()
         self._setup_timer()
+        logger.debug(f"[WX] 实况天气组件初始化 id={self.component_id}")
         cfg.weatherSize.valueChanged.connect(self._apply_style)
         cfg.weatherIconSize.valueChanged.connect(self._update_icon_size)
 
@@ -3545,6 +3723,10 @@ class WeatherIconTempComponent(WeatherComponentBase):
         if cached:
             self._update_display(cached)
         else:
+            _had = getattr(self, "_wx_cache_miss_logged", False)
+            if not _had:
+                logger.debug(f"[WX] 无天气缓存 显示占位 '--°' id={self.component_id}")
+                self._wx_cache_miss_logged = True
             self.tempLabel.setText("--°")
             self.iconLabel.clear()
 
@@ -3561,7 +3743,7 @@ class WeatherIconTempComponent(WeatherComponentBase):
         icon_path = WeatherService.get_weather_icon_path(icon_name)
 
         weather_text = WeatherService.WEATHER_MAP.get(weather_code, ("未知", "2.svg"))[0]
-        logger.info(f"[WeatherComponent] 当前温度:{temp}° 天气代码:{weather_code} 天气:{weather_text} 图标:{icon_name}")
+        logger.info(f"[WeatherComponent] 温度:{temp}° 码:{weather_code} 天气:{weather_text} 图标:{icon_name}")
 
         if icon_path and os.path.exists(icon_path):
             self._current_icon_path = icon_path
@@ -3570,8 +3752,11 @@ class WeatherIconTempComponent(WeatherComponentBase):
             pm = render_svg_icon(icon_path, icon_size, dpr)
             if not pm.isNull():
                 self.iconLabel.setPixmap(pm)
+            else:
+                logger.warning(f"[WX] 天气图标渲染为空: {icon_path}")
 
     def _update_icon_size(self):
+        logger.debug(f"[WX] 图标尺寸变更: {cfg.weatherIconSize.value}px")
         cached = get_cached_content("weather", ignore_expiry=True)
         if cached:
             self._update_display(cached)
@@ -3609,6 +3794,7 @@ class WeatherHourlyComponent(WeatherComponentBase):
         self._hourly_icon_paths = [None] * 6
         self._setup_ui()
         self._setup_timer()
+        logger.debug(f"[WXH] 逐小时天气组件初始化 id={self.component_id} 槽位数={len(self._hourly_icon_paths)}")
 
     def _setup_ui(self):
         layout = self.inner_layout
@@ -3713,7 +3899,7 @@ class WeatherHourlyComponent(WeatherComponentBase):
         icon_path = WeatherService.get_weather_icon_path(icon_name)
 
         weather_text = WeatherService.WEATHER_MAP.get(current_icon_code, ("未知", "2.svg"))[0]
-        logger.info(f"[WeatherHourly] 城市:{cfg.city.value} 当前温度:{current_temp}° 天气代码:{current_icon_code} 天气:{weather_text} 图标:{icon_name}")
+        logger.info(f"[WeatherHourly] 城市:{cfg.city.value} 温度:{current_temp}° 码:{current_icon_code} 天气:{weather_text} 图标:{icon_name}")
 
         if icon_path and os.path.exists(icon_path):
             self._current_icon_path = icon_path
@@ -3746,8 +3932,8 @@ class WeatherHourlyComponent(WeatherComponentBase):
         try:
             if pub_time:
                 start_hour = py_datetime.datetime.fromisoformat(pub_time).hour
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[WeatherHourly] 发布时间解析失败({pub_time}) 从 0 时起算: {e}")
 
         for i in range(6):
             time_label, icon_label, temp_label = self._hourly_widgets[i]
@@ -3778,6 +3964,7 @@ class WeatherHourlyComponent(WeatherComponentBase):
                 temp_label.setText("--°")
 
         self._apply_style()
+        logger.debug(f"[WXH] 逐小时已渲染 {len(hours)}小时 发布 {pub_time or '未知'}")
 
     def apply_scale(self, factor):
         self._apply_style()
@@ -3853,6 +4040,7 @@ class WeatherWeeklyComponent(WeatherComponentBase):
         self._daily_icon_paths = [None] * 4
         self._setup_ui()
         self._setup_timer()
+        logger.debug(f"[WXW] 每日天气组件初始化 id={self.component_id} 槽位数={len(self._daily_icon_paths)}")
 
     def _setup_ui(self):
         layout = self.inner_layout
@@ -3966,7 +4154,7 @@ class WeatherWeeklyComponent(WeatherComponentBase):
         icon_path = WeatherService.get_weather_icon_path(icon_name)
 
         weather_text = WeatherService.WEATHER_MAP.get(current_icon_code, ("未知", "2.svg"))[0]
-        logger.info(f"[WeatherWeekly] 城市:{cfg.city.value} 当前温度:{current_temp}° 天气代码:{current_icon_code} 天气:{weather_text} 图标:{icon_name}")
+        logger.info(f"[WeatherWeekly] 城市:{cfg.city.value} 温度:{current_temp}° 码:{current_icon_code} 天气:{weather_text} 图标:{icon_name}")
 
         if icon_path and os.path.exists(icon_path):
             self._current_icon_path = icon_path
@@ -3986,7 +4174,7 @@ class WeatherWeeklyComponent(WeatherComponentBase):
             logger.info(f"[WeatherWeekly] 每日预报解析结果: {json.dumps(parsed, ensure_ascii=False)}")
             if parsed.get("days"):
                 d0 = parsed["days"][0]
-                logger.info(f"[WeatherWeekly] 今日 高温:{d0.get('high')}° 低温:{d0.get('low')}° 天气代码:{d0.get('weather_code')} 图标:{d0.get('icon')}")
+                logger.info(f"[WeatherWeekly] 今日 高温:{d0.get('high')}° 低温:{d0.get('low')}° 码:{d0.get('weather_code')} 图标:{d0.get('icon')}")
         else:
             self._daily_data = None
         self._update_daily_display()
@@ -3998,6 +4186,8 @@ class WeatherWeeklyComponent(WeatherComponentBase):
 
         now = py_datetime.datetime.now()
         num_days = min(4, len(self._forecast_rows), len(days))
+        if num_days > 0:
+            logger.debug(f"[WXW] 周预报渲染: {num_days}天 (数据源{len(days)}天)")
 
         for i in range(num_days):
             row, day_label, icon_label, low_label, high_label, spacer = self._forecast_rows[i]
@@ -4036,6 +4226,7 @@ class WeatherWeeklyComponent(WeatherComponentBase):
             high_label.setText("--°")
 
         self._apply_style()
+        logger.debug(f"[WXW] 每日已渲染 {num_days}/{len(days)}天")
 
     def apply_scale(self, factor):
         self._apply_style()
@@ -4122,6 +4313,7 @@ class PoetryOneLineComponent(DraggableContainer):
             w = w.parent()
         self._setup_ui()
         self._setup_timer()
+        logger.debug(f"[POE] 一言就绪 id={self.component_id}")
 
     def _setup_ui(self):
         self.poetryLabel = BodyLabel("")
@@ -4145,6 +4337,7 @@ class PoetryOneLineComponent(DraggableContainer):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._refresh_poetry)
         self.timer.start(1000)
+        logger.debug(f"[POE] 诗词刷新定时器启动 id={self.component_id}")
 
         cfg.showPoetry.valueChanged.connect(self._refresh_poetry)
         cfg.poetryApiUrl.valueChanged.connect(self._refresh_poetry)
@@ -4164,9 +4357,10 @@ class PoetryOneLineComponent(DraggableContainer):
             text: api返回的文本
 
         Returns:
-            HTML 片段
+            html 片段
         """
         if not text:
+            logger.debug("[诗歌] 一言文本为空 返回空片段")
             return ""
         content = text.strip()
         attribution = ""
@@ -4187,16 +4381,24 @@ class PoetryOneLineComponent(DraggableContainer):
         if text:
             self.poetryLabel.setText(self._format_poetry(text))
             self.updateSize()
+            logger.debug(f"[PoetryComponent] 一言展示更新: {text[:30]}")
 
     def _update_interval(self):
         interval_map = {"10s": 10000, "30s": 30000, "1m": 60000, "5m": 300000, "10m": 600000, "30m": 1800000, "1h": 3600000}
         interval_str = cfg.poetryUpdateInterval.value
+        _old = self.timer.interval()
         self.timer.setInterval(interval_map.get(interval_str, 60000))
+        if self.timer.interval() != _old:
+            logger.info(f"[Poetry] 一言刷新间隔变更: {_old}ms -> {self.timer.interval()}ms")
 
     def _refresh_poetry(self):
         if not cfg.showPoetry.value:
+            if self.isVisible():
+                logger.debug("[Poetry] 一言显示开关已关闭 隐藏组件")
             self.hide()
             return
+        if not self.isVisible():
+            logger.debug("[Poetry] 一言显示开关已开启 恢复显示")
         self.show()
 
         text = None
@@ -4205,8 +4407,10 @@ class PoetryOneLineComponent(DraggableContainer):
         if not text:
             text = get_cached_content("poetry")
         if text:
+            logger.debug(f"[POE] 一言源{'首页缓存' if text == getattr(self._home, '_cached_poetry', None) else '本地缓存'}: {text[:30]}")
             self.poetryLabel.setText(self._format_poetry(text))
         else:
+            logger.debug("[PoetryComponent] 无一言数据 显示为空")
             self.poetryLabel.setText("")
 
     def _apply_style(self):
@@ -4226,6 +4430,7 @@ class PoetryOneLineComponent(DraggableContainer):
 def _render_svg_logo(icon_path, height=30):
     renderer = QSvgRenderer(icon_path)
     if not renderer.isValid():
+        logger.warning(f"[NEWS] 来源图标渲染失败: {icon_path}")
         return QPixmap()
     default_size = renderer.defaultSize()
     ratio = 1.0
@@ -4255,6 +4460,7 @@ class NewsComponent(DraggableContainer):
         self._icon_path = get_resPath(NEWS_ICONS[self._icon_key])
         self._setup_ui()
         self._setup_timer()
+        logger.debug(f"[NEWS] 热榜就绪 id={self.component_id} 源={self._source} 条目={self._item_count}")
 
     def _setup_ui(self):
         dpr = self.devicePixelRatioF()
@@ -4298,6 +4504,7 @@ class NewsComponent(DraggableContainer):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._refresh_news)
         self.timer.start(300000)
+        logger.debug(f"[NewsComponent] 新闻刷新定时器启动: 300000ms (来源: {'央视' if self._use_cctv_api else self._source})")
         self._refresh_news()
 
     def _refresh_news(self):
@@ -4307,6 +4514,10 @@ class NewsComponent(DraggableContainer):
             data = NewsService.fetch_daily_news(self._source, use_cache=True)
         if not data:
             data = get_cached_content(f"news_{self._source}", ignore_expiry=True)
+            if data:
+                logger.debug(f"[NewsComponent] 接口无数据 用过期缓存: {len(data)}条")
+            else:
+                logger.debug(f"[NewsComponent] 无新闻数据 (来源: {'央视' if self._use_cctv_api else self._source})")
         self._update_display(data)
 
     def _update_display(self, data):
@@ -4319,8 +4530,11 @@ class NewsComponent(DraggableContainer):
                     item = data[index] or {}
                     titles[index] = item.get("title") or item.get("name") or "--"
                     urls[index] = item.get("url") or item.get("link") or ""
+        _changed = getattr(self, "_news_titles", None) != titles
         self._news_urls = urls
         self._news_titles = titles
+        if _changed and titles != ["--"] * count:
+            logger.debug(f"[NewsComponent] 标题列表更新: 首条='{titles[0]}' 源={self._source or '央视'}")
         self._render_items()
 
     def _render_items(self):
@@ -4334,9 +4548,11 @@ class NewsComponent(DraggableContainer):
                 f"{i+1}.</span> "
                 f"<span style='font-size:{sz_text}px;color:{text_c};font-family:{FONT_FAMILY};'>{text}</span>"
             )
+        logger.debug(f"[NewsComponent] 新闻已渲染 {len(self._news_titles)}条")
 
     def _on_news_clicked(self, index):
         if 0 <= index < len(self._news_urls) and self._news_urls[index]:
+            logger.info(f"[NewsComponent] 打开新闻: {self._news_titles[index]}")
             webbrowser.open(self._news_urls[index])
 
     def apply_scale(self, factor):
@@ -4361,9 +4577,11 @@ class CountdownEventComponent(DraggableContainer):
     def __init__(self, parent, component_data: dict):
         super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
         self.setObjectName("countdownContainer")
+        self._warned_bad_time = None
         self._read_config(component_data.get("config", {}))
         self._setup_ui()
         self._setup_timer()
+        logger.debug(f"[CD] 倒计时就绪 id={self.component_id} 事件='{self._event_name or '-'}'")
 
     def _setup_ui(self):
         self.countdownLabel = BodyLabel("")
@@ -4390,8 +4608,12 @@ class CountdownEventComponent(DraggableContainer):
         self._update_countdown()
 
     def apply_config(self, config):
+        _old = (getattr(self, "_event_name", ""), getattr(self, "_target_time", ""))
         self._read_config(config)
         self._update_countdown()
+        logger.info(f"[CD] 倒计时配置应用: {self._event_name or '未命名'} -> {self._target_time or '未设置'}")
+        if _old != (self._event_name, self._target_time):
+            logger.info(f"[CD] 倒计时配置变更: {_old} -> {(self._event_name, self._target_time)}")
 
     def mouseReleaseEvent(self, event):
         if self._handle_config_click_release(event):
@@ -4401,6 +4623,8 @@ class CountdownEventComponent(DraggableContainer):
     def _read_config(self, config):
         self._event_name = config.get("event_name", getattr(self, "_event_name", "")) or ""
         self._target_time = config.get("target_time", getattr(self, "_target_time", "")) or ""
+        if self._event_name:
+            logger.debug(f"[CountdownComponent] 倒计时: {self._event_name} -> {self._target_time}")
 
     def _is_configured(self):
         return bool(self._event_name and self._target_time)
@@ -4416,6 +4640,10 @@ class CountdownEventComponent(DraggableContainer):
             target_dt = py_datetime.datetime.fromisoformat(self._target_time)
             now = py_datetime.datetime.now()
             delta = target_dt - now
+            now_positive = delta.total_seconds() > 0
+            if getattr(self, "_prev_delta_positive", True) and not now_positive:
+                logger.info(f"[CD] 倒计时归零: {name} (目标 {self._target_time})")
+            self._prev_delta_positive = now_positive
 
             if delta.total_seconds() > 0:
                 days = delta.days
@@ -4427,6 +4655,9 @@ class CountdownEventComponent(DraggableContainer):
             self.countdownLabel.setText(text)
         except Exception:
             # 时间格式无效时只显示事件名
+            if self._warned_bad_time != self._target_time:
+                self._warned_bad_time = self._target_time
+                logger.warning(f"[CountdownComponent] 目标时间格式无效: {self._target_time}")
             self.countdownLabel.setText(name)
         self.updateSize()
 
@@ -4455,6 +4686,7 @@ class DaysMatterComponent(DraggableContainer):
         self._read_config(component_data.get("config", {}))
         self._setup_ui()
         self._setup_timer()
+        logger.debug(f"[DM] 倒数日就绪 id={self.component_id} 事件='{self._event_name or '-'}'")
 
     def _setup_ui(self):
         layout = self.inner_layout
@@ -4500,8 +4732,11 @@ class DaysMatterComponent(DraggableContainer):
         self._update_days()
 
     def apply_config(self, config):
+        _old = (getattr(self, "_event_name", ""), getattr(self, "_target_date", ""))
         self._read_config(config)
         self._apply_style()
+        if _old != (self._event_name, self._target_date):
+            logger.info(f"[DM] 倒数日配置变更: {_old} -> {(self._event_name, self._target_date)}")
 
     def _on_resize_debounce(self):
         super()._on_resize_debounce()
@@ -4509,6 +4744,10 @@ class DaysMatterComponent(DraggableContainer):
 
     def showEvent(self, event):
         super().showEvent(event)
+        _first = not getattr(self, "_dm_shown_once", False)
+        self._dm_shown_once = True
+        if _first:
+            logger.debug(f"[DM] 倒数日首次显示: '{self._event_name or '未命名'}' 目标={self._target_date or '未设置'}")
         self._apply_style()
 
     def mouseReleaseEvent(self, event):
@@ -4521,6 +4760,7 @@ class DaysMatterComponent(DraggableContainer):
         self._event_name = str(config.get("event_name", getattr(self, "_event_name", "")) or "")
         self._target_date = str(config.get("target_date", getattr(self, "_target_date", "")) or "")
         self._title_bg = str(config.get("title_bg_color", getattr(self, "_title_bg", "#F98E1B")) or "#F98E1B")
+        logger.info(f"[DM] 倒数日读取配置: 事件='{self._event_name or '未命名'}' 目标日期={self._target_date or '未设置'}")
 
     def _is_configured(self):
         d = QDate.fromString(self._target_date, "yyyy-MM-dd")
@@ -4552,6 +4792,10 @@ class DaysMatterComponent(DraggableContainer):
 
         today = QDate.currentDate()
         diff = today.daysTo(d)  # >0 未来 / ==0 今天 / <0 过去
+        _last_diff = getattr(self, '_last_days_diff', None)
+        if _last_diff is not None and diff != _last_diff:
+            logger.info(f"[DM] 倒数日跨日变化: {self._event_name or '未命名'} {_last_diff:+d} -> {diff:+d}天")
+        self._last_days_diff = diff
         days = abs(diff)
         number_text = str(days)
 
@@ -4616,6 +4860,7 @@ class SchoolInfoComponent(DraggableContainer):
         super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
         self.setObjectName("schoolInfoContainer")
         self._read_config(component_data.get("config", {}))
+        logger.debug(f"[SCHOOL] 初始化 id={self.component_id} 班级={getattr(self, '_class', '') or '-'} 学校={getattr(self, '_school', '') or '-'}")
         self._setup_ui()
 
     def _setup_ui(self):
@@ -4668,7 +4913,11 @@ class SchoolInfoComponent(DraggableContainer):
         self._update_info()
 
     def apply_config(self, config):
+        _old = (getattr(self, "_class", ""), getattr(self, "_school", ""), getattr(self, "_count", ""))
         self._read_config(config)
+        logger.info(f"[SCHOOL] 配置应用 班级='{self._class or '-'}' 学校='{self._school or '-'}' 人数='{self._count or '-'}'")
+        if _old != (self._class, self._school, self._count):
+            logger.info(f"[SCHOOL] 班级信息配置变更: {_old} -> {(self._class, self._school, self._count)}")
         self._apply_style()
         self._update_info()
 
@@ -4679,6 +4928,10 @@ class SchoolInfoComponent(DraggableContainer):
 
     def showEvent(self, event):
         super().showEvent(event)
+        _first = not getattr(self, "_school_shown_once", False)
+        self._school_shown_once = True
+        if _first:
+            logger.debug(f"[SCHOOL] 班级信息首次显示: 班级='{self._class or '-'}' 学校='{self._school or '-'}'")
         self._apply_style()
         self._update_info()
 
@@ -4700,6 +4953,7 @@ class SchoolInfoComponent(DraggableContainer):
         self._main_bg_color = config.get("main_bg_color", getattr(self, "_main_bg_color", "#ffffff"))
         self._top_bg_mode = config.get("top_bg_mode", getattr(self, "_top_bg_mode", "opacity"))
         self._top_bg_color = config.get("top_bg_color", getattr(self, "_top_bg_color", "#ffffff"))
+        logger.debug(f"[SCHOOL] 配置读取: 班级='{self._class}' 学校='{self._school}' 字号缩放={self._font_scale}%")
 
     def _scaled_px(self, base_px: int) -> int:
         """字体缩放换算"""
@@ -4731,6 +4985,7 @@ class SchoolInfoComponent(DraggableContainer):
             self.countLabel.setText(f"{self._count}人")
         else:
             self.countLabel.setText("")
+        logger.debug(f"[SCHOOL] 刷新 学校={school_text or '-'} 班级={class_text or '-'} 口号长度={len(slogan_text or '')}")
 
     def _apply_style(self):
         is_dark = isDarkTheme()
@@ -4844,6 +5099,7 @@ class MediaPlayerComponent(DraggableContainer):
         self._detail_ready.connect(self._on_detail)
         self._sync_done.connect(self._on_sync_done)
         self.start()
+        logger.debug(f"[MEDIA] 媒体就绪 id={self.component_id} 间隔={self._normal_interval}ms")
 
     def _setup_ui(self):
         self.inner_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
@@ -4960,28 +5216,33 @@ class MediaPlayerComponent(DraggableContainer):
 
     def apply_config(self, config: dict):
         super().apply_config(config)
+        logger.debug(f"[MP] 配置 键={list(config.keys()) if isinstance(config, dict) else type(config).__name__}")
         self._apply_bg_style()
 
     def start(self):
         self._prog_timer.start(cfg.mediaUpdateInterval.value * 1000)
         self._prog_timer.start(1000)
+        logger.info(f"[MP] 媒体组件启动 进度轮询间隔 {cfg.mediaUpdateInterval.value}s")
         self._spawn_media_fetch(full=True)
 
     def stop(self):
+        logger.info("[MP] 媒体组件停止")
         self._timer.stop()
         self._prog_timer.stop()
         try:
             self._style_timer.stop()
             self._sync_confirm_timer.stop()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[MP] 辅助定时器停止失败: {e}")
 
     def closeEvent(self, event):
+        logger.debug("[MP] 媒体组件关闭事件")
         self.stop()
         super().closeEvent(event)
 
     def _default_cover(self, sz: int = None):
         sz = self._scaled_px(160) if sz is None else sz
+        logger.debug(f"[MP] 默认占位封面 尺寸={sz}px")
         radius = self._scaled_px(8)
         pm = QPixmap(sz, sz)
         pm.fill(Qt.GlobalColor.transparent)
@@ -5061,7 +5322,10 @@ class MediaPlayerComponent(DraggableContainer):
         """
         pm = QPixmap()
         pm.loadFromData(data)
+        if pm.isNull():
+            logger.warning(f"[MP] 封面数据解码失败 ({len(data)}B)")
         if not pm.isNull():
+            logger.debug(f"[MP] 封面已加载: {len(data)}B {pm.width()}x{pm.height()}")
             self._cover = pm
             sz = self._scaled_px(160)
             cover_with_shadow = self._add_cover_shadow(pm, sz)
@@ -5086,7 +5350,11 @@ class MediaPlayerComponent(DraggableContainer):
         return f"rgba({c.red()}, {c.green()}, {c.blue()}, {round(c.alpha() / 255, 2)})"
 
     def _on_visibility_changed(self):
-        self.setVisible(cfg.showMediaInfo.value)
+        _prev = self.isVisible()
+        _new = cfg.showMediaInfo.value
+        self.setVisible(_new)
+        if _prev != _new:
+            logger.debug(f"[MP] 媒体信息可见性切换: {_prev} -> {_new}")
 
     def __del__(self):
         try:
@@ -5109,6 +5377,7 @@ class MediaPlayerComponent(DraggableContainer):
             return
         self._fetching = True
         self._pending_full = False
+        logger.debug(f"[MP] 发起媒体信息拉取线程: full={full}")
         threading.Thread(target=self._media_worker, args=(full,), daemon=True).start()
 
     def _media_worker(self, full):
@@ -5183,6 +5452,8 @@ class MediaPlayerComponent(DraggableContainer):
                 QTimer.singleShot(100, lambda: self._spawn_media_fetch(full=True))
 
     def _no_media(self):
+        if getattr(self, "_media", None) is not None:
+            logger.info("[MP] 无媒体播放 重置为空状态")
         self._title.setText(tr("media.not_playing"))
         self._title.setWordWrap(False)
         self._artist.setText("")
@@ -5214,6 +5485,7 @@ class MediaPlayerComponent(DraggableContainer):
 
         if m.title_artist != self._last_ta:
             self._last_ta = m.title_artist
+            logger.info(f"[MP] 切歌: {title} - {artist or '未知歌手'} 时长 {self._fmt(m.duration_ms)}")
             self._position = m.position_ms
             self._playing = m.is_playing
             if m.duration_ms > 0:
@@ -5280,6 +5552,9 @@ class MediaPlayerComponent(DraggableContainer):
             self._position = min(self._position + self._prog_timer.interval(), self._duration)
             pct = min(100, int(self._position / self._duration * 100))
             self._bar.setValue(pct)
+            if pct // 10 != getattr(self, '_last_prog_decile', -1):
+                self._last_prog_decile = pct // 10
+                logger.debug(f"[MP] 进度 {pct}% ({self._fmt(self._position)} / {self._fmt(self._duration)})")
             self._time_lbl.setText(f"{self._fmt(self._position)} / {self._fmt(self._duration)}")
             if self._lyrics and not self._lyrics.is_empty():
                 self._update_lyrics(self._position)
@@ -5300,6 +5575,9 @@ class MediaPlayerComponent(DraggableContainer):
         advance = cfg.mediaLyricsAdvance.value
         _, idx = self._lyrics.get_line_at_time(ms + advance)
         text = self._lyrics.lines[idx].text if 0 <= idx < len(self._lyrics.lines) else ""
+        if getattr(self, "_last_lyric_idx", None) != idx:
+            self._last_lyric_idx = idx
+            logger.debug(f"[MP] 歌词行切换 [{idx}] {text[:20]}")
         self._lyrics_lbl.setText(text)
 
     def _fetch(self, m: MediaInfo):
@@ -5307,12 +5585,14 @@ class MediaPlayerComponent(DraggableContainer):
         if cache_key in self._info_cache:
             info = self._info_cache.pop(cache_key)
             self._info_cache[cache_key] = info  # LRU 刷新
+            logger.debug(f"[MP] 歌曲详情缓存命中: {cache_key} (字段={list(info.keys()) or '无'})")
             self._apply_detail(cache_key, info)
             return
         self._pending_key = cache_key
         if self._detail_fetching:
             return
         self._detail_fetching = True
+        logger.debug(f"[MP] 发起歌曲详情抓取: {cache_key}")
         threading.Thread(target=self._fetch_detail, args=(m,), daemon=True).start()
 
     def _fetch_detail(self, m: MediaInfo):
@@ -5321,6 +5601,7 @@ class MediaPlayerComponent(DraggableContainer):
         try:
             svc = get_service(m.app_name)
             if svc:
+                logger.debug(f"[MP] 详情服务命中: {m.app_name} -> {type(svc).__name__}")
                 result['lyrics'] = svc.lyrics(m)
                 cover = svc.cover(m)
                 if cover:
@@ -5334,6 +5615,7 @@ class MediaPlayerComponent(DraggableContainer):
                     gi = gsmtc.read()
                     if gi and gi.thumbnail_data:
                         result['thumb'] = gi.thumbnail_data
+                        logger.debug("[MP] 用 GSMTC 缩略图补封面")
         except Exception as e:
             logger.debug(f"获取歌曲信息失败: {e}")
         self._detail_ready.emit(m.title_artist, result)
@@ -5347,6 +5629,7 @@ class MediaPlayerComponent(DraggableContainer):
         """
         self._detail_fetching = False
         self._info_cache[key] = result
+        logger.debug(f"[MP] 媒体详情就绪 key={key} 字段={list(result.keys()) or '无'}")
         if len(self._info_cache) > 50:
             self._info_cache.popitem(last=False)
         m = self._media
@@ -5361,6 +5644,7 @@ class MediaPlayerComponent(DraggableContainer):
         """播放/暂停按钮处理"""
         target = not self._playing
         self._playing = target
+        logger.info(f"[MP] 用户{'播放' if target else '暂停'}指令")
         self._playing_sync_pending = True
         self._sync_retries = 0
         self._update_play_icon()
@@ -5374,14 +5658,16 @@ class MediaPlayerComponent(DraggableContainer):
         """
         try:
             media_control(action)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[MP] 控制命令 '{action}' 执行失败: {e}")
         self._sync_done.emit()
 
     def _on_sync_done(self):
+        logger.debug(f"[MP] 命令已执行 确认中 目标={'播放' if self._playing else '暂停'}")
         self._sync_confirm_timer.start(60)
 
     def _sync_confirm_poll(self):
+        logger.debug(f"[MP] 同步确认轮询 (重试 {getattr(self, '_sync_retries', 0)} 目标={'播放' if self._playing else '暂停'})")
         self._spawn_media_fetch(full=True)
 
     def _check_play_sync(self, is_playing: bool):
@@ -5390,11 +5676,13 @@ class MediaPlayerComponent(DraggableContainer):
         if is_playing == self._playing:
             self._playing_sync_pending = False
             self._sync_retries = 0
+            logger.debug(f"[MP] 播放状态同步确认: {'播放中' if is_playing else '已暂停'}")
             return
         self._sync_retries += 1
         if self._sync_retries >= 6:
             self._playing_sync_pending = False
             self._sync_retries = 0
+            logger.warning(f"[MP] 播放状态同步失败 目标={'播放' if self._playing else '暂停'} 实际={'播放' if is_playing else '暂停'}")
             return
         self._sync_confirm_timer.start(300)
 
@@ -5407,6 +5695,7 @@ class MediaPlayerComponent(DraggableContainer):
         self._cover_anim.stop()
         self._cover_opacity.setOpacity(0.0)
         cmd = media_next if delta > 0 else media_prev
+        logger.info(f"[MP] 切{'下一首' if delta > 0 else '上一首'}")
         threading.Thread(target=cmd, daemon=True).start()
         QTimer.singleShot(800, lambda: self._spawn_media_fetch(full=True))
 
@@ -5415,6 +5704,10 @@ class MediaPlayerComponent(DraggableContainer):
             icon_theme = FTheme.DARK if isDarkTheme() else FTheme.LIGHT
         icon = FluentIcon.PAUSE_BOLD.icon(icon_theme) if self._playing else FluentIcon.PLAY.icon(icon_theme)
         self._btn_play.setIcon(icon)
+        _prev = getattr(self, "_last_icon_playing", None)
+        if _prev is not None and _prev != self._playing:
+            logger.debug(f"[MP] 播放图标切换 -> {'播放中' if self._playing else '已暂停'}")
+        self._last_icon_playing = self._playing
 
     def apply_scale(self, factor):
         self._scale_factor = factor
@@ -5506,6 +5799,7 @@ class MediaPlayerComponent(DraggableContainer):
                 border=f"1px solid {border_color}")
 
     def _apply_detail(self, key: str, result: dict):
+        logger.debug(f"[MP] 应用歌曲详情: {key} 字段={list(result.keys()) or '无'}")
         if not self._media or self._media.title_artist != key:
             return
         if result.get('duration'):
@@ -5571,6 +5865,7 @@ class QuickLaunchDock(QWidget):
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
+        logger.debug(f"[QLD] 快速启动坞初始化 图标基准 {cfg.quickLaunchIconSize.value}px 标签显示={self._show_labels}")
 
     def _sz(self):
         return max(8, int(cfg.quickLaunchIconSize.value * self._scale_factor))
@@ -5604,6 +5899,8 @@ class QuickLaunchDock(QWidget):
                     dpr = self.devicePixelRatioF()
                     raw.setDevicePixelRatio(dpr)
                     pm = raw
+            if pm is None:
+                logger.warning(f"[QLD] 图标缺失: {a.get('name', '?')} (icon={fn})")
             self._pixmaps.append(pm)
         n = len(apps)
         self._scales = [self.BASE_SCALE] * n
@@ -5613,6 +5910,7 @@ class QuickLaunchDock(QWidget):
         if 0 <= animate_idx < n:
             self._start_bounce(animate_idx)
 
+        logger.debug(f"[QLD] 启动坞渲染: {n}个应用 图标 {self._sz()}px 动画下标 {animate_idx}")
         self.update()
 
     def _bg_rect(self):
@@ -5645,6 +5943,8 @@ class QuickLaunchDock(QWidget):
         drag_extra = int(sz * 0.5)
         w = w_icons + side_overflow * 2 + drag_extra
         h = h_icons + scale_overflow + bounce_overflow + label_overflow + drag_extra
+        if (w, h) != (self.width(), self.height()):
+            logger.debug(f"[QLD] 尺寸调整: {self.width()}x{self.height()} -> {w}x{h}")
         self.setFixedSize(w, h)
 
     def _icon_positions(self):
@@ -5703,6 +6003,7 @@ class QuickLaunchDock(QWidget):
             pl = self._icon_positions()
             for i in range(len(self._apps)):
                 if self._icon_rect(i, pl).contains(e.position()):
+                    logger.debug(f"[QLD] 按下图标 [{i}]: {self._apps[i].get('name', '?')}")
                     self._drag_start_pos = e.position()
                     self._dragging_idx = i
                     break
@@ -5721,6 +6022,7 @@ class QuickLaunchDock(QWidget):
             elif self._dragging_idx >= 0 and self._drag_start_pos:
                 pl = self._icon_positions()
                 if self._icon_rect(self._dragging_idx, pl).contains(e.position()):
+                    logger.debug(f"[QLD] 启动 [{self._dragging_idx}] {self._apps[self._dragging_idx].get('name', '?') if 0 <= self._dragging_idx < len(self._apps) else '?'}")
                     self._click(self._dragging_idx)
 
             self._dragging_idx = -1
@@ -5735,11 +6037,14 @@ class QuickLaunchDock(QWidget):
     def leaveEvent(self, e):
         n = len(self._target_scales)
         self._target_scales = [self.BASE_SCALE] * n
+        if self._hover_idx >= 0:
+            logger.debug(f"[QLD] 离开 [{self._hover_idx}] {self._apps[self._hover_idx].get('name', '?') if 0 <= self._hover_idx < len(self._apps) else '?'}")
         self._hover_idx = -1
         super().leaveEvent(e)
 
     def dragEnterEvent(self, e):
         if _accepts_drop(e.mimeData()):
+            logger.debug("[QLD] 拖拽进入 接受投放")
             e.acceptProposedAction()
         else:
             e.ignore()
@@ -5753,6 +6058,7 @@ class QuickLaunchDock(QWidget):
     def dropEvent(self, e):
         e.acceptProposedAction()
         for item in _iter_drop_items(e.mimeData()):
+            logger.debug(f"[QLD] 拖入启动项: {item.get('name', '?')} (type={item.get('type', 'app')})")
             if item["type"] == "folder":
                 self._add_quick_item(item, "quick_launch.added_folder")
             elif item["type"] == "url":
@@ -5776,6 +6082,7 @@ class QuickLaunchDock(QWidget):
         return QSize(int(bg.width()), int(bg.height()))
 
     def hideEvent(self, e):
+        logger.debug("[QLD] 快捷启动条隐藏 停止动画定时器")
         self._timer.stop()
         super().hideEvent(e)
     def _update_drop_target(self, pos):
@@ -5804,6 +6111,7 @@ class QuickLaunchDock(QWidget):
             new_target = n
 
         if new_target != self._drop_target_idx:
+            logger.debug(f"[QLD] 拖拽落点变更: {self._drop_target_idx} -> {new_target}")
             self._drop_target_idx = new_target
 
     def _finish_drag_reorder(self):
@@ -5833,6 +6141,7 @@ class QuickLaunchDock(QWidget):
             return
 
         app = self._apps[idx]
+        logger.debug(f"[QLD] 打开启动项菜单 [{idx}]: {app.get('name', '?')}")
         menu = _build_item_menu(self, app.get("name", tr("quick_launch.app")),
                                 lambda: self._click(idx), lambda: self._edit_app(idx),
                                 tr("quick_launch.edit"), lambda: self._delete_app(idx))
@@ -5863,6 +6172,8 @@ class QuickLaunchDock(QWidget):
         if rc:
             result = dialog.get_app_data()
             if result:
+                old_name = self._apps[idx].get("name", "")
+                logger.info(f"[QLD] 启动项编辑 [{idx}]: '{old_name}' -> '{result.get('name', '')}'")
                 self._apps[idx] = result
                 cfg.quickLaunchApps.value = self._apps
                 save_cfg()
@@ -5888,6 +6199,7 @@ class QuickLaunchDock(QWidget):
         box.cancelButton.setText(tr("common.cancel"))  # 取消
 
         if box.exec():
+            logger.info(f"[QLD] 启动项删除 [{idx}]: {app_name}")
             self._apps.pop(idx)
             cfg.quickLaunchApps.value = self._apps
             save_cfg()
@@ -6019,6 +6331,7 @@ class QuickLaunchDock(QWidget):
         cfg.quickLaunchApps.value = apps
         save_cfg()
         self.set_apps(apps, animate_idx=len(apps) - 1)
+        logger.info(f"[QLD] 添加 {new_item.get('name', '?')} (type={new_item.get('type', 'app')}) 当前 {len(apps)}/{self.MAX_APPS}")
         InfoBar.success(tr("quick_launch.add_success"), tr(content_key, name=new_item['name']), parent=self.window(), duration=2000)  # 添加成功
 
     def _click(self, idx):
@@ -6026,6 +6339,7 @@ class QuickLaunchDock(QWidget):
         path = a.get("path", "")
         name = a.get("name", "")
         app_type = a.get("type", "app")
+        logger.debug(f"[QLD] 点击启动项 [{idx}] {name} (type={app_type})")
         self._start_bounce(idx)
         if path:
             self._executor.submit(self._launch_thread, path, name, app_type)
@@ -6036,6 +6350,7 @@ class QuickLaunchDock(QWidget):
             target: 启动目标
             app_type: 条目类型
         """
+        logger.debug(f"[QLD] 子线程启动: {name} ({app_type})")
         ok, info = _launch_target(target, app_type)
         self._launch_result.emit(name, info, ok)
 
@@ -6046,6 +6361,10 @@ class QuickLaunchDock(QWidget):
             info: 失败原因/成功目标
         """
         _show_launch_result(self, app_name, info, success)
+        if success:
+            logger.debug(f"[QLD] 已启动 {app_name} -> {info}")
+        else:
+            logger.warning(f"[QLD] 启动失败: {app_name} 原因: {info}")
 
     def _start_bounce(self, idx):
         """弹跳动画"""
@@ -6055,6 +6374,7 @@ class QuickLaunchDock(QWidget):
         self._bounce_y = 0.0
         self._bounce_active = True
         self._bounce_start_time = time.time()
+        logger.debug(f"[QLD] 图标弹跳: {self._apps[idx].get('name', '?')}")
         self._ensure_timer()
 
     def _get_by(self):
@@ -6239,8 +6559,10 @@ class QuickLaunchDockComponent(DraggableContainer):
         cfg.quickLaunchIconSize.valueChanged.connect(self._update_apps)
         cfg.quickLaunchIconSpacing.valueChanged.connect(self._update_apps)
         cfg.quickLaunchShowLabels.valueChanged.connect(self._update_apps)
+        logger.debug(f"[QLC] 快速启动组件初始化 id={self.component_id}")
 
     def _setup_ui(self):
+        logger.debug("[QLC] 快捷启动条组件 ui 初始化")
         layout = self.inner_layout
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setContentsMargins(20, 16, 20, 16)
@@ -6274,6 +6596,7 @@ class QuickLaunchDockComponent(DraggableContainer):
         self.show()
 
         apps = cfg.quickLaunchApps.value
+        logger.debug(f"[QLC] 应用列表更新: {len(apps) if apps else 0}个应用 (显示={cfg.showQuickLaunch.value})")
         if apps:
             self._dock.set_apps(apps)
             self._dock.show()
@@ -6329,6 +6652,7 @@ class QuickLaunchGridComponent(DraggableContainer):
         self._plus_key = ""
         self._setup_ui()
         self._apply_style()
+        logger.debug(f"[QLG] 宫格启动组件初始化 id={self.component_id} 应用数={len(self._apps)} 格数={self.CELL_COUNT}")
 
     def _setup_ui(self):
         self.setAcceptDrops(True)
@@ -6343,6 +6667,7 @@ class QuickLaunchGridComponent(DraggableContainer):
         if apps != self._apps:
             self._apps = apps
             self._reload_pixmaps()
+            logger.info(f"[QLG] 宫格应用配置更新: {sum(1 for a in apps if a)}/{self.CELL_COUNT} 格已配置")
         super().apply_config(config)
 
     def paintEvent(self, event):
@@ -6419,6 +6744,7 @@ class QuickLaunchGridComponent(DraggableContainer):
                 return
             if event.button() == Qt.MouseButton.LeftButton and idx >= 0:
                 self._press_idx = idx
+                logger.debug(f"[QLG] 按下宫格 [{idx}]")
                 event.accept()
                 return
         super().mousePressEvent(event)
@@ -6462,6 +6788,7 @@ class QuickLaunchGridComponent(DraggableContainer):
 
     def dragEnterEvent(self, e):
         if _accepts_drop(e.mimeData()):
+            logger.debug("[QLG] 拖拽进入宫格 接受投放")
             e.acceptProposedAction()
         else:
             e.ignore()
@@ -6470,6 +6797,7 @@ class QuickLaunchGridComponent(DraggableContainer):
         if _accepts_drop(e.mimeData()):
             idx = self._hit_cell(e.position())
             if idx != self._drag_idx:
+                logger.debug(f"[QLG] 拖拽高亮格切换: [{self._drag_idx}] -> [{idx}]")
                 self._drag_idx = idx
                 self.update()
             e.acceptProposedAction()
@@ -6478,6 +6806,7 @@ class QuickLaunchGridComponent(DraggableContainer):
 
     def dragLeaveEvent(self, e):
         if self._drag_idx != -1:
+            logger.debug(f"[QLG] 拖拽离开 清除高亮格 [{self._drag_idx}]")
             self._drag_idx = -1
             self.update()
         super().dragLeaveEvent(e)
@@ -6490,6 +6819,7 @@ class QuickLaunchGridComponent(DraggableContainer):
             e.acceptProposedAction()
             added = next(_iter_drop_items(e.mimeData()), None)
             if added:
+                logger.info(f"[QLG] 拖放入宫格[{idx}]: {added.get('name', '?')}")
                 self._set_cell_app(idx, added)
         else:
             e.ignore()
@@ -6499,9 +6829,11 @@ class QuickLaunchGridComponent(DraggableContainer):
         for i in range(self.CELL_COUNT):
             item = apps[i] if isinstance(apps, list) and i < len(apps) else None
             result.append(item if isinstance(item, dict) else None)
+        logger.debug(f"[QLG] 规范化启动项: {sum(1 for r in result if r)}/{self.CELL_COUNT} 格有效")
         return result
 
     def _reload_pixmaps(self):
+        logger.debug(f"[QLG] 重载宫格图标 共 {self.CELL_COUNT} 格")
         for i in range(self.CELL_COUNT):
             self._load_pixmap(i)
         self.update()
@@ -6516,6 +6848,8 @@ class QuickLaunchGridComponent(DraggableContainer):
                 if not raw.isNull():
                     raw.setDevicePixelRatio(self.devicePixelRatioF())
                     pm = raw
+            if pm is None:
+                logger.warning(f"[QLG] 图标缺失: 格子[{idx}] {app.get('name', '?')} (icon={app.get('icon', '')})")
         self._pixmaps[idx] = pm
 
     def _cell_rects(self) -> list:
@@ -6565,7 +6899,10 @@ class QuickLaunchGridComponent(DraggableContainer):
             self.window(), tr("quick_launch_ii.select_program"), "",
             "Programs (*.exe *.lnk);;All Files (*)")
         if path:
+            logger.debug(f"[QLG] 宫格[{idx}] 文件选择: {path}")
             self._set_cell_app(idx, resolve_app_from_path(path))
+        else:
+            logger.debug(f"[QLG] 宫格[{idx}] 文件选择已取消")
 
     def _set_cell_app(self, idx, app):
         """写入/替换 重载图标
@@ -6577,6 +6914,7 @@ class QuickLaunchGridComponent(DraggableContainer):
             return
         self._apps[idx] = app
         self._load_pixmap(idx)
+        logger.info(f"[QLG] 宫格[{idx}] 设置应用: {app.get('name', '?')} (type={app.get('type', 'app')})")
         self.update()
         self._persist_config()
         InfoBar.success(tr("quick_launch.add_success"),
@@ -6590,6 +6928,7 @@ class QuickLaunchGridComponent(DraggableContainer):
             global_pos:弹出坐标
         """
         app = self._apps[idx] if 0 <= idx < self.CELL_COUNT else None
+        logger.debug(f"[QLG] 宫格[{idx}] 右键菜单: {'应用' if app else '空格子'}")
         if app:
             menu = _build_item_menu(self, app.get("name", tr("quick_launch.app")),
                                     lambda: self._launch_app(app), lambda: self._rename_cell(idx),
@@ -6618,6 +6957,7 @@ class QuickLaunchGridComponent(DraggableContainer):
         if rc:
             new_name = edit.text().strip()
             if new_name:
+                logger.info(f"[QLG] 宫格[{idx}] 重命名: '{app.get('name', '')}' -> '{new_name}'")
                 app["name"] = new_name
                 self.setToolTip(new_name if self._hover_idx == idx else "")
                 self._persist_config()
@@ -6636,6 +6976,7 @@ class QuickLaunchGridComponent(DraggableContainer):
         box.yesButton.setText(tr("quick_launch.delete"))
         box.cancelButton.setText(tr("common.cancel"))
         if box.exec():
+            logger.info(f"[QLG] 宫格[{idx}] 删除应用: {app_name}")
             self._apps[idx] = None
             self._pixmaps[idx] = None
             self.setToolTip("")
@@ -6649,21 +6990,28 @@ class QuickLaunchGridComponent(DraggableContainer):
         path = app.get("path", "")
         name = app.get("name", "")
         app_type = app.get("type", "app")
+        logger.debug(f"[QLG] 启动宫格应用: {name} (type={app_type})")
         if path:
             self._executor.submit(self._launch_thread, path, name, app_type)
 
     def _launch_thread(self, target, name, app_type):
+        logger.debug(f"[QLG] 子线程启动: {name} ({app_type})")
         ok, info = _launch_target(target, app_type)
         self._launch_result.emit(name, info, ok)
 
     def _on_launch_result(self, app_name, info, success):
         _show_launch_result(self, app_name, info, success)
+        if success:
+            logger.debug(f"[QLG] 已启动 {app_name} -> {info}")
+        else:
+            logger.warning(f"[QLG] 启动失败: {app_name} 原因: {info}")
 
     def _persist_config(self):
         self._config["apps"] = self._apps
         home = self._getHomeInterface()
         if home and hasattr(home, "component_manager"):
             home.component_manager.update_component_config(self.component_id, self._config)
+            logger.debug(f"[QLG] 宫格配置已持久化: {sum(1 for a in self._apps if a)}个应用")
 
     def _apply_style(self):
         self._apply_card_style()
@@ -6724,6 +7072,7 @@ class _TimetableRow(QWidget):
         """Args:
             active: True 强调,False 灰化
         """
+        logger.debug(f"[课表] 行高亮切换: {self._is_current} -> {active}")
         self._is_current = active
         if active:
             self.setObjectName("timetableRowCurrent")
@@ -6773,6 +7122,7 @@ class TimetablePreviewComponent(DraggableContainer):
         self._connect_timetable_page()
         self._refresh_schedule()
         self._fast_timer.start(500)
+        logger.debug(f"[TTP] 课表预览就绪 id={self.component_id} 信号={'连' if self._timetable_page is not None else '无'}")
 
     def _setup_ui(self):
         layout = self.inner_layout
@@ -6891,6 +7241,10 @@ class TimetablePreviewComponent(DraggableContainer):
     def showEvent(self, e):
         """连数据源并重建"""
         super().showEvent(e)
+        _first = not getattr(self, "_ttp_shown_once", False)
+        self._ttp_shown_once = True
+        if _first:
+            logger.debug(f"[TTP] 课表预览首次显示 id={self.component_id}")
         self._apply_style()
         self._refresh_timer.start(5000)
         self._progress_timer.start(1000)
@@ -6900,6 +7254,7 @@ class TimetablePreviewComponent(DraggableContainer):
 
     def hideEvent(self, e):
         """停信号 定时器"""
+        logger.debug("[TTP] 课表预览隐藏 停止刷新/进度定时器")
         self._refresh_timer.stop()
         self._progress_timer.stop()
         self._fast_timer.stop()
@@ -6907,10 +7262,12 @@ class TimetablePreviewComponent(DraggableContainer):
 
     def _on_user_scroll_action(self):
         """手动滚动延时"""
+        logger.debug("[TTP] 用户手动滚动")
         self._last_user_scroll_time = time.time()
 
     def _exit_preview(self):
         """结束手动预览"""
+        logger.debug("[TTP] 退出预览模式 恢复今日课表")
         self._scroll_animation_timer.stop()
         self._preview_timer.stop()
         self._after_school_mode = False
@@ -6920,6 +7277,7 @@ class TimetablePreviewComponent(DraggableContainer):
 
     def _animate_scroll(self):
         """滚动到目标行"""
+        logger.debug(f"[TTP] 启动滚动动画: 方向={self._scroll_direction} 步长={self._scroll_step}")
         sb = self._scroll.verticalScrollBar()
         val = sb.value()
         max_val = sb.maximum()
@@ -6949,13 +7307,17 @@ class TimetablePreviewComponent(DraggableContainer):
         try:
             eh, em = map(int, end.split(":"))
             is_past = (not is_current and not is_break and _time(eh, em) <= _dt.now().time())
-        except Exception:
+        except Exception as e:
+            if not getattr(self, "_endtime_warned", False):
+                self._endtime_warned = True
+                logger.warning(f"[TTP] 节次结束时间格式无效({end}) 按未结束处理: {e}")
             is_past = False
         return False, is_past
 
     def _fast_retry(self):
         """数据未好重试"""
         self._fast_retry_count += 1
+        logger.debug(f"[TTP] 快速重试 #{self._fast_retry_count}")
         if not self._timetable_page:
             self._connect_timetable_page()
         self._refresh_schedule()
@@ -6983,6 +7345,7 @@ class TimetablePreviewComponent(DraggableContainer):
             row.addWidget(lbl, 1)
             self._scroll_layout.insertWidget(self._scroll_layout.count() - 1, row)
             self._schedule_rows.append(row)
+            logger.debug("[TTP] 空课表 仅空提示行")
             return
 
         last_current_row = None
@@ -7011,6 +7374,7 @@ class TimetablePreviewComponent(DraggableContainer):
             last_current_row.set_current(True)
             self._current_row_data = last_current_times
 
+        logger.debug(f"[TTP] 课表预览已重建 {len(self._schedule_rows)}行 当前节 {last_current_times or '-'}")
         self._update_progress()
 
     def _connect_timetable_page(self):
@@ -7032,14 +7396,16 @@ class TimetablePreviewComponent(DraggableContainer):
             try:
                 self._bridge.stateChanged.disconnect(self._on_state_changed)
                 self._bridge.connectedChanged.disconnect(self._on_connected_changed)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"[TTP] 旧数据源桥断连时无活动连接: {e}")
         self._bridge = bridge
         if bridge:
             bridge.stateChanged.connect(self._on_state_changed)
             bridge.connectedChanged.connect(self._on_connected_changed)
+            logger.debug(f"[TTP] 数据源桥已绑定: {type(bridge).__name__ if bridge else '-'}")
 
     def _on_state_changed(self, state):
+        logger.debug(f"[TTP] 课表状态变化: {state}")
         self._refresh_schedule()
 
     def _on_connected_changed(self, connected):
@@ -7047,6 +7413,7 @@ class TimetablePreviewComponent(DraggableContainer):
         Args:
             connected: 课表页是否启用
         """
+        logger.debug(f"[TTP] 课表页连接状态: {connected}")
         if connected:
             self._refresh_schedule()
 
@@ -7065,8 +7432,10 @@ class TimetablePreviewComponent(DraggableContainer):
                     if not self._after_school_mode:
                         self._enter_preview_mode()
                     return
-            except Exception:
-                pass
+            except Exception as e:
+                if not getattr(self, "_linkage_warned", False):
+                    self._linkage_warned = True
+                    logger.warning(f"[TTP] 读取课表联动状态失败: {e}")
 
         # 正常刷新今日课表
         self._refresh_schedule()
@@ -7097,6 +7466,7 @@ class TimetablePreviewComponent(DraggableContainer):
 
     def _enter_preview_mode(self):
         """进入手动预览"""
+        logger.debug("[TTP] 进入放学/预览模式 切换为明日课表")
         self._after_school_mode = True
         self._title_label.setText("明日课表")
 
@@ -7107,8 +7477,8 @@ class TimetablePreviewComponent(DraggableContainer):
         if self._timetable_page:
             try:
                 schedule = self._timetable_page.get_schedule_by_weekday(tomorrow.weekday())
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"[TTP] 获取明日课表失败: {e}")
         elif self._bridge:
             schedule = self._bridge.get_schedule_by_weekday(dotnet_wd)
 
@@ -7128,15 +7498,19 @@ class TimetablePreviewComponent(DraggableContainer):
                 state = self._bridge.get_state()
                 if state and state.time_state == TimeState.AFTER_SCHOOL:
                     return
-            except Exception:
-                pass
+            except Exception as e:
+                if not getattr(self, "_linkage_warned", False):
+                    self._linkage_warned = True
+                    logger.warning(f"[TTP] 读取课表联动状态失败: {e}")
 
         schedule = []
         if self._timetable_page:
             try:
                 schedule = self._timetable_page.get_today_schedule()
-            except Exception:
-                pass
+            except Exception as e:
+                if not getattr(self, "_sched_warned", False):
+                    self._sched_warned = True
+                    logger.warning(f"[TTP] 获取今日课表失败: {e}")
 
         parts = []
         for row_data in schedule:
@@ -7149,6 +7523,7 @@ class TimetablePreviewComponent(DraggableContainer):
             self._update_progress()
             return
         self._sig = sig
+        logger.info(f"[TTP] 课表内容变化 重建显示: {len(schedule)}行")
         self._rebuild_schedule(schedule)
 
     def _update_progress(self):
@@ -7368,6 +7743,7 @@ class TimetableNowLessonComponent(DraggableContainer):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._refresh)
         self._refresh()
+        logger.debug(f"[TTN] 当前课程就绪 id={self.component_id} 信号={'连' if self._timetable_page is not None else '无'}")
 
     def _setup_ui(self):
         layout = self.inner_layout
@@ -7427,7 +7803,7 @@ class TimetableNowLessonComponent(DraggableContainer):
         self._time_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         right_layout.addWidget(self._time_label, 1)
 
-        self._next_label = CaptionLabel("下节课：--")
+        self._next_label = CaptionLabel("下节课 --")
         self._next_label.setObjectName("miniNext")
         self._next_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self._next_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -7449,21 +7825,29 @@ class TimetableNowLessonComponent(DraggableContainer):
         self._apply_style()
 
     def apply_config(self, config):
+        logger.debug("[TTN] 当前课程组件配置应用")
         self._read_config(config)
         self._apply_style()
         self._refresh()
 
     def showEvent(self, e):
         super().showEvent(e)
+        _first = not getattr(self, "_ttn_shown_once", False)
+        self._ttn_shown_once = True
+        if _first:
+            logger.debug("[TTN] 当前课程组件首次显示")
         self._apply_style()
         self._timer.start(1000)
 
     def hideEvent(self, e):
+        logger.debug("[TTN] 当前课程组件隐藏 停止秒级定时器")
         self._timer.stop()
         super().hideEvent(e)
 
     def _read_config(self, config):
         # 哦哦
+        _old = (getattr(self, "_show_teacher", None), getattr(self, "_show_next", None),
+                getattr(self, "_show_countdown", None), getattr(self, "_prepare_minutes", None))
         self._show_teacher = config.get("show_teacher", getattr(self, "_show_teacher", True))
         self._show_next = config.get("show_next", getattr(self, "_show_next", True))
         self._show_duration = config.get("show_duration", getattr(self, "_show_duration", True))
@@ -7472,10 +7856,14 @@ class TimetableNowLessonComponent(DraggableContainer):
         self._bg_opacity = config.get("bg_opacity", getattr(self, "_bg_opacity", None))
         self._corner_radius = config.get("corner_radius", getattr(self, "_corner_radius", None))
         self._font_scale = config.get("font_scale", getattr(self, "_font_scale", 100))
+        logger.debug(f"[TTN] 配置 教师={self._show_teacher} 下节={self._show_next} 时长={self._show_duration} 倒计时={self._show_countdown} 课前={self._prepare_minutes}min")
+        if _old != (self._show_teacher, self._show_next, self._show_countdown, self._prepare_minutes):
+            logger.info(f"[TTN] 配置变更 {_old} -> {(self._show_teacher, self._show_next, self._show_countdown, self._prepare_minutes)}")
 
     def _connect_timetable_page(self):
         self._timetable_page = _find_timetable_page()
         if self._timetable_page is None:
+            logger.warning("[TTN] 课表页未找到 信号未连接")
             return
         self._timetable_page.scheduleChanged.connect(self._refresh)
 
@@ -7486,7 +7874,10 @@ class TimetableNowLessonComponent(DraggableContainer):
                 return
         try:
             schedule = self._timetable_page.get_today_schedule()
-        except Exception:
+        except Exception as e:
+            if not getattr(self, "_ttn_sched_warned", False):
+                self._ttn_sched_warned = True
+                logger.warning(f"[TTN] 获取今日课表失败: {e}")
             return
 
         now = datetime.datetime.now()
@@ -7502,6 +7893,10 @@ class TimetableNowLessonComponent(DraggableContainer):
             elif found_current and not is_break:
                 next_row = row
                 break
+
+        if current_row and getattr(self, "_last_current_key", None) != (current_row[0], current_row[2]):
+            self._last_current_key = (current_row[0], current_row[2])
+            logger.info(f"[TimetableNowLesson] 当前课程: {current_row[0]} {current_row[2]}~{current_row[3]}")
 
         # 课前播报
         prepare_row = None  # 要开始的课程行
@@ -7526,8 +7921,14 @@ class TimetableNowLessonComponent(DraggableContainer):
                 diff = (next_start_dt - now).total_seconds()
                 if 0 < diff <= self._prepare_minutes * 60:
                     in_prepare = True
-            except Exception:
-                pass
+            except Exception as e:
+                if not getattr(self, "_ttn_time_warned", False):
+                    self._ttn_time_warned = True
+                    logger.warning(f"[TTN] 课前播报时间解析失败({ps}): {e}")
+
+        if in_prepare and not getattr(self, "_was_in_prepare", False):
+            logger.info(f"[TimetableNowLesson] 进入课前播报: {prepare_row[0]} {prepare_row[2]} 开课")
+        self._was_in_prepare = in_prepare
 
         if in_prepare:
             if self._timer.interval() != 1000:
@@ -7545,7 +7946,7 @@ class TimetableNowLessonComponent(DraggableContainer):
             self._countdown_label.setText("")
             self._teacher_label.setText("--")
             self._time_label.setText("--:-- ~ --:--")
-            self._next_label.setText("下节课：--")
+            self._next_label.setText("下节课 --")
             self._time_progress_label.setText("-- min / -- min")
             self._bottom_progress.setValue(0)
 
@@ -7568,7 +7969,10 @@ class TimetableNowLessonComponent(DraggableContainer):
                 self._countdown_label.setText(f"{m}:{s:02d} 后上课")
             else:
                 self._countdown_label.setText("")
-        except Exception:
+        except Exception as e:
+            if not getattr(self, "_ttn_time_warned", False):
+                self._ttn_time_warned = True
+                logger.warning(f"[TTN] 课前倒计时解析失败({start}): {e}")
             self._countdown_label.setText("")
 
         # 隐藏进度时间
@@ -7590,8 +7994,11 @@ class TimetableNowLessonComponent(DraggableContainer):
                 sh, sm = map(int, start.split(":"))
                 eh, em = map(int, end.split(":"))
                 total_min = (eh * 60 + em) - (sh * 60 + sm)
-                self._next_label.setText(f"时长：{total_min}分钟")
-            except Exception:
+                self._next_label.setText(f"时长 {total_min}分钟")
+            except Exception as e:
+                if not getattr(self, "_ttn_time_warned", False):
+                    self._ttn_time_warned = True
+                    logger.warning(f"[TTN] 课间时长解析失败({start}~{end}): {e}")
                 self._next_label.setText("")
         else:
             self._next_label.setText("")
@@ -7604,7 +8011,10 @@ class TimetableNowLessonComponent(DraggableContainer):
             total_prepare = self._prepare_minutes * 60
             pct = int(max(0, min(100, (1 - diff / total_prepare) * 100))) if total_prepare > 0 else 0
             self._bottom_progress.setValue(pct)
-        except Exception:
+        except Exception as e:
+            if not getattr(self, "_ttn_time_warned", False):
+                self._ttn_time_warned = True
+                logger.warning(f"[TTN] 课前进度计算失败({start}): {e}")
             self._bottom_progress.setValue(0)
 
     def _render_normal_mode(self, current_row, next_row, now):
@@ -7642,9 +8052,9 @@ class TimetableNowLessonComponent(DraggableContainer):
         if self._show_next:
             if next_row:
                 next_subject = next_row[0]
-                self._next_label.setText(f"下节课：{next_subject}" if next_subject else "下节课：--")
+                self._next_label.setText(f"下节课 {next_subject}" if next_subject else "下节课 --")
             else:
-                self._next_label.setText("下节课：--")
+                self._next_label.setText("下节课 --")
         else:
             self._next_label.setText("")
 
@@ -7663,7 +8073,10 @@ class TimetableNowLessonComponent(DraggableContainer):
                 total_min = total // 60
                 self._time_progress_label.setText(f"{elapsed_min}min / {total_min}min")
                 self._bottom_progress.setValue(pct)
-            except Exception:
+            except Exception as e:
+                if not getattr(self, "_ttn_time_warned", False):
+                    self._ttn_time_warned = True
+                    logger.warning(f"[TTN] 上课时长解析失败({start}~{end}): {e}")
                 self._time_progress_label.setText("-- min / -- min")
                 self._bottom_progress.setValue(0)
         else:
@@ -8129,6 +8542,7 @@ class TimetableTimelineComponent(_HtmlCardComponent):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._refresh)
         self._timer.start(1000)
+        logger.debug(f"[TTT] 初始化 节点={len(self._nodes)} 信号={'连' if self._timetable_page is not None else '无'}")
 
 
     def _build_html(self) -> str:
@@ -8141,7 +8555,9 @@ class TimetableTimelineComponent(_HtmlCardComponent):
         theme["fill_tail"] = f"rgba({tc.red()}, {tc.green()}, {tc.blue()}, 0.20)"
         theme["dot_past"] = f"rgba({tc.red()}, {tc.green()}, {tc.blue()}, 0.45)"
         html = self._HTML_TEMPLATE.substitute(font=FONT_FAMILY, **theme)
-        return html.replace("/*DATA*/[]", json.dumps(self._nodes, ensure_ascii=False))
+        html = html.replace("/*DATA*/[]", json.dumps(self._nodes, ensure_ascii=False))
+        logger.debug(f"[TTT] 生成时间线 html 长度 {len(html)} 节点{len(self._nodes)}个")
+        return html
 
     def _refresh(self):
         nodes = self._get_nodes()
@@ -8154,22 +8570,30 @@ class TimetableTimelineComponent(_HtmlCardComponent):
         if nodes == self._nodes and self._synced:
             return
         self._nodes = nodes
+        logger.debug(f"[TTT] 时间线刷新: 获取到{len(nodes)}个节点")
         self._push_nodes()
 
     def _push_nodes(self):
         self._synced = False
         try:
-            js = f"updateSchedule({json.dumps(self._nodes, ensure_ascii=False)})"
+            js = f"if (window.updateSchedule) updateSchedule({json.dumps(self._nodes, ensure_ascii=False)});"
             self.webView.page().runJavaScript(js, self._on_push_result)
-        except Exception:
+        except Exception as e:
+            if not getattr(self, "_push_warned", False):
+                self._push_warned = True
+                logger.warning(f"[TTT] 课表节点推送失败 1s 后重试: {e}")
             self._timer.setInterval(1000)
 
     def _on_push_result(self, result):
         self._synced = bool(result)
         if not self._synced:
+            logger.debug("[TimetableTimeline] 课表节点推送未确认 1s 后重试")
             self._timer.setInterval(1000)
+        else:
+            logger.debug(f"[TimetableTimeline] 课表节点已推送: {len(self._nodes)}个")
 
     def _on_load_finished(self, ok):
+        logger.debug(f"[TTT] 时间线页面加载 ok={ok} 节点={len(self._nodes)}")
         if ok and self._nodes:
             self._push_nodes()
 
@@ -8185,7 +8609,10 @@ class TimetableTimelineComponent(_HtmlCardComponent):
                 return []
         try:
             schedule = self._timetable_page.get_today_schedule()
-        except Exception:
+        except Exception as e:
+            if not getattr(self, "_nodes_sched_warned", False):
+                self._nodes_sched_warned = True
+                logger.warning(f"[TimeNodes] 获取今日课表失败: {e}")
             return []
         nodes = []
         for row in schedule:
@@ -8201,6 +8628,7 @@ class TimetableTimelineComponent(_HtmlCardComponent):
                 "period": f"第{idx}节" if idx else "—",
                 "break": None,
             })
+        logger.debug(f"[TTT] 时间线已构建 {len(nodes)}节")
         return nodes
 
 class CalculatorComponent(DraggableContainer):
@@ -8214,6 +8642,7 @@ class CalculatorComponent(DraggableContainer):
 
         self._setup_ui()
         self._apply_style()
+        logger.debug(f"[CALC] 计算器就绪 id={self.component_id}")
 
     def _setup_ui(self):
         # 历史表达式行
@@ -8354,6 +8783,7 @@ class CalculatorComponent(DraggableContainer):
     def _append_operator(self, operator: str):
         """运算符追加
         """
+        logger.debug(f"[CALC] 追加运算符 '{operator}' 当前='{self._expression or '(空)'}'")
         if not self._expression:
             if operator == "-":
                 self._expression = "-"
@@ -8370,8 +8800,10 @@ class CalculatorComponent(DraggableContainer):
     def _on_button_click(self, key):
         calc_key = {"÷": "/", "×": "*", "−": "-"}.get(key, key)
         m = re.search(r'(-?\d+\.?\d*)$', self._expression)
+        logger.debug(f"[CALC] 按键 '{key}' 当前表达式='{self._expression or '(空)'}'")
 
         if key == "C":
+            logger.info(f"[CALC] 清空表达式 (原: '{self._expression}')")
             self._expression = ""
             self.display.setText("0")
             self._result_shown = False
@@ -8462,6 +8894,7 @@ class CalculatorComponent(DraggableContainer):
                 result = round(result, 10)
 
             result_str = str(result)
+            logger.debug(f"[CALC] 求值: {expr} = {result_str}")
             self.history_display.setText(f'<span style="color: {self._history_color};">{self._prepare_display_expr(expr)} =</span>')
             self.display.setText(self._format_number(result_str))
             self._expression = result_str
@@ -8480,6 +8913,7 @@ class CalculatorComponent(DraggableContainer):
             return
         if self._expression[-1] in '+-*/':
             return
+        logger.debug(f"[CALC] 正负切换: '{self._expression}'")
 
         match = re.search(r'([+\-*/])(-?\d+\.?\d*)$', self._expression)
         if match:
@@ -8688,7 +9122,8 @@ def _disable_edge_gestures(hwnd):
             shgppfw = ctypes.windll.shell32.SHGetPropertyStoreForWindow
             shgppfw.argtypes = [wintypes.HWND, ctypes.c_void_p, ctypes.c_void_p]
             shgppfw.restype = wintypes.HRESULT
-        except AttributeError:
+        except AttributeError as e:
+            logger.debug(f"[Writing] 系统不支持 SHGetPropertyStoreForWindow {e}")
             return False
 
         IID_IPropertyStore = GUID("{886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99}")
@@ -8731,7 +9166,8 @@ def _disable_edge_gestures(hwnd):
         release(pStore.value)
 
         return hr == S_OK
-    except Exception:
+    except Exception as e:
+        logger.debug(f"[Writing] 边缘手势禁用设置失败(可选功能): {e}")
         return False
 
 class _WritingOverlay(QWidget):
@@ -8831,6 +9267,7 @@ class _WritingOverlay(QWidget):
 
         self.setGeometry(self._screen_rect)
         self._whiteboard = whiteboard
+        logger.info(f"[PAD] 覆盖层 {'白板' if whiteboard else '批注'} 屏幕 {self._screen_rect.width()}x{self._screen_rect.height()}")
         self._update_float_buttons()
         fb_w = self._float_bar.width()
         fb_h = self._float_bar.height()
@@ -8844,6 +9281,7 @@ class _WritingOverlay(QWidget):
             _disable_edge_gestures(hwnd)
 
     def clear_all(self):
+        logger.info(f"[PAD] 清空全部笔迹: {len(self._strokes)}条")
         self._strokes.clear()
         self._current_strokes.clear()
         self._history.clear()
@@ -8857,12 +9295,15 @@ class _WritingOverlay(QWidget):
     # 设置同步
     def setPenColor(self, color):
         self._pen_color = QColor(color)
+        logger.debug(f"[PAD] 笔色切换: {self._pen_color.name()}")
 
     def setPenWidth(self, w):
         self._pen_width = max(1, w)
+        logger.debug(f"[PAD] 笔宽切换: {self._pen_width}px")
 
     def setDrawMode(self, mode):
         self._draw_mode = mode
+        logger.debug(f"[PAD] 绘制模式切换: mode={mode}")
 
     def nativeEvent(self, eventType, message):
         if eventType != b"windows_generic_MSG" or not self.isVisible() or not self.isEnabled():
@@ -8871,16 +9312,19 @@ class _WritingOverlay(QWidget):
             msg = ctypes.wintypes.MSG.from_address(int(message))
             if msg.message in (WM_POINTERDOWN, WM_POINTERUPDATE, WM_POINTERUP):
                 return self._collect_pointer(msg), 0
-        except Exception:
-            import traceback
-            traceback.print_exc()
+        except Exception as e:
+            if not getattr(self, "_native_warned", False):
+                self._native_warned = True
+                logger.warning(f"[PAD] 触控消息处理异常 跳过后续同类消息日志: {e}")
         return False, 0
 
     def hideEvent(self, event):
+        logger.debug("[WB] 书写浮层隐藏 清理状态")
         self._cleanup_state()
         super().hideEvent(event)
 
     def closeEvent(self, event):
+        logger.debug("[WB] 书写浮层窗口关闭")
         self._touch_timer.stop()
         self._erase_speed_timer.stop()
         self._cleanup_state()
@@ -8988,6 +9432,7 @@ class _WritingOverlay(QWidget):
                 self._erase_prev_sample[tid] = QPointF(cur)
 
     def _push_history(self, kind, data):
+        logger.debug(f"[PAD] 历史入栈: {kind}")
         self._history.append((kind, data))
         if len(self._history) > 300:
             self._history.pop(0)
@@ -9082,8 +9527,10 @@ class _WritingOverlay(QWidget):
                 painter.drawLine(prev, pos)
                 pts.append(pos)
                 prev = pos
-        except Exception:
-            pass
+        except Exception as e:
+            if not getattr(self, "_stroke_warned", False):
+                self._stroke_warned = True
+                logger.warning(f"[Writing] 笔迹绘制失败: {e}")
         finally:
             painter.end()
 
@@ -9170,6 +9617,7 @@ class _WritingOverlay(QWidget):
         return False
 
     def _end_all_strokes(self):
+        _n = len(self._current_strokes)
         for tid in list(self._current_strokes.keys()):
             stroke = self._current_strokes.get(tid)
             if stroke and stroke.get("mode") == "free" and stroke.get("points"):
@@ -9178,11 +9626,14 @@ class _WritingOverlay(QWidget):
             self._temp_pixmaps.pop(tid, None)
         self._current_strokes.clear()
         self.update()
+        if _n:
+            logger.debug(f"[WB] 结束未完笔画 {_n}笔")
 
     def _undo_last_stroke(self):
         """撤销一笔并重画"""
         if not self._history:
             return
+        logger.debug(f"[PAD] 撤销一笔 (剩余历史 {len(self._history) - 1})")
         self._history.pop()
         self._rebuild_buffer()
 
@@ -9192,6 +9643,7 @@ class _WritingOverlay(QWidget):
         Args:
             mode: 目标模式:1 笔 / 2 橡皮(白板走 _set_float_whiteboard)
         """
+        logger.debug(f"[PAD] 覆盖层工具模式: {self._mode} -> {mode}")
         self._end_all_strokes()
         self._mode = mode
         # 切出擦除模式时清除状态
@@ -9204,6 +9656,7 @@ class _WritingOverlay(QWidget):
 
     def _on_float_pen_clicked(self):
         """弹笔设置弹窗"""
+        logger.debug("[WB] 浮动笔按钮点击")
         self._end_all_strokes()
         if self._mode == 1:
             self._component._show_pen_settings(overlay=self, src=self._f_pen)
@@ -9212,6 +9665,7 @@ class _WritingOverlay(QWidget):
 
     def _set_float_whiteboard(self, on):
         """切换白板底色"""
+        logger.debug(f"[WB] 浮动白板切换 -> {'白板' if on else '透明'}")
         self._end_all_strokes()
         self.show_overlay(on)
         self._component._set_whiteboard(on, from_overlay=True)
@@ -9222,6 +9676,7 @@ class _WritingOverlay(QWidget):
         Args:
             tid: 触点 id,None 清全部
         """
+        logger.debug(f"[PAD] 重置橡皮状态: tid={tid}")
         for name in self._ERASE_STATE_KEYS:
             state = getattr(self, name)
             if tid is None:
@@ -9244,6 +9699,7 @@ class _WritingOverlay(QWidget):
         self._reset_erase_state()
 
     def _close_overlay(self):
+        logger.debug("[WB] 书写浮层关闭")
         self._cleanup_state()
         self._component._close_overlay()
 
@@ -9284,8 +9740,10 @@ class _WritingOverlay(QWidget):
         painter = QPainter(pixmap)
         try:
             callback(painter)
-        except Exception:
-            pass
+        except Exception as e:
+            if not getattr(self, "_safepaint_warned", False):
+                self._safepaint_warned = True
+                logger.warning(f"[Writing] 形状绘制失败: {e}")
         finally:
             painter.end()
 
@@ -9309,6 +9767,7 @@ class _WritingOverlay(QWidget):
             return
         if self._is_in_blacklist(pos):
             return
+        logger.debug(f"[WB] 起笔 tid={tid} 笔型={self._draw_mode}")
         if tid in self._current_strokes:
             old = self._current_strokes.pop(tid)
             if old and old.get("points") and old.get("mode") == "free":
@@ -9360,6 +9819,7 @@ class _WritingOverlay(QWidget):
         if not stroke:
             self._temp_pixmaps.pop(tid, None)
             return
+        logger.debug(f"[WB] 收笔 tid={tid} 点数={len(stroke['points'])} 笔型={stroke.get('mode', 'free')}")
         pts = stroke["points"]
         mode = stroke.get("mode", "free")
 
@@ -9469,10 +9929,12 @@ class _WritingOverlay(QWidget):
 
     def _end_erase_session(self):
         if self._erase_session:
+            logger.debug(f"[WB] 擦除会话结束 记录{len(self._erase_session)}个采样点")
             self._push_history("erase", self._erase_session)
             self._erase_session = []
 
     def _rebuild_buffer(self):
+        logger.debug(f"[WB] 重建画布缓冲: 历史操作{len(self._history)}条")
         self._buffer.fill(Qt.GlobalColor.transparent)
         self._strokes.clear()
         for op_type, op_data in self._history:
@@ -9587,6 +10049,7 @@ class _PenSettingsPopup(QWidget):
             hex_c: 颜色 hex 串
         """
         self._component._pen_color = hex_c
+        logger.debug(f"[PEN] 选择笔色: {hex_c}")
         if self._overlay:
             self._overlay._end_all_strokes()
             self._overlay.setPenColor(hex_c)
@@ -9598,12 +10061,14 @@ class _PenSettingsPopup(QWidget):
             w: 笔宽(px)
         """
         self._component._pen_width = w
+        logger.debug(f"[PEN] 选择笔宽: {w}px")
         if self._overlay:
             self._overlay._end_all_strokes()
             self._overlay.setPenWidth(w)
 
     def _pick_mode(self, mode):
         """切绘制模式"""
+        logger.debug(f"[PEN] 切换绘制模式: {mode}")
         for n, btn in self._mode_btns.items():
             btn.setChecked(n == mode)
         self._component._draw_mode = mode
@@ -9634,6 +10099,7 @@ class WritingPadComponent(DraggableContainer):
         self._overlay = None
         self._setup_ui()
         self._apply_style()
+        logger.debug(f"[WPAD] 书写板就绪 id={self.component_id}")
 
     def _setup_ui(self):
         layout = self.inner_layout
@@ -9702,6 +10168,7 @@ class WritingPadComponent(DraggableContainer):
 
     # 模式切换
     def _set_mode(self, mode, from_overlay=False):
+        logger.debug(f"[PAD] 书写板切模式: {self._mode} -> {mode} (from_overlay={from_overlay})")
         self._mode = mode
         self._update_button_states()
         if self._pen_popup and self._pen_popup.isVisible():
@@ -9712,6 +10179,7 @@ class WritingPadComponent(DraggableContainer):
             self._show_overlay()
 
     def _on_pen_clicked(self):
+        logger.debug(f"[PAD] 笔按钮点击 (当前模式 {self._mode})")
         if self._mode == self.MODE_PEN:
             if self._overlay and self._overlay.isVisible():
                 self._show_pen_settings(overlay=self._overlay, src=self._overlay._f_pen)
@@ -9721,6 +10189,7 @@ class WritingPadComponent(DraggableContainer):
             self._set_mode(self.MODE_PEN)
 
     def _show_pen_settings(self, overlay=None, src=None):
+        logger.debug(f"[PAD] 打开笔设置弹窗 (src={'overlay浮钮' if src and src is not self._pen_box else '笔按钮'})")
         if self._pen_popup is None:
             self._pen_popup = _PenSettingsPopup(self, overlay)
         else:
@@ -9735,12 +10204,16 @@ class WritingPadComponent(DraggableContainer):
     def _undo_last_stroke(self):
         if self._overlay and self._overlay.isVisible():
             self._overlay._undo_last_stroke()
+        else:
+            logger.debug("[PAD] 撤回无效: 覆盖层未显示")
 
     def _clear_all(self):
         if self._overlay and self._overlay.isVisible():
+            logger.info("[PAD] 书写板清空请求")
             self._overlay.clear_all()
 
     def _set_whiteboard(self, on, from_overlay=False):
+        logger.debug(f"[PAD] 白板模式: {on} (from_overlay={from_overlay})")
         self._whiteboard = on
         self._white_box.setChecked(on)
         self._trans_box.setChecked(not on)
@@ -9756,6 +10229,7 @@ class WritingPadComponent(DraggableContainer):
     def _show_overlay(self):
         if self._overlay is None:
             self._overlay = _WritingOverlay(self)
+            logger.debug("[PAD] 创建书写覆盖层实例")
         self._overlay.show_overlay(self._whiteboard)
         self._overlay._mode = self._mode
         self._overlay._update_float_buttons()
@@ -9765,6 +10239,7 @@ class WritingPadComponent(DraggableContainer):
             self._overlay.hide()
 
     def _close_overlay(self):
+        logger.debug("[PAD] 关闭书写覆盖层 模式回鼠标")
         self._hide_overlay()
         self._mode = self.MODE_MOUSE
         self._update_button_states()
@@ -9816,6 +10291,7 @@ class ClassAlbumComponent(DraggableContainer):
             self._auto_timer.setInterval(5000)
             self._auto_timer.timeout.connect(self._auto_flip_next)
             self._auto_timer.start()
+        logger.debug(f"[ALBUM] 班级相册就绪 id={self.component_id} 方向={self._layout_direction} 临时={self._is_temp}")
 
     def _setup_ui(self):
         self.flip_view = self._flip_view_class(self)
@@ -9848,6 +10324,7 @@ class ClassAlbumComponent(DraggableContainer):
         if event.mimeData().hasUrls():
             for url in event.mimeData().urls():
                 if url.isLocalFile() and os.path.splitext(url.toLocalFile())[1].lower() in self.SUPPORTED_EXTS:
+                    logger.debug("[Album] 图片拖入 接受投放")
                     event.acceptProposedAction()
                     return
         event.ignore()
@@ -9862,17 +10339,23 @@ class ClassAlbumComponent(DraggableContainer):
         paths = [url.toLocalFile() for url in event.mimeData().urls()
                  if url.isLocalFile() and os.path.splitext(url.toLocalFile())[1].lower() in self.SUPPORTED_EXTS]
         if paths:
+            logger.debug(f"[Album] 拖入{len(paths)}个文件: {os.path.basename(paths[0])}{'...' if len(paths) > 1 else ''}")
             self._import_files(paths)
             event.acceptProposedAction()
 
     def showEvent(self, event):
         super().showEvent(event)
+        _first = not getattr(self, "_album_shown_once", False)
+        self._album_shown_once = True
+        if _first:
+            logger.debug(f"[ALB] 相册组件首次显示: {self.flip_view.count()}张照片")
         if not self._is_temp:
             self._auto_timer.start()
         QTimer.singleShot(0, self._fit_item_size)
 
     def hideEvent(self, event):
         super().hideEvent(event)
+        logger.debug("[ALB] 相册组件隐藏 停止自动轮播")
         if not self._is_temp:
             self._auto_timer.stop()
 
@@ -9935,6 +10418,7 @@ class ClassAlbumComponent(DraggableContainer):
             return
         idx = self.flip_view.currentIndex()
         if idx >= count - 1:
+            logger.debug("[ALB] 轮播回卷到第一张")
             self.flip_view.scrollToIndex(0)
         else:
             self.flip_view.scrollNext()
@@ -9943,6 +10427,7 @@ class ClassAlbumComponent(DraggableContainer):
         reader = QImageReader(path)
         size = reader.size()
         if not size.isValid() or size.width() <= 0 or size.height() <= 0:
+            logger.warning(f"[Album] 图片尺寸读取失败: {path}")
             return None
         if size.width() > self.MAX_IMAGE_DIMENSION or size.height() > self.MAX_IMAGE_DIMENSION:
             reader.setScaledSize(size.scaled(
@@ -9951,12 +10436,14 @@ class ClassAlbumComponent(DraggableContainer):
             ))
         image = reader.read()
         if image.isNull():
+            logger.warning(f"[Album] 图片读取失败: {path}")
             return None
         return QPixmap.fromImage(image)
 
     def _load_photos(self):
         self.flip_view.clear()
         if not os.path.isdir(self._photos_dir):
+            logger.debug(f"[Album] 相册目录不存在: {self._photos_dir}")
             return
         files = sorted(
             f for f in os.listdir(self._photos_dir)
@@ -9969,6 +10456,7 @@ class ClassAlbumComponent(DraggableContainer):
                 item = self.flip_view.addImage(self._prepare_image(pm))
                 if isinstance(item, QListWidgetItem):
                     self._set_item_path(item, fpath)
+        logger.debug(f"[Album] 相册已加载 {self.flip_view.count()}张 (目录={os.path.basename(self._photos_dir)})")
 
     def _import_files(self, file_paths: list):
         if self._is_temp:
@@ -9986,6 +10474,7 @@ class ClassAlbumComponent(DraggableContainer):
                     c += 1
                 dst_path = os.path.join(self._photos_dir, f"{name}_{c}{e}")
             shutil.copy2(src_path, dst_path)
+            logger.debug(f"[Album] 导入照片: {fname} -> {os.path.basename(dst_path)}")
             pm = self._safe_load_pixmap(dst_path)
             if pm:
                 item = self.flip_view.addImage(self._prepare_image(pm))
@@ -10038,6 +10527,7 @@ class StickyNoteComponent(DraggableContainer):
                     self._editor.setPlainText(data.get("text", ""))
         except Exception as e:
             logger.warning(f"加载便签失败: {e}")
+        logger.debug(f"[NOTE] 便签就绪 id={self.component_id} 颜色={self._color_key}")
 
     def _setup_ui(self):
         self._colors = self.STICKY_COLORS.get(self._color_key, self.STICKY_COLORS["yellow"])
@@ -10089,6 +10579,7 @@ class StickyNoteComponent(DraggableContainer):
                 os.makedirs(self._notes_dir, exist_ok=True)
             with open(self._notes_file, 'w', encoding='utf-8') as f:
                 json.dump({"text": text, "color": self._color_key}, f, ensure_ascii=False)
+            logger.debug(f"[Note] 便签已保存: {len(text)} 字 颜色={self._color_key}")
         except Exception as e:
             logger.warning(f"保存便签失败: {e}")
 
@@ -10503,6 +10994,7 @@ render();
             lambda phase, x, y: self._relay_web_drag(phase, x, y, self.webView),
             self._on_commit, self)
         self._setup_ui()
+        logger.debug(f"[HW] 作业板组件初始化 id={self.component_id} 分区={len(self._sections)}")
 
     # ui
 
@@ -10512,7 +11004,7 @@ render();
         theme["accent22"] = _accent_css(0.13)
         theme["dotbd"] = _theme_pair("rgba(255,255,255,0.35)", "rgba(0,0,0,0.28)")
         data_json = json.dumps({"sections": self._sections}, ensure_ascii=False).replace("</", "<\\/")
-        return self._HTML_TEMPLATE.substitute(
+        html = self._HTML_TEMPLATE.substitute(
             font=FONT_FAMILY,
             add_sub=tr("homework.add_subject"),
             clear_done=tr("homework.clear_done"),
@@ -10523,6 +11015,8 @@ render();
             palette=json.dumps(self._PALETTE),
             **theme,
         ).replace("/*DATA*/[]", data_json)
+        logger.debug(f"[HW] 生成作业板 html 长度 {len(html)} 科目{len(self._sections)}个")
+        return html
 
     # 数据
     def _load(self) -> list:
@@ -10532,6 +11026,7 @@ render();
                     data = json.load(f)
                 sections = data.get("sections")
                 if isinstance(sections, list):
+                    logger.debug(f"[HW] 作业板读取: {len(sections)}个科目 ({os.path.basename(self._data_file)})")
                     return sections
         except Exception as e:
             logger.warning(f"读取作业板失败: {e}")
@@ -10562,6 +11057,7 @@ render();
                 if title or items:
                     clean.append({"title": title, "items": items})
             self._sections = clean
+            logger.debug(f"[HW] 作业板数据提交: {len(clean)}个科目")
             self._save_timer.start()
         except Exception as e:
             logger.warning(f"作业板数据无效: {e}")
@@ -10571,6 +11067,7 @@ render();
             os.makedirs(DATA_USER, exist_ok=True)
             with open(self._data_file, "w", encoding="utf-8") as f:
                 json.dump({"sections": self._sections}, f, ensure_ascii=False, indent=1)
+            logger.debug(f"[HW] 作业板已保存: {len(self._sections)}个科目")
         except Exception as e:
             logger.warning(f"保存作业板失败: {e}")
 
@@ -10624,6 +11121,7 @@ class TimeColumnWidget(QWidget):
         old = self._value
         self._value = max(self._min_val, min(self._max_val, val))
         if self._value != old:
+            logger.debug(f"[TC] 时间列 '{self._label_widget.text()}' 值变更: {old} -> {self._value}")
             self._value_label.setText(f"{self._value:02d}")
             self.valueChanged.emit(self._value)
 
@@ -10689,6 +11187,7 @@ class TimerCountdownComponent(DraggableContainer):
         self._timer.setInterval(1000)
         self._timer.timeout.connect(self._on_tick)
         self._setup_ui()
+        logger.debug(f"[TC] 计时器组件初始化 id={self.component_id}")
 
     def _setup_ui(self):
         self._pivot = Pivot(self)
@@ -10803,6 +11302,7 @@ class TimerCountdownComponent(DraggableContainer):
         self._switch_mode(False)
 
     def _reset_state(self):
+        logger.debug("[TC] 计时器状态重置")
         self._timer.stop()
         self._running = False
         self._paused = False
@@ -10811,13 +11311,16 @@ class TimerCountdownComponent(DraggableContainer):
 
     def _switch_mode(self, countdown: bool):
         """只有停止时能切 切后重置
- 
+
         Args:
             countdown: True 切倒计时,False 切正计时
         """
         if self._running:
             self._reset_state()
+        _changed = getattr(self, "_is_countdown", None) != countdown
         self._is_countdown = countdown
+        if _changed:
+            logger.debug(f"[TC] 模式切换 -> {'倒计时' if countdown else '正计时'}")
         self._pivot.setCurrentItem("countdown" if countdown else "timer")
         self._mode_stack.setCurrentIndex(1 if countdown else 0)
         if countdown:
@@ -10826,9 +11329,12 @@ class TimerCountdownComponent(DraggableContainer):
         else:
             self._timer_btn_stack.setCurrentIndex(0)
             self._timer_display.set_time(0, 0, 0)
+        if _changed:
+            logger.debug(f"[TIMER] 计时模式切换: {'倒计时' if countdown else '正计时'}")
 
     def _on_timer_start(self):
         """清零计时"""
+        logger.debug("[TIMER] 正计时启动")
         self._elapsed_seconds = 0
         self._timer_btn_stack.setCurrentIndex(1)
         self._ts_pause.setText(tr("timer_countdown.pause"))
@@ -10838,10 +11344,12 @@ class TimerCountdownComponent(DraggableContainer):
 
     def _toggle_pause(self, btn):
         self._paused = not self._paused
+        logger.debug(f"[TIMER] {'暂停' if self._paused else '恢复'} ({'倒计时' if self._is_countdown else '正计时'})")
         btn.setText(tr("timer_countdown.resume" if self._paused else "timer_countdown.pause"))
 
     def _on_timer_cancel(self):
         """复位回输入态"""
+        logger.debug(f"[TIMER] 正计时复位: 已计 {self._elapsed_seconds}s")
         self._reset_state()
         self._timer_btn_stack.setCurrentIndex(0)
         self._timer_display.set_time(0, 0, 0)
@@ -10852,6 +11360,7 @@ class TimerCountdownComponent(DraggableContainer):
         if total <= 0:
             InfoBar.warning(title=tr("common.info"), content=tr("timer_countdown.set_time_hint"), parent=self, duration=2000)
             return
+        logger.debug(f"[TIMER] 启动 {total}s ({self._hh_col.value()}h{self._mm_col.value()}m{self._ss_col.value()}s)")
         self._remaining_seconds = total
         self._cd_pause.setText(tr("timer_countdown.pause"))
         self._cd_content_stack.setCurrentIndex(1)
@@ -10862,6 +11371,7 @@ class TimerCountdownComponent(DraggableContainer):
 
     def _on_countdown_cancel(self):
         """回输入态"""
+        logger.debug(f"[TIMER] 倒计时取消: 剩余 {self._remaining_seconds}s")
         self._reset_state()
         self._cd_content_stack.setCurrentIndex(0)
         self._cd_display.set_time(0, 0, 0)
@@ -10876,6 +11386,7 @@ class TimerCountdownComponent(DraggableContainer):
                 self._update_display()
                 self._timer.stop()
                 self._running = False
+                logger.info(f"[TIMER] 结束 ({self._hh_col.value()}h{self._mm_col.value()}m{self._ss_col.value()}s)")
                 InfoBar.success(title=tr("timer_countdown.finished_title"), content=tr("timer_countdown.finished_body"), parent=self, duration=3000)
                 self._cd_content_stack.setCurrentIndex(0)
                 self._cd_display.set_time(0, 0, 0)
@@ -10924,6 +11435,7 @@ class HistoryTodayComponent(DraggableContainer):
         self._date_text = ""
         self._setup_ui()
         self._setup_periodic_refresh()
+        logger.debug(f"[HIS] 今日历史组件初始化 id={self.component_id}")
 
     def _setup_ui(self):
         # 图标
@@ -10978,7 +11490,7 @@ class HistoryTodayComponent(DraggableContainer):
         try:
             svg_path = self._header_icon.path()
         except Exception as e:
-            logger.warning(f"获取图标路径失败：{e}")
+            logger.warning(f"获取图标路径失败 {e}")
             self.iconLabel.clear()
             self.iconLabel.setFixedSize(size, size)
             return
@@ -10991,6 +11503,8 @@ class HistoryTodayComponent(DraggableContainer):
         data = HistoryService.fetch_history_today(use_cache=True)
         if not data:
             data = get_cached_content("history_today", ignore_expiry=True)
+            if data:
+                logger.debug("[History] 历史上的今日: 接口无数据 用过期缓存")
         self._update_display(data)
 
     def _update_display(self, data):
@@ -11010,6 +11524,10 @@ class HistoryTodayComponent(DraggableContainer):
                     years[i] = str(item.get("year", "") or "")
                     links[i] = item.get("link") or ""
 
+        _first = not getattr(self, "_ht_logged_once", False)
+        if _first or self._event_titles != titles:
+            logger.debug(f"[History] {self._date_text or '未知日期'} 共{sum(1 for t in titles if t != '--')}条 首条={titles[0] if titles[0] != '--' else '-'})")
+            self._ht_logged_once = True
         self._event_titles = titles
         self._event_years = years
         self._event_links = links
@@ -11018,6 +11536,7 @@ class HistoryTodayComponent(DraggableContainer):
         self._render_items()
 
     def _render_items(self):
+        logger.debug(f"[HIST] 渲染历史今天条目: {len(self._event_titles or [])}条")
         sz_year = self._scaled_px(12)
         sz_text = self._scaled_px(14)
         title_color = self._title_color_dark if isDarkTheme() else self._title_color_light
@@ -11037,6 +11556,7 @@ class HistoryTodayComponent(DraggableContainer):
         """打开详情链接
         """
         if 0 <= index < len(self._event_links) and self._event_links[index]:
+            logger.info(f"[History] 打开历史事件: {self._event_years[index]} {self._event_titles[index]}")
             webbrowser.open(self._event_links[index])
 
     def apply_scale(self, factor):
@@ -11187,6 +11707,7 @@ class DailyWordComponent(_HtmlCardComponent):
         self._date = ""
         self._setup_ui()
         self._setup_periodic_refresh()
+        logger.debug(f"[DWD] 每日一词组件初始化 id={self.component_id}")
 
 
     def _build_html(self) -> str:
@@ -11240,7 +11761,7 @@ class DailyWordComponent(_HtmlCardComponent):
                 + "</div>"
             )
 
-        return self._HTML_TEMPLATE.substitute(
+        html = self._HTML_TEMPLATE.substitute(
             font=FONT_FAMILY,
             letter=_html.escape(letter),
             word=_html.escape(word),
@@ -11250,14 +11771,21 @@ class DailyWordComponent(_HtmlCardComponent):
             example_section=example_section,
             **theme,
         )
+        logger.debug(f"[DWD] 生成每日一词 html 长度 {len(html)} 单词='{word}'")
+        return html
 
     def _refresh(self):
         data = WordService.fetch_daily_word(use_cache=True)
         if not data:
             data = get_cached_content("daily_word", ignore_expiry=True)
+            if data:
+                logger.debug("[Word] 每日单词接口无数据 用缓存")
         if data:
             self._word = data.get("word")
             self._date = str(data.get("date", "") or "")
+            logger.debug(f"[Word] 每日单词已更新: {self._word} ({self._date})")
+        else:
+            logger.debug("[Word] 每日单词无数据")
         self._render()
 
 class DailySentenceComponent(_HtmlCardComponent):
@@ -11348,6 +11876,7 @@ class DailySentenceComponent(_HtmlCardComponent):
         self._date = ""
         self._setup_ui()
         self._setup_periodic_refresh()
+        logger.debug(f"[DSE] 每日一句组件初始化 id={self.component_id}")
 
 
     def _build_html(self) -> str:
@@ -11364,21 +11893,28 @@ class DailySentenceComponent(_HtmlCardComponent):
         if note:
             zh_html = f"<div class=\"zh\">{_html.escape(note)}</div>"
 
-        return self._HTML_TEMPLATE.substitute(
+        html = self._HTML_TEMPLATE.substitute(
             font=FONT_FAMILY,
             content=_html.escape(content),
             zh_html=zh_html,
             date=_html.escape(date),
             **theme,
         )
+        logger.debug(f"[DSE] 生成每日英语 html 长度 {len(html)}")
+        return html
 
     def _refresh(self):
         data = SentenceService.fetch_daily_sentence(use_cache=True)
         if not data:
             data = get_cached_content("daily_sentence", ignore_expiry=True)
+            if data:
+                logger.debug("[Sentence] 每日英语接口无数据 用缓存")
         if data:
             self._sentence = data.get("sentence")
             self._date = str(data.get("date", "") or "")
+            logger.debug(f"[Sentence] 每日英语已更新 ({self._date})")
+        else:
+            logger.debug("[Sentence] 每日英语无数据")
         self._render()
 
 _perf_cpu_lock = threading.Lock()
@@ -11399,11 +11935,14 @@ def _read_system_cpu():
             return None
         d_total = total - prev[1]
         if d_total <= 0:
+            logger.debug("[Perf] CPU 时间片无增量 占用按 0 处理")
             return 0.0
         return round((busy - prev[0]) / d_total * 100, 1)
 
 _GPU_PDH_LOCK = threading.Lock()
 _GPU_PDH = None    # {'query': 句柄, 'pairs': [(计数器, luid)], 'fails': 连败数, 'built_at': 建表时刻}
+_PERF_CPU_WARNED = False
+_PERF_GPU_WARNED = False
 
 
 def _collect_gpu_pdh():
@@ -11432,16 +11971,18 @@ def _collect_gpu_pdh():
                     luid = inst[inst.index("luid_"):inst.index("_phys_")] if (
                         "luid_" in inst and "_phys_" in inst) else inst
                     pairs.append((win32pdh.AddCounter(query, path), luid))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"[Perf] GPU 计数器路径构建失败({inst}): {e}")
             st = _GPU_PDH = {'query': query, 'pairs': pairs, 'fails': 0,
                              'built_at': time.time(), 'fresh': True}
         if not st['pairs']:
             return None
         try:
             win32pdh.CollectQueryData(st['query'])
-        except Exception:
+        except Exception as e:
             st['fails'] += 1
+            if st['fails'] == 1:
+                logger.warning(f"[Perf] GPU 数据采集失败(连续{st['fails']}次): {e}")
             return None
         if st.pop('fresh', False):
             return None 
@@ -11463,8 +12004,11 @@ def _collect_gpu_pdh():
         return min(100.0, max(0.0, max(per_gpu.values())))
 
 
-def _collect_perf_data() -> dict:
+def _collect_perf_data(with_gpu: bool = True) -> dict:
     """采 CPU/RAM/GPU 使用率
+
+    Args:
+        with_gpu: False 时跳过 GPU 查询
 
     Returns:
         dict(cpu, ram, gpu),百分比
@@ -11476,203 +12020,193 @@ def _collect_perf_data() -> dict:
         cpu = _read_system_cpu()
         data["cpu"] = 0.0 if cpu is None else cpu
         data["ram"] = psutil.virtual_memory().percent
-    except Exception:
-        pass
+    except Exception as e:
+        global _PERF_CPU_WARNED
+        if not _PERF_CPU_WARNED:
+            _PERF_CPU_WARNED = True
+            logger.warning(f"[Perf] CPU/内存占用采集失败: {e}")
     # GPU：Windows GPU Engine(*engtype_3D)\Utilization Percentage
     try:
         gpu = _collect_gpu_pdh()
         if gpu is not None:
-            data["gpu"] = gpu
-    except Exception:
-        pass
+            data["gpu"] = round(gpu, 1)
+    except Exception as e:
+        global _PERF_GPU_WARNED
+        if not _PERF_GPU_WARNED:
+            _PERF_GPU_WARNED = True
+            logger.warning(f"[Perf] GPU 占用采集失败: {e}")
     return data
 
-class PerformanceMonitorComponent(_HtmlCardComponent):
-    """性能监测环"""
-    _connect_load_finished = True
+
+class _PerfSampler(QObject):
+    """性能采样器
+    Signals:
+        perf_ready(dict): {"cpu","ram","gpu"} 百分比
+        net_ready(dict): {"d","u"} 比特/秒
+    """
+    perf_ready = pyqtSignal(dict)
+    net_ready = pyqtSignal(dict)
+
+    def __init__(self):
+        super().__init__()
+        self._refs = 0
+        self._busy = False
+        self._tick_count = 0
+        self._last_gpu = None
+        self._last_io = None
+        self._last_t = None
+        self._timer = QTimer(self)
+        self._timer.setInterval(1000)
+        self._timer.timeout.connect(self._tick)
+
+    def add_ref(self, owner: QObject):
+        """注册订阅组件"""
+        self._refs += 1
+        owner.destroyed.connect(self._on_ref_gone)
+        if self._refs == 1 and not self._timer.isActive():
+            self._timer.start()
+            logger.debug(f"[PerfSampler] 采样启动 (订阅组件{self._refs}个)")
+        else:
+            logger.debug(f"[PerfSampler] 新组件订阅 共{self._refs}个 (复用同一份采样)")
+
+    def _on_ref_gone(self):
+        self._refs = max(0, self._refs - 1)
+        if self._refs == 0 and self._timer.isActive():
+            self._timer.stop()
+            logger.debug("[PerfSampler] 无订阅组件 采样停止")
+
+    def _tick(self):
+        if self._busy:
+            return
+        self._busy = True
+        threading.Thread(target=self._worker, daemon=True).start()
+
+    def _worker(self):
+        try:
+            self._tick_count += 1
+            with_gpu = self._tick_count % 2 == 1 or self._last_gpu is None
+            perf = _collect_perf_data(with_gpu=with_gpu)
+            if perf.get("gpu") is None and self._last_gpu is not None:
+                perf["gpu"] = self._last_gpu
+            else:
+                self._last_gpu = perf.get("gpu")
+            self.perf_ready.emit(perf)
+            import psutil
+            io = psutil.net_io_counters()
+            now = time.monotonic()
+            if self._last_io is None:
+                d = u = 0.0
+            else:
+                dt = max(now - self._last_t, 1e-3)
+                d = max(0, io.bytes_recv - self._last_io.bytes_recv) * 8 / dt
+                u = max(0, io.bytes_sent - self._last_io.bytes_sent) * 8 / dt
+            self._last_io, self._last_t = io, now
+            self.net_ready.emit({"d": round(d, 1), "u": round(u, 1)})
+        except Exception as e:
+            logger.warning(f"[PerfSampler] 采样失败: {e}")
+        finally:
+            self._busy = False
+
+
+_perf_sampler = None
+
+
+def _get_perf_sampler() -> _PerfSampler:
+    """采样器单例"""
+    global _perf_sampler
+    if _perf_sampler is None:
+        _perf_sampler = _PerfSampler()
+        logger.debug("[PerfSampler] 性能采样器单例已创建")
+    return _perf_sampler
+
+class PerformanceMonitorComponent(DraggableContainer):
+    """性能监测组件"""
+
     _min_size = (220, 130)
     _default_size = (400, 200)
 
     _object_name = "performanceMonitorContainer"
 
-    _theme_light = {
-        "track": "#e9e9ee",
-        "ink": "#000000",
-        "unit": "#000000",
-        "label": "#000000",
-    }
-    _theme_dark = {
-        "track": "rgba(255, 255, 255, 0.10)",
-        "ink": "#ffffff",
-        "unit": "#ffffff",
-        "label": "#ffffff",
-    }
-    _metric_colors = {"cpu": "#0078d4", "ram": "#8b5cf6", "gpu": "#10b981"}
-
-    _HTML_TEMPLATE = Template('''<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
-  body { font-family: $font; }
-  #wrap {
-    width: 100%; height: 100%;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .gauge {
-    flex: 1; display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-  }
-  .ring-box { position: relative; width: 104px; height: 104px; }
-  .ring-box svg { width: 100%; height: 100%; transform: rotate(-90deg); display: block; }
-  .track { fill: none; stroke: $track; stroke-width: 9; }
-  .bar {
-    fill: none; stroke-width: 9; stroke-linecap: round;
-    transition: stroke-dashoffset .7s cubic-bezier(.25, .8, .25, 1);
-  }
-  .val {
-    position: absolute; left: 0; top: 0; width: 100%; height: 100%;
-    display: flex; align-items: baseline; justify-content: center;
-    color: $ink;
-  }
-  .num { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 104px; }
-  .unit { font-size: 12px; font-weight: 600; color: $unit; margin-left: 1px; }
-  .label {
-    margin-top: 9px; font-size: 13px; font-weight: 700;
-    letter-spacing: 2.5px; color: $label;
-  }
-</style>
-</head>
-<body>
-<div id="wrap">
-  <div class="gauge">
-    <div class="ring-box">
-      <svg viewBox="0 0 100 100">
-        <circle class="track" cx="50" cy="50" r="42"/>
-        <circle class="bar" id="bar-cpu" cx="50" cy="50" r="42" stroke="$cpu_color"/>
-      </svg>
-      <div class="val"><span class="num" id="num-cpu">--</span><span class="unit">%</span></div>
-    </div>
-    <div class="label">CPU</div>
-  </div>
-  <div class="gauge">
-    <div class="ring-box">
-      <svg viewBox="0 0 100 100">
-        <circle class="track" cx="50" cy="50" r="42"/>
-        <circle class="bar" id="bar-ram" cx="50" cy="50" r="42" stroke="$ram_color"/>
-      </svg>
-      <div class="val"><span class="num" id="num-ram">--</span><span class="unit">%</span></div>
-    </div>
-    <div class="label">RAM</div>
-  </div>
-  <div class="gauge">
-    <div class="ring-box">
-      <svg viewBox="0 0 100 100">
-        <circle class="track" cx="50" cy="50" r="42"/>
-        <circle class="bar" id="bar-gpu" cx="50" cy="50" r="42" stroke="$gpu_color"/>
-      </svg>
-      <div class="val"><span class="num" id="num-gpu">--</span><span class="unit">%</span></div>
-    </div>
-    <div class="label">GPU</div>
-  </div>
-</div>
-<script>
-(function () {
-  var C = 2 * Math.PI * 42;
-  var bars = {}, nums = {};
-  ['cpu', 'ram', 'gpu'].forEach(function (k) {
-    bars[k] = document.getElementById('bar-' + k);
-    nums[k] = document.getElementById('num-' + k);
-    bars[k].style.strokeDasharray = C;
-    bars[k].style.strokeDashoffset = C;
-  });
-  function setRing(k, v) {
-    if (v === null || v === undefined || isNaN(v)) {
-      nums[k].textContent = '--';
-      bars[k].style.strokeDashoffset = C;
-      return;
-    }
-    v = Math.max(0, Math.min(100, v));
-    nums[k].textContent = Math.round(v);
-    bars[k].style.strokeDashoffset = C * (1 - v / 100);
-  }
-  window.updatePerf = function (data) {
-    data = data || {};
-    setRing('cpu', data.cpu);
-    setRing('ram', data.ram);
-    setRing('gpu', data.gpu);
-    return true;
-  };
-})();
-</script>
-</body>
-</html>''')
-
-    _perf_ready = pyqtSignal(dict)
+    _metrics = (
+        ("cpu", "#0078d4", "CPU"),
+        ("ram", "#8b5cf6", "RAM"),
+        ("gpu", "#10b981", "GPU"),
+    )
 
     def __init__(self, parent, component_data: dict):
         super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
         self.setObjectName(self._object_name)
         self._data = None
-        self._fetching = False
-        self._push_retries = 0
-        try:
-            _read_system_cpu()
-        except Exception:
-            pass
         self._setup_ui()
-        self._perf_ready.connect(self._on_perf_ready)
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self._poll)
-        self._timer.start(1000)
-        self._poll()
+        _get_perf_sampler().perf_ready.connect(self._on_perf_ready)
+        _get_perf_sampler().add_ref(self)
+        logger.debug(f"[PM] 性能监测就绪 id={self.component_id}")
 
+    def _setup_ui(self):
+        layout = self.inner_layout
+        layout.setContentsMargins(8, 4, 8, 4)
+        row = QHBoxLayout()
+        row.setSpacing(0)
+        self._rings = {}
+        for key, color, label in self._metrics:
+            ring = ProgressRing(self)
+            ring.setRange(0, 100)
+            ring.setValue(0)
+            ring.setTextVisible(True)
+            ring.setFormat("%p%")
+            ring.setCustomBarColor(QColor(color), QColor(color))
+            ring.setStrokeWidth(self._scaled_px(8))
+            ring.setFixedSize(self._scaled_px(92), self._scaled_px(92))
+            ring.setFont(self._ring_font())
+            box = QWidget(self)
+            v = QVBoxLayout(box)
+            v.setContentsMargins(0, 0, 0, 0)
+            v.setSpacing(self._scaled_px(6))
+            v.addStretch(1)
+            v.addWidget(ring, 0, Qt.AlignmentFlag.AlignCenter)
+            cap = CaptionLabel(label, box)
+            cap.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            v.addWidget(cap, 0, Qt.AlignmentFlag.AlignCenter)
+            v.addStretch(1)
+            row.addWidget(box, 1)
+            self._rings[key] = ring
+        layout.addLayout(row, 1)
+        self.setMinimumSize(*self._min_size)
+        self._size_explicitly_set = True
+        self.resize(*self._default_size)
+        self._apply_style()
 
-    def _build_html(self) -> str:
-        theme = self._theme_dark if isDarkTheme() else self._theme_light
-        colors = {f"{k}_color": v for k, v in self._metric_colors.items()}
-        return self._HTML_TEMPLATE.substitute(font=FONT_FAMILY, **theme, **colors)
+    def _ring_font(self):
+        f = QFont(FONT_FAMILY)
+        f.setPixelSize(self._scaled_px(20))
+        f.setBold(True)
+        return f
 
-    def _poll(self):
-        if self._fetching:
-            return
-        self._fetching = True
-        threading.Thread(target=self._perf_thread, daemon=True).start()
+    def _apply_style(self):
+        self._apply_card_style()
+        self.updateSize()
 
-    def _perf_thread(self):
-        data = _collect_perf_data()
-        try:
-            self._perf_ready.emit(data)
-        except RuntimeError:
-            pass
+    def apply_scale(self, factor):
+        super().apply_scale(factor)
+        for key, color, label in self._metrics:
+            ring = self._rings[key]
+            ring.setFixedSize(self._scaled_px(88), self._scaled_px(88))
+            ring.setStrokeWidth(self._scaled_px(8))
+            ring.setFont(self._ring_font())
+        self.updateSize()
 
     def _on_perf_ready(self, data: dict):
-        """缓存结果
-        """
-        self._fetching = False
+        if self._data == data and self._data is not None:
+            return
+        _first = not getattr(self, "_perf_logged_once", False)
         self._data = data
-        self._push_retries = 0
-        self._push_data()
-
-    def _push_data(self):
-        """推送占用率"""
-        try:
-            js = f"updatePerf({json.dumps(self._data)})"
-            self.webView.page().runJavaScript(js, self._on_push_result)
-        except Exception:
-            pass
-
-    def _on_push_result(self, result):
-        if not result:
-            self._push_retries += 1
-            if self._push_retries <= 10:
-                QTimer.singleShot(300, self._push_data)
-
-    def _on_load_finished(self, ok):
-        if ok and self._data:
-            self._push_data()
+        if _first and isinstance(data, dict):
+            logger.debug(f"[Perf] 首次性能采样: CPU={data.get('cpu', '?')}% 内存={data.get('ram', '?')}% GPU={data.get('gpu', '?')}%")
+            self._perf_logged_once = True
+        for key, color, label in self._metrics:
+            v = data.get(key)
+            if v is not None:
+                self._rings[key].setValue(int(round(float(v))))
 
 class NetworkSpeedComponent(_HtmlCardComponent):
     """网速监控（html）"""
@@ -11865,51 +12399,38 @@ resize();
     def __init__(self, parent, component_data: dict):
         super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
         self.setObjectName(self._object_name)
-        self._last_io = None
-        self._last_t = 0.0
         self._bridge = _WebBridge(
             lambda phase, x, y: self._relay_web_drag(phase, x, y, self.webView),
             parent=self)
         self._setup_ui()
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self._sample)
-        self._timer.start(1000)
-        self._sample()
+        # 网速差分由全局采样器统一计算, 组件只负责推送
+        _get_perf_sampler().net_ready.connect(self._on_net_sample)
+        _get_perf_sampler().add_ref(self)
+        logger.debug(f"[Net] 网速就绪 id={self.component_id}")
 
 
     def _build_html(self) -> str:
         theme = dict(_theme_pair(self._theme_dark, self._theme_light))
         theme["line"] = "#e2543a"
         theme["fill"] = "rgba(226, 84, 58, 0.20)"
-        return self._HTML_TEMPLATE.substitute(
+        html = self._HTML_TEMPLATE.substitute(
             font=FONT_FAMILY,
             title=tr("netspeed.title"),
             recv=tr("netspeed.recv"),
             send=tr("netspeed.send"),
             **theme,
         )
+        logger.debug(f"[Net] 生成网速组件 html 长度 {len(html)}")
+        return html
 
-    def _sample(self):
-        """结算一次上下行速率"""
+    def _on_net_sample(self, sample: dict):
+        """收到全局采样器的网速数据, 推给页面"""
         try:
-            import psutil
-            io = psutil.net_io_counters()
-            now = time.monotonic()
-            if self._last_io is None:
-                d = u = 0.0
-            else:
-                dt = max(now - self._last_t, 1e-3)
-                d = max(0, io.bytes_recv - self._last_io.bytes_recv) * 8 / dt
-                u = max(0, io.bytes_sent - self._last_io.bytes_sent) * 8 / dt
-            self._last_io = io
-            self._last_t = now
-            sample = {"d": round(d, 1), "u": round(u, 1)}
-            try:
-                self.webView.page().runJavaScript(f"updateNet({json.dumps(sample)})")
-            except Exception:
-                pass
+            self.webView.page().runJavaScript(f"if (window.updateNet) updateNet({json.dumps(sample)});")
         except Exception as e:
-            logger.warning(f"网速采样失败: {e}")
+            if not getattr(self, "_net_push_warned", False):
+                self._net_push_warned = True
+                logger.warning(f"[Net] 网速数据推送失败: {e}")
 
 _NEWS_SOURCES = {
     "baidu":        dict(_source="baidu", _icon_key="baidu",
@@ -11975,6 +12496,7 @@ class ComponentCard(CardWidget):
 
         self._setup_ui()
         self._load_preview()
+        logger.debug(f"[LIB] 组件卡片就绪: {definition.id}")
 
     def _setup_ui(self):
         self.setFixedSize(180, 120)
@@ -12004,6 +12526,7 @@ class ComponentCard(CardWidget):
 
     def mouseReleaseEvent(self, event):
         """短按视为选中"""
+        logger.debug(f"[LIB] 组件卡片选中: {self.definition.id}")
         self.setCursor(Qt.CursorShape.OpenHandCursor)
         super().mouseReleaseEvent(event)
 
@@ -12038,6 +12561,7 @@ class ComponentCard(CardWidget):
                 return
 
         self.preview_label.setText(tr("component_library.no_preview"))
+        logger.debug(f"[LIB] 组件预览图缺失: {self.definition.id}")
         self.preview_label.setStyleSheet("background: rgba(255,255,255,0.05); border-radius: 6px;")
 
     def _start_drag(self):
@@ -12062,6 +12586,7 @@ class ComponentCard(CardWidget):
         mime.setData("application/x-Glimpseon-component",
                     f"{comp_type}|{comp_style}".encode('utf-8'))
         drag.setMimeData(mime)
+        logger.debug(f"[CARD] 发起组件拖拽: type={comp_type} style={comp_style}")
 
         # 设置拖拽图
         if self._preview_pixmap:
@@ -12092,6 +12617,7 @@ class CategoryPage(ScrollArea):
         self._setup_ui()
 
     def _setup_ui(self):
+        logger.debug(f"[LIB] 初始化组件库分类页: {self.category}")
         self.setWidgetResizable(True)
         self.setStyleSheet("background: transparent;")
 
@@ -12141,8 +12667,10 @@ class ComponentLibraryWindow(FluentWindow):
 
         cfg.themeChanged.connect(self._on_theme_changed)
         self._on_theme_changed()
+        logger.info(f"[Library] 组件库窗口已创建 分类={self.registry.get_categories()}")
 
     def _setup_navigation(self):
+        logger.debug("[LIB] 组件库导航初始化")
         categories = self.registry.get_categories()
 
         icon_map = {
@@ -12167,6 +12695,7 @@ class ComponentLibraryWindow(FluentWindow):
         self.navigationInterface.setReturnButtonVisible(False)
 
     def _on_theme_changed(self):
+        logger.debug("[LIB] 组件库主题变更 重载样式")
         self.setStyleSheet(load_qss('component.qss'))
 
 # 导航页（NavigationPage）
@@ -12297,6 +12826,7 @@ class NavItemCell(QWidget):
 
     def _refresh(self):
         name = self._item.get("name", "")
+        logger.debug(f"[Nav] 刷新导航格子 [{self._index}] '{name}'")
         self.textLabel.setText(name)
         icon_filename = self._item.get("icon", "exe.ico")
         p = get_ql_icon_path(icon_filename)
@@ -12340,22 +12870,25 @@ class NavigationPage(QWidget):
         self._placeholder.hide()
         try:
             cfg.themeChanged.connect(self._updatePlaceholderColor)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[Nav] 主题变化信号连接失败: {e}")
 
         self.load()
         self._buildCells()
         self._relayout()
+        logger.debug(f"[Nav] 导航页就绪 page={self._page_index} {len(self._items)}项")
 
     def load(self):
         if self._page_manager is not None:
             self._items = self._page_manager.get_page_items(self._page_index)
         else:
             self._items = []
+        logger.debug(f"[Nav] 导航页加载: {len(self._items)}项 (page={self._page_index})")
 
     def save(self):
         if self._page_manager is not None:
             self._page_manager.set_page_items(self._page_index, self._items)
+            logger.debug(f"[Nav] 导航页保存: {len(self._items)}项 (page={self._page_index})")
 
     def items(self):
         return list(self._items)
@@ -12402,6 +12935,7 @@ class NavigationPage(QWidget):
                     self._addItemByUrl(text)
                     added = True
         if added:
+            logger.info(f"[Nav] 已拖放入库 page={self._page_index}")
             event.acceptProposedAction()
         else:
             event.ignore()
@@ -12409,6 +12943,7 @@ class NavigationPage(QWidget):
     def mousePressEvent(self, event):
         """空白处按下清格子选中态"""
         if event.button() == Qt.MouseButton.RightButton:
+            logger.debug("[Nav] 导航页空白处右键 弹出添加菜单")
             menu = RoundMenu(parent=self)
             add_file = Action(FUI.FOLDER, tr("nav_page.add_file"))
             add_file.triggered.connect(self._addByDialog)
@@ -12439,6 +12974,7 @@ class NavigationPage(QWidget):
             cell.requestMenu.connect(self._onCellMenu)
             cell.show()
             self._cells.append(cell)
+        logger.debug(f"[Nav] 重建导航格子: {len(self._cells)}个")
 
     def _relayout(self):
         """计算列数并摆放"""
@@ -12489,6 +13025,7 @@ class NavigationPage(QWidget):
             self._buildCells()
             self._relayout()
             self._notifyAdded(info.get("name", ""))
+            logger.info(f"[Nav] 条目入库: {info.get('name', '?')} (type={info.get('type', 'app')})")
         except Exception as e:
             logger.error(f"[NavigationPage] 添加文件失败: {e}")
 
@@ -12505,6 +13042,7 @@ class NavigationPage(QWidget):
             self._buildCells()
             self._relayout()
             self._notifyAdded(info.get("name", ""))
+            logger.info(f"[Nav] 网址条目入库: {info.get('name', '?')} -> {url[:60]}")
         except Exception as e:
             logger.error(f"[NavigationPage] 添加网址失败: {e}")
 
@@ -12517,8 +13055,8 @@ class NavigationPage(QWidget):
                 parent=self.window(),
                 duration=1500,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[Nav] 成功提示显示失败 {e}")
 
     def _onCellClick(self, index: int):
         """按类型启动目标"""
@@ -12528,13 +13066,14 @@ class NavigationPage(QWidget):
         path = item.get("path", "")
         name = item.get("name", "")
         app_type = item.get("type", "app")
+        logger.debug(f"[Nav] 点击导航项 [{index}] {name} (type={app_type})")
         if path:
             self._executor.submit(self._launch_thread, path, name, app_type)
 
     def _launch_thread(self, target, name, app_type):
         """
         Args:
-            target: 启动目标(exe 路径/目录/URL)
+            target: 启动目标(exe 路径/目录/url)
             app_type: 条目类型(app/folder/url)
         """
         ok, info = _launch_target(target, app_type)
@@ -12557,6 +13096,7 @@ class NavigationPage(QWidget):
         del_act = Action(FUI.DELETE, tr("nav_page.delete"))
         del_act.triggered.connect(lambda: self._deleteItem(index))
         menu.addAction(del_act)
+        logger.debug(f"[Nav] 弹出导航项菜单 [{index}]")
         menu.exec(global_pos)
 
     def _renameItem(self, index: int):
@@ -12576,6 +13116,7 @@ class NavigationPage(QWidget):
         if rc:
             new_name = edit.text().strip()
             if new_name:
+                logger.info(f"[Nav] 导航项改名 [{index}]: '{old_name}' -> '{new_name}'")
                 self._items[index]["name"] = new_name
                 self.save()
                 self._cells[index].setItem(self._items[index])
@@ -12592,6 +13133,7 @@ class NavigationPage(QWidget):
         )
         if not msg.exec():
             return
+        logger.info(f"[Nav] 导航项删除 [{index}]: {item_name}")
         del self._items[index]
         self.save()
         self._buildCells()
@@ -12601,11 +13143,13 @@ class NavigationPage(QWidget):
         """文件浏览选择应用/目录新增条目"""
         path, _ = QFileDialog.getOpenFileName(self, tr("nav_page.select_file"), "", "所有文件 (*.*)")
         if path:
+            logger.debug(f"[Nav] 浏览添加条目: {path}")
             self._addItemByPath(path)
             return
         # 如果用户取消文件选择 再问是否选文件夹
         folder = QFileDialog.getExistingDirectory(self, tr("nav_page.select_folder"))
         if folder:
+            logger.debug(f"[Nav] 浏览添加文件夹: {folder}")
             self._addItemByPath(folder)
 
     def _addUrlByDialog(self):
@@ -12622,4 +13166,5 @@ class NavigationPage(QWidget):
         if rc:
             url = edit.text().strip()
             if url:
+                logger.debug(f"[Nav] 通过弹窗添加网址: {url}")
                 self._addItemByUrl(url)

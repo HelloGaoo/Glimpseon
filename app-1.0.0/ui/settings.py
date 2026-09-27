@@ -64,6 +64,9 @@ def _apply_setting_qss(widget):
     qss = load_qss('setting.qss')
     if qss:
         widget.setStyleSheet(qss)
+        logger.debug("[设置] 设置页样式表已应用")
+    else:
+        logger.warning("[设置] 设置页样式加载为空 用默认")
 
 
 class SpinBoxSettingCard(SettingCard):
@@ -79,11 +82,14 @@ class SpinBoxSettingCard(SettingCard):
         self.hBoxLayout.addSpacing(16)
         self.spinBox.valueChanged.connect(self.__onValueChanged)
         configItem.valueChanged.connect(self.setValue)
+        logger.debug(f"[设置] SpinBox 卡片创建: {title}")
 
     def __onValueChanged(self, value):
+        logger.debug(f"[常规] SpinBox 卡片值变更: {value}")
         qconfig.set(self.configItem, value)
 
     def setValue(self, value):
+        logger.debug(f"[常规] SpinBox 卡片 setValue: {value}")
         self.spinBox.setValue(value)
 
 
@@ -102,11 +108,14 @@ class TextLineSettingCard(SettingCard):
         self.lineEdit.setText(str(qconfig.get(configItem)))
         self.lineEdit.textChanged.connect(self.__onTextChanged)
         configItem.valueChanged.connect(self.setValue)
+        logger.debug(f"[设置] 文本卡片创建: {title}")
 
     def __onTextChanged(self, text):
+        logger.debug(f"[常规] 文本卡片值变更: {text!r}")
         qconfig.set(self.configItem, text)
 
     def setValue(self, value):
+        logger.debug(f"[常规] 文本卡片 setValue: {value!r}")
         self.lineEdit.setText(str(value))
 
 
@@ -127,8 +136,10 @@ class SyncStatusSettingCard(SettingCard):
         container.setLayout(h)
         self.hBoxLayout.addWidget(container, 0, Qt.AlignmentFlag.AlignRight)
         self.hBoxLayout.addSpacing(16)
+        logger.debug("[设置] 同步状态卡片创建")
 
     def set_status(self, sync_time: str):
+        logger.debug(f"[时间] 同步状态卡片更新: {'已同步 ' + sync_time if sync_time else '未同步'}")
         if sync_time:
             self.statusLabel.setText(
                 tr("settings.precise_time_synced_at").format(time=sync_time))
@@ -172,11 +183,14 @@ class AutoOffsetSettingCard(SettingCard):
         container.setLayout(h)
         self.hBoxLayout.addWidget(container, 0, Qt.AlignmentFlag.AlignRight)
         self.hBoxLayout.addSpacing(16)
+        logger.debug(f"[设置] 自动偏移卡片创建: {title}")
 
     def __onSwitchChanged(self, checked):
+        logger.debug(f"[时间] 自动对时开关变更: checked={checked}")
         qconfig.set(self.switchConfigItem, checked)
 
     def __onSpinChanged(self, value):
+        logger.debug(f"[时间] 自动对时间隔变更: value={value}")
         qconfig.set(self.spinConfigItem, value)
 
 
@@ -189,6 +203,7 @@ class ButtonSettingCard(SettingCard):
         self.button.setFixedHeight(36)
         self.hBoxLayout.addWidget(self.button, 0, Qt.AlignmentFlag.AlignRight)
         self.hBoxLayout.addSpacing(16)
+        logger.debug(f"[设置] 按钮卡片创建: {title}")
 
 
 class DualButtonSettingCard(SettingCard):
@@ -206,6 +221,7 @@ class DualButtonSettingCard(SettingCard):
         container.setLayout(button_layout)
         self.hBoxLayout.addWidget(container, 0, Qt.AlignmentFlag.AlignRight)
         self.hBoxLayout.addSpacing(16)
+        logger.debug(f"[设置] 双按钮卡片创建: {title}")
 
 class SettingsSubPage(ScrollArea):
     """设置子页面基类"""
@@ -231,6 +247,7 @@ class SettingsSubPage(ScrollArea):
         self.titleLabel = SubtitleLabel(title, self)
         self.titleLabel.setObjectName("settingLabel")
         self.titleLabel.move(60, 63)
+        logger.debug(f"[设置] 构建子页面: {title}")
 
 class GeneralPage(SettingsSubPage):
     """通用设置页面"""
@@ -274,6 +291,7 @@ class GeneralPage(SettingsSubPage):
         self.vBoxLayout.addWidget(self.idleMinutesCard)
         self.vBoxLayout.addWidget(self.autoOpenMaximizeCard)
         self.vBoxLayout.addStretch()
+        logger.debug("[常规] 常规页就绪 4卡片")
 
 
 class TimePage(SettingsSubPage):
@@ -328,6 +346,7 @@ class TimePage(SettingsSubPage):
         self.vBoxLayout.addStretch()
 
         self.__connectSignalToSlot()
+        logger.debug("[时间] 时间页就绪 5卡片")
 
     def __connectSignalToSlot(self):
         self.timeSyncStatusCard.syncBtn.clicked.connect(self.__onManualSync)
@@ -344,13 +363,16 @@ class TimePage(SettingsSubPage):
             def run(self):
                 service = get_time_sync_service()
                 server = cfg.timeServer.value
+                logger.debug(f"[时间] 对时线程同步 服务器 {server}")
                 ok = service.sync(server)
                 sync_str = ""
                 if ok and service.last_sync_time:
                     sync_str = service.last_sync_time.strftime("%H:%M:%S")
                     cfg.lastSyncTime.value = sync_str
                 self.result_ready.emit(ok, sync_str)
+                logger.debug(f"[时间] 对时线程结束 ok={ok} 时间={sync_str!r}")
 
+        logger.info(f"[时间] 手动对时 服务器 {cfg.timeServer.value}")
         self._sync_worker = SyncWorker()
         self._sync_worker.result_ready.connect(self._onSyncFinished)
         self.timeSyncStatusCard.syncBtn.setEnabled(False)
@@ -362,6 +384,7 @@ class TimePage(SettingsSubPage):
         self.timeSyncStatusCard.syncBtn.setText(tr("settings.precise_time_sync_now"))
         self.__updateSyncStatus()
         if ok:
+            logger.info(f"[时间] 已对时 {sync_str}")
             InfoBar.success(
                 tr("wizard.success_title"),
                 tr("settings.precise_time_sync_success").format(time=sync_str),
@@ -371,10 +394,12 @@ class TimePage(SettingsSubPage):
         else:
             service = get_time_sync_service()
             err_msg = service.last_error or tr("settings.precise_time_sync_failed")
+            logger.warning(f"[时间] 手动对时失败: {err_msg}")
             InfoBar.error(tr("dialog.error"), err_msg, duration=5000, parent=self)
 
     def __updateSyncStatus(self):
         sync_time = cfg.lastSyncTime.value
+        logger.debug(f"[时间] 同步状态刷新: 上次同步 {sync_time}")
         self.timeSyncStatusCard.set_status(sync_time)
 
 
@@ -407,12 +432,14 @@ class _LatLonSettingCard(SettingCard):
         w.setLayout(box)
         self.hBoxLayout.addWidget(w, 0, Qt.AlignmentFlag.AlignRight)
         self.hBoxLayout.addSpacing(16)
+        logger.debug("[设置] 经纬度卡片创建")
 
     def _apply(self, item, text):
         try:
             qconfig.set(item, float(text))
+            logger.info(f"[天气] 经纬度写入: {text}")
         except ValueError:
-            pass
+            logger.debug(f"[天气] 经纬度输入无效 {text!r}")
 
 
 class _DashSeparator(QWidget):
@@ -461,6 +488,7 @@ class _WeatherMetricCard(CardWidget):
         layout.addWidget(self.valueLabel)
 
     def set_value(self, value: str):
+        logger.debug(f"[天气] 指标卡片 {self.titleLabel.text()} = {value!r}")
         self.valueLabel.setText(value or "--")
 
 
@@ -470,10 +498,12 @@ class _WeatherFetchWorker(QThread):
 
     def run(self):
         from services.weather import WeatherService
+        logger.debug("[天气] 天气请求线程启动")
         try:
             ws = WeatherService()
             self.fetched.emit(ws.fetch_all())
-        except Exception:
+        except Exception as e:
+            logger.error(f"[天气] 天气请求线程异常: {e}")
             self.fetched.emit(None)
 
 
@@ -495,6 +525,7 @@ class WeatherPage(SettingsSubPage):
 
         cfg.themeChanged.connect(lambda _theme: self._apply_theme_text())
         self.vBoxLayout.addStretch()
+        logger.debug("[天气] 天气页就绪")
 
     # 顶部
     def _init_header(self):
@@ -609,19 +640,23 @@ class WeatherPage(SettingsSubPage):
 
     def _apply_source_visibility(self):
         by_city = cfg.weatherSource.value == "city"
+        logger.debug(f"[天气] 天气源可见性切换: {'城市选择' if by_city else '经纬度输入'}")
         self.cityCard.setVisible(by_city)
         self.latLonCard.setVisible(not by_city)
         self._update_city_label()
 
     def _update_city_label(self):
         if cfg.weatherSource.value == "city":
+            logger.debug(f"[天气] 城市标签更新: {cfg.city.value!r}")
             self.cityLabel.setText(cfg.city.value or tr("settings.weather_city_unset"))
         else:
             try:
                 lat = float(qconfig.get(cfg.latitude))
                 lon = float(qconfig.get(cfg.longitude))
+                logger.debug(f"[天气] 城市标签更新: {lat:.4f} {lon:.4f}")
                 self.cityLabel.setText(f"{lat:.4f}, {lon:.4f}")
             except (TypeError, ValueError):
+                logger.debug("[天气] 经纬度配置解析失败 显示未设置")
                 self.cityLabel.setText(tr("settings.weather_city_unset"))
 
     # 设定
@@ -663,6 +698,7 @@ class WeatherPage(SettingsSubPage):
 
     def _apply_theme_text(self):
         color = "#FFFFFF" if isDarkTheme() else "#000000"
+        logger.debug(f"[天气] 天气页主题文字颜色: {color}")
         self.cityLabel.setStyleSheet(
             f"color: {color}; font-size: 20px; font-weight: bold; background: transparent;")
         self.tempLabel.setStyleSheet(
@@ -681,18 +717,22 @@ class WeatherPage(SettingsSubPage):
 
     def _load_cached(self):
         data = get_cached_content("weather", ignore_expiry=True)
+        logger.debug(f"[天气] 读取缓存天气: {'命中' if data else '未命中'}")
         if data:
             self._apply_data(data)
         else:
             self._update_city_label()
 
     def _refresh(self):
+        logger.debug("[天气] 刷新天气")
         w = self._worker
         if w is not None:
             try:
                 if w.isRunning():
+                    logger.debug("[天气] 请求未完")
                     return
             except RuntimeError:
+                logger.debug("[天气] 旧天气线程状态查询失败")
                 pass
             self._worker = None
         w = _WeatherFetchWorker(self)
@@ -705,10 +745,13 @@ class WeatherPage(SettingsSubPage):
         w = self._worker
         self._worker = None
         if w is not None:
+            logger.debug("[天气] 天气请求线程已回收")
             w.deleteLater()
 
     def _on_fetched(self, data):
+        logger.debug(f"[天气] 天气请求返回: {'有数据' if data else '空数据'}")
         if data:
+            logger.debug(f"[天气] 获取到天气数据 顶层键: {list(data.keys()) if isinstance(data, dict) else type(data).__name__}")
             save_cache("weather", data, cfg.weatherUpdateInterval.value)
             self._apply_data(data)
         else:
@@ -721,10 +764,12 @@ class WeatherPage(SettingsSubPage):
 
     def _select_city(self):
         from services.weather import RegionSelectorDialog, RegionDatabase
+        logger.debug("[天气] 打开城市选择对话框")
         dlg = RegionSelectorDialog(self.window())
         if dlg.exec():
             region = dlg.get_selected_region()
             if region:
+                logger.info(f"[天气] 选择城市: {region}")
                 cfg.city.value = region
                 cfg.weatherSource.value = "city"
                 self.sourceCard.comboBox.setCurrentIndex(0)
@@ -732,10 +777,16 @@ class WeatherPage(SettingsSubPage):
                 if lon is not None and lat is not None:
                     cfg.longitude.value = lon
                     cfg.latitude.value = lat
+                else:
+                    logger.warning(f"[天气] 未查询到城市坐标 天气可能不准: region={region}")
                 self.latLonCard.latEdit.setText(str(cfg.latitude.value))
                 self.latLonCard.lonEdit.setText(str(cfg.longitude.value))
                 self._update_city_label()
                 self._refresh()
+            else:
+                logger.debug("[天气] 城市选择对话框返回空区域")
+        else:
+            logger.debug("[天气] 城市选择对话框已取消")
 
     def _apply_data(self, data):
         from services.weather import WeatherService
@@ -751,6 +802,7 @@ class WeatherPage(SettingsSubPage):
                     f"{dt.month:02d}/{dt.day:02d} {dt.hour:02d}:{dt.minute:02d} "
                     + tr("settings.weather_updated"))
             except ValueError:
+                logger.debug(f"[天气] 更新时间解析失败: {pub!r}")
                 pass
 
         # 当前温度
@@ -761,7 +813,8 @@ class WeatherPage(SettingsSubPage):
         code = current.get("weather", 0)
         try:
             code = int(code)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as e:
+            logger.debug(f"[天气] 天气代码转换失败 用 0: {code!r} {e}")
             code = 0
         self._icon_name = WeatherService.ICON_MAP.get(code, "2.svg")
         self._render_icon()
@@ -792,11 +845,16 @@ class WeatherPage(SettingsSubPage):
             pm = render_svg_icon(path, 64, self.iconLabel.devicePixelRatioF())
             if not pm.isNull():
                 self.iconLabel.setPixmap(pm)
+            else:
+                logger.debug(f"[天气] 天气图标渲染为空: {path}")
+        else:
+            logger.debug(f"[天气] 跳过渲染 {self._icon_name}")
 
     def _fmt_temp(self, raw) -> str:
         try:
             v = float(raw)
         except (TypeError, ValueError):
+            logger.debug(f"[天气] 温度值解析失败: {raw!r}")
             return str(raw) if raw is not None and str(raw) != "" else "--"
         if cfg.weatherUnit.value == "f":
             v = v * 9.0 / 5.0 + 32.0
@@ -847,18 +905,22 @@ class AppearancePage(SettingsSubPage):
         self.vBoxLayout.addWidget(self.themeColorCard)
         self.vBoxLayout.addWidget(self.languageCard)
         self.vBoxLayout.addStretch()
+        logger.debug("[外观] 外观页就绪 3卡片")
 
         self.__connectSignalToSlot()
 
     def __connectSignalToSlot(self):
+        logger.debug("[外观] 外观页信号已连接")
         cfg.themeChanged.connect(self.__onThemeChanged)
         self.themeColorCard.colorChanged.connect(setThemeColor)
         cfg.appRestartSig.connect(self.__showRestartTooltip)
 
     def __onThemeChanged(self, theme: Theme):
+        logger.debug(f"[SettingsWindow] 主题切换: {theme}")
         _apply_setting_qss(self)
 
     def __showRestartTooltip(self):
+        logger.info("配置项需重启生效")
         InfoBar.warning(
             "",
             tr("settings.restart_required"),
@@ -920,6 +982,7 @@ class LogPage(SettingsSubPage):
         self.vBoxLayout.addWidget(self.logMaxDaysCard)
         self.vBoxLayout.addWidget(self.clearLogCard)
         self.vBoxLayout.addStretch()
+        logger.debug("[日志] 日志页就绪 5卡片")
 
         self.__connectSignalToSlot()
 
@@ -929,6 +992,7 @@ class LogPage(SettingsSubPage):
         self.__onDisableLogChanged(cfg.disableLog.value)
 
     def __onDisableLogChanged(self, disabled):
+        logger.info(f"[日志] 日志开关变更: {'禁用日志' if disabled else '启用日志'}")
         self.logLevelCard.setEnabled(not disabled)
         self.logMaxCountCard.setEnabled(not disabled)
         self.logMaxDaysCard.setEnabled(not disabled)
@@ -963,7 +1027,7 @@ class LogPage(SettingsSubPage):
                                 failed_count += 1
                                 logger.warning(f"删除日志失败 {file}: {e}")
                     if failed_count:
-                        logger.warning(f"日志清理: 成功 {deleted_count} 个, 失败 {failed_count} 个")
+                        logger.warning(f"日志清理 {deleted_count}个 失败 {failed_count}个")
                     if deleted_count > 0:
                         InfoBar.success(
                             tr("wizard.success_title"),
@@ -979,6 +1043,7 @@ class LogPage(SettingsSubPage):
                             parent=self,
                         )
                 else:
+                    logger.info("[日志] 无可清理日志")
                     InfoBar.info(
                         tr("common.tip"),
                         tr("settings.log_dir_not_exist"),
@@ -986,12 +1051,15 @@ class LogPage(SettingsSubPage):
                         parent=self,
                     )
             except Exception as e:
+                logger.error(f"[日志] 清理日志文件失败: {e}")
                 InfoBar.error(
                     tr("dialog.error"),
                     tr("settings.clear_log_failed").format(error=str(e)),
                     duration=5000,
                     parent=self,
                 )
+        else:
+            logger.debug("清理日志已取消")
 
 
 class AdvancedPage(SettingsSubPage):
@@ -1056,6 +1124,7 @@ class AdvancedPage(SettingsSubPage):
         self.vBoxLayout.addWidget(self.resetDefaultCard)
         self.vBoxLayout.addWidget(self.debugModeCard)
         self.vBoxLayout.addStretch()
+        logger.debug("[高级] 高级页就绪 6卡片")
 
         self.__connectSignalToSlot()
 
@@ -1085,6 +1154,7 @@ class AdvancedPage(SettingsSubPage):
                     json.dump(default_config, f, ensure_ascii=False, indent=4)
                 qconfig.load(config_path, cfg)
                 self._refreshAllConfigUI()
+                logger.info("配置已重置为默认")
                 InfoBar.success(
                     tr("wizard.success_title"),
                     tr("settings.reset_success"),
@@ -1092,12 +1162,15 @@ class AdvancedPage(SettingsSubPage):
                     parent=self,
                 )
             except Exception as e:
+                logger.error(f"配置重置失败: {e}")
                 InfoBar.error(
                     tr("dialog.error"),
                     tr("settings.reset_failed").format(error=str(e)),
                     duration=5000,
                     parent=self,
                 )
+        else:
+            logger.debug("[高级] 配置重置已取消")
 
     def __exportConfig(self):
         try:
@@ -1107,10 +1180,12 @@ class AdvancedPage(SettingsSubPage):
                 self, tr("settings.export_config"), default_filename, tr("settings.json_filter")
             )
             if not file_path:
+                logger.debug("[高级] 配置导出已取消")
                 return
             if os.path.exists(CONFIG_PATH):
                 import shutil
                 shutil.copy2(CONFIG_PATH, file_path)
+                logger.info(f"配置已导出: {file_path}")
                 InfoBar.success(
                     tr("wizard.success_title"),
                     tr("settings.export_success").format(path=file_path),
@@ -1118,6 +1193,7 @@ class AdvancedPage(SettingsSubPage):
                     parent=self,
                 )
             else:
+                logger.warning("[高级] 配置文件不存在")
                 InfoBar.warning(
                     tr("common.tip"),
                     tr("settings.config_not_exist_export"),
@@ -1125,6 +1201,7 @@ class AdvancedPage(SettingsSubPage):
                     parent=self,
                 )
         except Exception as e:
+            logger.error(f"配置导出失败: {e}")
             InfoBar.error(
                 tr("dialog.error"),
                 tr("settings.export_failed").format(error=str(e)),
@@ -1138,8 +1215,10 @@ class AdvancedPage(SettingsSubPage):
                 self, tr("settings.import_config"), "", tr("settings.json_filter")
             )
             if not file_path:
+                logger.debug("[高级] 配置导入已取消")
                 return
             if not os.path.exists(file_path):
+                logger.warning(f"[高级] 导入文件不存在: {file_path}")
                 InfoBar.warning(
                     tr("common.tip"),
                     tr("settings.selected_file_not_exist"),
@@ -1150,6 +1229,7 @@ class AdvancedPage(SettingsSubPage):
             with open(file_path, "r", encoding="utf-8") as f:
                 imported_config = json.load(f)
             if not isinstance(imported_config, dict):
+                logger.error(f"[高级] 配置格式错误 非字典: {file_path}")
                 InfoBar.error(
                     tr("dialog.error"),
                     tr("settings.config_format_error"),
@@ -1165,6 +1245,7 @@ class AdvancedPage(SettingsSubPage):
             msgBox.yesButton.setText(tr("dialog.confirm"))
             msgBox.cancelButton.setText(tr("dialog.cancel"))
             if not msgBox.exec():
+                logger.debug(f"[高级] 导入已取消: {file_path}")
                 return
             config_dir = DATA_CONFIG
             if not os.path.exists(config_dir):
@@ -1173,10 +1254,12 @@ class AdvancedPage(SettingsSubPage):
             if os.path.exists(CONFIG_PATH):
                 backup_path = CONFIG_PATH + ".backup"
                 shutil.copy2(CONFIG_PATH, backup_path)
+                logger.debug(f"[高级] 已备份原配置: {backup_path}")
             with open(CONFIG_PATH, "w", encoding="utf-8") as f:
                 json.dump(imported_config, f, ensure_ascii=False, indent=4)
             qconfig.load(CONFIG_PATH, cfg)
             self._refreshAllConfigUI()
+            logger.info(f"配置已导入: {file_path}")
             InfoBar.success(
                 tr("wizard.success_title"),
                 tr("settings.import_success").format(path=file_path),
@@ -1184,6 +1267,7 @@ class AdvancedPage(SettingsSubPage):
                 parent=self,
             )
         except json.JSONDecodeError:
+            logger.error(f"配置导入失败: json 解析错误 {file_path}")
             InfoBar.error(
                 tr("dialog.error"),
                 tr("settings.config_json_parse_error"),
@@ -1191,6 +1275,7 @@ class AdvancedPage(SettingsSubPage):
                 parent=self,
             )
         except Exception as e:
+            logger.error(f"配置导入失败: {e}")
             InfoBar.error(
                 tr("dialog.error"),
                 tr("settings.import_failed").format(error=str(e)),
@@ -1208,8 +1293,9 @@ class AdvancedPage(SettingsSubPage):
             try:
                 lang_item.valueChanged.disconnect(lang_handler)
                 detached = True
-            except TypeError:
-                pass
+                logger.debug("[高级] 刷新期间临时断开语言变更处理器")
+            except TypeError as e:
+                logger.warning(f"[高级] 语言变更处理器断开失败 可能未连接: {e}")
         try:
             for attr_name in dir(cfg):
                 if attr_name.startswith("_"):
@@ -1220,6 +1306,7 @@ class AdvancedPage(SettingsSubPage):
         finally:
             if detached:
                 lang_item.valueChanged.connect(lang_handler)
+        logger.debug("[高级] 全部配置界面已刷新")
 
         app = QApplication.instance()
         if app:
@@ -1229,6 +1316,7 @@ class AdvancedPage(SettingsSubPage):
         clear_qss_cache()
         from core.utils import apply_theme
         apply_theme(current_theme)
+        logger.debug(f"[高级] 字体与主题已重载: {current_theme}")
         
 
 class _GridPreviewWidget(QWidget):
@@ -1242,12 +1330,15 @@ class _GridPreviewWidget(QWidget):
 
         cfg.gridShortSideCells.valueChanged.connect(self._on_short_side_cells_changed)
         cfg.gridInsetPercent.valueChanged.connect(self._on_inset_percent_changed)
+        logger.debug(f"[网格] 网格预览初始化: 短边格数 {self.short_side_cells} 内缩 {self.inset_percent}%")
 
     def _on_short_side_cells_changed(self, value):
+        logger.debug(f"[网格] 预览联动: 短边格数 {self.short_side_cells} -> {value}")
         self.short_side_cells = value
         self.update()
 
     def _on_inset_percent_changed(self, value):
+        logger.debug(f"[网格] 预览联动: 内缩 {self.inset_percent}% -> {value}%")
         self.inset_percent = value
         self.update()
 
@@ -1313,12 +1404,15 @@ class _CornerRadiusPreviewWidget(QWidget):
 
         cfg.componentCardRadius.valueChanged.connect(self._on_card_radius_changed)
         cfg.componentCardOpacity.valueChanged.connect(self._on_card_opacity_changed)
+        logger.debug(f"[网格] 圆角预览初始化: 圆角 {self.card_radius}px 不透明度 {self.card_opacity}%")
 
     def _on_card_radius_changed(self, value):
+        logger.debug(f"[网格] 圆角预览联动: 圆角 {self.card_radius}px -> {value}px")
         self.card_radius = value
         self.update()
 
     def _on_card_opacity_changed(self, value):
+        logger.debug(f"[网格] 圆角预览联动: 不透明度 {self.card_opacity}% -> {value}%")
         self.card_opacity = value
         self.update()
 
@@ -1435,6 +1529,7 @@ class GridPage(SettingsSubPage):
         self.vBoxLayout.addWidget(self.componentCardOpacityCard)
         self.vBoxLayout.addWidget(self.componentCardRadiusCard)
         self.vBoxLayout.addStretch()
+        logger.debug("[网格] 网格页就绪 4卡片+2预览")
 
 
 class SettingsWindow(FluentWindow):
@@ -1444,6 +1539,7 @@ class SettingsWindow(FluentWindow):
         super().__init__()
         self.main_window = main_window
         self.setObjectName("setting")
+        logger.debug("[设置] 设置窗口创建")
         self.resize(1150, 750)
         self.setWindowIcon(QIcon(get_resPath(APP_ICON)))
 
@@ -1457,6 +1553,7 @@ class SettingsWindow(FluentWindow):
         self._initPages()
         self._initNavigation()
         self._applyTheme()
+        cfg.themeChanged.connect(self._onThemeChanged)
 
         # 显示在屏幕中央
         screen = QApplication.primaryScreen()
@@ -1485,6 +1582,7 @@ class SettingsWindow(FluentWindow):
 
         self.advancedPage = AdvancedPage(self.main_window, self)
         self.advancedPage.setObjectName("advancedPage")
+        logger.debug("[设置] 设置页就绪 7页")
 
     def _initNavigation(self):
         self.addSubInterface(self.generalPage, FUI.SETTING, tr("settings.general"))
@@ -1498,14 +1596,28 @@ class SettingsWindow(FluentWindow):
         # 展开导航栏
         self.navigationInterface.expand()
         self.navigationInterface.setReturnButtonVisible(False)
+        logger.debug("[设置] 导航就绪 7项")
 
     def _applyTheme(self):
         theme = cfg.themeMode.value
+        logger.debug(f"[设置] 应用主题: {theme}")
         if theme == Theme.AUTO:
             theme = Theme.DARK if isDarkTheme() else Theme.LIGHT
+            logger.debug(f"[设置] 主题跟随系统解析: {theme}")
         if theme != cfg.theme:
             setTheme(theme)
         _apply_setting_qss(self)
 
+    def _onThemeChanged(self, theme: Theme):
+        """主题跟随重刷"""
+        # apply_theme 在广播前已 setTheme, 这里只补项目 qss; 窗口级级联覆盖全部子页
+        logger.debug(f"[设置] 窗口主题跟随广播: {theme}")
+        _apply_setting_qss(self)
+
+    def showEvent(self, event):
+        logger.debug("[设置] 设置窗口打开")
+        super().showEvent(event)
+
     def closeEvent(self, event):
+        logger.debug("[设置] 设置窗口关闭")
         event.accept()

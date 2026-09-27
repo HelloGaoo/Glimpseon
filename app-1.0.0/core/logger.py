@@ -50,6 +50,7 @@ _faulthandler_file = None
 _original_sig_handlers: Dict[signal.Signals, Any] = {}
 _psutil_available: Optional[bool] = None
 _log_lock = threading.RLock()
+_caller_info_err_logged = False
 
 
 def _safe_call(func, default="", log_errors=False):
@@ -117,6 +118,7 @@ def _format_exception_chain(exc: BaseException) -> str:
 
 class CustomLogger(logging.Logger):
     def _log(self, level, msg, args, exc_info=None, extra=None, stack_info=False, stacklevel=3):
+        global _caller_info_err_logged
         with _log_lock:
             try:
                 caller_frame = inspect.stack()[stacklevel]
@@ -135,8 +137,12 @@ class CustomLogger(logging.Logger):
                     caller_info = f"{APP_NAME}.Main.<module>"
                 else:
                     caller_info = f"{APP_NAME}.{function_name}"
-            except Exception:
+            except Exception as e:
                 caller_info = f"{APP_NAME}.Unknown"
+                if not _caller_info_err_logged:
+                    _caller_info_err_logged = True
+                    try: print(f"[logger] caller_info 解析失败(仅记录一次): {e}", file=sys.stderr)
+                    except Exception: pass
             if extra is None: extra = {}
             extra['caller_info'] = caller_info
             try:
@@ -168,7 +174,7 @@ class Logger:
 
     def __compress_old_logs(self):
         if not self.compress_logs: return
-        for file in _safe_call(lambda: os.listdir(log_dir), default=[]):
+        for file in _safe_call(lambda: os.listdir(log_dir), default=[], log_errors=True):
             if not file.endswith('.log') or file.endswith('.zip'): continue
             file_path = os.path.join(log_dir, file)
             if not _safe_call(lambda: os.path.isfile(file_path)): continue
@@ -189,7 +195,7 @@ class Logger:
         if not os.path.exists(log_dir): return
         self.__compress_old_logs()
         log_files = []
-        for file in _safe_call(lambda: os.listdir(log_dir), default=[]):
+        for file in _safe_call(lambda: os.listdir(log_dir), default=[], log_errors=True):
             if (file.startswith("app_") or file.startswith("crash_")) and (file.endswith(".log") or file.endswith(".zip")):
                 file_path = os.path.join(log_dir, file)
                 if _safe_call(lambda: os.path.isfile(file_path)):
@@ -198,11 +204,11 @@ class Logger:
         log_files.sort(key=lambda x: x[1], reverse=True)
         if len(log_files) > self.max_count:
             for file_path, _ in log_files[self.max_count:]:
-                _safe_call(lambda: os.remove(file_path))
+                _safe_call(lambda: os.remove(file_path), log_errors=True)
         cutoff_time = datetime.now().timestamp() - (self.max_days * 24 * 3600)
         for file_path, mtime in log_files:
             if mtime < cutoff_time:
-                _safe_call(lambda: os.remove(file_path))
+                _safe_call(lambda: os.remove(file_path), log_errors=True)
 
     def __setup_handlers(self):
         for handler in self.logger.handlers[:]:
@@ -253,7 +259,7 @@ def _install_faulthandler():
     except Exception as e:
         try:
             faulthandler.enable(all_threads=True)
-            logger.warning(f"faulthandler 回退到 stderr: {e}")
+            logger.warning(f"faulthandler 用 stderr: {e}")
         except Exception as e2:
             logger.error(f"faulthandler启用失败: {e2}")
 
@@ -280,7 +286,7 @@ def _install_threading_excepthook():
             if _original: _original(args)
             return
         tb_str = _safe_call(lambda: _format_exception_chain(exc_value), default=str(exc_value))
-        logger.critical(f"[线程问题] {thread_name} | {exc_type.__name__}: {exc_value}\n{tb_str}")
+        logger.critical(f"[线程问题] {thread_name}|{exc_type.__name__}: {exc_value}\n{tb_str}")
         if _original: _original(args)
     threading.excepthook = custom_threading_hook
 
@@ -326,7 +332,7 @@ def _install_asyncio_exception_handler():
             message = context.get('message', '未知异步异常')
             if exception:
                 tb_str = _safe_call(lambda: _format_exception_chain(exception), default=str(exception))
-                logger.critical(f"[asyncio问题] {message} | {type(exception).__name__}: {exception}\n{tb_str}")
+                logger.critical(f"[asyncio问题] {message}|{type(exception).__name__}: {exception}\n{tb_str}")
             else:
                 logger.critical(f"[asyncio问题] {message}")
             loop.default_exception_handler(context)
@@ -338,7 +344,9 @@ def _install_asyncio_exception_handler():
                 return loop
         try:
             asyncio.set_event_loop_policy(CustomEventLoopPolicy())
-        except Exception:
+        except Exception as policy_e:
+            try: print(f"[logger] set_event_loop_policy 失败，回退现有 loop: {policy_e}", file=sys.stderr)
+            except Exception: pass
             try:
                 loop = asyncio.get_event_loop()
                 if not loop.is_running():
@@ -402,7 +410,7 @@ def _install_signal_handlers():
         sig_name = signal.Signals(signum).name if hasattr(signal, 'Signals') else str(signum)
         ctx = _safe_call(_get_system_context)
         if signum in (signal.SIGINT, signal.SIGTERM):
-            logger.info(f"[信号] 收到 {sig_name}，准备退出\n{ctx}")
+            logger.info(f"[信号] 收到 {sig_name} 准备退出\n{ctx}")
             sys.exit(0)
         else:
             logger.critical(f"[信号] 收到 {sig_name}\n{ctx}")
@@ -410,8 +418,9 @@ def _install_signal_handlers():
     for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGABRT):
         try:
             _original_sig_handlers[sig] = signal.signal(sig, signal_handler)
-        except Exception:
-            pass
+        except Exception as e:
+            try: print(f"[logger] 信号 {sig} 处理器注册失败: {e}", file=sys.stderr)
+            except Exception: pass
 
 
 def _install_atexit_handler():

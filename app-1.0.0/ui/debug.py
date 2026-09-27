@@ -85,7 +85,8 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             cpu_times = self.process.cpu_times()
             self.last_cpu_usage = cpu_times.user + cpu_times.system
             self.last_cpu_time = time.time()
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[调试] 初始 CPU 时间读取失败 CPU 监控将显示 0: {e}")
             self.last_cpu_usage = 0
             self.last_cpu_time = time.time()
 
@@ -97,12 +98,14 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         self._initUI()
         self._setupTimers()
         self.setup_translatable_ui()
+        logger.debug("[调试] 调试面板就绪 7卡片")
 
     def showEvent(self, event):
         super().showEvent(event)
         if not self._weatherGridCreated:
             self._weatherGridCreated = True
             self._populateWeatherIconGrid()
+            logger.debug(f"[调试] 天气图标网格已创建: {len(self.weatherCodeMap)}项")
 
     def _initUI(self):
         scrollLayout = QVBoxLayout(self.scrollWidget)
@@ -448,6 +451,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         return item
 
     def _onGridItemClick(self, code):
+        logger.debug(f"[调试] 点击天气图标: 代码 {code}")
         idx = self.weatherCodeCombo.findData(code)
         if idx >= 0:
             self.weatherCodeCombo.setCurrentIndex(idx)
@@ -455,6 +459,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
     def _onWeatherCodeChanged(self, index):
         code = self.weatherCodeCombo.currentData()
         name = self.weatherCodeMap.get(code, tr("weather.unknown"))  # 未知
+        logger.debug(f"[调试] 天气预览切换: 代码 {code} {name}")
         self.weatherNamePreviewLabel.setText(name)
         self._previewWeatherIcon(code)
 
@@ -464,17 +469,22 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         if os.path.exists(icon_path):
             pixmap = QPixmap(icon_path).scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.FastTransformation)
             self.weatherIconPreviewLabel.setImage(pixmap)
+        else:
+            logger.debug(f"[调试] 天气预览图标文件不存在: {icon_file}")
 
     def _applyWeatherToMain(self):
         code = self.weatherCodeCombo.currentData()
         if code is None:
+            logger.debug("[调试] 未选择天气码")
             return
         home = getattr(self.mainWindow, 'homeInterface', None)
         if home is None:
+            logger.debug("[调试] 主窗口天气接口不可用")
             return
         # 以缓存真值结构为底,只覆盖天气码与温度,再走既有广播链刷新各天气组件
         data = get_cached_content("weather", ignore_expiry=True)
         if data is None:
+            logger.warning("[调试] 模拟天气失败: 天气缓存为空")
             InfoBar.warning(title=tr("debug.title_weather_sim"), content=tr("debug.status_empty_data"),
                             parent=self, duration=2500)
             return
@@ -486,9 +496,10 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         if temp_text:
             try:
                 current.setdefault("temperature", {})["value"] = float(temp_text)
-            except ValueError:
-                pass
+            except ValueError as e:
+                logger.debug(f"[调试] 模拟温度输入无效 {temp_text!r} {e}")
         save_cache("weather", data, cfg.weatherUpdateInterval.value)
+        logger.info(f"[调试] 模拟天气已应用: 代码 {code}")
         home.weather_updated.emit(data)
         InfoBar.success(title=tr("debug.title_weather_sim"),
                         content=tr("debug.weather_sim_applied").format(code=code, name=self.weatherCodeMap.get(code, '')),
@@ -498,8 +509,10 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         self.weatherCodeCombo.setCurrentIndex(0)
         self.weatherTempInput.clear()
         if self._savedWeather is None:
+            logger.debug("[调试] 无模拟前数据")
             return
         save_cache("weather", self._savedWeather, cfg.weatherUpdateInterval.value)
+        logger.info("[调试] 已恢复模拟前的天气数据")
         home = getattr(self.mainWindow, 'homeInterface', None)
         if home is not None:
             home.weather_updated.emit(self._savedWeather)
@@ -572,8 +585,11 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         return card
 
     def _batchGetWallpaper(self):
-        if self._batchRunning: return
+        if self._batchRunning:
+            logger.debug("[调试] 批量获取已在运行")
+            return
         count = self.batchWallpaperSpin.value()
+        logger.info(f"[调试] 批量获取壁纸 目标{count}张")
         self._batchRunning = True
         self._batchSuccess = 0
         self._batchFail = 0
@@ -616,12 +632,15 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
                     wallpaper.historyManager.add(wallpaper_path, source, url)
                 wallpaper.infoCard.updateInfo(wallpaper_path, source)
                 self._batchSuccess += 1
+                logger.debug(f"[调试] 壁纸 {idx}/{total} 已获取 {source}")
                 self.batchWallpaperLog.append(f"[{idx}/{total}] 成功 - {source}")
             else:
                 self._batchFail += 1
+                logger.warning(f"[调试] 壁纸 {idx}/{total} 获取失败: http {response.status_code}")
                 self.batchWallpaperLog.append(f"[{idx}/{total}] 失败 - HTTP {response.status_code}")
         except Exception as e:
             self._batchFail += 1
+            logger.error(f"[调试] 壁纸 {idx}/{total} 获取异常: {e}")
             self.batchWallpaperLog.append(f"[{idx}/{total}] 错误 - {str(e)}")
         self._batchWallpaperIndex += 1
         self.batchWallpaperProgress.setValue(
@@ -630,10 +649,12 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
 
     def _stopBatchWallpaper(self):
         if not self._batchRunning:
+            logger.debug("[调试] 未在批量获取")
             return
         self._batchRunning = False
         self.batchWallpaperLog.append(tr("debug.stopped"))  # 已停止
         self.batchWallpaperLog.append(f"成功 {getattr(self, '_batchSuccess', 0)} 张，失败 {getattr(self, '_batchFail', 0)} 张")
+        logger.info(f"[调试] 批量获取已停止 成功 {getattr(self, '_batchSuccess', 0)}张 失败 {getattr(self, '_batchFail', 0)}张")
         self.batchWallpaperBtn.setEnabled(True)
         self.batchWallpaperStopBtn.setEnabled(False)
 
@@ -645,6 +666,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         s = getattr(self, '_batchSuccess', 0)
         f = getattr(self, '_batchFail', 0)
         self.batchWallpaperLog.append(f"成功 {s} 张，失败 {f} 张")
+        logger.info(f"[调试] 批量获取完成 成功 {s}张 失败 {f}张")
 
     def _reloadTheme(self):
         try:
@@ -652,18 +674,21 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             from core.utils import apply_theme
             apply_theme(cfg.themeMode.value)
             self._loadStyleSheet()
+            logger.info("[调试] 主题样式已重载")
             InfoBar.success(title=tr("debug.theme_refresh"), content=tr("debug.stylesheet_reloaded"), parent=self, duration=2000)
         except Exception as e:
             logger.error(f"刷新主题失败: {e}")
             InfoBar.error(title=tr("debug.theme_refresh"), content=tr("debug.refresh_failed").format(error=e), parent=self, duration=3000)
 
     def _restartApp(self):
+        logger.info("[调试] 请求重启应用")
         InfoBar.info(title=tr("debug.btn_restart_app"), content=tr("debug.restarting"), parent=self, duration=2000)
         QTimer.singleShot(800, request_restart)
 
     def _runNetworkDiag(self, reset_log: bool = True):
         target = self.networkTargetCombo.currentText().strip()
         if not target:
+            logger.debug("[调试] 诊断目标为空")
             return
 
         def _diag():
@@ -679,6 +704,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             except Exception as e:
                 results.append(("dns_fail", str(e)))
                 results.append(f"  DNS 解析失败: {e}")
+                logger.warning(f"[调试] 诊断 DNS 解析失败: {target} - {e}")
 
             try:
                 start = time.time()
@@ -693,9 +719,11 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             except socket.timeout:
                 results.append(("conn_timeout",))
                 results.append(f"  连通性: 超时 (>5s)")
+                logger.warning(f"[调试] 诊断连通性超时: {target}:443 (>5s)")
             except Exception as e:
                 results.append(("conn_fail", str(e)))
                 results.append(f"  连通性失败: {e}")
+                logger.warning(f"[调试] 诊断连通性失败: {target}:443 - {e}")
 
             try:
                 start = time.time()
@@ -708,9 +736,11 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
                 else:
                     results.append(("poetry_http", resp.status_code))
                     results.append(f"  一言 API: HTTP {resp.status_code}")
+                    logger.warning(f"[调试] 诊断一言 api 响应异常: http {resp.status_code}")
             except Exception as e:
                 results.append(("poetry_fail",))
                 results.append(f"  一言 API: {e}")
+                logger.warning(f"[调试] 诊断一言 api 失败: {e}")
 
             results.append("--- 诊断完成 ---")
             return results
@@ -718,6 +748,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         if reset_log:
             self.networkLogEdit.clear()
         self.networkLogEdit.append(f"[{time.strftime('%H:%M:%S')}] 正在诊断: {target}...")
+        logger.info(f"[调试] 网络诊断 {target}")
 
         if self._diagExecutor is None:
             self._diagExecutor = ThreadPoolExecutor(max_workers=2)
@@ -727,30 +758,40 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
     def _handle_diag_result(self, future):
         try:
             results = future.result()
+            logger.info(f"[调试] 网络诊断完成 {len(results)}条")
             for r in results:
                 if isinstance(r, tuple):
                     if r[0] == "dns":
+                        logger.debug(f"[调试] 诊断结果 DNS: {r[1]} ({r[2]:.0f}ms)")
                         self.networkDnsLabel.setText(f"{r[1]} ({r[2]:.0f}ms)")
                     elif r[0] == "dns_fail":
+                        logger.debug(f"[调试] 诊断结果 DNS 失败: {r[1]}")
                         self.networkDnsLabel.setText(f"失败 ({r[1]})")
                     elif r[0] == "conn_ok":
+                        logger.debug(f"[调试] 诊断结果 连通性: 正常 ({r[1]:.0f}ms)")
                         self.networkConnectLabel.setText("正常")
                         self.networkLatencyLabel.setText(f"{r[1]:.0f} ms")
                     elif r[0] == "conn_timeout":
+                        logger.debug("[调试] 诊断结果 连通性: 超时(>5s)")
                         self.networkConnectLabel.setText("超时")
                         self.networkLatencyLabel.setText(">5000ms")
                     elif r[0] == "conn_fail":
+                        logger.debug(f"[调试] 诊断结果 连通性: 失败 ({r[1]})")
                         self.networkConnectLabel.setText("失败")
                         self.networkLatencyLabel.setText("-")
                     elif r[0] == "poetry_ok":
+                        logger.debug(f"[调试] 诊断结果 一言 api: 正常 ({r[1]:.0f}ms)")
                         self.networkPoetryLabel.setText(f"{r[1]:.0f}ms")
                     elif r[0] == "poetry_http":
+                        logger.debug(f"[调试] 诊断结果 一言 api: http {r[1]}")
                         self.networkPoetryLabel.setText(f"HTTP {r[1]}")
                     elif r[0] == "poetry_fail":
+                        logger.debug("[调试] 诊断结果 一言 api: 失败")
                         self.networkPoetryLabel.setText(tr("debug.status_failed"))
                 elif isinstance(r, str):
                     self.networkLogEdit.append(r)
         except Exception as e:
+            logger.error(f"[调试] 网络诊断结果处理异常: {e}")
             self.networkLogEdit.append(f"诊断异常: {e}")
 
     def _runNetworkDiagAll(self):
@@ -758,6 +799,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         items = [combo.itemText(i) for i in range(combo.count())]
         self.networkLogEdit.clear()
         self.networkLogEdit.append(f"[{time.strftime('%H:%M:%S')}] 开始全部目标诊断...\n")
+        logger.info(f"[调试] 全部目标诊断 {len(items)}个")
         original = combo.currentIndex()
         for idx, target in enumerate(items):
             combo.setCurrentIndex(idx)
@@ -773,9 +815,11 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         self._startTimers()
 
     def _loadStyleSheet(self):
+        logger.debug("[调试] 加载样式表: debug.qss")
         self.setStyleSheet(load_qss('debug.qss'))
 
     def _updateTheme(self):
+        logger.debug("[调试] 调试面板主题刷新 重载样式表")
         self._loadStyleSheet()
 
     def eventFilter(self, obj, event):
@@ -794,19 +838,22 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             return super().eventFilter(obj, event)
         if event.type() == QEvent.Type.Enter:
             element_info = []
-            element_info.append(f"对象名称：{obj.objectName()}")
-            element_info.append(f"类    型：{obj.__class__.__name__}")
-            element_info.append(f"可    见：{obj.isVisible()}")
-            if isinstance(obj, QWidget): element_info.append(f"启    用：{obj.isEnabled()}")
+            element_info.append(f"对象名称 {obj.objectName()}")
+            element_info.append(f"类    型 {obj.__class__.__name__}")
+            element_info.append(f"可    见 {obj.isVisible()}")
+            if isinstance(obj, QWidget): element_info.append(f"启    用 {obj.isEnabled()}")
             if hasattr(obj, 'geometry'):
                 geom = obj.geometry()
-                element_info.append(f"位    置：({geom.x()}, {geom.y()})")
-                element_info.append(f"大    小：{geom.width()}x{geom.height()}")
+                element_info.append(f"位    置 ({geom.x()}, {geom.y()})")
+                element_info.append(f"大    小 {geom.width()}x{geom.height()}")
             self.elementInfoEdit.setText("\n".join(element_info))
         return super().eventFilter(obj, event)
 
     def _updateDebugInfo(self):
         if not self.debugUpdateToggle.isChecked(): return
+        if not getattr(self, '_debug_info_first_logged', False):
+            logger.debug("[调试] 资源监控首次采样: FPS/内存/CPU")
+            self._debug_info_first_logged = True
         try:
             mem_info = self.process.memory_info()
             mem_mb = mem_info.rss / 1024 / 1024
@@ -837,12 +884,16 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         """壁纸目录下全部文件路径"""
         d = os.path.normpath(WALLPAPER_DIR)
         if not os.path.exists(d):
+            logger.debug(f"壁纸目录不存在 扫描结果为空: {d}")
             return
         for root, _dirs, files in os.walk(d):
             for f in files:
                 yield os.path.join(root, f)
 
     def _updateResourceMonitor(self):
+        if not getattr(self, '_res_mon_first_logged', False):
+            logger.debug("[调试] 壁纸资源监控首次采样")
+            self._res_mon_first_logged = True
         try:
             if not os.path.exists(os.path.normpath(WALLPAPER_DIR)):
                 self.wallpaperSizeLabel.setText("-")
@@ -854,12 +905,12 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
                 try:
                     total_size += os.path.getsize(fp)
                     file_count += 1
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"壁纸文件大小读取失败: {fp} - {e}")
             self.wallpaperSizeLabel.setText(f"{total_size / 1024 / 1024:.1f} MB")
             self.wallpaperCountLabel.setText(str(file_count))
         except Exception as e:
-            logger.error(f"更新资源监控失败：{e}")
+            logger.error(f"更新资源监控失败 {e}")
 
     def _testPoetryAPI(self):
         start_time = time.time()
@@ -869,11 +920,12 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             elapsed = (time.time() - start_time) * 1000
             self.poetryResultLabel.setText(f"成功 ({elapsed:.0f}ms): {response.text[:50]}")
             self.rawDataEdit.setText(response.text)
+            logger.info(f"[调试] 一言API 已测 {elapsed:.0f}ms {response.text[:30]}")
             InfoBar.success(title=tr("debug.api_test"), content=tr("debug.poetry_api_success"), parent=self, duration=2000)
         except Exception as e:
             elapsed = (time.time() - start_time) * 1000
             self.poetryResultLabel.setText(f"失败 ({elapsed:.0f}ms): {str(e)}")
-            logger.error(f"一言 API 测试失败：{e}")
+            logger.error(f"一言 api 测试失败 {e}")
             InfoBar.error(title=tr("debug.api_test"), content=tr("debug.poetry_api_failed").format(error=str(e)), parent=self, duration=3000)
 
     def _testWeatherAPI(self):
@@ -888,31 +940,35 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
                 unit = temp_block.get("unit", "℃")
                 try:
                     code = int(current.get("weather", 0) or 0)
-                except (TypeError, ValueError):
+                except (TypeError, ValueError) as e:
+                    logger.debug(f"[调试] 天气代码转换失败 用 0: {current.get('weather')!r} {e}")
                     code = 0
                 name = self.weatherCodeMap.get(code, "")
                 hourly = weather_data.get("forecastHourly", {}).get("temperature", {}).get("value", [])
                 daily = weather_data.get("forecastDaily", {}).get("temperature", {}).get("value", [])
                 self.weatherResultLabel.setText(f"成功 ({elapsed:.0f}ms): {name} {temp}{unit}")
+                logger.info(f"[调试] 天气API 已测 {elapsed:.0f}ms {name} {temp}{unit}")
                 self.rawDataEdit.setText(
-                    f"温度：{temp}{unit}\n天气：{name}\n代码：{code}\n"
-                    f"逐小时：{len(hourly)}条\n每日：{len(daily)}条")
+                    f"温度 {temp}{unit}\n天气 {name}\n代码 {code}\n"
+                    f"逐小时 {len(hourly)}条\n每日 {len(daily)}条")
                 InfoBar.success(title=tr("debug.api_test"),
                                 content=tr("debug.weather_api_success").format(weather=name, temp=f"{temp}{unit}"),
                                 parent=self, duration=2000)
             else:
+                logger.warning(f"[调试] 天气 api 返回空数据 ({elapsed:.0f}ms)")
                 self.weatherResultLabel.setText(f"失败 ({elapsed:.0f}ms): 未获取到数据")
                 self.rawDataEdit.setText(tr("debug.status_empty_data"))  # 暂无数据
                 InfoBar.warning(title=tr("debug.api_test"), content=tr("debug.weather_no_data"), parent=self, duration=3000)
         except Exception as e:
             elapsed = (time.time() - start_time) * 1000
             self.weatherResultLabel.setText(f"失败 ({elapsed:.0f}ms): {str(e)}")
-            logger.error(f"天气 API 测试失败：{e}")
+            logger.error(f"天气 api 测试失败 {e}")
             InfoBar.error(title=tr("debug.api_test"), content=tr("debug.weather_api_failed").format(error=str(e)), parent=self, duration=3000)
 
     def _clearCache(self):
         try:
             if not os.path.exists(os.path.normpath(WALLPAPER_DIR)):
+                logger.info("[调试] 无需清理缓存")
                 InfoBar.info(title=tr("debug.btn_clear_cache"), content=tr("debug.wallpaper_folder_not_exist"), parent=self, duration=2000)
                 return
             deleted_count = 0
@@ -923,17 +979,19 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
                     os.remove(fp)
                     deleted_count += 1
                 except Exception as e:
-                    logger.warning(f"删除壁纸文件失败：{fp}, {e}")
+                    logger.warning(f"删除壁纸文件失败 {fp} {e}")
             self._updateResourceMonitor()
+            logger.info(f"[调试] 缓存已清理 删 {deleted_count}张 释放 {deleted_size / 1024 / 1024:.1f}MB")
             InfoBar.success(title=tr("debug.clear_complete"), content=tr("debug.clear_cache_result").format(count=deleted_count, size=f"{deleted_size / 1024:.1f}"), parent=self, duration=3000)
         except Exception as e:
-            logger.error(f"清理缓存失败：{e}")
+            logger.error(f"清理缓存失败 {e}")
             InfoBar.error(title=tr("debug.clear_failed"), content=str(e), parent=self, duration=3000)
 
     def _clearLogs(self):
         try:
             log_dir = os.path.normpath(DATA_LOG)
             if not os.path.exists(log_dir):
+                logger.debug("[调试] 无可清理日志")
                 return
             removed = 0
             failed = 0
@@ -948,22 +1006,25 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
                         # 正在写入的日志被 RotatingFileHandler 持有,Windows 下删不掉
                         failed += 1
             if failed:
-                logger.warning(f"日志清理: 成功 {removed} 个, 失败 {failed} 个(正在写入)")
+                logger.warning(f"日志清理 {removed}个 失败 {failed}个(写入中)")
+            logger.info(f"[调试] 日志已清理 删 {removed}个")
             InfoBar.success(title=tr("debug.btn_clear_logs"), content=tr("debug.logs_cleared"), parent=self, duration=2000)
         except Exception as e:
-            logger.error(f"清理日志失败：{e}")
+            logger.error(f"清理日志失败 {e}")
             InfoBar.error(title=tr("debug.clear_failed"), content=str(e), parent=self, duration=3000)
     
     def _forceRepaint(self):
         try:
             self.mainWindow.update()
             self.mainWindow.repaint()
+            logger.info("[调试] 已强制重绘主窗口")
             InfoBar.success(title=tr("debug.repaint"), content=tr("debug.repaint_success"), parent=self, duration=1500)
         except Exception as e:
-            logger.error(f"强制重绘失败：{e}")
+            logger.error(f"强制重绘失败 {e}")
             InfoBar.error(title=tr("debug.repaint_failed"), content=str(e), parent=self, duration=3000)
 
     def _toggleElementCheck(self, enabled):
+        logger.info(f"[调试] 元素检查已{'开启' if enabled else '关闭'}")
         self.elementCheckEnabled = enabled
         if enabled:
             QApplication.instance().installEventFilter(self)
@@ -974,8 +1035,10 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
 
     def _togglePopOut(self):
         if self._popOutWindow is not None:
+            logger.debug("[调试] 切换调试面板: 还原")
             self._restoreFromPopOut()
         else:
+            logger.debug("[调试] 切换调试面板: 弹出")
             self._popOut()
 
     def _saveWidgetRefs(self):
@@ -983,9 +1046,12 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         for attr in list(vars(self)):
             obj = getattr(self, attr)
             if isinstance(obj, QWidget): self._savedWidgetRefs[attr] = obj
+        logger.debug(f"[调试] 已暂存控件引用: {len(self._savedWidgetRefs)}个")
 
     def _restoreWidgetRefs(self):
-        if not hasattr(self, '_savedWidgetRefs'): return
+        if not hasattr(self, '_savedWidgetRefs'):
+            logger.debug("[调试] 无暂存控件引用")
+            return
         for attr, value in self._savedWidgetRefs.items():
             setattr(self, attr, value)
         del self._savedWidgetRefs
@@ -993,15 +1059,18 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
     def _stopTimers(self):
         self.fpsTimer.stop()
         self.resourceTimer.stop()
+        logger.debug("[调试] 调试面板定时器已停止")
 
     def _startTimers(self):
         self.fpsTimer.start(FPS_TIMER_MS)
         self.resourceTimer.start(RESOURCE_TIMER_MS)
+        logger.debug(f"[调试] 调试面板定时器已启动: FPS={FPS_TIMER_MS}ms 资源={RESOURCE_TIMER_MS}ms")
 
     def _popOut(self):
         try:
             screen_obj = QApplication.primaryScreen()
             if screen_obj is None:
+                logger.warning("[调试] 弹出调试面板取消: 无可用屏幕")
                 return
             screen = screen_obj.availableGeometry()
 
@@ -1015,6 +1084,7 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
                     self._panel_ref = panel
                 def closeEvent(self, event):
                     panel = self._panel_ref
+                    logger.debug("[调试] 弹出窗口收到关闭事件 触发还原")
                     self._panel_ref = None
                     if panel: panel._restoreFromPopOut()
                     event.accept()
@@ -1052,13 +1122,16 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
             mw = self.mainWindow
             if hasattr(mw, 'debugNavItem'): mw.debugNavItem.setVisible(False)
             if hasattr(mw, 'homeInterface'): mw.switchTo(mw.homeInterface)
+            logger.info("[调试] 调试面板已弹出为独立窗口")
         except Exception as e:
             logger.error(f"弹出调试面板失败: {e}")
             self._safeCleanupPopOut()
 
     def _restoreFromPopOut(self):
         pop_win = getattr(self, '_popOutWindow', None)
-        if pop_win is None: return
+        if pop_win is None:
+            logger.debug("[调试] 面板未弹出")
+            return
         self._stopTimers()
         self._popOutWindow.deleteLater()
         self._popOutWindow = None
@@ -1068,12 +1141,15 @@ class DebugPanel(BaseScrollAreaInterface, TranslatableWidget):
         mw = self.mainWindow
         if hasattr(mw, 'debugNavItem') and cfg.debugMode.value: mw.debugNavItem.setVisible(True)
         self._startTimers()
+        logger.info("[调试] 调试面板已从独立窗口还原")
 
 
     def _safeCleanupPopOut(self):
+        logger.debug("[调试] 弹出失败 安全清理弹出状态")
         self._stopTimers()
         pop_win = getattr(self, '_popOutWindow', None)
         if pop_win is not None:
+            logger.debug("[调试] 安全清理: 销毁残留弹出窗口")
             self._popOutWindow = None
             if hasattr(pop_win, '_panel_ref'): pop_win._panel_ref = None
             pop_win.hide()

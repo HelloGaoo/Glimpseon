@@ -2,6 +2,7 @@
 课程表
 """
 
+import logging
 import os
 import shutil
 import datetime as _dt
@@ -51,6 +52,8 @@ from core.timetable import (
 from core.utils import tr, TranslatableWidget, FUI
 
 DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
+logger = logging.getLogger("Glimpseon.ui.timetable")
 SUBJECT_SHORT = ["语", "数", "英", "政", "史", "地", "生", "物", "化", "科", "通", "劳", "班", "社", "心", "信", "考", "体", "早", "自"]
 SUBJECT_FULL = {
     "语": "语文", "数": "数学", "英": "英语", "政": "政治", "史": "历史",
@@ -462,12 +465,16 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             self._sourceCombo.blockSignals(False)
             self._applySourceMode(current_source)
 
+        logger.debug(f"[TimetablePage] 就绪 档案={self._current_profile_name}时段={self._profile.period_count()} 源={current_source}")
 
     def _loadProfile(self, name: str):
         """加载档案"""
         self._current_profile_name = name
         path = get_profile_path(name)
         self._profile = TimetableProfile.load(path)
+        logger.info(f"切到档案: {name}")
+        logger.debug(f"[TimetablePage] 档案已加载 {self._profile.period_count()} "
+                     f"上课{self._profile.default_class_duration}min/课间{self._profile.default_break_duration}min")
         self._profileLabel.setText(name)
         self._block_save = True
         self._classDurSpin.setValue(self._profile.default_class_duration)
@@ -479,8 +486,10 @@ class TimetablePage(ScrollArea, TranslatableWidget):
     def _saveProfile(self):
         """保存档案"""
         if self._block_save or self._profile is None:
+            logger.debug(f"[TimetablePage] 档案保存 暂存锁={self._block_save} 档案缺失={self._profile is None}")
             return
         self._profile.save()
+        logger.debug(f"[TimetablePage] 档案已保存: {self._current_profile_name}")
         self._scheduleChangedTimer.start()
 
 
@@ -525,6 +534,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             self.courseTable.setCurrentCell(saved_course_row, saved_course_col)
 
         self._block_save = False
+        logger.debug(f"[TimetablePage] 表格已刷新 时间行={self._profile.period_count()} 课程行={len(nb_indices)}")
         self._scheduleChangedTimer.start()
 
     def _setTimeRow(self, row: int, period: dict):
@@ -532,6 +542,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         start = period.get("start", "")
         end = period.get("end", "")
         ptype = period.get("type", "")
+        logger.debug(f"[TimetablePage] 填充时间行 {row}: {ptype} {start}~{end}")
 
         # 第0列类型
         type_item = QTableWidgetItem(ptype)
@@ -564,11 +575,13 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             text = courses.get(day, "")
             item = QTableWidgetItem(text)
             self.courseTable.setItem(table_row, col, item)
+        logger.debug(f"[TimetablePage] 填充课程行 {table_row}: 时段{period_idx} '{start}~{end}'")
 
 
     def _addPeriod(self, period_type: str):
         """添加一个时间段"""
         if self._profile is None:
+            logger.debug("[TimetablePage] 添加时段取消: 无档案")
             return
 
         start_qtime = self._startTimePicker.time
@@ -576,6 +589,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         end_qtime = self._endTimePicker.time
         end = f"{end_qtime.hour():02d}:{end_qtime.minute():02d}"
 
+        logger.info(f"[TimetablePage] 添加时段: {period_type} {start}~{end}")
         self._profile.add_period(period_type, start, end)
         self._refreshTables()
         self._saveProfile()
@@ -610,9 +624,11 @@ class TimetablePage(ScrollArea, TranslatableWidget):
                 period_idx = nb[original_row]
 
         if period_idx < 0 or period_idx >= self._profile.period_count():
+            logger.debug(f"[TimetablePage] 删除取消: 无有效选中行 (period_idx={period_idx})")
             return
 
         # 删除
+        logger.info(f"[TimetablePage] 删除时段: 索引={period_idx} 来源表={source_table}行={original_row}")
         self._profile.remove_period(period_idx)
         self._refreshTables()
         self._saveProfile()
@@ -634,6 +650,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
     def _syncTimePickers(self):
         """时间选择器更新"""
         if self._profile is None:
+            logger.debug("[TimetablePage] 时间选择器同步 无档案")
             return
         self._block_picker_change = True
         nxt = self._profile.get_next_start_time()
@@ -644,6 +661,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         total = h * 60 + m + dur
         end_h, end_m = total // 60, total % 60
         self._endTimePicker.setTime(QTime(end_h % 24, end_m))
+        logger.debug(f"[TimetablePage] 时间选择器同步 下一节 {nxt} 结束 {end_h % 24:02d}:{end_m:02d} 时长{dur}min")
         self._block_picker_change = False
 
 
@@ -653,6 +671,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             return
         item = self.courseTable.item(row, col)
         text = item.text() if item else ""
+        logger.debug(f"[TimetablePage] 单元格编辑: 行{row} 列{col} -> '{text[:20]}'")
         if not self._write_course_cell(row, col, text):
             return
         # 同步到右侧面板
@@ -662,9 +681,11 @@ class TimetablePage(ScrollArea, TranslatableWidget):
     def _write_course_cell(self, row: int, col: int, text: str) -> bool:
         """写入课程表单元格并保存"""
         if col == 0 or self._profile is None:  # 时间段列不可编辑
+            logger.debug(f"[TimetablePage] 课程单元格写入拒绝: 列={col} 有档案={self._profile is not None}")
             return False
         nb = self._nonBreakIndices(self._profile.periods)
         if row >= len(nb):
+            logger.debug(f"[TimetablePage] 课程单元格写入拒绝: 行越界 row={row} 非课间行数={len(nb)}")
             return False
         self._profile.courses.setdefault(str(nb[row]), {})[DAYS[col - 1]] = text
         self._saveProfile()
@@ -675,12 +696,14 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         """时间表选中"""
         sel = self.timeTable.selectedItems()
         if not sel or self._profile is None or self._profile.period_count() == 0:
+            logger.debug("[TimetablePage] 时间表选中为空 显示空状态")
             self._activeTable = None
             self._emptyState.show()
             self._timeSettings.hide()
             self._courseSettings.hide()
             return
         self._activeTable = "time"
+        logger.debug(f"[TimetablePage] 时间表选中行={sel[0].row()} 类型={sel[0].text()}")
         self._emptyState.hide()
         self._timeSettings.show()
         self._courseSettings.hide()
@@ -690,12 +713,14 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         """课程表选中"""
         sel = self.courseTable.selectedItems()
         if not sel or self._profile is None or self._profile.period_count() == 0:
+            logger.debug("[TimetablePage] 课程表选中为空 显示空状态")
             self._activeTable = None
             self._emptyState.show()
             self._timeSettings.hide()
             self._courseSettings.hide()
             return
         self._activeTable = "course"
+        logger.debug(f"[TimetablePage] 课程表选中: 行={sel[0].row()} 列={sel[0].column()}")
         self._emptyState.hide()
         self._timeSettings.hide()
         self._courseSettings.show()
@@ -707,6 +732,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             return
         sel = self.courseTable.selectedItems()
         if not sel:
+            logger.debug("[TimetablePage] 课程面板清空: 无选中单元格")
             self._csInfoLabel.setText("")
             self._block_course_edit = True
             self._csSubjectEdit.clear()
@@ -716,12 +742,14 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         row, col = sel[0].row(), sel[0].column()
         nb = self._nonBreakIndices(self._profile.periods)
         if row >= len(nb):
+            logger.debug(f"[TimetablePage] 课程面板 行越界 row={row} 非课间行数={len(nb)}")
             return
         period_idx = nb[row]
         p = self._profile.periods[period_idx]
         time_range = f"{p['start']}~{p['end']}"
 
         if col == 0:
+            logger.debug(f"[TimetablePage] 课程面板显示时间段: 行{row} {time_range}")
             self._csInfoLabel.setText(f"第{row + 1}节  ·  {time_range}")
             self._block_course_edit = True
             self._csSubjectEdit.clear()
@@ -732,6 +760,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         self._csInfoLabel.setText(f"第{row + 1}节  ·  {time_range}  ·  {day}")
         courses = self._profile.courses.get(str(period_idx), {})
         current = courses.get(DAYS[col - 1], "")
+        logger.debug(f"[TimetablePage] 课程面板更新: 行{row} 列{col} {day} {time_range} 当前='{current[:20]}'")
         self._block_course_edit = True
         self._csSubjectEdit.setText(current)
         self._block_course_edit = False
@@ -752,6 +781,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
                 btn.setProperty("selected", False)
             btn.style().unpolish(btn)
             btn.style().polish(btn)
+        logger.debug(f"[TimetablePage] 科目按钮高亮: {short_name or '(无)'}")
 
     def _onSubjectBtnClicked(self, subject: str):
         """科目按钮点击设置"""
@@ -770,6 +800,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
 
         # 同步到表格
         self._block_save = True
+        logger.debug(f"[TimetablePage] 科目按钮: {subject} -> {full_name} @ 行{row} 列{col}")
         item = self.courseTable.item(row, col)
         if item:
             item.setText(full_name)
@@ -782,6 +813,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             next_row = 0
             next_col = col + 1
             if next_col > 7:
+                logger.debug(f"[TimetablePage] 科目录入跳转结束: 已到末列 col={col}")
                 return
         # 选中下一格(setCurrentCell 自身会触发右侧面板刷新)
         self.courseTable.setCurrentCell(next_row, next_col)
@@ -796,6 +828,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         row, col = sel[0].row(), sel[0].column()
 
         # 更新 profile
+        logger.debug(f"[TimetablePage] 科目输入: '{text}' @ 行{row} 列{col}")
         if not self._write_course_cell(row, col, text):
             return
 
@@ -820,6 +853,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         self._startTimePicker.setTime(QTime(h, m))
         h, m = map(int, p["end"].split(":"))
         self._endTimePicker.setTime(QTime(h, m))
+        logger.debug(f"[TimetablePage] 选择器载入时间行 {time_row}: {p['start']}~{p['end']}")
         self._block_picker_change = False
 
     def _onPickerChanged(self, _):
@@ -831,6 +865,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             return
         row = sel[0].row()
         if row >= self._profile.period_count():
+            logger.debug(f"[TimetablePage] 时间选择器变更 行越界 row={row}")
             return
 
         qs = self._startTimePicker.time
@@ -840,6 +875,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
 
         self._profile.periods[row]["start"] = start
         self._profile.periods[row]["end"] = end
+        logger.info(f"[TimetablePage] 修改时间行: 行{row} -> {start}~{end}")
         self._refreshTables()
         self._saveProfile()
 
@@ -849,12 +885,14 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         name = next_profile_name()
         profile = TimetableProfile(name)
         profile.save()
+        logger.info(f"新建档案: {name}")
         self._loadProfile(name)
 
     def _onDeleteProfile(self):
         """删除档案"""
         names = list_profiles()
         if len(names) <= 1:
+            logger.debug("[TimetablePage] 删除档案取消: 仅剩最后一个档案")
             w = MessageBox(
                 tr("timetable.warning_title"),
                 tr("timetable.cannot_delete_last"),
@@ -869,9 +907,11 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             self
         )
         if not w.exec():
+            logger.debug("[TimetablePage] 用户放弃确认")
             return
 
         delete_profile(self._current_profile_name)
+        logger.info(f"删除档案: {self._current_profile_name}")
         names = list_profiles()
         if names:
             self._loadProfile(names[-1])
@@ -891,12 +931,15 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         le.setMinimumWidth(200)
 
         if not w.exec():
+            logger.debug("[TimetablePage] 用户放弃确认")
             return
 
         new_name = le.text().strip()
         if not new_name or new_name == self._current_profile_name:
+            logger.debug(f"[TimetablePage] 重命名取消: 新名称='{new_name}'")
             return
         if new_name in list_profiles():
+            logger.warning(f"[TimetablePage] 重命名失败: 名称已存在 '{new_name}'")
             w2 = MessageBox(
                 tr("timetable.warning_title"),
                 tr("timetable.name_exists"),
@@ -906,12 +949,14 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             return
 
         rename_profile(self._current_profile_name, new_name)
+        logger.info(f"重命名档案: {self._current_profile_name} -> {new_name}")
         self._loadProfile(new_name)
 
     def _onImportProfile(self):
         """导入档案 / 自动检测"""
         if self._linkageMode:
             source = "classisland" if self._activeBridge is self._ciBridge else "classwidgets"
+            logger.debug(f"[TimetablePage] 联动模式下导入按钮 -> 自动检测: {source}")
             self._onAutoDetect(source)
             return
         file_path, _ = QFileDialog.getOpenFileName(
@@ -921,6 +966,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             "JSON (*.json)"
         )
         if not file_path:
+            logger.debug("[TimetablePage] 导入取消: 未选择文件")
             return
         self._importProfileFrom(file_path)
 
@@ -932,11 +978,14 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             elif self._activeBridge is self._cwBridge:
                 path = cfg.classWidgetsDataPath.value
             else:
+                logger.warning("[TimetablePage] 打开数据目录 未识别的联动桥")
                 return
             if path and os.path.isdir(path):
+                logger.debug(f"[TimetablePage] 联动模式打开数据目录: {path}")
                 os.startfile(path)
             return
         if self._profile is None:
+            logger.debug("[TimetablePage] 导出档案 无当前档案")
             return
         file_path, _ = QFileDialog.getSaveFileName(
             self,
@@ -945,7 +994,9 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             "JSON (*.json)"
         )
         if not file_path:
+            logger.debug("[TimetablePage] 导出取消: 未选择保存路径")
             return
+        logger.info(f"导出档案: {self._current_profile_name} -> {file_path}")
         shutil.copy(get_profile_path(self._current_profile_name), file_path)
 
     def _onOpenFolder(self):
@@ -957,6 +1008,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
                 ""
             )
             if not dir_path:
+                logger.debug("[TimetablePage] 联动选择数据目录取消: 未选择目录")
                 return
             if self._activeBridge is self._ciBridge:
                 cfg.linkageDataPath.value = dir_path
@@ -967,6 +1019,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
                 self._cwBridge.set_data_path(dir_path)
                 self._cwBridge.start()
             self._updateLinkagePathLabel()
+            logger.info(f"[TimetablePage] 联动数据目录已设置: {dir_path}")
             return
         os.makedirs(PROFILES_DIR, exist_ok=True)
         file_path, _ = QFileDialog.getOpenFileName(
@@ -976,6 +1029,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             "JSON (*.json)"
         )
         if not file_path:
+            logger.debug("[TimetablePage] 选择档案取消: 未选择文件")
             return
         self._importProfileFrom(file_path)
 
@@ -985,12 +1039,15 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         name = os.path.splitext(filename)[0]
         if os.path.normcase(os.path.dirname(file_path)) != os.path.normcase(PROFILES_DIR):
             shutil.copy(file_path, os.path.join(PROFILES_DIR, filename))
+            logger.debug(f"[TimetablePage] 外部档案已拷入: {file_path}")
+        logger.info(f"导入档案: {filename}")
         self._loadProfile(name)
 
     def _onDurationChanged(self):
         """默认时长变更"""
         if self._profile is None:
             return
+        logger.debug(f"[TimetablePage] 默认时长 上课={self._classDurSpin.value()}min 课间={self._breakDurSpin.value()}min")
         self._profile.default_class_duration = self._classDurSpin.value()
         self._profile.default_break_duration = self._breakDurSpin.value()
         self._saveProfile()
@@ -1006,14 +1063,17 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         """返回今日课表"""
         if self._activeBridge:
             try:
-                return self._activeBridge.get_today_schedule()
-            except Exception:
+                result = self._activeBridge.get_today_schedule()
+                self._log_schedule_once("联动", result)
+                return result
+            except Exception as e:
+                logger.warning(f"[TimetablePage] 联动获取今日课表失败: {e}")
                 return []
 
         if not self._profile or not self._profile.periods:
             return []
 
-        now = _dt.now()
+        now = _dt.datetime.now()
         today_wd = now.weekday()
         day_name = DAYS[today_wd]
         now_time = now.time()
@@ -1028,7 +1088,8 @@ class TimetablePage(ScrollArea, TranslatableWidget):
                 sh, sm = map(int, start.split(":"))
                 eh, em = map(int, end.split(":"))
                 is_current = _time(sh, sm) <= now_time < _time(eh, em)
-            except Exception:
+            except Exception as e:
+                logger.debug(f"[TimetablePage] 课表时间解析失败 这节不算当前: start={start!r} end={end!r} {e}")
                 is_current = False
 
             if ptype in ("课间", "活动"):
@@ -1039,7 +1100,15 @@ class TimetablePage(ScrollArea, TranslatableWidget):
                 subject = courses.get(day_name, "")
                 result.append((subject, "", start, end, class_counter, is_current, False, ""))
 
+        self._log_schedule_once("本地档案", result)
         return result
+
+    def _log_schedule_once(self, origin: str, result: list):
+        """课表内容变化时才记日志, 避免轮询刷屏"""
+        sig = tuple((r[0], r[2], r[3], r[5]) for r in result)
+        if getattr(self, "_last_schedule_sig", None) != sig:
+            self._last_schedule_sig = sig
+            logger.debug(f"[TimetablePage] 今日课表({origin}) {len(result)}节 当前 {[r[0] or r[7] for r in result if r[5]]}")
 
     def get_schedule_by_weekday(self, weekday: int) -> list:
         """返回指定星期课表"""
@@ -1047,11 +1116,14 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             try:
                 # ci 0=周日..6=周六  cw 0=周一..6=周日
                 if self._activeBridge is self._ciBridge:
-                    dotnet_wd = (weekday + 1) % 7  # Mon=1..Sun=7 → Sun=0..Sat=6
+                    dotnet_wd = (weekday + 1) % 7  # Mon=1..Sun=7 -> Sun=0..Sat=6
                 else:
                     dotnet_wd = weekday
-                return self._activeBridge.get_schedule_by_weekday(dotnet_wd)
-            except Exception:
+                result = self._activeBridge.get_schedule_by_weekday(dotnet_wd)
+                logger.debug(f"[TimetablePage] 联动按星期取课表: weekday={weekday} -> dotnet_wd={dotnet_wd} {len(result)}条")
+                return result
+            except Exception as e:
+                logger.warning(f"[TimetablePage] 联动获取星期课表失败: weekday={weekday} - {e}")
                 return []
 
         if not self._profile or not self._profile.periods:
@@ -1074,17 +1146,21 @@ class TimetablePage(ScrollArea, TranslatableWidget):
                 subject = courses.get(day_name, "")
                 result.append((subject, "", start, end, class_counter, False, False, ""))
 
+        logger.debug(f"[TimetablePage] 按星期取课表: weekday={weekday}({day_name}) {len(result)}条")
         return result
 
     def _onSourceChanged(self, index: int):
         """档案来源切换"""
         source_map = {0: "Glimpseon", 1: "classisland", 2: "classwidgets"}
         source = source_map.get(index, "Glimpseon")
+        if index not in source_map:
+            logger.debug(f"[TimetablePage] 未识别的来源下标: {index} 用 Glimpseon")
+        logger.info(f"[TimetablePage] 切换档案来源: 下标={index} -> {source}")
         cfg.profileSource.value = source
         self._applySourceMode(source)
 
     def _applySourceMode(self, source: str):
-        """根据来源模式切换 UI  Bridge"""
+        """根据来源模式切换 ui  Bridge"""
         if source == "Glimpseon":
             self._linkageMode = False
             self._activeBridge = None
@@ -1102,6 +1178,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             self._enterLinkage(self._ciBridge, "linkageDataPath")
         elif source == "classwidgets":
             self._enterLinkage(self._cwBridge, "classWidgetsDataPath")
+        logger.info(f"[TimetablePage] 来源模式: {source} 编辑区{'禁用' if self._linkageMode else '启用'}")
 
     def _enterLinkage(self, bridge, path_attr: str):
         """进入联动模式并启动指定桥"""
@@ -1109,6 +1186,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         self._activeBridge = bridge
         (self._cwBridge if bridge is self._ciBridge else self._ciBridge).stop()
         path = getattr(cfg, path_attr).value
+        logger.info(f"[TimetablePage] 进入联动模式: bridge={type(bridge).__name__} 数据路径={path or '(空)'}")
         bridge.set_data_path(path)
         bridge.poll_interval = 1
         if path:
@@ -1125,6 +1203,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
 
     def _setEditModeEnabled(self, enabled: bool):
         """禁用/启用手动编辑控件"""
+        logger.debug(f"[TimetablePage] 编辑控件{'启用' if enabled else '禁用'}")
         triggers = (TableWidget.EditTrigger.DoubleClicked | TableWidget.EditTrigger.EditKeyPressed) if enabled else TableWidget.EditTrigger.NoEditTriggers
         self.courseTable.setEditTriggers(triggers)
         for btn in [self._btnClass, self._btnBreak, self._btnActivity, self._btnDeleteRow,
@@ -1146,6 +1225,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
         else:
             path = ""
         if not path:
+            logger.debug("[TimetablePage] 联动路径标签: 路径为空 显示占位")
             self._profileLabel.setText(tr("linkage.path_empty"))
             self._profileLabel.setStyleSheet("color: #999; font-size: 11px;")
             self._profileLabel.setToolTip("")
@@ -1165,8 +1245,10 @@ class TimetablePage(ScrollArea, TranslatableWidget):
             bridge, path_attr, missing = self._ciBridge, "linkageDataPath", "ClassIsland not found"
         else:
             bridge, path_attr, missing = self._cwBridge, "classWidgetsDataPath", "ClassWidgets not found"
+        logger.info(f"[TimetablePage] 自动检测联动路径 source={source}")
         path = bridge.auto_detect()
         if path:
+            logger.info(f"[TimetablePage] 自动检测命中 {path}")
             getattr(cfg, path_attr).value = path
             bridge.start()
             self._updateLinkagePathLabel()
@@ -1175,6 +1257,7 @@ class TimetablePage(ScrollArea, TranslatableWidget):
                 parent=self, position=InfoBarPosition.TOP, duration=3000,
             )
         else:
+            logger.warning(f"[TimetablePage] 自动检测失败: {missing}")
             InfoBar.error(
                 title=tr("timetable.auto_detect"), content=missing,
                 parent=self, position=InfoBarPosition.TOP, duration=3000,
@@ -1242,21 +1325,27 @@ class TimetablePage(ScrollArea, TranslatableWidget):
                     self.courseTable.setItem(table_row, col_idx + 1, item)
 
         self._block_save = False
+        logger.debug(f"[TimetablePage] 联动表格已刷新 今日{len(today_schedule)}行 最大{max_rows}行")
         self._scheduleChangedTimer.start()
 
     def _onLinkageStateChanged(self, state):
         if self._activeBridge is not self.sender():
+            logger.debug(f"[TimetablePage] 联动状态变更 非当前桥 sender={self.sender()}")
             return
+        logger.info(f"[TimetablePage] 联动状态变更: state={state}")
         self._refreshLinkageTables()
 
     def _onLinkageConnectedChanged(self, connected):
         if self._activeBridge is not self.sender():
+            logger.debug(f"[TimetablePage] 联动连接状态 非当前桥 sender={self.sender()}")
             return
+        logger.info(f"[TimetablePage] 联动连接状态: connected={connected}")
         if connected and not self._linkageRefreshTimer.isActive():
             self._linkageRefreshTimer.start()
         self._updateLinkagePathLabel()
 
     def _onLinkageError(self, msg: str):
+        logger.error(f"[TimetablePage] 联动错误: {msg}")
         if msg.startswith("REDIRECT:"):
             new_path = msg[len("REDIRECT:"):]
             if self._activeBridge is self._ciBridge:
@@ -1277,4 +1366,5 @@ class TimetablePage(ScrollArea, TranslatableWidget):
 
     def _onThemeChanged(self, theme):
         """主题变更"""
+        logger.debug(f"[TimetablePage] 主题变更: {theme}")
         self.setStyleSheet(load_qss("timetable.qss"))

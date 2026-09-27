@@ -82,12 +82,12 @@ cmake --build build --config Release
 
 ```
 输入 BGRA 像素
-  → D3D11 Texture (DXGI_FORMAT_B8G8R8A8_UNORM)
-  → DXGI Surface → D2D Bitmap (目标 + 源)
-  → CLSID_D2D1GaussianBlur Effect (standardDeviation = radius, BorderMode = Hard)
-  → BeginDraw / DrawImage / EndDraw
-  → CopyResource 到 Staging Texture
-  → Map 读回 BGRA bytes
+  -> D3D11 Texture (DXGI_FORMAT_B8G8R8A8_UNORM)
+  -> DXGI Surface -> D2D Bitmap (目标 + 源)
+  -> CLSID_D2D1GaussianBlur Effect (standardDeviation = radius, BorderMode = Hard)
+  -> BeginDraw / DrawImage / EndDraw
+  -> CopyResource 到 Staging Texture
+  -> Map 读回 BGRA bytes
 ```
 
 ### 4.2 设备初始化（ensure\_init）

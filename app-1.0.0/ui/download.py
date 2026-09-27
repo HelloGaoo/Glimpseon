@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-软件下载界面模块（HTML）
+软件下载界面模块（html）
 """
 
 import base64
@@ -48,12 +48,15 @@ _software_icon_cache = {}
 def get_cached_icon_data(icon_path: str, size: int = 64) -> Optional[str]:
     """读ico 转换为 base64 PNG data URI"""
     if not icon_path or not os.path.exists(icon_path):
+        logger.debug(f"图标缓存 路径无效 ({icon_path!r})")
         return None
     if icon_path in _software_icon_cache:
+        logger.debug(f"图标缓存命中: {icon_path}")
         return _software_icon_cache[icon_path]
     try:
         pixmap = QPixmap(icon_path)
         if pixmap.isNull():
+            logger.warning(f"图标加载失败(空图像): {icon_path}")
             return None
         scaled = pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio,
                                Qt.TransformationMode.FastTransformation)
@@ -62,14 +65,19 @@ def get_cached_icon_data(icon_path: str, size: int = 64) -> Optional[str]:
         scaled.save(buffer, "PNG")
         data_uri = "data:image/png;base64," + base64.b64encode(bytes(buffer.data())).decode("ascii")
         _software_icon_cache[icon_path] = data_uri
+        logger.debug(f"图标已生成并缓存: {icon_path} (data_uri 长度 {len(data_uri)})")
         return data_uri
-    except Exception:
+    except Exception as e:
+        logger.warning(f"图标转换异常: {icon_path} - {e}")
         return None
 
 
 def _normalize_name(name: str) -> str:
     """去空格与方括号"""
-    return name.replace(" ", "").replace("[", "").replace("]", "")
+    processed = name.replace(" ", "").replace("[", "").replace("]", "")
+    if processed != name:
+        logger.debug(f"[Download] 名称规范化: '{name}' -> '{processed}'")
+    return processed
 
 
 class DownloadBridge(QObject):
@@ -77,41 +85,53 @@ class DownloadBridge(QObject):
 
     def __init__(self, interface):
         super().__init__()
+        logger.debug(f"[Download] WebChannel 桥接对象创建: interface={type(interface).__name__}")
         self._interface = interface
 
     @pyqtSlot(str)
     def download(self, name: str):
+        logger.debug(f"桥接调用 download: {name}")
         self._interface._handleDownload(name)
 
     @pyqtSlot(str)
     def openLink(self, url: str):
+        logger.debug(f"桥接调用 openLink: {url}")
         if url:
             QDesktopServices.openUrl(QUrl(url))
+        else:
+            logger.debug("openLink 空链接")
 
     @pyqtSlot(str)
     def setMode(self, mode: str):
+        logger.debug(f"桥接调用 setMode: {mode}")
         self._interface._mode = "multi" if mode == "multi" else "single"
 
     @pyqtSlot(str)
     def setSource(self, key: str):
+        logger.debug(f"桥接调用 setSource: {key}")
         self._interface._applySource(key)
 
     @pyqtSlot(str)
     def startBatch(self, names_json: str):
         try:
             names = json.loads(names_json)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"桥接调用 startBatch: names_json 解析失败 - {e}")
             return
+        logger.debug(f"桥接调用 startBatch: {names}")
         if isinstance(names, list):
             self._interface._handleStartDownload([str(n) for n in names])
+        else:
+            logger.warning(f"桥接调用 startBatch: names 不是列表 类型={type(names).__name__}")
 
     @pyqtSlot(int, bool)
     def confirmResult(self, confirm_id: int, ok: bool):
+        logger.debug(f"桥接调用 confirmResult: id={confirm_id} 结果={ok}")
         self._interface._onConfirmResult(confirm_id, ok)
 
 
 class DownloadInterface(QWidget):
-    """软件下载界面（HTML）"""
+    """软件下载界面（html）"""
 
     # 子线程 > 主线程 通知
     _sigProgress = pyqtSignal(str, int)
@@ -132,6 +152,8 @@ class DownloadInterface(QWidget):
         self._pendingLayout = False  # 隐藏时延迟到首次显示再渲染
         self._confirmSeq = 0
         self._pendingConfirms = {}   # id -> callback
+        self._lastProgressLog = {}   # name -> int, 进度里程碑日志守卫
+        self._shownLogged = False    # showEvent 首次日志守卫
         self.downloader = Downloader(logger)
         # 共享实例:并发任务各自覆盖 progress_callback 会互相顶掉,改按名字路由
         self.downloader.progress_callback = self._route_progress
@@ -154,24 +176,31 @@ class DownloadInterface(QWidget):
         self._sigError.connect(self._showDownloadError)
         self._sigComplete.connect(self._showDownloadComplete)
         self._sigBatchDone.connect(lambda: self._js("window.glimpseon && window.glimpseon.uiBatchDone()"))
+        logger.debug(f"[Download] 就绪 模式={self._mode} 源={cfg.downloadSource.value}")
+        logger.debug("[Download] WebChannel 已注册 bridge 信号槽已连 (进度/错误/完成/批量结束)")
 
     # 主题色
     def _accent_hex(self) -> str:
         """当前主题色（16）"""
         color = QColor(cfg.themeColor.value)
-        return color.name() if color.isValid() else "#30c361"
+        accent = color.name() if color.isValid() else "#30c361"
+        logger.debug(f"[Download] 主题色取值: {accent}")
+        return accent
 
     def _onThemeColorChanged(self, *_):
+        logger.debug(f"[Download] 主题色变化 -> {self._accent_hex()} 重建页面")
         self._render()
 
     # 数据填充
     def addSection(self, title):
         if not title:
             title = tr("download.common_software")  # 常用软件
+        logger.debug(f"添加分区: {title}")
         self._currentDataSection = title
 
     def addSoftware(self, icon_path, name, description, link=None):
         sec = self._currentDataSection or tr("download.common_software")
+        logger.debug(f"添加软件条目: {name} (分区: {sec})")
         self._allSoftwareData.append({
             'section': sec,
             'icon_path': icon_path,
@@ -182,15 +211,19 @@ class DownloadInterface(QWidget):
 
     def _onDataPopulated(self):
         """数据填充完毕,可见即渲染否则延后"""
+        logger.info(f"软件数据填充完毕 共{len(self._allSoftwareData)}个条目")
         if self.isVisible():
             self._render()
         else:
+            logger.debug("[Download] 界面不可见 渲染延迟到首次显示")
             self._pendingLayout = True
 
-    # HTML
+    # html
     def _collectSections(self):
         """顺序聚合 [{title, items}]"""
         sections = []
+        if not self._allSoftwareData:
+            logger.debug("[Download] 分区聚合: 无软件条目")
         for item in self._allSoftwareData:
             if not sections or sections[-1]["title"] != item["section"]:
                 sections.append({"title": item["section"], "items": []})
@@ -200,10 +233,12 @@ class DownloadInterface(QWidget):
                 "icon": get_cached_icon_data(item["icon_path"]) or "",
                 "link": item.get("link") or ""
             })
+        logger.debug(f"分区已聚合 {len(sections)}个")
         return sections
 
     def _buildTheme(self) -> dict:
         dark = isDarkTheme()
+        logger.debug(f"构建主题: {'深色' if dark else '浅色'}")
         if dark:
             return {
                 "ink": "#ffffff", "sub": "#888888", "label": "#ffffff",
@@ -239,17 +274,24 @@ class DownloadInterface(QWidget):
     def _render(self):
         # 重建页面会丢弃 JS 侧确认框状态,未决回调就地作废
         if self._pendingConfirms:
-            logger.warning(f"页面重建,丢弃 {len(self._pendingConfirms)} 个未决确认回调")
+            logger.warning(f"页面重建,丢弃{len(self._pendingConfirms)}个未决确认回调")
             self._pendingConfirms.clear()
-        self.webView.setHtml(self._build_html(), QUrl("file:///glimpseon/download/"))
+        html_content = self._build_html()
+        logger.debug(f"渲染下载页 html {len(html_content)}")
+        self.webView.setHtml(html_content, QUrl("file:///glimpseon/download/"))
 
     def showEvent(self, event):
         """首次显示"""
         super().showEvent(event)
+        if not self._shownLogged:
+            self._shownLogged = True
+            logger.debug("[Download] 界面首次显示")
         if self._pendingLayout:
             self._pendingLayout = False
+            logger.info("[Download] 首次显示触发延迟渲染")
             self._render()
         else:
+            logger.debug("[Download] 显示事件: 注入 JS 重排 relayout()")
             self._js("window.relayout && window.relayout()")
 
     def resizeEvent(self, event):
@@ -283,9 +325,16 @@ class DownloadInterface(QWidget):
             },
         }
         payload_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
+        if self._downloadingNames:
+            logger.debug(f"[Download] 构建 html: 续传{len(self._downloadingNames)}个任务")
+        else:
+            logger.debug("[Download] 构建 html: 无任务恢复")
+        logger.debug(f"[Download] html accent={accent} 分区={len(payload['sections'])} "
+                     f"长度 {len(payload_json)}")
         return self._HTML_TEMPLATE.substitute(font=FONT_FAMILY, accent=accent, **theme, payload_json=payload_json)
 
     def _onThemeChanged(self, theme: Theme):
+        logger.debug(f"主题切换: {theme}")
         self._render()
 
     # Python > JS
@@ -295,16 +344,20 @@ class DownloadInterface(QWidget):
     def _js_set_state(self, name: str, downloading: bool, percent: int = 0):
         args = json.dumps(name, ensure_ascii=False)
         if downloading:
+            logger.debug(f"[Download] JS 注入 uiStart: {name} 初始进度 {int(percent)}%")
             self._js(f"window.glimpseon && window.glimpseon.uiStart({args},{int(percent)})")
         else:
+            logger.debug(f"[Download] JS 注入 uiError: {name} 复位卡片")
             self._js(f"window.glimpseon && window.glimpseon.uiError({args})")
 
     def _js_set_progress(self, name: str, percent: int):
+        logger.debug(f"[Download] JS 注入 uiProgress: {name} {int(percent)}%")
         args = json.dumps(name, ensure_ascii=False)
         self._js(f"window.glimpseon && window.glimpseon.uiProgress({args},{int(percent)})")
 
-    # HTML 通知与确认框
+    # html 通知与确认框
     def _toast(self, kind: str, title: str, content: str, duration: int = 3000):
+        logger.debug(f"弹窗通知: 类型={kind} 标题={title}")
         self._js(
             "window.glimpseon && window.glimpseon.toast("
             f"{json.dumps(kind)}, {json.dumps(title, ensure_ascii=False)}, "
@@ -314,6 +367,7 @@ class DownloadInterface(QWidget):
     def _confirm(self, title: str, content: str, callback):
         self._confirmSeq += 1
         cid = self._confirmSeq
+        logger.info(f"弹出确认框 id={cid} 标题={title}")
         self._pendingConfirms[cid] = callback
         self._js(
             "window.glimpseon && window.glimpseon.confirm("
@@ -322,35 +376,44 @@ class DownloadInterface(QWidget):
 
     def _confirm_then(self, title: str, content: str, action):
         """确认框通过后执行动作"""
+        logger.debug(f"[Download] 注册确认后动作: {title}")
         self._confirm(title, content, lambda ok: ok and action())
 
     def _onConfirmResult(self, confirm_id: int, ok: bool):
         cb = self._pendingConfirms.pop(int(confirm_id), None)
         if cb is None:
+            logger.warning(f"收到未知确认框结果: id={confirm_id} 结果={ok}")
             return
+        logger.info(f"确认框结果: id={confirm_id} 结果={ok}")
         try:
             cb(bool(ok))
         except Exception:
-            logger.error("确认框回调异常", exc_info=True)
+            logger.error("确认框回调执行异常", exc_info=True)
 
     # 下载源
     def _applySource(self, source_key: str):
         if source_key and source_key in DOWNLOAD_SOURCES:
+            logger.info(f"[Download] 切换下载源: {cfg.downloadSource.value} -> {source_key}")
             qconfig.set(cfg.downloadSource, source_key)
             set_download_src(source_key)
+        else:
+            logger.warning(f"[Download] 忽略无效下载源: {source_key!r} (可用: {list(DOWNLOAD_SOURCES)})")
 
     def _get_url(self, cache_file):
         if 'url' in cache_file:
+            logger.debug(f"[Download] 复用缓存文件自带 url: {cache_file['url']}")
             return cache_file['url']
         if 'github_path' in cache_file:
             source_key = cfg.downloadSource.value
             prefix = DOWNLOAD_SOURCES.get(source_key, DOWNLOAD_SOURCES[DEFAULT_SOURCE])["prefix"]
+            logger.debug(f"[Download] 拼接下载链接: 源={source_key} 前缀={prefix} 路径={cache_file['github_path']}")
             return f'{prefix}{cache_file["github_path"]}'
         return None
 
     # 下载逻辑
     def _handleDownload(self, software_name: str):
         """单个下载按钮点击"""
+        logger.info(f"请求下载: {software_name}")
         self._confirm_then(
             tr("download.confirm_download"),  # 确认下载
             tr("download.confirm_download_single").format(name=software_name),
@@ -358,20 +421,24 @@ class DownloadInterface(QWidget):
         )
 
     def _startSingleDownload(self, software_name: str):
+        logger.info(f"{software_name}: 单任务下载")
         self._beginDownloadUI(software_name)
         self._toast("success", tr("download.starting_download"),
                     tr("download.downloading_single").format(name=software_name), 3000)
 
         threading.Thread(target=self._prepare_and_install,
                          args=(software_name, True), daemon=True).start()
+        logger.debug(f"[Download] {software_name}: 后台安装线程已启动 (delay_complete=True)")
 
     def _handleStartDownload(self, selected_names: list):
         """批量下载"""
         if not selected_names:
+            logger.info("批量下载: 未选择任何软件")
             self._toast("warning", tr("download.no_selection"),
                         tr("download.please_select_first"), 3000)
             return
 
+        logger.info(f"批量下载确认: 共{len(selected_names)}个 - {selected_names}")
         software_list = "\n".join(selected_names)
         self._confirm_then(
             tr("download.confirm_download"),
@@ -380,6 +447,7 @@ class DownloadInterface(QWidget):
         )
 
     def _startBatchDownload(self, selected_names: list):
+        logger.info(f"[Download] 批量下载启动: {len(selected_names)}个任务")
         self._toast("success", tr("download.starting_download"),
                     tr("download.downloading_batch").format(count=len(selected_names)), 3000)
 
@@ -389,21 +457,24 @@ class DownloadInterface(QWidget):
         # 旧池丢后台关闭,避免在 GUI 线程 wait 卡界面
         old = self.download_executor
         if old is not None:
+            logger.debug("[Download] 旧线程池未退 等待关闭后替换")
             threading.Thread(target=old.shutdown, kwargs={"wait": True}, daemon=True).start()
 
         max_workers = os.cpu_count() or 4
         executor = ThreadPoolExecutor(max_workers=max_workers)
         self.download_executor = executor
         futures = [executor.submit(self._runInstallTask, n) for n in list(selected_names)]
-        logger.info(f"创建线程池 最大并发数: {max_workers}, 任务 {len(futures)}")
+        logger.info(f"创建线程池 最大并发数: {max_workers} 任务 {len(futures)}")
 
         def _wait_tasks():
+            logger.debug(f"[Download] 批量等待线程启动 监听{len(futures)}个任务")
             for future in futures:
                 try:
                     future.result()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"[Download] 批量任务 future 异常: {e}")
             executor.shutdown(wait=True)
+            logger.info("[Download] 批量下载全部任务结束 线程池已关闭")
             self._sigBatchDone.emit()
 
         threading.Thread(target=_wait_tasks, daemon=True).start()
@@ -414,23 +485,28 @@ class DownloadInterface(QWidget):
         for item in url_dir:
             _match_filename = _normalize_name(item.get("filename", ""))
             if _match_filename.startswith(_match_name):
+                logger.debug(f"缓存配置命中: {software_name} -> {item.get('filename')}")
                 cache_file = item.copy()
                 if "hash" not in cache_file:
                     cache_file["hash"] = ""
                 return cache_file
+        logger.debug(f"缓存配置未命中: {software_name} (匹配键: {_match_name})")
         return None
 
     def _beginDownloadUI(self, software_name: str):
         """界面进入下载中状态"""
+        logger.debug(f"界面进入下载中状态: {software_name}")
         self._downloadingNames.add(software_name)
         self._progress[software_name] = 0
         self._js_set_state(software_name, True, 0)
 
     def _notifyError(self, software_name: str, error_msg: str):
         """子线程 -> 主线程 错误通知"""
+        logger.warning(f"{software_name}: 任务失败通知 - {error_msg}")
         self._sigError.emit(software_name, error_msg)
 
     def _showDownloadError(self, software_name: str, error_msg: str):
+        logger.error(f"{software_name}: 下载/安装失败 - {error_msg}")
         self._downloadingNames.discard(software_name)
         self._progress.pop(software_name, None)
         self._js_set_state(software_name, False)
@@ -441,6 +517,7 @@ class DownloadInterface(QWidget):
         self._downloadingNames.discard(software_name)
         self._progress.pop(software_name, None)
         # 复位卡片
+        logger.info(f"[Download] {software_name}: 已安装 复位卡片")
         self._js("window.glimpseon && window.glimpseon.uiComplete("
                  f"{json.dumps(software_name, ensure_ascii=False)})")
         self._toast("success", tr("download.install_complete"),
@@ -448,7 +525,14 @@ class DownloadInterface(QWidget):
 
     def _route_progress(self, software_name: str, percent):
         """Downloader 单一回调按软件名分发"""
+        if not isinstance(percent, (int, float)):
+            logger.warning(f"[Download] {software_name}: 进度值类型异常({percent!r})")
         self._progress[software_name] = percent
+        # 里程碑日志守卫: 每 25% 记一条, 避免逐格刷屏
+        last = self._lastProgressLog.get(software_name)
+        if last is None or percent - last >= 25:
+            self._lastProgressLog[software_name] = percent
+            logger.debug(f"[Download] {software_name}: 进度里程碑 {percent}%")
         self._sigProgress.emit(software_name, percent)
 
     def _runInstall(self, software_name: str, cache_file: dict, delay_complete: bool = False):
@@ -457,17 +541,19 @@ class DownloadInterface(QWidget):
         def update_progress(_name, percent):
             try:
                 val = int(round(float(percent)))
-            except Exception:
+            except Exception as e:
+                logger.debug(f"[Download] {_name or software_name}: 进度值解析失败({percent}): {e}")
                 return
             self._progress[software_name] = val
             self._sigProgress.emit(software_name, val)
 
         def _on_download_done(*_):
-            logger.info(f"{software_name}: 下载完成")
+            logger.info(f"{software_name}: 已下载")
 
         processed_name = _normalize_name(software_name)
         install_method_name = f"_install_{processed_name}"
         if not hasattr(self.downloader, install_method_name):
+            logger.warning(f"[Download] {software_name}: 未找到安装方法 {install_method_name}")
             self._notifyError(software_name, tr("download.error_no_install_method"))
             return
 
@@ -484,8 +570,10 @@ class DownloadInterface(QWidget):
             )
             self._progress[software_name] = 100
             self._sigProgress.emit(software_name, 100)
+            logger.debug(f"[Download] {software_name}: 安装流程走完 进度置 100%")
             if delay_complete:
-                time.sleep(0.5)   
+                logger.debug(f"[Download] {software_name}: delay_complete 延迟0.5s后发完成信号")
+                time.sleep(0.5)
             self._sigComplete.emit(software_name)
         except Exception as e:
             logger.error(f"{software_name}: 安装函数异常 - {e}", exc_info=True)
@@ -493,6 +581,7 @@ class DownloadInterface(QWidget):
 
     def _runInstallTask(self, software_name: str):
         """线程池任务:查找链接并安装"""
+        logger.info(f"线程池任务 {software_name}")
         self._prepare_and_install(software_name, False)
 
     def _prepare_and_install(self, software_name: str, delay_complete: bool):
@@ -500,15 +589,19 @@ class DownloadInterface(QWidget):
         try:
             cache_file = self._findCacheFile(software_name)
             if not cache_file:
+                logger.warning(f"{software_name}: 未找到对应下载配置")
                 self._notifyError(software_name, tr("download.error_no_url"))
                 return
             download_url = self._get_url(cache_file)
             if not download_url:
+                logger.warning(f"{software_name}: 未能解析下载链接 filename={cache_file.get('filename')}")
                 self._notifyError(software_name, tr("download.error_cannot_get_url"))
                 return
             cache_file['url'] = download_url
+            logger.debug(f"{software_name}: 下载链接就绪: {download_url}")
             self._runInstall(software_name, cache_file, delay_complete=delay_complete)
         except Exception as e:
+            logger.error(f"{software_name}: 安装前准备异常 - {e}", exc_info=True)
             self._notifyError(software_name, str(e))
 
     _HTML_TEMPLATE = Template('''

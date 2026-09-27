@@ -49,12 +49,6 @@ from qfluentwidgets import (
     isDarkTheme,
 )
 from pycaw.pycaw import AudioUtilities
-from qfluentwidgets.common.style_sheet import updateStyleSheet
-from qfluentwidgets.common.style_sheet import updateStyleSheet
-from qfluentwidgets.common.style_sheet import updateStyleSheet
-from qfluentwidgets.common.style_sheet import updateStyleSheet
-from qfluentwidgets.common.style_sheet import updateStyleSheet
-from qfluentwidgets.common.style_sheet import updateStyleSheet
 
 from core.config import cfg, save_cfg, Language
 from core.constants import APP_NAME, APP_ICON, APP_DIR, BASE_DIR, DATA_CONFIG, WALLPAPER_DIR, get_resPath, load_qss, clear_qss_cache, ensure_data_dirs, VERSION, FONT_PRIMARY, FONT_FAMILY
@@ -80,6 +74,7 @@ from core.utils import (
     LanguageCode,
     TranslatableWidget,
     FUI,
+    apply_theme,
 )
 from core.notification import NotificationManager
 from resource.software_list import SOFTWARE_CATEGORIES, get_software_icon_path
@@ -129,6 +124,7 @@ WIZARD_CONFIG_PATH = os.path.join(DATA_CONFIG, "Setup_Wizard.json")
 
 
 def check_wizard_needed():
+
     """需要向导吗"""
     wizard_path = WIZARD_CONFIG_PATH
     if not os.path.exists(wizard_path):
@@ -137,7 +133,8 @@ def check_wizard_needed():
         with open(wizard_path, "r", encoding="utf-8") as f:
             data = json.load(f)
             return data.get("completed", 0) != 1
-    except Exception:
+    except Exception as e:
+        logger.warning(f"向导标记读取失败 path={wizard_path} err={e}")
         return True
 
 
@@ -146,6 +143,7 @@ def create_wizard_file():
     ensure_data_dirs()
     wizard_path = WIZARD_CONFIG_PATH
     os.makedirs(os.path.dirname(wizard_path), exist_ok=True)
+    logger.info(f"创建向导配置文件:{wizard_path}")
     with open(wizard_path, "w", encoding="utf-8") as f:
         json.dump({"completed": 0}, f)
 
@@ -155,6 +153,7 @@ def complete_wizard():
     ensure_data_dirs()
     wizard_path = WIZARD_CONFIG_PATH
     os.makedirs(os.path.dirname(wizard_path), exist_ok=True)
+    logger.info(f"向导完成 配置写入 {wizard_path}")
     with open(wizard_path, "w", encoding="utf-8") as f:
         json.dump({"completed": 1}, f)
 
@@ -171,6 +170,7 @@ class SplashScreen(QWidget, TranslatableWidget):
         self.icon_path = icon_path
         self.status_signal.connect(self.updateStatus)
         self.progress_signal.connect(self.setProgress)
+        logger.debug(f"启动窗口初始化: app={app_name} version={version} icon={icon_path}")
         self._initUI()
         QTimer.singleShot(50, self._loadResourcesAsync)
 
@@ -223,14 +223,15 @@ class SplashScreen(QWidget, TranslatableWidget):
         self._anim_timer.timeout.connect(self._advance_progress)
         content_layout.addWidget(self.progress_bar)
         self.centerOnScreen()
+        logger.debug(f"启动窗口尺寸={self.width()}x{self.height()}")
 
     def _loadIcon(self):
         """加载图标"""
-        logger.info(f"icon_path={self.icon_path}, exists={os.path.exists(self.icon_path) if self.icon_path else 'N/A'}")
+        logger.info(f"icon_path={self.icon_path} exists={os.path.exists(self.icon_path) if self.icon_path else 'N/A'}")
         if self.icon_path and os.path.exists(self.icon_path):
             pixmap = QPixmap(self.icon_path)
             if pixmap.isNull():
-                logger.warning(f"图标加载失败: {self.icon_path}")
+                logger.warning(f"图标加载失败:{self.icon_path}")
             else:
                 self.icon_label.setPixmap(pixmap.scaled(
                     64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
@@ -247,21 +248,26 @@ class SplashScreen(QWidget, TranslatableWidget):
             x = (screen_rect.width() - self.width()) // 2
             y = (screen_rect.height() - self.height()) // 2
             self.move(x, y)
+            logger.debug(f"启动窗口居中 {screen_rect.width()}x{screen_rect.height()} ({x} {y})")
 
     @pyqtSlot(str)
     def updateStatus(self, status: str):
         """更新状态文本"""
         self.status_label.setText(status)
+        logger.debug(f"启动窗口状态更新:{status}")
 
     @pyqtSlot(int)
     def setProgress(self, value: int):
         """设置0-100"""
         try:
             v = max(0, min(100, value))
-        except Exception:
+        except Exception as e:
+            logger.warning(f"启动窗口进度值传错: value={value} err={e}")
             return
         self._target_progress = v
+        logger.debug(f"启动窗口目标进度: {v}")
         if not self._anim_timer.isActive():
+            logger.debug("启动窗口进度动画定时器启动")
             self._anim_timer.start()
 
     def _advance_progress(self):
@@ -272,6 +278,7 @@ class SplashScreen(QWidget, TranslatableWidget):
                 self._current_progress = self._target_progress
             self.progress_bar.setValue(self._current_progress)
         else:
+            logger.debug(f"启动窗口进度动画完成 {self._current_progress}")
             self._anim_timer.stop()
 
     def waitForProgress(self, target: int = 100, timeout: float = 3.0):
@@ -279,6 +286,7 @@ class SplashScreen(QWidget, TranslatableWidget):
         while time.time() < end and self._current_progress < target:
             QApplication.processEvents()
             time.sleep(0.003)
+        logger.debug(f"启动进度等待结束 current={self._current_progress} target={target} 超时={time.time() >= end}")
 
     def paintEvent(self, event):
         pass
@@ -309,6 +317,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         self.setWindowTitle(tr("wizard.title"))  # Glimpseon 向导
         self.setFixedSize(840, 650)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        logger.debug(f"向导窗口初始化: 尺寸=840x650 主题模式={cfg.themeMode.value}")
 
         setTheme(cfg.themeMode.value)
 
@@ -429,12 +438,13 @@ class WizardWindow(QDialog, TranslatableWidget):
                     try:
                         show_text_file(link_text, f"{link_text}", target_path, parent=self.window())
                         return
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(f"协议打开失败 改用系统默认: {target_path} err={e}")
                         try:
                             os.startfile(target_path)
                             return
-                        except Exception:
-                            pass
+                        except Exception as e2:
+                            logger.warning(f"系统默认方式打开失败: file={target_path} err={e2}")
 
                 msg = MessageBox(title=tr("wizard.exit_confirm_title"), content=tr("wizard.file_open_error", file=link_text), parent=self)  # 提示 / 无法打开协议文件：{file}
                 msg.exec()
@@ -443,6 +453,7 @@ class WizardWindow(QDialog, TranslatableWidget):
 
             def _on_container_clicked():
                 chk.setChecked(not chk.isChecked())
+                logger.debug(f"协议勾选切换: {chk.isChecked()}")
 
             container.mousePressEvent = lambda e: _on_container_clicked()
 
@@ -771,6 +782,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         self.themeColorCard.colorChanged.connect(self._onColorChanged)
 
     def resizeEvent(self, event):
+        logger.debug(f"向导窗口尺寸变化: {self.width()}x{self.height()}")
         self.titleLabel.move(30, 10)
         self.closeButton.move(self.width() - 35, 5)
         super().resizeEvent(event)
@@ -782,11 +794,14 @@ class WizardWindow(QDialog, TranslatableWidget):
             parent=self
         )  # 提示 / 向导未完成，确定要退出吗？
         if msg_box.exec():
+            logger.info("向导未完成 用户确认退出")
             event.accept()
         else:
+            logger.debug("向导退出已取消 继续配置流程")
             event.ignore()
 
     def _setCurrentIndexAnimated(self, index, duration=300):
+        logger.debug(f"向导页面切换:目标索引={index} 时长={duration}ms")
         effect = self.stackedWidget.graphicsEffect()
         if effect is None:
             effect = QGraphicsOpacityEffect(self.stackedWidget)
@@ -800,6 +815,7 @@ class WizardWindow(QDialog, TranslatableWidget):
         anim.setEasingCurve(QEasingCurve.Type.InOutQuad)
 
         def _after_fade_out():
+            logger.debug(f"向导页面已淡出 切到索引={index}")
             self.stackedWidget.setCurrentIndex(index)
             anim2 = QPropertyAnimation(effect, QByteArray(b"opacity"), self)
             anim2.setDuration(max(50, duration // 2))
@@ -815,9 +831,11 @@ class WizardWindow(QDialog, TranslatableWidget):
         all_checked = (self.openSourceCheckBox.isChecked() and
                       self.userAgreementCheckBox.isChecked() and
                       self.privacyCheckBox.isChecked())
+        logger.debug(f"向导协议勾选状态: 全部勾选={all_checked}")
         self.agreeButton.setEnabled(all_checked)
 
     def _onFinishClicked(self):
+        logger.info(f"向导设置 自启={self.autoStartSwitch.isChecked()} 空闲开={self.autoOpenOnIdleSwitch.isChecked()} 最大化开={self.autoOpenMaximizeSwitch.isChecked()} 快捷方式={self.desktopShortcutSwitch.isChecked()}")
         cfg.autoStart.value = self.autoStartSwitch.isChecked()
         cfg.autoOpenOnIdle.value = self.autoOpenOnIdleSwitch.isChecked()
         cfg.autoOpenMaximize.value = self.autoOpenMaximizeSwitch.isChecked()
@@ -842,9 +860,12 @@ class WizardWindow(QDialog, TranslatableWidget):
         if lon is not None and lat is not None:
             cfg.longitude.value = lon
             cfg.latitude.value = lat
-            logger.info(f"向导：城市={city}, 经纬度=({lon}, {lat})")
+            logger.info(f"向导 城市={city} 经纬度=({lon} {lat})")
+        else:
+            logger.warning(f"向导 未获取到城市坐标 天气功能可能受限: city={city}")
 
         complete_wizard()
+        logger.info(f"向导完成 自启={cfg.autoStart.value} 空闲开={cfg.autoOpenOnIdle.value} 最大化开={cfg.autoOpenMaximize.value}  城市={cfg.city.value} 学校={cfg.school.value or '无'} 班级={cfg.schoolClass.value or '无'}")
         self.accept()
 
     def _onCityButtonClicked(self):
@@ -853,7 +874,12 @@ class WizardWindow(QDialog, TranslatableWidget):
         if dialog.exec():
             selected_city = dialog.get_selected_region()
             if selected_city:
+                logger.debug(f"向导 已选择天气城市={selected_city}")
                 self.cityDisplayButton.setText(selected_city)
+            else:
+                logger.debug("向导 城市选择对话框返回空区域")
+        else:
+            logger.debug("向导 城市选择对话框已取消")
 
     def _onCountdownConfigClicked(self):
         """打开倒计时添加"""
@@ -866,6 +892,7 @@ class WizardWindow(QDialog, TranslatableWidget):
                     countdown_list = cfg.countdownList.value or []
                     countdown_list.append(countdown_data)
                     cfg.countdownList.value = countdown_list
+                    logger.debug(f"向导 倒计时已添加: title={countdown_data.get('title', '')}")
                     InfoBar.success(
                         title=tr("wizard.success_title"),
                         content=tr("wizard.countdown_added", title=countdown_data.get('title', '')),
@@ -873,6 +900,7 @@ class WizardWindow(QDialog, TranslatableWidget):
                         duration=3000
                     )  # 成功 / 已添加倒计时：{title}
         except Exception as e:
+            logger.warning(f"向导 添加倒计时失败: {e}")
             InfoBar.warning(
                 title=tr("wizard.exit_confirm_title"),
                 content=tr("wizard.countdown_add_failed", error=str(e)),
@@ -882,6 +910,7 @@ class WizardWindow(QDialog, TranslatableWidget):
 
     def _createSwitchCard(self, icon, title, content, default_value):
         """开关设置卡片"""
+        logger.debug(f"向导创建开关卡片: title={title} 默认值={default_value}")
         card = SwitchSettingCard(icon, title, content, None, self.page3)
         card.setChecked(default_value)
         card.setFixedWidth(600)
@@ -904,6 +933,7 @@ class WizardWindow(QDialog, TranslatableWidget):
             shortcut.WorkingDirectory = BASE_DIR
             shortcut.IconLocation = exe_path
             shortcut.save()
+            logger.debug(f"向导 桌面快捷方式已创建: {shortcut_path} -> {exe_path}")
 
             InfoBar.success(
                 title=tr("wizard.success_title"),
@@ -912,6 +942,7 @@ class WizardWindow(QDialog, TranslatableWidget):
                 duration=3000
             )  # 成功 / 已创建桌面快捷方式
         except Exception as e:
+            logger.warning(f"向导 创建桌面快捷方式失败: {e}")
             InfoBar.warning(
                 title=tr("wizard.exit_confirm_title"),
                 content=tr("wizard.shortcut_failed", error=str(e)),
@@ -923,10 +954,12 @@ class WizardWindow(QDialog, TranslatableWidget):
         """颜色变更"""
         try:
             setThemeColor(color)
+            logger.debug(f"向导 主题色已应用: {color.name()}")
         except Exception:
             logger.warning("主题色应用失败")
 
     def __setQss(self):
+        logger.debug("向导加载样式表: app.qss")
         self.setStyleSheet(load_qss('app.qss'))
 
 class MainWindow(FluentWindow):
@@ -969,7 +1002,7 @@ class MainWindow(FluentWindow):
         self._initThemeConnections()
         self._initSystemThemeMonitor()
 
-        logger.info("主窗口初始化完成")
+        logger.info("主窗口就绪")
 
     def disable_menu_button(self):
         """禁用系统菜单中的 还原/移动/大小 选项"""
@@ -983,11 +1016,13 @@ class MainWindow(FluentWindow):
                                                     win32con.MF_BYCOMMAND | win32con.MF_GRAYED)
                 ctypes.windll.user32.EnableMenuItem(hMenu, 0xF000,
                                                     win32con.MF_BYCOMMAND | win32con.MF_GRAYED)
-        except Exception:
-            pass
+                logger.debug(f"系统菜单已禁用 还原/移动/大小 (hwnd={hwnd:#x})")
+        except Exception as e:
+            logger.warning(f"禁用系统菜单项失败: {e}")
 
     def showEvent(self, event):
         """窗口显示事件"""
+        logger.debug(f"主窗口 showEvent: 可见={self.isVisible()} 最小化={self.isMinimized()}")
         super().showEvent(event)
         if not hasattr(self, '_menu_disabled'):
             self._menu_disabled = True
@@ -1037,6 +1072,7 @@ class MainWindow(FluentWindow):
 
         def _populateDownload():
             """填充软件下载"""
+            logger.debug(f"填充软件下载: {len(SOFTWARE_CATEGORIES)}个分区")
             for category in SOFTWARE_CATEGORIES:
                 self.downloadInterface.addSection(tr(category["name_key"]))
                 for software in category["software"]:
@@ -1066,6 +1102,7 @@ class MainWindow(FluentWindow):
         self.idleCheckInterval = 10000
         self.hasTriggeredAutoOpen = False
         self.maxMinimizeNotifications = 5
+        logger.debug(f"空闲检测初始化: 间隔={self.idleCheckInterval}ms 最大通知数={self.maxMinimizeNotifications}")
         cfg.autoOpenOnIdle.valueChanged.connect(self._updateIdleTimer)
         cfg.idleMinutes.valueChanged.connect(self._updateIdleTimer)
         self._updateIdleTimer()
@@ -1073,6 +1110,7 @@ class MainWindow(FluentWindow):
 
     def _initTimeSync(self):
         """NTP 周期同步"""
+        logger.debug(f"初始化 NTP 定时同步: 间隔=300s 立即同步={cfg.usePreciseTime.value}")
         self._ntp_timer = QTimer(self)
         self._ntp_timer.timeout.connect(self._syncNtpBackground)
         self._ntp_timer.start(5 * 60 * 1000)
@@ -1082,13 +1120,16 @@ class MainWindow(FluentWindow):
     def _syncNtpBackground(self):
         """同步 写回"""
         if not cfg.usePreciseTime.value:
+            logger.debug("[NTP] 精确时间同步未启用")
             return
         def _do_sync():
             try:
                 service = get_time_sync_service()
                 if service.sync(cfg.timeServer.value) and service.last_sync_time:
                     cfg.lastSyncTime.value = service.last_sync_time.strftime("%H:%M:%S")
-                    logger.info(f"[NTP] 同步成功 偏移 {service.offset.total_seconds():+.3f}s")
+                    logger.info(f"[NTP] 已同步 偏移 {service.offset.total_seconds():+.3f}s")
+                else:
+                    logger.debug("[NTP] 本轮同步未返回有效时间 保持上次结果")
             except Exception as e:
                 logger.warning(f"[NTP] 后台同步失败: {e}")
         threading.Thread(target=_do_sync, daemon=True, name="ntp-sync").start()
@@ -1101,6 +1142,7 @@ class MainWindow(FluentWindow):
         cfg.themeChanged.connect(self.timetablePage._onThemeChanged)
         cfg.themeChanged.connect(self.aboutInterface._onThemeChanged)
         cfg.themeChanged.connect(self._onDebugPanelThemeChanged)
+        logger.debug("主题变更信号已连接各界面")
 
     def _initSystemThemeMonitor(self):
         """初始化系统主题监控"""
@@ -1110,6 +1152,7 @@ class MainWindow(FluentWindow):
         cfg.themeMode.valueChanged.connect(self._onThemeModeChanged)
         if cfg.themeMode.value == Theme.AUTO:
             self._themeCheckTimer.start()
+            logger.debug("主题检测定时器启动 跟随系统")
             self._checkSystemTheme()
 
     def _onThemeModeChanged(self, mode: Theme):
@@ -1118,30 +1161,32 @@ class MainWindow(FluentWindow):
 
         if mode == Theme.AUTO:
             self._themeCheckTimer.start()
+            logger.debug("主题检测定时器启动 跟随系统")
             self._checkSystemTheme()
         else:
-            # 库内 qconfig.set 已写入 theme 并 emit 过 themeChanged,这里只重刷样式
             self._themeCheckTimer.stop()
-            setTheme(mode)
+            logger.debug(f"主题模式切换为手动: mode={mode} 停止系统主题检测定时器")
+            # apply_theme 内含 setTheme + cfg.theme 同步 + themeChanged 广播, 页面 qss 随之重载
+            apply_theme(mode)
 
     def _checkSystemTheme(self):
         """检查系统主题变更"""
         try:
             current = darkdetect.theme()
             if not current:
+                logger.debug("[主题] 检查结果为空")
                 return
             current_theme = Theme.LIGHT if current == 'Light' else Theme.DARK
             if cfg.theme != current_theme:
-                logger.info(f"系统主题已变更: {cfg.theme} → {current_theme}")
+                logger.info(f"系统主题已变更: {cfg.theme} -> {current_theme}")
                 clear_qss_cache()
-                cfg.theme = current_theme
-                updateStyleSheet()
-                cfg.themeChanged.emit(cfg.theme)
+                apply_theme(current_theme)
         except Exception as e:
             logger.warning(f"检查系统主题出错: {e}")
 
     def _onDebugModeChanged(self, value):
         """调试模式变更"""
+        logger.debug(f"调试模式变更: {value} 调试导航项可见={value}")
         self.debugNavItem.setVisible(value)
         if not value and self.stackedWidget.currentWidget() == self.debugPanel:
             self.switchTo(self.homeInterface)
@@ -1149,6 +1194,7 @@ class MainWindow(FluentWindow):
     def _onDebugPanelThemeChanged(self):
         """调试面板主题变更这里只刷新 主题不在这里清理再重载"""
         if hasattr(self, 'debugPanel') and self.debugPanel:
+            logger.debug("调试面板主题刷新")
             self.debugPanel._updateTheme()
 
     def _initTranslation(self):
@@ -1164,6 +1210,7 @@ class MainWindow(FluentWindow):
             cfg.language.valueChanged.connect(self._onLanguageConfigChanged)
             target_lang = language_map.get(cfg.language.value, LanguageCode.ZH_CN.value)
             manager.set_language(target_lang)
+            logger.debug(f"翻译就绪 语言={target_lang}")
         except Exception as e:
             logger.error(f"翻译初始化失败: {e}")
 
@@ -1180,8 +1227,10 @@ class MainWindow(FluentWindow):
             elif language == QLocale.Language.English:
                 return LanguageCode.EN_US
             else:
+                logger.debug(f"系统语言未识别: {language.name()} 用简体中文")
                 return LanguageCode.ZH_CN
-        except Exception:
+        except Exception as e:
+            logger.warning(f"检测系统语言失败: {e}")
             return LanguageCode.ZH_CN
 
     def _onLanguageConfigChanged(self, new_language):
@@ -1199,15 +1248,22 @@ class MainWindow(FluentWindow):
         w.cancelButton.setText(tr("common.restart_later"))
 
         if w.exec():
+            logger.info(f"[语言] 用户确认立即重启以应用新语言: {new_language}")
             request_restart()
+        else:
+            logger.debug(f"[语言] 用户选择稍后重启: new_language={new_language}")
 
     def keyPressEvent(self, event):
         """键盘"""
         if event.key() == Qt.Key.Key_F12:
             if cfg.debugMode.value and hasattr(self, 'debugPanel'):
+                logger.debug("F12: 切调试面板")
                 self.switchTo(self.debugPanel)
+            else:
+                logger.debug("F12: 忽略")
             return
         if event.modifiers() == Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_E:
+            logger.debug("Ctrl+E: 进入组件编辑模式")
             self.homeInterface._enterEditMode()
             return
         if event.modifiers() == Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_D:
@@ -1216,13 +1272,14 @@ class MainWindow(FluentWindow):
                     if widget:
                         pos = widget.getPositionPercent()
                         size = widget.size()
-                        logger.debug(f"组件 {widget.component_id}: 位置=({pos[0]:.3f}, {pos[1]:.3f}), 大小={size.width()}x{size.height()}")
+                        logger.debug(f"组件 {widget.component_id}: 位置=({pos[0]:.3f} {pos[1]:.3f}) 大小={size.width()}x{size.height()}")
             return
         super().keyPressEvent(event)
 
     def event(self, e):
         """补回窗口动画/阴影"""
         if e.type() == QEvent.Type.WinIdChange:
+            logger.debug("WinId 变化 重应用动画/阴影")
             QTimer.singleShot(0, self._restore_window_effects)
         return super().event(e)
 
@@ -1230,12 +1287,19 @@ class MainWindow(FluentWindow):
         """窗口变更"""
         super().changeEvent(event)
         if event.type() == QEvent.Type.WindowStateChange:
+            _new_state = self.windowState()
+            _old_state = getattr(self, '_lastWindowState', None)
+            if _new_state != _old_state:
+                logger.debug(f"窗口状态变更: {_old_state} -> {_new_state}")
+                self._lastWindowState = _new_state
             if not self.isMaximized() and not self.isMinimized():
+                logger.debug("窗口未处于最大化 强制恢复最大化")
                 QTimer.singleShot(0, self.showMaximized)
 
     def _forceFullScreen(self):
         """强制全屏"""
         if not self.isMinimized():
+            logger.debug("强制最大化窗口")
             self.showMaximized()
 
     def moveToCenter(self):
@@ -1245,6 +1309,7 @@ class MainWindow(FluentWindow):
             rect = screen.availableGeometry()
             w, h = rect.width(), rect.height()
             self.move(w // 2 - self.width() // 2, h // 2 - self.height() // 2)
+            logger.debug(f"窗口移动到屏幕中心: 屏幕可用区域={w}x{h}")
 
     def initSystemTray(self):
         """初始化托盘"""
@@ -1258,32 +1323,39 @@ class MainWindow(FluentWindow):
 
         show_action = Action(FUI.HOME, tr("tray.show_window"), self)  # 显示主窗口
         show_action.triggered.connect(self.showMaximized)
+        show_action.triggered.connect(lambda: logger.info("[托盘] 菜单动作: 显示主界面"))
         self.tray_menu.addAction(show_action)
         if cfg.debugMode.value:
+            logger.debug("托盘菜单: 已添加调试入口")
             dev_action = Action(FUI.DEVELOPER_TOOLS, tr("navigation.debug"), self)  # 调试
             dev_action.triggered.connect(lambda: self.switchTo(self.debugPanel))
             self.tray_menu.addAction(dev_action)
 
         exit_action = Action(FUI.CLOSE, tr("tray.exit"), self)  # 退出
         exit_action.triggered.connect(lambda: (release_single_instance(), QApplication.quit()))
+        exit_action.triggered.connect(lambda: logger.info("[托盘] 菜单动作: 退出应用"))
         self.tray_menu.addAction(exit_action)
 
         self.tray_icon.setContextMenu(self.tray_menu)
         self.tray_icon.activated.connect(self._onTrayIconActivated)
         self.tray_icon.show()
+        logger.debug(f"系统托盘就绪 图标={os.path.exists(icon_path)}")
 
     def _onTrayIconActivated(self, reason):
         """托盘图标激活"""
         if reason in (QSystemTrayIcon.ActivationReason.DoubleClick, QSystemTrayIcon.ActivationReason.Trigger):
+            logger.info(f"[托盘] 图标激活 reason={reason} 当前可见={self.isVisible()}")
             if self.isMinimized() or not self.isVisible():
                 self.showMaximized()
             else:
+                logger.info("[托盘] 图标激活: 窗口可见 隐藏到托盘")
                 self.hide()
 
     def _updateIdleTimer(self):
         """更新空闲定时器"""
         self.idleTimer.stop()
         if cfg.autoOpenOnIdle.value:
+            logger.info(f"[空闲检测] 已启用: 间隔={self.idleCheckInterval}ms 阈值={cfg.idleMinutes.value}分钟")
             self.idleTimer.start(self.idleCheckInterval)
         else:
             logger.info("空闲检测已禁用")
@@ -1303,9 +1375,13 @@ class MainWindow(FluentWindow):
                         ]) or any(player in proc_name for player in [
                             'music', 'vlc', 'potplayer', 'spotify', 'netflix'
                         ]):
+                            logger.debug(f"媒体播放中 进程={proc_name}")
                             return True
             return False
-        except Exception:
+        except Exception as e:
+            if not getattr(self, '_media_check_err_logged', False):
+                logger.warning(f"检查媒体播放状态失败(仅记录一次): {e}")
+                self._media_check_err_logged = True
             return False
 
     def _checkIdle(self):
@@ -1314,18 +1390,24 @@ class MainWindow(FluentWindow):
             self.hasTriggeredAutoOpen = False
             return
         if self.isVisible():
+            self.hasTriggeredAutoOpen and logger.info("[空闲检测] 窗口已恢复显示 重置空闲触发标记")
             self.hasTriggeredAutoOpen = False
             return
 
         try:
             from Glimpseon_native import idle_get_milliseconds
             idle_time_ms = idle_get_milliseconds()
-            if idle_time_ms < 0: return
+            if idle_time_ms < 0:
+                logger.debug("[空闲检测] 空闲时间为负")
+                return
 
             try:
                 from Glimpseon_native import was_page_operation_recent
                 is_recent_page_operation = was_page_operation_recent(5000)
-            except Exception:
+            except Exception as e:
+                if not getattr(self, '_page_op_err_logged', False):
+                    logger.warning(f"查询翻页失败(仅记录一次): {e}")
+                    self._page_op_err_logged = True
                 is_recent_page_operation = False
 
             idle_minutes = cfg.idleMinutes.value
@@ -1338,10 +1420,11 @@ class MainWindow(FluentWindow):
                 self._autoOpenFromMinimized()
                 self.hasTriggeredAutoOpen = True
         except Exception as e:
-            logger.error(f"检测空闲时间失败：{e}")
+            logger.error(f"检测空闲时间失败 {e}")
 
     def _autoOpenFromMinimized(self):
         """从最小化状态自动打开界面"""
+        logger.info("空闲自动打开: 恢复并最大化主窗口")
         self.stackedWidget.setCurrentIndex(0)
         self.showMaximized()
         self.activateWindow()
@@ -1351,11 +1434,13 @@ class MainWindow(FluentWindow):
         try:
             from Glimpseon_native import install_hook
             install_hook()
+            logger.debug("全局键盘钩子已安装")
         except Exception as e:
-            logger.error(f"全局钩子安装失败：{e}")
+            logger.error(f"全局钩子安装失败 {e}")
 
     def showNormal(self):
         """显示窗口"""
+        logger.debug("showNormal: 触发强制最大化")
         self._forceFullScreen()
 
     def nativeEvent(self, eventType, message):
@@ -1377,8 +1462,10 @@ class MainWindow(FluentWindow):
                                 rect = ctypes.cast(msg.lParam, ctypes.POINTER(_RECT)).contents
                                 if rect.left >= mi.rcWork.left and rect.top >= mi.rcWork.top:
                                     return True, 0
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        if not getattr(self, '_native_nc_err_logged', False):
+                            logger.warning(f"处理 WM_NCCALCSIZE 异常(仅记录一次): {e}")
+                            self._native_nc_err_logged = True
                 if msg.message == 0x0112:  # WM_SYSCOMMAND
                     low_word = msg.wParam & 0xFFFF
                     # 阻止拖拽移动 (0xF010) 调整大小 (0xF000 系列)
@@ -1386,15 +1473,19 @@ class MainWindow(FluentWindow):
                         return True, 0
                     # 拦截还原 (SC_RESTORE)
                     if low_word == 0xF120:
+                        logger.debug("拦截 SC_RESTORE 保持最大化状态")
                         if self.isMinimized():
                             self.setWindowState(Qt.WindowState.WindowMaximized)
                         return True, 0
-        except Exception:
-            pass
+        except Exception as e:
+            if not getattr(self, '_native_msg_err_logged', False):
+                logger.warning(f"原生窗口消息处理异常(仅记录一次): {e}")
+                self._native_msg_err_logged = True
         return super().nativeEvent(eventType, message)
 
     def hide(self):
         """隐藏窗口"""
+        logger.info(f"[窗口] 隐藏到托盘 空闲检测={'启用' if cfg.autoOpenOnIdle.value else '禁用'}")
         self.hasTriggeredAutoOpen = False
         if cfg.autoOpenOnIdle.value:
             self.idleTimer.start(self.idleCheckInterval)
@@ -1412,19 +1503,22 @@ class MainWindow(FluentWindow):
             if not _preloader.wait(3000):
                 _preloader.terminate()
                 _preloader.wait(1000)
+                logger.warning("预加载线程 3s 内未结束 已强制终止")
 
         if cfg.debugMode.value:
+            logger.info(f"[closeEvent] debugMode=True 直接退出应用")
             event.accept()
             try:
                 from Glimpseon_native import uninstall_hook
                 uninstall_hook()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"卸载全局钩子失败(debugMode 退出): {e}")
             release_single_instance()
             QApplication.quit()
             return
 
         if cfg.closeAction.value == "minimize":
+            logger.info(f"[closeEvent] closeAction={cfg.closeAction.value} 最小化到托盘 计数 {cfg.minimizeNotificationCount.value}/{self.maxMinimizeNotifications})")
             event.ignore()
             self.hide()
             if cfg.minimizeNotificationCount.value < self.maxMinimizeNotifications:
@@ -1432,11 +1526,12 @@ class MainWindow(FluentWindow):
                 cfg.minimizeNotificationCount.value = cfg.minimizeNotificationCount.value + 1
                 save_cfg()
         else:
+            logger.info(f"[closeEvent] closeAction={cfg.closeAction.value} 退出应用")
             try:
                 from Glimpseon_native import uninstall_hook
                 uninstall_hook()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"卸载全局钩子失败(正常退出): {e}")
             release_single_instance()
             QApplication.quit()
 
@@ -1452,6 +1547,7 @@ class MainWindow(FluentWindow):
                 return False
             window_pos = positions["window"]
             if window_pos.get("maximized", False):
+                logger.debug("窗口位置: 配置记录为最大化 延迟恢复最大化")
                 self.setMinimumSize(0, 0)
                 self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
                 QTimer.singleShot(100, self.showMaximized)
@@ -1463,6 +1559,7 @@ class MainWindow(FluentWindow):
             x = int(window_pos["x"] * rect.width())
             y = int(window_pos["y"] * rect.height())
             self.move(x, y)
+            logger.debug(f"窗口位置: 从配置恢复 ({x} {y})")
             return True
         except Exception as e:
             logger.error(f"加载窗口位置失败: {e}")
@@ -1479,8 +1576,10 @@ class Preloader(QThread):
         super().__init__()
         self.win = win
         self._stop = False
+        logger.debug("预加载线程已创建")
 
     def cancel(self):
+        logger.debug("预加载线程: 收到取消请求")
         self._stop = True
 
     def run(self):
@@ -1488,6 +1587,7 @@ class Preloader(QThread):
             self._load_wp()
             if not self._stop: self._load_wt()
             if not self._stop: self._load_po()
+            logger.debug(f"[PRELOAD] 预加载线程执行完毕: 取消={self._stop}")
         except Exception as e:
             logger.error(f"[PRELOAD] {e}")
 
@@ -1497,12 +1597,14 @@ class Preloader(QThread):
         if not wp: return
         try:
             if wp.current_pixmap and not wp.current_pixmap.isNull(): return
-        except Exception: return
+        except Exception as e:
+            logger.warning(f"[PRELOAD] 读壁纸状态失败 继续预取: {e}")
 
         from core.utils import get_cached_content, save_cache
 
         cached = get_cached_content("wallpaper", ignore_expiry=True)  # 过期也显示旧的
         if cached and os.path.exists(cached.get('path', '')):
+            logger.info(f"[PRELOAD] 壁纸预取 缓存 {cached['path']}")
             self.sig_wp.emit(cached['path'], cached.get('source', ''), cached.get('url', ''))
             return
 
@@ -1515,6 +1617,7 @@ class Preloader(QThread):
             os.makedirs(d, exist_ok=True)
             p = os.path.join(d, f"wallpaper_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
             with open(p, 'wb') as f: f.write(resp.content)
+            logger.info(f"[PRELOAD] 壁纸预取 下载 {p} 来源 {src}")
             wp.historyManager.sync_cleanup(cfg.wallpaperSaveLimit.value)
             save_cache("wallpaper", {"path": p, "source": src, "url": url}, cfg.autoGetInterval.value)
             if not self._stop: self.sig_wp.emit(p, src, url)
@@ -1522,6 +1625,7 @@ class Preloader(QThread):
 
         default = get_resPath(os.path.join('resource', 'wallpaper', 'default.jpg'))
         if os.path.exists(default):
+            logger.info(f"[PRELOAD] 壁纸预取 默认 {default}")
             if not self._stop: self.sig_wp.emit(default, tr("wallpaper.default_source"), "")
             return
 
@@ -1534,12 +1638,15 @@ class Preloader(QThread):
             )
             if olds:
                 p = os.path.join(wd, olds[0])
+                logger.info(f"[PRELOAD] 壁纸预取 历史 {p}")
                 if not self._stop: self.sig_wp.emit(p, tr("wallpaper.source_cache"), "")
 
     def _load_wt(self):
         if self._stop: return
         hi = getattr(self.win, 'homeInterface', None)
-        if not hi or not cfg.showWeather.value: return
+        if not hi or not cfg.showWeather.value:
+            logger.debug(f"[PRELOAD] 天气预取跳过: 主页未就绪={hi is None} 天气关闭={not cfg.showWeather.value}")
+            return
 
         from core.utils import get_cached_content, save_cache
         from services.weather import RegionDatabase, WeatherService
@@ -1547,14 +1654,26 @@ class Preloader(QThread):
         cached = get_cached_content("weather")
         if cached:
             if not self._stop:
-                data = {
-                    'current_temp': cached.get('current_temp', cached.get('temp', '?')),
-                    'temp_unit': cached.get('temp_unit', cached.get('unit', '°C')),
-                    'weather_code': cached.get('weather_code', cached.get('code')),
-                    'forecast_hourly': cached.get('forecast_hourly', {}),
-                    'forecast_daily': cached.get('forecast_daily', {}),
-                }
+                # 缓存存的是 fetch_all 原始结构（current/forecastHourly/forecastDaily）
+                if isinstance(cached.get('current'), dict):
+                    temp, code = WeatherService.parse_current(cached)
+                    data = {
+                        'current_temp': temp,
+                        'temp_unit': '°C',
+                        'weather_code': code,
+                        'forecast_hourly': cached.get('forecastHourly', {}),
+                        'forecast_daily': cached.get('forecastDaily', {}),
+                    }
+                else:
+                    data = {
+                        'current_temp': cached.get('current_temp', cached.get('temp', '?')),
+                        'temp_unit': cached.get('temp_unit', cached.get('unit', '°C')),
+                        'weather_code': cached.get('weather_code', cached.get('code')),
+                        'forecast_hourly': cached.get('forecast_hourly', {}),
+                        'forecast_daily': cached.get('forecast_daily', {}),
+                    }
                 self.sig_wt.emit(data)
+                logger.info(f"[PRELOAD] 天气预取 缓存 {data.get('current_temp', '?')}{data.get('temp_unit', '°C')}")
             return
 
         if self._stop: return
@@ -1571,6 +1690,8 @@ class Preloader(QThread):
             data = ws.fetch_all()
             if data:
                 save_cache("weather", data, cfg.weatherUpdateInterval.value)
+                temp, _code = WeatherService.parse_current(data)
+                logger.info(f"[PRELOAD] 天气预取 在线 {temp}°C 城市={cfg.city.value}")
                 if not self._stop: self.sig_wt.emit(data)
         except Exception as e:
             logger.error(f"[PRELOAD] 天气预加载失败: {e}")
@@ -1585,12 +1706,14 @@ class Preloader(QThread):
 
         cached = get_cached_content("poetry")
         if cached:
+            logger.info(f"[PRELOAD] 一言预取 缓存 {str(cached)[:24]}")
             if not self._stop: self.sig_po.emit(cached)
             return
 
         if self._stop: return
         text = PoetryService.get_poetry()
         save_cache("poetry", text, cfg.poetryUpdateInterval.value)
+        logger.info(f"[PRELOAD] 一言预取 在线 {str(text)[:24]}")
         if not self._stop: self.sig_po.emit(text)
 
 
@@ -1613,6 +1736,7 @@ if __name__ == "__main__":
     atexit.register(release_single_instance)
 
     if not verify_single_instance():
+        logger.warning(f"单实例 {APP_NAME} 已运行 本实例退出")
         temp_widget = QWidget()
         temp_widget.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         temp_widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -1628,6 +1752,8 @@ if __name__ == "__main__":
         w.hideCancelButton()
         w.exec()
         sys.exit(0)
+
+    logger.info(f"单实例检测通过 允许启动 多实例={cfg.allowMultipleInstances.value}")
 
     _extract_future = None
     executor = ThreadPoolExecutor(max_workers=2)
@@ -1646,16 +1772,18 @@ if __name__ == "__main__":
         wizard.exec()
 
     icon_path = get_resPath(APP_ICON)
-    logger.info(f"APP_DIR={APP_DIR}, APP_ICON={APP_ICON}, icon_path={icon_path}, exists={os.path.exists(icon_path)}")
+    logger.info(f"APP_DIR={APP_DIR} APP_ICON={APP_ICON} icon_path={icon_path} exists={os.path.exists(icon_path)}")
 
     _boot_t0 = time.time()
 
     splash = SplashScreen(APP_NAME, VERSION, icon_path)
+    logger.debug(f"创建启动窗口: {APP_NAME} {VERSION} icon={icon_path}")
     splash.show()
     splash.setProgress(0)
     logger.info(f"Splash显示 耗时{time.time()-_boot_t0:.2f}s")
 
     def allow_ui_update(duration=0.06):
+        logger.debug(f"处理 ui 事件窗口: {duration}s")
         end = time.time() + duration
         while time.time() < end:
             app.processEvents()
@@ -1668,6 +1796,7 @@ if __name__ == "__main__":
             splash.status_signal.emit(tr("splash.cleaning_temp"))  # 正在清理临时文件...
             splash.progress_signal.emit(10)
             cleanup_temp_directory(logger=logger)
+            logger.debug("后台初始化 临时文件已清理")
             splash.status_signal.emit(tr("splash.loading_resources"))  # 正在加载资源...
             splash.progress_signal.emit(70)
         except Exception:
@@ -1692,7 +1821,7 @@ if __name__ == "__main__":
     locale = language_locale_map.get(cfg.language.value, QLocale())
     fluentTranslator = FluentTranslator(locale)
     app.installTranslator(fluentTranslator)
-    logger.info(f"语言配置: {cfg.language.value}，耗时{time.time()-_t:.2f}s")
+    logger.info(f"语言 {cfg.language.value} 耗时{time.time()-_t:.2f}s")
 
     splash.updateStatus(tr("splash.initializing_fonts"))  # 正在初始化字体
     splash.setProgress(30)
@@ -1739,23 +1868,23 @@ if __name__ == "__main__":
     dpi_scale_str = str(dpi_scale) if not hasattr(dpi_scale, 'value') else str(dpi_scale.value)
     language = cfg.language.value
     language_str = str(language) if not hasattr(language, 'name') else language.name
-    logger.info(f"主窗口配置：主题模式={theme_mode_str}, 主题颜色={theme_color_str}, DPI 缩放={dpi_scale_str}, 语言={language_str}")
-    logger.info(f"日志配置：禁用日志={cfg.disableLog.value}, 日志级别={log_level_str}, 最大条目数={cfg.logMaxCount.value}, 最大保留天数={cfg.logMaxDays.value}")
-    logger.info(f"其他配置：关闭动作={cfg.closeAction.value}, 允许多实例={cfg.allowMultipleInstances.value}, 调试模式={cfg.debugMode.value}, 自动启动={cfg.autoStart.value}")
-    logger.info(f"下载配置：下载源={cfg.downloadSource.value}")
-    logger.info(f"壁纸配置：保存限制={cfg.wallpaperSaveLimit.value}, 获取间隔={cfg.autoGetInterval.value}, 自动同步桌面={cfg.autoSyncToDesktop.value}, API={cfg.wallpaperApi.value}")
-    logger.info(f"外观配置：背景模糊半径={cfg.backgroundBlurRadius.value}")
-    logger.info(f"时间配置：显示秒={cfg.showClockSeconds.value}, 显示农历={cfg.showLunarCalendar.value}, 时钟大小={cfg.clockSize.value}, 日期大小={cfg.dateSize.value}")
-    logger.info(f"一言配置：显示一言={cfg.showPoetry.value}, API 地址={cfg.poetryApiUrl.value}, 更新间隔={cfg.poetryUpdateInterval.value}")
-    logger.info(f"天气配置：字体大小={cfg.weatherSize.value}, 图标大小={cfg.weatherIconSize.value}, 更新间隔={cfg.weatherUpdateInterval.value}, 城市={cfg.city.value}")
-    logger.info(f"倒计时配置：启用={cfg.showCountdown.value}, 显示模式={cfg.countdownDisplayMode.value}, 轮播间隔={cfg.countdownCarouselInterval.value}秒")
-    logger.info(f"学校信息配置：启用={cfg.showSchoolInfo.value}, 学校={cfg.school.value}, 班级={cfg.schoolClass.value}")
-    logger.info(f"快捷启动栏配置：启用={cfg.showQuickLaunch.value}, 图标大小={cfg.quickLaunchIconSize.value}, 应用数量={len(cfg.quickLaunchApps.value)}")
-    logger.info(f"自动配置：空闲自动打开={cfg.autoOpenOnIdle.value}, 空闲分钟={cfg.idleMinutes.value}, 自动检查更新={cfg.autoCheckUpdate.value}")
+    logger.info(f"主窗口 主题={theme_mode_str} 颜色={theme_color_str} DPI={dpi_scale_str} 语言={language_str}")
+    logger.info(f"日志配置 禁用={cfg.disableLog.value} 级别={log_level_str} 条目={cfg.logMaxCount.value} 保留={cfg.logMaxDays.value}")
+    logger.info(f"其他 关闭={cfg.closeAction.value} 多实例={cfg.allowMultipleInstances.value}  调试={cfg.debugMode.value} 自启={cfg.autoStart.value}")
+    logger.info(f"下载配置 下载源={cfg.downloadSource.value}")
+    logger.info(f"壁纸配置 保存={cfg.wallpaperSaveLimit.value} 间隔={cfg.autoGetInterval.value}  同步桌面={cfg.autoSyncToDesktop.value} api={cfg.wallpaperApi.value}")
+    logger.info(f"外观配置 背景模糊半径={cfg.backgroundBlurRadius.value}")
+    logger.info(f"时间配置 显示秒={cfg.showClockSeconds.value} 显示农历={cfg.showLunarCalendar.value}  时钟={cfg.clockSize.value} 日期={cfg.dateSize.value}")
+    logger.info(f"一言 启用={cfg.showPoetry.value} api={cfg.poetryApiUrl.value} 间隔={cfg.poetryUpdateInterval.value}")
+    logger.info(f"天气配置 字体={cfg.weatherSize.value} 图标={cfg.weatherIconSize.value} 间隔={cfg.weatherUpdateInterval.value} 城市={cfg.city.value}")
+    logger.info(f"倒计时 启用={cfg.showCountdown.value} 模式={cfg.countdownDisplayMode.value} 轮播={cfg.countdownCarouselInterval.value}秒")
+    logger.info(f"学校信息配置 启用={cfg.showSchoolInfo.value} 学校={cfg.school.value} 班级={cfg.schoolClass.value}")
+    logger.info(f"快捷栏 启用={cfg.showQuickLaunch.value} 图标={cfg.quickLaunchIconSize.value} 应用数={len(cfg.quickLaunchApps.value)}")
+    logger.info(f"自动配置 空闲开={cfg.autoOpenOnIdle.value} 空闲={cfg.idleMinutes.value} 检查更新={cfg.autoCheckUpdate.value}")
     from core.paths import VERSION, BUILD_DATE
-    logger.info(f"版本号：{VERSION} 构建日期：{BUILD_DATE}")
-    logger.info(f"系统版本：Windows {platform.version()} Python 版本：{platform.python_version()}")
-    logger.info(f"软件运行路径：{BASE_DIR}")
+    logger.info(f"版本号 {VERSION} 构建日期 {BUILD_DATE}")
+    logger.info(f"系统版本 Windows {platform.version()} Python 版本 {platform.python_version()}")
+    logger.info(f"软件运行路径 {BASE_DIR}")
 
     _t = time.time()
     wait_start = time.time()
@@ -1786,6 +1915,7 @@ if __name__ == "__main__":
                 wp._applyEffects()
                 wp.infoCard.updateInfo(path, src)
                 wp.historyManager.add(path, src, url)
+                logger.debug(f"[PRELOAD-UI] 预取壁纸已应用: path={path} 来源={src}")
         except Exception as e:
             logger.error(f"[PRELOAD-UI] wp: {e}")
 
@@ -1796,6 +1926,7 @@ if __name__ == "__main__":
             # 更新缓存
             hi._cached_weather = weather_data
             hi.weather_updated.emit(weather_data)
+            logger.debug(f"[PRELOAD-UI] 预取天气已应用: {weather_data.get('current_temp', '?')}{weather_data.get('temp_unit', '°C')}")
         except Exception as e:
             logger.error(f"[PRELOAD-UI] wt: {e}")
 
@@ -1806,6 +1937,7 @@ if __name__ == "__main__":
             # 更新缓存
             hi._cached_poetry = text
             hi.poetry_updated.emit(text)
+            logger.debug(f"[PRELOAD-UI] 预取一言已应用: {str(text)[:24]}")
         except Exception as e:
             logger.error(f"[PRELOAD-UI] po: {e}")
 
@@ -1820,6 +1952,7 @@ if __name__ == "__main__":
     loader.start()
 
     if cfg.autoCheckUpdate.value:
+        logger.info("自动检查更新已启用 触发检查")
         window.aboutInterface.checkUpdateAuto()
 
     splash.updateStatus(tr("splash.completing_startup"))  # 正在完成启动
@@ -1842,6 +1975,7 @@ if __name__ == "__main__":
     allow_ui_update(0.06)
     logger.info(f"进度条100%等待 耗时{time.time()-_t2:.2f}s")
     splash.close()
+    logger.debug("启动窗口已关闭")
     logger.info(f"总启动耗时{time.time()-_boot_t0:.2f}s")
 
     # QTBUG-109424
@@ -1851,9 +1985,9 @@ if __name__ == "__main__":
     if hasattr(window, 'tray_icon') and window.tray_icon:
         window.tray_icon.show()
     if _auto_start_launch:
-        logger.info("开机自启动模式：全屏启动")
+        logger.info("开机自启动模式 全屏启动")
     else:
-        logger.info("一般启动模式：全屏启动")
+        logger.info("一般启动模式 全屏启动")
 
     allow_ui_update(0.3)
     window.switchTo(window.homeInterface)
@@ -1862,6 +1996,7 @@ if __name__ == "__main__":
 
     from core.utils import is_restart_pending
     if is_restart_pending():
+        logger.info(f"[重启] 待重启标记 exit_code={ret}")
         import subprocess
         subprocess.Popen([sys.executable] + sys.argv)
 

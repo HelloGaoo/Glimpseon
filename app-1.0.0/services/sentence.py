@@ -36,6 +36,7 @@ class SentenceService:
         session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         })
+        logger.debug("已创建每日一句请求会话")
         return session
 
     @staticmethod
@@ -53,13 +54,14 @@ class SentenceService:
         if use_cache:
             cached = get_cached_content(CACHE_NAME)
             if cached is not None:
+                logger.debug("每日一句缓存命中")
                 return cached
 
         with cls._create_session() as session:
             try:
                 response = session.get(DAILY_SENTENCE_API_URL, timeout=10)
                 if response.status_code != 200:
-                    logger.error(f"请求失败: HTTP {response.status_code}")
+                    logger.error(f"请求失败: http {response.status_code}")
                     return None
 
                 try:
@@ -85,4 +87,5 @@ class SentenceService:
                 },
             }
             cls._save_cache(result)
+            logger.info(f"每日一句已获取 {result['date']} {result['sentence']['content'][:40]}")
             return result

@@ -113,14 +113,6 @@
     color: #000000;
 }
 
-#about QTextBrowser#changelogTextEdit,
-#about TextEdit#changelogTextEdit {
-    background: transparent;
-    border: none;
-    color: #444444;
-    font-size: 13px;
-}
-
 /* 设置卡片 */
 #about SettingCard,
 #about SwitchSettingCard {

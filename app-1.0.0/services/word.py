@@ -37,6 +37,7 @@ class WordService:
         session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         })
+        logger.debug("已创建每日单词请求会话")
         return session
 
     @staticmethod
@@ -54,6 +55,7 @@ class WordService:
         if use_cache:
             cached = get_cached_content(CACHE_NAME)
             if cached is not None:
+                logger.debug("每日单词缓存命中")
                 return cached
 
         with cls._create_session() as session:
@@ -64,7 +66,7 @@ class WordService:
                     timeout=10,
                 )
                 if response.status_code != 200:
-                    logger.error(f"请求失败: HTTP {response.status_code}")
+                    logger.error(f"请求失败: http {response.status_code}")
                     return None
 
                 try:
@@ -86,4 +88,6 @@ class WordService:
                 "word": words[0],
             }
             cls._save_cache(result)
+            w = result["word"]
+            logger.info(f"每日单词已获取 {result['date']} {w.get('word', '')} {w.get('translation', '')[:30]}")
             return result

@@ -36,6 +36,7 @@ class HistoryService:
         session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         })
+        logger.debug("已创建历史数据请求会话")
         return session
 
     @staticmethod
@@ -52,13 +53,14 @@ class HistoryService:
         if use_cache:
             cached = get_cached_content(CACHE_NAME)
             if cached is not None:
+                logger.debug("历史数据缓存命中")
                 return cached
 
         with cls._create_session() as session:
             try:
                 response = session.get(HISTORY_TODAY_API_URL, params={"type": "json"}, timeout=10)
                 if response.status_code != 200:
-                    logger.error(f"请求失败: HTTP {response.status_code}")
+                    logger.error(f"请求失败: http {response.status_code}")
                     return None
 
                 try:
@@ -72,7 +74,7 @@ class HistoryService:
 
             if not isinstance(data, dict) or data.get("code") not in (200, "200") or not isinstance(data.get("events"), list):
                 code = data.get("code") if isinstance(data, dict) else None
-                logger.error(f"数据格式异常: code={code}, type={type(data).__name__}")
+                logger.error(f"数据格式异常: code={code} type={type(data).__name__}")
                 return None
 
             result = {
@@ -80,4 +82,9 @@ class HistoryService:
                 "events": data.get("events") or [],
             }
             cls._save_cache(result)
+            events = result["events"]
+            top_titles = "; ".join(
+                (e.get("title") or "")[:24] for e in events[:3] if isinstance(e, dict)
+            )
+            logger.info(f"历史已获取 {result['date']} {len(events)}条 {top_titles}")
             return result

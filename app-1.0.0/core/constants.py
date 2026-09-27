@@ -76,7 +76,10 @@ QSpinBox, QDoubleSpinBox, QDateTimeEdit, QHeaderView {{
 
 
 def clear_qss_cache():
+    from core.logger import logger as _logger
+    count = len(_qss_cache)
     _qss_cache.clear()
+    _logger.debug(f"已清空 QSS 缓存 ({count}项)")
 
 
 def load_qss(qss_filename: str) -> str:
@@ -84,8 +87,10 @@ def load_qss(qss_filename: str) -> str:
     theme = 'dark' if isDarkTheme() else 'light'
     cache_key = (theme, qss_filename)
     if cache_key in _qss_cache:
+        _logger.debug(f"QSS 命中缓存: {qss_filename} ({theme})")
         return _qss_cache[cache_key]
 
+    _logger.debug(f"QSS 缓存未命中 读取文件: {qss_filename} ({theme})")
     qss_path = get_resource_path(os.path.join(RESOURCE_QSS, theme, qss_filename))
     if not os.path.exists(qss_path):
         _logger.warning(f"QSS文件不存在: {qss_path}")
@@ -95,7 +100,20 @@ def load_qss(qss_filename: str) -> str:
             content = f.read()
         content = FALLBACK_FONT_QSS + "\n" + content
         _qss_cache[cache_key] = content
+        _logger.debug(f"QSS 已加载 {qss_filename} ({theme}) 长度 {len(content)}")
         return content
     except Exception as e:
         _logger.error(f"QSS加载失败 {qss_path}: {e}")
         return ''
+
+
+def _log_module_init():
+    try:
+        from core.logger import logger as _logger
+        _logger.debug(f"常量模块就绪 资源根={get_resource_path(RESOURCE_ROOT)}")
+    except ImportError:
+        # core.logger 正在初始化中(循环导入), 跳过本次日志
+        pass
+
+
+_log_module_init()

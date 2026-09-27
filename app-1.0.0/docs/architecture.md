@@ -50,16 +50,16 @@ graph TD
 ## 3. 设计原则
 
 1. **组件库**：UI 控件 PyQt6 Fluent Widgets；元素多的话 HTML性能来说更好一些，见 [ui-modules.md 11.4](ui-modules.md)
-2. **路径**：目录由 [core/paths.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/core/paths.py) 在导入期处理（`get_resource_path()` 依次查 `APP_DIR → MEIPASS_DIR → APP_DIR`）
+2. **路径**：目录由 [core/paths.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/core/paths.py) 在导入期处理（`get_resource_path()` 依次查 `APP_DIR -> MEIPASS_DIR -> APP_DIR`）
 3. **配置**：配置项以 `ConfigItem` 形式声明在 [core/config.py](https://github.com/HelloGaoo/Glimpseon/blob/main/app-1.0.0/core/config.py) 的 `Config` 类中
 4. **预加载/缓存**：壁纸 / 天气 / 一言在 `Preloader`（QThread）中同时拉取，`pyqtSignal` 回主线程刷新 ui
 5. **跨语言**：高斯模糊（Direct2D）、空闲检测、单例互斥、图标提取等由 C++（`glimpseon_native`）处理
 
 ## 4. 数据处理（以壁纸为例）
 
-壁纸在 `Preloader._load_wp()`（QThread）中预加载：读缓存（`get_cached_content`，过期也用旧的）→ 未命中则请求 API 落盘 → `historyManager.sync_cleanup()` 控制数量 → `save_cache()` → `sig_wp.emit(path, src, url)` 回主线程。
+壁纸在 `Preloader._load_wp()`（QThread）中预加载：读缓存（`get_cached_content`，过期也用旧的）-> 未命中则请求 API 落盘 -> `historyManager.sync_cleanup()` 控制数量 -> `save_cache()` -> `sig_wp.emit(path, src, url)` 回主线程。
 
-主线程槽 `_upd_wp()` 依次：`QPixmap` 载入 → `_updateMainWindowBackground()` 设为主窗口背景 → `_applyEffects()` 模糊/亮度（调 `Glimpseon_native`）→ `infoCard.updateInfo()` 更新信息卡 → `historyManager.add()` 写入历史。
+主线程槽 `_upd_wp()` 依次：`QPixmap` 载入 -> `_updateMainWindowBackground()` 设为主窗口背景 -> `_applyEffects()` 模糊/亮度（调 `Glimpseon_native`）-> `infoCard.updateInfo()` 更新信息卡 -> `historyManager.add()` 写入历史。
 
 完整时序见 [启动流程](launch-flow.md)。
 

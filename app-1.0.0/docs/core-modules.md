@@ -17,15 +17,15 @@
 
 | 路径             | 推导规则                                                                                                                         |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `PACKAGE_ROOT` | 环境变量 `Glimpseon_PackageRoot` → `sys.frozen` 时为 `sys.executable` 目录 → 否则 `__file__` 上三级（`paths.py` 位于 `app-*/core/`，三级父目录即包根） |
-| `APP_DIR`      | 环境变量 `Glimpseon_AppDir` → 否则扫描 `app-*` 目录，选 `record.json` 中 `current==1 && !partial` 的 → 兜底为 `PACKAGE_ROOT`                  |
+| `PACKAGE_ROOT` | 环境变量 `Glimpseon_PackageRoot` -> `sys.frozen` 时为 `sys.executable` 目录 -> 否则 `__file__` 上三级（`paths.py` 位于 `app-*/core/`，三级父目录即包根） |
+| `APP_DIR`      | 环境变量 `Glimpseon_AppDir` -> 否则扫描 `app-*` 目录，选 `record.json` 中 `current==1 && !partial` 的 -> 都没有则用 `PACKAGE_ROOT`                  |
 | `MEIPASS_DIR`  | 仅 `sys.frozen` 时取 `sys._MEIPASS`，否则 `None`                                                                                   |
 | `DATA_ROOT`    | `PACKAGE_ROOT/data`，其下细分 `config/log/cache/temp/profile/user/icon/wallpaper/classphotos/notes`                               |
 
 ### 1.2 关键函数
 
 - `ensure_data_dirs()`：创建全部数据子目录
-- `get_resource_path(relative_path)`：**资源查找三级回退** `APP_DIR → MEIPASS_DIR → APP_DIR`
+- `get_resource_path(relative_path)`：**资源查找三级回退** `APP_DIR -> MEIPASS_DIR -> APP_DIR`
 - `VERSION` / `BUILD_DATE`：从 `APP_DIR/record.json` 读取，失败回退 `1.0.0` / `""`。
 
 ### 1.3 注意
@@ -111,12 +111,12 @@ def clear_qss_cache()
 for attr_name in dir(cfg):
     attr = getattr(cfg, attr_name)
     if isinstance(attr, ConfigItem) and hasattr(attr, 'valueChanged'):
-        attr.valueChanged.connect(_on_config_changed)  # → save_cfg()
+        attr.valueChanged.connect(_on_config_changed)  # -> save_cfg()
 ```
 
 导入期遍历所有 `ConfigItem`，连接 `valueChanged` 到 `save_cfg`，因此修改 `cfg.xxx.value` 即自动持久化。
 
-带 `restart=True` 的项（`dpiScale`、`language`、`logLevel`、`disableLog`、`enableGpuAcceleration`）变更后需重启生效；重启由调用方走 `core.utils.request_restart()`：置 `_pending_restart` → 关闭全部窗口退出，启动器检测 `is_restart_pending()` 后重启子进程。
+带 `restart=True` 的项（`dpiScale`、`language`、`logLevel`、`disableLog`、`enableGpuAcceleration`）变更后需重启生效；重启由调用方走 `core.utils.request_restart()`：置 `_pending_restart` -> 关闭全部窗口退出，启动器检测 `is_restart_pending()` 后重启子进程。
 
 ### 3.4 API
 
@@ -188,7 +188,7 @@ for attr_name in dir(cfg):
 
 - `initialize_fonts(app, install_to_system=True)`：检测系统是否已装 HarmonyOS Sans，未装则调 `Glimpseon_native.install_font` 安装；并 `setFontFamilies([...])`。
 - `resolve_font_family()`：从 `HARMONYOS_FONT_FAMILIES + FONT_FAMILY_CANDIDATES` 中选首个系统可用字体。
-- 字体回退链（`apply_fonts` 注入 QFont 替换规则 + 全局 QSS）：`HarmonyOS Sans → Microsoft YaHei UI → Microsoft YaHei → PingFang SC → Source Han Sans SC → Segoe UI → sans-serif`。
+- 字体回退链（`apply_fonts` 注入 QFont 替换规则 + 全局 QSS）：`HarmonyOS Sans -> Microsoft YaHei UI -> Microsoft YaHei -> PingFang SC -> Source Han Sans SC -> Segoe UI -> sans-serif`。
 - `FONT_FAMILY` 常量（`core/constants.py`）供 UI 组件层统一引用，与回退链一致。
 
 ### 5.3 缓存
@@ -196,9 +196,9 @@ for attr_name in dir(cfg):
 文件缓存位于 `DATA_CACHE`，每个缓存项含 `content` + `expiry`（按 `interval_str` 解析）。
 
 - `save_cache(name, content, interval_str)`
-- `load_cache(name, ignore_expiry=False)` → `{content, expiry}`
-- `get_cached_content(name, ignore_expiry=False)` → 直接返回 content
-- `parse_interval("30m")` → 秒数
+- `load_cache(name, ignore_expiry=False)` -> `{content, expiry}`
+- `get_cached_content(name, ignore_expiry=False)` -> 直接返回 content
+- `parse_interval("30m")` -> 秒数
 
 ### 5.4 资源解包
 
@@ -221,7 +221,7 @@ for attr_name in dir(cfg):
 ### 5.7 精确时间
 
 - `TimeSyncService`：NTP 客户端（默认 `ntp.aliyun.com`），后台同步。
-- `precise_now()` → `datetime`，`precise_time_str()` → 字符串。
+- `precise_now()` -> `datetime`，`precise_time_str()` -> 字符串。
 - `_check_auto_time_offset()`：根据 `autoTimeOffsetEnabled` / `autoTimeOffsetIncrement` 自动偏移。
 
 ### 5.8 Fluent 图标命名空间
@@ -305,7 +305,7 @@ def _install_<软件名>(self, software_name, cache_file,
                       progress_callback=None, download_complete_callback=None)
 ```
 
-- 由 ui/ 按 `_install_` + 去掉特定字后的名称查找并调用（`hasattr` → `getattr`）。
+- 由 ui/ 按 `_install_` + 去掉特定字后的名称查找并调用（`hasattr` -> `getattr`）。
 - `cache_file`：`resource/url_dir.py` 中匹配到的那条记录（含 `url` / `github_path` / `hash`）。
 - `progress_callback(software_name, percent)`：线程回调，UI 更新经 `pyqtSignal` 回主线程（见 [ui-modules.md 7.5](ui-modules.md#75-线程)）。
 
@@ -353,14 +353,13 @@ def _install_<软件名>(self, software_name, cache_file,
 
 ### 11.1 端点
 
-- `GITHUB_API`：`https://api.github.com/repos/HelloGaoo/Glimpseon/releases/latest`
-- `CHANGELOG_URL`：经 `gh-proxy` 代理拉取 `changelog.md`。
+- `GITHUB_API`：`https://api.github.com/repos/HelloGaoo/Glimpseon/releases/latest`，更新日志取返回的 `body`（Release 描述 markdown 原文），由关于页用 `markdown` 库转 HTML 渲染（仓库 `doc/ChangeLogs/` 存每版本的日志源头，见其 README）。
 
 ### 11.2 流程函数
 
 | 函数                                                     | 作用                                             |
 | ------------------------------------------------------ | ---------------------------------------------- |
-| `get_github_changelog(max_retries=3)`                  | 拉取更新日志                                         |
+| `get_github_changelog(max_retries=3)`                  | 拉取最新 Release 描述的 markdown 原文              |
 | `check_github_version(max_retries=3)`                  | 比较版本号                                          |
 | `download_update(url, progress_callback, max_retries)` | 下载更新包到 `DATA_TEMP`                             |
 | `extract_update(archive_path, target_version)`         | 解压为新 `app-{version}` 目录                        |

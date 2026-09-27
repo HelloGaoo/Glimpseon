@@ -19,27 +19,38 @@
 """
 
 import json
+import logging
 import os
 import sys
 from pathlib import Path
+
+logger = logging.getLogger("Glimpseon.core.paths")
 
 
 def _detect_package_root() -> str:
     env_root = os.environ.get("Glimpseon_PackageRoot")
     if env_root and os.path.isdir(env_root):
-        return os.path.normpath(env_root)
+        root = os.path.normpath(env_root)
+        logger.debug(f"包根目录: 环境变量指定 {root}")
+        return root
 
     if getattr(sys, 'frozen', False):
-        return os.path.dirname(os.path.abspath(sys.executable))
+        root = os.path.dirname(os.path.abspath(sys.executable))
+        logger.debug(f"包根目录: 冻结模式 {root}")
+        return root
 
     current = Path(__file__).resolve()
-    return str(current.parent.parent.parent)
+    root = str(current.parent.parent.parent)
+    logger.debug(f"包根目录: 按模块位置推导 {root}")
+    return root
 
 
 def _detect_app_dir(package_root: str) -> str:
     env_app = os.environ.get("Glimpseon_AppDir")
     if env_app and os.path.isdir(env_app):
-        return os.path.normpath(env_app)
+        app = os.path.normpath(env_app)
+        logger.debug(f"应用目录: 环境变量指定 {app}")
+        return app
 
     try:
         for entry in os.listdir(package_root):
@@ -52,12 +63,15 @@ def _detect_app_dir(package_root: str) -> str:
                 with open(record_path, 'r', encoding='utf-8') as f:
                     record = json.load(f)
                 if record.get("current", 0) == 1 and not record.get("partial", False):
+                    logger.debug(f"应用目录: 用 {entry} (record.json current=1)")
                     return os.path.join(package_root, entry)
-            except (json.JSONDecodeError, OSError):
+            except (json.JSONDecodeError, OSError) as e:
+                logger.debug(f"应用目录: record.json 读取失败 {entry}: {e}")
                 continue
-    except OSError:
-        pass
+    except OSError as e:
+        logger.warning(f"应用目录: 扫描包根目录失败: {e}")
 
+    logger.warning(f"应用目录: 未找到有效 app-x.y.z 用包根目录 {package_root}")
     return package_root
 
 
@@ -92,7 +106,8 @@ try:
         _record = json.load(_f)
     VERSION = _record.get("version", "1.0.0")
     BUILD_DATE = _record.get("build_date", "")
-except (json.JSONDecodeError, OSError):
+except (json.JSONDecodeError, OSError) as e:
+    logger.warning(f"record.json 读取失败 用默认版本号: {e}")
     VERSION = "1.0.0"
     BUILD_DATE = ""
 
@@ -103,12 +118,16 @@ def ensure_data_dirs():
         DATA_TEMP, DATA_PROFILE, DATA_USER, DATA_ICON, DATA_WALLPAPER,
         DATA_CLASSPHOTOS, DATA_NOTES
     ]
+    created = []
     for d in dirs:
         if not os.path.exists(d):
             try:
                 os.makedirs(d, exist_ok=True)
-            except OSError:
-                pass
+                created.append(d)
+            except OSError as e:
+                logger.warning(f"数据目录创建失败: {d} - {e}")
+    if created:
+        logger.debug(f"数据目录已创建{len(created)}个: {[os.path.basename(c) for c in created]}")
 
 
 def get_resource_path(relative_path: str) -> str:
@@ -120,6 +139,8 @@ def get_resource_path(relative_path: str) -> str:
     if MEIPASS_DIR:
         meipass_path = os.path.join(MEIPASS_DIR, relative_path)
         if os.path.exists(meipass_path):
+            logger.debug(f"资源用 Meipass: {relative_path}")
             return meipass_path
 
+    logger.debug(f"资源未命中 返回应用目录路径: {relative_path}")
     return app_path
