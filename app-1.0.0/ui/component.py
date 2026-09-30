@@ -89,6 +89,7 @@ from services.history import HistoryService
 from qfluentwidgets import MessageBox
 from services.word import WordService
 from services.sentence import SentenceService
+from services.almanac import AlmanacService
 from ui.common import create_html_view, HTML_BASE_URL
 from core.constants import BASE_DIR, DATA_CLASSPHOTOS, DATA_NOTES, DATA_USER, load_qss, NEWS_ICONS, get_resPath, APP_ICON, FONT_FAMILY, FONT_PRIMARY
 from core.component import (
@@ -334,6 +335,12 @@ COMPONENT_STYLES = {
             "class": None,
             "default_config": {},
             "default_size": (200, 200),
+        },
+        "almanac": {
+            "name": "黄历",
+            "class": None,
+            "default_config": {},
+            "default_size": (400, 200),
         },
     },
     "weather": {
@@ -11917,6 +11924,182 @@ class DailySentenceComponent(_HtmlCardComponent):
             logger.debug("[Sentence] 每日英语无数据")
         self._render()
 
+
+class AlmanacComponent(_HtmlCardComponent):
+    """黄历"""
+    _min_size = (280, 140)
+    _default_size = (400, 200)
+
+    _GOOD_LIMIT = 10
+    _BAD_LIMIT = 8
+
+    _object_name = "almanacContainer"
+
+    _theme_dark = {
+        "fg": "rgba(255, 255, 255, 0.87)",
+        "muted": "rgba(255, 255, 255, 0.52)",
+        "faint": "rgba(255, 255, 255, 0.38)",
+        "term_c": "rgba(255, 255, 255, 0.78)",
+        "yi_bg": "#e0554b",
+        "ji_bg": "#6f6f6f",
+        "div_c": "rgba(255, 255, 255, 0.18)",
+        "accent": "#e08a80",
+    }
+    _theme_light = {
+        "fg": "rgba(40, 40, 40, 0.88)",
+        "muted": "rgba(40, 40, 40, 0.52)",
+        "faint": "rgba(40, 40, 40, 0.4)",
+        "term_c": "rgba(40, 40, 40, 0.8)",
+        "yi_bg": "#cf3838",
+        "ji_bg": "#3c3c3c",
+        "div_c": "rgba(0, 0, 0, 0.15)",
+        "accent": "#b8483d",
+    }
+
+    _HTML_TEMPLATE = Template('''<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
+  body {
+    font-family: $font;
+    position: relative;
+  }
+  .sdate {
+    position: absolute; top: 13px; right: 16px;
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 11px; letter-spacing: 2px; color: $faint;
+    animation: fade .8s .3s ease-out both;
+  }
+  .wrap {
+    width: 100%; height: 100%;
+    display: flex; align-items: stretch;
+    padding: 16px 20px;
+  }
+  .left {
+    width: 132px; flex-shrink: 0;
+    display: flex; flex-direction: column; justify-content: center;
+    animation: rise .5s ease-out both;
+  }
+  .label {
+    font-size: 12px; letter-spacing: 4px; color: $muted;
+  }
+  .lunar {
+    margin-top: 4px;
+    font-size: 30px; font-weight: 700; color: $fg;
+    white-space: nowrap; overflow: hidden;
+  }
+  .gz {
+    margin-top: 5px;
+    font-size: 13px; color: $muted; letter-spacing: 1px;
+    white-space: nowrap; overflow: hidden;
+  }
+  .gz:first-of-type { margin-top: 14px; }
+  .term {
+    margin-top: 8px;
+    font-size: 12px; color: $accent; letter-spacing: 2px;
+  }
+  .vdiv { width: 0; border-left: 1px dashed $div_c; }
+  .right {
+    flex: 1; min-width: 0;
+    display: flex; flex-direction: column; justify-content: center;
+    padding-left: 16px;
+  }
+  .row {
+    display: flex; align-items: flex-start; gap: 11px;
+    animation: fade .55s ease-out both;
+  }
+  .row.g { animation-delay: .1s; }
+  .row.b { animation-delay: .22s; }
+  .badge {
+    width: 27px; height: 27px; flex-shrink: 0;
+    border-radius: 6px; margin-top: 2px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 14px; font-weight: 700;
+  }
+  .b-yi { background: $yi_bg; }
+  .b-ji { background: $ji_bg; }
+  .terms {
+    font-size: 13px; line-height: 1.85; color: $term_c;
+    word-spacing: 3px;
+  }
+  .hdiv {
+    margin: 11px 0;
+    border-top: 1px dashed $div_c;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+</style>
+</head>
+<body>
+  <div class="sdate">$date</div>
+  <div class="wrap">
+    <div class="left">
+      <div class="label">农历</div>
+      <div class="lunar">$lunar</div>
+      <div class="gz">$gz_year</div>
+      <div class="gz">$gz_month</div>
+      <div class="gz">$gz_day</div>
+      $term_html
+    </div>
+    <div class="vdiv"></div>
+    <div class="right">
+      <div class="row g"><span class="badge b-yi">宜</span><div class="terms">$good_html</div></div>
+      <div class="hdiv"></div>
+      <div class="row b"><span class="badge b-ji">忌</span><div class="terms">$bad_html</div></div>
+    </div>
+  </div>
+</body>
+</html>''')
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName(self._object_name)
+        self._data = None
+        self._setup_ui()
+        self._setup_periodic_refresh()
+        logger.debug(f"[ALM] 黄历组件初始化 id={self.component_id}")
+
+    def _terms_html(self, terms, limit) -> str:
+        if not terms:
+            return "--"
+        extra = " …" if len(terms) > limit else ""
+        return _html.escape(" ".join(terms[:limit])) + extra
+
+    def _build_html(self) -> str:
+        theme = self._theme_dark if isDarkTheme() else self._theme_light
+        d = self._data or {}
+        lunar = "--"
+        gz_year = gz_month = gz_day = "--"
+        if d:
+            lunar = f"{d.get('lunar_month', '')}{d.get('lunar_day', '')}".strip() or "--"
+            gz_year = f"{d.get('year_gz', '')}【{d.get('zodiac', '')}】年"
+            gz_month = f"{d.get('month_gz', '')}月"
+            gz_day = f"{d.get('day_gz', '')}日"
+        date = (d.get("date") or datetime.date.today().isoformat()).replace("-", ".")
+        term = d.get("solar_term") or ""
+        term_html = f'<div class="term">{_html.escape(term)}</div>' if term else ""
+        html = self._HTML_TEMPLATE.substitute(
+            font=FONT_FAMILY,
+            lunar=_html.escape(lunar),
+            gz_year=_html.escape(gz_year),
+            gz_month=_html.escape(gz_month),
+            gz_day=_html.escape(gz_day),
+            term_html=term_html,
+            good_html=self._terms_html(d.get("good"), self._GOOD_LIMIT),
+            bad_html=self._terms_html(d.get("bad"), self._BAD_LIMIT),
+            date=_html.escape(date),
+            **theme,
+        )
+        logger.debug(f"[ALM] 生成黄历 html 长度 {len(html)}")
+        return html
+
+    def _refresh(self):
+        self._data = AlmanacService.get_today()
+        self._render()
+
 _perf_cpu_lock = threading.Lock()
 _perf_cpu_baseline = None  # (busy, total)
 
@@ -12451,6 +12634,7 @@ COMPONENT_STYLES["clock"]["square_1"]["class"] = SquareClock1Component
 COMPONENT_STYLES["clock"]["square_2"]["class"] = SquareClock2Component
 COMPONENT_STYLES["clock"]["calendar_month"]["class"] = CalendarMonthComponent
 COMPONENT_STYLES["clock"]["calendar_mini"]["class"] = MiniCalendarComponent
+COMPONENT_STYLES["clock"]["almanac"]["class"] = AlmanacComponent
 COMPONENT_STYLES["weather"]["icon_temp"]["class"] = WeatherIconTempComponent
 COMPONENT_STYLES["weather"]["hourly"]["class"] = WeatherHourlyComponent
 COMPONENT_STYLES["weather"]["weekly"]["class"] = WeatherWeeklyComponent

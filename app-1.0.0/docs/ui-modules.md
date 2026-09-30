@@ -85,6 +85,7 @@
 | Clock    | `SquareClock2Component`                                 | 方形钟表II（SVG）                                                    |
 | Clock    | `CalendarMonthComponent`                                | 月历（`_DayCell`）                                                 |
 | Clock    | `MiniCalendarComponent`                                 | 简约月历（HTML）                                                     |
+| Clock    | `AlmanacComponent`                                      | 黄历（HTML）                                              |
 | Clock    | `CountdownEventComponent`                               | 事件倒计时                                                          |
 | Clock    | `TimerCountdownComponent`                               | 计时器（`TimeColumnWidget` / `TimerTimeDisplayWidget`）             |
 | Weather  | `WeatherIconTempComponent`                              | 图标 + 温度                                                        |
@@ -129,6 +130,7 @@ html组件通过 `create_html_view()`（[ui/common.py](https://github.com/HelloG
 | `SquareClock1Component`      | SVG             | 方形钟表I  |
 | `SquareClock2Component`      | SVG             | 方形钟表II |
 | `MiniCalendarComponent`      | HTML + CSS      | 简约月历   |
+| `AlmanacComponent`           | HTML + CSS      | 黄历     |
 | `TimetableTimelineComponent` | HTML + CSS + JS | 课程时间轴  |
 | `HomeworkBoardComponent`     | HTML + CSS + JS + QWebChannel | 作业板 |
 | `NetworkSpeedComponent`      | HTML + Canvas + JS + QWebChannel | 网速监控 |
