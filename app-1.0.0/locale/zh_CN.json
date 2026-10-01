@@ -450,7 +450,8 @@
     "media": "媒体信息",
     "quick_launch": "快捷启动",
     "system": "性能监测",
-    "click_to_settings": "点击设置"
+    "click_to_settings": "点击设置",
+    "announcement": "公告栏"
   },
   "component_edit": {
     "add_component": "添加组件",
@@ -1060,7 +1061,6 @@
     "data_path": "数据目录",
     "data_path_tip": "ClassIsland 的 data 目录（含 Profiles/Default.json）",
     "browse_title": "选择 ClassIsland 数据目录",
-    "btn_auto_detect": "自动检测",
     "btn_browse": "手动选择",
     "path_empty": "未设置（点击自动检测或手动选择）",
     "req_port": "轮询间隔",
@@ -1143,7 +1143,8 @@
     "tts_no_speak": "不朗读",
     "tts_rate_label": "朗读语速(%)",
     "tts_volume_label": "朗读音量(%)",
-    "schedule_label": "定时"
+    "schedule_label": "定时",
+    "sync_to_board": "同步到公告栏"
   },
   "nav_page": {
     "empty_hint": "拖入应用 / 文件 / 文件夹 / 网页\n或右键空白处添加",
@@ -1172,5 +1173,15 @@
     "finished_title": "倒计时",
     "finished_body": "倒计时结束！",
     "set_time_hint": "请设定倒计时时间"
+  },
+  "announcement": {
+    "title": "公告",
+    "add": "添加公告",
+    "item_ph": "输入公告内容...",
+    "empty": "暂无公告",
+    "clear": "清空",
+    "confirm_clear": "确认",
+    "yesterday": "昨天",
+    "new": "NEW"
   }
 }

@@ -665,6 +665,18 @@ BUILTIN_COMPONENT_DEFINITIONS = [
         resize_mode=ResizeMode.FREE,
         default_config={},
     ),
+    ComponentDefinition(
+        id="announcement_board",
+        display_name="公告栏",
+        category="School",
+        icon="Education",
+        min_width_cells=2,
+        min_height_cells=2,
+        default_width_cells=3,
+        default_height_cells=3,
+        resize_mode=ResizeMode.FREE,
+        default_config={},
+    ),
 ]
 
 

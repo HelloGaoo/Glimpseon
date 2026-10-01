@@ -450,7 +450,8 @@
     "media": "Media Info",
     "quick_launch": "Quick Launch",
     "system": "Performance Monitor",
-    "click_to_settings": "Click to settings"
+    "click_to_settings": "Click to settings",
+    "announcement": "Notice Board"
   },
   "component_edit": {
     "add_component": "Add Component",
@@ -1060,7 +1061,6 @@
     "data_path": "Data Directory",
     "data_path_tip": "ClassIsland data directory (contains Profiles/Default.json)",
     "browse_title": "Select ClassIsland Data Directory",
-    "btn_auto_detect": "Auto Detect",
     "btn_browse": "Manual Select",
     "path_empty": "Not set (click Auto Detect or Manual Select)",
     "req_port": "Poll Interval",
@@ -1143,7 +1143,8 @@
     "tts_no_speak": "No Speech",
     "tts_rate_label": "TTS Rate (%)",
     "tts_volume_label": "TTS Volume (%)",
-    "schedule_label": "Schedule"
+    "schedule_label": "Schedule",
+    "sync_to_board": "Sync to notice board"
   },
   "nav_page": {
     "empty_hint": "Drag in app / file / folder / webpage\nor right-click to add",
@@ -1172,5 +1173,15 @@
     "finished_title": "Countdown",
     "finished_body": "Countdown finished!",
     "set_time_hint": "Please set countdown time"
+  },
+  "announcement": {
+    "title": "Notices",
+    "add": "Add notice",
+    "item_ph": "Type a notice...",
+    "empty": "No notices yet",
+    "clear": "Clear",
+    "confirm_clear": "Sure?",
+    "yesterday": "Yesterday",
+    "new": "NEW"
   }
 }

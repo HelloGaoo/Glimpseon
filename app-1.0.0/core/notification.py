@@ -15,9 +15,11 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """通知模块"""
+import json
 import logging
 import os
 import sys
+import time as _time
 from PyQt6.QtCore import (
     QObject, QTimer, pyqtSlot, Qt, pyqtSignal,
 )
@@ -28,7 +30,7 @@ from PyQt6.QtGui import QFont
 from qfluentwidgets import BodyLabel
 from plyer import notification as plyer_notification
 
-from core.constants import FONT_PRIMARY
+from core.constants import DATA_USER, FONT_PRIMARY
 import threading
 import subprocess
 import uuid
@@ -43,6 +45,76 @@ class NotifType:
     SCROLL = "scroll"
     CORNER = "corner"
     FULLSCREEN = "fullscreen"
+
+ANNOUNCEMENTS_FILE = os.path.join(DATA_USER, "announcements.json")
+ANNOUNCEMENTS_MAX = 50
+
+
+def load_announcements() -> list:
+    """Returns:
+        公告列表 [{text, created}]/[]
+    """
+    try:
+        if os.path.exists(ANNOUNCEMENTS_FILE):
+            with open(ANNOUNCEMENTS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                return data
+    except Exception as e:
+        logger.warning(f"读取公告失败: {e}")
+    return []
+
+
+def save_announcements(items: list):
+    try:
+        os.makedirs(DATA_USER, exist_ok=True)
+        with open(ANNOUNCEMENTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(items[:ANNOUNCEMENTS_MAX], f, ensure_ascii=False, indent=1)
+    except Exception as e:
+        logger.warning(f"保存公告失败: {e}")
+
+
+def clean_announcements(raw) -> list:
+    """
+    Args:
+        raw: 网页/文件来源的原始数据
+
+    Returns:
+        [{text<=200, created<=16}], 最多 ANNOUNCEMENTS_MAX 条
+    """
+    items = []
+    if not isinstance(raw, list):
+        return items
+    for it in raw:
+        if not isinstance(it, dict):
+            continue
+        text = str(it.get("text", "")).strip()[:200]
+        if not text:
+            continue
+        created = str(it.get("created", "")).strip()[:16]
+        items.append({"text": text, "created": created})
+        if len(items) >= ANNOUNCEMENTS_MAX:
+            break
+    return items
+
+
+def append_announcement(text: str) -> bool:
+    """公告头部插入一条
+    Returns:
+        已插入 True / 跳过或空 False
+    """
+    text = (text or "").strip()[:200]
+    if not text:
+        return False
+    items = clean_announcements(load_announcements())
+    created = _time.strftime("%Y-%m-%d %H:%M")
+    if items and items[0].get("text") == text and items[0].get("created") == created:
+        logger.debug("[Announce] 同分钟同内容 去重跳过")
+        return False
+    items.insert(0, {"text": text, "created": created})
+    save_announcements(items)
+    logger.info(f"[Announce] 公告已写入 共{len(items)}条: {text[:30]}")
+    return True
 
 # 强制置顶
 try:

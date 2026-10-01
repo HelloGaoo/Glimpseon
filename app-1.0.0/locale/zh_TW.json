@@ -435,7 +435,8 @@
     "media": "媒體資訊",
     "quick_launch": "快速啟動",
     "system": "效能監測",
-    "click_to_settings": "點擊設定"
+    "click_to_settings": "點擊設定",
+    "announcement": "公告欄"
   },
   "homework": {
     "title": "作業板",
@@ -1015,7 +1016,6 @@
     "data_path": "資料目錄",
     "data_path_tip": "ClassIsland 的 data 目錄（含 Profiles/Default.json）",
     "browse_title": "選擇 ClassIsland 資料目錄",
-    "btn_auto_detect": "自動偵測",
     "btn_browse": "手動選擇",
     "path_empty": "未設定（點擊自動偵測或手動選擇）",
     "req_port": "輪詢間隔",
@@ -1094,7 +1094,8 @@
     "will_display_next": "將優先顯示該通知",
     "banner_bg_height": "橫幅背景高度",
     "banner_mouse_through": "滑鼠穿透",
-    "schedule_label": "定時"
+    "schedule_label": "定時",
+    "sync_to_board": "同步到公告欄"
   },
   "nav_page": {
     "empty_hint": "拖入應用 / 檔案 / 資料夾 / 網頁\n或右鍵空白處新增",
@@ -1123,5 +1124,15 @@
     "finished_title": "倒計時",
     "finished_body": "倒計時結束！",
     "set_time_hint": "請設定倒計時時間"
+  },
+  "announcement": {
+    "title": "公告",
+    "add": "新增公告",
+    "item_ph": "輸入公告內容...",
+    "empty": "暫無公告",
+    "clear": "清空",
+    "confirm_clear": "確認",
+    "yesterday": "昨天",
+    "new": "NEW"
   }
 }

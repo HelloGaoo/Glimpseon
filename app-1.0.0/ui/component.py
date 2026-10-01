@@ -83,6 +83,7 @@ from win32com.shell import shell
 
 from core.config import cfg, save_cfg
 from core.utils import tr, FUI, get_cached_content, save_cache, precise_now
+from core.notification import ANNOUNCEMENTS_FILE, clean_announcements, load_announcements
 from services.media import MediaInfo, Lyrics, get_media_info, get_service, media_control, media_next, media_prev
 from services.news import NewsService
 from services.history import HistoryService
@@ -119,6 +120,7 @@ def get_component_display_name(component_id: str) -> str:
         "media": tr("component.media"),  # 媒体信息
         "quick_launch": tr("component.quick_launch"),  # 快捷启动
         "system": tr("component.system"),  # 性能监测
+        "announcement": tr("component.announcement"),  # 公告栏
     }
     m = re.match(r"comp_(.+)_\d+$", component_id)
     key = m.group(1) if m else component_id
@@ -565,6 +567,14 @@ COMPONENT_STYLES = {
             "default_size": (400, 200),
         },
     },
+    "announcement": {
+        "board": {
+            "name": "公告栏",
+            "class": None,
+            "default_config": {},
+            "default_size": (420, 400),
+        },
+    },
 }
 
 class ComponentManager:
@@ -820,6 +830,16 @@ def _find_timetable_page():
     """
     for w in QApplication.topLevelWidgets():
         page = getattr(w, 'timetablePage', None)
+        if page is not None:
+            return page
+    return None
+
+def _find_notification_page():
+    """Returns:
+        通知页/None
+    """
+    for w in QApplication.topLevelWidgets():
+        page = getattr(w, 'notificationPage', None)
         if page is not None:
             return page
     return None
@@ -11078,6 +11098,343 @@ render();
         except Exception as e:
             logger.warning(f"保存作业板失败: {e}")
 
+class AnnouncementBoardComponent(_HtmlCardComponent):
+    """公告栏组件（HTML）"""
+    _min_size = (300, 220)
+    _default_size = (420, 400)
+
+    _object_name = "announcementBoardContainer"
+
+    _theme_light = {
+        "ink": "rgba(0,0,0,0.89)", "sub": "rgba(0,0,0,0.62)", "line": "rgba(0,0,0,0.08)",
+        "hover": "rgba(0,0,0,0.045)", "chip": "rgba(0,0,0,0.05)",
+        "bar": "rgba(0,0,0,0.12)", "empty": "rgba(0,0,0,0.45)",
+        "card": "rgba(255,255,255,0.55)", "cardline": "rgba(0,0,0,0.06)",
+    }
+    _theme_dark = {
+        "ink": "rgba(255,255,255,0.95)", "sub": "rgba(255,255,255,0.62)", "line": "rgba(255,255,255,0.10)",
+        "hover": "rgba(255,255,255,0.06)", "chip": "rgba(255,255,255,0.08)",
+        "bar": "rgba(255,255,255,0.14)", "empty": "rgba(255,255,255,0.40)",
+        "card": "rgba(255,255,255,0.055)", "cardline": "rgba(255,255,255,0.09)",
+    }
+
+    _HTML_TEMPLATE = Template('''<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
+  body { font-family: $font; color: $ink; user-select: none; }
+  #app { display: flex; flex-direction: column; width: 100%; height: 100%; padding: 2px 12px 10px; }
+  #topbar { display: flex; align-items: center; gap: 10px; padding: 4px 2px 8px; flex: none; cursor: grab; }
+  body.an-drag, body.an-drag #topbar { cursor: grabbing; }
+  #title-wrap { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  #title { font-size: 20px; font-weight: 700; white-space: nowrap; }
+  #count { font-size: 14px; font-weight: 600; color: $sub; font-variant-numeric: tabular-nums;
+    background: $chip; padding: 2px 10px; border-radius: 10px; }
+  .act {
+    border: none; cursor: pointer; font-family: $font; font-size: 14px; font-weight: 600;
+    color: $sub; background: $chip; padding: 4px 12px; border-radius: 6px;
+    transition: background .15s, color .15s; flex: none;
+  }
+  .act:hover { background: $accent22; color: $accent; }
+  .act:active { opacity: .8; }
+  .act.danger:hover { background: rgba(229,72,77,.12); color: #e5484d; }
+  .act.danger.confirm { background: rgba(229,72,77,.9); color: #fff; }
+  #list { flex: 1; overflow-y: auto; overflow-x: hidden; padding-right: 3px; }
+  #list::-webkit-scrollbar { width: 4px; }
+  #list::-webkit-scrollbar-thumb { background: $bar; border-radius: 2px; }
+  #empty {
+    height: 100%; display: flex; align-items: center; justify-content: center;
+    color: $empty; font-size: 15px;
+  }
+  .item { display: flex; gap: 10px; background: $card; border: 1px solid $cardline;
+    border-radius: 10px; padding: 9px 11px 8px; margin-bottom: 8px; position: relative; }
+  .item.fresh { border-left: 4px solid $accent; }
+  .dot { width: 8px; height: 8px; border-radius: 3px; background: $accent; flex: none; margin-top: 9px; }
+  .body { flex: 1; min-width: 0; }
+  .text { font-size: 18px; line-height: 1.45; white-space: pre-wrap; word-break: break-word;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .meta { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+  .time { font-size: 13px; color: $sub; font-variant-numeric: tabular-nums; }
+  .badge { font-size: 12px; font-weight: 700; color: $accent; background: $accent22;
+    padding: 0 8px; border-radius: 8px; line-height: 18px; }
+  .btns { display: flex; gap: 2px; margin-left: auto; opacity: .45; transition: opacity .15s; flex: none; }
+  .item:hover .btns { opacity: 1; }
+  .ibtn { border: none; cursor: pointer; background: transparent; color: $sub; width: 24px; height: 24px;
+    border-radius: 5px; font-size: 14px; line-height: 24px; text-align: center; padding: 0;
+    font-family: $font; transition: background .15s, color .15s; }
+  .ibtn:hover { background: $chip; color: $accent; }
+  .ibtn.del:hover { background: rgba(229,72,77,.12); color: #e5484d; }
+  .inline-input {
+    width: 100%; border: none; outline: none; background: $chip; font-family: $font;
+    font-size: 17px; color: $ink; padding: 8px 10px; border-radius: 10px;
+    box-shadow: inset 0 -2px 0 $accent; resize: none;
+  }
+  .inline-input::placeholder { color: $empty; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div id="title-wrap">
+      <span id="title">$title</span>
+      <span id="count"></span>
+    </div>
+    <button class="act" id="btn-add" style="margin-left:auto"></button>
+    <button class="act danger" id="btn-clear" style="display:none"></button>
+  </div>
+  <div id="list"></div>
+</div>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script>
+var DATA = /*DATA*/[];
+var T = { add: "$add", empty: "$empty_hint", item: "$item_ph", clear: "$clear", confirm: "$confirm", badge: "$badge" };
+var bridge = null, pending = null;
+
+var app = document.getElementById('app');
+var list = document.getElementById('list');
+var countEl = document.getElementById('count');
+var btnAdd = document.getElementById('btn-add');
+var btnClear = document.getElementById('btn-clear');
+
+btnAdd.textContent = '+ ' + T.add;
+btnClear.textContent = T.clear;
+
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function nowStr() {
+  var d = new Date();
+  return d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2)
+       + ' ' + ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
+}
+function fmtTime(s) {
+  if (!s) return '';
+  var m = /^(\\d{4})-(\\d{2})-(\\d{2}) (\\d{2}):(\\d{2})$$/.exec(String(s));
+  if (!m) return s;
+  var now = new Date();
+  var today = now.getFullYear() + '-' + ('0'+(now.getMonth()+1)).slice(-2) + '-' + ('0'+now.getDate()).slice(-2);
+  var hm = m[4] + ':' + m[5];
+  if (m[1] !== String(now.getFullYear())) return m[1] + '-' + m[2] + '-' + m[3] + ' ' + hm;
+  return m[2] + '-' + m[3] + ' ' + hm;
+}
+function isFresh(s) {
+  var m = /^(\\d{4})-(\\d{2})-(\\d{2}) (\\d{2}):(\\d{2})$$/.exec(String(s || ''));
+  if (!m) return false;
+  var d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  return (Date.now() - d.getTime()) < 86400000;
+}
+
+function commit() {
+  pending = JSON.stringify(DATA);
+  if (bridge) { bridge.commit(pending); pending = null; }
+}
+
+function render() {
+  list.innerHTML = '';
+  if (!DATA.length) {
+    var empty = document.createElement('div');
+    empty.id = 'empty'; empty.textContent = T.empty;
+    list.appendChild(empty);
+  }
+  DATA.forEach(function (it, i) {
+    var fresh = isFresh(it.created) && i === 0;   // 只标最新一条, 24h 内全新鲜时徽标仍有区分度
+    var item = document.createElement('div');
+    item.className = 'item' + (fresh ? ' fresh' : '');
+    var dot = document.createElement('span'); dot.className = 'dot';
+    var body = document.createElement('div'); body.className = 'body';
+    var text = document.createElement('div'); text.className = 'text'; text.textContent = it.text;
+    var meta = document.createElement('div'); meta.className = 'meta';
+    var time = document.createElement('span'); time.className = 'time'; time.textContent = fmtTime(it.created);
+    meta.appendChild(time);
+    if (fresh) {
+      var badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = T.badge;
+      meta.appendChild(badge);
+    }
+    var btns = document.createElement('div'); btns.className = 'btns';
+    var be = document.createElement('button'); be.className = 'ibtn'; be.textContent = '\\u270e';
+    be.onclick = function () { startEdit(it, text); };
+    var bd = document.createElement('button'); bd.className = 'ibtn del'; bd.textContent = '\\u00d7';
+    bd.onclick = function () { DATA.splice(i, 1); render(); commit(); };
+    btns.appendChild(be); btns.appendChild(bd);
+    meta.appendChild(btns);
+    body.appendChild(text); body.appendChild(meta);
+    text.ondblclick = function () { startEdit(it, text); };
+    item.appendChild(dot); item.appendChild(body);
+    list.appendChild(item);
+  });
+  countEl.textContent = DATA.length ? String(DATA.length) : '';
+  btnClear.style.display = DATA.length ? '' : 'none';
+}
+
+function startEdit(it, textEl) {
+  var input = document.createElement('textarea');
+  input.className = 'inline-input'; input.rows = 2; input.value = it.text;
+  textEl.replaceWith(input);
+  input.focus(); input.select();
+  var finish = function (save) {
+    var v = input.value.trim();
+    if (save && v && v !== it.text) { it.text = v; if (!it.created) it.created = nowStr(); commit(); }
+    render();
+  };
+  input.onkeydown = function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') finish(false);
+  };
+  input.onblur = function () { finish(true); };
+}
+
+function startAdd() {
+  btnAdd.disabled = true;
+  var row = document.createElement('div');
+  row.style.marginBottom = '8px';
+  var input = document.createElement('textarea');
+  input.className = 'inline-input'; input.rows = 2; input.placeholder = T.item;
+  row.appendChild(input);
+  list.insertBefore(row, list.firstChild);
+  input.focus();
+  var finish = function (save) {
+    btnAdd.disabled = false;
+    var v = input.value.trim();
+    if (save && v) { DATA.unshift({ text: v, created: nowStr() }); render(); commit(); }
+    else render();
+  };
+  input.onkeydown = function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') finish(false);
+  };
+  input.onblur = function () { finish(true); };
+}
+btnAdd.onclick = startAdd;
+
+var clearArmed = false;
+btnClear.onclick = function () {
+  if (!clearArmed) {
+    clearArmed = true;
+    btnClear.classList.add('confirm'); btnClear.textContent = T.confirm;
+    setTimeout(function () {
+      clearArmed = false;
+      btnClear.classList.remove('confirm'); btnClear.textContent = T.clear;
+    }, 2500);
+    return;
+  }
+  clearArmed = false;
+  btnClear.classList.remove('confirm'); btnClear.textContent = T.clear;
+  if (DATA.length) { DATA = []; render(); commit(); }
+};
+
+var topbarEl = document.getElementById('topbar');
+var anDrag = false;
+function anSend(kind, x, y) {
+  if (!bridge) return;
+  if (kind === 0) bridge.drag_start(x, y);
+  else if (kind === 1) bridge.drag_move(x, y);
+  else bridge.drag_end();
+}
+topbarEl.addEventListener('mousedown', function (e) {
+  if (e.button !== 0 || (e.target.closest && e.target.closest('.act'))) return;
+  anDrag = true; document.body.classList.add('an-drag');
+  anSend(0, e.clientX, e.clientY); e.preventDefault();
+});
+window.addEventListener('mousemove', function (e) {
+  if (anDrag) anSend(1, e.clientX, e.clientY);
+});
+window.addEventListener('mouseup', function () {
+  if (anDrag) { anDrag = false; document.body.classList.remove('an-drag'); anSend(2, 0, 0); }
+});
+
+if (typeof QWebChannel !== 'undefined' && typeof qt !== 'undefined') {
+  new QWebChannel(qt.webChannelTransport, function (channel) {
+    bridge = channel.objects.bridge;
+    if (pending) { bridge.commit(pending); pending = null; }
+  });
+}
+render();
+</script>
+</body>
+</html>''')
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName(self._object_name)
+        self._items = clean_announcements(load_announcements())
+        self._notif_page = None
+        self._save_timer = QTimer(self)
+        self._save_timer.setSingleShot(True)
+        self._save_timer.setInterval(400)
+        self._save_timer.timeout.connect(self._save)
+        self._bridge = _WebBridge(
+            lambda phase, x, y: self._relay_web_drag(phase, x, y, self.webView),
+            self._on_commit, self)
+        self._setup_ui()
+        self._connect_board_source()
+        logger.debug(f"[AN] 公告栏组件初始化 id={self.component_id} 条数={len(self._items)}")
+
+    # ui
+
+    def _build_html(self) -> str:
+        theme = dict(_theme_pair(self._theme_dark, self._theme_light))
+        theme["accent"] = _accent_css()
+        theme["accent22"] = _accent_css(0.13)
+        data_json = json.dumps(self._items, ensure_ascii=False).replace("</", "<\\/")
+        html = self._HTML_TEMPLATE.substitute(
+            font=FONT_FAMILY,
+            title=tr("announcement.title"),
+            add=tr("announcement.add"),
+            item_ph=tr("announcement.item_ph"),
+            empty_hint=tr("announcement.empty"),
+            clear=tr("announcement.clear"),
+            confirm=tr("announcement.confirm_clear"),
+            badge=tr("announcement.new"),
+            **theme,
+        ).replace("/*DATA*/[]", data_json)
+        logger.debug(f"[AN] 生成公告栏 html 长度 {len(html)} 条数{len(self._items)}")
+        return html
+
+    # 数据
+
+    def _on_commit(self, items_json: str):
+        """校验 > 更新内存 > 防抖保存
+
+        Args:
+            items_json: 网页回传json
+        """
+        try:
+            items = clean_announcements(json.loads(items_json))
+        except Exception as e:
+            logger.warning(f"公告数据无效: {e}")
+            return
+        if json.dumps(items, ensure_ascii=False) == json.dumps(self._items, ensure_ascii=False):
+            return
+        self._items = items
+        logger.debug(f"[AN] 公告数据提交 共{len(items)}条")
+        self._save_timer.start()
+
+    def _save(self):
+        from core.notification import save_announcements
+        save_announcements(self._items)
+
+    def _connect_board_source(self):
+        self._notif_page = _find_notification_page()
+        if self._notif_page is not None:
+            self._notif_page.announcementsChanged.connect(self._on_announcements_changed)
+
+    def _on_announcements_changed(self):
+        items = clean_announcements(load_announcements())
+        if json.dumps(items, ensure_ascii=False) == json.dumps(self._items, ensure_ascii=False):
+            return
+        self._items = items
+        self._render()
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if self._notif_page is None:
+            self._connect_board_source()
+        items = clean_announcements(load_announcements())
+        if json.dumps(items, ensure_ascii=False) != json.dumps(self._items, ensure_ascii=False):
+            self._items = items
+            self._render()
+
 class TimeColumnWidget(QWidget):
     """计时器时间输入列"""
     valueChanged = pyqtSignal(int)
@@ -12663,6 +13020,7 @@ COMPONENT_STYLES["word"]["daily"]["class"] = DailyWordComponent
 COMPONENT_STYLES["system"]["performance"]["class"] = PerformanceMonitorComponent
 COMPONENT_STYLES["system"]["netspeed"]["class"] = NetworkSpeedComponent
 COMPONENT_STYLES["timer"]["countdown"]["class"] = TimerCountdownComponent
+COMPONENT_STYLES["announcement"]["board"]["class"] = AnnouncementBoardComponent
 
 # 组件库面板
 

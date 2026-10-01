@@ -17,6 +17,7 @@ from PyQt6.QtGui import QColor, QFont, QPainter
 from qfluentwidgets import (
     BodyLabel,
     CardWidget,
+    CheckBox,
     ColorDialog,
     PushButton,
     ScrollArea,
@@ -38,7 +39,7 @@ from qfluentwidgets import (
 from core.config import cfg
 from core.constants import load_qss, FONT_PRIMARY
 from core.utils import tr, TranslatableWidget, FUI
-from core.notification import NotifType
+from core.notification import NotifType, append_announcement
 from qfluentwidgets import MessageBox
 
 logger = logging.getLogger("Glimpseon.ui.notification")
@@ -440,6 +441,7 @@ class NotificationPage(ScrollArea, TranslatableWidget):
     """通知页面"""
 
     send_notification = pyqtSignal(dict)
+    announcementsChanged = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
@@ -769,6 +771,13 @@ class NotificationPage(ScrollArea, TranslatableWidget):
         self.scheduleBtn.clicked.connect(self._onScheduleClicked)
         action_row.addWidget(self.scheduleBtn)
 
+        self.syncBoardCheck = CheckBox(tr("notification.sync_to_board"), config_card)
+        self.syncBoardCheck.setChecked(cfg.get(cfg.notificationSyncBoard))
+        self.syncBoardCheck.toggled.connect(
+            lambda v: cfg.set(cfg.notificationSyncBoard, v)
+        )
+        action_row.addWidget(self.syncBoardCheck)
+
         action_row.addStretch()
         config_layout.addLayout(action_row)
 
@@ -931,14 +940,21 @@ class NotificationPage(ScrollArea, TranslatableWidget):
             logger.debug(f"[NotificationPage] 右下角通知即时发送不占队列: {str(data.get('content', ''))[:20]}")
             self._queue.pop(0)
             self._refresh_queue_table()
-            self.send_notification.emit(data)
+            self._emit_notification(data)
             self._send_next()
             return
         self._is_showing = True
         self._showing_notif_uid = data["_uid"]
         self._refresh_queue_table()
         logger.info(f"队列发送通知: {data}")
+        self._emit_notification(data)
+
+    def _emit_notification(self, data: dict):
+        """发送通知 勾选时同步公告栏"""
         self.send_notification.emit(data)
+        if self.syncBoardCheck.isChecked():
+            if append_announcement(data.get("content", "")):
+                self.announcementsChanged.emit()
 
     def _on_notification_shown(self):
         """通知显示完回调"""

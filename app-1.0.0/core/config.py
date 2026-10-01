@@ -306,6 +306,9 @@ class Config(QConfig):
     scrollBannerMouseThrough = ConfigItem(
         "Other", "ScrollBannerMouseThrough", True, BoolValidator()
     )
+    notificationSyncBoard = ConfigItem(
+        "Notification", "SyncToBoard", False, BoolValidator()
+    )
     school = ConfigItem(
         "School", "School", ""
     )
