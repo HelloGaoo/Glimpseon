@@ -31,6 +31,57 @@ import win32con
 from PyQt6.QtCore import QEvent, QLocale, Qt, QThread, QTime, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QIcon, QPixmap, QFont
 from PyQt6.QtWidgets import QApplication, QHBoxLayout, QLabel, QSizePolicy, QSystemTrayIcon, QVBoxLayout, QWidget
+def _defer_scipy():
+    import importlib
+    import types
+
+    class _StubModule(types.ModuleType):
+        real_name = ""
+
+        def __getattr__(self, name):
+            if name.startswith("__"):
+                raise AttributeError(name)
+            sys.modules.pop(self.real_name, None)
+            parent, _, child = self.real_name.rpartition(".")
+            parent_mod = sys.modules.get(parent)
+            if parent_mod is not None and getattr(parent_mod, child, None) is self:
+                try:
+                    delattr(parent_mod, child)
+                except AttributeError:
+                    pass
+            real = importlib.import_module(self.real_name)
+            sys.modules[self.real_name] = real
+            if parent_mod is not None:
+                setattr(parent_mod, child, real)
+            return getattr(real, name)
+
+    import numpy as np
+
+    def gaussian_filter(image, sigma=0, mode="reflect", truncate=4.0, order=0):
+        arr = np.asarray(image, dtype=np.float64)
+        sig = float(sigma) if np.isscalar(sigma) else max(float(np.max(sigma)), 0.1)
+        radius = max(1, int(round(sig * float(truncate))))
+        x = np.arange(-radius, radius + 1, dtype=np.float64)
+        kernel = np.exp(-(x ** 2) / (2 * sig ** 2))
+        kernel /= kernel.sum()
+        axes = range(arr.ndim) if np.isscalar(sigma) else range(len(sigma))
+        for ax in axes:
+            arr = np.apply_along_axis(
+                lambda col: np.convolve(np.pad(col, radius, mode="edge"), kernel, mode="valid"),
+                ax, arr)
+        return arr
+
+    stub_ndimage = _StubModule("scipy.ndimage")
+    stub_filters = _StubModule("scipy.ndimage.filters")
+    stub_ndimage.real_name = "scipy.ndimage"
+    stub_filters.real_name = "scipy.ndimage.filters"
+    stub_filters.gaussian_filter = gaussian_filter
+    sys.modules["scipy.ndimage"] = stub_ndimage
+    sys.modules["scipy.ndimage.filters"] = stub_filters
+
+
+_defer_scipy()
+
 from qfluentwidgets import (
     Action,
     BodyLabel,
@@ -1652,28 +1703,11 @@ class Preloader(QThread):
         from services.weather import RegionDatabase, WeatherService
 
         cached = get_cached_content("weather")
-        if cached:
+        if cached and isinstance(cached.get('current'), dict):
             if not self._stop:
-                # 缓存存的是 fetch_all 原始结构（current/forecastHourly/forecastDaily）
-                if isinstance(cached.get('current'), dict):
-                    temp, code = WeatherService.parse_current(cached)
-                    data = {
-                        'current_temp': temp,
-                        'temp_unit': '°C',
-                        'weather_code': code,
-                        'forecast_hourly': cached.get('forecastHourly', {}),
-                        'forecast_daily': cached.get('forecastDaily', {}),
-                    }
-                else:
-                    data = {
-                        'current_temp': cached.get('current_temp', cached.get('temp', '?')),
-                        'temp_unit': cached.get('temp_unit', cached.get('unit', '°C')),
-                        'weather_code': cached.get('weather_code', cached.get('code')),
-                        'forecast_hourly': cached.get('forecast_hourly', {}),
-                        'forecast_daily': cached.get('forecast_daily', {}),
-                    }
-                self.sig_wt.emit(data)
-                logger.info(f"[PRELOAD] 天气预取 缓存 {data.get('current_temp', '?')}{data.get('temp_unit', '°C')}")
+                temp, _code = WeatherService.parse_current(cached)
+                self.sig_wt.emit(cached)
+                logger.info(f"[PRELOAD] 天气预取 缓存 {temp}°C")
             return
 
         if self._stop: return
@@ -1782,8 +1816,9 @@ if __name__ == "__main__":
     splash.setProgress(0)
     logger.info(f"Splash显示 耗时{time.time()-_boot_t0:.2f}s")
 
-    def allow_ui_update(duration=0.06):
-        logger.debug(f"处理 ui 事件窗口: {duration}s")
+    def allow_ui_update(duration=0.06, log=True):
+        if log:
+            logger.debug(f"处理 ui 事件窗口: {duration}s")
         end = time.time() + duration
         while time.time() < end:
             app.processEvents()
@@ -1926,7 +1961,9 @@ if __name__ == "__main__":
             # 更新缓存
             hi._cached_weather = weather_data
             hi.weather_updated.emit(weather_data)
-            logger.debug(f"[PRELOAD-UI] 预取天气已应用: {weather_data.get('current_temp', '?')}{weather_data.get('temp_unit', '°C')}")
+            from services.weather import WeatherService
+            temp, _code = WeatherService.parse_current(weather_data)
+            logger.debug(f"[PRELOAD-UI] 预取天气已应用: {temp}°C")
         except Exception as e:
             logger.error(f"[PRELOAD-UI] wt: {e}")
 
@@ -1958,11 +1995,13 @@ if __name__ == "__main__":
     splash.updateStatus(tr("splash.completing_startup"))  # 正在完成启动
     t0 = time.time()
 
+    t0 = time.time()
+    logger.debug("等待预加载")
     while loader.isRunning():
-        allow_ui_update(0.02)
-        if time.time() - t0 > 12:
+        allow_ui_update(0.02, log=False)
+        if time.time() - t0 > 0.6:
+            logger.warning(f"预加载超时0.6s 转后台耗时{time.time()-t0:.2f}s")
             loader.cancel()
-            loader.wait(5000)
             break
 
     logger.info(f"预加载 {time.time()-t0:.2f}s")
@@ -1993,6 +2032,9 @@ if __name__ == "__main__":
     window.switchTo(window.homeInterface)
 
     ret = app.exec()
+
+    loader.cancel()
+    loader.wait(8000)
 
     from core.utils import is_restart_pending
     if is_restart_pending():

@@ -436,7 +436,19 @@
     "quick_launch": "快速啟動",
     "system": "效能監測",
     "click_to_settings": "點擊設定",
-    "announcement": "公告欄"
+    "announcement": "公告欄",
+    "news": "新聞",
+    "linkage": "課表聯動",
+    "math": "計算機",
+    "writing": "書寫板",
+    "class_album": "班級相簿",
+    "sticky_note": "便籤",
+    "homework": "作業",
+    "timer": "計時",
+    "history": "歷史上的今天",
+    "word": "單字",
+    "sentence": "英語",
+    "study": "自習"
   },
   "homework": {
     "title": "作業板",
@@ -451,6 +463,11 @@
     "title": "網速",
     "recv": "接收",
     "send": "傳送"
+  },
+  "dbmeter": {
+    "title": "自習分貝",
+    "cur": "當前",
+    "peak": "峰值"
   },
   "update": {
     "build_date": "建構日期",
@@ -483,7 +500,8 @@
     "load_failed": "載入失敗"
   },
   "component_library": {
-    "category_system": "系統"
+    "category_system": "系統",
+    "category_study": "自習"
   },
   "download": {
     "select_mode": "選擇模式",
@@ -583,6 +601,7 @@
     "default_source": "預設",
     "source_cache": "快取",
     "interval_2h": "2 小時",
+    "interval_3h": "3 小時",
     "interval_3d": "3 天",
     "interval_5d": "5 天",
     "interval_7d": "7 天",
@@ -652,6 +671,9 @@
     "config_show_countdown": "顯示倒計時",
     "group_content": "內容",
     "group_countdown": "倒計時",
+    "group_audio": "音訊",
+    "config_input_device": "輸入來源",
+    "input_device_default": "系統預設裝置",
     "group_display": "顯示",
     "group_target": "目標",
     "group_info": "資訊",

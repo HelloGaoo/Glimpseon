@@ -666,6 +666,18 @@ BUILTIN_COMPONENT_DEFINITIONS = [
         default_config={},
     ),
     ComponentDefinition(
+        id="study_meter",
+        display_name="分贝仪",
+        category="Study",
+        icon="Microphone",
+        min_width_cells=3,
+        min_height_cells=2,
+        default_width_cells=4,
+        default_height_cells=2,
+        resize_mode=ResizeMode.FREE,
+        default_config={},
+    ),
+    ComponentDefinition(
         id="announcement_board",
         display_name="公告栏",
         category="School",

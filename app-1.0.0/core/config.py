@@ -113,7 +113,9 @@ class CountdownListSerializer(ConfigSerializer):
             return []
         return countdown_list
     def deserialize(self, value):
-        if not value or not isinstance(value, list):
+        if value is None:
+            return []
+        if not isinstance(value, list):
             logger.warning(f"倒计时列表配置异常 用空列表: {type(value).__name__}")
             return []
         return value

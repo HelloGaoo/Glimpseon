@@ -368,15 +368,6 @@ def apply_fonts(app: QApplication):
 
     font = QFont(font_family, 10)
     app.setFont(font)
-    css_family = ", ".join(f"'{family}'" for family in fallback_families)
-    app.setStyleSheet(
-        app.styleSheet() + "\n"
-        "QWidget, QLabel, QPushButton, QComboBox, QLineEdit, QTextEdit, "
-        "QPlainTextEdit, QCheckBox, QRadioButton, QGroupBox, QTabWidget, "
-        "QTabBar, QAbstractItemView, QMenu, QToolTip, QStatusBar, "
-        "QSpinBox, QDoubleSpinBox, QDateTimeEdit, QHeaderView {{ "
-        f"font-family: {css_family}; }}"
-    )
     logger.info(f"字体已设置为 {font_family}")
 
 
@@ -1072,6 +1063,7 @@ _ICON_NAME_MAP = {
     "PEN": "pen",
     "ERASER": "eraser",
     "UNDO": "arrow_undo",
+    "MICROPHONE": "microphone",
 }
 
 

@@ -103,6 +103,7 @@
 | School   | `ClassAlbumComponent` / `ClassAlbumVerticalComponent`   | 班级相册（Vertical 继承 ClassAlbumComponent）                          |
 | School   | `HomeworkBoardComponent`                                | 作业板（HTML）                        |
 | System   | `NetworkSpeedComponent`                                 | 网速监控（HTML）                 |
+| Study    | `DecibelMeterComponent`                                 | 分贝仪（HTML）                 |
 | Media    | `MediaPlayerComponent`                                  | 媒体播放信息                                                         |
 | Launcher | `QuickLaunchDockComponent` / `QuickLaunchDock`          | 快捷启动栏                                                          |
 | Launcher | `QuickLaunchGridComponent`                              | 快捷启动II                                                         |
@@ -134,6 +135,7 @@ html组件通过 `create_html_view()`（[ui/common.py](https://github.com/HelloG
 | `TimetableTimelineComponent` | HTML + CSS + JS | 课程时间轴  |
 | `HomeworkBoardComponent`     | HTML + CSS + JS + QWebChannel | 作业板 |
 | `NetworkSpeedComponent`      | HTML + Canvas + JS + QWebChannel | 网速监控 |
+| `DecibelMeterComponent`      | HTML + Canvas + JS + QWebChannel | 分贝仪 |
 | `PerformanceMonitorComponent` | HTML + SVG + JS | 性能监测 |
 
 **约定**：

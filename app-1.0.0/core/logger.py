@@ -228,7 +228,7 @@ class Logger:
         self.console_handler.setFormatter(formatter)
         self.logger.addHandler(self.file_handler)
         self.logger.addHandler(self.console_handler)
-        self.__clean_oldlog()
+        threading.Thread(target=self.__clean_oldlog, daemon=True).start()
 
     def update_cfg(self, disable_log=False, log_level="INFO", max_count=50, max_days=7, compress_logs=True):
         self.disable_log = disable_log

@@ -119,7 +119,19 @@ def get_component_display_name(component_id: str) -> str:
         "school_info": tr("component.school_info"),  # 学校信息
         "media": tr("component.media"),  # 媒体信息
         "quick_launch": tr("component.quick_launch"),  # 快捷启动
+        "news": tr("component.news"),  # 新闻
+        "linkage": tr("component.linkage"),  # 课表联动
+        "Math": tr("component.math"),  # 计算器
+        "writing": tr("component.writing"),  # 书写板
+        "class_album": tr("component.class_album"),  # 班级相册
+        "sticky_note": tr("component.sticky_note"),  # 便签
+        "homework": tr("component.homework"),  # 作业
+        "timer": tr("component.timer"),  # 计时
+        "history": tr("component.history"),  # 历史上的今天
+        "word": tr("component.word"),  # 单词
+        "sentence": tr("component.sentence"),  # 英语
         "system": tr("component.system"),  # 性能监测
+        "study": tr("component.study"),  # 自习
         "announcement": tr("component.announcement"),  # 公告栏
     }
     m = re.match(r"comp_(.+)_\d+$", component_id)
@@ -562,6 +574,14 @@ COMPONENT_STYLES = {
         },
         "netspeed": {
             "name": "网速监控",
+            "class": None,
+            "default_config": {},
+            "default_size": (400, 200),
+        },
+    },
+    "study": {
+        "meter": {
+            "name": "分贝仪",
             "class": None,
             "default_config": {},
             "default_size": (400, 200),
@@ -1929,6 +1949,20 @@ class _HtmlCardComponent(DraggableContainer):
         self._apply_card_style()
         self._render()
 
+def _audio_input_options():
+    """音频输入设备选项 [(id, 显示名), ...]"""
+    default_label = tr("component_edit.input_device_default")
+    try:
+        from PyQt6.QtMultimedia import QMediaDevices
+        opts = [("", default_label)]
+        for d in QMediaDevices.audioInputs():
+            dev_id = bytes(d.id()).decode("utf-8", "replace")
+            opts.append((dev_id, d.description()))
+        return opts
+    except Exception as e:
+        logger.warning(f"[CFG] 枚举音频输入失败: {e}")
+        return [("", default_label)]
+
 class ComponentConfigDialog(MessageBoxBase):
     """组件配置弹窗"""
 
@@ -2091,6 +2125,40 @@ class ComponentConfigDialog(MessageBoxBase):
         def save(self, result):
             result[self.key] = self._widget.value()
             logger.debug(f"[CFG] 数值字段保存: {self.key} = {result[self.key]}")
+
+    class _ComboField(_Field):
+        """下拉选择字段"""
+        def __init__(self, key, label_text, options, default):
+            """Args:
+                options: [(存值, 显示文本), ...]
+            """
+            super().__init__(key, label_text, default)
+            self._options = options
+            self._widget = None
+
+        def build(self, dialog):
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.addWidget(BodyLabel(self.label_text, dialog))
+            row.addStretch()
+            self._widget = ComboBox(dialog)
+            for val, text in self._options:
+                self._widget.addItem(text, userData=val)
+            self._widget.setFixedWidth(220)
+            row.addWidget(self._widget)
+            return row
+
+        def load(self, config):
+            val = config.get(self.key, self.default)
+            idx = self._widget.findData(val)
+            if idx < 0:
+                idx = self._widget.findData(self.default)
+            self._widget.setCurrentIndex(max(0, idx))
+            logger.debug(f"[CFG] 下拉字段回填: {self.key} = {val}")
+
+        def save(self, result):
+            result[self.key] = self._widget.currentData()
+            logger.debug(f"[CFG] 下拉字段保存: {self.key} = {result[self.key]}")
 
     class _TextField(_Field):
         """文本字段"""
@@ -2484,6 +2552,12 @@ class ComponentConfigDialog(MessageBoxBase):
             "quick_launch|dock": [
                 (tr("component_edit.group_apps"), [
                     self._AppListField("apps", tr("component_edit.config_apps"), []),
+                ]),
+            ],
+            "study|meter": [
+                (tr("component_edit.group_audio"), [
+                    self._ComboField("device", tr("component_edit.config_input_device"),
+                                     _audio_input_options(), ""),
                 ]),
             ],
         }
@@ -12659,6 +12733,155 @@ def _get_perf_sampler() -> _PerfSampler:
         logger.debug("[PerfSampler] 性能采样器单例已创建")
     return _perf_sampler
 
+class _DecibelSampler(QObject):
+    """分贝采样器"""
+    db_ready = pyqtSignal(dict)
+
+    _DB_OFFSET = 90.0
+
+    def __init__(self):
+        super().__init__()
+        self._refs = 0
+        self._want_device = "" 
+        self._audio = None
+        self._io = None
+        self._buf = bytearray()
+        self._timer = QTimer(self)
+        self._timer.setInterval(1000)
+        self._timer.timeout.connect(self._tick)
+        self._hook_device_hotplug()
+
+    def _hook_device_hotplug(self):
+        try:
+            from PyQt6.QtMultimedia import QMediaDevices
+            self._media = QMediaDevices(self)
+            self._media.audioInputsChanged.connect(self._on_devices_changed)
+        except Exception as e:
+            logger.warning(f"[DB] 设备变动监听不可用: {e}")
+
+    def _on_devices_changed(self):
+        if self._refs > 0:
+            logger.debug("[DB] 音频设备变更")
+            self._restart()
+
+    def add_ref(self, owner: QObject, device_id: str = ""):
+        self._refs += 1
+        owner.destroyed.connect(self._on_ref_gone)
+        if self._refs == 1:
+            self._want_device = device_id or ""
+            self._start()
+            logger.debug(f"[DB] 采集启动 (订阅组件{self._refs}个)")
+        else:
+            logger.debug(f"[DB] 新组件订阅 共{self._refs}个")
+
+    def _on_ref_gone(self):
+        self._refs = max(0, self._refs - 1)
+        if self._refs == 0 and self._timer.isActive():
+            self._stop()
+            logger.debug("[DB] 采集停止")
+
+    def set_device(self, device_id: str):
+        device_id = device_id or ""
+        if device_id == self._want_device:
+            return
+        self._want_device = device_id
+        if self._refs > 0:
+            logger.info(f"[DB] 切输入源 -> '{device_id or '系统默认'}'")
+            self._restart()
+
+    def _restart(self):
+        self._stop_audio()
+        self._start()
+
+    def _resolve_device(self):
+        from PyQt6.QtMultimedia import QMediaDevices
+        devs = QMediaDevices.audioInputs()
+        if not devs:
+            return None
+        if self._want_device:
+            for d in devs:
+                if bytes(d.id()).decode("utf-8", "replace") == self._want_device:
+                    return d
+            for d in devs:
+                if d.description() == self._want_device:
+                    return d
+            logger.warning(f"[DB] 系统默认: {self._want_device}")
+        return QMediaDevices.defaultAudioInput()
+
+    def _start(self):
+        try:
+            from PyQt6.QtMultimedia import QAudioFormat, QAudioSource
+            dev = self._resolve_device()
+            if dev is None or dev.isNull():
+                logger.warning("[DB] 无麦克风")
+            else:
+                fmt = QAudioFormat()
+                fmt.setSampleRate(44100)
+                fmt.setChannelCount(1)
+                fmt.setSampleFormat(QAudioFormat.SampleFormat.Int16)
+                self._audio = QAudioSource(dev, fmt, self)
+                self._io = self._audio.start()
+                if self._io is not None:
+                    self._io.readyRead.connect(self._on_ready_read)
+                    logger.debug(f"[DB] 采集就绪 16bit/44.1kHz/单声道 设备={dev.description()}")
+                else:
+                    self._audio = None
+                    logger.warning("[DB] 采集流未开")
+        except Exception as e:
+            self._audio = None
+            self._io = None
+            logger.warning(f"[DB] 采集启动失败: {e}")
+        self._timer.start()
+
+    def _stop_audio(self):
+        if self._audio is not None:
+            try:
+                self._audio.stop()
+            except Exception:
+                pass
+        self._audio = None
+        self._io = None
+        self._buf.clear()
+
+    def _stop(self):
+        self._timer.stop()
+        self._stop_audio()
+
+    def _on_ready_read(self):
+        if self._io is None:
+            return
+        data = bytes(self._io.readAll())
+        if data:
+            self._buf += data
+
+    def _tick(self):
+        db = -1.0
+        if self._audio is not None:
+            db = self._buf_to_db()
+        self._buf.clear()
+        self.db_ready.emit({"db": db})
+
+    def _buf_to_db(self) -> float:
+        """缓冲区 rms -> db"""
+        import numpy as np
+        if not self._buf:
+            return -1.0
+        pcm = np.frombuffer(bytes(self._buf), dtype=np.int16).astype(np.float32) / 32768.0
+        rms = float(np.sqrt(np.mean(pcm * pcm)))
+        db = 20.0 * float(np.log10(max(rms, 1e-6))) + self._DB_OFFSET
+        return round(min(110.0, max(0.0, db)), 1)
+
+
+_db_sampler = None
+
+def _get_db_sampler() -> _DecibelSampler:
+    """分贝采样器单例"""
+    global _db_sampler
+    if _db_sampler is None:
+        _db_sampler = _DecibelSampler()
+        logger.debug("[DB] 分贝采样器单例已创建")
+    return _db_sampler
+
 class PerformanceMonitorComponent(DraggableContainer):
     """性能监测组件"""
 
@@ -12972,6 +13195,238 @@ resize();
                 self._net_push_warned = True
                 logger.warning(f"[Net] 网速数据推送失败: {e}")
 
+class DecibelMeterComponent(_HtmlCardComponent):
+    """分贝仪（html）"""
+    _min_size = (300, 160)
+    _default_size = (400, 200)
+
+    _object_name = "studyDecibelContainer"
+
+    _theme_light = {
+        "ink": "rgba(0,0,0,0.89)", "sub": "rgba(0,0,0,0.60)",
+        "grid": "rgba(0,0,0,0.07)", "gridv": "rgba(0,0,0,0.10)",
+    }
+    _theme_dark = {
+        "ink": "rgba(255,255,255,0.95)", "sub": "rgba(255,255,255,0.60)",
+        "grid": "rgba(255,255,255,0.08)", "gridv": "rgba(255,255,255,0.12)",
+    }
+
+    _HTML_TEMPLATE = Template('''<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
+  body { font-family: $font; color: $ink; user-select: none; cursor: grab; }
+  body.db-drag { cursor: grabbing; }
+  #app { display: flex; flex-direction: column; width: 100%; height: 100%; padding: 2px 12px 8px; }
+  #topbar { display: flex; align-items: baseline; gap: 10px; padding: 3px 2px 6px; flex: none; }
+  #title { font-size: 12.5px; font-weight: 700; color: $sub; letter-spacing: .5px; }
+  .stat { font-size: 13px; font-weight: 600; color: $sub; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .stat b { font-weight: 700; margin-right: 2px; }
+  #stat-cur { margin-left: auto; }
+  #chart { flex: 1; min-height: 0; position: relative; }
+  canvas { display: block; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <span id="title">$title</span>
+    <span class="stat" id="stat-cur"><b>$cur</b> <span id="dv">--</span></span>
+    <span class="stat" id="stat-peak"><b>$peak</b> <span id="pv">--</span></span>
+  </div>
+  <div id="chart"><canvas id="cv"></canvas></div>
+</div>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script>
+var MAXPTS = 60;            // 60 秒窗口
+var pts = [];               // db序列
+var FLOOR = 30, TOP = 120;  // 30~120dB
+var WARN_DB = 65;           // 吵线
+var bridge = null;
+var curDb = -1;
+
+var dv = document.getElementById('dv');
+var pv = document.getElementById('pv');
+var cv = document.getElementById('cv');
+var ctx = cv.getContext('2d');
+var W = 0, H = 0;
+
+function levelColor(db) {
+  if (db > 70) return '$hot';
+  if (db > 60) return '$warm';
+  return '$ok';
+}
+
+function resize() {
+  var r = document.getElementById('chart').getBoundingClientRect();
+  if (r.width < 10 || r.height < 10) return;
+  var dpr = window.devicePixelRatio || 1;
+  W = r.width; H = r.height;
+  cv.width = Math.round(W * dpr);
+  cv.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+}
+
+function draw() {
+  if (W < 10 || H < 10) return;
+  ctx.clearRect(0, 0, W, H);
+  var i, x, y, dbv;
+  var PL = 8, PR = 4, PT = 20, PB = 16;  
+  var pw = W - PL - PR, ph = H - PT - PB;
+  if (pw < 20 || ph < 20) return;
+  var range = TOP - FLOOR;
+  var step = pw / (MAXPTS - 1);
+  var slotW = pw / MAXPTS;
+  function yOf(db) {
+    return PT + ph * (1 - Math.min(Math.max((db - FLOOR) / range, 0), 1));
+  }
+  ctx.font = '10px sans-serif';
+  ctx.lineWidth = 1;
+  for (dbv = FLOOR; dbv <= TOP; dbv += 10) {
+    y = Math.round(yOf(dbv)) + 0.5;
+    ctx.strokeStyle = '$grid';
+    ctx.beginPath(); ctx.moveTo(PL, y); ctx.lineTo(PL + pw, y); ctx.stroke();
+  }
+  ctx.strokeStyle = '$grid';
+  for (i = 20; i < MAXPTS; i += 20) {
+    x = Math.round(PL + pw - (i + 0.5) * slotW) + 0.5;
+    ctx.beginPath(); ctx.moveTo(x, PT); ctx.lineTo(x, PT + ph); ctx.stroke();
+  }
+  ctx.fillStyle = '$sub';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+  for (dbv = FLOOR; dbv <= TOP - 20; dbv += 20) {
+    ctx.fillText(dbv, PL + 4, yOf(dbv) - 3);
+  }
+  ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+  ctx.fillText('dB', 2, 14);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (i = 20; i < MAXPTS; i += 20) {
+    x = PL + pw - (i + 0.5) * slotW;
+    ctx.fillText('-' + i + 's', x, PT + ph + 3);
+  }
+  ctx.textAlign = 'right';
+  ctx.fillText('0s', PL + pw, PT + ph + 3);
+  ctx.strokeStyle = '$gridv';
+  ctx.beginPath();
+  ctx.moveTo(PL + 0.5, PT); ctx.lineTo(PL + 0.5, PT + ph + 0.5);
+  ctx.lineTo(PL + pw, PT + ph + 0.5);
+  ctx.stroke();
+  if (WARN_DB > FLOOR && WARN_DB < TOP) {
+    y = Math.round(yOf(WARN_DB)) + 0.5;
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = '$hot';
+    ctx.beginPath(); ctx.moveTo(PL, y); ctx.lineTo(PL + pw, y); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  if (pts.length < 2) return;
+  var col = levelColor(curDb >= 0 ? curDb : FLOOR);
+  ctx.beginPath();
+  for (i = 0; i < pts.length; i++) {
+    x = PL + pw - (pts.length - 1 - i) * step;
+    y = yOf(pts[i]);
+    if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+  }
+  ctx.lineTo(x, PT + ph); ctx.lineTo(PL + pw - (pts.length - 1) * step, PT + ph); ctx.closePath();
+  ctx.globalAlpha = 0.16;
+  ctx.fillStyle = col;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.beginPath();
+  for (i = 0; i < pts.length; i++) {
+    x = PL + pw - (pts.length - 1 - i) * step;
+    y = yOf(pts[i]);
+    if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+  }
+  ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.stroke();
+}
+
+window.updateDb = function (s) {
+  s = s || {};
+  curDb = (typeof s.db === 'number') ? s.db : -1;
+  if (curDb >= 0) { pts.push(curDb); if (pts.length > MAXPTS) pts.shift(); }
+  dv.textContent = curDb >= 0 ? curDb.toFixed(1) + ' dB' : '--';
+  dv.style.color = curDb >= 0 ? levelColor(curDb) : '$sub';
+  var m = -1;
+  for (var i = 0; i < pts.length; i++) if (pts[i] > m) m = pts[i];
+  pv.textContent = m >= 0 ? m.toFixed(1) + ' dB' : '--';
+  pv.style.color = m >= 0 ? levelColor(m) : '$sub';
+  draw();
+  return true;
+};
+
+window.addEventListener('resize', resize);
+
+var dbDrag = false;
+function send(kind, x, y) {
+  if (!bridge) return;
+  if (kind === 0) bridge.drag_start(x, y);
+  else if (kind === 1) bridge.drag_move(x, y);
+  else bridge.drag_end();
+}
+document.getElementById('app').addEventListener('mousedown', function (e) {
+  if (e.button !== 0) return;
+  dbDrag = true; document.body.classList.add('db-drag');
+  send(0, e.clientX, e.clientY); e.preventDefault();
+});
+window.addEventListener('mousemove', function (e) {
+  if (dbDrag) send(1, e.clientX, e.clientY);
+});
+window.addEventListener('mouseup', function () {
+  if (dbDrag) { dbDrag = false; document.body.classList.remove('db-drag'); send(2, 0, 0); }
+});
+
+if (typeof QWebChannel !== 'undefined' && typeof qt !== 'undefined') {
+  new QWebChannel(qt.webChannelTransport, function (channel) {
+    bridge = channel.objects.bridge;
+  });
+}
+resize();
+</script>
+</body>
+</html>''')
+
+    def __init__(self, parent, component_data: dict):
+        super().__init__(parent, component_id=component_data["id"], layout_direction="vertical")
+        self.setObjectName(self._object_name)
+        self._bridge = _WebBridge(
+            lambda phase, x, y: self._relay_web_drag(phase, x, y, self.webView),
+            parent=self)
+        self._setup_ui()
+        _get_db_sampler().db_ready.connect(self._on_db_sample)
+        _get_db_sampler().add_ref(self, str((component_data.get("config") or {}).get("device") or ""))
+        logger.debug(f"[DB] 分贝仪就绪 id={self.component_id}")
+
+    def apply_config(self, config: dict):
+        _get_db_sampler().set_device(str((config or {}).get("device") or ""))
+
+
+    def _build_html(self) -> str:
+        theme = dict(_theme_pair(self._theme_dark, self._theme_light))
+        theme["ok"] = "#2e9e5b"
+        theme["warm"] = "#f09f33"
+        theme["hot"] = "#e2543a"
+        html = self._HTML_TEMPLATE.substitute(
+            font=FONT_FAMILY,
+            title=tr("dbmeter.title"),
+            cur=tr("dbmeter.cur"),
+            peak=tr("dbmeter.peak"),
+            **theme,
+        )
+        logger.debug(f"[DB] 生成分贝仪 html 长度 {len(html)}")
+        return html
+
+    def _on_db_sample(self, sample: dict):
+        try:
+            self.webView.page().runJavaScript(f"if (window.updateDb) updateDb({json.dumps(sample)});")
+        except Exception as e:
+            if not getattr(self, "_db_push_warned", False):
+                self._db_push_warned = True
+                logger.warning(f"[DB] 分贝数据推送失败: {e}")
+
 _NEWS_SOURCES = {
     "baidu":        dict(_source="baidu", _icon_key="baidu",
                          _object_name="newsBaiduContainer"),
@@ -13019,6 +13474,7 @@ COMPONENT_STYLES["sentence"]["daily"]["class"] = DailySentenceComponent
 COMPONENT_STYLES["word"]["daily"]["class"] = DailyWordComponent
 COMPONENT_STYLES["system"]["performance"]["class"] = PerformanceMonitorComponent
 COMPONENT_STYLES["system"]["netspeed"]["class"] = NetworkSpeedComponent
+COMPONENT_STYLES["study"]["meter"]["class"] = DecibelMeterComponent
 COMPONENT_STYLES["timer"]["countdown"]["class"] = TimerCountdownComponent
 COMPONENT_STYLES["announcement"]["board"]["class"] = AnnouncementBoardComponent
 
@@ -13224,6 +13680,7 @@ class ComponentLibraryWindow(FluentWindow):
             "School": FUI.EDUCATION,
             "Tools": FUI.BRUSH,
             "System": FUI.GAUGE,
+            "Study": FUI.MICROPHONE,
         }
 
         for category in categories:

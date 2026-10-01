@@ -451,7 +451,19 @@
     "quick_launch": "快捷启动",
     "system": "性能监测",
     "click_to_settings": "点击设置",
-    "announcement": "公告栏"
+    "announcement": "公告栏",
+    "news": "新闻",
+    "linkage": "课表联动",
+    "math": "计算器",
+    "writing": "书写板",
+    "class_album": "班级相册",
+    "sticky_note": "便签",
+    "homework": "作业",
+    "timer": "计时",
+    "history": "历史上的今天",
+    "word": "单词",
+    "sentence": "英语",
+    "study": "自习"
   },
   "component_edit": {
     "add_component": "添加组件",
@@ -492,6 +504,9 @@
     "config_text_color": "文字颜色",
     "group_content": "内容",
     "group_countdown": "倒计时",
+    "group_audio": "音频",
+    "config_input_device": "输入源",
+    "input_device_default": "系统默认设备",
     "group_display": "显示",
     "group_target": "目标",
     "group_info": "信息",
@@ -564,7 +579,8 @@
     "category_launcher": "启动器",
     "category_school": "教学",
     "category_tools": "工具",
-    "category_system": "系统"
+    "category_system": "系统",
+    "category_study": "自习"
   },
   "history_today": {
     "title": "历史上的今天",
@@ -586,6 +602,11 @@
     "title": "网速",
     "recv": "接收",
     "send": "发送"
+  },
+  "dbmeter": {
+    "title": "自习分贝",
+    "cur": "当前",
+    "peak": "峰值"
   },
   "update": {
     "build_date": "构建日期",
@@ -715,6 +736,7 @@
     "default_source": "默认",
     "source_cache": "缓存",
     "interval_2h": "2 小时",
+    "interval_3h": "3 小时",
     "interval_3d": "3 天",
     "interval_5d": "5 天",
     "interval_7d": "7 天",

@@ -451,7 +451,19 @@
     "quick_launch": "Quick Launch",
     "system": "Performance Monitor",
     "click_to_settings": "Click to settings",
-    "announcement": "Notice Board"
+    "announcement": "Notice Board",
+    "news": "News",
+    "linkage": "Timetable",
+    "math": "Calculator",
+    "writing": "Writing Pad",
+    "class_album": "Class Album",
+    "sticky_note": "Sticky Note",
+    "homework": "Homework",
+    "timer": "Timer",
+    "history": "History",
+    "word": "Word",
+    "sentence": "English",
+    "study": "Study"
   },
   "component_edit": {
     "add_component": "Add Component",
@@ -492,6 +504,9 @@
     "config_text_color": "Text Color",
     "group_content": "Content",
     "group_countdown": "Countdown",
+    "group_audio": "Audio",
+    "config_input_device": "Input Source",
+    "input_device_default": "System Default",
     "group_display": "Display",
     "group_target": "Target",
     "group_info": "Info",
@@ -564,7 +579,8 @@
     "category_launcher": "Launcher",
     "category_school": "School",
     "category_tools": "Tools",
-    "category_system": "System"
+    "category_system": "System",
+    "category_study": "Study"
   },
   "sticky_note": {
     "placeholder": "Write something..."
@@ -586,6 +602,11 @@
     "title": "Network",
     "recv": "Recv",
     "send": "Send"
+  },
+  "dbmeter": {
+    "title": "Study Noise",
+    "cur": "Now",
+    "peak": "Peak"
   },
   "update": {
     "build_date": "Build Date",
@@ -715,6 +736,7 @@
     "default_source": "Default",
     "source_cache": "Cache",
     "interval_2h": "2 hours",
+    "interval_3h": "3 hours",
     "interval_3d": "3 days",
     "interval_5d": "5 days",
     "interval_7d": "7 days",
