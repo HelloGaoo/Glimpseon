@@ -1,0 +1,228 @@
+// Glimpseon
+// Copyright (C) 2026 HelloGaoo
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+// 主程序
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Threading;
+using System.Text.Json;
+using Glimpseon.Core;
+using Glimpseon.Core.Win32;
+using Glimpseon.UI;
+using Glimpseon.UI.Views;
+
+namespace Glimpseon;
+
+internal static class GlimpseonMain
+{
+    [STAThread]
+    public static int Main(string[] args)
+    {
+        var ret = BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        if (AppUtils.IsRestartPending())
+        {
+            Log.Info($"[重启] 待重启标记 exit_code={ret}");
+            AppUtils.RestartSelf();
+        }
+        return ret;
+    }
+
+    public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<App>()
+        .UsePlatformDetect()
+        .With(new Win32PlatformOptions { RenderingMode = [Win32RenderingMode.AngleEgl, Win32RenderingMode.Software] })
+        .LogToTrace();
+
+    public static async Task RunStartupAsync(ClassicDesktopStyleApplicationLifetime lifetime)
+    {
+        try
+        {
+            var bootT0 = DateTime.Now;
+
+            Paths.EnsureDataDirs();
+            Log.InitExceptionHooks();
+            Dispatcher.UIThread.UnhandledException += (_, e) =>
+            {
+                Log.Critical($"[ui线程] {e.Exception.GetType().Name}: {e.Exception.Message}\n{e.Exception.StackTrace}");
+                e.Handled = true;
+            };
+
+            Log.Info($"APP_DIR={Paths.AppDir} 图标={Constants.AppIcon}");
+            Log.Info($"版本号 {Paths.Version} 构建日期 {Paths.BuildDate}");
+            Log.Info($"系统版本 {Environment.OSVersion.VersionString} 运行时 {Environment.Version}");
+            Log.Info($"软件运行路径 {Paths.PackageRoot}");
+
+            Config.Load();
+
+            // 日志尽早装载 保证向导/Splash 阶段已有文件日志
+            var logMaxCount = Config.DebugMode.Value ? 3 : Config.LogMaxCount.Value;
+            var logMaxDays = Config.DebugMode.Value ? 1 : Config.LogMaxDays.Value;
+            Log.Configure(Config.DisableLog.Value, Config.LogVerbosity.Value switch
+            {
+                LogVerbosity.Debug => LogLevel.Debug,
+                LogVerbosity.Info => LogLevel.Info,
+                LogVerbosity.Warning => LogLevel.Warning,
+                _ => LogLevel.Error,
+            }, logMaxCount, logMaxDays);
+
+            AppUtils.InitTranslation();
+            AppUtils.ApplyLanguageFromConfig();
+
+        // 单实例检查
+        if (!AppUtils.VerifySingleInstance())
+        {
+            Log.Warning($"{Constants.AppName} 已运行 本实例退出");
+            Native.ShowMessageBox(
+                AppUtils.Tr("dialog.instance_running_detail", ("app", Constants.AppName)),
+                Constants.AppName);
+            lifetime.Shutdown();
+            return;
+        }
+        Log.Info("单实例可启动");
+
+        // 向导
+        if (WizardWindow.IsNeeded())
+        {
+            Log.Info("首次运行 打开设置向导");
+            var wizard = new WizardWindow();
+            wizard.Show();
+            await WaitForWindowCloseAsync(wizard);
+        }
+
+        // Splash
+        var splash = new SplashWindow(Paths.Version, Paths.GetResourcePath(Constants.AppIcon));
+        splash.Show();
+        splash.SetProgress(0);
+
+        splash.UpdateStatus(AppUtils.Tr("splash.loading_translation"));
+        splash.SetProgress(15);
+
+        splash.UpdateStatus(AppUtils.Tr("splash.initializing_fonts"));
+        splash.SetProgress(30);
+        await Task.Delay(60);
+
+        splash.UpdateStatus(AppUtils.Tr("splash.configuring_log"));
+        splash.SetProgress(40);
+        await Task.Delay(60);
+
+        splash.UpdateStatus(AppUtils.Tr("splash.loading_config"));
+        splash.SetProgress(55);
+        await Task.Delay(60);
+
+        LogConfigSummary();
+
+        // 主窗口
+        splash.UpdateStatus(AppUtils.Tr("splash.creating_main_window"));
+        splash.SetProgress(70);
+        var window = new MainWindow();
+        Log.Info("创建主窗口 完成");
+
+        // 预加载
+        splash.UpdateStatus(AppUtils.Tr("splash.preloading"));
+        splash.SetProgress(75);
+        var preloadTask = PreloadWallpaperAsync(window);
+        var finished = await Task.WhenAny(preloadTask, Task.Delay(600));
+        if (finished != preloadTask)
+        {
+            Log.Warning($"预加载超时0.6s 转后台");
+        }
+
+        splash.SetProgress(95);
+        await Task.Delay(60);
+        splash.SetProgress(100);
+        await Task.Delay(100);
+        splash.Close();
+        Log.Info($"总启动耗时{(DateTime.Now - bootT0).TotalSeconds:F2}s");
+
+        if (Config.AutoCheckUpdate.Value)
+        {
+            window.AboutView.CheckUpdateAuto();
+        }
+
+        window.Show();
+        window.WindowState = WindowState.Maximized;
+        window.SwitchToHome();
+
+        AppUtils.SyncAutostartCfg();
+
+        lifetime.ShutdownMode = ShutdownMode.OnMainWindowClose;
+        lifetime.MainWindow = window;
+        }
+        catch (Exception e)
+        {
+            Log.Critical($"[启动异常] {e.GetType().Name}: {e.Message}\n{e.StackTrace}");
+            Native.ShowMessageBox($"{e.GetType().Name}: {e.Message}\n\n详见 data/log/ 日志", "Glimpseon 启动失败");
+            lifetime.Shutdown(1);
+        }
+    }
+
+    private static void LogConfigSummary()
+    {
+        Log.Info($"主窗口 主题={Config.ThemeMode.Value} 颜色={Config.ThemeColor.Value} DPI={Config.DpiScale.Value} 语言={Config.Language.Value}");
+        Log.Info($"日志配置 禁用={Config.DisableLog.Value} 级别={Config.LogVerbosity.Value} 条目={Config.LogMaxCount.Value} 保留={Config.LogMaxDays.Value}");
+        Log.Info($"其他 关闭={Config.CloseAction.Value} 多实例={Config.AllowMultipleInstances.Value} 调试={Config.DebugMode.Value} 自启={Config.AutoStart.Value}");
+        Log.Info($"下载配置 下载源={Config.DownloadSource.Value}");
+        Log.Info($"壁纸配置 保存={Config.WallpaperSaveLimit.Value} 间隔={Config.AutoGetInterval.Value} 同步桌面={Config.AutoSyncToDesktop.Value} api={Config.WallpaperApi.Value}");
+        Log.Info($"外观配置 背景模糊半径={Config.BackgroundBlurRadius.Value}");
+        Log.Info($"时间配置 显示秒={Config.ShowClockSeconds.Value} 显示农历={Config.ShowLunarCalendar.Value}");
+        Log.Info($"天气配置 城市={Config.City.Value} 间隔={Config.WeatherUpdateInterval.Value}");
+        Log.Info($"学校信息配置 启用={Config.ShowSchoolInfo.Value} 学校={Config.School.Value} 班级={Config.SchoolClass.Value}");
+        Log.Info($"自动配置 空闲开={Config.AutoOpenOnIdle.Value} 空闲={Config.IdleMinutes.Value} 检查更新={Config.AutoCheckUpdate.Value}");
+    }
+
+    private static async Task PreloadWallpaperAsync(MainWindow window)
+    {
+        await Task.Run(async () =>
+        {
+            try
+            {
+                var cached = AppUtils.GetCachedContent("wallpaper", ignoreExpiry: true);
+                if (cached is { } root && root.ValueKind == JsonValueKind.Object && root.TryGetProperty("path", out var pathEl))
+                {
+                    var path = pathEl.GetString();
+                    if (!string.IsNullOrEmpty(path) && File.Exists(path))
+                    {
+                        Log.Info($"[PRELOAD] 壁纸预取 缓存 {path}");
+                        await Dispatcher.UIThread.InvokeAsync(() => window.HomeView.SetWallpaper(path));
+                        return;
+                    }
+                }
+
+                // 缓存缺失 壁纸
+                var defaultWallpaper = Paths.GetResourcePath(Constants.ResourceDefaultWallpaper);
+                if (File.Exists(defaultWallpaper))
+                {
+                    Log.Info($"[PRELOAD] 壁纸预取 默认 {defaultWallpaper}");
+                    await Dispatcher.UIThread.InvokeAsync(() => window.HomeView.SetWallpaper(defaultWallpaper));
+                    return;
+                }
+
+                Log.Warning("[PRELOAD] 壁纸预取失败");
+            }
+            catch (Exception e)
+            {
+                Log.Error($"[PRELOAD] {e.Message}");
+            }
+        });
+    }
+
+    private static async Task WaitForWindowCloseAsync(Window window)
+    {
+        var tcs = new TaskCompletionSource();
+        window.Closed += (_, _) => tcs.TrySetResult();
+        await tcs.Task;
+    }
+}

@@ -1,0 +1,152 @@
+<ui:GlimpseonWindow x:Class="Glimpseon.UI.WizardWindow"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:fa="using:FluentAvalonia.UI.Controls"
+        xmlns:ui="using:Glimpseon.UI"
+        Title="Glimpseon"
+        Width="840" Height="650"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen">
+  <Carousel x:Name="Pages">
+    <!-- 第 1 页 欢迎 -->
+    <Panel>
+      <StackPanel Orientation="Vertical" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="24">
+        <StackPanel Orientation="Horizontal" Spacing="16" HorizontalAlignment="Center">
+          <Image x:Name="IconImage" Width="112" Height="112" />
+          <TextBlock Text="Glimpseon" FontSize="34" FontWeight="Black" VerticalAlignment="Center" />
+        </StackPanel>
+        <Button x:Name="NextButton" Height="36" HorizontalAlignment="Center" Click="OnNextClicked">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <fa:FASymbolIcon Symbol="{x:Static fa:FASymbol.ChevronRight}" FontSize="16" />
+            <TextBlock x:Name="NextButtonText" Text="继续" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+    </Panel>
+
+    <!-- 第 2 页 协议 -->
+    <Panel>
+      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16">
+        <TextBlock x:Name="AgreementTitle" Text="软件使用协议" FontSize="30" FontWeight="Bold" HorizontalAlignment="Center" />
+        <TextBlock x:Name="AgreementText" FontSize="14" HorizontalAlignment="Center" Opacity="0.85" />
+        <StackPanel MaxWidth="700" Spacing="12" Margin="0,6">
+          <CheckBox x:Name="OpenSourceCheckBox" Content="项目开源协议 (GPL-3.0)" FontSize="16" IsCheckedChanged="OnAgreementChanged" />
+          <CheckBox x:Name="UserAgreementCheckBox" Content="用户协议" FontSize="16" IsCheckedChanged="OnAgreementChanged" />
+          <CheckBox x:Name="PrivacyCheckBox" Content="隐私政策" FontSize="16" IsCheckedChanged="OnAgreementChanged" />
+          <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
+            <Button x:Name="OpenLicenseButton" Click="OnOpenLicenseClicked">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <fa:FASymbolIcon Symbol="{x:Static fa:FASymbol.OpenFile}" FontSize="14" />
+                <TextBlock Text="查看协议文本" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
+        </StackPanel>
+        <Button x:Name="AgreeButton" Height="36" IsEnabled="False" HorizontalAlignment="Center" Click="OnAgreeClicked">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <fa:FASymbolIcon Symbol="{x:Static fa:FASymbol.Checkmark}" FontSize="16" />
+            <TextBlock x:Name="AgreeButtonText" Text="完成" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+    </Panel>
+
+    <!-- 第 3 页 基本设置 -->
+    <Panel>
+      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16">
+        <TextBlock x:Name="SettingsTitle" Text="基本设置" FontSize="30" FontWeight="Bold" HorizontalAlignment="Center" />
+        <TextBlock x:Name="SettingsText" FontSize="14" HorizontalAlignment="Center" Opacity="0.85" />
+        <StackPanel MaxWidth="600" Spacing="12">
+          <Expander x:Name="AutoStartCard" Header="开机自启动" HorizontalAlignment="Stretch">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="设置应用在系统启动时自动运行" VerticalAlignment="Center" Opacity="0.8" />
+              <ToggleButton x:Name="AutoStartSwitch" Margin="16,0,0,0" HorizontalAlignment="Right" />
+            </StackPanel>
+          </Expander>
+          <Expander Header="空闲时自动打开" HorizontalAlignment="Stretch">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="电脑空闲时自动从最小化打开界面" VerticalAlignment="Center" Opacity="0.8" />
+              <ToggleButton x:Name="AutoOpenOnIdleSwitch" Margin="16,0,0,0" HorizontalAlignment="Right" />
+            </StackPanel>
+          </Expander>
+          <Expander Header="自动打开时最大化" HorizontalAlignment="Stretch">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="空闲自动打开界面时是否最大化窗口" VerticalAlignment="Center" Opacity="0.8" />
+              <ToggleButton x:Name="AutoOpenMaximizeSwitch" Margin="16,0,0,0" HorizontalAlignment="Right" />
+            </StackPanel>
+          </Expander>
+          <Expander Header="创建桌面快捷方式" HorizontalAlignment="Stretch">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="在桌面创建应用程序快捷方式" VerticalAlignment="Center" Opacity="0.8" />
+              <ToggleButton x:Name="DesktopShortcutSwitch" Margin="16,0,0,0" HorizontalAlignment="Right" />
+            </StackPanel>
+          </Expander>
+        </StackPanel>
+        <Button x:Name="FinishButton" Height="36" HorizontalAlignment="Center" Click="OnFinishPage3Clicked">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <fa:FASymbolIcon Symbol="{x:Static fa:FASymbol.Checkmark}" FontSize="16" />
+            <TextBlock Text="完成" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+    </Panel>
+
+    <!-- 第 4 页 外观 -->
+    <Panel>
+      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16">
+        <TextBlock x:Name="AppearanceTitle" Text="外观设置" FontSize="30" FontWeight="Bold" HorizontalAlignment="Center" />
+        <TextBlock x:Name="AppearanceText" FontSize="14" HorizontalAlignment="Center" Opacity="0.85" />
+        <StackPanel MaxWidth="600" Spacing="12">
+          <Grid ColumnDefinitions="*,Auto" Margin="0,4">
+            <StackPanel Grid.Column="0">
+              <TextBlock Text="应用颜色主题" FontWeight="SemiBold" />
+              <TextBlock Text="更改应用程序的颜色外观" FontSize="12" Opacity="0.7" />
+            </StackPanel>
+            <ComboBox x:Name="ThemeCombo" Grid.Column="1" MinWidth="140" SelectionChanged="OnThemeChanged" />
+          </Grid>
+          <Grid ColumnDefinitions="*,Auto" Margin="0,4">
+            <StackPanel Grid.Column="0">
+              <TextBlock Text="主要颜色" FontWeight="SemiBold" />
+              <TextBlock Text="更改应用程序的主要颜色" FontSize="12" Opacity="0.7" />
+            </StackPanel>
+            <ColorPicker x:Name="ThemeColorPicker" Grid.Column="1" />
+          </Grid>
+        </StackPanel>
+        <Button x:Name="FinishButton2" Height="36" HorizontalAlignment="Center" Click="OnNextPage4Clicked">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <fa:FASymbolIcon Symbol="{x:Static fa:FASymbol.Checkmark}" FontSize="16" />
+            <TextBlock Text="完成" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+    </Panel>
+
+    <!-- 第 5 页 学校信息 -->
+    <Panel>
+      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16">
+        <TextBlock x:Name="SchoolInfoTitle" Text="学校信息设置" FontSize="30" FontWeight="Bold" HorizontalAlignment="Center" />
+        <TextBlock x:Name="SchoolInfoText" FontSize="14" HorizontalAlignment="Center" Opacity="0.85" />
+        <StackPanel MaxWidth="700" Spacing="12">
+          <Grid ColumnDefinitions="120,*" Margin="0,4">
+            <TextBlock Text="天气城市" VerticalAlignment="Center" />
+            <TextBox x:Name="CityEdit" Grid.Column="1" MaxWidth="400" HorizontalAlignment="Left" Watermark="输入城市名称 如 北京市" />
+          </Grid>
+          <Grid ColumnDefinitions="120,*" Margin="0,4">
+            <TextBlock Text="学校名称" VerticalAlignment="Center" />
+            <TextBox x:Name="SchoolEdit" Grid.Column="1" MaxWidth="400" HorizontalAlignment="Left" Watermark="请输入学校名称" />
+          </Grid>
+          <Grid ColumnDefinitions="120,*" Margin="0,4">
+            <TextBlock Text="班级" VerticalAlignment="Center" />
+            <TextBox x:Name="ClassEdit" Grid.Column="1" MaxWidth="400" HorizontalAlignment="Left" Watermark="请输入班级（如 1班 高二3班）" />
+          </Grid>
+        </StackPanel>
+        <Button x:Name="FinishButton3" Height="36" HorizontalAlignment="Center" Click="OnFinishClicked">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <fa:FASymbolIcon Symbol="{x:Static fa:FASymbol.Checkmark}" FontSize="16" />
+            <TextBlock Text="完成" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+    </Panel>
+  </Carousel>
+</ui:GlimpseonWindow>

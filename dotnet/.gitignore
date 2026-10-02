@@ -1,0 +1,15 @@
+data/
+obj/
+bin/
+*.cache
+*.dll
+*.exe
+*.pdb
+*.deps.json
+*.runtimeconfig.json
+runtimes/
+refs/
+.vs/
+.idea/
+*.user
+*.suo

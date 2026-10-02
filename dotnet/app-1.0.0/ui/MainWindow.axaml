@@ -1,0 +1,68 @@
+<ui:GlimpseonWindow x:Class="Glimpseon.UI.MainWindow"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:fa="using:FluentAvalonia.UI.Controls"
+        xmlns:ui="using:Glimpseon.UI"
+        Width="1050" Height="750" MinWidth="1050" MinHeight="750"
+        WindowState="Maximized">
+  <Grid RowDefinitions="Auto,*">
+    <!-- 标题行48px高 -->
+    <Border Grid.Row="0" Height="48" Margin="0,0,8,0">
+      <Grid VerticalAlignment="Center" ColumnDefinitions="Auto,Auto,*,Auto" Margin="12,0,0,0">
+        <Image x:Name="WindowIcon" Width="18" Height="18" Margin="0,2,0,0" />
+        <TextBlock Grid.Column="1" Text="Glimpseon" FontSize="12" Margin="10,2,0,0" VerticalAlignment="Center" Opacity="0.85" />
+        <TextBlock Grid.Column="2" x:Name="VersionText" FontSize="12" Margin="0,2,12,0" VerticalAlignment="Center" HorizontalAlignment="Right" Opacity="0.55" />
+        <!-- 标题键空位 -->
+        <Border Grid.Column="3" Width="140" />
+      </Grid>
+    </Border>
+    <fa:FANavigationView Grid.Row="1" x:Name="Nav"
+                       PaneDisplayMode="Left"
+                       OpenPaneLength="260"
+                       IsPaneToggleButtonVisible="True"
+                       IsBackButtonVisible="False"
+                       IsSettingsVisible="False"
+                       AlwaysShowHeader="False"
+                       SelectionChanged="OnNavSelectionChanged">
+    <fa:FANavigationView.MenuItems>
+      <fa:FANavigationViewItem x:Name="NavItemHome" Tag="home">
+        <fa:FANavigationViewItem.IconSource>
+          <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Home}" />
+        </fa:FANavigationViewItem.IconSource>
+      </fa:FANavigationViewItem>
+      <fa:FANavigationViewItem x:Name="NavItemWallpaper" Tag="wallpaper">
+        <fa:FANavigationViewItem.IconSource>
+          <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Image}" />
+        </fa:FANavigationViewItem.IconSource>
+      </fa:FANavigationViewItem>
+      <fa:FANavigationViewItem x:Name="NavItemNotification" Tag="notification">
+        <fa:FANavigationViewItem.IconSource>
+          <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Message}" />
+        </fa:FANavigationViewItem.IconSource>
+      </fa:FANavigationViewItem>
+      <fa:FANavigationViewItem x:Name="NavItemTimetable" Tag="timetable">
+        <fa:FANavigationViewItem.IconSource>
+          <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Calendar}" />
+        </fa:FANavigationViewItem.IconSource>
+      </fa:FANavigationViewItem>
+      <fa:FANavigationViewItem x:Name="NavItemDownload" Tag="download">
+        <fa:FANavigationViewItem.IconSource>
+          <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Download}" />
+        </fa:FANavigationViewItem.IconSource>
+      </fa:FANavigationViewItem>
+    </fa:FANavigationView.MenuItems>
+    <fa:FANavigationView.FooterMenuItems>
+      <fa:FANavigationViewItem x:Name="NavItemAbout" Tag="about">
+        <fa:FANavigationViewItem.IconSource>
+          <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Library}" />
+        </fa:FANavigationViewItem.IconSource>
+      </fa:FANavigationViewItem>
+      <fa:FANavigationViewItem x:Name="NavItemDebug" Tag="debug">
+        <fa:FANavigationViewItem.IconSource>
+          <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Code}" />
+        </fa:FANavigationViewItem.IconSource>
+      </fa:FANavigationViewItem>
+    </fa:FANavigationView.FooterMenuItems>
+  </fa:FANavigationView>
+  </Grid>
+</ui:GlimpseonWindow>

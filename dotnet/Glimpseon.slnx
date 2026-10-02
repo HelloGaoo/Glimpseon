@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/app-1.0.0/">
+    <Project Path="app-1.0.0/GlimpseonMain.csproj" />
+  </Folder>
+  <Project Path="Glimpseon.csproj" />
+</Solution>
