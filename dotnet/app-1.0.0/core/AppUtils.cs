@@ -18,6 +18,7 @@
 using System.Globalization;
 using System.Net.Sockets;
 using System.Text.Json;
+using Avalonia.Threading;
 
 namespace Glimpseon.Core;
 
@@ -34,12 +35,22 @@ public sealed class SingleInstanceManager : IDisposable
             return true;
         }
         _mutex = new Mutex(true, MutexName, out var createdNew);
-        if (!createdNew && !_mutex.WaitOne(TimeSpan.Zero))
+        if (!createdNew)
         {
-            _mutex.Dispose();
-            _mutex = null;
-            _isOwner = false;
-            return false;
+            try
+            {
+                if (!_mutex.WaitOne(TimeSpan.Zero))
+                {
+                    _mutex.Dispose();
+                    _mutex = null;
+                    _isOwner = false;
+                    return false;
+                }
+            }
+            catch (AbandonedMutexException)
+            {
+                // 上一实例崩溃遗弃互斥体: 按 Win32 语义此时已获得所有权 视为成功
+            }
         }
         _isOwner = true;
         return true;
@@ -53,8 +64,10 @@ public sealed class SingleInstanceManager : IDisposable
             {
                 _mutex?.ReleaseMutex();
             }
-            catch (Exception)
+            catch (Exception e)
             {
+
+                Glimpseon.Core.Log.Debug($"[UTIL] Mutex 释放失败: {e.Message}");
                 // 非所属线程释放 忽略
             }
             _isOwner = false;
@@ -63,12 +76,42 @@ public sealed class SingleInstanceManager : IDisposable
         _mutex = null;
     }
 
-    public bool IsOwner => _isOwner;
     public void Dispose() => Release();
 }
 
 public static class AppUtils
 {
+    public static readonly HttpClient Http = CreateHttp();
+
+    private static HttpClient CreateHttp()
+    {
+        // 跳过证书校验
+        var handler = new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
+        };
+        var client = new HttpClient(handler);
+        client.DefaultRequestHeaders.UserAgent.ParseAdd(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+        client.Timeout = TimeSpan.FromSeconds(15);
+        return client;
+    }
+
+    // 解析容错
+    public static async Task<JsonElement?> GetJsonAsync(string url)
+    {
+        try
+        {
+            var text = await Http.GetStringAsync(url);
+            return JsonSerializer.Deserialize<JsonElement>(text);
+        }
+        catch (Exception e)
+        {
+            Log.Error($"HTTP json请求失败 {url}: {e.Message}");
+            return null;
+        }
+    }
+
     private static readonly SingleInstanceManager InstanceManager = new();
 
     public static bool VerifySingleInstance()
@@ -94,7 +137,7 @@ public static class AppUtils
     public static void InitTranslation()
     {
         _translations = new Dictionary<string, Dictionary<string, string>>();
-        var localeDir = Path.Combine(Paths.AppDir, "Locales");
+        var localeDir = Path.Combine(Paths.AppDir, "locale");
         foreach (var code in LanguageCodes)
         {
             var file = Path.Combine(localeDir, $"{code}.json");
@@ -193,9 +236,10 @@ public static class AppUtils
                 return "en_US";
             }
         }
-        catch (Exception)
+        catch (Exception e)
         {
-            // 检测失败 用简中
+
+            Glimpseon.Core.Log.Debug($"[UTIL] 系统语言检测失败 用简中: {e.Message}");
         }
         return "zh_CN";
     }
@@ -210,6 +254,9 @@ public static class AppUtils
         ["从不"] = 0, ["5 分钟"] = 300, ["10 分钟"] = 600, ["15 分钟"] = 900, ["30 分钟"] = 1800,
         ["1 小时"] = 3600, ["3 小时"] = 10800, ["6 小时"] = 21600, ["12 小时"] = 43200,
         ["1 天"] = 86400, ["3 天"] = 259200, ["5 天"] = 432000, ["7 天"] = 604800,
+        ["10分钟"] = 600, ["30分钟"] = 1800, ["1小时"] = 3600, ["3小时"] = 10800,
+        ["6小时"] = 21600, ["12小时"] = 43200, ["1天"] = 86400, ["3天"] = 259200,
+        ["5天"] = 432000, ["7天"] = 604800,
     };
 
     public static int ParseInterval(string interval)
@@ -330,7 +377,7 @@ public static class AppUtils
             string command;
             if (delaySeconds > 0)
             {
-                command = $"cmd /c \"timeout /t {delaySeconds} /nobreak >nul && start \\\"\\\" \\\"{exePath}\\\" --autostart\"";
+                command = $"cmd /c \"timeout /t {delaySeconds} /nobreak >nul && start \"\" \"{exePath}\" --autostart\"";
             }
             else
             {
@@ -356,7 +403,13 @@ public static class AppUtils
             Log.Info($"同步自启动状态 - 配置: {configAutoStart} 实际: {actual}");
             if (configAutoStart != actual)
             {
-                return SetAutostart(configAutoStart);
+                var result = SetAutostart(configAutoStart);
+                if (!result && actual != configAutoStart)
+                {
+                    Log.Error("自启动状态同步失败 配置回写为实际状态");
+                    Config.AutoStart.Value = actual;
+                }
+                return result;
             }
             return true;
         }
@@ -448,11 +501,21 @@ public static class AppUtils
         return now;
     }
 
-    public static string PreciseTimeStr() => PreciseNow().ToString("yyyy-MM-dd HH:mm:ss");
-
     // 重启
 
     public static bool IsRestartPending() => Config.RestartPending;
+
+    /// <summary>LogVerbosity(配置) > LogLevel(日志) 映射</summary>
+    public static LogLevel ToLogLevel(LogVerbosity verbosity) => verbosity switch
+    {
+        LogVerbosity.Debug => LogLevel.Debug,
+        LogVerbosity.Info => LogLevel.Info,
+        LogVerbosity.Warning => LogLevel.Warning,
+        LogVerbosity.Error => LogLevel.Error,
+        _ => LogLevel.Info,
+    };
+
+    public static bool RestartPromptSuppressed { get; set; }
 
     public static void RequestRestart()
     {
@@ -473,6 +536,114 @@ public static class AppUtils
             FileName = exe,
             UseShellExecute = false,
         });
+    }
+
+
+
+    private static readonly string[] HarmonyOsFontFiles =
+    {
+        "HarmonyOS_Sans_Thin.ttf",
+        "HarmonyOS_Sans_Light.ttf",
+        "HarmonyOS_Sans_Regular.ttf",
+        "HarmonyOS_Sans_Medium.ttf",
+        "HarmonyOS_Sans_Bold.ttf",
+        "HarmonyOS_Sans_Black.ttf",
+    };
+
+    private static string GetFontDir() =>
+        Paths.GetResourcePath(Path.Combine("Assets", "font", "HarmonyOS_Sans"));
+
+    private static string GetSystemFontDir() =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Fonts");
+
+    private static bool InstallSystemFonts()
+    {
+        var systemFontDir = GetSystemFontDir();
+        try
+        {
+            Directory.CreateDirectory(systemFontDir);
+        }
+        catch
+        {
+            // 无权限创建时原样继续
+        }
+        var localFontDir = GetFontDir();
+        if (!Directory.Exists(localFontDir))
+        {
+            Log.Warning($"字体目录不存在 {localFontDir}");
+            return false;
+        }
+
+        var installedAny = false;
+        Log.Debug($"安装系统字体 {localFontDir} -> {systemFontDir}");
+        try
+        {
+            foreach (var fontFile in HarmonyOsFontFiles)
+            {
+                var localFontPath = Path.Combine(localFontDir, fontFile);
+                var systemFontPath = Path.Combine(systemFontDir, fontFile);
+                if (File.Exists(localFontPath))
+                {
+                    if (File.Exists(systemFontPath))
+                    {
+                        // 跳过
+                        continue;
+                    }
+                    try
+                    {
+                        File.Copy(localFontPath, systemFontPath, overwrite: false);
+                        Log.Debug($"已复制字体到系统目录 {fontFile}");
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Warning($"复制字体失败 {fontFile} {e.Message}");
+                    }
+                }
+                else
+                {
+                    Log.Debug($"本地字体缺失 {fontFile}");
+                    try
+                    {
+                        if (Win32.Native.RegisterFontFile(systemFontPath))
+                        {
+                            installedAny = true;
+                            Log.Debug($"已注册字体 {fontFile}");
+                        }
+                        else
+                        {
+                            Log.Warning($"AddFontResourceW 注册失败 {fontFile}");
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Warning($"注册字体失败 {fontFile} {e.Message}");
+                    }
+                }
+            }
+
+            if (installedAny)
+            {
+                Win32.Native.BroadcastFontChange();
+            }
+
+            Log.Info($"系统字体安装完成 新装={installedAny}");
+            return true;
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"安装字体失败 {e.Message}");
+            return false;
+        }
+    }
+
+    public static void InitializeFonts(bool installToSystem = true)
+    {
+        Log.Debug($"字体初始化 install_to_system={installToSystem}");
+        if (installToSystem)
+        {
+            InstallSystemFonts();
+        }
+        Log.Info("字体就绪");
     }
 
     // FUI 图标
@@ -497,6 +668,22 @@ public static class AppUtils
         ["PEOPLE"] = "people", ["DOCUMENT"] = "document", ["HEART"] = "heart",
         ["CALENDAR"] = "calendar", ["PEN"] = "pen", ["ERASER"] = "eraser",
         ["UNDO"] = "arrow_undo", ["MICROPHONE"] = "microphone",
+        ["PREVIOUS"] = "previous", ["NEXT"] = "next",
+        ["FULL_SCREEN"] = "full_screen_maximize", ["VIEW"] = "eye",
+        ["MENU"] = "navigation", ["TABLE"] = "table_simple", ["LIBRARY"] = "folder",
+        ["FOLDER_ADD"] = "folder_add", ["BROOM"] = "broom",
+        ["CARE_LEFT_SOLID"] = "chevron_left", ["CARE_RIGHT_SOLID"] = "chevron_right",
+        ["CURSOR"] = "cursor", ["GITHUB"] = "link", ["ZOOM"] = "zoom_fit",
+        ["WEATHER_SUNNY"] = "weather_sunny", ["WEATHER_CLOUDY"] = "weather_cloudy",
+        ["WEATHER_PARTLY_DAY"] = "weather_partly_cloudy_day", ["WEATHER_PARTLY_NIGHT"] = "weather_partly_cloudy_night",
+        ["WEATHER_RAIN"] = "weather_rain", ["WEATHER_DRIZZLE"] = "weather_drizzle",
+        ["WEATHER_SNOW"] = "weather_snow", ["WEATHER_FOG"] = "weather_fog",
+        ["WEATHER_HAZE"] = "weather_haze", ["WEATHER_THUNDERSTORM"] = "weather_thunderstorm",
+        ["WEATHER_MOON"] = "weather_moon", ["WEATHER_DUSTSTORM"] = "weather_duststorm",
+        ["WEATHER_SQUALLS"] = "weather_squalls", ["WEATHER_RAIN_SNOW"] = "weather_rain_snow",
+        ["WEATHER_BLOWING_SNOW"] = "weather_blowing_snow", ["WEATHER_HUMIDITY"] = "weather_humidity",
+        ["WEATHER_HAIL"] = "weather_hail_day",
+        ["TEMPERATURE"] = "temperature", ["BLUR"] = "blur", ["BOARD"] = "board",
     };
 
     public static string GetFluentIconPath(string iconName, bool isDark)
@@ -509,5 +696,190 @@ public static class AppUtils
             return path32;
         }
         return Paths.GetResourcePath(Path.Combine("Assets", "fluent", themeDir, $"ic_fluent_{mapped}_24_regular.svg"));
+    }
+
+    // 缓存刷新器
+    public static class CacheRefresher
+    {
+        public sealed class Entry
+        {
+            public required string Name;
+            public Func<string> Interval = () => "30m"; 
+            public Func<bool>? Enabled = null; 
+            public Func<bool>? AutoEnabled = null;       
+            public required Func<Task<JsonElement?>> Fetch;   
+            public Action<JsonElement?>? Apply;            
+            public bool SkipSave;                        
+        }
+
+        private static readonly object Lock = new();
+        private static readonly List<Entry> _entries = new();
+        private static readonly HashSet<string> _pendingManual = new();
+        private static readonly HashSet<string> _pendingInvalidate = new();
+        private static bool _started;
+
+        public static void Register(Entry entry)
+        {
+            lock (Lock)
+            {
+                _entries.Add(entry);
+                if (_started)
+                {
+                    _ = RunEntryAsync(entry, startup: true);
+                }
+            }
+        }
+
+        public static void Start()
+        {
+            lock (Lock)
+            {
+                if (_started)
+                {
+                    return;
+                }
+                _started = true;
+            }
+            foreach (var e in _entries)
+            {
+                _ = RunEntryAsync(e, startup: true);
+            }
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(15000);
+                await LoopAsync();
+            });
+        }
+
+        public static void Invalidate(string name)
+        {
+            lock (Lock)
+            {
+                _pendingInvalidate.Add(name);
+            }
+        }
+
+        private static Entry? Find(string name)
+        {
+            lock (Lock)
+            {
+                return _entries.FirstOrDefault(e => e.Name == name);
+            }
+        }
+
+        private static async Task LoopAsync()
+        {
+            while (true)
+            {
+                List<Entry> snapshot;
+                lock (Lock)
+                {
+                    snapshot = _entries.ToList();
+                }
+                foreach (var entry in snapshot)
+                {
+                    try
+                    {
+                        var manual = false;
+                        var invalidated = false;
+                        lock (Lock)
+                        {
+                            manual = _pendingManual.Remove(entry.Name);
+                            invalidated = _pendingInvalidate.Remove(entry.Name);
+                        }
+                        if (manual)
+                        {
+                            await RunEntryAsync(entry, startup: false, force: true);
+                            continue;
+                        }
+                        if (entry.Enabled is { } en && !en())
+                        {
+                            continue; // 功能关闭 不刷
+                        }
+                        if (invalidated)
+                        {
+                            await RunEntryAsync(entry, startup: false, force: true);
+                            continue;
+                        }
+                        var autoOff = entry.AutoEnabled is { } ae && !ae();
+                        if (autoOff)
+                        {
+                            continue;
+                        }
+                        if (LoadCache(entry.Name) is null)
+                        {
+                            await RunEntryAsync(entry, startup: false);
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Error($"[缓存刷新] {entry.Name} 轮询异常: {e.Message}");
+                    }
+                }
+                await Task.Delay(15000);
+            }
+        }
+
+        private static async Task RunEntryAsync(Entry entry, bool startup, bool force = false)
+        {
+            try
+            {
+                if (startup)
+                {
+                    if (entry.Enabled is { } en0 && !en0())
+                    {
+                        return;
+                    }
+                    var cached = LoadCache(entry.Name, ignoreExpiry: true);
+                    if (cached is not null)
+                    {
+                        Log.Info($"[缓存] {entry.Name} 启动用缓存");
+                        ApplyOnUiThread(entry, cached);
+                        return;
+                    }
+                    Log.Info($"[缓存] {entry.Name} 无缓存 启动请求一次");
+                }
+                else if (!force && entry.Enabled is { } en && !en())
+                {
+                    return;
+                }
+
+                var data = await entry.Fetch();
+                if (data is null)
+                {
+                    Log.Warning($"[缓存] {entry.Name} 获取失败 保留旧缓存");
+                    return;
+                }
+                if (!entry.SkipSave)
+                {
+                    SaveCache(entry.Name, data.Value, entry.Interval());
+                }
+                Log.Info($"[缓存] {entry.Name} 已刷新覆盖 间隔={entry.Interval()}");
+                ApplyOnUiThread(entry, data);
+            }
+            catch (Exception e)
+            {
+                Log.Error($"[缓存] {entry.Name} 刷新失败: {e.Message}");
+            }
+        }
+
+        private static void ApplyOnUiThread(Entry entry, JsonElement? data)
+        {
+            if (entry.Apply is null)
+            {
+                return;
+            }
+            Dispatcher.UIThread.Post(() =>
+            {
+                try
+                {
+                    entry.Apply(data);
+                }
+                catch (Exception e)
+                {
+                    Log.Error($"[缓存] {entry.Name} 应用失败: {e.Message}");
+                }
+            });
+        }
     }
 }

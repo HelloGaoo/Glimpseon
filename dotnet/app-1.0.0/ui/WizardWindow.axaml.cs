@@ -22,6 +22,7 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Glimpseon.Core;
+using Glimpseon.Core.Services;
 
 namespace Glimpseon.UI;
 
@@ -87,6 +88,9 @@ public partial class WizardWindow : GlimpseonWindow
         CityEdit.Text = Config.City.Value is "点击选择" or "Click to select" ? "" : Config.City.Value;
         SchoolEdit.Text = Config.School.Value;
         ClassEdit.Text = Config.SchoolClass.Value;
+        AutoStartSwitch.IsChecked = Config.AutoStart.Value;
+        AutoOpenOnIdleSwitch.IsChecked = Config.AutoOpenOnIdle.Value;
+        AutoOpenMaximizeSwitch.IsChecked = Config.AutoOpenMaximize.Value;
     }
 
     private void LoadIcon()
@@ -124,8 +128,10 @@ public partial class WizardWindow : GlimpseonWindow
         {
             ThemeColorPicker.Color = Color.Parse(Config.ThemeColor.Value);
         }
-        catch (Exception)
+        catch (Exception e)
         {
+
+            Log.Debug($"[向导] 颜色解析失败 用默认: {e.Message}");
             ThemeColorPicker.Color = Color.Parse("#30c361");
         }
         ThemeColorPicker.ColorChanged += (_, e) =>
@@ -165,6 +171,11 @@ public partial class WizardWindow : GlimpseonWindow
 
     private void OnAgreeClicked(object sender, RoutedEventArgs e)
     {
+        Pages.SelectedIndex = 2;
+    }
+
+    private void OnFinishPage3Clicked(object sender, RoutedEventArgs e)
+    {
         Config.AutoStart.Value = AutoStartSwitch.IsChecked == true;
         Config.AutoOpenOnIdle.Value = AutoOpenOnIdleSwitch.IsChecked == true;
         Config.AutoOpenMaximize.Value = AutoOpenMaximizeSwitch.IsChecked == true;
@@ -172,10 +183,8 @@ public partial class WizardWindow : GlimpseonWindow
         {
             CreateDesktopShortcut();
         }
-        Pages.SelectedIndex = 2;
+        Pages.SelectedIndex = 3;
     }
-
-    private void OnFinishPage3Clicked(object sender, RoutedEventArgs e) => Pages.SelectedIndex = 3;
 
     private void OnThemeChanged(object? sender, SelectionChangedEventArgs e)
     {
@@ -199,6 +208,21 @@ public partial class WizardWindow : GlimpseonWindow
         Config.City.Value = string.IsNullOrWhiteSpace(CityEdit.Text) ? Config.City.Value : CityEdit.Text.Trim();
         Config.School.Value = SchoolEdit.Text?.Trim() ?? "";
         Config.SchoolClass.Value = ClassEdit.Text?.Trim() ?? "";
+
+        // 城市坐标查询
+        var city = Config.City.Value;
+        (double? lon, double? lat) = new RegionDatabase().GetCoordinates(city);
+        if (lon is not null && lat is not null)
+        {
+            Config.Longitude.Value = lon.Value;
+            Config.Latitude.Value = lat.Value;
+            Log.Info($"向导 城市={city} 经纬度=({lon} {lat})");
+        }
+        else
+        {
+            Log.Warning($"向导 未获取到城市坐标 天气功能可能受限: city={city}");
+        }
+
         Log.Info($"向导完成 城市={Config.City.Value} 学校={Config.School.Value} 班级={Config.SchoolClass.Value}");
         WriteWizardFile(1);
         Close();
@@ -229,14 +253,6 @@ public partial class WizardWindow : GlimpseonWindow
 
     protected override void OnClosing(WindowClosingEventArgs e)
     {
-        if (!Completed)
-        {
-            // 向导未完成时确认退出 由调用方决定是否放行
-        }
         base.OnClosing(e);
     }
-
-    public bool Completed { get; private set; }
-
-    public void MarkCompleted() => Completed = true;
 }

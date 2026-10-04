@@ -471,7 +471,7 @@
     "delete_component": "删除组件",
     "delete_success": "删除成功",
     "feature_pending": "功能暂未完成",
-    "feature_pending_desc": "114514",
+    "feature_pending_desc": "该组件暂无可配置项",
     "drag_hint": "拖拽到主界面添加",
     "added_components": "已添加组件",
     "delete_selected": "删除选中",

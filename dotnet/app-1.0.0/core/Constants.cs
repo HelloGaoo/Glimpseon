@@ -21,32 +21,11 @@ public static class Constants
 {
     public const string AppName = "Glimpseon";
     public const string AppIcon = "Assets/icons/CY.png";
-    public const string AppLicense = "LICENSE";
 
-    public const string ExternalClassWidgets = "ClassWidgets";
-    public const string ExternalClassIsland = "ClassIsland";
-
-    public static readonly string[] TimetableSources = { "Glimpseon", "ClassIsland", "ClassWidgets" };
     public const string TimetableSourceGlimpseon = "Glimpseon";
     public const string TimetableSourceClassIsland = "classisland";
     public const string TimetableSourceClassWidgets = "classwidgets";
 
-    public const string ResourceRoot = "Assets";
-    public const string ResourceIcons = "Assets/icons";
-    public const string ResourceWallpaper = "Assets/wallpaper";
     public const string ResourceCityDb = "Assets/city.db";
-    public const string ResourceCredits = "Assets/credits.json";
     public const string ResourceDefaultWallpaper = "Assets/wallpaper/default.jpg";
-
-    public static readonly IReadOnlyDictionary<string, string> NewsIcons = new Dictionary<string, string>
-    {
-        ["baidu"] = "Assets/icons/news/baidu.svg",
-        ["weibo"] = "Assets/icons/news/weibo.svg",
-        ["jinritoutiao"] = "Assets/icons/news/jinritoutiao.svg",
-        ["tencent"] = "Assets/icons/news/tencent.svg",
-        ["cctv"] = "Assets/icons/news/cctv.svg",
-    };
-
-    public const string FontPrimary = "HarmonyOS Sans";
-    public const string FontFamily = "HarmonyOS Sans, HarmonyOS Sans SC, Microsoft YaHei UI, Microsoft YaHei, Segoe UI, Arial";
 }

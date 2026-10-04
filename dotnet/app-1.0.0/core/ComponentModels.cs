@@ -30,6 +30,8 @@ public enum ResizeMode
 
 public sealed class ComponentDefinition
 {
+    public double DefaultWidth => DefaultWidthPx > 0 ? DefaultWidthPx : DefaultWidthCells * 110.0;
+    public double DefaultHeight => DefaultHeightPx > 0 ? DefaultHeightPx : DefaultHeightCells * 110.0;
     public string Id { get; init; } = "";
     public string DisplayName { get; init; } = "";
     public string Category { get; init; } = "";
@@ -37,6 +39,10 @@ public sealed class ComponentDefinition
     public int MinWidthCells { get; init; } = 1;
     public int MinHeightCells { get; init; } = 1;
     public int DefaultWidthCells { get; init; } = 2;
+    /// <summary>原版默认像素宽(0=用 cells*110)</summary>
+    public int DefaultWidthPx { get; init; }
+    /// <summary>原版默认像素高(0=用 cells*110)</summary>
+    public int DefaultHeightPx { get; init; }
     public int DefaultHeightCells { get; init; } = 2;
     public ResizeMode ResizeMode { get; init; } = ResizeMode.Free;
     public JsonElement? DefaultConfig { get; init; }
@@ -169,7 +175,8 @@ public sealed class ComponentRegistry
 public static class BuiltinComponentDefinitions
 {
     private static ComponentDefinition Def(string id, string displayName, string category, string icon,
-        int minW = 1, int minH = 1, int defW = 2, int defH = 2, ResizeMode mode = ResizeMode.Free, JsonElement? config = null) => new()
+        int minW = 1, int minH = 1, int defW = 2, int defH = 2, ResizeMode mode = ResizeMode.Free, JsonElement? config = null,
+        int wPx = 0, int hPx = 0) => new()
     {
         Id = id,
         DisplayName = displayName,
@@ -181,49 +188,53 @@ public static class BuiltinComponentDefinitions
         DefaultHeightCells = defH,
         ResizeMode = mode,
         DefaultConfig = config,
+        DefaultWidthPx = wPx,
+        DefaultHeightPx = hPx,
     };
 
     public static readonly ComponentDefinition[] All =
     {
-        Def("clock_digital", "数字时钟", "Clock", "Clock", 2, 2, 2, 2),
-        Def("clock_square_1", "方形钟表I", "Clock", "Clock"),
-        Def("clock_square_2", "方形钟表II", "Clock", "Clock"),
-        Def("clock_calendar_month", "月历", "Clock", "Calendar", 2, 2, 2, 3),
-        Def("clock_calendar_mini", "简约月历", "Clock", "Calendar"),
-        Def("clock_almanac", "黄历", "Clock", "Calendar"),
-        Def("countdown_event", "倒计时", "Clock", "Calendar"),
-        Def("countdown_days", "倒数日", "Clock", "Calendar"),
-        Def("timer_countdown", "计时与倒计时", "Clock", "StopWatch"),
-        Def("weather_icon_temp", "天气", "Weather", "WeatherSunny", 2, 1, 2, 1, ResizeMode.Horizontal),
-        Def("weather_hourly", "逐小时天气", "Weather", "WeatherSunny", 4, 2, 4, 2, ResizeMode.Horizontal),
-        Def("weather_weekly", "逐日天气", "Weather", "WeatherSunny", 2, 2, 2, 2, ResizeMode.Fixed),
-        Def("poetry_one_line", "一言", "Info", "Book", 4, 1, 4, 1, ResizeMode.Horizontal),
-        Def("news_baidu", "百度新闻", "Info", "News", 4, 2, 4, 2, ResizeMode.Horizontal),
-        Def("news_weibo", "微博新闻", "Info", "News", 4, 2, 4, 2, ResizeMode.Horizontal),
-        Def("news_jinritoutiao", "今日头条新闻", "Info", "News", 4, 2, 4, 2, ResizeMode.Horizontal),
-        Def("news_tenxunwang", "腾讯网新闻", "Info", "News", 4, 2, 4, 2, ResizeMode.Horizontal),
-        Def("news_xcvts", "央视新闻", "Info", "News", 4, 2, 4, 2, ResizeMode.Horizontal),
-        Def("history_today", "历史上的今天", "Info", "History", 4, 2, 4, 2, ResizeMode.Horizontal),
-        Def("word_daily", "每日单词", "Info", "LocalLanguage", 4, 2, 5, 2, ResizeMode.Horizontal),
-        Def("sentence_daily", "每日英语", "Info", "ChatBubblesQuestion", 4, 2, 5, 2, ResizeMode.Horizontal),
-        Def("school_info_class_info", "班级卡片", "School", "Education", 2, 1, 2, 1, ResizeMode.Horizontal),
-        Def("linkage_timetable_preview", "今日课表", "School", "Education", 2, 3, 2, 5),
-        Def("linkage_timetable_nowlesson", "当前课程", "School", "Education", 2, 2, 2, 2, ResizeMode.Fixed),
-        Def("linkage_timetable_timeline", "课程时间轴", "School", "Education"),
-        Def("class_album_horizontal", "横向相册", "School", "Photo", 2, 1, 2, 1),
-        Def("class_album_vertical", "纵向相册", "School", "Photo", 1, 2, 1, 2),
-        Def("homework_board", "作业板", "School", "Education", 2, 2, 3, 2),
-        Def("announcement_board", "公告栏", "School", "Education", 2, 2, 3, 3),
-        Def("media_player", "媒体播放器", "Media", "Music", 2, 1, 2, 1, ResizeMode.Horizontal),
-        Def("quick_launch_dock", "快捷启动", "Launcher", "App", 4, 1, 4, 1, ResizeMode.Horizontal),
-        Def("quick_launch_grid", "快捷启动II", "Launcher", "App", 4, 2, 4, 2),
-        Def("Math_calculator", "计算器", "Tools", "Calculator", 2, 2, 2, 2, ResizeMode.Fixed),
-        Def("writing_pad", "书写板", "Tools", "Edit", 4, 1, 4, 1, ResizeMode.Fixed),
-        Def("sticky_note", "便签", "Tools", "Edit", 1, 1, 2, 2),
-        Def("system_performance", "性能监测", "System", "Gauge", 4, 2, 4, 2),
-        Def("system_netspeed", "网速监控", "System", "Globe", 3, 2, 4, 2),
-        Def("study_meter", "分贝仪", "Study", "Microphone", 3, 2, 4, 2),
+        Def("clock_digital", "数字时钟", "Clock", "Clock", 2, 2, 2, 2, wPx: 400, hPx: 200, config: Cfg("""{"show_seconds":true,"show_lunar":true}""")),
+        Def("clock_square_1", "方形钟表I", "Clock", "Clock", wPx: 200, hPx: 200),
+        Def("clock_square_2", "方形钟表II", "Clock", "Clock", wPx: 200, hPx: 200),
+        Def("clock_calendar_month", "月历", "Clock", "Calendar", 2, 2, 2, 3, wPx: 200, hPx: 200),
+        Def("clock_calendar_mini", "简约月历", "Clock", "Calendar", wPx: 200, hPx: 200),
+        Def("clock_almanac", "黄历", "Clock", "Calendar", wPx: 400, hPx: 200),
+        Def("countdown_event", "倒计时", "Clock", "Calendar", wPx: 200, hPx: 200, config: Cfg("""{"target_name":"","target_date":""}""")),
+        Def("countdown_days", "倒数日", "Clock", "Calendar", wPx: 200, hPx: 200, config: Cfg("""{"event_name":"","target_date":"","title_bg_color":"#F98E1B"}""")),
+        Def("timer_countdown", "计时与倒计时", "Clock", "StopWatch", wPx: 360, hPx: 320),
+        Def("weather_icon_temp", "天气", "Weather", "WeatherSunny", 2, 1, 2, 1, ResizeMode.Horizontal, wPx: 200, hPx: 200, config: Cfg("""{"show_icon":true}""")),
+        Def("weather_hourly", "逐小时天气", "Weather", "WeatherSunny", 4, 2, 4, 2, ResizeMode.Horizontal, wPx: 400, hPx: 200),
+        Def("weather_weekly", "逐日天气", "Weather", "WeatherSunny", 2, 2, 2, 2, ResizeMode.Fixed, wPx: 200, hPx: 200),
+        Def("poetry_one_line", "一言", "Info", "Book", 4, 1, 4, 1, ResizeMode.Horizontal, wPx: 400, hPx: 200),
+        Def("news_baidu", "百度新闻", "Info", "News", 4, 2, 4, 2, ResizeMode.Horizontal, wPx: 360, hPx: 220),
+        Def("news_weibo", "微博新闻", "Info", "News", 4, 2, 4, 2, ResizeMode.Horizontal, wPx: 360, hPx: 220),
+        Def("news_jinritoutiao", "今日头条新闻", "Info", "News", 4, 2, 4, 2, ResizeMode.Horizontal, wPx: 360, hPx: 220),
+        Def("news_tenxunwang", "腾讯网新闻", "Info", "News", 4, 2, 4, 2, ResizeMode.Horizontal, wPx: 360, hPx: 220),
+        Def("news_xcvts", "央视新闻", "Info", "News", 4, 2, 4, 2, ResizeMode.Horizontal, wPx: 360, hPx: 220),
+        Def("history_today", "历史上的今天", "Info", "History", 4, 2, 4, 2, ResizeMode.Horizontal, wPx: 360, hPx: 240),
+        Def("word_daily", "每日单词", "Info", "LocalLanguage", 4, 2, 5, 2, ResizeMode.Horizontal, wPx: 400, hPx: 200),
+        Def("sentence_daily", "每日英语", "Info", "ChatBubblesQuestion", 4, 2, 5, 2, ResizeMode.Horizontal, wPx: 400, hPx: 200),
+        Def("school_info_class_info", "班级卡片", "School", "Education", 2, 1, 2, 1, ResizeMode.Horizontal, wPx: 400, hPx: 200, config: Cfg("""{"school":"","class":""}""")),
+        Def("linkage_timetable_preview", "今日课表", "School", "Education", 2, 3, 2, 5, wPx: 300, hPx: 550),
+        Def("linkage_timetable_nowlesson", "当前课程", "School", "Education", 2, 2, 2, 2, ResizeMode.Fixed,
+            wPx: 400, hPx: 200, config: Cfg("""{"show_teacher":true,"show_next":true,"show_duration":true,"show_countdown":true,"prepare_minutes":3}""")),
+        Def("linkage_timetable_timeline", "课程时间轴", "School", "Education", wPx: 400, hPx: 200),
+        Def("class_album_horizontal", "横向相册", "School", "Photo", 2, 1, 2, 1, wPx: 400, hPx: 200),
+        Def("class_album_vertical", "纵向相册", "School", "Photo", 1, 2, 1, 2, wPx: 200, hPx: 400),
+        Def("homework_board", "作业板", "School", "Education", 2, 2, 3, 2, wPx: 430, hPx: 236),
+        Def("announcement_board", "公告栏", "School", "Education", 2, 2, 3, 3, wPx: 420, hPx: 400),
+        Def("media_player", "媒体播放器", "Media", "Music", 2, 1, 2, 1, ResizeMode.Horizontal, wPx: 400, hPx: 200, config: Cfg("""{"show_progress":true}""")),
+        Def("quick_launch_dock", "快捷启动", "Launcher", "App", 4, 1, 4, 1, ResizeMode.Horizontal, wPx: 400, hPx: 200, config: Cfg("""{"icon_size":64}""")),
+        Def("quick_launch_grid", "快捷启动II", "Launcher", "App", 4, 2, 4, 2, wPx: 400, hPx: 200, config: Cfg("""{"apps":[]}""")),
+        Def("Math_calculator", "计算器", "Tools", "Calculator", 2, 2, 2, 2, ResizeMode.Fixed, wPx: 280, hPx: 420),
+        Def("writing_pad", "书写板", "Tools", "Edit", 4, 1, 4, 1, ResizeMode.Fixed, wPx: 400, hPx: 100),
+        Def("sticky_note", "便签", "Tools", "Edit", 1, 1, 2, 2, wPx: 280, hPx: 280, config: Cfg("""{"color":"yellow"}""")),
+        Def("system_performance", "性能监测", "System", "Gauge", 4, 2, 4, 2, wPx: 400, hPx: 200),
+        Def("system_netspeed", "网速监控", "System", "Globe", 3, 2, 4, 2, wPx: 400, hPx: 200),
+        Def("study_meter", "分贝仪", "Study", "Microphone", 3, 2, 4, 2, wPx: 400, hPx: 200),
     };
+    private static JsonElement? Cfg(string json) => JsonSerializer.Deserialize<JsonElement>(json);
 }
 
 public sealed class PageMeta
@@ -449,5 +460,15 @@ public sealed class PageManager
     {
         var page = GetPage(index);
         return page is { Type: "nav" } ? page.Items : new List<JsonElement>();
+    }
+
+    public void SetPageItems(int index, List<JsonElement> items)
+    {
+        if (index >= 0 && index < _pages.Count && _pages[index].Type == "nav")
+        {
+            Log.Info($"[PageManager] 更新导航项: index={index} {items.Count}项");
+            _pages[index].Items = items;
+            Save();
+        }
     }
 }

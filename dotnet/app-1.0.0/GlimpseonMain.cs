@@ -21,9 +21,9 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using System.Text.Json;
 using Glimpseon.Core;
+using Glimpseon.Core.Services;
 using Glimpseon.Core.Win32;
 using Glimpseon.UI;
-using Glimpseon.UI.Views;
 
 namespace Glimpseon;
 
@@ -32,7 +32,9 @@ internal static class GlimpseonMain
     [STAThread]
     public static int Main(string[] args)
     {
-        var ret = BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        Paths.EnsureDataDirs();
+        Config.Load();
+        var ret = BuildAvaloniaApp(Config.EnableGpuAcceleration.Value).StartWithClassicDesktopLifetime(args);
         if (AppUtils.IsRestartPending())
         {
             Log.Info($"[重启] 待重启标记 exit_code={ret}");
@@ -41,9 +43,14 @@ internal static class GlimpseonMain
         return ret;
     }
 
-    public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<App>()
+    public static AppBuilder BuildAvaloniaApp(bool gpuEnabled = true) => AppBuilder.Configure<App>()
         .UsePlatformDetect()
-        .With(new Win32PlatformOptions { RenderingMode = [Win32RenderingMode.AngleEgl, Win32RenderingMode.Software] })
+        .With(new Win32PlatformOptions
+        {
+            RenderingMode = gpuEnabled
+                ? [Win32RenderingMode.AngleEgl, Win32RenderingMode.Software]
+                : [Win32RenderingMode.Software],
+        })
         .LogToTrace();
 
     public static async Task RunStartupAsync(ClassicDesktopStyleApplicationLifetime lifetime)
@@ -54,10 +61,20 @@ internal static class GlimpseonMain
 
             Paths.EnsureDataDirs();
             Log.InitExceptionHooks();
-            Dispatcher.UIThread.UnhandledException += (_, e) =>
+
+            // 崩溃退出释放互斥体
+            AppDomain.CurrentDomain.ProcessExit += (_, _) => AppUtils.ReleaseSingleInstance();
+            // 退出时清理媒体源
+            AppDomain.CurrentDomain.ProcessExit += (_, _) =>
             {
-                Log.Critical($"[ui线程] {e.Exception.GetType().Name}: {e.Exception.Message}\n{e.Exception.StackTrace}");
-                e.Handled = true;
+                try
+                {
+                    MediaServices.Close();
+                }
+                catch (Exception e)
+                {
+                    Log.Debug($"媒体源退出清理失败: {e.Message}");
+                }
             };
 
             Log.Info($"APP_DIR={Paths.AppDir} 图标={Constants.AppIcon}");
@@ -65,33 +82,54 @@ internal static class GlimpseonMain
             Log.Info($"系统版本 {Environment.OSVersion.VersionString} 运行时 {Environment.Version}");
             Log.Info($"软件运行路径 {Paths.PackageRoot}");
 
-            Config.Load();
-
-            // 日志尽早装载 保证向导/Splash 阶段已有文件日志
             var logMaxCount = Config.DebugMode.Value ? 3 : Config.LogMaxCount.Value;
             var logMaxDays = Config.DebugMode.Value ? 1 : Config.LogMaxDays.Value;
-            Log.Configure(Config.DisableLog.Value, Config.LogVerbosity.Value switch
-            {
-                LogVerbosity.Debug => LogLevel.Debug,
-                LogVerbosity.Info => LogLevel.Info,
-                LogVerbosity.Warning => LogLevel.Warning,
-                _ => LogLevel.Error,
-            }, logMaxCount, logMaxDays);
+            Log.Configure(Config.DisableLog.Value, AppUtils.ToLogLevel(Config.LogVerbosity.Value), logMaxCount, logMaxDays);
 
             AppUtils.InitTranslation();
             AppUtils.ApplyLanguageFromConfig();
+
+            Common.ApplyAccentColor(Common.ParseAccentColor(Config.ThemeColor.Value));
+
+            if (Config.DebugMode.Value)
+            {
+                var failures = Config.SelfCheckAll();
+                if (failures.Count == 0)
+                {
+                    Log.Info($"[配置] {Config.ItemCount} 项 序列化正常");
+                }
+                else
+                {
+                    Log.Error($"[配置] {failures.Count} 项异常:\n  " + string.Join("\n  ", failures));
+                }
+            }
 
         // 单实例检查
         if (!AppUtils.VerifySingleInstance())
         {
             Log.Warning($"{Constants.AppName} 已运行 本实例退出");
-            Native.ShowMessageBox(
+            var host = new Window
+            {
+                WindowDecorations = WindowDecorations.None,
+                WindowState = WindowState.Maximized,
+                ShowInTaskbar = false,
+                CanResize = false,
+                Topmost = true,
+                Background = Avalonia.Media.Brushes.Transparent,
+                TransparencyLevelHint = new[] { WindowTransparencyLevel.Transparent },
+            };
+            host.Show();
+            await Common.Alert(
+                host,
+                AppUtils.Tr("dialog.instance_running", ("app", Constants.AppName)),
                 AppUtils.Tr("dialog.instance_running_detail", ("app", Constants.AppName)),
-                Constants.AppName);
+                AppUtils.Tr("common.cancel"));
+            host.Close();
             lifetime.Shutdown();
             return;
         }
         Log.Info("单实例可启动");
+        Log.Debug($"自启动启动参数检测: {AppUtils.AutoStartLaunch()}");
 
         // 向导
         if (WizardWindow.IsNeeded())
@@ -112,10 +150,16 @@ internal static class GlimpseonMain
 
         splash.UpdateStatus(AppUtils.Tr("splash.initializing_fonts"));
         splash.SetProgress(30);
+        AppUtils.InitializeFonts();
+        await Task.Delay(60);
+
+        splash.UpdateStatus(AppUtils.Tr("splash.cleaning_temp"));
+        splash.SetProgress(40);
+        _ = Task.Run(() => Downloader.CleanupTempDirectory());
         await Task.Delay(60);
 
         splash.UpdateStatus(AppUtils.Tr("splash.configuring_log"));
-        splash.SetProgress(40);
+        splash.SetProgress(45);
         await Task.Delay(60);
 
         splash.UpdateStatus(AppUtils.Tr("splash.loading_config"));
@@ -134,6 +178,8 @@ internal static class GlimpseonMain
         splash.UpdateStatus(AppUtils.Tr("splash.preloading"));
         splash.SetProgress(75);
         var preloadTask = PreloadWallpaperAsync(window);
+        RegisterCacheRefreshers(window);
+        AppUtils.CacheRefresher.Start();
         var finished = await Task.WhenAny(preloadTask, Task.Delay(600));
         if (finished != preloadTask)
         {
@@ -185,20 +231,36 @@ internal static class GlimpseonMain
 
     private static async Task PreloadWallpaperAsync(MainWindow window)
     {
+        try
+        {
+            var cityName = Config.City.Value;
+            if (!string.IsNullOrWhiteSpace(cityName))
+            {
+                var (lon, lat) = new RegionDatabase().GetCoordinates(cityName);
+                if (lon is not null && lat is not null
+                    && (Math.Abs(Config.Longitude.Value - lon.Value) > 1e-6 || Math.Abs(Config.Latitude.Value - lat.Value) > 1e-6))
+                {
+                    Config.Longitude.Value = lon.Value;
+                    Config.Latitude.Value = lat.Value;
+                    Log.Info($"[PRELOAD] 城市>坐标回填 {cityName} ({lon:F4}, {lat:F4})");
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"[PRELOAD] 城市>坐标回填失败: {e.Message}");
+        }
+
         await Task.Run(async () =>
         {
             try
             {
-                var cached = AppUtils.GetCachedContent("wallpaper", ignoreExpiry: true);
-                if (cached is { } root && root.ValueKind == JsonValueKind.Object && root.TryGetProperty("path", out var pathEl))
+                var path = WallpaperService.LoadCachePath();
+                if (path is not null)
                 {
-                    var path = pathEl.GetString();
-                    if (!string.IsNullOrEmpty(path) && File.Exists(path))
-                    {
-                        Log.Info($"[PRELOAD] 壁纸预取 缓存 {path}");
-                        await Dispatcher.UIThread.InvokeAsync(() => window.HomeView.SetWallpaper(path));
-                        return;
-                    }
+                    Log.Info($"[PRELOAD] 壁纸预取 缓存 {path}");
+                    await Dispatcher.UIThread.InvokeAsync(() => ApplyWallpaperPreload(window, path));
+                    return;
                 }
 
                 // 缓存缺失 壁纸
@@ -206,7 +268,19 @@ internal static class GlimpseonMain
                 if (File.Exists(defaultWallpaper))
                 {
                     Log.Info($"[PRELOAD] 壁纸预取 默认 {defaultWallpaper}");
-                    await Dispatcher.UIThread.InvokeAsync(() => window.HomeView.SetWallpaper(defaultWallpaper));
+                    await Dispatcher.UIThread.InvokeAsync(() => ApplyWallpaperPreload(window, defaultWallpaper));
+                    return;
+                }
+
+                // 默认壁纸缺失回退历史壁纸
+                var history = Directory.EnumerateFiles(Paths.WallpaperDir, "wallpaper_*.jpg")
+                    .Select(f => (Path: f, Mtime: File.GetLastWriteTime(f)))
+                    .OrderByDescending(x => x.Mtime)
+                    .FirstOrDefault();
+                if (history.Path is not null)
+                {
+                    Log.Info($"[PRELOAD] 壁纸预取 历史 {history.Path}");
+                    await Dispatcher.UIThread.InvokeAsync(() => ApplyWallpaperPreload(window, history.Path));
                     return;
                 }
 
@@ -217,6 +291,78 @@ internal static class GlimpseonMain
                 Log.Error($"[PRELOAD] {e.Message}");
             }
         });
+    }
+
+    private static void ApplyWallpaperPreload(MainWindow window, string path)
+    {
+        window.HomeView.SetWallpaper(path);
+        window.WallpaperView.NotifyWallpaperFetched(path, AppUtils.Tr("wallpaper.source_cache"));
+    }
+
+    // 缓存
+    private static void RegisterCacheRefreshers(MainWindow window)
+    {
+        // 天气
+        AppUtils.CacheRefresher.Register(new AppUtils.CacheRefresher.Entry
+        {
+            Name = "weather",
+            Interval = () => Config.WeatherUpdateInterval.Value,
+            Enabled = () => Config.ShowWeather.Value,
+            Fetch = async () =>
+            {
+                var data = await WeatherService.FetchAllAsync();
+                return data;
+            },
+        });
+        // 一言
+        AppUtils.CacheRefresher.Register(new AppUtils.CacheRefresher.Entry
+        {
+            Name = "poetry",
+            Interval = () => Config.PoetryUpdateInterval.Value,
+            Enabled = () => Config.ShowPoetry.Value,
+            Fetch = async () =>
+            {
+                var text = await PoetryService.GetPoetryAsync();
+                return text is null ? null : JsonSerializer.SerializeToElement(text);
+            },
+        });
+        // 壁纸
+        AppUtils.CacheRefresher.Register(new AppUtils.CacheRefresher.Entry
+        {
+            Name = "wallpaper",
+            Interval = () => Config.AutoGetInterval.Value,
+            AutoEnabled = () => Config.AutoGetInterval.Value != "never",
+            SkipSave = true,
+            Fetch = async () =>
+            {
+                var path = await WallpaperService.FetchAsync();
+                if (path is null)
+                {
+                    return null;
+                }
+                return AppUtils.GetCachedContent("wallpaper", ignoreExpiry: true);
+            },
+            Apply = data =>
+            {
+                if (data is { ValueKind: JsonValueKind.Object } root && root.TryGetProperty("path", out var p) && p.GetString() is { } path)
+                {
+                    var source = root.TryGetProperty("source", out var sEl) ? sEl.GetString() ?? "" : "";
+                    window.HomeView.SetWallpaper(path);
+                    window.WallpaperView.NotifyWallpaperFetched(path, source);
+                    if (Config.AutoSyncToDesktop.Value)
+                    {
+                        _ = Task.Run(() => WallpaperService.SetDesktop(path));
+                    }
+                }
+            },
+        });
+        // 配置变更
+        Config.City.ValueChanged += _ => AppUtils.CacheRefresher.Invalidate("weather");
+        Config.WeatherUpdateInterval.ValueChanged += _ => AppUtils.CacheRefresher.Invalidate("weather");
+        Config.ShowWeather.ValueChanged += v => { if (v) { AppUtils.CacheRefresher.Invalidate("weather"); } };
+        Config.PoetryApiUrl.ValueChanged += _ => AppUtils.CacheRefresher.Invalidate("poetry");
+        Config.WallpaperApi.ValueChanged += _ => AppUtils.CacheRefresher.Invalidate("wallpaper");
+        Config.AutoGetInterval.ValueChanged += _ => AppUtils.CacheRefresher.Invalidate("wallpaper");
     }
 
     private static async Task WaitForWindowCloseAsync(Window window)

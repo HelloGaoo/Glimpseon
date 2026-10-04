@@ -15,6 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 // 日志
+using System.IO.Compression;
 using System.Runtime.CompilerServices;
 using System.Text;
 
@@ -133,6 +134,7 @@ public static class Log
             {
                 return;
             }
+            CompressOldLogs();
             var files = Directory.EnumerateFiles(Paths.DataLog)
                 .Where(f =>
                 {
@@ -166,6 +168,38 @@ public static class Log
         }
     }
 
+    // >24h 的 .log 压成 .zip 删原件
+    private static void CompressOldLogs()
+    {
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(Paths.DataLog, "*.log"))
+            {
+                var mtime = File.GetLastWriteTime(file);
+                if (DateTime.Now - mtime <= TimeSpan.FromHours(24))
+                {
+                    continue;
+                }
+                var zipPath = file + ".zip";
+                try
+                {
+                    using var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create);
+                    archive.CreateEntryFromFile(file, Path.GetFileName(file), CompressionLevel.Optimal);
+                    File.Delete(file);
+                    Log.Debug($"旧日志已压缩 {Path.GetFileName(file)}");
+                }
+                catch (Exception e)
+                {
+                    Console.Error.WriteLine($"[logger] 压缩失败 {Path.GetFileName(file)}: {e.Message}");
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // 压缩失败忽略
+        }
+    }
+
     public static void InitExceptionHooks()
     {
         lock (LockObj)
@@ -185,22 +219,9 @@ public static class Log
 
         TaskScheduler.UnobservedTaskException += (_, e) =>
         {
-            Critical($"[Task问题] {e.Exception?.InnerException?.GetType().Name}: {e.Exception?.InnerException?.Message}");
+            var inner = e.Exception?.InnerExceptions?.Count > 0 ? e.Exception.InnerExceptions[0] : e.Exception?.InnerException;
+            Critical($"[Task问题] {inner?.GetType().Name}: {inner?.Message}\n{inner?.StackTrace}");
             e.SetObserved();
         };
-    }
-
-    public static void CrashContext(string title)
-    {
-        try
-        {
-            var proc = System.Diagnostics.Process.GetCurrentProcess();
-            var ctx = $"时间: {DateTime.Now:yyyy-MM-dd HH:mm:ss}\nPID: {proc.Id}\n内存: {proc.WorkingSet64 / 1024 / 1024}MB\n线程: {proc.Threads.Count}";
-            Critical($"[上下文] {title}\n{ctx}");
-        }
-        catch (Exception)
-        {
-            // 上下文采集失败忽略
-        }
     }
 }

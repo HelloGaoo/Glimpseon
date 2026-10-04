@@ -20,7 +20,7 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Glimpseon.Core;
 
-namespace Glimpseon.UI.Views;
+namespace Glimpseon.UI;
 
 public class DebugView : UserControl
 {
@@ -55,10 +55,5 @@ public class DebugView : UserControl
             $"PACKAGE_ROOT: {Paths.PackageRoot}",
             $"APP_DIR: {Paths.AppDir}",
             $"DATA_ROOT: {Paths.DataRoot}");
-    }
-
-    public void UpdateTheme()
-    {
-        RefreshInfo();
     }
 }

@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
+using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -35,6 +36,11 @@ public partial class App : Application
         {
             Lifetime = lifetime;
             lifetime.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            Avalonia.Threading.Dispatcher.UIThread.UnhandledException += (_, e) =>
+            {
+                Glimpseon.Core.Log.Critical($"[ui线程] {e.Exception.GetType().Name}: {e.Exception.Message}\n{e.Exception.StackTrace}");
+                e.Handled = true;
+            };
             Avalonia.Threading.Dispatcher.UIThread.Post(() => _ = GlimpseonMain.RunStartupAsync((ClassicDesktopStyleApplicationLifetime)lifetime));
         }
         base.OnFrameworkInitializationCompleted();

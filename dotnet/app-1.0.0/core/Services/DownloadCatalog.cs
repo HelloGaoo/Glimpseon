@@ -107,20 +107,6 @@ public static class DownloadCatalog
         new("office2021.7z", null, "/HelloGaoo/SeevvoDownloader/releases/download/v1.0.0/office2021.7z"),
     };
 
-    // 按软件名查直链
-    public static DownloadUrlEntry? FindDownloadUrl(string softwareName)
-    {
-        foreach (var candidate in new[] { $"{softwareName}.exe", $"{softwareName}.7z", softwareName })
-        {
-            var hit = UrlDir.FirstOrDefault(u => u.Filename == candidate);
-            if (hit is not null)
-            {
-                return hit;
-            }
-        }
-        return null;
-    }
-
     public static string GetSoftwareIconPath(string? iconFilename)
     {
         if (string.IsNullOrEmpty(iconFilename))

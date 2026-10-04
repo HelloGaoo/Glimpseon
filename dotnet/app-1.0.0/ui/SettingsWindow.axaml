@@ -1,30 +1,31 @@
-<ui:GlimpseonWindow x:Class="Glimpseon.UI.Views.SettingsWindow"
+<ui:GlimpseonWindow x:Class="Glimpseon.UI.SettingsWindow"
         xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:fa="using:FluentAvalonia.UI.Controls"
         xmlns:ui="using:Glimpseon.UI"
         Title="应用设置"
-        Width="1100" Height="680"
+        Width="1150" Height="750"
         MinWidth="760" MinHeight="520">
   <Grid RowDefinitions="Auto,*">
     <!-- 标题行 -->
     <Border Grid.Row="0" Height="48" Margin="0,0,8,0">
       <Grid VerticalAlignment="Center" ColumnDefinitions="Auto,Auto,*,Auto" Margin="12,0,0,0">
         <Image x:Name="WindowIcon" Width="18" Height="18" Margin="0,2,0,0" />
-        <TextBlock Grid.Column="1" Text="应用设置" FontSize="12" Margin="10,2,0,0" VerticalAlignment="Center" Opacity="0.85" />
+        <TextBlock Grid.Column="1" x:Name="TitleLabel" FontSize="12" Margin="10,2,0,0" VerticalAlignment="Center" Opacity="0.85" />
         <TextBlock Grid.Column="2" x:Name="VersionText" FontSize="12" Margin="0,2,12,0" VerticalAlignment="Center" HorizontalAlignment="Right" Opacity="0.55" />
         <!-- 标题键空位 -->
         <Border Grid.Column="3" Width="140" />
       </Grid>
     </Border>
     <fa:FANavigationView Grid.Row="1" x:Name="Nav"
-                         PaneDisplayMode="Auto"
+                         PaneDisplayMode="Left"
                          OpenPaneLength="260"
                          IsPaneToggleButtonVisible="True"
                          IsBackButtonVisible="False"
                          IsSettingsVisible="False"
                          SelectionChanged="OnNavSelectionChanged">
       <fa:FANavigationView.MenuItems>
+        <!-- 通用/时间/外观/天气/网格/日志/高级 -->
         <fa:FANavigationViewItem x:Name="NavGeneral" Tag="general">
           <fa:FANavigationViewItem.IconSource>
             <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Setting}" />
@@ -32,12 +33,7 @@
         </fa:FANavigationViewItem>
         <fa:FANavigationViewItem x:Name="NavTime" Tag="time">
           <fa:FANavigationViewItem.IconSource>
-            <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Clock}" />
-          </fa:FANavigationViewItem.IconSource>
-        </fa:FANavigationViewItem>
-        <fa:FANavigationViewItem x:Name="NavWeather" Tag="weather">
-          <fa:FANavigationViewItem.IconSource>
-            <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Cloud}" />
+            <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Calendar}" />
           </fa:FANavigationViewItem.IconSource>
         </fa:FANavigationViewItem>
         <fa:FANavigationViewItem x:Name="NavAppearance" Tag="appearance">
@@ -45,19 +41,24 @@
             <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.ColorBackgroundFilled}" />
           </fa:FANavigationViewItem.IconSource>
         </fa:FANavigationViewItem>
-        <fa:FANavigationViewItem x:Name="NavLog" Tag="log">
+        <fa:FANavigationViewItem x:Name="NavWeather" Tag="weather">
           <fa:FANavigationViewItem.IconSource>
-            <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Page}" />
-          </fa:FANavigationViewItem.IconSource>
-        </fa:FANavigationViewItem>
-        <fa:FANavigationViewItem x:Name="NavAdvanced" Tag="advanced">
-          <fa:FANavigationViewItem.IconSource>
-            <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Settings}" />
+            <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Cloud}" />
           </fa:FANavigationViewItem.IconSource>
         </fa:FANavigationViewItem>
         <fa:FANavigationViewItem x:Name="NavGrid" Tag="grid">
           <fa:FANavigationViewItem.IconSource>
             <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Bullets}" />
+          </fa:FANavigationViewItem.IconSource>
+        </fa:FANavigationViewItem>
+        <fa:FANavigationViewItem x:Name="NavLog" Tag="log">
+          <fa:FANavigationViewItem.IconSource>
+            <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Document}" />
+          </fa:FANavigationViewItem.IconSource>
+        </fa:FANavigationViewItem>
+        <fa:FANavigationViewItem x:Name="NavAdvanced" Tag="advanced">
+          <fa:FANavigationViewItem.IconSource>
+            <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Settings}" />
           </fa:FANavigationViewItem.IconSource>
         </fa:FANavigationViewItem>
       </fa:FANavigationView.MenuItems>

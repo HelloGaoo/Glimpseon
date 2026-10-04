@@ -103,14 +103,4 @@ public partial class SplashWindow : Window
             _animTimer?.Stop();
         }
     }
-
-    public async Task WaitForProgressAsync(double target, double timeoutSeconds)
-    {
-        var end = DateTime.Now.AddSeconds(timeoutSeconds);
-        while (DateTime.Now < end && _currentProgress < target)
-        {
-            await Dispatcher.UIThread.InvokeAsync(() => { });
-            await Task.Delay(3);
-        }
-    }
 }

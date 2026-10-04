@@ -107,14 +107,18 @@ public static class Paths
                         return entry;
                     }
                 }
-                catch (Exception)
+                catch (Exception e)
                 {
+
+                    Glimpseon.Core.Log.Warning($"[PATHS] 目录扫描失败跳过: {e.Message}");
                     continue;
                 }
             }
         }
-        catch (Exception)
+        catch (Exception e)
         {
+
+            Glimpseon.Core.Log.Warning($"[PATHS] 扫描失败 用包根目录: {e.Message}");
             // 扫描失败 最后用包根目录
         }
 
@@ -131,8 +135,10 @@ public static class Paths
             var buildDate = doc.RootElement.TryGetProperty("build_date", out var b) ? b.GetString() ?? "" : "";
             return (version, buildDate);
         }
-        catch (Exception)
+        catch (Exception e)
         {
+
+            Glimpseon.Core.Log.Warning($"[PATHS] 版本读取失败 用 1.0.0: {e.Message}");
             return ("1.0.0", "");
         }
     }
@@ -152,8 +158,10 @@ public static class Paths
                 {
                     Directory.CreateDirectory(dir);
                 }
-                catch (Exception)
+                catch (Exception e)
                 {
+
+                    Glimpseon.Core.Log.Warning($"[PATHS] 目录创建失败: {e.Message}");
                     // 创建失败留待后续重试
                 }
             }

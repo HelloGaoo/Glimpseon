@@ -15,7 +15,6 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 // 主界面
-using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -24,11 +23,11 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using FluentAvalonia.UI.Controls;
 using Glimpseon.Core;
-using Glimpseon.UI.Views;
 
-namespace Glimpseon.UI.Views;
+namespace Glimpseon.UI;
 
 public partial class HomeView : UserControl
 {
@@ -50,6 +49,9 @@ public partial class HomeView : UserControl
     private int _currentPageIndex;
     private bool _editModeActive;
     private string? _selectedPlacementId;
+    private SelectionAdorner? _adorner;
+    private Button? _configBtn;
+    private Button? _deleteBtn;
     private bool _swipeDragging;
     private bool _swipeMoved;
     private double _swipeStartX;
@@ -112,14 +114,15 @@ public partial class HomeView : UserControl
 
     public void SetWallpaper(string path)
     {
+        if (!File.Exists(path))
+        {
+            return;
+        }
         try
         {
-            if (!File.Exists(path))
-            {
-                return;
-            }
             _originalBitmap?.Dispose();
             _originalBitmap = new Bitmap(path);
+            _wallpaperPath = path;
             ApplyBackgroundEffects();
             Log.Info($"[HOME] 壁纸已应用: {path}");
         }
@@ -128,6 +131,8 @@ public partial class HomeView : UserControl
             Log.Error($"[HOME] 壁纸应用失败: {e.Message}");
         }
     }
+
+    private string? _wallpaperPath;
 
     private void ApplyBackgroundEffects()
     {
@@ -143,6 +148,7 @@ public partial class HomeView : UserControl
     {
         _pagesStack = new Canvas { ClipToBounds = true };
         PagesContainer.Children.Add(_pagesStack);
+        PagesContainer.SizeChanged += (_, _) => LayoutPages();
 
         for (var i = 0; i < PageManager.Count; i++)
         {
@@ -154,6 +160,7 @@ public partial class HomeView : UserControl
             _currentPageIndex = 0;
         }
         LayoutPages();
+        ApplyPageVisibility();
         Log.Debug($"[HOME] 页面就绪 {Count}页 当前={_currentPageIndex}");
     }
 
@@ -161,13 +168,29 @@ public partial class HomeView : UserControl
 
     private Panel CreatePageWidget(int pageIndex)
     {
+        Panel panel;
         var meta = PageManager.GetPage(pageIndex);
         if (meta is { Type: "nav" })
         {
-            return new NavigationPage(pageIndex, PageManager);
+            panel = new NavigationPage(pageIndex, PageManager);
         }
+        else
+        {
         var canvas = new Canvas { ClipToBounds = true };
-        return canvas;
+            canvas.SizeChanged += (_, _) =>
+        {
+            foreach (var child in canvas.Children)
+            {
+                if (child is DraggableContainer container)
+                {
+                    container.ApplyPercent();
+                }
+            }
+        };
+            panel = canvas;
+        }
+        _pagesStack.Children.Add(panel);
+        return panel;
     }
 
     public Panel? GetInfoPagePanel(int pageIndex)
@@ -205,14 +228,8 @@ public partial class HomeView : UserControl
         foreach (var (compId, instance) in ComponentManager.Components)
         {
             var pageIndex = ComponentManager.GetComponentPage(compId);
-            if (visiblePages.Contains(pageIndex))
-            {
-                instance.IsVisible = true;
-            }
-            else
-            {
-                instance.IsVisible = false;
-            }
+            var enabled = ComponentManager.IsComponentEnabled(compId);
+            instance.IsVisible = visiblePages.Contains(pageIndex) && enabled;
         }
     }
 
@@ -234,43 +251,87 @@ public partial class HomeView : UserControl
         }
 
         var w = PagesContainer.Bounds.Width;
+        var targetX = -index * w;
+        _pageAnimStopwatch?.Stop();
+
         if (animate && oldIndex != index && w > 0)
         {
             ApplyPageVisibility(new HashSet<int> { oldIndex, index });
-            var targetX = -index * w;
-            var animation = new Avalonia.Animation.Animation
+            AnimatePagesStackTo(targetX, () =>
             {
-                Duration = TimeSpan.FromMilliseconds(250),
-                Easing = new Avalonia.Animation.Easings.CubicEaseOut(),
-                Children =
-                {
-                    new Avalonia.Animation.KeyFrame
-                    {
-                        Cue = new Avalonia.Animation.Cue(0.0),
-                        Setters = { new Avalonia.Styling.Setter(Canvas.LeftProperty, Canvas.GetLeft(_pagesStack)) },
-                    },
-                    new Avalonia.Animation.KeyFrame
-                    {
-                        Cue = new Avalonia.Animation.Cue(1.0),
-                        Setters = { new Avalonia.Styling.Setter(Canvas.LeftProperty, targetX) },
-                    },
-                },
-            };
-            _ = animation.RunAsync(_pagesStack);
+                ApplyPageVisibility();
+                PageIndicator.SetCurrent(_currentPageIndex);
+            });
         }
         else
         {
-            Canvas.SetLeft(_pagesStack, -index * w);
-        }
-        Dispatcher.UIThread.Post(() =>
-        {
+            Canvas.SetLeft(_pagesStack, targetX);
             ApplyPageVisibility();
             PageIndicator.SetCurrent(_currentPageIndex);
-        }, DispatcherPriority.Background);
+        }
         PageIndicator.SetCurrent(index);
     }
 
+    // 滑动动画
+    private System.Diagnostics.Stopwatch? _pageAnimStopwatch;
+    private DispatcherTimer? _pageAnimTimer;
+    private double _animFromX;
+    private double _animToX;
+
+    private void AnimatePagesStackTo(double targetX, Action finished)
+    {
+        _animFromX = Canvas.GetLeft(_pagesStack);
+        if (double.IsNaN(_animFromX))
+        {
+            _animFromX = 0;
+        }
+        _animToX = targetX;
+        if (Math.Abs(_animToX - _animFromX) < 0.5)
+        {
+            Canvas.SetLeft(_pagesStack, targetX);
+            finished();
+            return;
+        }
+
+        Log.Debug($"[ANIM] 开始 from={_animFromX:F0} to={_animToX:F0}");
+        _pageAnimStopwatch = System.Diagnostics.Stopwatch.StartNew();
+        _pageAnimTimer?.Stop();
+        _pageAnimTimer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(16) };
+        const double durationMs = 250;
+        _pageAnimTimer.Tick += (_, _) =>
+        {
+            var t = Math.Min(1.0, _pageAnimStopwatch.Elapsed.TotalMilliseconds / durationMs);
+            // OutCubic: 1 - (1-t)^3
+            var eased = 1 - Math.Pow(1 - t, 3);
+            Canvas.SetLeft(_pagesStack, _animFromX + (_animToX - _animFromX) * eased);
+            if (t >= 1.0)
+            {
+                _pageAnimTimer?.Stop();
+                _pageAnimTimer = null;
+                Canvas.SetLeft(_pagesStack, _animToX);
+                Log.Debug($"[ANIM] 完成 to={_animToX:F0}");
+                finished();
+            }
+        };
+        _pageAnimTimer.Start();
+    }
+
     // 手势翻页
+    private bool IsWithinDraggable(Visual? v)
+    {
+        while (v is not null)
+        {
+            if (v is DraggableContainer
+                || ReferenceEquals(v, _configBtn)
+                || ReferenceEquals(v, _deleteBtn)
+                || ReferenceEquals(v, _adorner))
+            {
+                return true;
+            }
+            v = v.GetVisualParent();
+        }
+        return false;
+    }
 
     private void OnRootPointerPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -278,7 +339,11 @@ public partial class HomeView : UserControl
         {
             if (_editModeActive)
             {
-                DeselectAll();
+                // 点在组件上不取消选中
+                if (!IsWithinDraggable(e.Source as Visual))
+                {
+                    DeselectAll();
+                }
             }
             var meta = PageManager.GetPage(_currentPageIndex);
             if (!_editModeActive || meta is { Type: "nav" })
@@ -382,7 +447,6 @@ public partial class HomeView : UserControl
 
     private void InitBottomBar()
     {
-        BottomBar.Width = double.NaN;
         BackToDesktopBtn.Content = AppUtils.Tr("home.back_to_desktop");
         AddPageBtn.Content = AppUtils.Tr("home.add_page_with_count", ("count", Count));
         RenamePageBtn.Content = AppUtils.Tr("home.rename_page");
@@ -390,6 +454,39 @@ public partial class HomeView : UserControl
         PageIndicator.SetCount(Count);
         PageIndicator.SetCurrent(_currentPageIndex);
         PageIndicator.PageClicked += index => GoToPage(index, animate: true);
+
+        // 岛样式跟随组件不透明度/圆角/主题
+        ApplyIslandStyle();
+        Config.ComponentCardOpacity.ValueChanged += _ => ApplyIslandStyle();
+        Config.ComponentCardRadius.ValueChanged += _ => ApplyIslandStyle();
+        ActualThemeVariantChanged += (_, _) => ApplyIslandStyle();
+    }
+
+    // 底部岛
+    private void ApplyIslandStyle()
+    {
+        var dark = ThemeSense.IsDark(this);
+        var op = Math.Clamp(Config.ComponentCardOpacity.Value / 100.0, 0, 1);
+        BottomBar.Background = dark
+            ? new SolidColorBrush(Color.FromRgb(30, 30, 30), op)
+            : new SolidColorBrush(Colors.White, op);
+        BottomBar.BorderBrush = new SolidColorBrush(dark ? Colors.White : Colors.Black, dark ? 0.10 : 0.06);
+        BottomBar.BorderThickness = new Thickness(1);
+        BottomBar.CornerRadius = new CornerRadius(Math.Max(8, Config.ComponentCardRadius.Value));
+
+        // 回到桌面按钮
+        BackToDesktopBtn.Background = dark
+            ? new SolidColorBrush(Colors.White, 0.08)
+            : new SolidColorBrush(Colors.Black, 0.06);
+        BackToDesktopBtn.Foreground = dark
+            ? new SolidColorBrush(Colors.White)
+            : new SolidColorBrush(Color.Parse("#333333"));
+        BackToDesktopBtn.CornerRadius = new CornerRadius(8);
+        BackToDesktopBtn.Padding = new Thickness(20, 8, 20, 8);
+
+        MenuBtn.Foreground = dark
+            ? new SolidColorBrush(Colors.White)
+            : new SolidColorBrush(Color.Parse("#333333"));
     }
 
     private void OnBackToDesktopClicked(object? sender, RoutedEventArgs e) => MainWindow.MinimizeToDesktop();
@@ -516,8 +613,36 @@ public partial class HomeView : UserControl
     {
         EnterEditMode();
         var library = new ComponentLibraryWindow(ComponentRegistry);
+        library.DefinitionActivated = AddComponentById;
         library.Closed += (_, _) => ExitEditMode();
         library.Show();
+    }
+
+    // 双击组件库卡片添加到当前页中心
+    public void AddComponentById(string defId)
+    {
+        var def = ComponentRegistry.GetDefinition(defId);
+        if (def is null)
+        {
+            return;
+        }
+        var underscore = defId.IndexOf('_', StringComparison.Ordinal);
+        var compType = underscore > 0 ? defId[..underscore] : defId;
+        var compStyle = underscore > 0 ? defId[(underscore + 1)..] : "";
+        var compId = ComponentManager.AddComponent(compType, compStyle, _currentPageIndex);
+        if (compId is not null)
+        {
+            var instance = ComponentManager.Components[compId];
+            var n = ComponentManager.Components.Count;
+            var offset = (n % 5) * 0.04;
+            instance.SetPositionPercent(Math.Clamp(0.42 + offset, 0, 1), Math.Clamp(0.40 + offset, 0, 1));
+            if (_editModeActive)
+            {
+                instance.IsDraggable = true;
+                instance.Selected += SelectComponent;
+            }
+            Log.Info($"[组件库] 双击添加 {compId}");
+        }
     }
 
     // 编辑模式
@@ -573,12 +698,210 @@ public partial class HomeView : UserControl
     {
         DeselectAll();
         _selectedPlacementId = componentId;
+        if (!ComponentManager.Components.TryGetValue(componentId, out var container))
+        {
+            Log.Debug($"[HOME] 选中组件: id={componentId} 容器未找到");
+            return;
+        }
+        container.IsSelected = true;
+        container.GeometryChanged -= OnSelectedGeometryChanged;
+        container.GeometryChanged += OnSelectedGeometryChanged;
+        ShowSelection(container);
         Log.Debug($"[HOME] 选中组件: id={componentId}");
     }
 
     private void DeselectAll()
     {
+        if (_selectedPlacementId is not null &&
+            ComponentManager.Components.TryGetValue(_selectedPlacementId, out var old))
+        {
+            old.IsSelected = false;
+            old.GeometryChanged -= OnSelectedGeometryChanged;
+        }
         _selectedPlacementId = null;
+        HideSelection();
+    }
+
+    private void OnSelectedGeometryChanged()
+    {
+        if (_selectedPlacementId is not null &&
+            ComponentManager.Components.TryGetValue(_selectedPlacementId, out var c))
+        {
+            PositionSelection(c);
+        }
+    }
+
+    // 选中装饰 编辑按钮 
+
+    private void EnsureSelectionVisuals()
+    {
+        if (_adorner is not null)
+        {
+            return;
+        }
+        _adorner = new SelectionAdorner();
+        _configBtn = MakeEditButton(FASymbol.Settings, _ConfigHover, isDelete: false);
+        _deleteBtn = MakeEditButton(FASymbol.Delete, _DeleteHover, isDelete: true);
+        _configBtn.Click += (_, _) => OpenSelectedComponentConfig();
+        _deleteBtn.Click += (_, _) => DeleteSelectedComponent();
+    }
+
+    private static readonly Color _ConfigHover = Color.FromRgb(0, 120, 212);
+    private static readonly Color _DeleteHover = Color.FromRgb(220, 80, 80);
+
+    private const double EditBtnLeftShift = 16;
+    private const double EditBtnDownShift = 16;
+
+    private Button MakeEditButton(FASymbol symbol, Color hover, bool isDelete)
+    {
+        var btn = new Button
+        {
+            Width = 48,
+            Height = 48,
+            Padding = new Thickness(0),
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Content = new FASymbolIcon { Symbol = symbol, FontSize = 22 },
+            ZIndex = 5001,
+        };
+        void Rest() => ApplyEditButtonStyle(btn, hover, isDelete, hovered: false);
+        void Hov() => ApplyEditButtonStyle(btn, hover, isDelete, hovered: true);
+        btn.PointerEntered += (_, _) => Hov();
+        btn.PointerExited += (_, _) => Rest();
+        Rest();
+        return btn;
+    }
+
+    private void ApplyEditButtonStyle(Button btn, Color hover, bool isDelete, bool hovered)
+    {
+        var dark = ThemeSense.IsDark(this);
+        var op = Math.Clamp(Config.ComponentCardOpacity.Value / 100.0, 0, 1);
+        var radius = Math.Max(0, Config.ComponentCardRadius.Value);
+        btn.CornerRadius = new CornerRadius(radius);
+        btn.BorderThickness = new Thickness(1);
+        if (hovered)
+        {
+            btn.Background = new SolidColorBrush(hover, 0.85);
+            btn.BorderBrush = new SolidColorBrush(hover, 0.9);
+        }
+        else
+        {
+            var bg = dark ? Color.FromRgb(40, 40, 40) : Colors.White;
+            btn.Background = new SolidColorBrush(bg, op);
+            btn.BorderBrush = new SolidColorBrush(dark ? Colors.White : Colors.Black, dark ? 0.10 : 0.08);
+        }
+    }
+
+    private void ShowSelection(DraggableContainer container)
+    {
+        EnsureSelectionVisuals();
+        if (container.Parent is not Panel panel || _adorner is null || _configBtn is null || _deleteBtn is null)
+        {
+            return;
+        }
+        (_adorner.Parent as Panel)?.Children.Remove(_adorner);
+        (_configBtn.Parent as Panel)?.Children.Remove(_configBtn);
+        (_deleteBtn.Parent as Panel)?.Children.Remove(_deleteBtn);
+        panel.Children.Add(_adorner);
+        panel.Children.Add(_deleteBtn);
+        panel.Children.Add(_configBtn);
+
+        _adorner.Target = container;
+        _adorner.CardRadius = container.CardRadius;
+        _adorner.SetAccent(AccentColor());
+        ApplyEditButtonStyle(_configBtn, _ConfigHover, isDelete: false, hovered: false);
+        ApplyEditButtonStyle(_deleteBtn, _DeleteHover, isDelete: true, hovered: false);
+        PositionSelection(container);
+        _adorner.IsVisible = true;
+        _configBtn.IsVisible = true;
+        _deleteBtn.IsVisible = true;
+    }
+
+    private void PositionSelection(DraggableContainer container)
+    {
+        if (_adorner is null || _configBtn is null || _deleteBtn is null)
+        {
+            return;
+        }
+        var left = Canvas.GetLeft(container);
+        var top = Canvas.GetTop(container);
+        if (double.IsNaN(left)) left = 0;
+        if (double.IsNaN(top)) top = 0;
+        var w = container.VisualWidth;
+        var h = container.VisualHeight;
+
+        // 圆角跟随组件配置
+        _adorner.CardRadius = container.CardRadius;
+
+        Canvas.SetLeft(_adorner, left - SelectionAdorner.PadL);
+        Canvas.SetTop(_adorner, top - SelectionAdorner.PadT);
+        _adorner.Width = w + SelectionAdorner.PadL + SelectionAdorner.PadR;
+        _adorner.Height = h + SelectionAdorner.PadT + SelectionAdorner.PadB;
+
+        var delX = left + w - 48 + 4 - EditBtnLeftShift;
+        var delY = top + h + 4 + EditBtnDownShift;
+        Canvas.SetLeft(_deleteBtn, delX);
+        Canvas.SetTop(_deleteBtn, delY);
+        Canvas.SetLeft(_configBtn, delX - 48 - 8);
+        Canvas.SetTop(_configBtn, delY);
+        _adorner.InvalidateVisual();
+    }
+
+    private void HideSelection()
+    {
+        if (_adorner is not null)
+        {
+            _adorner.IsVisible = false;
+        }
+        if (_configBtn is not null)
+        {
+            _configBtn.IsVisible = false;
+        }
+        if (_deleteBtn is not null)
+        {
+            _deleteBtn.IsVisible = false;
+        }
+    }
+
+    private static Color AccentColor()
+    {
+        try
+        {
+            return Color.Parse(Config.ThemeColor.Value);
+        }
+        catch
+        {
+            return Color.Parse("#30c361");
+        }
+    }
+
+    private async void OpenSelectedComponentConfig()
+    {
+        if (_selectedPlacementId is null)
+        {
+            return;
+        }
+        var id = _selectedPlacementId;
+        var cfg = ComponentManager.GetComponentConfig(id);
+        var saved = await ComponentConfigDialog.ShowAsync(MainWindow, cfg);
+        if (saved is null)
+        {
+            return;
+        }
+        ComponentManager.UpdateComponentConfig(id, saved);
+        SelectComponent(id);
+        Log.Info($"[HOME] 组件配置已保存: {id}");
+    }
+
+    public void AfterComponentRebuilt(DraggableContainer container)
+    {
+        if (!_editModeActive)
+        {
+            return;
+        }
+        container.IsDraggable = true;
+        container.Selected -= SelectComponent;
+        container.Selected += SelectComponent;
     }
 
     public void DeleteSelectedComponent()
@@ -588,8 +911,9 @@ public partial class HomeView : UserControl
             return;
         }
         Log.Info($"[HOME] 删除选中组件: id={_selectedPlacementId}");
-        ComponentManager.RemoveComponent(_selectedPlacementId);
+        var id = _selectedPlacementId;
         DeselectAll();
+        ComponentManager.RemoveComponent(id);
     }
 
     public bool IsEditModeActive => _editModeActive;
@@ -618,8 +942,8 @@ public partial class HomeView : UserControl
         _draggingDefinitionId = dragText;
         UpdateGridMetrics();
         var def = _draggingDefinitionId is null ? null : ComponentRegistry.GetDefinition(_draggingDefinitionId);
-        var previewW = def?.DefaultWidthCells * 110.0 ?? 220;
-        var previewH = def?.DefaultHeightCells * 110.0 ?? 220;
+        var previewW = def?.DefaultWidth ?? 220;
+        var previewH = def?.DefaultHeight ?? 220;
         var pos = e.GetPosition(this);
         var snapped = SnapToGrid(pos.X - previewW / 2, pos.Y - previewH / 2, previewW, previewH, 20);
         var collision = CheckPixelCollision(snapped.X, snapped.Y, previewW, previewH);
@@ -758,6 +1082,7 @@ public partial class HomeView : UserControl
     protected override void OnSizeChanged(SizeChangedEventArgs e)
     {
         base.OnSizeChanged(e);
+        BottomBar.Width = Math.Clamp(Bounds.Width - 48, 460, 1400);
         UpdateGridMetrics();
         if (!_gridOverlay.IsVisible)
         {
@@ -788,9 +1113,55 @@ public sealed class PageIndicator : Control
 
     private int _count;
     private int _current;
+    private Color _activeColor = Color.Parse("#30c361");
     private const double DotRadius = 4;
     private const double DotRadiusActive = 6;
     private const double DotGap = 10;
+
+    public PageIndicator()
+    {
+        try
+        {
+            _activeColor = Color.Parse(Config.ThemeColor.Value);
+        }
+        catch (Exception e)
+        {
+
+            Log.Debug($"[HOME] 配置色解析失败: {e.Message}");
+        }
+        Config.ThemeColor.ValueChanged += c =>
+        {
+            try
+            {
+                _activeColor = Color.Parse(c);
+            }
+            catch (Exception e)
+            {
+
+                Log.Debug($"[HOME] 处理失败: {e.Message}");
+            }
+            InvalidateVisual();
+        };
+    }
+
+    // 点击圆点切页
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    {
+        base.OnPointerPressed(e);
+        var pos = e.GetPosition(this);
+        var totalW = _count * DotRadius * 2 + Math.Max(0, _count - 1) * DotGap;
+        var startX = (Width - totalW) / 2;
+        for (var i = 0; i < _count; i++)
+        {
+            var cx = startX + i * (DotRadius * 2 + DotGap) + DotRadius;
+            if (Math.Abs(pos.X - cx) <= DotRadius + 6)
+            {
+                PageClicked?.Invoke(i);
+                e.Handled = true;
+                return;
+            }
+        }
+    }
 
     public void SetCount(int count)
     {
@@ -823,36 +1194,19 @@ public sealed class PageIndicator : Control
     public override void Render(DrawingContext context)
     {
         var inactive = new SolidColorBrush(Color.FromArgb(200, 180, 180, 180));
+        var active = new SolidColorBrush(_activeColor);
         for (var i = 0; i < _count; i++)
         {
             var radius = i == _current ? DotRadiusActive : DotRadius;
             var centerX = (Width - (_count * DotRadius * 2 + Math.Max(0, _count - 1) * DotGap)) / 2
                           + i * (DotRadius * 2 + DotGap) + DotRadius;
             var centerY = Height / 2;
-            var brush = i == _current
-                ? new SolidColorBrush(Color.Parse(Config.ThemeColor.Value))
-                : inactive;
+            var brush = i == _current ? active : inactive;
             context.DrawEllipse(brush, null, new Point(centerX, centerY), radius, radius);
         }
     }
 
-    protected override void OnPointerPressed(PointerPressedEventArgs e)
-    {
-        base.OnPointerPressed(e);
-        var pos = e.GetPosition(this);
-        var totalW = _count * DotRadius * 2 + Math.Max(0, _count - 1) * DotGap;
-        var startX = (Width - totalW) / 2;
-        for (var i = 0; i < _count; i++)
-        {
-            var centerX = startX + i * (DotRadius * 2 + DotGap) + DotRadius;
-            if (Math.Abs(pos.X - centerX) <= DotRadiusActive && Math.Abs(pos.Y - Height / 2) <= DotRadiusActive)
-            {
-                PageClicked?.Invoke(i);
-                e.Handled = true;
-                return;
-            }
-        }
-    }
+
 }
 
 // 网格覆盖层

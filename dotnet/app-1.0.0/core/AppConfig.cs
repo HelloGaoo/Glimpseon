@@ -47,8 +47,12 @@ public interface IConfigItem
 {
     string Group { get; }
     string Name { get; }
+    bool RestartRequired { get; }
     void LoadFrom(JsonNode root);
     void WriteTo(JsonNode root);
+    void WriteDefaultTo(JsonNode root);
+    void RaiseValueChanged();
+    string? SelfCheckRoundTrip();
 }
 
 public sealed class ConfigItem<T> : IConfigItem
@@ -111,10 +115,6 @@ public sealed class ConfigItem<T> : IConfigItem
             }
             _value = candidate;
             Log.Info($"配置变更: {Group}/{Name} = {candidate}");
-            if (RestartRequired)
-            {
-                Config.MarkRestartPending();
-            }
             ValueChanged?.Invoke(candidate);
             Config.Save();
         }
@@ -171,6 +171,122 @@ public sealed class ConfigItem<T> : IConfigItem
         obj[Name] = JsonSerializer.SerializeToNode(_serialize(_value));
         root[Group] = obj;
     }
+
+    void IConfigItem.WriteDefaultTo(JsonNode root)
+    {
+        var obj = root[Group] as JsonObject ?? new JsonObject();
+        obj[Name] = JsonSerializer.SerializeToNode(_serialize(DefaultValue));
+        root[Group] = obj;
+    }
+
+    void IConfigItem.RaiseValueChanged() => ValueChanged?.Invoke(_value);
+
+    // 往返自检
+    string? IConfigItem.SelfCheckRoundTrip()
+    {
+        var failures = new List<string>();
+        var seen = new HashSet<string>();
+        foreach (var boxed in EnumerateProbes())
+        {
+            if (boxed is not T value)
+            {
+                continue;
+            }
+            var json = SerializeJson(value);
+            if (!seen.Add(json))
+            {
+                continue;
+            }
+            try
+            {
+                var raw = JsonSerializer.Deserialize<JsonElement>(json);
+                var back = Clamp(_deserialize(raw));
+                var json2 = SerializeJson(back);
+                if (json != json2)
+                {
+                    failures.Add($"{json} → {json2}");
+                }
+            }
+            catch (Exception e)
+            {
+                failures.Add($"{json} → 异常 {e.GetType().Name}: {e.Message}");
+            }
+        }
+        return failures.Count == 0 ? null : string.Join(" | ", failures);
+    }
+
+    private string SerializeJson(T value)
+    {
+        var node = JsonSerializer.SerializeToNode(_serialize(value));
+        return node?.ToJsonString() ?? "null";
+    }
+
+    // 探测值: 当前值 / 默认值 / 所有选项 / 布尔取反 / 范围内的数值
+    private IEnumerable<object?> EnumerateProbes()
+    {
+        yield return _value;
+        yield return DefaultValue;
+        if (_options is { Length: > 0 })
+        {
+            foreach (var o in _options)
+            {
+                if (o is not null)
+                {
+                    yield return o;
+                }
+            }
+        }
+        switch (_value)
+        {
+            case bool b:
+                yield return !b;
+                break;
+            case int i:
+            {
+                var hasLo = _min is not null;
+                var hasHi = _max is not null;
+                var lo = hasLo ? (int)Math.Ceiling(_min!.Value) : int.MinValue;
+                var hi = hasHi ? (int)Math.Floor(_max!.Value) : int.MaxValue;
+                var candidates = new List<int> { i + 1, i - 1 };
+                if (hasLo)
+                {
+                    candidates.Add(lo);
+                }
+                if (hasHi)
+                {
+                    candidates.Add(hi);
+                }
+                if (hasLo && hasHi)
+                {
+                    candidates.Add(lo + (hi - lo) / 2);
+                }
+                foreach (var c in candidates)
+                {
+                    if (c >= lo && c <= hi)
+                    {
+                        yield return c;
+                    }
+                }
+                break;
+            }
+            case double d:
+            {
+                var lo = _min ?? double.MinValue;
+                var hi = _max ?? double.MaxValue;
+                foreach (var c in new[] { d + 1.5, d - 1.5, lo, hi })
+                {
+                    if (c >= lo && c <= hi && !double.IsInfinity(c))
+                    {
+                        yield return c;
+                    }
+                }
+                break;
+            }
+            case string s when _options is null or { Length: 0 }:
+                yield return s + "_probe";
+                break;
+        }
+    }
 }
 
 public static class Config
@@ -186,6 +302,14 @@ public static class Config
 
     public static bool RestartPending { get; private set; }
 
+    private static string? AsString(object? v) => v switch
+    {
+        string s => s,
+        JsonElement je => je.ValueKind == JsonValueKind.String ? je.GetString() : je.ToString(),
+        null => null,
+        _ => v.ToString(),
+    };
+
     // MainWindow
     public static readonly ConfigItem<ThemeMode> ThemeMode = new("MainWindow", "ThemeMode", Glimpseon.Core.ThemeMode.Auto,
         v => v switch
@@ -194,14 +318,18 @@ public static class Config
             Glimpseon.Core.ThemeMode.Dark => "dark",
             _ => "auto",
         },
-        v => v is not string s ? Glimpseon.Core.ThemeMode.Auto
-            : s == "light" ? Glimpseon.Core.ThemeMode.Light
-            : s == "dark" ? Glimpseon.Core.ThemeMode.Dark
-            : Glimpseon.Core.ThemeMode.Auto,
+        v => AsString(v) switch
+        {
+            "light" => Glimpseon.Core.ThemeMode.Light,
+            "dark" => Glimpseon.Core.ThemeMode.Dark,
+            _ => Glimpseon.Core.ThemeMode.Auto,
+        },
         new ThemeMode[] { Glimpseon.Core.ThemeMode.Light, Glimpseon.Core.ThemeMode.Dark, Glimpseon.Core.ThemeMode.Auto });
 
     public static readonly ConfigItem<string> ThemeColor = new("MainWindow", "ThemeColor", "#30c361");
     public static readonly ConfigItem<string> DpiScale = new("MainWindow", "DpiScale", "Auto",
+        v => v,
+        v => AsString(v) ?? "Auto",
         options: new string?[] { "Auto", "1", "1.25", "1.5", "1.75", "2" }, restartRequired: true);
     public static readonly ConfigItem<LanguageOption> Language = new("MainWindow", "Language", LanguageOption.Auto,
         v => v switch
@@ -211,19 +339,19 @@ public static class Config
             LanguageOption.English => "en_US",
             _ => "Auto",
         },
-        v => v is string s ? s switch
+        v => AsString(v) switch
         {
             "zh_CN" => LanguageOption.ChineseSimplified,
             "zh_TW" => LanguageOption.ChineseTraditional,
             "en_US" => LanguageOption.English,
             _ => LanguageOption.Auto,
-        } : LanguageOption.Auto,
+        },
         restartRequired: true);
 
     // Log
     public static readonly ConfigItem<LogVerbosity> LogVerbosity = new("Log", "LogLevel", Glimpseon.Core.LogVerbosity.Info,
         v => v.ToString(),
-        v => v is string s && Enum.TryParse<LogVerbosity>(s, out var parsed) ? parsed : Glimpseon.Core.LogVerbosity.Info,
+        v => Enum.TryParse<LogVerbosity>(AsString(v), out var parsed) ? parsed : Glimpseon.Core.LogVerbosity.Info,
         restartRequired: true);
     public static readonly ConfigItem<bool> DisableLog = new("Log", "DisableLog", false, restartRequired: true);
     public static readonly ConfigItem<int> LogMaxCount = new("Log", "MaxCount", 50, min: 10, max: 500);
@@ -366,6 +494,7 @@ public static class Config
     // Grid
     public static readonly ConfigItem<int> GridShortSideCells = new("Grid", "ShortSideCells", 6, min: 6, max: 96);
     public static readonly ConfigItem<int> GridInsetPercent = new("Grid", "InsetPercent", 5, min: 0, max: 30);
+
     public static readonly ConfigItem<int> ComponentCardOpacity = new("Grid", "ComponentCardOpacity", 55, min: 0, max: 100);
     public static readonly ConfigItem<int> ComponentCardRadius = new("Grid", "ComponentCardRadius", 16, min: 0, max: 29);
 
@@ -445,8 +574,32 @@ public static class Config
         var root = new JsonObject();
         foreach (var item in Items.OfType<IConfigItem>())
         {
-            item.WriteTo(root);
+            item.WriteDefaultTo(root);
         }
         return root;
+    }
+
+    public static void BroadcastAll()
+    {
+        foreach (var item in Items.OfType<IConfigItem>())
+        {
+            item.RaiseValueChanged();
+        }
+    }
+
+    public static int ItemCount => Items.Count;
+
+    public static List<string> SelfCheckAll()
+    {
+        var failures = new List<string>();
+        foreach (var item in Items.OfType<IConfigItem>())
+        {
+            var error = item.SelfCheckRoundTrip();
+            if (error is not null)
+            {
+                failures.Add($"{item.Group}/{item.Name}: {error}");
+            }
+        }
+        return failures;
     }
 }

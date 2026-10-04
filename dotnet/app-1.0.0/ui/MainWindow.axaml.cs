@@ -25,7 +25,6 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Glimpseon.Core;
 using Glimpseon.Core.Win32;
-using Glimpseon.UI.Views;
 using FluentAvalonia.UI.Controls;
 using FluentAvalonia.UI.Navigation;
 
@@ -46,6 +45,8 @@ public partial class MainWindow : GlimpseonWindow
     private DispatcherTimer? _idleTimer;
     private DispatcherTimer? _ntpTimer;
     private DispatcherTimer? _themeCheckTimer;
+    private DispatcherTimer? _restartDebounce;
+    private bool _restartPrompting;
     private bool _hasTriggeredAutoOpen;
 
     public MainWindow()
@@ -57,7 +58,6 @@ public partial class MainWindow : GlimpseonWindow
         InitTranslation();
         InitNavigation();
 
-        Nav.SelectionChanged += OnNavSelectionChanged;
         Nav.SelectedItem = NavItemHome;
 
         InitTray();
@@ -67,6 +67,8 @@ public partial class MainWindow : GlimpseonWindow
 
         Config.DebugMode.ValueChanged += OnDebugModeChanged;
         NavItemDebug.IsVisible = Config.DebugMode.Value;
+
+        InitSettingsWatch();
 
         Log.Info("主窗口就绪");
     }
@@ -153,6 +155,73 @@ public partial class MainWindow : GlimpseonWindow
     public void SwitchToDebug()
     {
         Nav.SelectedItem = NavItemDebug;
+    }
+
+    // 设置项策略: 即时应用的即时应用 必须重启的弹确认框
+
+    private void InitSettingsWatch()
+    {
+        // 必须重启的项
+        Config.Language.ValueChanged += _ => QueueRestartPrompt();
+        Config.LogVerbosity.ValueChanged += _ => QueueRestartPrompt();
+        Config.DisableLog.ValueChanged += _ => QueueRestartPrompt();
+        Config.EnableGpuAcceleration.ValueChanged += _ => QueueRestartPrompt();
+        Config.DpiScale.ValueChanged += _ => QueueRestartPrompt();
+
+        // 立即应用
+        Config.AutoStart.ValueChanged += _ => AppUtils.SyncAutostartCfg();
+        void ReapplyLogPolicy()
+        {
+            Log.Configure(Config.DisableLog.Value, AppUtils.ToLogLevel(Config.LogVerbosity.Value),
+                Config.LogMaxCount.Value, Config.LogMaxDays.Value);
+        }
+        Config.LogMaxCount.ValueChanged += _ => ReapplyLogPolicy();
+        Config.LogMaxDays.ValueChanged += _ => ReapplyLogPolicy();
+        Config.ThemeColor.ValueChanged += _ => Common.ApplyAccentColor(Common.ParseAccentColor(Config.ThemeColor.Value));
+
+        _restartDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+        _restartDebounce.Tick += (_, _) =>
+        {
+            _restartDebounce.Stop();
+            _ = PromptRestartAsync();
+        };
+    }
+
+    /// <summary>短时间多次触发只弹一次</summary>
+    private void QueueRestartPrompt()
+    {
+        _restartDebounce?.Stop();
+        _restartDebounce?.Start();
+    }
+
+    private async Task PromptRestartAsync()
+    {
+        if (_restartPrompting || AppUtils.RestartPromptSuppressed)
+        {
+            return;
+        }
+        _restartPrompting = true;
+        try
+        {
+            var owner = Common.ResolveActiveWindow(this);
+            if (await Common.ConfirmRestartAsync(owner))
+            {
+                Log.Info("[设置] 用户确认立即重启以应用更改");
+                AppUtils.RequestRestart();
+            }
+            else
+            {
+                Log.Debug("[设置] 用户选择稍后重启");
+            }
+        }
+        catch (Exception e)
+        {
+            Log.Error($"[设置] 重启确认弹窗失败: {e.Message}");
+        }
+        finally
+        {
+            _restartPrompting = false;
+        }
     }
 
     // 托盘
@@ -247,7 +316,7 @@ public partial class MainWindow : GlimpseonWindow
         }
     }
 
-    private void CheckIdle(object? sender, EventArgs e)
+    private async void CheckIdle(object? sender, EventArgs e)
     {
         if (!Config.AutoOpenOnIdle.Value)
         {
@@ -267,9 +336,61 @@ public partial class MainWindow : GlimpseonWindow
         var threshold = Config.IdleMinutes.Value * 60 * 1000;
         if (idleMs > threshold && !_hasTriggeredAutoOpen && !HomeView.WasPageOperationRecent(5000))
         {
+            if (await IsMediaPlayingAsync())
+            {
+                return;
+            }
             Log.Info($"空闲{Config.IdleMinutes.Value}分钟 自动打开界面");
             RestoreFromTray();
             _hasTriggeredAutoOpen = true;
+        }
+    }
+
+    private static bool _mediaCheckErrLogged;
+
+    // 会话在播放且进程属于浏览器/播放器名单
+    private static readonly string[] MediaBrowserNames =
+        { "chrome", "msedge", "firefox", "brave", "opera", "vivaldi", "iexplore", "edge" };
+    private static readonly string[] MediaPlayerNames =
+        { "music", "vlc", "potplayer", "spotify", "netflix" };
+
+    private static async Task<bool> IsMediaPlayingAsync()
+    {
+        try
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return false;
+            }
+            var manager = await Glimpseon.Core.Services.GsmTcSource.GetManagerAsync();
+            if (manager is null)
+            {
+                return false;
+            }
+            foreach (var session in manager.GetSessions())
+            {
+                if (session.GetPlaybackInfo().PlaybackStatus
+                    != Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
+                {
+                    continue;
+                }
+                var appId = (session.SourceAppUserModelId ?? "").ToLowerInvariant();
+                if (MediaBrowserNames.Any(b => appId.Contains(b)) || MediaPlayerNames.Any(p => appId.Contains(p)))
+                {
+                    Log.Debug($"媒体播放中 会话={appId}");
+                    return true;
+                }
+            }
+            return false;
+        }
+        catch (Exception e)
+        {
+            if (!_mediaCheckErrLogged)
+            {
+                Log.Warning($"检查媒体播放状态失败(仅记录一次): {e.Message}");
+                _mediaCheckErrLogged = true;
+            }
+            return false;
         }
     }
 
@@ -416,7 +537,6 @@ public partial class MainWindow : GlimpseonWindow
         }
 
         Log.Info("[closeEvent] closeAction=close 退出应用");
-        HomeView.SaveComponentPositions();
         AppUtils.ReleaseSingleInstance();
         base.OnClosing(e);
     }

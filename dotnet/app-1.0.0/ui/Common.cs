@@ -18,32 +18,58 @@
 using System.IO;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using FluentAvalonia.UI.Controls;
 using FluentAvalonia.UI.Windowing;
+using FluentAvalonia.Styling;
 using Glimpseon.Core;
 
 namespace Glimpseon.UI;
 
+// 深浅色判断
+internal static class ThemeSense
+{
+    public static bool IsDark(StyledElement e)
+    {
+        if (e.ActualThemeVariant == ThemeVariant.Dark)
+        {
+            return true;
+        }
+        if (e.ActualThemeVariant == ThemeVariant.Light)
+        {
+            return false;
+        }
+        return Application.Current?.ActualThemeVariant == ThemeVariant.Dark;
+    }
+}
+
 public static class Common
 {
+    // 圆角卡片容器
+    public static Border MakeCard()
+    {
+        return new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(Avalonia.Media.Colors.Gray, 0.25),
+            Background = new SolidColorBrush(Avalonia.Media.Colors.Gray, 0.08),
+        };
+    }
+
     public static readonly FontFamily AppFontFamily = new(
-        "avares://GlimpseonMain/Assets/font/HarmonyOS_Sans/HarmonyOS_Sans_Regular.ttf, avares://GlimpseonMain/Assets/font/HarmonyOS_Sans/HarmonyOS_Sans_Bold.ttf, HarmonyOS Sans, HarmonyOS Sans SC, Microsoft YaHei UI, Microsoft YaHei, Segoe UI");    public static TextBlock MakeTitle(string text) => new()
+        "avares://GlimpseonMain/Assets/font/HarmonyOS_Sans/HarmonyOS_Sans_Regular.ttf, avares://GlimpseonMain/Assets/font/HarmonyOS_Sans/HarmonyOS_Sans_Bold.ttf, HarmonyOS Sans, HarmonyOS Sans SC, Microsoft YaHei UI, Microsoft YaHei, Segoe UI");
+
+    public static TextBlock MakeTitle(string text) => new()
     {
         Text = text,
         FontSize = 26,
         FontWeight = FontWeight.Bold,
         Margin = new Thickness(0, 0, 0, 12),
-    };
-
-    public static TextBlock MakeBody(string text) => new()
-    {
-        Text = text,
-        FontSize = 14,
-        TextWrapping = TextWrapping.Wrap,
-        Opacity = 0.85,
     };
 
     public static ScrollViewer MakePageScroll(Control content) => new()
@@ -90,6 +116,86 @@ public static class Common
         {
             await dialog.ShowAsync(owner);
         }
+    }
+
+    public static async Task Alert(Window owner, string title, string content, string buttonText)
+    {
+        var dialog = new FAContentDialog
+        {
+            Title = title,
+            Content = content,
+            CloseButtonText = buttonText,
+            DefaultButton = FAContentDialogButton.Close,
+        };
+        await dialog.ShowAsync(owner);
+    }
+
+    public static void ApplyAccentColor(Color color)
+    {
+        if (Application.Current?.Styles is not { } styles)
+        {
+            return;
+        }
+        foreach (var style in styles)
+        {
+            if (style is FluentAvaloniaTheme theme)
+            {
+                theme.PreferUserAccentColor = false;
+                theme.CustomAccentColor = color;
+            }
+        }
+    }
+
+    public static Color ParseAccentColor(string? text) =>
+        !string.IsNullOrWhiteSpace(text) && Color.TryParse(text.Trim(), out var c) ? c : Color.Parse("#30c361");
+
+    public static Window ResolveActiveWindow(Window fallback)
+    {
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            var active = desktop.Windows.FirstOrDefault(w => w.IsVisible && w.IsActive);
+            if (active is not null)
+            {
+                return active;
+            }
+            if (fallback.IsVisible)
+            {
+                return fallback;
+            }
+            var any = desktop.Windows.LastOrDefault(w => w.IsVisible);
+            if (any is not null)
+            {
+                return any;
+            }
+        }
+        return fallback;
+    }
+
+    public static async Task<bool> ConfirmRestartAsync(Window owner)
+    {
+        var dialog = new FAContentDialog
+        {
+            Title = AppUtils.Tr("settings.restart_required"),
+            Content = AppUtils.Tr("settings.restart_required_desc"),
+            PrimaryButtonText = AppUtils.Tr("common.restart_now"),
+            CloseButtonText = AppUtils.Tr("common.restart_later"),
+            DefaultButton = FAContentDialogButton.Primary,
+        };
+        var result = await dialog.ShowAsync(owner);
+        return result == FAContentDialogResult.Primary;
+    }
+
+    public static async Task<bool> ConfirmRestartWithAsync(Window owner, string title, string content)
+    {
+        var dialog = new FAContentDialog
+        {
+            Title = title,
+            Content = content,
+            PrimaryButtonText = AppUtils.Tr("common.restart_now"),
+            CloseButtonText = AppUtils.Tr("common.cancel"),
+            DefaultButton = FAContentDialogButton.Primary,
+        };
+        return await dialog.ShowAsync(owner) == FAContentDialogResult.Primary;
     }
 
     public static async Task<bool> Confirm(Window owner, string title, string content)
@@ -147,8 +253,10 @@ public class GlimpseonWindow : FAAppWindow
             TitleBar.ExtendsContentIntoTitleBar = true;
             TitleBar.Height = 48;
         }
-        catch (Exception)
+        catch (Exception e)
         {
+
+            Log.Debug($"[UI] 默认标题栏: {e.Message}");
             // TitleBar 未就绪时忽略 走 FUI 默认标题栏
         }
     }

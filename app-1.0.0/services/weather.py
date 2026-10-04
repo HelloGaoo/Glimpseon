@@ -464,7 +464,7 @@ class RegionSelectorDialog(MessageBoxBase):
         self.cancelButton.setText(tr("common.cancel"))
 
         self.widget.setMinimumWidth(520)
-        self.widget.setMinimumHeight(620)
+        self.widget.setMinimumHeight(500)
 
     def _refresh_list(self, keyword=None):
         self._region_list.clear()
