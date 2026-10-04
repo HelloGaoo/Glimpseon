@@ -1,9 +1,0 @@
-/* 设置对话框 浅色 */
-#settingDialog {
-    background: transparent;
-    border: none;
-}
-
-#settingDialog Pivot {
-    background-color: transparent;
-}
