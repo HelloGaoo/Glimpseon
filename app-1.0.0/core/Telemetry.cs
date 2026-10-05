@@ -268,7 +268,8 @@ public static class Telemetry
         }
     }
 
-    // 退出冲刷
+    // 退出
+    private const int ExitGraceMs = 300;
 
     public static void Shutdown(string source)
     {
@@ -280,27 +281,70 @@ public static class Telemetry
             }
             _exitSent = true;
         }
-        try
+        var tasks = new List<Task>();
+        if (UsageEnabled)
         {
-            if (UsageEnabled)
-            {
-                SendPostHog("app_exit", new Dictionary<string, object?> { ["source"] = source })
-                    .Wait(TimeSpan.FromSeconds(3));
-            }
+            tasks.Add(SendPostHog("app_exit", new Dictionary<string, object?> { ["source"] = source }));
         }
-        catch (Exception e)
+        if (CrashEnabled)
         {
-            Log.Debug($"[遥测] 退出事件发送失败: {e.Message}");
+            tasks.Add(Task.Run(() => UploadExitLog(source)));
         }
-        if (_sentryActive)
+        if (tasks.Count > 0)
         {
             try
             {
-                SentrySdk.Flush(TimeSpan.FromSeconds(3));
+                Task.WaitAll(tasks.ToArray(), TimeSpan.FromMilliseconds(ExitGraceMs));
             }
             catch
             {
-                // 失败忽略
+                // 超时或单个任务异常直接放行退出
+            }
+        }
+    }
+
+    // 每次退出都上传当前日志文件 压缩后作为 Sentry 事件附件
+    private static void UploadExitLog(string source)
+    {
+        var zipPath = Path.Combine(Path.GetTempPath(), $"glimpseon_exit_{Guid.NewGuid():N}.zip");
+        try
+        {
+            var logPath = Log.CurrentLogFilePath;
+            if (string.IsNullOrWhiteSpace(logPath) || !File.Exists(logPath))
+            {
+                return;
+            }
+            using (var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create))
+            {
+                archive.CreateEntryFromFile(logPath, Path.GetFileName(logPath), CompressionLevel.Optimal);
+            }
+            var bytes = File.ReadAllBytes(zipPath);
+            SentrySdk.CaptureMessage("app_exit_log", scope =>
+            {
+                scope.Level = SentryLevel.Info;
+                scope.SetTag("install_id", _installId);
+                scope.SetTag("app_version", Paths.Version);
+                scope.SetTag("exit_source", source);
+                scope.AddAttachment(bytes, Path.GetFileName(zipPath));
+            });
+            SentrySdk.FlushAsync(TimeSpan.FromSeconds(2)).Wait(TimeSpan.FromSeconds(2));
+        }
+        catch (Exception e)
+        {
+            Log.Debug($"[遥测] 退出日志上传失败: {e.Message}");
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(zipPath))
+                {
+                    File.Delete(zipPath);
+                }
+            }
+            catch
+            {
+                // 临时文件清理失败忽略
             }
         }
     }

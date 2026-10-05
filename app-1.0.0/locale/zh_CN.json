@@ -172,7 +172,7 @@
     "privacy": "隐私",
     "privacy_note": "以下功能默认全部关闭 开启后才会上传数据 上报仅携带随机匿名 ID 与运行环境信息 不含用户名与个人内容",
     "crash_upload": "匿名崩溃上报",
-    "crash_upload_desc": "开启后崩溃信息与日志尾部将上传到 Sentry 用于定位问题",
+    "crash_upload_desc": "开启后崩溃信息与每次退出时的日志将上传到 Sentry 用于定位问题",
     "usage_upload": "匿名用量统计",
     "usage_upload_desc": "开启后发送启动/退出等匿名事件到 PostHog 不含任何个人内容",
     "storage_full_notify": "储存空间不足提醒",

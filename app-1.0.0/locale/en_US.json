@@ -172,7 +172,7 @@
     "privacy": "Privacy",
     "privacy_note": "Everything below is off by default. When enabled, uploads only carry a random anonymous ID and runtime environment info — no username or personal content.",
     "crash_upload": "Anonymous crash reporting",
-    "crash_upload_desc": "When enabled, crash reports with a log tail are uploaded to Sentry for debugging",
+    "crash_upload_desc": "When enabled, crash reports and the log on every exit are uploaded to Sentry for debugging",
     "usage_upload": "Anonymous usage analytics",
     "usage_upload_desc": "When enabled, anonymous events like app start/exit are sent to PostHog. No personal content",
     "storage_full_notify": "Low storage notification",
