@@ -507,6 +507,12 @@ public static class Config
 
     // Notification
     public static readonly ConfigItem<bool> NotificationSyncBoard = new("Notification", "SyncToBoard", false);
+    public static readonly ConfigItem<bool> StorageFullNotify = new("Notification", "StorageFullNotify", true);
+    public static readonly ConfigItem<int> StorageFullThreshold = new("Notification", "StorageFullThreshold", 10, min: 5, max: 50);
+    public static readonly ConfigItem<bool> ResourceMemoryNotify = new("Notification", "MemoryNotify", true);
+    public static readonly ConfigItem<int> ResourceMemoryThreshold = new("Notification", "MemoryNotifyThreshold", 90, min: 50, max: 100);
+    public static readonly ConfigItem<bool> ResourceCpuNotify = new("Notification", "CpuNotify", true);
+    public static readonly ConfigItem<int> ResourceCpuThreshold = new("Notification", "CpuNotifyThreshold", 90, min: 50, max: 100);
 
     private static bool _loaded;
 

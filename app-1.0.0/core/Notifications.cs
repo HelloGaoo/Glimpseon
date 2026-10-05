@@ -157,6 +157,15 @@ public sealed record NotificationRequest
     public int TtsVolume { get; init; } = 100;
 }
 
+public static class NotifPalette
+{
+    public static (string Bg, string Fg) FollowTheme()
+    {
+        var dark = Application.Current?.ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark;
+        return dark ? ("#1F1F1F", "#FFFFFF") : ("#FFFFFF", "#1F1F1F");
+    }
+}
+
 //  弹窗基类
 
 public abstract class NotifPopupWindow : Window
@@ -432,6 +441,125 @@ public sealed class FullscreenPopupWindow : NotifPopupWindow
     }
 }
 
+//  右下角弹窗
+
+public sealed class CornerPopupWindow : NotifPopupWindow
+{
+    // 纵向堆叠
+    private static int _activeCount;
+
+    private const int AnimMs = 260;
+    private const int MarginPx = 16;
+
+    private readonly int _durationSeconds;
+    private Border _card = null!;
+    private TranslateTransform _translate = null!;
+    private DispatcherTimer? _closeTimer;
+    private DispatcherTimer? _animTimer;
+    private bool _closing;
+
+    public CornerPopupWindow(NotificationRequest request) : base(request, mouseThrough: false)
+    {
+        _durationSeconds = Math.Clamp(request.Duration, 3, 60);
+        SizeToContent = SizeToContent.WidthAndHeight;
+    }
+
+    protected override void CreateContent(FontWeight weight)
+    {
+        var title = new TextBlock
+        {
+            Text = Constants.AppName,
+            Foreground = new SolidColorBrush(ParseColor(TextColor)),
+            FontSize = 12,
+            FontWeight = global::Avalonia.Media.FontWeight.Normal,
+            Opacity = 0.55,
+        };
+        var body = new TextBlock
+        {
+            Text = Text,
+            Foreground = new SolidColorBrush(ParseColor(TextColor)),
+            FontSize = Math.Clamp(FontSize, 14, 40),
+            FontWeight = weight,
+            TextWrapping = TextWrapping.Wrap,
+            MaxWidth = 380,
+        };
+        _card = new Border
+        {
+            Background = MakeBgBrush(BgColor, Math.Min(BgAlpha + 30, 255)),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(18, 13, 18, 15),
+            Child = new StackPanel { Spacing = 4, Children = { title, body } },
+        };
+        _translate = new TranslateTransform();
+        _card.RenderTransform = _translate;
+        _card.Opacity = 0;
+        Content = _card;
+        // 点击任意处关闭
+        PointerReleased += (_, _) => BeginClose();
+    }
+
+    protected override void OnOpenedCustom()
+    {
+        _translate.Y = 48;
+        Dispatcher.UIThread.Post(() =>
+        {
+            var wa = WorkingArea();
+            var step = (int)Math.Ceiling(Bounds.Height) + 12;
+            var offset = _activeCount * step;
+            _activeCount++;
+            Position = new PixelPoint(
+                wa.Right - (int)Math.Ceiling(Bounds.Width) - MarginPx,
+                wa.Bottom - (int)Math.Ceiling(Bounds.Height) - MarginPx - offset);
+            PlayTo(1, 0, null);
+            _closeTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(_durationSeconds) };
+            _closeTimer.Tick += (_, _) => BeginClose();
+            _closeTimer.Start();
+        });
+    }
+
+    protected override void OnClosedCustom()
+    {
+        _closeTimer?.Stop();
+        _animTimer?.Stop();
+        _activeCount = Math.Max(0, _activeCount - 1);
+    }
+
+    private void BeginClose()
+    {
+        if (_closing)
+        {
+            return;
+        }
+        _closing = true;
+        _closeTimer?.Stop();
+        PlayTo(0, 48, Close);
+    }
+
+    // 滑入滑出 opacity+Y 同步插值
+    private void PlayTo(double toOpacity, double toY, Action? done)
+    {
+        _animTimer?.Stop();
+        var fromOpacity = _card.Opacity;
+        var fromY = _translate.Y;
+        var watch = Stopwatch.StartNew();
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+        timer.Tick += (_, _) =>
+        {
+            var t = Math.Min(1, watch.Elapsed.TotalMilliseconds / AnimMs);
+            var e = 1 - Math.Pow(1 - t, 3);
+            _card.Opacity = fromOpacity + (toOpacity - fromOpacity) * e;
+            _translate.Y = fromY + (toY - fromY) * e;
+            if (t >= 1)
+            {
+                timer.Stop();
+                done?.Invoke();
+            }
+        };
+        _animTimer = timer;
+        timer.Start();
+    }
+}
+
 //  管理器
 
 public class NotificationManager
@@ -462,7 +590,7 @@ public class NotificationManager
         switch (data.Type)
         {
             case NotifType.Corner:
-                ShowCorner(data.Content, data.Duration);
+                ShowCorner(data);
                 break;
             case NotifType.Scroll:
                 ShowScroll(data);
@@ -510,29 +638,17 @@ public class NotificationManager
         popup.Show();
     }
 
-    // 右下角系统通知
-    private void ShowCorner(string text, int duration)
+
+    private void ShowCorner(NotificationRequest data)
     {
-        try
+        Dispatcher.UIThread.Post(() =>
         {
-            if (!OperatingSystem.IsWindows() || Environment.OSVersion.Version.Build < 10240)
-            {
-                Log.Warning("右下角通知需 Windows 10+");
-                return;
-            }
-            var xml = Windows.UI.Notifications.ToastNotificationManager.GetTemplateContent(
-                Windows.UI.Notifications.ToastTemplateType.ToastText02);
-            var texts = xml.GetElementsByTagName("text");
-            texts[0].AppendChild(xml.CreateTextNode("Glimpseon"));
-            texts[1].AppendChild(xml.CreateTextNode(text));
-            var toast = new Windows.UI.Notifications.ToastNotification(xml);
-            Windows.UI.Notifications.ToastNotificationManager.CreateToastNotifier("Glimpseon").Show(toast);
-            Log.Info($"右下角通知已弹出 时长 {duration}s 内容: {text[..Math.Min(40, text.Length)]}");
-        }
-        catch (Exception e)
-        {
-            Log.Warning($"右下角通知失败: {e.Message}");
-        }
+            var popup = new CornerPopupWindow(data);
+            Log.Info($"右下角弹窗 时长 {data.Duration}s 背景 {data.BgColor}/{data.BgAlpha} 文字 {data.TextColor}/{data.FontSize}px 内容: {data.Content[..Math.Min(40, data.Content.Length)]}");
+            popup.Finished = () => _activeWindows.Remove(popup);
+            _activeWindows.Add(popup);
+            popup.Show();
+        });
     }
 
     private void OnNotificationFinished()

@@ -51,6 +51,7 @@ public partial class SettingsWindow : GlimpseonWindow
         ("weather", "settings.weather"),
         ("grid", "settings.grid.title"),
         ("log", "settings.log"),
+        ("reminder", "settings.reminder"),
         ("advanced", "settings.advanced"),
     };
 
@@ -93,6 +94,7 @@ public partial class SettingsWindow : GlimpseonWindow
         NavWeather.Content = Tr("settings.weather");
         NavGrid.Content = Tr("settings.grid.title");
         NavLog.Content = Tr("settings.log");
+        NavReminder.Content = Tr("settings.reminder");
         NavAdvanced.Content = Tr("settings.advanced");
     }
 
@@ -315,6 +317,7 @@ public partial class SettingsWindow : GlimpseonWindow
         _pages["weather"] = Wrap(BuildWeatherPage());
         _pages["grid"] = Wrap(BuildGridPage());
         _pages["log"] = Wrap(BuildLogPage());
+        _pages["reminder"] = Wrap(BuildReminderPage());
         _pages["advanced"] = Wrap(BuildAdvancedPage());
     }
 
@@ -1001,6 +1004,51 @@ public partial class SettingsWindow : GlimpseonWindow
             Log.Error($"[设置/日志] 清理日志失败: {e.Message}");
             Info(host, FAInfoBarSeverity.Error, AppUtils.Tr("settings.clear_log_failed", ("error", e.Message)));
         }
+    }
+
+    // 提醒
+
+    private Control BuildReminderPage()
+    {
+        var stack = MakePageStack(Tr("settings.reminder"));
+
+        // 储存
+        var notifyCard = CardSwitch(FASymbol.Alert, Tr("settings.storage_full_notify"), Tr("settings.storage_full_notify_desc"), Config.StorageFullNotify);
+        var thresholdCard = CardSpin(FASymbol.Document, Tr("settings.storage_full_threshold"), Tr("settings.storage_full_threshold_desc"), Config.StorageFullThreshold, 5, 50);
+        var checkCard = CardButton(FASymbol.Sync, Tr("settings.storage_full_checknow_title"), Tr("settings.storage_full_checknow_desc"), Tr("settings.storage_full_checknow_button"), StorageMonitor.Check);
+
+        // 内存
+        var memNotifyCard = CardSwitch(FASymbol.View, Tr("settings.resource_memory_notify"), Tr("settings.resource_memory_notify_desc"), Config.ResourceMemoryNotify);
+        var memThresholdCard = CardSpin(FASymbol.View, Tr("settings.resource_memory_threshold"), Tr("settings.resource_memory_threshold_desc"), Config.ResourceMemoryThreshold, 50, 100);
+
+        // CPU
+        var cpuNotifyCard = CardSwitch(FASymbol.Clock, Tr("settings.resource_cpu_notify"), Tr("settings.resource_cpu_notify_desc"), Config.ResourceCpuNotify);
+        var cpuThresholdCard = CardSpin(FASymbol.Clock, Tr("settings.resource_cpu_threshold"), Tr("settings.resource_cpu_threshold_desc"), Config.ResourceCpuThreshold, 50, 100);
+
+        // 开关关闭时禁用对应阈值与立即检测
+        void ApplyEnabled()
+        {
+            var storage = Config.StorageFullNotify.Value;
+            var memory = Config.ResourceMemoryNotify.Value;
+            var cpu = Config.ResourceCpuNotify.Value;
+            thresholdCard.IsEnabled = storage;
+            checkCard.IsEnabled = storage;
+            memThresholdCard.IsEnabled = memory;
+            cpuThresholdCard.IsEnabled = cpu;
+        }
+        ApplyEnabled();
+        Config.StorageFullNotify.ValueChanged += _ => Dispatcher.UIThread.Post(ApplyEnabled);
+        Config.ResourceMemoryNotify.ValueChanged += _ => Dispatcher.UIThread.Post(ApplyEnabled);
+        Config.ResourceCpuNotify.ValueChanged += _ => Dispatcher.UIThread.Post(ApplyEnabled);
+
+        stack.Children.Add(notifyCard);
+        stack.Children.Add(thresholdCard);
+        stack.Children.Add(checkCard);
+        stack.Children.Add(memNotifyCard);
+        stack.Children.Add(memThresholdCard);
+        stack.Children.Add(cpuNotifyCard);
+        stack.Children.Add(cpuThresholdCard);
+        return stack;
     }
 
     // 高级

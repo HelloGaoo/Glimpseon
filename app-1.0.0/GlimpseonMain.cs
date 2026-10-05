@@ -180,6 +180,8 @@ internal static class GlimpseonMain
         var preloadTask = PreloadWallpaperAsync(window);
         RegisterCacheRefreshers(window);
         AppUtils.CacheRefresher.Start();
+        StorageMonitor.Start();
+        ResourceMonitor.Start();
         var finished = await Task.WhenAny(preloadTask, Task.Delay(600));
         if (finished != preloadTask)
         {
