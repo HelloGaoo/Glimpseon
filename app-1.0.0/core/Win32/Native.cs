@@ -126,6 +126,41 @@ internal static class Native
         }
     }
 
+    // 电源
+
+    [DllImport("user32.dll", SetLastError = false)]
+    private static extern void LockWorkStation();
+
+    [DllImport("powrprof.dll", SetLastError = false)]
+    private static extern bool SetSuspendState(bool hibernate, bool forceCritical, bool disableWakeEvent);
+
+    public static void LockScreen()
+    {
+        try
+        {
+            LockWorkStation();
+        }
+        catch (Exception e)
+        {
+            Glimpseon.Core.Log.Error($"[WIN32] 锁定失败: {e.Message}");
+        }
+    }
+
+    public static void SleepSystem()
+    {
+        try
+        {
+            if (!SetSuspendState(false, false, false))
+            {
+                Glimpseon.Core.Log.Warning("[WIN32] SetSuspendState 返回 false");
+            }
+        }
+        catch (Exception e)
+        {
+            Glimpseon.Core.Log.Error($"[WIN32] 睡眠失败: {e.Message}");
+        }
+    }
+
     // 媒体内存读取
 
     [DllImport("kernel32.dll", SetLastError = true)]

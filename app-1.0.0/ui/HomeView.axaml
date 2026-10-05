@@ -3,6 +3,73 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:fa="using:FluentAvalonia.UI.Controls"
              xmlns:local="using:Glimpseon.UI">
+  <UserControl.Styles>
+    <Style Selector="Border.profile-menu-panel">
+      <Setter Property="Background" Value="{DynamicResource ProfileMenuSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ProfileMenuOutlineBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="26" />
+      <Setter Property="Padding" Value="12" />
+      <Setter Property="BoxShadow" Value="0 14 36 #2A000000" />
+    </Style>
+    <Style Selector="Border.profile-menu-avatar">
+      <Setter Property="Background" Value="{DynamicResource ProfileMenuAvatarSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ProfileMenuOutlineBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="20" />
+    </Style>
+    <Style Selector="TextBlock.profile-menu-primary">
+      <Setter Property="Foreground" Value="{DynamicResource ProfileMenuTextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.profile-menu-title">
+      <Setter Property="Foreground" Value="{DynamicResource ProfileMenuTextBrush}" />
+      <Setter Property="FontSize" Value="16" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.profile-menu-action-text">
+      <Setter Property="Foreground" Value="{DynamicResource ProfileMenuTextBrush}" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="fa|FASymbolIcon.profile-menu-action-icon">
+      <Setter Property="Foreground" Value="{DynamicResource ProfileMenuAccentBrush}" />
+      <Setter Property="Width" Value="20" />
+      <Setter Property="Height" Value="20" />
+      <Setter Property="FontSize" Value="20" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.profile-menu-action-glyph">
+      <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+      <Setter Property="Foreground" Value="{DynamicResource ProfileMenuAccentBrush}" />
+      <Setter Property="FontSize" Value="20" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.profile-menu-action">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="16" />
+      <Setter Property="Padding" Value="14,8" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="MinHeight" Value="40" />
+      <Setter Property="RenderTransform" Value="scale(1)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.12" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.12" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.profile-menu-action:pointerover">
+      <Setter Property="Background" Value="{DynamicResource ProfileMenuHoverBrush}" />
+      <Setter Property="RenderTransform" Value="scale(1.01)" />
+    </Style>
+    <Style Selector="Button.profile-menu-action:pressed">
+      <Setter Property="Background" Value="{DynamicResource ProfileMenuPressedBrush}" />
+      <Setter Property="RenderTransform" Value="scale(0.985)" />
+    </Style>
+  </UserControl.Styles>
   <Panel x:Name="Root" ClipToBounds="True">
     <Image x:Name="BackgroundImage" Stretch="Fill" />
     <Border x:Name="DimOverlay" Background="#000000" Opacity="0" />
@@ -24,5 +91,107 @@
         </StackPanel>
       </Panel>
     </Border>
+    <!-- 右下角菜单卡片 -->
+    <Popup x:Name="ProfileMenuPopup" Placement="TopEdgeAlignedRight" IsLightDismissEnabled="True">
+      <Border x:Name="ProfileMenuPanel" Classes="profile-menu-panel" Margin="0,0,0,16">
+        <Grid Width="255">
+          <Grid x:Name="ProfileMenuMainPanel">
+            <Grid.Transitions>
+              <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.12" />
+              </Transitions>
+            </Grid.Transitions>
+            <StackPanel Spacing="8">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <Border x:Name="ProfileMenuAvatarBorder" Classes="profile-menu-avatar" Width="40" Height="40" ClipToBounds="True">
+                  <Panel>
+                    <Image x:Name="ProfileMenuAvatarImage" Stretch="UniformToFill" IsVisible="False" />
+                    <TextBlock x:Name="ProfileMenuAvatarFallbackText" Classes="profile-menu-primary" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" Text="U" />
+                  </Panel>
+                </Border>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                  <TextBlock x:Name="ProfileMenuNameText" Classes="profile-menu-title" Text="User" />
+                </StackPanel>
+              </Grid>
+              <Border Height="1" Background="{DynamicResource ProfileMenuDividerBrush}" />
+              <Button x:Name="ProfileMenuSettingsBtn" Classes="profile-menu-action" Click="OnProfileMenuSettingsClick">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                  <fa:FASymbolIcon Classes="profile-menu-action-icon" Symbol="{x:Static fa:FASymbol.Settings}" />
+                  <TextBlock x:Name="ProfileMenuSettingsText" Grid.Column="1" Classes="profile-menu-action-text" />
+                </Grid>
+              </Button>
+              <Button x:Name="ProfileMenuEditBtn" Classes="profile-menu-action" Click="OnProfileMenuEditClick">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                  <fa:FASymbolIcon Classes="profile-menu-action-icon" Symbol="{x:Static fa:FASymbol.Edit}" />
+                  <TextBlock x:Name="ProfileMenuEditText" Grid.Column="1" Classes="profile-menu-action-text" />
+                </Grid>
+              </Button>
+              <Button x:Name="ProfileMenuPowerBtn" Classes="profile-menu-action" Click="OnProfileMenuPowerEnterClick">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                  <TextBlock Classes="profile-menu-action-glyph" Text="&#xE7E8;" />
+                  <TextBlock x:Name="ProfileMenuPowerText" Grid.Column="1" Classes="profile-menu-action-text" />
+                </Grid>
+              </Button>
+            </StackPanel>
+          </Grid>
+          <Grid x:Name="ProfileMenuPowerPanel" IsVisible="False" Opacity="0">
+            <Grid.Transitions>
+              <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.12" />
+              </Transitions>
+            </Grid.Transitions>
+            <Grid.RenderTransform>
+              <TranslateTransform>
+                <TranslateTransform.Transitions>
+                  <Transitions>
+                    <DoubleTransition Property="X" Duration="0:0:0.28" Easing="0.22,1,0.36,1" />
+                  </Transitions>
+                </TranslateTransform.Transitions>
+              </TranslateTransform>
+            </Grid.RenderTransform>
+            <StackPanel Spacing="6">
+              <Button x:Name="ProfileMenuBackBtn" Classes="profile-menu-action" HorizontalAlignment="Left" Click="OnProfileMenuPowerBackClick">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                  <fa:FASymbolIcon Classes="profile-menu-action-icon" Symbol="{x:Static fa:FASymbol.Back}" />
+                  <TextBlock x:Name="ProfileMenuBackText" Grid.Column="1" Classes="profile-menu-action-text" />
+                </Grid>
+              </Button>
+              <TextBlock x:Name="ProfileMenuPowerTitle" Classes="profile-menu-title" />
+              <Border Height="1" Background="{DynamicResource ProfileMenuDividerBrush}" />
+              <Button x:Name="ProfileMenuShutdownBtn" Classes="profile-menu-action" Click="OnProfileMenuShutdownClick">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                  <TextBlock Classes="profile-menu-action-glyph" Text="&#xE7E8;" />
+                  <TextBlock x:Name="ProfileMenuShutdownText" Grid.Column="1" Classes="profile-menu-action-text" />
+                </Grid>
+              </Button>
+              <Button x:Name="ProfileMenuRestartBtn" Classes="profile-menu-action" Click="OnProfileMenuRestartClick">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                  <fa:FASymbolIcon Classes="profile-menu-action-icon" Symbol="{x:Static fa:FASymbol.Refresh}" />
+                  <TextBlock x:Name="ProfileMenuRestartText" Grid.Column="1" Classes="profile-menu-action-text" />
+                </Grid>
+              </Button>
+              <Button x:Name="ProfileMenuLogoutBtn" Classes="profile-menu-action" Click="OnProfileMenuLogoutClick">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                  <TextBlock Classes="profile-menu-action-glyph" Text="&#xE748;" />
+                  <TextBlock x:Name="ProfileMenuLogoutText" Grid.Column="1" Classes="profile-menu-action-text" />
+                </Grid>
+              </Button>
+              <Button x:Name="ProfileMenuSleepBtn" Classes="profile-menu-action" Click="OnProfileMenuSleepClick">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                  <fa:FASymbolIcon Classes="profile-menu-action-icon" Symbol="{x:Static fa:FASymbol.WeatherMoon}" />
+                  <TextBlock x:Name="ProfileMenuSleepText" Grid.Column="1" Classes="profile-menu-action-text" />
+                </Grid>
+              </Button>
+              <Button x:Name="ProfileMenuLockBtn" Classes="profile-menu-action" Click="OnProfileMenuLockClick">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                  <TextBlock Classes="profile-menu-action-glyph" Text="&#xE72E;" />
+                  <TextBlock x:Name="ProfileMenuLockText" Grid.Column="1" Classes="profile-menu-action-text" />
+                </Grid>
+              </Button>
+            </StackPanel>
+          </Grid>
+        </Grid>
+      </Border>
+    </Popup>
   </Panel>
 </UserControl>

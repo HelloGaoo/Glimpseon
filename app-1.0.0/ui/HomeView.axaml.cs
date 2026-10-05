@@ -460,6 +460,8 @@ public partial class HomeView : UserControl
         Config.ComponentCardOpacity.ValueChanged += _ => ApplyIslandStyle();
         Config.ComponentCardRadius.ValueChanged += _ => ApplyIslandStyle();
         ActualThemeVariantChanged += (_, _) => ApplyIslandStyle();
+
+        InitProfileMenu();
     }
 
     // 底部岛
@@ -590,23 +592,299 @@ public partial class HomeView : UserControl
         PageIndicator.SetCurrent(newCur);
     }
 
+    // 右下角菜单
+
+    private bool _isPowerMenuOpen;
+    private bool _isPowerMenuAnimating;
+    private DateTime _popupDismissedAt = DateTime.MinValue;
+    private static Bitmap? _avatarBitmap;
+    private static bool _avatarLoaded;
+
+    private void InitProfileMenu()
+    {
+        ProfileMenuPopup.PlacementTarget = MenuBtn;
+        ProfileMenuPopup.Closed += (_, _) =>
+        {
+            _popupDismissedAt = DateTime.Now;
+            ResetPowerMenuState();
+        };
+    }
+
     private void OnMenuClicked(object? sender, RoutedEventArgs e)
     {
-        var menu = new MenuFlyout();
-        var settingsItem = new MenuItem { Header = AppUtils.Tr("home.menu_settings") };
-        settingsItem.Click += (_, _) => MainWindow.OpenSettingsWindow();
-        var editItem = new MenuItem { Header = AppUtils.Tr("home.menu_component_edit") };
-        editItem.Click += (_, _) => OpenComponentEditWindow();
-        var restartItem = new MenuItem { Header = AppUtils.Tr("home.menu_restart") };
-        restartItem.Click += (_, _) => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("shutdown", "/r /t 0") { CreateNoWindow = true });
-        var shutdownItem = new MenuItem { Header = AppUtils.Tr("home.menu_shutdown") };
-        shutdownItem.Click += (_, _) => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("shutdown", "/s /t 0") { CreateNoWindow = true });
-        menu.Items.Add(settingsItem);
-        menu.Items.Add(editItem);
-        menu.Items.Add(new Separator());
-        menu.Items.Add(restartItem);
-        menu.Items.Add(shutdownItem);
-        menu.ShowAt(MenuBtn);
+        if (ProfileMenuPopup.IsOpen)
+        {
+            ProfileMenuPopup.IsOpen = false;
+            return;
+        }
+        if ((DateTime.Now - _popupDismissedAt).TotalMilliseconds < 250)
+        {
+            return;
+        }
+        ResetPowerMenuState();
+        RefreshProfileMenu();
+        ProfileMenuPopup.IsOpen = true;
+    }
+
+    private void CloseProfileMenu()
+    {
+        if (ProfileMenuPopup.IsOpen)
+        {
+            ProfileMenuPopup.IsOpen = false;
+        }
+    }
+
+    // 打开时刷新文案/头像/配色
+    private void RefreshProfileMenu()
+    {
+        var name = ResolveDisplayName();
+        ProfileMenuNameText.Text = name;
+
+        if (!_avatarLoaded)
+        {
+            _avatarBitmap = TryLoadAvatarBitmap();
+            _avatarLoaded = true;
+        }
+        ProfileMenuAvatarImage.Source = _avatarBitmap;
+        ProfileMenuAvatarImage.IsVisible = _avatarBitmap is not null;
+        ProfileMenuAvatarFallbackText.Text = name.Length > 0 ? name[..1].ToUpperInvariant() : "U";
+        ProfileMenuAvatarFallbackText.IsVisible = _avatarBitmap is null;
+
+        ProfileMenuSettingsText.Text = AppUtils.Tr("home.menu_settings");
+        ProfileMenuEditText.Text = AppUtils.Tr("home.menu_component_edit");
+        ProfileMenuPowerText.Text = AppUtils.Tr("home.menu_power");
+        ProfileMenuPowerTitle.Text = AppUtils.Tr("home.menu_power");
+        ProfileMenuBackText.Text = AppUtils.Tr("home.menu_back");
+        ProfileMenuShutdownText.Text = AppUtils.Tr("home.menu_shutdown");
+        ProfileMenuRestartText.Text = AppUtils.Tr("home.menu_restart");
+        ProfileMenuLogoutText.Text = AppUtils.Tr("home.menu_logout");
+        ProfileMenuSleepText.Text = AppUtils.Tr("home.menu_sleep");
+        ProfileMenuLockText.Text = AppUtils.Tr("home.menu_lock");
+
+        ApplyProfileMenuTheme();
+    }
+
+    private static string ResolveDisplayName()
+    {
+        var userName = Environment.UserName?.Trim();
+        return string.IsNullOrWhiteSpace(userName) ? "User" : userName;
+    }
+
+    // 读取 Windows 账户头像
+    private static Bitmap? TryLoadAvatarBitmap()
+    {
+        try
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return null;
+            }
+            foreach (var dir in new[]
+                     {
+                         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Microsoft", "Windows", "AccountPictures"),
+                         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "Windows", "AccountPictures"),
+                     })
+            {
+                if (!Directory.Exists(dir))
+                {
+                    continue;
+                }
+                var file = new DirectoryInfo(dir).EnumerateFiles("*.*", SearchOption.TopDirectoryOnly)
+                    .Where(f => f.Extension is ".png" or ".jpg" or ".jpeg" or ".bmp")
+                    .OrderByDescending(f => f.LastWriteTimeUtc)
+                    .FirstOrDefault();
+                if (file is not null)
+                {
+                    return new Bitmap(file.FullName);
+                }
+            }
+            var common = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Microsoft", "User Account Pictures");
+            foreach (var fileName in new[] { "user-448.png", "user-240.png", "user-192.png", "user-96.png", "user-48.png", "user.png" })
+            {
+                var path = Path.Combine(common, fileName);
+                if (File.Exists(path))
+                {
+                    return new Bitmap(path);
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Log.Debug($"[菜单] 头像加载失败: {e.Message}");
+        }
+        return null;
+    }
+
+    // 菜单配色
+    private void ApplyProfileMenuTheme()
+    {
+        var dark = ThemeSense.IsDark(this);
+        var accent = Common.ParseAccentColor(Config.ThemeColor.Value);
+
+        void Set(string key, Color color) => ProfileMenuPanel.Resources[key] = new SolidColorBrush(color);
+
+        if (dark)
+        {
+            Set("ProfileMenuSurfaceBrush", Color.FromRgb(30, 30, 30));
+            Set("ProfileMenuOutlineBrush", Color.FromArgb(26, 255, 255, 255));
+            Set("ProfileMenuAvatarSurfaceBrush", Color.FromArgb(28, 255, 255, 255));
+            Set("ProfileMenuTextBrush", Colors.White);
+            Set("ProfileMenuAccentBrush", accent);
+            Set("ProfileMenuHoverBrush", Color.FromArgb(20, 255, 255, 255));
+            Set("ProfileMenuPressedBrush", Color.FromArgb(40, 255, 255, 255));
+            Set("ProfileMenuDividerBrush", Color.FromArgb(30, 255, 255, 255));
+        }
+        else
+        {
+            Set("ProfileMenuSurfaceBrush", Color.FromRgb(252, 252, 255));
+            Set("ProfileMenuOutlineBrush", Color.FromArgb(24, 17, 24, 39));
+            Set("ProfileMenuAvatarSurfaceBrush", Color.FromArgb(12, 0, 0, 0));
+            Set("ProfileMenuTextBrush", Color.Parse("#333333"));
+            Set("ProfileMenuAccentBrush", accent);
+            Set("ProfileMenuHoverBrush", Color.FromArgb(15, 0, 0, 0));
+            Set("ProfileMenuPressedBrush", Color.FromArgb(30, 0, 0, 0));
+            Set("ProfileMenuDividerBrush", Color.FromArgb(24, 17, 24, 39));
+        }
+    }
+
+    private void ResetPowerMenuState()
+    {
+        _isPowerMenuOpen = false;
+        _isPowerMenuAnimating = false;
+
+        ProfileMenuMainPanel.IsVisible = true;
+        ProfileMenuMainPanel.Opacity = 1;
+        ProfileMenuPowerPanel.IsVisible = false;
+        ProfileMenuPowerPanel.Opacity = 0;
+        if (ProfileMenuPowerPanel.RenderTransform is TranslateTransform transform)
+        {
+            transform.X = 255;
+        }
+    }
+
+    private async void EnterPowerMenu()
+    {
+        if (_isPowerMenuAnimating || _isPowerMenuOpen)
+        {
+            return;
+        }
+        _isPowerMenuAnimating = true;
+
+        ProfileMenuPowerPanel.IsVisible = true;
+        ProfileMenuPowerPanel.Opacity = 0;
+        if (ProfileMenuPowerPanel.RenderTransform is TranslateTransform transform)
+        {
+            transform.X = 255;
+        }
+
+        await Task.Delay(16);
+
+        ProfileMenuMainPanel.Opacity = 0;
+        ProfileMenuPowerPanel.Opacity = 1;
+        if (ProfileMenuPowerPanel.RenderTransform is TranslateTransform slide)
+        {
+            slide.X = 0;
+        }
+
+        await Task.Delay(280);
+
+        ProfileMenuMainPanel.IsVisible = false;
+        _isPowerMenuOpen = true;
+        _isPowerMenuAnimating = false;
+    }
+
+    private async void ExitPowerMenu()
+    {
+        if (_isPowerMenuAnimating || !_isPowerMenuOpen)
+        {
+            return;
+        }
+        _isPowerMenuAnimating = true;
+
+        ProfileMenuMainPanel.IsVisible = true;
+        ProfileMenuMainPanel.Opacity = 0;
+        if (ProfileMenuPowerPanel.RenderTransform is TranslateTransform transform)
+        {
+            transform.X = 0;
+        }
+
+        await Task.Delay(16);
+
+        ProfileMenuMainPanel.Opacity = 1;
+        ProfileMenuPowerPanel.Opacity = 0;
+        if (ProfileMenuPowerPanel.RenderTransform is TranslateTransform slide)
+        {
+            slide.X = 255;
+        }
+
+        await Task.Delay(280);
+
+        ProfileMenuPowerPanel.IsVisible = false;
+        _isPowerMenuOpen = false;
+        _isPowerMenuAnimating = false;
+    }
+
+    private void OnProfileMenuSettingsClick(object? sender, RoutedEventArgs e)
+    {
+        CloseProfileMenu();
+        MainWindow.OpenSettingsWindow();
+    }
+
+    private void OnProfileMenuEditClick(object? sender, RoutedEventArgs e)
+    {
+        CloseProfileMenu();
+        OpenComponentEditWindow();
+    }
+
+    private void OnProfileMenuPowerEnterClick(object? sender, RoutedEventArgs e) => EnterPowerMenu();
+
+    private void OnProfileMenuPowerBackClick(object? sender, RoutedEventArgs e) => ExitPowerMenu();
+
+    private void OnProfileMenuShutdownClick(object? sender, RoutedEventArgs e)
+    {
+        CloseProfileMenu();
+        Log.Info("[菜单] 关机");
+        RunPowerCommand("/s /t 0");
+    }
+
+    private void OnProfileMenuRestartClick(object? sender, RoutedEventArgs e)
+    {
+        CloseProfileMenu();
+        Log.Info("[菜单] 重启");
+        RunPowerCommand("/r /t 0");
+    }
+
+    private void OnProfileMenuLogoutClick(object? sender, RoutedEventArgs e)
+    {
+        CloseProfileMenu();
+        Log.Info("[菜单] 注销");
+        RunPowerCommand("/l");
+    }
+
+    private void OnProfileMenuSleepClick(object? sender, RoutedEventArgs e)
+    {
+        CloseProfileMenu();
+        Log.Info("[菜单] 睡眠");
+        Glimpseon.Core.Win32.Native.SleepSystem();
+    }
+
+    private void OnProfileMenuLockClick(object? sender, RoutedEventArgs e)
+    {
+        CloseProfileMenu();
+        Log.Info("[菜单] 锁定");
+        Glimpseon.Core.Win32.Native.LockScreen();
+    }
+
+    private static void RunPowerCommand(string arguments)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("shutdown", arguments) { CreateNoWindow = true });
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"[菜单] 电源命令执行失败 args={arguments} {ex.Message}");
+        }
     }
 
     public void OpenComponentEditWindow()
