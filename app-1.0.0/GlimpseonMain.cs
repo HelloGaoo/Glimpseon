@@ -86,6 +86,8 @@ internal static class GlimpseonMain
             var logMaxDays = Config.DebugMode.Value ? 1 : Config.LogMaxDays.Value;
             Log.Configure(Config.DisableLog.Value, AppUtils.ToLogLevel(Config.LogVerbosity.Value), logMaxCount, logMaxDays);
 
+            Telemetry.Init();
+
             AppUtils.InitTranslation();
             AppUtils.ApplyLanguageFromConfig();
 

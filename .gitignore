@@ -10,8 +10,6 @@ fluentui-system-icons/
 .workbuddy/
 obj/
 .obj/
-
-# C# 构建产物
 bin/
 build/
 *.dll
@@ -22,3 +20,4 @@ build/
 *.runtimeconfig.json
 *.7z
 runtimes/
+app-1.0.0/telemetry.keys.json

@@ -514,6 +514,10 @@ public static class Config
     public static readonly ConfigItem<bool> ResourceCpuNotify = new("Notification", "CpuNotify", true);
     public static readonly ConfigItem<int> ResourceCpuThreshold = new("Notification", "CpuNotifyThreshold", 90, min: 50, max: 100);
 
+    // Telemetry 
+    public static readonly ConfigItem<bool> CrashUpload = new("Telemetry", "CrashUpload", false);
+    public static readonly ConfigItem<bool> UsageUpload = new("Telemetry", "UsageUpload", false);
+
     private static bool _loaded;
 
     public static void Load()

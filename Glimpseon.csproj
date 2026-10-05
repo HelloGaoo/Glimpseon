@@ -18,4 +18,8 @@
     <Compile Include="Glimpseon.cs" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Sentry" Version="6.12.0" />
+  </ItemGroup>
+
 </Project>

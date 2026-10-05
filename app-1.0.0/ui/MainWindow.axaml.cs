@@ -354,6 +354,7 @@ public partial class MainWindow : GlimpseonWindow
     {
         Log.Info("[托盘] 菜单动作: 退出应用");
         HomeView.SaveComponentPositions();
+        Telemetry.Shutdown("exit");
         _trayIcon?.Dispose();
         AppUtils.ReleaseSingleInstance();
         (Avalonia.Application.Current?.ApplicationLifetime as IControlledApplicationLifetime)?.Shutdown();
@@ -605,6 +606,7 @@ public partial class MainWindow : GlimpseonWindow
         }
 
         Log.Info("[closeEvent] closeAction=close 退出应用");
+        Telemetry.Shutdown("close");
         AppUtils.ReleaseSingleInstance();
         base.OnClosing(e);
     }

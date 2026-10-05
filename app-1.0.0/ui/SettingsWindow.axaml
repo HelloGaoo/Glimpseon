@@ -25,7 +25,7 @@
                          IsSettingsVisible="False"
                          SelectionChanged="OnNavSelectionChanged">
       <fa:FANavigationView.MenuItems>
-        <!-- 通用/时间/外观/天气/网格/日志/高级 -->
+        <!-- 通用/时间/外观/天气/网格/隐私/日志/高级 -->
         <fa:FANavigationViewItem x:Name="NavGeneral" Tag="general">
           <fa:FANavigationViewItem.IconSource>
             <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Setting}" />
@@ -56,10 +56,14 @@
             <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Document}" />
           </fa:FANavigationViewItem.IconSource>
         </fa:FANavigationViewItem>
-        <!-- 通用/时间/外观/天气/网格/日志/提醒/高级 -->
         <fa:FANavigationViewItem x:Name="NavReminder" Tag="reminder">
           <fa:FANavigationViewItem.IconSource>
             <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Alert}" />
+          </fa:FANavigationViewItem.IconSource>
+        </fa:FANavigationViewItem>
+        <fa:FANavigationViewItem x:Name="NavPrivacy" Tag="privacy">
+          <fa:FANavigationViewItem.IconSource>
+            <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Permissions}" />
           </fa:FANavigationViewItem.IconSource>
         </fa:FANavigationViewItem>
         <fa:FANavigationViewItem x:Name="NavAdvanced" Tag="advanced">

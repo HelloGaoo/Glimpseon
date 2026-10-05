@@ -60,6 +60,8 @@ public static class Log
         }
     }
 
+    public static string? CurrentLogFilePath => _logFilePath;
+
     private static bool ShouldWrite(LogLevel level) => !_disabled && level >= _level;
 
     public static void Debug(string message, [CallerMemberName] string member = "", [CallerFilePath] string file = "", [CallerLineNumber] int line = 0) => Write(LogLevel.Debug, message, member, file, line);

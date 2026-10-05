@@ -52,6 +52,7 @@ public partial class SettingsWindow : GlimpseonWindow
         ("grid", "settings.grid.title"),
         ("log", "settings.log"),
         ("reminder", "settings.reminder"),
+        ("privacy", "settings.privacy"),
         ("advanced", "settings.advanced"),
     };
 
@@ -95,6 +96,7 @@ public partial class SettingsWindow : GlimpseonWindow
         NavGrid.Content = Tr("settings.grid.title");
         NavLog.Content = Tr("settings.log");
         NavReminder.Content = Tr("settings.reminder");
+        NavPrivacy.Content = Tr("settings.privacy");
         NavAdvanced.Content = Tr("settings.advanced");
     }
 
@@ -318,6 +320,7 @@ public partial class SettingsWindow : GlimpseonWindow
         _pages["grid"] = Wrap(BuildGridPage());
         _pages["log"] = Wrap(BuildLogPage());
         _pages["reminder"] = Wrap(BuildReminderPage());
+        _pages["privacy"] = Wrap(BuildPrivacyPage());
         _pages["advanced"] = Wrap(BuildAdvancedPage());
     }
 
@@ -1048,6 +1051,27 @@ public partial class SettingsWindow : GlimpseonWindow
         stack.Children.Add(memThresholdCard);
         stack.Children.Add(cpuNotifyCard);
         stack.Children.Add(cpuThresholdCard);
+        return stack;
+    }
+
+    // 隐私
+
+    private Control BuildPrivacyPage()
+    {
+        var stack = MakePageStack(Tr("settings.privacy"));
+        stack.Children.Add(new TextBlock
+        {
+            Text = Tr("settings.privacy_note"),
+            TextWrapping = TextWrapping.Wrap,
+            Opacity = 0.75,
+            Margin = new Thickness(0, 0, 0, 8),
+        });
+
+        var crashCard = CardSwitch(FASymbol.Permissions, Tr("settings.crash_upload"), Tr("settings.crash_upload_desc"), Config.CrashUpload);
+        var usageCard = CardSwitch(FASymbol.Account, Tr("settings.usage_upload"), Tr("settings.usage_upload_desc"), Config.UsageUpload);
+
+        stack.Children.Add(crashCard);
+        stack.Children.Add(usageCard);
         return stack;
     }
 
