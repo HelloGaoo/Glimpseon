@@ -258,7 +258,7 @@ public class AboutView : UserControl
             Spacing = 12,
             Children =
             {
-                new FASymbolIcon { Symbol = icon, FontSize = 20, VerticalAlignment = VerticalAlignment.Center },
+                FAIcons.IconCenter(icon, 20),
                 new StackPanel
                 {
                     Spacing = 1,
@@ -391,7 +391,7 @@ public class AboutView : UserControl
             Spacing = 12,
             Children =
             {
-                new FASymbolIcon { Symbol = icon, FontSize = 20, VerticalAlignment = VerticalAlignment.Center },
+                FAIcons.IconCenter(icon, 20),
                 new StackPanel
                 {
                     Children =
@@ -431,7 +431,7 @@ public class AboutView : UserControl
             Spacing = 12,
             Children =
             {
-                new FASymbolIcon { Symbol = FASymbol.Globe, FontSize = 20, VerticalAlignment = VerticalAlignment.Center },
+                FAIcons.IconCenter(FASymbol.Globe, 20),
                 new StackPanel
                 {
                     Children =

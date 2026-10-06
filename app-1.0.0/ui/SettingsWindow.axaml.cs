@@ -125,7 +125,7 @@ public partial class SettingsWindow : GlimpseonWindow
             Margin = new Thickness(0, 16, 0, 4),
             Children =
             {
-                new FASymbolIcon { Symbol = symbol, FontSize = 16, VerticalAlignment = VerticalAlignment.Center },
+                FAIcons.IconCenter(symbol, 16),
                 new TextBlock { Text = text, FontSize = 16, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center },
             },
         };
@@ -135,7 +135,7 @@ public partial class SettingsWindow : GlimpseonWindow
     {
         var card = new FASettingsExpander
         {
-            IconSource = new FASymbolIconSource { Symbol = icon },
+            IconSource = FAIcons.IconSource(icon),
             Header = header,
         };
         if (!string.IsNullOrEmpty(description))
@@ -365,7 +365,7 @@ public partial class SettingsWindow : GlimpseonWindow
         var stack = MakePageStack(Tr("settings.general"));
         stack.Children.Add(CardSwitch(FASymbol.Play, Tr("wizard.auto_start"), Tr("wizard.auto_start_desc"), Config.AutoStart));
         stack.Children.Add(CardSwitch(FASymbol.View, Tr("wizard.auto_open_idle"), Tr("wizard.auto_open_idle_desc"), Config.AutoOpenOnIdle));
-        stack.Children.Add(CardSpin(FASymbol.Clock, Tr("settings.idle_minutes"), Tr("settings.idle_minutes_desc"), Config.IdleMinutes, 1, 60));
+        stack.Children.Add(CardSpin(FASymbol.ClockFilled, Tr("settings.idle_minutes"), Tr("settings.idle_minutes_desc"), Config.IdleMinutes, 1, 60));
         stack.Children.Add(CardSwitch(FASymbol.FullScreenMaximize, Tr("wizard.auto_open_maximize"), Tr("wizard.auto_open_maximize_desc"), Config.AutoOpenMaximize));
         return stack;
     }
@@ -376,7 +376,7 @@ public partial class SettingsWindow : GlimpseonWindow
     {
         var stack = MakePageStack(Tr("settings.time"));
         stack.Children.Add(CardSwitch(FASymbol.Calendar, Tr("settings.use_precise_time"), Tr("settings.use_precise_time_desc"), Config.UsePreciseTime));
-        stack.Children.Add(CardText(FASymbol.Cloud, Tr("settings.time_server"), Tr("settings.time_server_desc"), Config.TimeServer));
+        stack.Children.Add(CardText(FASymbol.Earth, Tr("settings.time_server"), Tr("settings.time_server_desc"), Config.TimeServer));
 
         // 同步状态 + 手动同步(
         var statusText = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Opacity = 0.75 };
@@ -454,15 +454,15 @@ public partial class SettingsWindow : GlimpseonWindow
     private Control BuildAppearancePage()
     {
         var stack = MakePageStack(Tr("settings.appearance"));
-        stack.Children.Add(CardCombo(FASymbol.ColorBackgroundFilled, Tr("wizard.theme_mode"), Tr("wizard.theme_mode_desc"), Config.ThemeMode,
+        stack.Children.Add(CardCombo(FASymbol.WeatherMoon, Tr("wizard.theme_mode"), Tr("wizard.theme_mode_desc"), Config.ThemeMode,
             new (string, ThemeMode)[]
             {
                 (Tr("wizard.theme_light"), ThemeMode.Light),
                 (Tr("wizard.theme_dark"), ThemeMode.Dark),
                 (Tr("wizard.theme_system"), ThemeMode.Auto),
             }));
-        stack.Children.Add(CardColor(FASymbol.ColorBackgroundFilled, Tr("wizard.primary_color"), Tr("wizard.primary_color_desc"), Config.ThemeColor));
-        stack.Children.Add(CardCombo(FASymbol.Globe, Tr("settings.language"), Tr("settings.language_desc"), Config.Language,
+        stack.Children.Add(CardColor(FASymbol.ColorFill, Tr("wizard.primary_color"), Tr("wizard.primary_color_desc"), Config.ThemeColor));
+        stack.Children.Add(CardCombo(FASymbol.World, Tr("settings.language"), Tr("settings.language_desc"), Config.Language,
             new (string, LanguageOption)[]
             {
                 (Tr("settings.lang_zh_cn"), LanguageOption.ChineseSimplified),
@@ -496,7 +496,7 @@ public partial class SettingsWindow : GlimpseonWindow
             BorderThickness = new Thickness(0),
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
-            Content = new FASymbolIcon { Symbol = FASymbol.Sync, FontSize = 16 },
+            Content = FAIcons.Icon(FASymbol.Redo, 16),
         };
         ToolTip.SetTip(refreshBtn, Tr("settings.weather_refresh"));
         var headerRow = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("Auto,*,Auto") };
@@ -546,7 +546,7 @@ public partial class SettingsWindow : GlimpseonWindow
         // ---- 数据来源 ----
         var cityCard = new FASettingsExpander
         {
-            IconSource = new FASymbolIconSource { Symbol = FASymbol.MapPin },
+            IconSource = FAIcons.IconSource(FASymbol.MapPin),
             Header = Tr("settings.weather_city"),
             Description = Tr("settings.weather_city_desc"),
         };
@@ -582,7 +582,7 @@ public partial class SettingsWindow : GlimpseonWindow
             Children = { latBox, lonBox },
         });
 
-        var sourceCard = CardCombo(FASymbol.Globe, Tr("settings.weather_source"), Tr("settings.weather_source_desc"), Config.WeatherSource,
+        var sourceCard = CardCombo(FASymbol.Map, Tr("settings.weather_source"), Tr("settings.weather_source_desc"), Config.WeatherSource,
             new (string, string)[]
             {
                 (Tr("settings.weather_source_city"), "city"),
@@ -592,10 +592,10 @@ public partial class SettingsWindow : GlimpseonWindow
         stack.Children.Add(sourceCard);
         stack.Children.Add(cityCard);
         stack.Children.Add(latLonCard);
-        stack.Children.Add(CardText(FASymbol.Alert, Tr("settings.weather_alert_exclude"), Tr("settings.weather_alert_exclude_desc"), Config.WeatherAlertExcluded));
+        stack.Children.Add(CardText(FASymbol.Filter, Tr("settings.weather_alert_exclude"), Tr("settings.weather_alert_exclude_desc"), Config.WeatherAlertExcluded));
 
         // ---- 设定: 刷新间隔 + 单位 ----
-        stack.Children.Add(CardCombo(FASymbol.Sync, Tr("settings.weather_refresh_interval"), Tr("settings.weather_refresh_interval_desc"), Config.WeatherUpdateInterval,
+        stack.Children.Add(CardCombo(FASymbol.RotateClockwise, Tr("settings.weather_refresh_interval"), Tr("settings.weather_refresh_interval_desc"), Config.WeatherUpdateInterval,
             new (string, string)[]
             {
                 (Tr("settings.weather_interval_never"), "never"),
@@ -909,10 +909,10 @@ public partial class SettingsWindow : GlimpseonWindow
         Config.ComponentCardRadius.ValueChanged += v => Dispatcher.UIThread.Post(() => radiusPreview.CardRadius = v);
         Config.ComponentCardOpacity.ValueChanged += v => Dispatcher.UIThread.Post(() => radiusPreview.CardOpacity = v);
 
-        stack.Children.Add(CardSpin(FASymbol.Bullets, Tr("settings.grid.short_side_cells"), Tr("settings.grid.short_side_cells_desc"), Config.GridShortSideCells, 6, 96));
+        stack.Children.Add(CardSpin(FASymbol.ViewAll, Tr("settings.grid.short_side_cells"), Tr("settings.grid.short_side_cells_desc"), Config.GridShortSideCells, 6, 96));
         stack.Children.Add(CardSpin(FASymbol.AllApps, Tr("settings.grid.inset_percent"), Tr("settings.grid.inset_percent_desc"), Config.GridInsetPercent, 0, 30));
-        stack.Children.Add(CardSpin(FASymbol.ColorBackgroundFilled, Tr("settings.grid.component_card_opacity"), Tr("settings.grid.component_card_opacity_desc"), Config.ComponentCardOpacity, 0, 100));
-        stack.Children.Add(CardSpin(FASymbol.Edit, Tr("settings.grid.component_card_radius"), Tr("settings.grid.component_card_radius_desc"), Config.ComponentCardRadius, 0, 29));
+        stack.Children.Add(CardSpin(FASymbol.ColorLine, Tr("settings.grid.component_card_opacity"), Tr("settings.grid.component_card_opacity_desc"), Config.ComponentCardOpacity, 0, 100));
+        stack.Children.Add(CardSpin(FASymbol.Crop, Tr("settings.grid.component_card_radius"), Tr("settings.grid.component_card_radius_desc"), Config.ComponentCardRadius, 0, 29));
         return stack;
     }
 
@@ -922,7 +922,7 @@ public partial class SettingsWindow : GlimpseonWindow
     {
         var stack = MakePageStack(Tr("settings.log"));
         var disableCard = CardSwitch(FASymbol.Dismiss, Tr("settings.disable_log"), Tr("settings.disable_log_desc"), Config.DisableLog);
-        var levelCard = CardCombo(FASymbol.Document, Tr("settings.log_level"), Tr("settings.log_level_desc"), Config.LogVerbosity,
+        var levelCard = CardCombo(FASymbol.Code, Tr("settings.log_level"), Tr("settings.log_level_desc"), Config.LogVerbosity,
             new (string, LogVerbosity)[]
             {
                 ("Debug", LogVerbosity.Debug),
@@ -930,8 +930,8 @@ public partial class SettingsWindow : GlimpseonWindow
                 ("Warning", LogVerbosity.Warning),
                 ("Error", LogVerbosity.Error),
             });
-        var maxCountCard = CardSpin(FASymbol.Document, Tr("settings.log_max_count"), Tr("settings.log_max_count_desc"), Config.LogMaxCount, 10, 500);
-        var maxDaysCard = CardSpin(FASymbol.Document, Tr("settings.log_max_days"), Tr("settings.log_max_days_desc"), Config.LogMaxDays, 30, 365);
+        var maxCountCard = CardSpin(FASymbol.List, Tr("settings.log_max_count"), Tr("settings.log_max_count_desc"), Config.LogMaxCount, 10, 500);
+        var maxDaysCard = CardSpin(FASymbol.CalendarWeek, Tr("settings.log_max_days"), Tr("settings.log_max_days_desc"), Config.LogMaxDays, 30, 365);
 
         void ApplyEnabled()
         {
@@ -1016,17 +1016,17 @@ public partial class SettingsWindow : GlimpseonWindow
         var stack = MakePageStack(Tr("settings.reminder"));
 
         // 储存
-        var notifyCard = CardSwitch(FASymbol.Alert, Tr("settings.storage_full_notify"), Tr("settings.storage_full_notify_desc"), Config.StorageFullNotify);
-        var thresholdCard = CardSpin(FASymbol.Document, Tr("settings.storage_full_threshold"), Tr("settings.storage_full_threshold_desc"), Config.StorageFullThreshold, 5, 50);
-        var checkCard = CardButton(FASymbol.Sync, Tr("settings.storage_full_checknow_title"), Tr("settings.storage_full_checknow_desc"), Tr("settings.storage_full_checknow_button"), StorageMonitor.Check);
+        var notifyCard = CardSwitch(FASymbol.SaveLocal, Tr("settings.storage_full_notify"), Tr("settings.storage_full_notify_desc"), Config.StorageFullNotify);
+        var thresholdCard = CardSpin(FASymbol.Ruler, Tr("settings.storage_full_threshold"), Tr("settings.storage_full_threshold_desc"), Config.StorageFullThreshold, 5, 50);
+        var checkCard = CardButton(FASymbol.Refresh, Tr("settings.storage_full_checknow_title"), Tr("settings.storage_full_checknow_desc"), Tr("settings.storage_full_checknow_button"), StorageMonitor.Check);
 
         // 内存
-        var memNotifyCard = CardSwitch(FASymbol.View, Tr("settings.resource_memory_notify"), Tr("settings.resource_memory_notify_desc"), Config.ResourceMemoryNotify);
-        var memThresholdCard = CardSpin(FASymbol.View, Tr("settings.resource_memory_threshold"), Tr("settings.resource_memory_threshold_desc"), Config.ResourceMemoryThreshold, 50, 100);
+        var memNotifyCard = CardSwitch(FASymbol.Scan, Tr("settings.resource_memory_notify"), Tr("settings.resource_memory_notify_desc"), Config.ResourceMemoryNotify);
+        var memThresholdCard = CardSpin(FASymbol.Calculator, Tr("settings.resource_memory_threshold"), Tr("settings.resource_memory_threshold_desc"), Config.ResourceMemoryThreshold, 50, 100);
 
         // CPU
-        var cpuNotifyCard = CardSwitch(FASymbol.Clock, Tr("settings.resource_cpu_notify"), Tr("settings.resource_cpu_notify_desc"), Config.ResourceCpuNotify);
-        var cpuThresholdCard = CardSpin(FASymbol.Clock, Tr("settings.resource_cpu_threshold"), Tr("settings.resource_cpu_threshold_desc"), Config.ResourceCpuThreshold, 50, 100);
+        var cpuNotifyCard = CardSwitch(FASymbol.Target, Tr("settings.resource_cpu_notify"), Tr("settings.resource_cpu_notify_desc"), Config.ResourceCpuNotify);
+        var cpuThresholdCard = CardSpin(FASymbol.TwoBars, Tr("settings.resource_cpu_threshold"), Tr("settings.resource_cpu_threshold_desc"), Config.ResourceCpuThreshold, 50, 100);
 
         // 开关关闭时禁用对应阈值与立即检测
         void ApplyEnabled()
@@ -1067,11 +1067,19 @@ public partial class SettingsWindow : GlimpseonWindow
             Margin = new Thickness(0, 0, 0, 8),
         });
 
-        var crashCard = CardSwitch(FASymbol.Permissions, Tr("settings.crash_upload"), Tr("settings.crash_upload_desc"), Config.CrashUpload);
+        var crashCard = CardSwitch(FASymbol.ReportHacked, Tr("settings.crash_upload"), Tr("settings.crash_upload_desc"), Config.CrashUpload);
         var usageCard = CardSwitch(FASymbol.Account, Tr("settings.usage_upload"), Tr("settings.usage_upload_desc"), Config.UsageUpload);
 
         stack.Children.Add(crashCard);
         stack.Children.Add(usageCard);
+        // TID 只读小字 可选中复制 用户反馈问题时提供此ID定位上报数据
+        stack.Children.Add(new SelectableTextBlock
+        {
+            Text = $"{Tr("settings.anonymous_id")} {Telemetry.TelemetryId}",
+            FontSize = 12,
+            Opacity = 0.7,
+            Margin = new Thickness(0, 0, 0, 8),
+        });
         return stack;
     }
 
@@ -1080,13 +1088,13 @@ public partial class SettingsWindow : GlimpseonWindow
     private Control BuildAdvancedPage()
     {
         var stack = MakePageStack(Tr("settings.advanced"));
-        stack.Children.Add(CardCombo(FASymbol.Setting, Tr("settings.close_action"), Tr("settings.close_action_desc"), Config.CloseAction,
+        stack.Children.Add(CardCombo(FASymbol.ClosePane, Tr("settings.close_action"), Tr("settings.close_action_desc"), Config.CloseAction,
             new (string, string)[]
             {
                 (Tr("settings.minimize_to_tray"), "minimize"),
                 (Tr("settings.close_directly"), "close"),
             }));
-        stack.Children.Add(CardSwitch(FASymbol.Sync, Tr("settings.allow_multiple_instances"), Tr("settings.allow_multiple_instances_desc"), Config.AllowMultipleInstances));
+        stack.Children.Add(CardSwitch(FASymbol.Switch, Tr("settings.allow_multiple_instances"), Tr("settings.allow_multiple_instances_desc"), Config.AllowMultipleInstances));
         stack.Children.Add(CardSwitch(FASymbol.Video, Tr("settings.gpu_acceleration"), Tr("settings.gpu_acceleration_desc"), Config.EnableGpuAcceleration));
 
         // 配置导入/导出(
@@ -1100,11 +1108,11 @@ public partial class SettingsWindow : GlimpseonWindow
             Spacing = 8,
             Children = { exportBtn, importBtn },
         };
-        stack.Children.Add(Card(FASymbol.Sync, Tr("settings.config_import_export"), Tr("settings.config_import_export_desc"), ioRow));
+        stack.Children.Add(Card(FASymbol.SaveAs, Tr("settings.config_import_export"), Tr("settings.config_import_export_desc"), ioRow));
 
-        stack.Children.Add(CardButton(FASymbol.Setting, Tr("settings.reset_default"), Tr("settings.reset_default_desc"), Tr("settings.reset_default_button"),
+        stack.Children.Add(CardButton(FASymbol.Undo, Tr("settings.reset_default"), Tr("settings.reset_default_desc"), Tr("settings.reset_default_button"),
             () => _ = ResetDefaultAsync(stack)));
-        stack.Children.Add(CardSwitch(FASymbol.Code, Tr("settings.debug_mode"), Tr("settings.debug_mode_desc"), Config.DebugMode));
+        stack.Children.Add(CardSwitch(FASymbol.Flag, Tr("settings.debug_mode"), Tr("settings.debug_mode_desc"), Config.DebugMode));
         return stack;
     }
 

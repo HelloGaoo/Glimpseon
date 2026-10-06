@@ -17,7 +17,7 @@
         </StackPanel>
         <Button x:Name="NextButton" Height="36" HorizontalAlignment="Center" Click="OnNextClicked">
           <StackPanel Orientation="Horizontal" Spacing="8">
-            <fa:FASymbolIcon Symbol="{x:Static fa:FASymbol.ChevronRight}" FontSize="16" />
+            <fa:FAFontIcon FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE76C;" FontSize="16" />
             <TextBlock x:Name="NextButtonText" Text="继续" />
           </StackPanel>
         </Button>
@@ -36,7 +36,7 @@
           <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
             <Button x:Name="OpenLicenseButton" Click="OnOpenLicenseClicked">
               <StackPanel Orientation="Horizontal" Spacing="6">
-                <fa:FASymbolIcon Symbol="{x:Static fa:FASymbol.OpenFile}" FontSize="14" />
+                <fa:FAFontIcon FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE1A5;" FontSize="14" />
                 <TextBlock Text="查看协议文本" />
               </StackPanel>
             </Button>
@@ -44,7 +44,7 @@
         </StackPanel>
         <Button x:Name="AgreeButton" Height="36" IsEnabled="False" HorizontalAlignment="Center" Click="OnAgreeClicked">
           <StackPanel Orientation="Horizontal" Spacing="8">
-            <fa:FASymbolIcon Symbol="{x:Static fa:FASymbol.Checkmark}" FontSize="16" />
+            <fa:FAFontIcon FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE73E;" FontSize="16" />
             <TextBlock x:Name="AgreeButtonText" Text="完成" />
           </StackPanel>
         </Button>
@@ -84,7 +84,7 @@
         </StackPanel>
         <Button x:Name="FinishButton" Height="36" HorizontalAlignment="Center" Click="OnFinishPage3Clicked">
           <StackPanel Orientation="Horizontal" Spacing="8">
-            <fa:FASymbolIcon Symbol="{x:Static fa:FASymbol.Checkmark}" FontSize="16" />
+            <fa:FAFontIcon FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE73E;" FontSize="16" />
             <TextBlock Text="完成" />
           </StackPanel>
         </Button>
@@ -114,7 +114,7 @@
         </StackPanel>
         <Button x:Name="FinishButton2" Height="36" HorizontalAlignment="Center" Click="OnNextPage4Clicked">
           <StackPanel Orientation="Horizontal" Spacing="8">
-            <fa:FASymbolIcon Symbol="{x:Static fa:FASymbol.Checkmark}" FontSize="16" />
+            <fa:FAFontIcon FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE73E;" FontSize="16" />
             <TextBlock Text="完成" />
           </StackPanel>
         </Button>
@@ -142,7 +142,7 @@
         </StackPanel>
         <Button x:Name="FinishButton3" Height="36" HorizontalAlignment="Center" Click="OnFinishClicked">
           <StackPanel Orientation="Horizontal" Spacing="8">
-            <fa:FASymbolIcon Symbol="{x:Static fa:FASymbol.Checkmark}" FontSize="16" />
+            <fa:FAFontIcon FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE73E;" FontSize="16" />
             <TextBlock Text="完成" />
           </StackPanel>
         </Button>

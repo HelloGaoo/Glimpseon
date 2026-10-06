@@ -42,6 +42,38 @@ internal static class Native
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int MessageBoxW(IntPtr hWnd, string text, string caption, uint type);
 
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int nIndex);
+
+    private const int SmShuttingDown = 0x2000;
+
+    public static bool IsSystemShuttingDown()
+    {
+        try
+        {
+            return GetSystemMetrics(SmShuttingDown) != 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool IsHungAppWindow(IntPtr hWnd);
+
+    public static bool IsWindowHung(IntPtr windowHandle)
+    {
+        try
+        {
+            return IsHungAppWindow(windowHandle);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern bool SystemParametersInfoW(uint uiAction, uint uiParam, string pvParam, uint fWinIni);
 

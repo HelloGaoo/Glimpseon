@@ -74,7 +74,7 @@ public class DownloadView : UserControl
                 Spacing = 6,
                 Children =
                 {
-                    new FASymbolIcon { Symbol = FASymbol.Play, FontSize = 16 },
+                    FAIcons.Icon(FASymbol.Play, 16),
                     new TextBlock { Text = AppUtils.Tr("download.start_download"), FontSize = 14, VerticalAlignment = VerticalAlignment.Center },
                 },
             },
@@ -349,9 +349,11 @@ public class DownloadView : UserControl
         });
         if (!string.IsNullOrEmpty(software.Link))
         {
+            var linkIcon = FAIcons.Icon(FASymbol.Link, 14);
+            linkIcon.Opacity = 0.75;
             var linkButton = new Button
             {
-                Content = new FASymbolIcon { Symbol = FASymbol.Link, FontSize = 14, Opacity = 0.75 },
+                Content = linkIcon,
                 Width = 20,
                 Height = 20,
                 Padding = new Thickness(0),
@@ -413,7 +415,7 @@ public class DownloadView : UserControl
                 Spacing = 6,
                 Children =
                 {
-                    new FASymbolIcon { Symbol = FASymbol.Download, FontSize = 16 },
+                    FAIcons.Icon(FASymbol.Download, 16),
                     new TextBlock { Text = AppUtils.Tr("download.download_btn"), FontSize = 14, VerticalAlignment = VerticalAlignment.Center },
                 },
             },

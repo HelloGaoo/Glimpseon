@@ -27,39 +27,39 @@
     <fa:FANavigationView.MenuItems>
       <fa:FANavigationViewItem x:Name="NavItemHome" Tag="home">
         <fa:FANavigationViewItem.IconSource>
-          <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Home}" />
+          <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE10F;" FontSize="20" />
         </fa:FANavigationViewItem.IconSource>
       </fa:FANavigationViewItem>
       <fa:FANavigationViewItem x:Name="NavItemWallpaper" Tag="wallpaper">
         <fa:FANavigationViewItem.IconSource>
-          <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Image}" />
+          <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xF807F;" FontSize="20" />
         </fa:FANavigationViewItem.IconSource>
       </fa:FANavigationViewItem>
       <fa:FANavigationViewItem x:Name="NavItemNotification" Tag="notification">
         <fa:FANavigationViewItem.IconSource>
-          <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Message}" />
+          <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE15F;" FontSize="20" />
         </fa:FANavigationViewItem.IconSource>
       </fa:FANavigationViewItem>
       <fa:FANavigationViewItem x:Name="NavItemTimetable" Tag="timetable">
         <fa:FANavigationViewItem.IconSource>
-          <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Calendar}" />
+          <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE163;" FontSize="20" />
         </fa:FANavigationViewItem.IconSource>
       </fa:FANavigationViewItem>
       <fa:FANavigationViewItem x:Name="NavItemDownload" Tag="download">
         <fa:FANavigationViewItem.IconSource>
-          <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Download}" />
+          <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE118;" FontSize="20" />
         </fa:FANavigationViewItem.IconSource>
       </fa:FANavigationViewItem>
     </fa:FANavigationView.MenuItems>
     <fa:FANavigationView.FooterMenuItems>
       <fa:FANavigationViewItem x:Name="NavItemAbout" Tag="about">
         <fa:FANavigationViewItem.IconSource>
-          <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Library}" />
+          <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE1D3;" FontSize="20" />
         </fa:FANavigationViewItem.IconSource>
       </fa:FANavigationViewItem>
       <fa:FANavigationViewItem x:Name="NavItemDebug" Tag="debug">
         <fa:FANavigationViewItem.IconSource>
-          <fa:FASymbolIconSource Symbol="{x:Static fa:FASymbol.Code}" />
+          <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE943;" FontSize="20" />
         </fa:FANavigationViewItem.IconSource>
       </fa:FANavigationViewItem>
     </fa:FANavigationView.FooterMenuItems>

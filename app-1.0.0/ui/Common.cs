@@ -47,6 +47,31 @@ internal static class ThemeSense
     }
 }
 
+public static class FAIcons
+{
+    public static readonly FontFamily SymbolsFont = new("avares://FluentAvalonia/Fonts#Symbols");
+
+    public static FAFontIcon Icon(FASymbol symbol, double fontSize = 16) => new()
+    {
+        FontFamily = SymbolsFont,
+        Glyph = char.ConvertFromUtf32((int)symbol),
+        FontSize = fontSize,
+    };
+
+    public static FAFontIcon IconCenter(FASymbol symbol, double fontSize = 16)
+    {
+        var icon = Icon(symbol, fontSize);
+        icon.VerticalAlignment = VerticalAlignment.Center;
+        return icon;
+    }
+
+    public static FAFontIconSource IconSource(FASymbol symbol) => new()
+    {
+        FontFamily = SymbolsFont,
+        Glyph = char.ConvertFromUtf32((int)symbol),
+    };
+}
+
 public static class Common
 {
     // 圆角卡片容器

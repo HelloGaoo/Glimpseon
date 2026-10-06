@@ -34,9 +34,16 @@ internal static class GlimpseonMain
     {
         Paths.EnsureDataDirs();
         Config.Load();
+        CrashHandler.Init();
+        if (args.Length >= 2 && args[0] == "--crash-handler")
+        {
+            return CrashHandler.Run(args[1]);
+        }
+        CrashHandler.Spawn();
         var ret = BuildAvaloniaApp(Config.EnableGpuAcceleration.Value).StartWithClassicDesktopLifetime(args);
         if (AppUtils.IsRestartPending())
         {
+            CrashHandler.MarkExit("restart");
             Log.Info($"[重启] 待重启标记 exit_code={ret}");
             AppUtils.RestartSelf();
         }
@@ -85,6 +92,8 @@ internal static class GlimpseonMain
             var logMaxCount = Config.DebugMode.Value ? 3 : Config.LogMaxCount.Value;
             var logMaxDays = Config.DebugMode.Value ? 1 : Config.LogMaxDays.Value;
             Log.Configure(Config.DisableLog.Value, AppUtils.ToLogLevel(Config.LogVerbosity.Value), logMaxCount, logMaxDays);
+            // 写日志路径指针 供崩溃接管进程定位本会话日志
+            CrashHandler.WriteLogPointer();
 
             Telemetry.Init();
 

@@ -646,58 +646,6 @@ public static class AppUtils
         Log.Info("字体就绪");
     }
 
-    // FUI 图标
-
-    private static readonly Dictionary<string, string> IconNameMap = new()
-    {
-        ["RIGHT_ARROW"] = "arrow_right", ["LEFT_ARROW"] = "arrow_left",
-        ["UP"] = "chevron_up", ["DOWN"] = "chevron_down",
-        ["ACCEPT"] = "checkmark", ["ADD"] = "add", ["DELETE"] = "delete",
-        ["EDIT"] = "edit", ["SAVE"] = "save", ["CLOSE"] = "dismiss",
-        ["PLAY"] = "play", ["PAUSE"] = "pause",
-        ["HOME"] = "home", ["SETTING"] = "settings", ["INFO"] = "info",
-        ["FOLDER"] = "folder", ["ALBUM"] = "album", ["DOWNLOAD"] = "arrow_download",
-        ["PHOTO"] = "image", ["MESSAGE"] = "chat", ["LINK"] = "link",
-        ["DATE_TIME"] = "clock", ["STOP_WATCH"] = "timer", ["HISTORY"] = "history",
-        ["SYNC"] = "arrow_sync", ["VIDEO"] = "video", ["MUSIC"] = "music_note_2",
-        ["APPLICATION"] = "apps", ["BRUSH"] = "paint_brush", ["PALETTE"] = "color",
-        ["CLOUD"] = "cloud", ["BOOK_SHELF"] = "book", ["EDUCATION"] = "class",
-        ["LANGUAGE"] = "local_language", ["TILES"] = "grid", ["LAYOUT"] = "layout_column_two",
-        ["UPDATE"] = "arrow_sync", ["DEVELOPER_TOOLS"] = "window_dev_tools", ["CODE"] = "code",
-        ["GAUGE"] = "gauge", ["GLOBE"] = "globe", ["SEARCH"] = "search",
-        ["PEOPLE"] = "people", ["DOCUMENT"] = "document", ["HEART"] = "heart",
-        ["CALENDAR"] = "calendar", ["PEN"] = "pen", ["ERASER"] = "eraser",
-        ["UNDO"] = "arrow_undo", ["MICROPHONE"] = "microphone",
-        ["PREVIOUS"] = "previous", ["NEXT"] = "next",
-        ["FULL_SCREEN"] = "full_screen_maximize", ["VIEW"] = "eye",
-        ["MENU"] = "navigation", ["TABLE"] = "table_simple", ["LIBRARY"] = "folder",
-        ["FOLDER_ADD"] = "folder_add", ["BROOM"] = "broom",
-        ["CARE_LEFT_SOLID"] = "chevron_left", ["CARE_RIGHT_SOLID"] = "chevron_right",
-        ["CURSOR"] = "cursor", ["GITHUB"] = "link", ["ZOOM"] = "zoom_fit",
-        ["WEATHER_SUNNY"] = "weather_sunny", ["WEATHER_CLOUDY"] = "weather_cloudy",
-        ["WEATHER_PARTLY_DAY"] = "weather_partly_cloudy_day", ["WEATHER_PARTLY_NIGHT"] = "weather_partly_cloudy_night",
-        ["WEATHER_RAIN"] = "weather_rain", ["WEATHER_DRIZZLE"] = "weather_drizzle",
-        ["WEATHER_SNOW"] = "weather_snow", ["WEATHER_FOG"] = "weather_fog",
-        ["WEATHER_HAZE"] = "weather_haze", ["WEATHER_THUNDERSTORM"] = "weather_thunderstorm",
-        ["WEATHER_MOON"] = "weather_moon", ["WEATHER_DUSTSTORM"] = "weather_duststorm",
-        ["WEATHER_SQUALLS"] = "weather_squalls", ["WEATHER_RAIN_SNOW"] = "weather_rain_snow",
-        ["WEATHER_BLOWING_SNOW"] = "weather_blowing_snow", ["WEATHER_HUMIDITY"] = "weather_humidity",
-        ["WEATHER_HAIL"] = "weather_hail_day",
-        ["TEMPERATURE"] = "temperature", ["BLUR"] = "blur", ["BOARD"] = "board",
-    };
-
-    public static string GetFluentIconPath(string iconName, bool isDark)
-    {
-        var mapped = IconNameMap.TryGetValue(iconName, out var name) ? name : iconName.ToLowerInvariant();
-        var themeDir = isDark ? "dark" : "light";
-        var path32 = Paths.GetResourcePath(Path.Combine("Assets", "fluent", themeDir, $"ic_fluent_{mapped}_32_regular.svg"));
-        if (File.Exists(path32))
-        {
-            return path32;
-        }
-        return Paths.GetResourcePath(Path.Combine("Assets", "fluent", themeDir, $"ic_fluent_{mapped}_24_regular.svg"));
-    }
-
     // 缓存刷新器
     public static class CacheRefresher
     {

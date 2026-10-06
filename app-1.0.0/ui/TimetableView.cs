@@ -376,7 +376,7 @@ public class TimetableView : UserControl
     {
         var btn = new Button
         {
-            Content = new FASymbolIcon { Symbol = symbol, FontSize = 14 },
+            Content = FAIcons.Icon(symbol, 14),
             Width = 30,
             Height = 30,
             Padding = new Thickness(0),

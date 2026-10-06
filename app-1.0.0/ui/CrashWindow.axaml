@@ -1,0 +1,56 @@
+<ui:GlimpseonWindow x:Class="Glimpseon.UI.CrashWindow"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:fa="using:FluentAvalonia.UI.Controls"
+        xmlns:ui="using:Glimpseon.UI"
+        Width="640" Height="500" MinWidth="560" MinHeight="420"
+        CanResize="False" Topmost="True"
+        Title="Glimpseon"
+        WindowStartupLocation="CenterScreen">
+  <Design.DataContext>
+    <ui:CrashWindow />
+  </Design.DataContext>
+  <Grid Margin="24,24,24,20" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="14">
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12">
+      <fa:FAFontIcon FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE783;" FontSize="30" VerticalAlignment="Center" Foreground="#E81123" />
+      <TextBlock x:Name="TitleText" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center" />
+    </StackPanel>
+    <StackPanel Grid.Row="1" Spacing="4">
+      <TextBlock x:Name="SummaryText" TextWrapping="Wrap" Opacity="0.9" />
+      <TextBlock x:Name="IdText" FontSize="12" Opacity="0.6" />
+    </StackPanel>
+    <Border Grid.Row="2" CornerRadius="8" BorderThickness="1" BorderBrush="#40808080" ClipToBounds="True">
+      <TextBox x:Name="DetailsBox" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
+               FontFamily="Consolas" FontSize="12"
+               ScrollViewer.VerticalScrollBarVisibility="Auto"
+               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+               Background="Transparent" BorderThickness="0" />
+    </Border>
+    <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
+      <Button x:Name="CopyBtn" Grid.Column="0" MinWidth="92">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <fa:FAFontIcon FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE8C8;" FontSize="16" />
+          <TextBlock x:Name="CopyText" Text="复制日志" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+      <Button x:Name="IgnoreBtn" Grid.Column="2" MinWidth="92">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <fa:FAFontIcon FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE711;" FontSize="16" />
+          <TextBlock x:Name="IgnoreText" Text="忽略" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+      <Button x:Name="ExitBtn" Grid.Column="3" MinWidth="92">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <fa:FAFontIcon FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE7E8;" FontSize="16" />
+          <TextBlock x:Name="ExitText" Text="退出应用" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+      <Button x:Name="RestartBtn" Grid.Column="4" MinWidth="92" Classes="accent">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <fa:FAFontIcon FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE72C;" FontSize="16" />
+          <TextBlock x:Name="RestartText" Text="重启应用" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+    </Grid>
+  </Grid>
+</ui:GlimpseonWindow>

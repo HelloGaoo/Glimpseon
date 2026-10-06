@@ -33,16 +33,40 @@ public static class Telemetry
     private static readonly object Lock = new();
     private static IDisposable? _sentryHandle;
     private static bool _sentryActive;
-    private static bool _exitSent;
     private static string _installId = "";
     private static string _telemetryId = "";
     private static string _dsn = "";
     private static string _posthogKey = "";
 
+    // 身份文件: 随机 GUID 对 持久化保证跨启动稳定
     private static string IdentityPath => Path.Combine(Paths.DataConfig, "telemetry.json");
 
     public static bool CrashEnabled => Config.CrashUpload.Value && !string.IsNullOrWhiteSpace(_dsn);
     public static bool UsageEnabled => Config.UsageUpload.Value && !string.IsNullOrWhiteSpace(_posthogKey);
+
+    public static string TelemetryId => _telemetryId;
+
+    public static void Init()
+    {
+        LoadKeys();
+        try
+        {
+            LoadIdentity();
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"[遥测] 身份读取失败: {e.Message}");
+        }
+        Config.CrashUpload.ValueChanged += _ => ApplyCrashState();
+        Config.UsageUpload.ValueChanged += _ => ApplyCrashState();
+        ApplyCrashState();
+        CaptureUsage("app_start", new Dictionary<string, object?>
+        {
+            ["launch_source"] = AppUtils.AutoStartLaunch() ? "autostart" : "manual",
+        });
+        Log.Info($"[遥测] 就绪 崩溃上报={CrashEnabled} 用量上报={UsageEnabled}");
+    }
+
 
     private static void LoadKeys()
     {
@@ -53,7 +77,7 @@ public static class Telemetry
                 .FirstOrDefault(n => n.EndsWith("telemetry.keys.json", StringComparison.OrdinalIgnoreCase));
             if (name is null)
             {
-                Log.Info("[遥测] 无key文件");
+                Log.Info("[遥测] 无key文件 上报保持不可用");
                 return;
             }
             using var stream = asm.GetManifestResourceStream(name);
@@ -71,29 +95,6 @@ public static class Telemetry
         }
     }
 
-    public static void Init()
-    {
-        LoadKeys();
-        try
-        {
-            LoadIdentity();
-        }
-        catch (Exception e)
-        {
-            Log.Warning($"[遥测] 身份读取失败: {e.Message}");
-        }
-        Config.CrashUpload.ValueChanged += _ => ApplyCrashState();
-        Config.UsageUpload.ValueChanged += _ => ApplyCrashState();
-        ApplyCrashState();
-        AppDomain.CurrentDomain.ProcessExit += (_, _) => Shutdown("process_exit");
-        CaptureUsage("app_start", new Dictionary<string, object?>
-        {
-            ["launch_source"] = AppUtils.AutoStartLaunch() ? "autostart" : "manual",
-        });
-        Log.Info($"[遥测] 就绪 崩溃上报={CrashEnabled} 用量上报={UsageEnabled}");
-    }
-
-    // 身份
 
     private static void LoadIdentity()
     {
@@ -268,70 +269,67 @@ public static class Telemetry
         }
     }
 
-    // 退出
-    private const int ExitGraceMs = 300;
 
-    public static void Shutdown(string source)
+    public static void PrepareCrashHandler()
     {
-        lock (Lock)
+        LoadKeys();
+        try
         {
-            if (_exitSent)
-            {
-                return;
-            }
-            _exitSent = true;
+            LoadIdentity();
         }
-        var tasks = new List<Task>();
-        if (UsageEnabled)
+        catch
         {
-            tasks.Add(SendPostHog("app_exit", new Dictionary<string, object?> { ["source"] = source }));
-        }
-        if (CrashEnabled)
-        {
-            tasks.Add(Task.Run(() => UploadExitLog(source)));
-        }
-        if (tasks.Count > 0)
-        {
-            try
-            {
-                Task.WaitAll(tasks.ToArray(), TimeSpan.FromMilliseconds(ExitGraceMs));
-            }
-            catch
-            {
-                // 超时或单个任务异常直接放行退出
-            }
+            // 身份缺失用空串上报
         }
     }
 
-    // 每次退出都上传当前日志文件 压缩后作为 Sentry 事件附件
-    private static void UploadExitLog(string source)
+    // 日志 zip 后作为独立 Sentry 事件附件 接管进程用 自带 SDK 生命周期
+    public static bool UploadLogZip(string logPath, string eventName, string? sourceTag)
     {
-        var zipPath = Path.Combine(Path.GetTempPath(), $"glimpseon_exit_{Guid.NewGuid():N}.zip");
+        var zipPath = Path.Combine(Path.GetTempPath(), $"glimpseon_{eventName}_{Guid.NewGuid():N}.zip");
         try
         {
-            var logPath = Log.CurrentLogFilePath;
-            if (string.IsNullOrWhiteSpace(logPath) || !File.Exists(logPath))
+            if (!CrashEnabled || !File.Exists(logPath))
             {
-                return;
+                return false;
             }
             using (var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create))
             {
                 archive.CreateEntryFromFile(logPath, Path.GetFileName(logPath), CompressionLevel.Optimal);
             }
             var bytes = File.ReadAllBytes(zipPath);
-            SentrySdk.CaptureMessage("app_exit_log", scope =>
+            using var handle = SentrySdk.Init(options =>
             {
-                scope.Level = SentryLevel.Info;
-                scope.SetTag("install_id", _installId);
-                scope.SetTag("app_version", Paths.Version);
-                scope.SetTag("exit_source", source);
-                scope.AddAttachment(bytes, Path.GetFileName(zipPath));
+                options.Dsn = _dsn.Trim();
+                options.Release = Paths.Version;
+                options.AutoSessionTracking = false;
+                options.SendDefaultPii = false;
             });
-            SentrySdk.FlushAsync(TimeSpan.FromSeconds(2)).Wait(TimeSpan.FromSeconds(2));
+            try
+            {
+                SentrySdk.CaptureMessage(eventName, scope =>
+                {
+                    scope.Level = SentryLevel.Info;
+                    scope.SetTag("install_id", _installId);
+                    scope.SetTag("app_version", Paths.Version);
+                    if (!string.IsNullOrEmpty(sourceTag))
+                    {
+                        scope.SetTag("exit_source", sourceTag);
+                    }
+                    scope.AddAttachment(bytes, Path.GetFileName(zipPath));
+                });
+                SentrySdk.FlushAsync(TimeSpan.FromSeconds(10)).Wait(TimeSpan.FromSeconds(10));
+            }
+            finally
+            {
+                handle.Dispose();
+            }
+            return true;
         }
         catch (Exception e)
         {
-            Log.Debug($"[遥测] 退出日志上传失败: {e.Message}");
+            Log.Debug($"[遥测] 日志上传失败: {e.Message}");
+            return false;
         }
         finally
         {
@@ -349,41 +347,12 @@ public static class Telemetry
         }
     }
 
-    // 读取当前日志尾部用于崩溃附带
-    private static string ReadLogTail()
-    {
-        try
+    public static Task SendExitEventAsync(bool crashed, string source)
+        => SendPostHog("app_exit", new Dictionary<string, object?>
         {
-            var path = Log.CurrentLogFilePath;
-            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-            {
-                return "";
-            }
-            var lines = new Queue<string>(LogTailMaxLines);
-            using var reader = File.OpenText(path);
-            string? line;
-            while ((line = reader.ReadLine()) is not null)
-            {
-                if (lines.Count == LogTailMaxLines)
-                {
-                    lines.Dequeue();
-                }
-                lines.Enqueue(line);
-            }
-            var sb = new StringBuilder();
-            foreach (var l in lines)
-            {
-                if (sb.Length + l.Length > LogTailMaxChars)
-                {
-                    break;
-                }
-                sb.AppendLine(l);
-            }
-            return sb.ToString();
-        }
-        catch
-        {
-            return "";
-        }
-    }
+            ["source"] = source,
+            ["crashed"] = crashed,
+        });
+
+    private static string ReadLogTail() => Log.ReadTail(Log.CurrentLogFilePath, LogTailMaxLines, LogTailMaxChars);
 }

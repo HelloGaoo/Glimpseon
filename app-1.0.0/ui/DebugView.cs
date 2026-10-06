@@ -39,6 +39,10 @@ public class DebugView : UserControl
         var refresh = new Button { Content = AppUtils.Tr("debug.refresh") };
         refresh.Click += (_, _) => RefreshInfo();
         stack.Children.Add(refresh);
+        var crashBtn = new Button { Content = AppUtils.Tr("debug.crash_test") };
+        crashBtn.Click += (_, _) => new Thread(() =>
+            throw new InvalidOperationException("CrashTest 模拟崩溃")).Start();
+        stack.Children.Add(crashBtn);
         Content = Common.MakePageScroll(stack);
         RefreshInfo();
     }

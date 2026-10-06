@@ -496,12 +496,9 @@ public sealed class PlaceholderWidget : DraggableContainer
             VerticalAlignment = VerticalAlignment.Center,
             Spacing = 6,
         };
-        content.Children.Add(new FASymbolIcon
-        {
-            Symbol = FASymbol.Home,
-            FontSize = 22,
-            HorizontalAlignment = HorizontalAlignment.Center,
-        });
+        var homeIcon = FAIcons.Icon(FASymbol.Home, 22);
+        homeIcon.HorizontalAlignment = HorizontalAlignment.Center;
+        content.Children.Add(homeIcon);
         content.Children.Add(new TextBlock
         {
             Text = definition.DisplayName,
@@ -3359,7 +3356,7 @@ public sealed class MediaPlayerWidget : WidgetCardBase
     private static Button MakeButton(TextBlock glyph, double size, double icon)
     {
         glyph.Text = "";
-        glyph.FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets");
+        glyph.FontFamily = FAIcons.SymbolsFont;
         glyph.FontSize = icon;
         return new Button
         {
@@ -3940,26 +3937,13 @@ public sealed class HistoryTodayWidget : WidgetCardBase
     // 头部图标
     private Control MakeHistoryIcon()
     {
-        try
+        return new FAFontIcon
         {
-            var iconPath = Paths.GetResourcePath(System.IO.Path.Combine("Assets", "fluent",
-                ThemeSense.IsDark(this) ? "dark" : "light", "ic_fluent_history_24_regular.svg"));
-            if (File.Exists(iconPath))
-            {
-                return new Avalonia.Svg.Skia.Svg(new Uri(iconPath))
-                {
-                    Height = 16,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    SvgSource = Avalonia.Svg.Skia.SvgSource.Load(iconPath, null),
-                };
-            }
-        }
-        catch (Exception e)
-        {
-            Log.Debug($"[HIST] 图标缺失留空: {e.Message}");
-        }
-        // 图标缺失留空占位 保持列宽
-        return new Border { Width = 0, Height = 16 };
+            FontFamily = FAIcons.SymbolsFont,
+            Glyph = "\uE81C",
+            FontSize = 16,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
     }
 
     private void OpenLink(int index)
@@ -4102,7 +4086,7 @@ public sealed class CalendarMonthWidget : WidgetCardBase
         var g = new TextBlock
         {
             Text = glyph,
-            FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
+            FontFamily = FAIcons.SymbolsFont,
             FontSize = 10,
         };
         var btn = new Button

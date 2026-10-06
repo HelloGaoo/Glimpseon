@@ -25,6 +25,15 @@ public partial class App : Application
 {
     public static IClassicDesktopStyleApplicationLifetime? Lifetime { get; private set; }
 
+    public static bool CrashDialogMode { get; set; }
+    public static string CrashDialogTitleText { get; set; } = "Glimpseon 意外崩溃";
+    public static string CrashDialogSummary { get; set; } = "";
+    public static string CrashDialogDetails { get; set; } = "";
+    public static string CrashDialogAction { get; set; } = "";
+    public static CrashWindowKind CrashDialogKind { get; set; } = CrashWindowKind.Handler;
+
+    private static bool _crashDialogOpen;
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -35,14 +44,57 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
         {
             Lifetime = lifetime;
-            lifetime.ShutdownMode = ShutdownMode.OnExplicitShutdown;
-            Avalonia.Threading.Dispatcher.UIThread.UnhandledException += (_, e) =>
+            if (CrashDialogMode)
             {
-                Glimpseon.Core.Log.Critical($"[ui线程] {e.Exception.GetType().Name}: {e.Exception.Message}\n{e.Exception.StackTrace}");
+                lifetime.ShutdownMode = ShutdownMode.OnMainWindowClose;
+                var window = new CrashWindow();
+                lifetime.MainWindow = window;
+                window.Show();
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
+            lifetime.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            Avalonia.Threading.Dispatcher.UIThread.UnhandledException += async (_, e) =>
+            {
+                var ex = e.Exception;
+                Glimpseon.Core.Log.Critical($"[ui线程] {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
                 e.Handled = true;
+                await ShowCrashDialogAsync(ex);
             };
             Avalonia.Threading.Dispatcher.UIThread.Post(() => _ = GlimpseonMain.RunStartupAsync((ClassicDesktopStyleApplicationLifetime)lifetime));
         }
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private static async Task ShowCrashDialogAsync(Exception ex)
+    {
+        if (_crashDialogOpen)
+        {
+            return;
+        }
+        var owner = Lifetime?.MainWindow;
+        if (owner is null)
+        {
+            return;
+        }
+        _crashDialogOpen = true;
+        try
+        {
+            var details = $"{ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}";
+            var dialog = new CrashWindow(
+                CrashWindowKind.InApp,
+                "Glimpseon 遇到错误",
+                "发生严重错误 应用仍在运行 可忽略继续 或退出重启",
+                details);
+            await dialog.ShowDialog(owner);
+        }
+        catch
+        {
+            // 弹窗失败只保留日志
+        }
+        finally
+        {
+            _crashDialogOpen = false;
+        }
     }
 }

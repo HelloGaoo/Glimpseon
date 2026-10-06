@@ -1039,7 +1039,7 @@ public partial class HomeView : UserControl
             Padding = new Thickness(0),
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
-            Content = new FASymbolIcon { Symbol = symbol, FontSize = 22 },
+            Content = FAIcons.Icon(symbol, 22),
             ZIndex = 5001,
         };
         void Rest() => ApplyEditButtonStyle(btn, hover, isDelete, hovered: false);

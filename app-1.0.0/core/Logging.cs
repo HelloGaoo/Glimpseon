@@ -42,7 +42,7 @@ public static class Log
     private static string? _logFilePath;
     private static bool _hooksInstalled;
 
-    public static void Configure(bool disableLog, LogLevel level, int maxCount, int maxDays)
+    public static void Configure(bool disableLog, LogLevel level, int maxCount, int maxDays, string? logFilePath = null)
     {
         lock (LockObj)
         {
@@ -53,7 +53,7 @@ public static class Log
             if (!_disabled && _logFilePath is null)
             {
                 Paths.EnsureDataDirs();
-                _logFilePath = Path.Combine(Paths.DataLog, $"app_{Timestamp}.log");
+                _logFilePath = logFilePath ?? Path.Combine(Paths.DataLog, $"app_{Timestamp}.log");
                 Info($"日志装载 级别={level} 路径={_logFilePath}");
             }
             Task.Run(CleanOldLogs);
@@ -199,6 +199,43 @@ public static class Log
         catch (Exception)
         {
             // 压缩失败忽略
+        }
+    }
+
+    // 读取日志文件尾部 默认 200 行 32KB 上限 遥测附带与崩溃弹窗共用
+    public static string ReadTail(string? path, int maxLines = 200, int maxChars = 32_768)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                return "";
+            }
+            var lines = new Queue<string>(maxLines);
+            using var reader = File.OpenText(path);
+            string? line;
+            while ((line = reader.ReadLine()) is not null)
+            {
+                if (lines.Count == maxLines)
+                {
+                    lines.Dequeue();
+                }
+                lines.Enqueue(line);
+            }
+            var sb = new StringBuilder();
+            foreach (var l in lines)
+            {
+                if (sb.Length + l.Length > maxChars)
+                {
+                    break;
+                }
+                sb.AppendLine(l);
+            }
+            return sb.ToString();
+        }
+        catch
+        {
+            return "";
         }
     }
 

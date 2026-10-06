@@ -350,11 +350,18 @@ public partial class MainWindow : GlimpseonWindow
 
     public void MinimizeToDesktop() => WindowState = WindowState.Minimized;
 
+    private bool _exiting;
+
     private void ExitApplication()
     {
+        if (_exiting)
+        {
+            return;
+        }
+        _exiting = true;
         Log.Info("[托盘] 菜单动作: 退出应用");
         HomeView.SaveComponentPositions();
-        Telemetry.Shutdown("exit");
+        CrashHandler.MarkExit("exit");
         _trayIcon?.Dispose();
         AppUtils.ReleaseSingleInstance();
         (Avalonia.Application.Current?.ApplicationLifetime as IControlledApplicationLifetime)?.Shutdown();
@@ -595,6 +602,14 @@ public partial class MainWindow : GlimpseonWindow
 
         if (Config.CloseAction.Value == "minimize")
         {
+            if (Native.IsSystemShuttingDown())
+            {
+                Log.Info("[closeEvent] 系统关机 放行关闭");
+                CrashHandler.MarkExit("shutdown");
+                AppUtils.ReleaseSingleInstance();
+                base.OnClosing(e);
+                return;
+            }
             Log.Info($"[closeEvent] 最小化到托盘 计数 {Config.MinimizeNotificationCount.Value}/5");
             e.Cancel = true;
             Hide();
@@ -606,7 +621,7 @@ public partial class MainWindow : GlimpseonWindow
         }
 
         Log.Info("[closeEvent] closeAction=close 退出应用");
-        Telemetry.Shutdown("close");
+        CrashHandler.MarkExit("close");
         AppUtils.ReleaseSingleInstance();
         base.OnClosing(e);
     }
