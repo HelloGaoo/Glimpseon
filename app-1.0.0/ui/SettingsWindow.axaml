@@ -25,7 +25,7 @@
                          IsSettingsVisible="False"
                          SelectionChanged="OnNavSelectionChanged">
       <fa:FANavigationView.MenuItems>
-        <!-- 通用/时间/外观/天气/网格/隐私/日志/高级 -->
+        <!-- 通用/时间/外观/天气/网格/日志/提醒/空间/隐私/高级 -->
         <fa:FANavigationViewItem x:Name="NavGeneral" Tag="general">
           <fa:FANavigationViewItem.IconSource>
             <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE115;" FontSize="20" />
@@ -59,6 +59,11 @@
         <fa:FANavigationViewItem x:Name="NavReminder" Tag="reminder">
           <fa:FANavigationViewItem.IconSource>
             <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xF8001;" FontSize="20" />
+          </fa:FANavigationViewItem.IconSource>
+        </fa:FANavigationViewItem>
+        <fa:FANavigationViewItem x:Name="NavStorage" Tag="storage">
+          <fa:FANavigationViewItem.IconSource>
+            <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE1D3;" FontSize="20" />
           </fa:FANavigationViewItem.IconSource>
         </fa:FANavigationViewItem>
         <fa:FANavigationViewItem x:Name="NavPrivacy" Tag="privacy">

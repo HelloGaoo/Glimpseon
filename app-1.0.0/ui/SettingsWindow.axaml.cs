@@ -22,6 +22,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Documents;
+using Avalonia.Controls.Shapes;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -52,6 +54,7 @@ public partial class SettingsWindow : GlimpseonWindow
         ("grid", "settings.grid.title"),
         ("log", "settings.log"),
         ("reminder", "settings.reminder"),
+        ("storage", "settings.storage.title"),
         ("privacy", "settings.privacy"),
         ("advanced", "settings.advanced"),
     };
@@ -96,6 +99,7 @@ public partial class SettingsWindow : GlimpseonWindow
         NavGrid.Content = Tr("settings.grid.title");
         NavLog.Content = Tr("settings.log");
         NavReminder.Content = Tr("settings.reminder");
+        NavStorage.Content = Tr("settings.storage.title");
         NavPrivacy.Content = Tr("settings.privacy");
         NavAdvanced.Content = Tr("settings.advanced");
     }
@@ -320,6 +324,7 @@ public partial class SettingsWindow : GlimpseonWindow
         _pages["grid"] = Wrap(BuildGridPage());
         _pages["log"] = Wrap(BuildLogPage());
         _pages["reminder"] = Wrap(BuildReminderPage());
+        _pages["storage"] = Wrap(BuildStoragePage());
         _pages["privacy"] = Wrap(BuildPrivacyPage());
         _pages["advanced"] = Wrap(BuildAdvancedPage());
     }
@@ -479,7 +484,7 @@ public partial class SettingsWindow : GlimpseonWindow
     {
         var stack = MakePageStack(Tr("settings.weather"));
 
-        // ---- 顶部: 城市 + 刷新 ----
+        // 顶部: 城市 + 刷新
         var cityLabel = new TextBlock
         {
             Text = Tr("settings.weather_city_unset"),
@@ -510,7 +515,7 @@ public partial class SettingsWindow : GlimpseonWindow
         stack.Children.Add(updateLabel);
         stack.Children.Add(new Border { Height = 6 });
 
-        // ---- 当前天气: 图标 + 温度 ----
+        // 当前天气: 图标 + 温度
         var iconHost = new Border { Width = 72, Height = 72 };
         var tempLabel = new TextBlock
         {
@@ -528,7 +533,7 @@ public partial class SettingsWindow : GlimpseonWindow
         stack.Children.Add(currentRow);
         stack.Children.Add(new Border { Height = 6 });
 
-        // ---- 四项指标 ----
+        // 四项指标
         var (windCard, windValue) = MakeMetricCard(Tr("settings.weather_wind"));
         var (aqiCard, aqiValue) = MakeMetricCard(Tr("settings.weather_aqi"));
         var (humidityCard, humidityValue) = MakeMetricCard(Tr("settings.weather_humidity"));
@@ -543,7 +548,7 @@ public partial class SettingsWindow : GlimpseonWindow
         stack.Children.Add(metricRow);
         stack.Children.Add(new Border { Height = 12 });
 
-        // ---- 数据来源 ----
+        // 数据来源
         var cityCard = new FASettingsExpander
         {
             IconSource = FAIcons.IconSource(FASymbol.MapPin),
@@ -594,7 +599,7 @@ public partial class SettingsWindow : GlimpseonWindow
         stack.Children.Add(latLonCard);
         stack.Children.Add(CardText(FASymbol.Filter, Tr("settings.weather_alert_exclude"), Tr("settings.weather_alert_exclude_desc"), Config.WeatherAlertExcluded));
 
-        // ---- 设定: 刷新间隔 + 单位 ----
+        // 设定: 刷新间隔 + 单位
         stack.Children.Add(CardCombo(FASymbol.RotateClockwise, Tr("settings.weather_refresh_interval"), Tr("settings.weather_refresh_interval_desc"), Config.WeatherUpdateInterval,
             new (string, string)[]
             {
@@ -615,7 +620,7 @@ public partial class SettingsWindow : GlimpseonWindow
                 (Tr("settings.weather_unit_f"), "f"),
             }));
 
-        // ---- 可见性: 城市 / 经纬度 ----
+        // 可见性: 城市 / 经纬度
         void ApplySourceVisibility()
         {
             var byCity = Config.WeatherSource.Value == "city";
@@ -1053,6 +1058,364 @@ public partial class SettingsWindow : GlimpseonWindow
         stack.Children.Add(cpuThresholdCard);
         return stack;
     }
+
+    // 空间
+
+    private Control BuildStoragePage()
+    {
+        var stack = MakePageStack(Tr("settings.storage.title"));
+        stack.Spacing = 8;
+
+        // 本地磁盘
+        stack.Children.Add(SectionHeader(Tr("settings.storage.drives"), FASymbol.Folder));
+        var drivesPanel = new StackPanel();
+        stack.Children.Add(new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(30, 128, 128, 128)),
+            Background = new SolidColorBrush(Color.FromArgb(20, 128, 128, 128)),
+            Padding = new Thickness(14, 4, 14, 4),
+            Child = drivesPanel,
+        });
+
+        // 应用数据
+        stack.Children.Add(SectionHeader(Tr("settings.storage.app_data"), FASymbol.Page));
+
+        var totalValue = MakeMetricValue();
+        var ratioValue = MakeMetricValue();
+        var freeValue = MakeMetricValue();
+        var overview = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,*,*") };
+        overview.Children.Add(MakeMetricColumn(Tr("settings.storage.total"), totalValue, 0));
+        overview.Children.Add(MakeMetricColumn(Tr("settings.storage.used_ratio"), ratioValue, 1));
+        overview.Children.Add(MakeMetricColumn(Tr("settings.storage.free"), freeValue, 2));
+
+        var dataBarGrid = new Grid();
+        var dataBar = new Border
+        {
+            Height = 16,
+            CornerRadius = new CornerRadius(8),
+            ClipToBounds = true,
+            Background = new SolidColorBrush(Color.FromArgb(28, 128, 128, 128)),
+            Child = dataBarGrid,
+        };
+
+        var legendPanel = new WrapPanel { Margin = new Thickness(0, -4, 0, 0) };
+
+        var detailPanel = new StackPanel();
+        var sizeTexts = new Dictionary<string, TextBlock>();
+        for (var i = 0; i < DataUsageService.Categories.Length; i++)
+        {
+            var cat = DataUsageService.Categories[i];
+            var size = new TextBlock
+            {
+                Text = "-",
+                FontSize = 13,
+                VerticalAlignment = VerticalAlignment.Center,
+                Opacity = 0.8,
+            };
+            sizeTexts[cat.Key] = size;
+            var row = new Grid
+            {
+                ColumnDefinitions = ColumnDefinitions.Parse("Auto,*,Auto"),
+                MinHeight = 36,
+            };
+            var dot = new Ellipse
+            {
+                Width = 9,
+                Height = 9,
+                VerticalAlignment = VerticalAlignment.Center,
+                Fill = ParseBrush(cat.ColorHex),
+            };
+            var name = new TextBlock
+            {
+                Text = Tr(cat.NameKey),
+                FontSize = 13,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(10, 0, 0, 0),
+            };
+            Grid.SetColumn(dot, 0);
+            Grid.SetColumn(name, 1);
+            Grid.SetColumn(size, 2);
+            row.Children.Add(dot);
+            row.Children.Add(name);
+            row.Children.Add(size);
+            detailPanel.Children.Add(row);
+            if (i < DataUsageService.Categories.Length - 1)
+            {
+                detailPanel.Children.Add(new Border
+                {
+                    Height = 1,
+                    Background = new SolidColorBrush(Color.FromArgb(18, 128, 128, 128)),
+                });
+            }
+        }
+
+        var cleanBtn = new Button
+        {
+            Content = Tr("settings.storage.clean_all"),
+            MinWidth = 120,
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        cleanBtn.Click += (_, _) => _ = CleanAllAsync(stack);
+
+        var card = new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(30, 128, 128, 128)),
+            Background = new SolidColorBrush(Color.FromArgb(20, 128, 128, 128)),
+            Padding = new Thickness(20, 16, 20, 16),
+            Child = new StackPanel
+            {
+                Spacing = 14,
+                Children =
+                {
+                    overview,
+                    dataBar,
+                    legendPanel,
+                    new Border
+                    {
+                        Height = 1,
+                        Background = new SolidColorBrush(Color.FromArgb(18, 128, 128, 128)),
+                        Margin = new Thickness(0, 2, 0, 2),
+                    },
+                    detailPanel,
+                    cleanBtn,
+                },
+            },
+        };
+        stack.Children.Add(card);
+
+        async Task ScanStorageAsync()
+        {
+            cleanBtn.IsEnabled = false;
+            try
+            {
+                var drives = await Task.Run(DataUsageService.ScanDrives);
+                var sizes = await Task.Run(DataUsageService.ScanSizes);
+                var appDrive = DataUsageService.GetAppDrive();
+                var threshold = Config.StorageFullThreshold.Value;
+                var accent = Common.ParseAccentColor(Config.ThemeColor.Value);
+
+                drivesPanel.Children.Clear();
+                if (drives.Count == 0)
+                {
+                    drivesPanel.Children.Add(new TextBlock
+                    {
+                        Text = Tr("settings.storage.no_drives"),
+                        Opacity = 0.6,
+                        Margin = new Thickness(0, 10, 0, 10),
+                    });
+                }
+                for (var i = 0; i < drives.Count; i++)
+                {
+                    drivesPanel.Children.Add(MakeDriveRow(drives[i], accent, threshold));
+                    if (i < drives.Count - 1)
+                    {
+                        drivesPanel.Children.Add(new Border
+                        {
+                            Height = 1,
+                            Background = new SolidColorBrush(Color.FromArgb(18, 128, 128, 128)),
+                            Margin = new Thickness(34, 0, 0, 0),
+                        });
+                    }
+                }
+
+                var appTotal = sizes.Values.Sum();
+                totalValue.Text = DataUsageService.FormatBytes(appTotal);
+                if (appDrive is not null)
+                {
+                    ratioValue.Text = $"{appTotal * 100.0 / appDrive.TotalBytes:F2}%";
+                    freeValue.Text = DataUsageService.FormatBytes(appDrive.FreeBytes);
+                }
+                else
+                {
+                    ratioValue.Text = "-";
+                    freeValue.Text = "-";
+                }
+
+                // 构成条
+                dataBarGrid.Children.Clear();
+                dataBarGrid.ColumnDefinitions = new ColumnDefinitions();
+                foreach (var cat in DataUsageService.Categories)
+                {
+                    var size = sizes.TryGetValue(cat.Key, out var s) ? s : 0;
+                    sizeTexts[cat.Key].Text = DataUsageService.FormatBytes(size);
+                    if (size <= 0)
+                    {
+                        continue;
+                    }
+                    dataBarGrid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(size, GridUnitType.Star)));
+                    var seg = new Border { Background = ParseBrush(cat.ColorHex) };
+                    Grid.SetColumn(seg, dataBarGrid.Children.Count);
+                    dataBarGrid.Children.Add(seg);
+                }
+
+                legendPanel.Children.Clear();
+                foreach (var cat in DataUsageService.Categories)
+                {
+                    var item = new StackPanel
+                    {
+                        Orientation = Orientation.Horizontal,
+                        Spacing = 6,
+                        Margin = new Thickness(0, 2, 16, 2),
+                    };
+                    item.Children.Add(new Border
+                    {
+                        Width = 10,
+                        Height = 10,
+                        CornerRadius = new CornerRadius(3),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Background = ParseBrush(cat.ColorHex),
+                    });
+                    item.Children.Add(new TextBlock
+                    {
+                        Text = Tr(cat.NameKey),
+                        FontSize = 12,
+                        Opacity = 0.75,
+                        VerticalAlignment = VerticalAlignment.Center,
+                    });
+                    legendPanel.Children.Add(item);
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Warning($"[设置/空间] 扫描失败: {e.Message}");
+                Info(stack, FAInfoBarSeverity.Error, Tr("settings.storage.scan_failed"));
+            }
+            finally
+            {
+                cleanBtn.IsEnabled = true;
+            }
+        }
+
+        async Task CleanAllAsync(Panel host)
+        {
+            if (!await Common.Confirm(this, Tr("settings.storage.clean_all"), Tr("settings.storage.clean_all_confirm")))
+            {
+                return;
+            }
+            cleanBtn.IsEnabled = false;
+            var deleted = await Task.Run(DataUsageService.CleanAll);
+            Info(host, FAInfoBarSeverity.Success, AppUtils.Tr("settings.storage.clean_done", ("count", deleted)));
+            await ScanStorageAsync();
+        }
+
+        /// <summary>单盘一行</summary>
+        Control MakeDriveRow(DriveUsage d, Color accent, double threshold)
+        {
+            var low = d.FreePercent < threshold;
+            var usedBrush = low ? new SolidColorBrush(Color.Parse("#E81123")) : new SolidColorBrush(accent);
+            var trackBrush = new SolidColorBrush(Color.FromArgb(28, 128, 128, 128));
+
+            var barGrid = new Grid();
+            barGrid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(d.UsedBytes, GridUnitType.Star)));
+            barGrid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Math.Max(1, d.FreeBytes), GridUnitType.Star)));
+            var usedSeg = new Border { Background = usedBrush };
+            Grid.SetColumn(usedSeg, 0);
+            barGrid.Children.Add(usedSeg);
+            var freeSeg = new Border { Background = trackBrush };
+            Grid.SetColumn(freeSeg, 1);
+            barGrid.Children.Add(freeSeg);
+            var bar = new Border
+            {
+                Height = 8,
+                CornerRadius = new CornerRadius(4),
+                ClipToBounds = true,
+                Background = trackBrush,
+                Child = barGrid,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(12, 0, 12, 0),
+            };
+
+            var badge = new Border
+            {
+                Width = 24,
+                Height = 24,
+                CornerRadius = new CornerRadius(5),
+                Background = new SolidColorBrush(Color.FromArgb(34, 128, 128, 128)),
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = new TextBlock
+                {
+                    Text = d.Letter,
+                    FontSize = 12,
+                    FontWeight = FontWeight.Bold,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
+            };
+            // 卷标与盘符同名时退回文件系统类型 避免重复
+            var name = new TextBlock
+            {
+                Text = string.Equals(d.Label, d.Letter, StringComparison.OrdinalIgnoreCase) ? d.Format : d.Label,
+                FontSize = 13,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(10, 0, 0, 0),
+                MaxWidth = 190,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            };
+
+            var stats = new TextBlock
+            {
+                FontSize = 12,
+                Opacity = 0.78,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            stats.Inlines ??= new InlineCollection();
+            stats.Inlines.Add(new Run(
+                $"{Tr("settings.storage.used")} {DataUsageService.FormatBytes(d.UsedBytes)} / {DataUsageService.FormatBytes(d.TotalBytes)} · "));
+            var freeRun = new Run($"{Tr("settings.storage.free")} {DataUsageService.FormatBytes(d.FreeBytes)}");
+            if (low)
+            {
+                freeRun.Foreground = new SolidColorBrush(Color.Parse("#E81123"));
+            }
+            stats.Inlines.Add(freeRun);
+
+            var row = new Grid
+            {
+                ColumnDefinitions = ColumnDefinitions.Parse("Auto,Auto,*,Auto"),
+                MinHeight = 34,
+            };
+            Grid.SetColumn(badge, 0);
+            Grid.SetColumn(name, 1);
+            Grid.SetColumn(bar, 2);
+            Grid.SetColumn(stats, 3);
+            row.Children.Add(badge);
+            row.Children.Add(name);
+            row.Children.Add(bar);
+            row.Children.Add(stats);
+            return row;
+        }
+
+        _ = ScanStorageAsync();
+        return stack;
+    }
+
+    private static TextBlock MakeMetricValue() => new()
+    {
+        Text = "-",
+        FontSize = 20,
+        FontWeight = FontWeight.SemiBold,
+    };
+
+    private static StackPanel MakeMetricColumn(string title, TextBlock value, int column)
+    {
+        var col = new StackPanel
+        {
+            Spacing = 2,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Children =
+            {
+                new TextBlock { Text = title, FontSize = 13, Opacity = 0.65 },
+                value,
+            },
+        };
+        Grid.SetColumn(col, column);
+        return col;
+    }
+
+    private static IBrush ParseBrush(string hex) => new SolidColorBrush(Color.Parse(hex));
 
     // 隐私
 

@@ -59,6 +59,43 @@ public static class StorageMonitor
     }
 
     /// <summary>
+    /// 枚举真实数据分区 仅固定磁盘 排除未就绪盘 无盘符隐藏分区 小容量FAT32引导卷(ESP)
+    /// 提醒与空间页共用此口径
+    /// </summary>
+    public static List<DriveInfo> EnumDataDrives()
+    {
+        var list = new List<DriveInfo>();
+        foreach (var drive in DriveInfo.GetDrives())
+        {
+            try
+            {
+                if (drive.DriveType != DriveType.Fixed || !drive.IsReady || drive.TotalSize <= 0)
+                {
+                    continue;
+                }
+                // 无有效盘符的卷 隐藏分区
+                var letter = drive.Name.Length > 0 ? drive.Name.TrimEnd(':', '\\', '/') : "";
+                if (letter.Length != 1)
+                {
+                    continue;
+                }
+                // 小容量 FAT32 卷 引导分区(ESP)
+                if (string.Equals(drive.DriveFormat, "FAT32", StringComparison.OrdinalIgnoreCase)
+                    && drive.TotalSize < MinDataVolumeBytes)
+                {
+                    continue;
+                }
+                list.Add(drive);
+            }
+            catch (Exception e)
+            {
+                Log.Debug($"[储存] {drive.Name} 枚举跳过: {e.Message}");
+            }
+        }
+        return list;
+    }
+
+    /// <summary>
     /// 扫描本地固定磁盘 剩余空间低于阈值时右下角弹自绘弹窗
     /// 同一盘低空间状态每小时提醒一次 空间恢复后自动重置
     /// 引导分区与隐藏分区不计入
@@ -77,26 +114,11 @@ public static class StorageMonitor
             }
             var threshold = Config.StorageFullThreshold.Value;
             var details = new List<string>();
-            foreach (var drive in DriveInfo.GetDrives())
+            foreach (var drive in EnumDataDrives())
             {
                 try
                 {
-                    if (drive.DriveType != DriveType.Fixed || !drive.IsReady || drive.TotalSize <= 0)
-                    {
-                        continue;
-                    }
-                    // 无有效盘符的卷 隐藏分区
-                    var letter = drive.Name.Length > 0 ? drive.Name.TrimEnd(':', '\\', '/') : "";
-                    if (letter.Length != 1)
-                    {
-                        continue;
-                    }
-                    // 小容量 FAT32 卷 引导分区(ESP)
-                    if (string.Equals(drive.DriveFormat, "FAT32", StringComparison.OrdinalIgnoreCase)
-                        && drive.TotalSize < MinDataVolumeBytes)
-                    {
-                        continue;
-                    }
+                    var letter = drive.Name.TrimEnd(':', '\\', '/');
                     var freePercent = drive.AvailableFreeSpace * 100.0 / drive.TotalSize;
                     if (freePercent >= threshold)
                     {
