@@ -171,8 +171,8 @@ flowchart TD
 
 ## 9 课表数据供给 (TimetableScheduleProvider)
 
-- GetTodaySchedule > 按 Config.ProfileSource 分发 > Glimpseon 本地档案解析 > classisland > LinkageBridge.GetTodaySchedule > classwidgets > ClassWidgetsBridge.GetTodaySchedule
-- LatestProfileName / BuildTimelineNodes (时间线节点 现在课/课间渲染用)
+- GetTodaySchedule > 按 Config.ProfileSource 分发 > Glimpseon 本地 > LoadActiveDocs 读对应来源活动总档案 读取失败返回空档 > ci/cw 跟随态 > 复用桥接实例 GetTodaySchedule > 自编辑态走本地
+- BuildTimelineNodes (时间线节点 现在课/课间渲染用)
 
 ## 10 扩展新组件步骤
 

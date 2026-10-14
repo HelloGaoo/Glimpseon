@@ -38,7 +38,7 @@ GlimpseonMain.exe/.dll
 | Logging.cs         | 日志 滚动 清理 全局异常钩子                                   |
 | Updater.cs         | GitHub Releases 检查 下载 解压 部署 更新脚本                  |
 | Downloader.cs      | 通用下载 API 镜像源 静默安装 临时目录清理                          |
-| Timetable.cs       | 课表档案模型 与 档案目录管理                                   |
+| Schedule.cs        | 总档案+四类分档案模型 (课表/时间表/值周表/学科) 目录 CRUD             |
 | Linkage.cs         | 联动状态机 桥接基类 ClassIsland/ClassWidgets 桥 进程定位        |
 | Notifications.cs   | 通知类型 公告存储 请求模型                                    |
 | ComponentModels.cs | 组件定义 网格度量 页面模型 组件注册表                              |
@@ -67,8 +67,9 @@ GlimpseonMain.exe/.dll
 | MainWindow                                                      | 导航壳 FluentaSideBar 页面切换           |
 | HomeView                                                        | 主界面 壁纸背景 页面容器 底部栏                 |
 | Components.axaml.cs                                             | 组件控件实现 + ComponentManager (最大文件)  |
-| WallpaperView / TimetableView / DownloadView / NotificationView | 功能页                               |
+| WallpaperView / DownloadView / NotificationView                | 功能页                               |
 | SettingsWindow                                                  | 设置 FluentWindow 多子页               |
+| ScheduleWindow                                                  | 课程表窗口        |
 | WizardWindow / SplashWindow                                     | 首次向导 / 启动闪屏                       |
 | AboutView                                                       | 版本信息 与 更新 UI                      |
 | DebugView                                                       | 调试页 (DebugMode 时入导航)              |
@@ -94,7 +95,7 @@ GlimpseonMain.exe/.dll
 | log                      | 滚动日志                                              | Logging                             |
 | cache                    | {name}.json 服务缓存                                  | AppUtils.SaveCache                  |
 | temp/update temp/extract | 更新包                                               | Updater                             |
-| profile                  | 档案配置-N.json                                       | Timetable                           |
+| profile                  | 总档案 schedule/ 分档案 course|timetable|duty|subject/              | ScheduleStore |
 | user                     | announcements.json notes/ qlgrid\_\* homework\_\* | 通知与组件                               |
 | wallpaper                | wallpaper\_\*.jpg history.json                    | WallpaperService                    |
 | icon classphotos notes   | 图标缓存 班级相册 手写数据                                    | 各组件                                 |
@@ -103,6 +104,6 @@ GlimpseonMain.exe/.dll
 
 - 配置 key > 组/项 PascalCase JSON 落盘同构 (Weather/UpdateInterval)
 - locale key > 小写分组下划线 (dialog.instance\_running)
-- 课表档案 > 档案配置-{N}.json 课表来源常量 Glimpseon/classisland/classwidgets
+- 课表档案 > 总档案 总档案-{N}.json 分档案 课表-{N}/时间表-{N}/值周表-{N}/学科-{N}.json 课表来源常量 Glimpseon/classisland/classwidgets
 - 日志 tag > \[模块名] 前缀 (\[PRELOAD] \[CM] \[PageManager])
 

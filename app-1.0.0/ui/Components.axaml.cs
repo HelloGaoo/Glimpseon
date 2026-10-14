@@ -1204,7 +1204,7 @@ public sealed class NavigationPage : Panel
 }
 
 
-// ===== StyleWidgets.cs =====
+// StyleWidgets.cs
 
 /// <summary>
 /// 样式组件工厂: 按 type_style 生成真身控件 返回 null 走占位兜底
@@ -1322,7 +1322,7 @@ public abstract class WidgetCardBase : DraggableContainer
     }
 }
 
-// ---------- 数字时钟
+// 数字时钟
 // 规格: 400x200 时钟80px bold/日期16px 色ClockColor 竖排3:1 边距(32,24,32,24) 间距8
 // HH:mm:ss(ShowClockSeconds) 日期 {y}年{M}月{d}日 星期X + 农历(ShowLunarCalendar) ShowClock=false 整体隐藏
 
@@ -1419,7 +1419,7 @@ public sealed class DigitalClockWidget : WidgetCardBase
     }
 }
 
-// ---------- 一言
+// 一言
 // 规格: 400x200 边距(24,20,24,20) 单label居中wrap 富文本(——分离出处/逗号换行) 字号PoetrySize(16) 色PoetryTextColor
 
 public sealed class PoetryWidget : WidgetCardBase
@@ -1529,7 +1529,7 @@ public sealed class PoetryWidget : WidgetCardBase
     }
 }
 
-// ---------- 天气三件套
+// 天气三件套
 
 /// <summary>天气组件公共基座: 显隐开关/缓存读取/SVG 图标 对齐原版 WeatherComponentBase</summary>
 public abstract class WeatherWidgetBase : WidgetCardBase
@@ -1987,7 +1987,7 @@ public sealed class WeatherWeeklyWidget : WeatherWidgetBase
     }
 }
 
-// ---------- 倒计时
+// 倒计时
 // 事件倒计时: 200x200 边距(24,20,24,20) 单label 居中wrap 1s tick 文本"{name}\n{d}天 {h}时 {m}分 {s}秒"
 // 倒数日: 三段式 顶标题条(title_bg #F98E1B 高44 上圆角 白17px 600) 中数字(72px bold 自适应缩字号) 底日期条(高34 下圆角)
 
@@ -2214,7 +2214,7 @@ public sealed class CountdownDaysWidget : WidgetCardBase
     }
 }
 
-// ---------- 学校班级信息
+// 学校班级信息
 // 规格: 400x200 边距(8,8,8,8) 间距6 上层背景3:口号1 上层边距(20,16,20,12) 间距4
 // 班级行(班级左bold+人数右) 学校名 换行口号(边距20,4,20,4)
 // 字号默认 班级48/学校25/人数19/口号23 缩放font_scale 人数"{n}人"
@@ -2378,22 +2378,42 @@ public sealed class SchoolInfoWidget : WidgetCardBase
     }
 }
 
-// ---------- 课表共享数据源
+// 课表共享数据源
 
 public static class TimetableScheduleProvider
 {
+    private static readonly LinkageBridge CiBridge = new();
+    private static readonly ClassWidgetsBridge CwBridge = new();
+    private static bool _bridgeStarted;
+
     public static List<ScheduleRow> GetTodaySchedule()
     {
         var result = new List<ScheduleRow>();
-        try
+        if (!UseLocalScheduleData())
         {
-            var profileName = LatestProfileName();
-            var profilePath = System.IO.Path.Combine(Paths.DataProfile, $"{profileName}.json");
-            if (!File.Exists(profilePath))
+            try
             {
+                var bridge = EnsureBridge();
+                var schedule = bridge switch
+                {
+                    LinkageBridge ci => ci.GetTodaySchedule(),
+                    ClassWidgetsBridge cw => cw.GetTodaySchedule(),
+                    _ => null,
+                };
+                if (schedule is not null)
+                {
+                    return schedule;
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Warning($"[课表组件] 联动数据读取失败: {e.Message}");
                 return result;
             }
-            var profile = TimetableProfile.Load(profilePath);
+        }
+        try
+        {
+            var (timetable, course) = LoadActiveDocs();
             var now = AppUtils.PreciseNow();
             var dayName = now.DayOfWeek switch
             {
@@ -2407,9 +2427,9 @@ public static class TimetableScheduleProvider
             };
             var nowTime = TimeOnly.FromDateTime(now);
             var classCounter = 0;
-            for (var i = 0; i < profile.Periods.Count; i++)
+            for (var i = 0; i < timetable.Periods.Count; i++)
             {
-                var p = profile.Periods[i];
+                var p = timetable.Periods[i];
                 var start = p["start"]?.GetValue<string>() ?? "";
                 var end = p["end"]?.GetValue<string>() ?? "";
                 var ptype = p["type"]?.GetValue<string>() ?? "";
@@ -2423,7 +2443,7 @@ public static class TimetableScheduleProvider
                 else
                 {
                     classCounter++;
-                    var subject = profile.Courses.TryGetValue(i.ToString(), out var c) ? c[dayName]?.GetValue<string>() ?? "" : "";
+                    var subject = course.GetCell(i, dayName);
                     result.Add(new ScheduleRow(subject, "", start, end, classCounter, isCurrent, false, ""));
                 }
             }
@@ -2435,10 +2455,66 @@ public static class TimetableScheduleProvider
         return result;
     }
 
-    public static string LatestProfileName()
+    /// <summary>联动跟随模式使用外部数据 自编辑或 Glimpseon 使用本地档案</summary>
+    private static bool UseLocalScheduleData() => Config.ProfileSource.Value switch
     {
-        var names = Timetable.ListProfiles();
-        return names.Count > 0 ? names[^1] : "档案配置-1";
+        "classisland" => !Config.ScheduleProfileCiFollow.Value,
+        "classwidgets" => !Config.ScheduleProfileCwFollow.Value,
+        _ => true,
+    };
+
+    /// <summary>当前课表来源对应的活动总档案配置项</summary>
+    private static ConfigItem<string> ActiveScheduleItem() => Config.ProfileSource.Value switch
+    {
+        "classisland" => Config.ScheduleProfileCi,
+        "classwidgets" => Config.ScheduleProfileCw,
+        _ => Config.ScheduleProfile,
+    };
+
+    /// <summary>联动桥复用实例 Start 自带重入保护 路径每次同步</summary>
+    private static LinkageBridgeBase? EnsureBridge()
+    {
+        LinkageBridgeBase? bridge;
+        string path;
+        if (Config.ProfileSource.Value == "classisland")
+        {
+            bridge = CiBridge;
+            path = Config.LinkageDataPath.Value;
+        }
+        else if (Config.ProfileSource.Value == "classwidgets")
+        {
+            bridge = CwBridge;
+            path = Config.ClassWidgetsDataPath.Value;
+        }
+        else
+        {
+            return null;
+        }
+        bridge.SetDataPath(path);
+        if (!_bridgeStarted)
+        {
+            bridge.Start();
+            _bridgeStarted = true;
+        }
+        return bridge;
+    }
+
+    /// <summary>活动总档案的 时间表+课表 分档案 读取失败返回空档</summary>
+    private static (TimetableDoc, CourseDoc) LoadActiveDocs()
+    {
+        try
+        {
+            ScheduleStore.EnsureDefaults();
+            var master = ScheduleStore.LoadMaster(ActiveScheduleItem().Value);
+            return (
+                TimetableDoc.LoadOrDefault(master.Timetable),
+                CourseDoc.LoadOrDefault(master.Course));
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"[课表组件] 总档案读取失败: {e.Message}");
+            return (new TimetableDoc(), new CourseDoc());
+        }
     }
 
     // 时间轴节点
@@ -2468,7 +2544,7 @@ public static class TimetableScheduleProvider
     }
 }
 
-// ---------- 新闻热榜
+// 新闻热榜
 // 规格: 360x220 边距16 间距6 头部SVG logo高30 + 4条富文本(序号12px/标题15px) 点击开链接 5min刷新+过期缓存
 
 public sealed class NewsWidget : WidgetCardBase
@@ -2646,7 +2722,7 @@ public sealed class NewsWidget : WidgetCardBase
     }
 }
 
-// ---------- 今日课表预览
+// 今日课表预览
 // 规格: 300x550 边距(10,10,10,10) 间距6 标题17px w600 行内容边距(10,7,10,7) 间距12
 // 第X节15px(宽68) 课程名20px w500 时间15px 右对齐 当前行底部进度条3px #4cc2ff
 // 行背景 深色 op*0.08/当前op*0.18/已过op*0.04 浅色 0.04/0.10/0.02 已过文字#999999
@@ -2906,7 +2982,7 @@ public sealed class TimetablePreviewWidget : WidgetCardBase
     }
 }
 
-// ---------- 当前课程
+// 当前课程
 // 规格: 400x200 边距(16,10,16,8) 左右栏 间距14 左列(3:1:1) 课程名40px w600(上20下4)
 // 倒计时18px accent 时间进度15px 右列(间距8) 老师/时间段19px w600 下节课19px sub色
 // 底部进度条6px 配置 show_teacher/show_next/show_duration/show_countdown/prepare_minutes(3)
@@ -3225,7 +3301,7 @@ public sealed class TimetableNowLessonWidget : WidgetCardBase
     }
 }
 
-// ---------- 媒体播放器
+// 媒体播放器
 // 规格: 400x200 内容边距(16,20,12,20) 间距14 封面160x160 圆角10 淡入300ms
 // 标题19px w700 h28 歌手11px w500 h16 歌词12px w700 进度条3px 时间10px 右对齐
 // 按钮行间距16 居中 prev28x28(icon20) play32x32(icon24) next28x28
@@ -3782,7 +3858,7 @@ public sealed class MediaPlayerWidget : WidgetCardBase
     }
 }
 
-// ---------- 历史上的今天
+// 历史上的今天
 // 规格: 360x240 边距(16,16,16,16) 间距6 头部(图标28+标题15px w600+日期11px 右) 5条富文本
 // 年份12px #30c361 w700 + 标题14px 点击开链接 30min 刷新+过期缓存
 
@@ -3968,7 +4044,7 @@ public sealed class HistoryTodayWidget : WidgetCardBase
     }
 }
 
-// ---------- 月历
+// 月历
 // 规格: 300x300 边距(12,10,12,8) 间距4 标题20px w600 + 上下按钮28x18 星期13px 6x7 格
 // 格内: 日期占上62% 字号 sz*0.46 角标 sz*0.35 bold 今日 #00b7c3 圆 r=sz*0.40
 
@@ -4721,7 +4797,7 @@ public sealed class CalculatorWidget : WidgetCardBase
 }
 
 
-// ===== ExtraWidgets.cs =====
+// ExtraWidgets.cs
 
 /// <summary>全局系统采样: CPU/RAM/GPU 网络 麦克风分贝</summary>
 internal static class SystemSampler
@@ -6499,7 +6575,7 @@ internal sealed class InkPadControl : Control
 }
 
 
-// ===== NativeWidgets.cs =====
+// NativeWidgets.cs
 
 /// <summary>原版模板颜色/字体常量与取值助手</summary>
 public static class NativeTheme
@@ -6831,7 +6907,7 @@ public sealed class NativeSquareClock2Widget : WidgetCardBase
 }
 
 
-// ===== NativeCalendarAlmanac.cs =====
+// NativeCalendarAlmanac.cs
 
 /// <summary>虚线分隔线(等价 CSS border dashed) horizontal 或 vertical</summary>
 internal sealed class DashedRule : Control
@@ -7344,7 +7420,7 @@ public sealed class NativeAlmanacWidget : WidgetCardBase
 }
 
 
-// ===== NativeCharts.cs =====
+// NativeCharts.cs
 
 /// <summary>图表控件基类: 填满父级 每帧按设备像素绘制(与原版 canvas 一致)</summary>
 internal abstract class ChartControl : Control
@@ -7856,7 +7932,7 @@ public sealed class NativeDecibelMeterWidget : WidgetCardBase
 }
 
 
-// ===== NativeDaily.cs =====
+// NativeDaily.cs
 
 /// <summary>
 /// 每日单词
@@ -8332,7 +8408,7 @@ public sealed class NativeDailySentenceWidget : WidgetCardBase
 }
 
 
-// ===== NativeInteractive.cs =====
+// NativeInteractive.cs
 
 /// <summary>公告/作业板共用主题对 逐值取自模板 ThemePairs</summary>
 internal static class CardTheme
@@ -9944,7 +10020,7 @@ public sealed class NativeTimetableTimelineWidget : WidgetCardBase
 }
 
 
-// ===== 组件配置面板
+// 组件配置面板
 // 字段体系对齐原版: _SwitchField/_SpinField/_ComboField/_TextField/_SliderField/_ColorField/_DateField/_PlainColorField
 // 各组件专属字段定义(_basic_defs)按用户要求暂留空; 进阶页沿用原版默认(外观 + 字体)
 
@@ -10605,7 +10681,7 @@ public static class RegionSelectorDialog
 }
 
 
-// ===== Views/RingProgress.cs =====
+// Views/RingProgress.cs
 
 public class RingProgress : Control
 {

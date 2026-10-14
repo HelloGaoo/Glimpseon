@@ -487,6 +487,11 @@ public static class Config
     // Timetable
     public static readonly ConfigItem<string> ProfileSource = new("Timetable", "ProfileSource", "Glimpseon",
         options: new string?[] { "Glimpseon", "classisland", "classwidgets" });
+    public static readonly ConfigItem<string> ScheduleProfile = new("Timetable", "ScheduleProfile", "总档案-1");
+    public static readonly ConfigItem<string> ScheduleProfileCi = new("Timetable", "ScheduleProfileCi", "总档案-CI");
+    public static readonly ConfigItem<string> ScheduleProfileCw = new("Timetable", "ScheduleProfileCw", "总档案-CW");
+    public static readonly ConfigItem<bool> ScheduleProfileCiFollow = new("Timetable", "ScheduleProfileCiFollow", true);
+    public static readonly ConfigItem<bool> ScheduleProfileCwFollow = new("Timetable", "ScheduleProfileCwFollow", true);
 
     // PreciseTime
     public static readonly ConfigItem<bool> UsePreciseTime = new("PreciseTime", "UsePreciseTime", true);

@@ -36,7 +36,6 @@ public partial class MainWindow : GlimpseonWindow
     public HomeView HomeView { get; private set; } = null!;
     public WallpaperView WallpaperView { get; private set; } = null!;
     public NotificationView NotificationView { get; private set; } = null!;
-    public TimetableView TimetableView { get; private set; } = null!;
     public DownloadView DownloadView { get; private set; } = null!;
     public AboutView AboutView { get; private set; } = null!;
     public DebugView DebugView { get; private set; } = null!;
@@ -49,6 +48,7 @@ public partial class MainWindow : GlimpseonWindow
     private DispatcherTimer? _restartDebounce;
     private bool _restartPrompting;
     private bool _hasTriggeredAutoOpen;
+    private bool _openingSchedule;
 
     public MainWindow()
     {
@@ -114,7 +114,6 @@ public partial class MainWindow : GlimpseonWindow
         HomeView = new HomeView(this);
         WallpaperView = new WallpaperView(this);
         NotificationView = new NotificationView(this);
-        TimetableView = new TimetableView(this);
         DownloadView = new DownloadView();
         AboutView = new AboutView();
         DebugView = new DebugView();
@@ -130,7 +129,6 @@ public partial class MainWindow : GlimpseonWindow
     {
         "wallpaper" => WallpaperView,
         "notification" => NotificationView,
-        "timetable" => TimetableView,
         "download" => DownloadView,
         "about" => AboutView,
         "debug" => DebugView,
@@ -141,6 +139,20 @@ public partial class MainWindow : GlimpseonWindow
     {
         if (e.SelectedItem is FluentAvalonia.UI.Controls.FANavigationViewItem item && item.Tag is string tag && _navFrame is { IsLoaded: true })
         {
+            if (tag == "timetable")
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (!_openingSchedule)
+                    {
+                        _openingSchedule = true;
+                        OpenScheduleWindow();
+                        Nav.SelectedItem = NavItemHome;
+                        _openingSchedule = false;
+                    }
+                });
+                return;
+            }
             var page = PageFor(tag);
             if (ReferenceEquals(_navFrame.Content, page))
             {
@@ -630,5 +642,19 @@ public partial class MainWindow : GlimpseonWindow
     {
         var settings = new SettingsWindow();
         settings.Show(this);
+    }
+
+    public void OpenScheduleWindow()
+    {
+        try
+        {
+            var schedule = new ScheduleWindow();
+            schedule.Show(this);
+            Log.Info("[导航] 已打开课程表窗口");
+        }
+        catch (Exception e)
+        {
+            Log.Error($"[导航] 课程表窗口打开失败: {e.GetType().Name}: {e.Message}\n{e.StackTrace}");
+        }
     }
 }

@@ -148,6 +148,11 @@
 | ClassWidgets/DataPath | string | 空 | |
 | ClassWidgets/PollInterval | int | 5 | 1-30 秒 |
 | Timetable/ProfileSource | string | Glimpseon | Glimpseon/classisland/classwidgets |
+| Timetable/ScheduleProfile | string | 总档案-1 | Glimpseon 来源活动总档案 无效时自动校正 |
+| Timetable/ScheduleProfileCi | string | 总档案-CI | ClassIsland 来源活动总档案 缺档自动补建 |
+| Timetable/ScheduleProfileCw | string | 总档案-CW | ClassWidgets 来源活动总档案 缺档自动补建 |
+| Timetable/ScheduleProfileCiFollow | bool | true | ClassIsland 跟随外部配置 false=自编辑 |
+| Timetable/ScheduleProfileCwFollow | bool | true | ClassWidgets 跟随外部配置 false=自编辑 |
 | PreciseTime/UsePreciseTime | bool | true | NTP 校准 |
 | PreciseTime/TimeServer | string | ntp.aliyun.com | |
 | PreciseTime/LastSyncTime | string | 空 | 上次同步记录 |

@@ -92,11 +92,9 @@ DragDrop 允许 + Pointer 事件 Tunnel 挂接 (Pressed/Moved/Released/Wheel)
 - NotifyWallpaperFetched(path, source) 供预加载与刷新器回调
 - 下载走 WallpaperService.FetchAsync 见 services.md 2
 
-## 7 TimetableView — 课程表页
+## 7 ScheduleWindow — 课程表窗口
 
-- 档案下拉 (Timetable.ListProfiles) + 添加 (NextProfileName)/重命名/删除/导入/导出/打开目录
-- 表格编辑 > AddPeriod/RemovePeriod (courses 自动重排) 时间段 科目 (预设+自定义) 默认时长
-- ProfileSource 非 Glimpseon 或联动开启 > 表格只读 数据来自 Linkage 桥
+- 自己看
 
 ## 8 DownloadView — 软件下载页
 

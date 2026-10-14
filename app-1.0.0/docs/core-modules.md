@@ -186,23 +186,30 @@ flowchart LR
 
 - RequestRestart > Config.MarkRestartPending + IControlledApplicationLifetime.Shutdown > Main 尾部 RestartSelf 以 Environment.ProcessPath 拉起
 
-## 6 Timetable.cs — 课表档案
+## 6 Schedule.cs — 总档案与分档案
 
-档案文件 data/profile/{Name}.json:
+总档案 data/profile/schedule/总档案-{N}.json 绑定四类分档案:
 
 ```json
 {
-  "name": "档案配置-1",
-  "defaultClassDuration": 40,
-  "defaultBreakDuration": 10,
-  "periods": [ { "type": "class", "start": "08:00", "end": "08:40" } ],
-  "courses": { "0": { "周一": "语文" } }
+  "name": "总档案-1",
+  "course": "课表-1",
+  "timetable": "时间表-1",
+  "duty": "值周表-1",
+  "subject": "学科-1"
 }
 ```
 
-- courses 键 = period 索引字符串 值结构由 UI 层约定 (周x>节次>科目)
-- 语义要点 > Save 缺省按 Name 推路径 目录不存在则建 > Load 同名连续加载降级 Debug 日志 > RemovePeriod 后 courses 全量重排索引 越界 Warning > GetNextStartTime 末时段 end 否则 08:00 > ListProfiles 正则 `^档案配置-\d+\.json$` 按编号升序 > NextProfileName 现有 max+1 > EnsureDefaultProfile 空则建档案配置-1 否则取最新 > RenameProfile / DeleteProfile
-- 第三方档案来源由 Config.ProfileSource 切换 联动开启时本地档案只读
+- 分档案目录 > course/课表-{N}.json timetable/时间表-{N}.json duty/值周表-{N}.json subject/学科-{N}.json
+- TimetableDoc > periods+默认时长 AddPeriod/RemovePeriod/GetNextStartTime
+- CourseDoc > courses 键=时段索引 值={monday..sunday} GetCell/SetCell/RemovePeriodIndex (删除位丢弃 后键前移)
+- DutyDoc > rows [{parity 单双周, weekday 星期几(存 monday..sunday 键), group 小组, name 姓名, role 职责}]
+- SubjectDoc > rows [{name 科目, short 简写, teacher 老师, outdoor 室外}]
+- ScheduleProfile > ExportBundle 捆绑全部绑定分档案 ImportBundle 解包写入自动改名 RepairBindings 缺档补建
+- ScheduleStore > ListMasters/ListSubs NextMasterName/NextSubName Rename/Delete/Copy (重命名与删除同步全部总档案引用) ImportSub EnsureDefaults (空库建默认结构 活动总档案失效自动校正)
+- 每来源独立活动总档案 > Timetable/ScheduleProfile (Glimpseon) ScheduleProfileCi (ClassIsland 首选名 总档案-CI) ScheduleProfileCw (ClassWidgets 首选名 总档案-CW) 失效自动校正 缺档自动补建
+- CI/CW 档案状态 > ScheduleProfileCiFollow/ScheduleProfileCwFollow (默认 true 跟随外部配置) 跟随态分档案只读实时跟随桥接数据 自编辑态停同步可本地配置 (课表组件 GetTodaySchedule 按状态分发 桥接实例复用 Start 重入保护)
+- 活动总档案 Config.Timetable/ScheduleProfile 课表组件经 LoadActiveDocs 读取 读取失败返回空档
 
 ## 7 Linkage.cs — 外部联动
 

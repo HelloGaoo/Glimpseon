@@ -1,0 +1,56 @@
+<ui:GlimpseonWindow x:Class="Glimpseon.UI.ScheduleWindow"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:fa="using:FluentAvalonia.UI.Controls"
+        xmlns:ui="using:Glimpseon.UI"
+        Title="课程表"
+        Width="1280" Height="800"
+        MinWidth="960" MinHeight="620">
+  <Grid RowDefinitions="Auto,*">
+    <!-- 标题行 -->
+    <Border Grid.Row="0" Height="48" Margin="0,0,8,0">
+      <Grid VerticalAlignment="Center" ColumnDefinitions="Auto,Auto,*,Auto" Margin="12,0,0,0">
+        <Image x:Name="WindowIcon" Width="18" Height="18" Margin="0,2,0,0" />
+        <TextBlock Grid.Column="1" x:Name="TitleLabel" FontSize="12" Margin="10,2,0,0" VerticalAlignment="Center" Opacity="0.85" />
+        <TextBlock Grid.Column="2" x:Name="VersionText" FontSize="12" Margin="0,2,12,0" VerticalAlignment="Center" HorizontalAlignment="Right" Opacity="0.55" />
+        <!-- 标题键空位 -->
+        <Border Grid.Column="3" Width="140" />
+      </Grid>
+    </Border>
+    <fa:FANavigationView Grid.Row="1" x:Name="Nav"
+                         PaneDisplayMode="Top"
+                         IsPaneToggleButtonVisible="False"
+                         IsBackButtonVisible="False"
+                         IsSettingsVisible="False"
+                         AlwaysShowHeader="False"
+                         SelectionChanged="OnNavSelectionChanged">
+      <fa:FANavigationView.MenuItems>
+        <fa:FANavigationViewItem x:Name="NavCourse" Tag="course">
+          <fa:FANavigationViewItem.IconSource>
+            <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE163;" FontSize="20" />
+          </fa:FANavigationViewItem.IconSource>
+        </fa:FANavigationViewItem>
+        <fa:FANavigationViewItem x:Name="NavTime" Tag="time">
+          <fa:FANavigationViewItem.IconSource>
+            <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE121;" FontSize="20" />
+          </fa:FANavigationViewItem.IconSource>
+        </fa:FANavigationViewItem>
+        <fa:FANavigationViewItem x:Name="NavDuty" Tag="duty">
+          <fa:FANavigationViewItem.IconSource>
+            <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE716;" FontSize="20" />
+          </fa:FANavigationViewItem.IconSource>
+        </fa:FANavigationViewItem>
+        <fa:FANavigationViewItem x:Name="NavSubject" Tag="subject">
+          <fa:FANavigationViewItem.IconSource>
+            <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE82D;" FontSize="20" />
+          </fa:FANavigationViewItem.IconSource>
+        </fa:FANavigationViewItem>
+        <fa:FANavigationViewItem x:Name="NavProfile" Tag="profile">
+          <fa:FANavigationViewItem.IconSource>
+            <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE838;" FontSize="20" />
+          </fa:FANavigationViewItem.IconSource>
+        </fa:FANavigationViewItem>
+      </fa:FANavigationView.MenuItems>
+    </fa:FANavigationView>
+  </Grid>
+</ui:GlimpseonWindow>

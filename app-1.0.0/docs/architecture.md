@@ -29,7 +29,7 @@ app-1.0.0/
     Paths.cs                  目录推导
     Constants.cs              资源常量
     Record.cs                 版本管理
-    Timetable.cs              课表档案模型
+    Schedule.cs               总档案+分档案模型
     Linkage.cs                联动桥
     Downloader.cs             下载器
     Updater.cs                更新器
@@ -53,7 +53,7 @@ app-1.0.0/
     HomeView                  主界面
     Components.axaml.cs       组件系统
     WallpaperView             壁纸页
-    TimetableView             课表页
+    ScheduleWindow            课程表窗口
     DownloadView              下载页
     NotificationView          通知页
     SettingsWindow            设置窗口
