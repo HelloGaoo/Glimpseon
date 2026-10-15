@@ -116,6 +116,11 @@ public sealed class ConfigItem<T> : IConfigItem
             _value = candidate;
             Log.Info($"配置变更: {Group}/{Name} = {candidate}");
             ValueChanged?.Invoke(candidate);
+            // 标记需重启的配置项
+            if (RestartRequired)
+            {
+                Config.MarkRestartPending();
+            }
             Config.Save();
         }
     }
@@ -298,9 +303,16 @@ public static class Config
 
     internal static void Register<T>(ConfigItem<T> item) => Items.Add(item);
 
-    internal static void MarkRestartPending() => RestartPending = true;
+    internal static void MarkRestartPending()
+    {
+        RestartPending = true;
+        RestartPendingChanged?.Invoke();
+    }
 
     public static bool RestartPending { get; private set; }
+
+    /// <summary>待重启状态变化</summary>
+    public static event Action? RestartPendingChanged;
 
     private static string? AsString(object? v) => v switch
     {
@@ -485,13 +497,16 @@ public static class Config
     public static readonly ConfigItem<int> ClassWidgetsPollInterval = new("ClassWidgets", "PollInterval", 5, min: 1, max: 30);
 
     // Timetable
-    public static readonly ConfigItem<string> ProfileSource = new("Timetable", "ProfileSource", "Glimpseon",
-        options: new string?[] { "Glimpseon", "classisland", "classwidgets" });
+    public static readonly ConfigItem<string> ProfileSource = new("Timetable", "ProfileSource", "Glimpseon");
     public static readonly ConfigItem<string> ScheduleProfile = new("Timetable", "ScheduleProfile", "总档案-1");
     public static readonly ConfigItem<string> ScheduleProfileCi = new("Timetable", "ScheduleProfileCi", "总档案-CI");
     public static readonly ConfigItem<string> ScheduleProfileCw = new("Timetable", "ScheduleProfileCw", "总档案-CW");
     public static readonly ConfigItem<bool> ScheduleProfileCiFollow = new("Timetable", "ScheduleProfileCiFollow", true);
     public static readonly ConfigItem<bool> ScheduleProfileCwFollow = new("Timetable", "ScheduleProfileCwFollow", true);
+
+    // Plugins
+    public static readonly ConfigItem<string> MarketSource = new("Plugins", "MarketSource",
+        "https://raw.githubusercontent.com/HelloGaoo/Glimpseon-Plugins/main/plugins.json");
 
     // PreciseTime
     public static readonly ConfigItem<bool> UsePreciseTime = new("PreciseTime", "UsePreciseTime", true);

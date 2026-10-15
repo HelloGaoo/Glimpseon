@@ -1,0 +1,10 @@
+{
+  "id": "com.example.sample",
+  "name": "示例插件",
+  "version": "1.0.0",
+  "author": "HelloGaoo",
+  "description": "演示插件",
+  "entrance": "PluginSample.dll",
+  "apiVersion": 1,
+  "readme": "README.md"
+}

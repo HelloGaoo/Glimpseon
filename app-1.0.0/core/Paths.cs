@@ -34,6 +34,7 @@ public static class Paths
     public static string DataWallpaper { get; }
     public static string DataClassPhotos { get; }
     public static string DataNotes { get; }
+    public static string DataPlugins { get; }
     public static string WallpaperDir => DataWallpaper;
     public static string Version { get; }
     public static string BuildDate { get; }
@@ -54,6 +55,7 @@ public static class Paths
         DataWallpaper = Path.Combine(DataRoot, "wallpaper");
         DataClassPhotos = Path.Combine(DataRoot, "classphotos");
         DataNotes = Path.Combine(DataRoot, "notes");
+        DataPlugins = Path.Combine(DataRoot, "plugins");
 
         (Version, BuildDate) = ReadVersion();
     }
@@ -148,7 +150,7 @@ public static class Paths
         var dirs = new[]
         {
             DataRoot, DataConfig, DataLog, DataCache, DataTemp,
-            DataProfile, DataUser, DataIcon, DataWallpaper, DataClassPhotos, DataNotes,
+            DataProfile, DataUser, DataIcon, DataWallpaper, DataClassPhotos, DataNotes, DataPlugins,
         };
         foreach (var dir in dirs)
         {

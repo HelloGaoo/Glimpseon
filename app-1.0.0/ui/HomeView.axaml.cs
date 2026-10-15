@@ -71,6 +71,7 @@ public partial class HomeView : UserControl
 
         PageManager = new PageManager(Paths.DataConfig);
         ComponentRegistry.RegisterBatch(BuiltinComponentDefinitions.All);
+        ComponentRegistry.RegisterBatch(PluginService.PluginComponentDefinitions);
         ComponentManager = new ComponentManager(this);
 
         var insetPercent = Config.GridInsetPercent.Value;

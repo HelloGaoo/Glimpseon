@@ -117,7 +117,14 @@ flowchart TD
 - ClassIsland > 进程定位 > 读课表 > 转换为 ScheduleRow
 - ClassWidgets > 读 config/config.ini 与课程数据
 - 桥接后台按 LinkagePollInterval 轮询 > ComputeState > Commit 抛 StateChanged
-- 联动模式下课表页只读 ProfileSource 决定档案来源 (Glimpseon/classisland/classwidgets)
+- 联动模式下课表页只读 ProfileSource 决定档案来源 (Glimpseon/classisland/classwidgets/plugin:<id>)
+
+## 6.5 插件层
+
+- 启动顺序 Splash 配置加载后 LogConfigSummary > PluginService.InitializePlugins > MainWindow 构造 (HomeView RegisterBatch 内置后追加插件定义)
+- 插件目录 data/plugins/<id>/ 清单校验 (id/entrance/apiVersion) > 独立 PluginLoadContext 加载 > GlimpseonPlugin.OnLoad > 注册物落入 PluginService 注册表
+- 任一插件失败仅记 Error 不中断启动 启停/安装/卸载重启后生效
+- 详见 docs/plugin-system.md
 
 ## 7 数据目录
 
@@ -131,5 +138,6 @@ PackageRoot/data/
   user/ 
   wallpaper/
   icon/ classphotos/ notes/
+  plugins/
 ```
 

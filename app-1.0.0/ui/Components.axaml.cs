@@ -1213,6 +1213,12 @@ public static class StyleWidgetFactory
 {
     public static DraggableContainer? Create(string typeId, ComponentDefinition definition, JsonElement? config)
     {
+        // 插件工厂前置
+        var pluginWidget = PluginService.CreatePluginWidget(typeId, definition, config);
+        if (pluginWidget is not null)
+        {
+            return pluginWidget;
+        }
         DraggableContainer? widget = typeId switch
         {
             "clock_digital" => new DigitalClockWidget(definition),
@@ -2389,6 +2395,26 @@ public static class TimetableScheduleProvider
     public static List<ScheduleRow> GetTodaySchedule()
     {
         var result = new List<ScheduleRow>();
+        // 插件提供者来源
+        var profileSource = Config.ProfileSource.Value;
+        if (profileSource.StartsWith("plugin:", StringComparison.Ordinal))
+        {
+            var pluginId = profileSource["plugin:".Length..];
+            if (PluginService.ScheduleProviders.TryGetValue(pluginId, out var entry))
+            {
+                try
+                {
+                    return entry.Provider();
+                }
+                catch (Exception e)
+                {
+                    Log.Warning($"[课表组件] 插件课表读取失败 [{pluginId}]: {e.Message}");
+                    return result;
+                }
+            }
+            Log.Warning($"[课表组件] 插件课表来源不存在: {pluginId}");
+            return result;
+        }
         if (!UseLocalScheduleData())
         {
             try

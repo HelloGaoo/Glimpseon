@@ -517,6 +517,16 @@ public static class AppUtils
 
     public static bool RestartPromptSuppressed { get; set; }
 
+    /// <summary>标记待重启</summary>
+    public static void MarkRestartPending()
+    {
+        if (!Config.RestartPending)
+        {
+            Log.Info("标记待重启");
+        }
+        Config.MarkRestartPending();
+    }
+
     public static void RequestRestart()
     {
         Config.MarkRestartPending();

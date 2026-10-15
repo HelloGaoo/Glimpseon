@@ -12,7 +12,11 @@
       <Grid VerticalAlignment="Center" ColumnDefinitions="Auto,Auto,*,Auto" Margin="12,0,0,0">
         <Image x:Name="WindowIcon" Width="18" Height="18" Margin="0,2,0,0" />
         <TextBlock Grid.Column="1" x:Name="TitleLabel" FontSize="12" Margin="10,2,0,0" VerticalAlignment="Center" Opacity="0.85" />
-        <TextBlock Grid.Column="2" x:Name="VersionText" FontSize="12" Margin="0,2,12,0" VerticalAlignment="Center" HorizontalAlignment="Right" Opacity="0.55" />
+        <!-- 右侧: 待重启徽标 版本号  -->
+        <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+          <Button x:Name="RestartBadge" VerticalAlignment="Center" />
+          <TextBlock x:Name="VersionText" FontSize="12" Margin="0,2,0,0" VerticalAlignment="Center" Opacity="0.55" />
+        </StackPanel>
         <!-- 标题键空位 -->
         <Border Grid.Column="3" Width="140" />
       </Grid>

@@ -185,6 +185,9 @@ public partial class ScheduleWindow : GlimpseonWindow
         Title = Tr("schedule.title");
         TitleLabel.Text = Tr("schedule.title");
 
+        // 标题栏待重启徽标
+        Common.InitRestartBadge(RestartBadge, this);
+
         try
         {
             var iconPath = Paths.GetResourcePath(Constants.AppIcon);
@@ -1821,24 +1824,47 @@ public partial class ScheduleWindow : GlimpseonWindow
         _sourceCombo.Items.Add("Glimpseon");
         _sourceCombo.Items.Add("ClassIsland");
         _sourceCombo.Items.Add("ClassWidgets");
-        _sourceCombo.SelectedIndex = Config.ProfileSource.Value switch
+        var pluginProviders = PluginService.ScheduleProviders.ToList();
+        foreach (var p in pluginProviders)
         {
-            "classisland" => 1,
-            "classwidgets" => 2,
-            _ => 0,
-        };
+            _sourceCombo.Items.Add(p.Value.Name);
+        }
+        var buildSource = Config.ProfileSource.Value;
+        if (buildSource.StartsWith("plugin:", StringComparison.Ordinal))
+        {
+            var pIdx = pluginProviders.FindIndex(x => x.Key == buildSource["plugin:".Length..]);
+            _sourceCombo.SelectedIndex = pIdx >= 0 ? 3 + pIdx : 0;
+        }
+        else
+        {
+            _sourceCombo.SelectedIndex = buildSource switch
+            {
+                "classisland" => 1,
+                "classwidgets" => 2,
+                _ => 0,
+            };
+        }
         _sourceCombo.SelectionChanged += (_, _) =>
         {
             if (_blockSync)
             {
                 return;
             }
-            var source = _sourceCombo.SelectedIndex switch
+            string source;
+            var sel = _sourceCombo.SelectedIndex;
+            if (sel >= 3 && sel - 3 < pluginProviders.Count)
             {
-                1 => "classisland",
-                2 => "classwidgets",
-                _ => "Glimpseon",
-            };
+                source = "plugin:" + pluginProviders[sel - 3].Key;
+            }
+            else
+            {
+                source = sel switch
+                {
+                    1 => "classisland",
+                    2 => "classwidgets",
+                    _ => "Glimpseon",
+                };
+            }
             Log.Info($"[课表窗口] 切换档案来源: {source}");
             Config.ProfileSource.Value = source;
             SwitchSource(source);

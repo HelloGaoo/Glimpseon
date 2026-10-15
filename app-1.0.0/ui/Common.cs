@@ -23,6 +23,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using FluentAvalonia.UI.Controls;
 using FluentAvalonia.UI.Windowing;
 using FluentAvalonia.Styling;
@@ -200,7 +201,7 @@ public static class Common
     {
         var dialog = new FAContentDialog
         {
-            Title = AppUtils.Tr("settings.restart_required"),
+            Title = AppUtils.Tr("settings.restart_title"),
             Content = AppUtils.Tr("settings.restart_required_desc"),
             PrimaryButtonText = AppUtils.Tr("common.restart_now"),
             CloseButtonText = AppUtils.Tr("common.restart_later"),
@@ -208,6 +209,79 @@ public static class Common
         };
         var result = await dialog.ShowAsync(owner);
         return result == FAContentDialogResult.Primary;
+    }
+
+    /// <summary>待重启状态确认</summary>
+    private static bool _restartDialogShowing;
+
+    public static async Task ConfirmPendingRestartAsync(Window? owner, string? title = null, string? content = null)
+    {
+        if (_restartDialogShowing)
+        {
+            return;
+        }
+        _restartDialogShowing = true;
+        try
+        {
+            if (owner is null)
+            {
+                AppUtils.MarkRestartPending();
+                return;
+            }
+            var dialog = new FAContentDialog
+            {
+                Title = title ?? AppUtils.Tr("settings.restart_title"),
+                Content = content ?? AppUtils.Tr("settings.restart_required_desc"),
+                PrimaryButtonText = AppUtils.Tr("common.restart_now"),
+                CloseButtonText = AppUtils.Tr("common.cancel"),
+                DefaultButton = FAContentDialogButton.Primary,
+            };
+            var restart = await dialog.ShowAsync(owner) == FAContentDialogResult.Primary;
+            if (restart)
+            {
+                AppUtils.RequestRestart();
+            }
+            else
+            {
+                AppUtils.MarkRestartPending();
+            }
+        }
+        finally
+        {
+            _restartDialogShowing = false;
+        }
+    }
+
+    /// <summary>
+    /// 标题栏重启徽标
+    /// </summary>
+    public static void InitRestartBadge(Button badge, Window owner)
+    {
+        badge.Classes.Add("accent");
+        badge.Content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            Children =
+            {
+                FAIcons.IconCenter(FASymbol.Sync, 14),
+                new TextBlock { Text = AppUtils.Tr("settings.restart_title"), FontSize = 12, VerticalAlignment = VerticalAlignment.Center },
+            },
+        };
+        badge.Height = 30;
+        badge.CornerRadius = new CornerRadius(15);
+        badge.Padding = new Thickness(12, 0, 12, 0);
+        ToolTip.SetTip(badge, AppUtils.Tr("settings.restart_badge_tip"));
+        badge.IsVisible = Config.RestartPending;
+        badge.Click += (_, _) => _ = ConfirmPendingRestartAsync(owner);
+        Config.RestartPendingChanged += () => Dispatcher.UIThread.Post(() =>
+        {
+            var visible = Config.RestartPending;
+            if (badge.IsVisible != visible)
+            {
+                badge.IsVisible = visible;
+            }
+        });
     }
 
     public static async Task<bool> ConfirmRestartWithAsync(Window owner, string title, string content)

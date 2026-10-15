@@ -179,6 +179,12 @@ internal static class GlimpseonMain
 
         LogConfigSummary();
 
+        // 插件
+        splash.UpdateStatus(AppUtils.Tr("splash.loading_plugins"));
+        splash.SetProgress(60);
+        await Task.Delay(60);
+        PluginService.InitializePlugins();
+
         // 主窗口
         splash.UpdateStatus(AppUtils.Tr("splash.creating_main_window"));
         splash.SetProgress(70);

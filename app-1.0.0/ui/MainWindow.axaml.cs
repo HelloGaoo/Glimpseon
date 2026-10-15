@@ -265,6 +265,9 @@ public partial class MainWindow : GlimpseonWindow
             _restartDebounce.Stop();
             _ = PromptRestartAsync();
         };
+
+        // 标题栏待重启徽标
+        Common.InitRestartBadge(RestartBadge, this);
     }
 
     /// <summary>短时间多次触发只弹一次</summary>
@@ -292,6 +295,8 @@ public partial class MainWindow : GlimpseonWindow
             else
             {
                 Log.Debug("[设置] 用户选择稍后重启");
+                // 稍后重启
+                AppUtils.MarkRestartPending();
             }
         }
         catch (Exception e)
