@@ -33,6 +33,8 @@ public partial class SplashWindow : Window
         InitializeComponent();
         VersionLabel.Text = version;
         StatusLabel.Text = AppUtils.Tr("splash.initializing");
+        TidLabel.Text = $"TID {Telemetry.TelemetryId}";
+        TidLabel.IsVisible = Telemetry.TelemetryId.Length > 0;
         LoadIcon(iconPath);
         CenterOnScreen();
     }
