@@ -3,8 +3,9 @@
   "name": "示例插件",
   "version": "1.0.0",
   "author": "HelloGaoo",
-  "description": "演示插件",
+  "description": "演示插件的描述",
   "entrance": "PluginSample.dll",
   "apiVersion": 1,
-  "readme": "README.md"
+  "readme": "README.md",
+  "icon": "icon.png"
 }
