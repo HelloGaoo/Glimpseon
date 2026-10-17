@@ -256,6 +256,7 @@
       "auto_updated": "外掛已自動更新 重新啟動後生效",
       "no_readme": "暫無說明",
       "market_loading": "載入中…",
+      "meta_failed": "外掛來源資訊取得失敗，目前顯示的是索引登記資訊",
       "search": "搜尋外掛…",
       "detail_empty": "在左側選擇一個外掛查看詳情",
       "filter_empty": "找不到符合條件的外掛",

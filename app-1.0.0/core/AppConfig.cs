@@ -522,7 +522,7 @@ public static class Config
     public static readonly ConfigItem<int> ComponentCardRadius = new("Grid", "ComponentCardRadius", 16, min: 0, max: 29);
 
     // Download
-    public static readonly ConfigItem<string> DownloadSource = new("Download", "Source", "hk",
+    public static readonly ConfigItem<string> DownloadSource = new("Download", "Source", "edgeone",
         options: new string?[] { "original", "hk", "cloudflare", "edgeone", "geekertao" });
     public static readonly ConfigItem<int> DownloadItemsPerPage = new("Download", "ItemsPerPage", 8, min: 4, max: 40);
 

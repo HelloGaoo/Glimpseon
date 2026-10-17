@@ -18,6 +18,7 @@
 
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Text;
 using System.IO;
 using System.Reflection;
 using System.Text.Json;
@@ -49,7 +50,7 @@ public static class DownloadSources
             ["geekertao"] = ("download.source_geekertao", "https://ghfile.geekertao.top/https://github.com"),
         };
 
-    public const string DefaultSource = SourceHk;
+    public const string DefaultSource = SourceEdgeone;
 
     private static string _currentSource = DefaultSource;
     private static readonly object SourceLock = new();
@@ -70,13 +71,30 @@ public static class DownloadSources
         {
             return url;
         }
-        if (url.StartsWith("https://github.com/", StringComparison.OrdinalIgnoreCase)
-            || url.StartsWith("https://raw.githubusercontent.com/", StringComparison.OrdinalIgnoreCase)
-            || url.StartsWith("https://objects.githubusercontent.com/", StringComparison.OrdinalIgnoreCase))
+        const string ghHost = "https://github.com";
+        // Prefix 形如 https://edgeone.gh-proxy.org/https://github.com (末尾带 github.com 主机)
+        var proxyRoot = src.Prefix.EndsWith(ghHost, StringComparison.OrdinalIgnoreCase)
+            ? src.Prefix[..^ghHost.Length]
+            : src.Prefix;
+        string rewritten;
+        if (url.StartsWith(ghHost, StringComparison.OrdinalIgnoreCase))
         {
-            return src.Prefix + url;
+            // 已是 github.com 主机: 前缀 + 剩余路径
+            rewritten = src.Prefix + url[ghHost.Length..];
         }
-        return url;
+        else if (url.StartsWith("https://raw.githubusercontent.com", StringComparison.OrdinalIgnoreCase)
+                 || url.StartsWith("https://objects.githubusercontent.com", StringComparison.OrdinalIgnoreCase))
+        {
+            // raw/objects 主机: 前缀去掉 github.com 后接完整 URL
+            rewritten = proxyRoot + url;
+        }
+        else
+        {
+            Log.Debug($"[源] 加速源={key} 非 GitHub 地址原样使用 {url}");
+            return url;
+        }
+        Log.Debug($"[源] 加速源={key} {url} → {rewritten}");
+        return rewritten;
     }
 
     public static IReadOnlyList<string> Candidates(string url)
@@ -89,11 +107,20 @@ public static class DownloadSources
                 list.Add(u);
             }
         }
-        Add(Resolve(url));
-        Add(url);
-        Add(RawToJsDelivr(url));
+        var resolved = Resolve(url);
+        Add(resolved);
+        // jsDelivr 有 CDN 缓存延迟 (会返回旧 manifest), 不参与竞速, 见 MirrorCandidate
+        // 直连只在未配置加速源时保留 (raw.githubusercontent 在多数网络下直接超时, 留着只会拖满超时)
+        if (string.Equals(resolved, url, StringComparison.Ordinal))
+        {
+            Add(url);
+        }
+        Log.Debug($"[源] 主候选 {list.Count} 个: {string.Join(" | ", list)}");
         return list;
     }
+
+    /// <summary>最后用</summary>
+    public static string? MirrorCandidate(string url) => RawToJsDelivr(url);
 
     // raw.githubusercontent.com/Owner/Repo/branch/path 到 cdn.jsdelivr.net/gh/Owner/Repo@branch/path
     public static string? RawToJsDelivr(string? url)
@@ -1072,4 +1099,274 @@ public class Downloader
             throw;
         }
     }
+}
+
+/// <summary>
+/// GitHub 资源取数
+/// </summary>
+public static class GitHubFetch
+{
+    /// <summary>共享连接池</summary>
+    public static readonly HttpClient Http = new(new System.Net.Http.SocketsHttpHandler
+    {
+        ConnectTimeout = TimeSpan.FromSeconds(3),
+        PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+        AutomaticDecompression = System.Net.DecompressionMethods.All,
+    })
+    {
+        Timeout = TimeSpan.FromSeconds(12),
+    };
+
+    /// <summary>单主机并发上限</summary>
+    private static readonly SemaphoreSlim Limiter = new(3, 3);
+
+    private const int MaxLoggedBody = 4096;
+
+    private static string Trim(string text)
+    {
+        if (text.Length <= MaxLoggedBody)
+        {
+            return text;
+        }
+        var headLen = MaxLoggedBody * 3 / 4;
+        var tailLen = MaxLoggedBody - headLen;
+        return text[..headLen] + $"\n…(省略 {text.Length - MaxLoggedBody} 字符)…\n" + text[^tailLen..];
+    }
+
+    private static string Preview(byte[] bytes)
+    {
+        try
+        {
+            var text = Encoding.UTF8.GetString(bytes, 0, Math.Min(bytes.Length, 512)).Replace("\r", " ").Replace("\n", " ");
+            return text.Length > 300 ? text[..300] + "…" : text;
+        }
+        catch
+        {
+            return $"<{bytes.Length}B>";
+        }
+    }
+
+    /// <summary>单次 HTTP 请求记录</summary>
+    public static async Task<(bool Ok, byte[]? Bytes, string? Text, int Status, long Length, double Ms, string? Error)> SendAsync(
+        string url, bool asText, CancellationToken ct)
+    {
+        var sw = Stopwatch.StartNew();
+        await Limiter.WaitAsync(ct);
+        try
+        {
+            for (var attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    return await SendOnceAsync(url, asText, sw, ct);
+                }
+                catch (OperationCanceledException) when (attempt < 3 && !ct.IsCancellationRequested)
+                {
+                    var backoff = attempt == 1 ? 400 : 1200;
+                    Log.Warning($"[网络] 第 {attempt} 次超时 {sw.ElapsedMilliseconds}ms, {backoff}ms 后重试 {url}");
+                    await Task.Delay(backoff, ct);
+                }
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            sw.Stop();
+            Log.Debug($"[网络] 取消 {sw.ElapsedMilliseconds}ms {url}");
+            return (false, null, null, 0, 0, sw.Elapsed.TotalMilliseconds, "canceled");
+        }
+        catch (Exception e)
+        {
+            sw.Stop();
+            Log.Warning($"[网络] ✕ {sw.ElapsedMilliseconds}ms {e.GetType().Name}: {e.Message} {url}");
+            return (false, null, null, 0, 0, sw.Elapsed.TotalMilliseconds, $"{e.GetType().Name}: {e.Message}");
+        }
+        finally
+        {
+            Limiter.Release();
+        }
+    }
+
+    private static async Task<(bool Ok, byte[]? Bytes, string? Text, int Status, long Length, double Ms, string? Error)> SendOnceAsync(
+        string url, bool asText, Stopwatch sw, CancellationToken ct)
+    {
+        {
+            Log.Debug($"[网络] → GET {url}");
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
+            req.Headers.TryAddWithoutValidation("User-Agent", $"Glimpseon/{Paths.Version}");
+            req.Headers.TryAddWithoutValidation("Accept", asText ? "application/json, text/plain, */*" : "image/*, */*");
+            using var resp = await Http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+            var status = (int)resp.StatusCode;
+            LastStatus[url] = status;
+            var headerLength = resp.Content.Headers.ContentLength;
+            var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
+            sw.Stop();
+            var ctype = resp.Content.Headers.ContentType?.ToString() ?? "-";
+            Log.Debug($"[网络] ← {status} {bytes.Length}B (声明 {headerLength?.ToString() ?? "?"}B) {sw.ElapsedMilliseconds}ms type={ctype} {url}");
+            if (!resp.IsSuccessStatusCode)
+            {
+                Log.Warning($"[网络] 状态异常 {status} {url} 片段: {Preview(bytes)}");
+                return (false, null, null, status, bytes.Length, sw.Elapsed.TotalMilliseconds, $"HTTP {status}");
+            }
+            if (bytes.Length == 0)
+            {
+                Log.Warning($"[网络] 空响应 {url}");
+                return (false, null, null, status, 0, sw.Elapsed.TotalMilliseconds, "empty");
+            }
+            if (!asText)
+            {
+                return (true, bytes, null, status, bytes.Length, sw.Elapsed.TotalMilliseconds, null);
+            }
+            var text = Encoding.UTF8.GetString(bytes);
+            Log.Debug($"[网络] 正文 {text.Length} 字符 {url}\n{Trim(text)}");
+            return (true, bytes, text, status, bytes.Length, sw.Elapsed.TotalMilliseconds, null);
+        }
+    }
+
+    /// <summary>竟态</summary>
+    public static async Task<T?> RaceAsync<T>(string url, Func<HttpClient, string, CancellationToken, Task<T?>> fetch)
+        where T : class
+    {
+        var candidates = DownloadSources.Candidates(url);
+        if (candidates.Count == 0)
+        {
+            Log.Warning($"[网络] 无可用候选地址 {url}");
+            return null;
+        }
+        Log.Debug($"[网络] 竞价请求 {url}\n  候选({candidates.Count}): {string.Join(" | ", candidates)}");
+        if (candidates.Count == 1)
+        {
+            try
+            {
+                var single = await fetch(Http, candidates[0], CancellationToken.None);
+                if (single is not null)
+                {
+                    return single;
+                }
+            }
+            catch
+            {
+            }
+            return await TryMirrorAsync(url, fetch);
+        }
+        using var cts = new CancellationTokenSource();
+        var pending = candidates.Select(c => Run(c)).ToList();
+        var swWin = Stopwatch.StartNew();
+        while (pending.Count > 0)
+        {
+            var done = await Task.WhenAny(pending);
+            pending.Remove(done);
+            var result = await done;
+            if (result is not null)
+            {
+                cts.Cancel();
+                swWin.Stop();
+                Log.Debug($"[网络] 竞价胜出 {swWin.ElapsedMilliseconds}ms (其余 {pending.Count} 个已取消) {url}");
+                return result;
+            }
+        }
+        Log.Warning($"[网络] 主候选全部失败 ({candidates.Count} 个) {url}");
+        return await TryMirrorAsync(url, fetch);
+
+        async Task<T?> TryMirrorAsync(string originalUrl, Func<HttpClient, string, CancellationToken, Task<T?>> fetchFn)
+        {
+            var mirror = DownloadSources.MirrorCandidate(originalUrl);
+            if (mirror is null)
+            {
+                return null;
+            }
+            Log.Warning($"[网络] 主候选全失败, 尝试 jsDelivr 兜底 {mirror}");
+            try
+            {
+                var mirrored = await fetchFn(Http, mirror, CancellationToken.None);
+                if (mirrored is not null)
+                {
+                    Log.Warning($"[网络] 已回退到 jsDelivr 缓存副本 (可能不是最新) {mirror}");
+                }
+                return mirrored;
+            }
+            catch (Exception e)
+            {
+                Log.Debug($"[网络] jsDelivr 兜底失败 {mirror}: {e.Message}");
+                return null;
+            }
+        }
+
+        async Task<T?> Run(string candidate)
+        {
+            try
+            {
+                return await fetch(Http, candidate, cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                return null;
+            }
+            catch (Exception e)
+            {
+                Log.Debug($"[网络] 候选异常 {candidate}: {e.Message}");
+                return null;
+            }
+        }
+    }
+
+    /// <summary>带状态码取文本</summary>
+    public static async Task<(bool Ok, int Status, string? Text)> TryGetStringAsync(string url)
+    {
+        var boxed = await RaceAsync<object>(url, async (_, u, ct) =>
+        {
+            var r = await SendAsync(u, asText: true, ct);
+            return r.Ok ? r.Text : (object?)null;
+        });
+        if (boxed is string text)
+        {
+            return (true, 200, text);
+        }
+        var status = (int)(LastStatus.TryGetValue(url, out var st) ? st : 0);
+        return (false, status, null);
+    }
+
+    internal static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> LastStatus = new();
+
+    public static Task<string?> GetStringAsync(string url) =>
+        RaceAsync(url, async (_, u, ct) =>
+        {
+            var r = await SendAsync(u, asText: true, ct);
+            return r.Ok ? r.Text : null;
+        });
+
+    /// <summary>取json</summary>
+    public static async Task<System.Text.Json.JsonElement?> GetJsonAsync(string url)
+    {
+        var boxed = await RaceAsync<object>(url, async (_, u, ct) =>
+        {
+            var r = await SendAsync(u, asText: true, ct);
+            if (!r.Ok || string.IsNullOrWhiteSpace(r.Text))
+            {
+                return null;
+            }
+            try
+            {
+                var parsed = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(r.Text);
+                if (parsed.ValueKind != System.Text.Json.JsonValueKind.Object)
+                {
+                    Log.Warning($"[网络] 响应不是 JSON 对象 {u}");
+                    return null;
+                }
+                return parsed;
+            }
+            catch (Exception e)
+            {
+                Log.Warning($"[网络] JSON 解析失败 {u}: {e.Message}");
+                return null;
+            }
+        });
+        return boxed is System.Text.Json.JsonElement je ? je : null;
+    }
+
+    public static Task<byte[]?> GetBytesAsync(string url) =>
+        RaceAsync(url, async (_, u, ct) =>
+        {
+            var r = await SendAsync(u, asText: false, ct);
+            return r.Ok ? r.Bytes : null;
+        });
 }

@@ -338,7 +338,7 @@ public partial class SettingsWindow : GlimpseonWindow
         _pages["storage"] = Wrap(BuildStoragePage());
         _pages["privacy"] = Wrap(BuildPrivacyPage());
         _pages["advanced"] = Wrap(BuildAdvancedPage());
-        _pages["plugins"] = Wrap(BuildPluginsPage());
+        _pages["plugins"] = BuildPluginsPage();
     }
 
     /// <summary>重建全部页面(重置/导入配置后) 并切回当前页</summary>
@@ -1517,6 +1517,9 @@ public partial class SettingsWindow : GlimpseonWindow
     private readonly Dictionary<string, PluginListItemUi> _localItems = new();
     private readonly Dictionary<string, PluginListItemUi> _marketItems = new();
 
+    /// <summary>已经尝试过回源的插件</summary>
+    private readonly HashSet<string> _metaAttempted = new();
+
     private readonly Dictionary<string, bool> _enabledOverrides = new();
 
     private bool IsEnabledEffective(PluginInfo info) =>
@@ -1524,14 +1527,31 @@ public partial class SettingsWindow : GlimpseonWindow
 
     private Control BuildPluginsPage()
     {
-        var stack = MakePageStack(Tr("settings.plugins.title"));
-        _pluginsPageHost = stack;
-        stack.Children.Add(BuildPluginsBody());
+        // 铺满内容区
+        var page = new Grid { RowDefinitions = new RowDefinitions("Auto,Auto,*") };
+        page.Children.Add(new TextBlock
+        {
+            Text = Tr("settings.plugins.title"),
+            FontSize = 26,
+            FontWeight = FontWeight.Normal,
+            Margin = new Thickness(28, 4, 28, 12),
+        });
+        // Info() 的落点
+        var infoHost = new StackPanel { Margin = new Thickness(28, 0, 28, 0) };
+        Grid.SetRow(infoHost, 1);
+        page.Children.Add(infoHost);
+
+        var body = BuildPluginsBody();
+        body.Margin = new Thickness(28, 0, 28, 20);
+        Grid.SetRow(body, 2);
+        page.Children.Add(body);
+
+        _pluginsPageHost = infoHost;
         if (!_marketFetched && !_marketLoading)
         {
             _ = FetchMarketIndexAsync();
         }
-        return stack;
+        return page;
     }
 
     // 左列表右详情
@@ -1632,22 +1652,46 @@ public partial class SettingsWindow : GlimpseonWindow
         _installedListHost.IsVisible = !_isMarketTab;
         _marketListHost.IsVisible = _isMarketTab;
 
+        // 列表内部滚动
+        var listScroll = new ScrollViewer
+        {
+            Content = lists,
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            Padding = new Thickness(0, 0, 6, 0),
+        };
+
         var left = new Grid { RowDefinitions = new RowDefinitions("Auto,Auto,*") };
         left.Children.Add(_pluginsSearchBox);
         Grid.SetRow(toolbar, 1);
         left.Children.Add(toolbar);
-        Grid.SetRow(lists, 2);
-        left.Children.Add(lists);
+        Grid.SetRow(listScroll, 2);
+        left.Children.Add(listScroll);
 
         var root = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*") };
         root.Children.Add(left);
         _pluginsDetailHost.Margin = new Thickness(4, 0, 0, 0);
-        Grid.SetColumn(_pluginsDetailHost, 1);
-        root.Children.Add(_pluginsDetailHost);
+        var detailScroll = new ScrollViewer
+        {
+            Content = _pluginsDetailHost,
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            Padding = new Thickness(0, 0, 10, 0),
+        };
+        Grid.SetColumn(detailScroll, 1);
+        root.Children.Add(detailScroll);
 
+        if (_lastMarketPlugins is null)
+        {
+            _lastMarketPlugins = PluginMarket.TryGetCachedIndex();
+        }
         RefreshCatalog();
         RebuildPluginList();
         RenderMarketList();
+        if (_lastMarketPlugins is { Count: > 0 })
+        {
+            _ = EnrichMarketMetadataAsync(_lastMarketPlugins);
+        }
         return root;
     }
 
@@ -1750,6 +1794,7 @@ public partial class SettingsWindow : GlimpseonWindow
             PluginMetaStore.Clear();
         }
         _marketLoading = true;
+        var swIdx = System.Diagnostics.Stopwatch.StartNew();
         RenderMarketList();
         List<MarketPlugin>? plugins;
         string? error;
@@ -1763,7 +1808,9 @@ public partial class SettingsWindow : GlimpseonWindow
             plugins = null;
             error = "network";
         }
+        swIdx.Stop();
         _marketLoading = false;
+        Log.Info($"[市场] UI 刷新完成 {swIdx.Elapsed.TotalSeconds:F2}s 条目={plugins?.Count.ToString() ?? "null"} error={error ?? "-"}");
         _lastMarketPlugins = plugins;
         _marketFetched = error is null;
         RefreshCatalog();
@@ -1775,19 +1822,68 @@ public partial class SettingsWindow : GlimpseonWindow
         }
     }
 
+    private bool _enriching;
+
     private async Task EnrichMarketMetadataAsync(List<MarketPlugin> list)
     {
-        await Task.WhenAll(list.Select(async mp =>
+        if (_enriching)
         {
-            try
+            Log.Debug("[回源] 已有回源任务进行中, 跳过本次");
+            return;
+        }
+        _enriching = true;
+        var swAll = System.Diagnostics.Stopwatch.StartNew();
+        Log.Info($"[回源] 开始补全 {list.Count} 个插件的云端信息");
+        try
+        {
+            await Task.WhenAll(list.Select(async mp =>
             {
-                mp.Meta = await PluginMetaStore.GetAsync(mp);
-            }
-            catch (Exception e)
+                var swOne = System.Diagnostics.Stopwatch.StartNew();
+                try
+                {
+                    mp.Meta = await PluginMetaStore.GetAsync(mp);
+                    swOne.Stop();
+                    Log.Info($"[回源] {mp.Id} {(mp.Meta is null ? "无结果" : "完成")} {swOne.ElapsedMilliseconds}ms " +
+                             $"name={mp.Meta?.Name ?? "-"} version={mp.Meta?.Version ?? "-"}");
+                }
+                catch (Exception e)
+                {
+                    swOne.Stop();
+                    Log.Warning($"[回源] {mp.Id} 异常 {swOne.ElapsedMilliseconds}ms: {e.GetType().Name}: {e.Message}");
+                }
+            }));
+        }
+        finally
+        {
+            _enriching = false;
+        }
+        // 超时/失败自动重试
+        for (var round = 1; round <= 5; round++)
+        {
+            var pending = list.Where(mp => mp.Meta is null && !PluginMetaStore.IsNotFound(mp.Id)).ToList();
+            if (pending.Count == 0)
             {
-                Log.Warning($"[设置/插件市场] {mp.Id} 回源失败: {e.Message}");
+                break;
             }
-        }));
+            Log.Info($"[回源] 第 {round} 轮重试 {pending.Count} 个: {string.Join(",", pending.Select(x => x.Id))}");
+            await Task.Delay(2000);
+            await Task.WhenAll(pending.Select(async mp =>
+            {
+                try
+                {
+                    mp.Meta = await PluginMetaStore.GetAsync(mp, force: true);
+                }
+                catch (Exception e)
+                {
+                    Log.Warning($"[回源] 重试异常 {mp.Id}: {e.Message}");
+                }
+            }));
+            RefreshCatalog();
+            RenderMarketList();
+            RebuildPluginList();
+        }
+        swAll.Stop();
+        Log.Info($"[回源] 全部结束 耗时 {swAll.Elapsed.TotalSeconds:F2}s");
         RefreshCatalog();
         RenderMarketList();
         RebuildPluginList();
@@ -1901,17 +1997,19 @@ public partial class SettingsWindow : GlimpseonWindow
             statusIcons.Add(StatusGlyph('\uE783', Color.Parse("#E81123"), Tr("settings.plugins.market_incompatible")));
         }
 
+        var pendingMeta = !info.MetadataReady && !PluginMetaStore.IsNotFound(info.Id);
         return BuildPluginListItem(
             info.Id,
-            info.IconSource,
+            info.MetaPending && string.IsNullOrEmpty(info.IconSource) ? "__skeleton__" : info.IconSource,
             info.IsLocal ? FASymbol.AllApps : FASymbol.Shop,
-            info.Name,
-            info.Description,
+            pendingMeta ? "" : info.Name,
+            pendingMeta ? " " : info.Description,
             dimmed: info.IsLocal && info.Status != PluginLoadStatus.Loaded,
             statusIcons,
             BuildPluginItemActions(info, marketTab),
             selected,
-            marketTab ? () => SelectMarketPlugin(info) : () => SelectLocalPlugin(info));
+            marketTab ? () => SelectMarketPlugin(info) : () => SelectLocalPlugin(info),
+            skeleton: pendingMeta);
     }
 
     // 条目右下角操作
@@ -2051,16 +2149,23 @@ public partial class SettingsWindow : GlimpseonWindow
 
     private Control BuildPluginDetail(PluginInfo info)
     {
+        if (!info.MetadataReady && !PluginMetaStore.IsNotFound(info.Id))
+        {
+            return BuildDetailSkeleton();
+        }
         var root = new StackPanel { Spacing = 12 };
 
         var header = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), Margin = new Thickness(4, 8, 4, 0) };
-        var chip = MakeIconChip(info.IconSource, info.IsLocal ? FASymbol.AllApps : FASymbol.Shop, 60);
+        var chip = MakeIconChip(
+            info.MetaPending && string.IsNullOrEmpty(info.IconSource) ? "__skeleton__" : info.IconSource,
+            info.IsLocal ? FASymbol.AllApps : FASymbol.Shop, 60);
         chip.VerticalAlignment = VerticalAlignment.Top;
         chip.Margin = new Thickness(0, 0, 8, 0);
         header.Children.Add(chip);
 
         var textCol = new StackPanel { Spacing = 4 };
-        textCol.Children.Add(new TextBlock { Text = info.Name, FontSize = 24, FontWeight = FontWeight.Medium, TextTrimming = TextTrimming.CharacterEllipsis });
+        var displayName = string.IsNullOrWhiteSpace(info.Name) ? info.Id : info.Name;
+        textCol.Children.Add(new TextBlock { Text = displayName, FontSize = 24, FontWeight = FontWeight.Medium, TextTrimming = TextTrimming.CharacterEllipsis });
         // 元信息行
         var meta = new WrapPanel { Orientation = Orientation.Horizontal };
         void AddMetaText(string? t)
@@ -2084,15 +2189,15 @@ public partial class SettingsWindow : GlimpseonWindow
         {
             AddMetaSep();
             var homepage = info.Homepage;
-            var link = new Button
+            var link = new TextBlock
             {
-                Content = new TextBlock { Text = Tr("settings.plugins.homepage_link"), FontSize = 12, Foreground = AccentBrush() },
-                Padding = new Thickness(0),
-                Background = Brushes.Transparent,
-                BorderThickness = new Thickness(0),
+                Text = Tr("settings.plugins.homepage_link"),
+                FontSize = 12,
+                Foreground = AccentBrush(),
                 VerticalAlignment = VerticalAlignment.Center,
+                Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
             };
-            link.Click += (_, _) =>
+            link.PointerPressed += (_, _) =>
             {
                 try
                 {
@@ -2161,6 +2266,189 @@ public partial class SettingsWindow : GlimpseonWindow
         return root;
     }
 
+    // Markdown 
+    private static MarkdownScrollViewer CreateMarkdownViewer(string markdown)
+    {
+        var viewer = new MarkdownScrollViewer { Markdown = markdown };
+        viewer.AttachedToVisualTree += (_, _) => ScheduleMarkdownLook(viewer);
+        return viewer;
+    }
+
+    private static void ScheduleMarkdownLook(MarkdownScrollViewer viewer)
+    {
+        var delay = 0;
+        foreach (var step in new[] { 0, 80, 200, 400, 800, 1500 })
+        {
+            var wait = step - delay;
+            delay = step;
+            var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(wait) };
+            timer.Tick += (_, _) =>
+            {
+                timer.Stop();
+                if (!viewer.IsLoaded)
+                {
+                    return;
+                }
+                var applied = ApplyMarkdownLook(viewer);
+                if (applied)
+                {
+                    viewer.Opacity = 1;
+                }
+            };
+            timer.Start();
+        }
+        var fallback = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1600) };
+        fallback.Tick += (_, _) =>
+        {
+            fallback.Stop();
+            viewer.Opacity = 1;
+        };
+        fallback.Start();
+        viewer.Opacity = 0;
+    }
+
+    private static bool _mdTreeLogged;
+
+    private static bool ApplyMarkdownLook(MarkdownScrollViewer viewer)
+    {
+        try
+        {
+            var dark = viewer.ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark;
+            var primary = new SolidColorBrush(dark ? Color.Parse("#FFFFFFFF") : Color.Parse("#E4000000"));
+            var secondary = new SolidColorBrush(dark ? Color.Parse("#C4FFFFFF") : Color.Parse("#B0000000"));
+            var tertiary = new SolidColorBrush(dark ? Color.Parse("#59FFFFFF") : Color.Parse("#59000000"));
+            var codeBg = new SolidColorBrush(dark ? Color.Parse("#1AFFFFFF") : Color.Parse("#0F000000"));
+            var spliceBg = new SolidColorBrush(dark ? Color.Parse("#24FFFFFF") : Color.Parse("#12000000"));
+            var tableHead = new SolidColorBrush(dark ? Color.Parse("#12FFFFFF") : Color.Parse("#0A000000"));
+            var mono = new FontFamily("Cascadia Mono, Consolas, monospace");
+            var count = 0;
+            foreach (var v in Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(viewer))
+            {
+                switch (v)
+                {
+                    case ColorTextBlock.Avalonia.CTextBlock tb:
+                        var isCodeBlock = tb.Classes.Contains("CodeBlock");
+                        if (isCodeBlock)
+                        {
+                            tb.Foreground = secondary;
+                            tb.FontFamily = mono;
+                            tb.FontSize = 13;
+                        }
+                        else
+                        {
+                            tb.Foreground = primary;
+                            if (tb.Classes.Contains("Heading1"))
+                            {
+                                tb.FontSize = 26;
+                                tb.FontWeight = FontWeight.SemiBold;
+                                tb.Margin = new Thickness(0, 0, 0, 14);
+                            }
+                            else if (tb.Classes.Contains("Heading2"))
+                            {
+                                tb.FontSize = 21;
+                                tb.FontWeight = FontWeight.SemiBold;
+                                tb.Margin = new Thickness(0, 20, 0, 12);
+                            }
+                            else if (tb.Classes.Contains("Heading3"))
+                            {
+                                tb.FontSize = 18;
+                                tb.FontWeight = FontWeight.Medium;
+                                tb.Margin = new Thickness(0, 16, 0, 10);
+                            }
+                            else if (tb.Classes.Contains("Heading4"))
+                            {
+                                tb.FontSize = 16;
+                                tb.FontWeight = FontWeight.SemiBold;
+                                tb.Margin = new Thickness(0, 14, 0, 8);
+                            }
+                            else
+                            {
+                                tb.FontSize = 15;
+                                tb.Margin = new Thickness(0, 0, 0, 10);
+                            }
+                        }
+
+                        if (tb.Content is { } content)
+                        {
+                            foreach (var item in content)
+                            {
+                                switch (item)
+                                {
+                                    case ColorTextBlock.Avalonia.CHyperlink _:
+                                        break;
+                                    case ColorTextBlock.Avalonia.CCode code:
+                                        code.Foreground = secondary;
+                                        code.FontFamily = mono;
+                                        code.IsUnderline = false;
+                                        code.Background = isCodeBlock ? null : spliceBg;
+                                        break;
+                                    case ColorTextBlock.Avalonia.CSpan span:
+                                        span.Foreground = isCodeBlock ? secondary : primary;
+                                        if (isCodeBlock)
+                                        {
+                                            span.FontFamily = mono;
+                                        }
+                                        span.IsUnderline = false;
+                                        break;
+                                }
+                            }
+                        }
+                        count++;
+                        break;
+                    case TextBlock t when t.Classes.Contains("CodeBlock"):
+                        t.Foreground = secondary;
+                        t.FontFamily = mono;
+                        t.FontSize = 13;
+                        count++;
+                        break;
+                    case Border b when b.Classes.Contains("CodeBlock"):
+                        b.Background = codeBg;
+                        b.CornerRadius = new CornerRadius(8);
+                        b.Padding = new Thickness(10);
+                        b.Margin = new Thickness(0, 0, 0, 14);
+                        b.BorderThickness = new Thickness(0);
+                        count++;
+                        break;
+                    case Border b when b.Classes.Contains("TableHeader"):
+                        b.Background = tableHead;
+                        b.Padding = new Thickness(8);
+                        b.BorderThickness = new Thickness(1, 1, 0, 0);
+                        b.BorderBrush = tertiary;
+                        count++;
+                        break;
+                    case Border b when b.Classes.Contains("OddTableRow") || b.Classes.Contains("EvenTableRow"):
+                        b.Padding = new Thickness(8);
+                        b.BorderThickness = new Thickness(1, 1, 0, 0);
+                        b.BorderBrush = tertiary;
+                        b.Background = Brushes.Transparent;
+                        count++;
+                        break;
+                }
+            }
+            if (count > 0)
+            {
+                Log.Debug($"[说明] Markdown 样式已应用 {count} 个元素 dark={dark}");
+                if (!_mdTreeLogged)
+                {
+                    _mdTreeLogged = true;
+                    var dump = new List<string>();
+                    foreach (var vv in Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(viewer).Take(40))
+                    {
+                        var cls = vv.Classes.Count > 0 ? "[" + string.Join(",", vv.Classes) + "]" : "";
+                        dump.Add($"{vv.GetType().Name}{cls}");
+                    }
+                    Log.Debug($"[说明] 文档结构: {string.Join(" | ", dump)}");
+                }
+            }
+            return count > 0;
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"[说明] Markdown 样式后处理失败: {e.Message}");
+            return true;
+        }
+    }
+
     private Control BuildReadmeContent(PluginInfo info)
     {
         var panel = new StackPanel { Spacing = 10, Margin = new Thickness(4, 4, 4, 0) };
@@ -2176,13 +2464,18 @@ public partial class SettingsWindow : GlimpseonWindow
         }
         if (string.IsNullOrEmpty(info.ReadmeSource))
         {
+            if (info.MetaPending)
+            {
+                panel.Children.Add(BuildReadmeSkeleton());
+                return panel;
+            }
             panel.Children.Add(new TextBlock { Text = Tr("settings.plugins.no_readme"), FontSize = 13, Opacity = 0.6 });
             return panel;
         }
         // 已缓存
         if (ReadmeCache.TryGetValue(info.ReadmeSource, out var cached))
         {
-            panel.Children.Add(new MarkdownScrollViewer { Markdown = cached });
+            panel.Children.Add(CreateMarkdownViewer(StripLeadingHeading(cached)));
             return panel;
         }
         // 未缓存
@@ -2194,7 +2487,19 @@ public partial class SettingsWindow : GlimpseonWindow
         var source = info.ReadmeSource;
         _ = Task.Run(async () =>
         {
-            var doc = await GetMarkdownAsync(source);
+            string? doc = null;
+            for (var attempt = 0; attempt < 3 && doc is null; attempt++)
+            {
+                if (attempt > 0)
+                {
+                    await Task.Delay(1500);
+                }
+                doc = await GetMarkdownAsync(source);
+                if (ReadmeMissing.ContainsKey(source))
+                {
+                    break;
+                }
+            }
             Dispatcher.UIThread.Post(() =>
             {
                 try
@@ -2203,7 +2508,7 @@ public partial class SettingsWindow : GlimpseonWindow
                     holder.Children.Clear();
                     holder.Children.Add(doc is null
                         ? new TextBlock { Text = Tr("settings.plugins.no_readme"), FontSize = 13, Opacity = 0.6 }
-                        : new MarkdownScrollViewer { Markdown = doc });
+                        : CreateMarkdownViewer(StripLeadingHeading(doc)));
                 }
                 catch
                 {
@@ -2211,6 +2516,35 @@ public partial class SettingsWindow : GlimpseonWindow
             });
         });
         return panel;
+    }
+
+    private Control BuildDetailSkeleton()
+    {
+        var root = new StackPanel { Spacing = 12 };
+        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
+        var chip = new Border
+        {
+            Width = 60,
+            Height = 60,
+            CornerRadius = new CornerRadius(10),
+            Background = new SolidColorBrush(Colors.Gray, 0.14),
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 0, 8, 0),
+        };
+        StartPulse(chip);
+        header.Children.Add(chip);
+        var bars = new StackPanel { Spacing = 8, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 6, 0, 0) };
+        var nameBar = new Border { Height = 20, Width = 180, CornerRadius = new CornerRadius(6), Background = new SolidColorBrush(Colors.Gray, 0.18) };
+        StartPulse(nameBar);
+        var metaBar = new Border { Height = 12, Width = 260, CornerRadius = new CornerRadius(6), Background = new SolidColorBrush(Colors.Gray, 0.14) };
+        StartPulse(metaBar);
+        bars.Children.Add(nameBar);
+        bars.Children.Add(metaBar);
+        Grid.SetColumn(bars, 1);
+        header.Children.Add(bars);
+        root.Children.Add(header);
+        root.Children.Add(BuildReadmeSkeleton());
+        return root;
     }
 
     // 详情空态
@@ -2392,7 +2726,7 @@ public partial class SettingsWindow : GlimpseonWindow
         {
             Background = selected ? new SolidColorBrush(accent, 0.10) : Brushes.Transparent,
             CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(10, 8, 10, 8),
+            Padding = new Thickness(10, 11, 10, 11),
             Child = host,
         };
         return new PluginListItemUi { Root = root, Bar = bar, Content = content, Accent = accent };
@@ -2409,7 +2743,8 @@ public partial class SettingsWindow : GlimpseonWindow
         List<Control> statusIcons,
         Control? bottomActions,
         bool selected,
-        Action activate)
+        Action activate,
+        bool skeleton = false)
     {
         var grid = new Grid
         {
@@ -2421,19 +2756,23 @@ public partial class SettingsWindow : GlimpseonWindow
         Grid.SetRowSpan(chip, 2);
         grid.Children.Add(chip);
 
-        var nameText = new TextBlock { Text = name, FontSize = 16, FontWeight = FontWeight.Medium, TextWrapping = TextWrapping.Wrap };
-        Grid.SetColumn(nameText, 1);
-        grid.Children.Add(nameText);
+        Control nameNode = skeleton
+            ? SkeletonBar(140, 15)
+            : new TextBlock { Text = name, FontSize = 16, FontWeight = FontWeight.Medium, TextWrapping = TextWrapping.Wrap };
+        Grid.SetColumn(nameNode, 1);
+        grid.Children.Add(nameNode);
 
-        var descText = new TextBlock
-        {
-            Text = string.IsNullOrEmpty(description) ? pluginId : description,
-            FontSize = 12,
-            TextWrapping = TextWrapping.Wrap,
-        };
-        Grid.SetColumn(descText, 1);
-        Grid.SetRow(descText, 1);
-        grid.Children.Add(descText);
+        Control descNode = skeleton
+            ? SkeletonBar(220, 11)
+            : new TextBlock
+            {
+                Text = string.IsNullOrEmpty(description) ? pluginId : description,
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+            };
+        Grid.SetColumn(descNode, 1);
+        Grid.SetRow(descNode, 1);
+        grid.Children.Add(descNode);
 
         if (statusIcons.Count > 0)
         {
@@ -2485,6 +2824,12 @@ public partial class SettingsWindow : GlimpseonWindow
             VerticalAlignment = VerticalAlignment.Center,
             Child = FAIcons.IconCenter(fallback, size * 0.45),
         };
+        if (source == "__skeleton__")
+        {
+            chip.Child = null;
+            StartPulse(chip);
+            return chip;
+        }
         if (string.IsNullOrWhiteSpace(source))
         {
             return chip;
@@ -2494,35 +2839,56 @@ public partial class SettingsWindow : GlimpseonWindow
             SetChipImage(chip, cached, size);
             return chip;
         }
+        chip.Child = null;
         StartPulse(chip);
         LoadIconIntoChipAsync(chip, source, size);
         return chip;
     }
 
-    // 骨架
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Control, DispatcherTimer> PulseTimers = new();
-
-    private static void StartPulse(Control target)
+    // 骨架条
+    private static Border SkeletonBar(double width, double height)
     {
-        target.Transitions ??= new Transitions();
-        target.Transitions.Add(new DoubleTransition
+        var bar = new Border
         {
-            Property = Visual.OpacityProperty,
-            Duration = TimeSpan.FromMilliseconds(650),
-            Easing = new SineEaseInOut(),
-        });
-        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(720) };
-        timer.Tick += (_, _) => target.Opacity = target.Opacity > 0.6 ? 0.35 : 1.0;
-        timer.Start();
-        PulseTimers.AddOrUpdate(target, timer);
+            Width = width,
+            Height = height,
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(Colors.Gray, 0.18),
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        StartPulse(bar);
+        return bar;
     }
 
+    // 骨架动画
+    private static void StartPulse(Control target)
+    {
+        var visual = Avalonia.Rendering.Composition.ElementComposition.GetElementVisual(target);
+        if (visual is null)
+        {
+            return;
+        }
+        var anim = visual.Compositor.CreateScalarKeyFrameAnimation();
+        anim.Target = "Opacity";
+        anim.Duration = TimeSpan.FromSeconds(2);
+        anim.IterationBehavior = Avalonia.Rendering.Composition.Animations.AnimationIterationBehavior.Forever;
+        anim.InsertKeyFrame(0f, 0.5f);
+        anim.InsertKeyFrame(0.5f, 0.8f, Easing.Parse("0.80, 0.00, 0.40, 1.00"));
+        anim.InsertKeyFrame(1f, 0.5f, Easing.Parse("0.60, 0.00, 0.20, 1.00"));
+        visual.StartAnimation("Opacity", anim);
+    }
+
+    // 内容就绪
     private static void StopPulse(Control target)
     {
-        if (PulseTimers.TryGetValue(target, out var timer))
+        var visual = Avalonia.Rendering.Composition.ElementComposition.GetElementVisual(target);
+        if (visual is not null)
         {
-            timer.Stop();
-            PulseTimers.Remove(target);
+            var anim = visual.Compositor.CreateScalarKeyFrameAnimation();
+            anim.Target = "Opacity";
+            anim.Duration = TimeSpan.FromSeconds(0.01);
+            anim.InsertKeyFrame(0f, 1.0f);
+            visual.StartAnimation("Opacity", anim);
         }
         target.Opacity = 1;
     }
@@ -2560,14 +2926,27 @@ public partial class SettingsWindow : GlimpseonWindow
 
     // 图标内存缓存 去重
     private static readonly Dictionary<string, Bitmap> IconBitmapCache = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> IconFailures = new();
     private static readonly Dictionary<string, Task<byte[]?>> IconFetchTasks = new();
 
     private static async void LoadIconIntoChipAsync(Border chip, string source, double size)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        Log.Debug($"[图标] 加载 {source} size={size}");
         var bitmap = await GetIconBitmapAsync(source);
+        sw.Stop();
+        Log.Debug($"[图标] {(bitmap is null ? "失败" : "完成")} {sw.ElapsedMilliseconds}ms {source}");
         if (bitmap is null)
         {
-            Dispatcher.UIThread.Post(() => StopPulse(chip));
+            Dispatcher.UIThread.Post(() =>
+            {
+                StopPulse(chip);
+                var broken = GlyphIcon('\uE9CC', 18);
+                broken.Opacity = 0.4;
+                broken.HorizontalAlignment = HorizontalAlignment.Center;
+                broken.VerticalAlignment = VerticalAlignment.Center;
+                chip.Child = broken;
+            });
             return;
         }
         Dispatcher.UIThread.Post(() => SetChipImage(chip, bitmap, size));
@@ -2577,6 +2956,7 @@ public partial class SettingsWindow : GlimpseonWindow
     {
         if (IconBitmapCache.TryGetValue(source, out var cached))
         {
+            Log.Debug($"[图标] 命中内存缓存 {source} ({cached.PixelSize.Width}x{cached.PixelSize.Height})");
             return cached;
         }
         if (!IconFetchTasks.TryGetValue(source, out var task))
@@ -2631,36 +3011,40 @@ public partial class SettingsWindow : GlimpseonWindow
             {
                 try
                 {
-                    return await File.ReadAllBytesAsync(diskPath);
+                    var cachedBytes = await File.ReadAllBytesAsync(diskPath);
+                    Log.Debug($"[图标] 命中磁盘缓存 {cachedBytes.Length}B {diskPath}");
+                    return cachedBytes;
                 }
-                catch
+                catch (Exception e)
                 {
+                    Log.Debug($"[图标] 磁盘缓存读取失败 {diskPath}: {e.Message}");
                 }
             }
-            foreach (var url in DownloadSources.Candidates(source))
+            // 失败过的地址短时间内不再重试
+            if (IconFailures.TryGetValue(source, out var failedAt) && DateTime.UtcNow - failedAt < TimeSpan.FromMinutes(3))
             {
-                try
-                {
-                    using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(12) };
-                    var bytes = await http.GetByteArrayAsync(url);
-                    if (bytes is { Length: > 0 })
-                    {
-                        try
-                        {
-                            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(diskPath)!);
-                            await File.WriteAllBytesAsync(diskPath, bytes);
-                        }
-                        catch
-                        {
-                        }
-                        return bytes;
-                    }
-                }
-                catch
-                {
-                }
+                Log.Debug($"[图标] 命中失败缓存 ({(DateTime.UtcNow - failedAt).TotalSeconds:F0}s 前失败) {source}");
+                return null;
             }
-            return null;
+            Log.Debug($"[图标] 开始下载 {source}");
+            var bytes = await GitHubFetch.GetBytesAsync(source);
+            if (bytes is null)
+            {
+                IconFailures[source] = DateTime.UtcNow;
+                Log.Warning($"[图标] 下载失败, 3 分钟内不再重试 {source}");
+                return null;
+            }
+            Log.Debug($"[图标] 下载完成 {bytes.Length}B {source}");
+            try
+            {
+                Directory.CreateDirectory(System.IO.Path.GetDirectoryName(diskPath)!);
+                await File.WriteAllBytesAsync(diskPath, bytes);
+            }
+            catch
+            {
+            }
+            IconFailures.TryRemove(source, out _);
+            return bytes;
         }
         catch
         {
@@ -2671,17 +3055,21 @@ public partial class SettingsWindow : GlimpseonWindow
     // 加载 readme 文档
     private static readonly Dictionary<string, string> ReadmeCache = new();
     private static readonly Dictionary<string, Task<string?>> ReadmeTasks = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> ReadmeMissing = new();
 
     private static Task<string?> GetMarkdownAsync(string source)
     {
         if (ReadmeCache.TryGetValue(source, out var cached))
         {
+            Log.Debug($"[说明] 命中内存缓存 {cached.Length} 字符 {source}");
             return Task.FromResult<string?>(cached);
         }
         if (ReadmeTasks.TryGetValue(source, out var running))
         {
+            Log.Debug($"[说明] 复用进行中的请求 {source}");
             return running;
         }
+        Log.Debug($"[说明] 开始加载 {source}");
         var task = LoadMarkdownAsync(source);
         ReadmeTasks[source] = task;
         return task;
@@ -2698,20 +3086,27 @@ public partial class SettingsWindow : GlimpseonWindow
             string? doc = null;
             if (source.StartsWith("http", StringComparison.OrdinalIgnoreCase))
             {
-                foreach (var url in DownloadSources.Candidates(source))
+                if (ReadmeMissing.ContainsKey(source))
                 {
-                    try
-                    {
-                        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-                        doc = await http.GetStringAsync(url);
-                        if (!string.IsNullOrWhiteSpace(doc))
-                        {
-                            break;
-                        }
-                    }
-                    catch
-                    {
-                    }
+                    ReadmeTasks.Remove(source);
+                    return null;
+                }
+                var swDoc = System.Diagnostics.Stopwatch.StartNew();
+                var (ok, status, text) = await GitHubFetch.TryGetStringAsync(source);
+                swDoc.Stop();
+                if (ok)
+                {
+                    doc = text;
+                    Log.Info($"[说明] 加载成功 {doc!.Length} 字符 {swDoc.ElapsedMilliseconds}ms {source}");
+                }
+                else if (status is 404 or 410)
+                {
+                    ReadmeMissing[source] = true;
+                    Log.Warning($"[说明] 404 没有这个文档, 视为无说明 {source}");
+                }
+                else
+                {
+                    Log.Warning($"[说明] 加载失败 (status={status}) {swDoc.ElapsedMilliseconds}ms, 将重试 {source}");
                 }
             }
             else if (File.Exists(source))
@@ -2733,6 +3128,18 @@ public partial class SettingsWindow : GlimpseonWindow
             Log.Warning($"[设置/插件] readme 加载失败 {source}: {e.Message}");
             return null;
         }
+    }
+
+    // 去掉 markdown 开头的一级标题
+    private static string StripLeadingHeading(string markdown)
+    {
+        var text = markdown.TrimStart();
+        if (!text.StartsWith("# ", StringComparison.Ordinal))
+        {
+            return markdown;
+        }
+        var idx = text.IndexOf('\n');
+        return idx < 0 ? "" : text[(idx + 1)..].TrimStart();
     }
 
     private static bool MatchFilter(string id, string name, string description, string filter) =>

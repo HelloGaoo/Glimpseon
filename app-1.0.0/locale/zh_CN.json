@@ -266,6 +266,7 @@
       "auto_updated": "插件已自动更新 重启后生效",
       "no_readme": "暂无说明",
       "market_loading": "加载中…",
+      "meta_failed": "插件来源信息获取失败，当前显示的是索引登记信息",
       "search": "搜索插件…",
       "detail_empty": "在左侧选择一个插件查看详情",
       "filter_empty": "找不到符合条件的插件",

@@ -275,6 +275,10 @@ public sealed class PluginInfo
     public string? MarketVersion { get; set; }
     public bool IsLocal { get; set; }
     public bool IsMarket { get; set; }
+
+    public bool MetadataReady { get; set; }
+
+    public bool MetaPending { get; set; }
     public bool IsIncompatible { get; set; }
     public bool IsUpdateAvailable { get; set; }
     public bool PendingRestart { get; set; }
@@ -314,6 +318,7 @@ public static class PluginCatalog
                 Dependencies = lp.Manifest.Dependencies,
                 IconSource = ResolveLocalIcon(lp),
                 ReadmeSource = ResolveLocalReadme(lp),
+                MetadataReady = true,
             };
             map[info.Id] = info;
         }
@@ -333,6 +338,8 @@ public static class PluginCatalog
                 }
                 info.Market = mp;
                 info.IsMarket = true;
+                info.MetaPending = mp.Meta is null && !PluginMetaStore.IsNotFound(mp.Id);
+                info.MetaPending = mp.Meta is null && !PluginMetaStore.IsNotFound(mp.Id);
                 var meta = mp.Meta;
                 // 版本看索引
                 var marketVersion = !string.IsNullOrWhiteSpace(mp.LatestVersion)
@@ -345,6 +352,7 @@ public static class PluginCatalog
                 {
                     // 名称/作者/描述/图标/说明以插件项目看 manifest
                     info.Name = !string.IsNullOrWhiteSpace(meta?.Name) ? meta!.Name! : mp.Name;
+                    info.MetadataReady = !string.IsNullOrWhiteSpace(info.Name);
                     info.Author = !string.IsNullOrWhiteSpace(meta?.Author) ? meta!.Author! : mp.Author;
                     info.Description = !string.IsNullOrWhiteSpace(meta?.Description) ? meta!.Description! : mp.Description;
                     info.Homepage = mp.Homepage;
@@ -364,6 +372,19 @@ public static class PluginCatalog
                     {
                         info.Author = mp.Author;
                     }
+                    if (string.IsNullOrEmpty(info.Description))
+                    {
+                        info.Description = mp.Description;
+                    }
+                    // 本地包缺图标/说明时用插件项目(云端)的补上
+                    if (string.IsNullOrEmpty(info.IconSource))
+                    {
+                        info.IconSource = meta?.IconUrl ?? mp.IconUrl;
+                    }
+                    if (string.IsNullOrEmpty(info.ReadmeSource))
+                    {
+                        info.ReadmeSource = meta?.ReadmeUrl ?? mp.ReadmeUrl;
+                    }
                 }
             }
         }
@@ -376,19 +397,33 @@ public static class PluginCatalog
     public static PluginInfo? Find(string id) => _items.FirstOrDefault(x => x.Id == id);
 
     // 本地图标/说明解析
+    private static readonly string[] IconFileCandidates = { "icon.png", "icon.jpg", "icon.jpeg", "icon.ico", "logo.png" };
+
     private static string? ResolveLocalIcon(LoadedPlugin lp)
     {
         var name = lp.Manifest.Icon;
-        if (string.IsNullOrWhiteSpace(name))
+        if (!string.IsNullOrWhiteSpace(name))
         {
-            return null;
+            if (name.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                return name;
+            }
+            var path = Path.Combine(lp.Directory, name);
+            if (File.Exists(path))
+            {
+                return path;
+            }
         }
-        if (name.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        // manifest 没写 icon 时, 兜底找目录里的常见图标文件名
+        foreach (var candidate in IconFileCandidates)
         {
-            return name;
+            var path = Path.Combine(lp.Directory, candidate);
+            if (File.Exists(path))
+            {
+                return path;
+            }
         }
-        var path = Path.Combine(lp.Directory, name);
-        return File.Exists(path) ? path : null;
+        return null;
     }
 
     private static string? ResolveLocalReadme(LoadedPlugin lp)
@@ -1194,50 +1229,81 @@ public static class PluginMarket
     // 源顺序
     public static async Task<(List<MarketPlugin>? Plugins, string? Error)> FetchIndexAsync(bool force = false)
     {
+        var startedAt = AppUtils.PreciseNow();
+        Log.Info($"[市场] 拉取索引 force={force} 源={Config.MarketSource.Value}");
         if (!force && _indexCache is not null && AppUtils.PreciseNow() - _indexCacheTime < IndexSessionTtl)
         {
+            Log.Debug($"[市场] 命中会话缓存 {_indexCache.Count} 项 ({(AppUtils.PreciseNow() - _indexCacheTime).TotalSeconds:F0}s 前)");
             return (_indexCache, null);
         }
         var configured = Config.MarketSource.Value;
-        var sources = DownloadSources.Candidates(configured);
-        foreach (var source in sources)
+        // 竞态镜像
+        var element = await GitHubFetch.GetJsonAsync(configured);
+        if (element is { } el)
         {
             try
             {
-                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-                http.DefaultRequestHeaders.UserAgent.ParseAdd($"Glimpseon/{Paths.Version}");
-                var text = await http.GetStringAsync(source);
-                var element = JsonSerializer.Deserialize<JsonElement>(text);
-                if (element.ValueKind == JsonValueKind.Object
-                    && element.TryGetProperty("apiVersion", out var rootApi)
+                if (el.TryGetProperty("apiVersion", out var rootApi)
                     && rootApi.ValueKind == JsonValueKind.Number
                     && rootApi.GetInt32() != PluginApi.HostApiVersion)
                 {
                     Log.Warning($"[插件市场] 索引 apiVersion={rootApi.GetInt32()} 宿主={PluginApi.HostApiVersion} 兼容性未知");
                 }
-                var plugins = ParseIndex(element, source);
+                var plugins = ParseIndex(el, configured);
                 _indexCache = plugins;
                 _indexCacheTime = AppUtils.PreciseNow();
-                AppUtils.SaveCache("plugin-market", JsonSerializer.SerializeToElement(element), "1天");
-                Log.Info($"[插件市场] 索引拉取成功 {plugins.Count}项 源={source}");
+                AppUtils.SaveCache("plugin-market", JsonSerializer.SerializeToElement(el), "1天");
+                Log.Info($"[市场] 索引成功 {plugins.Count} 项 耗时 {(AppUtils.PreciseNow() - startedAt).TotalSeconds:F2}s");
+                foreach (var sp in plugins)
+                {
+                    Log.Debug($"[市场] 条目 id={sp.Id} repo={sp.Repo}@{sp.Branch} path={sp.ManifestPath} " +
+                              $"version={sp.LatestVersion} asset={sp.Asset} dl={sp.EffectiveDownloadUrl} sha={sp.Sha256}");
+                }
                 return (plugins, null);
             }
             catch (Exception e)
             {
-                Log.Warning($"[插件市场] 索引源失败 {source}: {e.Message}");
+                Log.Warning($"[插件市场] 索引解析失败: {e.Message}");
             }
+        }
+        else
+        {
+            Log.Warning("[插件市场] 索引源全部失败");
         }
         if (_indexCache is not null)
         {
-            Log.Info("[插件市场] 索引源全部失败 用本会话缓存");
+            Log.Warning($"[市场] 索引全部失败 回退会话缓存 {_indexCache.Count} 项 (耗时 {(AppUtils.PreciseNow() - startedAt).TotalSeconds:F2}s)");
             return (_indexCache, null);
         }
         if (AppUtils.GetCachedContent("plugin-market", ignoreExpiry: true) is { } cache)
         {
-            Log.Info("[插件市场] 索引源全部失败 用磁盘旧缓存");
+            Log.Warning($"[市场] 索引全部失败 回退磁盘旧缓存 (耗时 {(AppUtils.PreciseNow() - startedAt).TotalSeconds:F2}s)");
             return (ParseIndex(cache, null), null);
         }
+        Log.Error($"[市场] 索引拉取失败, 无任何可用缓存 (耗时 {(AppUtils.PreciseNow() - startedAt).TotalSeconds:F2}s)");
         return (null, "network");
+    }
+
+    /// <summary>先拿旧索引</summary>
+    public static List<MarketPlugin>? TryGetCachedIndex()
+    {
+        if (_indexCache is not null)
+        {
+            return _indexCache;
+        }
+        try
+        {
+            if (AppUtils.GetCachedContent("plugin-market", ignoreExpiry: true) is { } cache)
+            {
+                var list = ParseIndex(cache, null);
+                return list.Count > 0 ? list : null;
+            }
+        }
+        catch (Exception e)
+        {
+            Log.Debug($"[插件市场] 旧索引读取失败: {e.Message}");
+        }
+        return null;
     }
 
     // 相对路径按索引地址补全
@@ -1296,7 +1362,7 @@ public static class PluginMarket
             list.Add(new MarketPlugin
             {
                 Id = id,
-                Name = S("name") is { Length: > 0 } n ? n : id,
+                Name = S("name"),
                 Author = S("author"),
                 Description = S("description"),
                 IconUrl = ResolveUrl(S("iconUrl"), indexSource),
@@ -1321,19 +1387,27 @@ public static class PluginMarket
     {
         var lastError = "";
         var downloaded = false;
-        foreach (var url in DownloadSources.Candidates(plugin.EffectiveDownloadUrl))
+        var candidates = DownloadSources.Candidates(plugin.EffectiveDownloadUrl);
+        Log.Info($"[下载] {plugin.Id} v{plugin.LatestVersion} 目标 {dest}");
+        Log.Debug($"[下载] {plugin.Id} 候选源 {candidates.Count} 个: {string.Join(" | ", candidates)}");
+        foreach (var url in candidates)
         {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             try
             {
-                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
-                http.DefaultRequestHeaders.UserAgent.ParseAdd($"Glimpseon/{Paths.Version}");
-                using var resp = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-                resp.EnsureSuccessStatusCode();
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.TryAddWithoutValidation("User-Agent", $"Glimpseon/{Paths.Version}");
+                Log.Debug($"[下载] {plugin.Id} → GET {url}");
+                using var resp = await GitHubFetch.Http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
+                var status = (int)resp.StatusCode;
                 var total = resp.Content.Headers.ContentLength ?? -1;
+                Log.Debug($"[下载] {plugin.Id} ← {status} 大小={total}B type={resp.Content.Headers.ContentType} {url}");
+                resp.EnsureSuccessStatusCode();
                 await using var stream = await resp.Content.ReadAsStreamAsync();
                 await using var fs = File.Create(dest);
                 var buffer = new byte[81920];
                 long read = 0;
+                var lastTier = -1;
                 int n;
                 while ((n = await stream.ReadAsync(buffer)) > 0)
                 {
@@ -1341,17 +1415,27 @@ public static class PluginMarket
                     read += n;
                     if (total > 0)
                     {
-                        progress?.Invoke(read * 100.0 / total);
+                        var pct = read * 100.0 / total;
+                        progress?.Invoke(pct);
+                        var tier = (int)(pct / 10);
+                        if (tier > lastTier)
+                        {
+                            lastTier = tier;
+                            Log.Debug($"[下载] {plugin.Id} {pct:F0}% ({read}/{total}B)");
+                        }
                     }
                 }
+                sw.Stop();
+                Log.Info($"[下载] {plugin.Id} 完成 {read}B 耗时 {sw.Elapsed.TotalSeconds:F2}s 源={url}");
                 downloaded = true;
                 break;
             }
             catch (Exception e)
             {
+                sw.Stop();
                 lastError = e.Message;
                 TryDelete(dest);
-                Log.Warning($"[插件市场] 下载源失败 {url}: {e.Message}");
+                Log.Warning($"[下载] {plugin.Id} 源失败 {sw.ElapsedMilliseconds}ms {url}: {e.GetType().Name}: {e.Message}");
             }
         }
         if (!downloaded)
@@ -1361,12 +1445,18 @@ public static class PluginMarket
         if (!string.IsNullOrWhiteSpace(plugin.Sha256))
         {
             var actual = await ComputeSha256Async(dest);
+            Log.Debug($"[下载] {plugin.Id} sha256 期望={plugin.Sha256} 实际={actual}");
             if (!string.Equals(actual, plugin.Sha256.Trim(), StringComparison.OrdinalIgnoreCase))
             {
                 TryDelete(dest);
-                Log.Warning($"[插件市场] sha256 不符 {plugin.Id} 期望 {plugin.Sha256} 实际 {actual}");
+                Log.Error($"[下载] {plugin.Id} sha256 校验失败, 已删除临时包");
                 return (false, "sha");
             }
+            Log.Info($"[下载] {plugin.Id} sha256 校验通过");
+        }
+        else
+        {
+            Log.Warning($"[下载] {plugin.Id} 索引未提供 sha256, 跳过校验");
         }
         return (true, "");
     }
@@ -1454,7 +1544,15 @@ public static class PluginMetaStore
     private static readonly ConcurrentDictionary<string, MarketMetadata> Cache = new(StringComparer.Ordinal);
     private static readonly ConcurrentDictionary<string, Task<MarketMetadata?>> Inflight = new(StringComparer.Ordinal);
 
+    /// <summary>回源确定 404 的插件</summary>
+    private static readonly ConcurrentDictionary<string, bool> NotFound = new(StringComparer.Ordinal);
+
+    public static bool IsNotFound(string id) => NotFound.ContainsKey(id);
+
     private static string MetaDir => Path.Combine(Paths.DataCache, "plugin-meta");
+
+    /// <summary>元数据磁盘缓存有效期</summary>
+    private static readonly TimeSpan MetaCacheTtl = TimeSpan.FromMinutes(3);
 
     public static void Clear()
     {
@@ -1472,23 +1570,53 @@ public static class PluginMetaStore
         }
     }
 
+    /// <summary>弃单个插件的缓存</summary>
+    public static void Remove(string id)
+    {
+        Cache.TryRemove(id, out _);
+        NotFound.TryRemove(id, out _);
+        try
+        {
+            var path = Path.Combine(MetaDir, id + ".json");
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (Exception e)
+        {
+            Log.Debug($"[回源] 删除缓存失败 {id}: {e.Message}");
+        }
+    }
+
     public static async Task<MarketMetadata?> GetAsync(MarketPlugin mp, bool force = false)
     {
         if (string.IsNullOrWhiteSpace(mp.Repo))
         {
+            Log.Debug($"[回源] {mp.Id} 未登记 repo, 跳过回源");
             return null;
         }
+        if (NotFound.ContainsKey(mp.Id))
+        {
+            Log.Debug($"[回源] {mp.Id} 之前已确认 404, 跳过");
+            return null;
+        }
+        Log.Debug($"[回源] {mp.Id} 请求元数据 repo={mp.Repo}@{mp.Branch} path={mp.ManifestPath} force={force} " +
+                  $"indexVersion={mp.LatestVersion}");
         if (!force && Cache.TryGetValue(mp.Id, out var cached))
         {
+            Log.Debug($"[回源] {mp.Id} 命中内存缓存 name={cached.Name} version={cached.Version} icon={cached.IconUrl} readme={cached.ReadmeUrl}");
             return cached;
         }
         if (!force && TryLoadDisk(mp) is { } disk)
         {
             Cache[mp.Id] = disk;
+            Log.Debug($"[回源] {mp.Id} 命中磁盘缓存 (版本匹配) name={disk.Name} version={disk.Version}");
             return disk;
         }
         if (Inflight.TryGetValue(mp.Id, out var running))
         {
+            Log.Debug($"[回源] {mp.Id} 复用进行中的请求");
             return await running;
         }
         var task = FetchAsync(mp);
@@ -1500,6 +1628,10 @@ public static class PluginMetaStore
             {
                 Cache[mp.Id] = meta;
                 SaveDisk(mp, meta);
+            }
+            else
+            {
+                Log.Warning($"[回源] {mp.Id} 失败: manifest 取不到或解析不了 (repo={mp.Repo})");
             }
             return meta;
         }
@@ -1519,24 +1651,19 @@ public static class PluginMetaStore
             : "";
         var assetBase = rawBase + manifestDir;
         var manifestUrl = rawBase + manifestPath;
-        var text = await HttpGetStringAsync(manifestUrl);
-        if (string.IsNullOrWhiteSpace(text))
+        var fetched = await GitHubFetch.GetJsonAsync(manifestUrl);
+        if (fetched is not { } root)
         {
-            Log.Warning($"[插件市场] {mp.Id} 回源失败 manifest 取不到 {manifestUrl}");
-            return null;
-        }
-        JsonElement root;
-        try
-        {
-            root = JsonSerializer.Deserialize<JsonElement>(text);
-        }
-        catch (Exception e)
-        {
-            Log.Warning($"[插件市场] {mp.Id} manifest 解析失败: {e.Message}");
-            return null;
-        }
-        if (root.ValueKind != JsonValueKind.Object)
-        {
+            var status = GitHubFetch.LastStatus.TryGetValue(manifestUrl, out var st) ? st : 0;
+            if (status is 404 or 410)
+            {
+                NotFound[mp.Id] = true;
+                Log.Warning($"[回源] {mp.Id} manifest 404 (仓库或路径不对), 不再重试 {manifestUrl}");
+            }
+            else
+            {
+                Log.Warning($"[回源] {mp.Id} manifest 取不到 (status={status}), 稍后重试 {manifestUrl}");
+            }
             return null;
         }
         string Str(string name) => root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
@@ -1552,7 +1679,7 @@ public static class PluginMetaStore
         }
         var icon = Url(Str("icon"));
         var readme = Url(string.IsNullOrWhiteSpace(Str("readme")) ? "README.md" : Str("readme"));
-        return new MarketMetadata
+        var meta = new MarketMetadata
         {
             Name = Str("name"),
             Author = Str("author"),
@@ -1563,32 +1690,15 @@ public static class PluginMetaStore
             ReadmeUrl = string.IsNullOrWhiteSpace(readme) ? null : readme,
             Source = manifestUrl,
         };
-    }
-
-    private static async Task<string?> HttpGetStringAsync(string url)
-    {
-        foreach (var candidate in DownloadSources.Candidates(url))
-        {
-            try
-            {
-                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-                http.DefaultRequestHeaders.UserAgent.ParseAdd($"Glimpseon/{Paths.Version}");
-                var text = await http.GetStringAsync(candidate);
-                if (!string.IsNullOrWhiteSpace(text))
-                {
-                    return text;
-                }
-            }
-            catch
-            {
-            }
-        }
-        return null;
+        Log.Info($"[回源] {mp.Id} manifest 成功 name={meta.Name} version={meta.Version} api={meta.ApiVersion} " +
+                 $"icon={meta.IconUrl ?? "(无)"} readme={meta.ReadmeUrl ?? "(无)"} 来源={manifestUrl}");
+        return meta;
     }
 
     private sealed class DiskEntry
     {
         public string Version { get; set; } = "";
+        public DateTime FetchedAt { get; set; }
         public string? Name { get; set; }
         public string? Author { get; set; }
         public string? Description { get; set; }
@@ -1614,6 +1724,13 @@ public static class PluginMetaStore
             // 版本变了就重取
             if (entry is null || (!string.IsNullOrEmpty(mp.LatestVersion) && entry.Version != mp.LatestVersion))
             {
+                Log.Debug($"[回源] {mp.Id} 磁盘缓存版本不匹配 (缓存 {entry?.Version} 索引 {mp.LatestVersion}), 重新获取");
+                return null;
+            }
+            var age = DateTime.UtcNow - entry.FetchedAt;
+            if (entry.FetchedAt == default || age > MetaCacheTtl)
+            {
+                Log.Debug($"[回源] {mp.Id} 磁盘缓存过期 ({age.TotalMinutes:F0} 分钟 > {(int)MetaCacheTtl.TotalMinutes} 分钟), 重新获取");
                 return null;
             }
             return new MarketMetadata
@@ -1642,6 +1759,7 @@ public static class PluginMetaStore
             var entry = new DiskEntry
             {
                 Version = meta.Version ?? "",
+                FetchedAt = DateTime.UtcNow,
                 Name = meta.Name,
                 Author = meta.Author,
                 Description = meta.Description,
@@ -1650,8 +1768,10 @@ public static class PluginMetaStore
                 ReadmeUrl = meta.ReadmeUrl,
                 Source = meta.Source,
             };
-            File.WriteAllText(DiskPath(mp), JsonSerializer.Serialize(entry,
+            var path = DiskPath(mp);
+            File.WriteAllText(path, JsonSerializer.Serialize(entry,
                 new JsonSerializerOptions { WriteIndented = true }));
+            Log.Debug($"[回源] {mp.Id} 写入缓存 {path}");
         }
         catch (Exception e)
         {
