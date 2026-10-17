@@ -253,8 +253,14 @@ internal static class GlimpseonMain
             try
             {
                 var now = AppUtils.PreciseNow();
-                PluginEventBus.RaiseTimeTick(now);
-                if (!PluginEventBus.HasSubscribers("CourseChanged") && !PluginEventBus.HasSubscribers("ClassStateChanged"))
+                if (PluginEventBus.HasSubscribers(PluginApi.EventTimeTick))
+                {
+                    PluginEventBus.RaiseTimeTick(now);
+                }
+                // 只有真订阅课表/时段事件时才去算课表
+                var needCourse = PluginEventBus.HasSubscribers(PluginApi.EventCourseChanged);
+                var needState = PluginEventBus.HasSubscribers(PluginApi.EventClassStateChanged);
+                if (!needCourse && !needState)
                 {
                     _lastCourseSignature = null;
                     _lastClassStateSignature = null;
@@ -274,7 +280,7 @@ internal static class GlimpseonMain
                 // 当前正课行
                 ScheduleRow? classRow = rows.FirstOrDefault(r => r.IsCurrent && !r.IsBreak);
                 var courseSignature = classRow is null ? "" : $"{classRow.Index}|{classRow.Subject}|{classRow.StartTime}-{classRow.EndTime}";
-                if (PluginEventBus.HasSubscribers("CourseChanged") && courseSignature != _lastCourseSignature)
+                if (needCourse && courseSignature != _lastCourseSignature)
                 {
                     _lastCourseSignature = courseSignature;
                     PluginEventBus.RaiseCourseChanged(classRow);
@@ -304,7 +310,8 @@ internal static class GlimpseonMain
                     next = rows.FirstOrDefault(r => !r.IsBreak && TimeOnly.TryParse(r.StartTime, out var st) && nowTime < st);
                 }
 
-                var stateSignature = $"{phase}|{classRow?.Subject}|{next?.Index}|{breakRemaining / 30}";
+                // 课间倒计时按 5s 触发
+                var stateSignature = $"{phase}|{classRow?.Subject}|{next?.Index}|{breakRemaining / 5}";
                 if (stateSignature != _lastClassStateSignature)
                 {
                     _lastClassStateSignature = stateSignature;

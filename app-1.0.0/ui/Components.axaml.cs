@@ -640,14 +640,17 @@ public sealed class ComponentManager
 
     private DraggableContainer? CreateWidget(ComponentData data)
     {
-        var definition = _home.ComponentRegistry.GetDefinition($"{data.Type}_{data.Style}");
+        // 还原 id 兼容无下划线旧存档
+        var defId = string.IsNullOrEmpty(data.Style) ? data.Type : $"{data.Type}_{data.Style}";
+        var definition = _home.ComponentRegistry.GetDefinition(defId)
+            ?? _home.ComponentRegistry.GetDefinition(data.Type);
         if (definition is null)
         {
-            Log.Warning($"组件定义未注册: {data.Type}_{data.Style}");
+            Log.Warning($"组件定义未注册: {defId}");
             return null;
         }
         // 真身工厂优先 占位兜底(M6 未完成的样式)
-        var widget = StyleWidgetFactory.Create($"{data.Type}_{data.Style}", definition, data.Config)
+        var widget = StyleWidgetFactory.Create(defId, definition, data.Config)
             ?? new PlaceholderWidget(definition, data.Config);
         widget.ComponentId = data.Id;
         widget.Type = data.Type;
@@ -2396,11 +2399,11 @@ public static class TimetableScheduleProvider
     {
         var result = new List<ScheduleRow>();
         // 插件提供者来源
-        var profileSource = Config.ProfileSource.Value;
+        var profileSource = Config.ProfileSource.Value ?? "";
         if (profileSource.StartsWith("plugin:", StringComparison.Ordinal))
         {
-            var pluginId = profileSource["plugin:".Length..];
-            if (PluginService.ScheduleProviders.TryGetValue(pluginId, out var entry))
+            var key = profileSource["plugin:".Length..];
+            if (ResolvePluginProvider(key) is { } entry)
             {
                 try
                 {
@@ -2408,12 +2411,12 @@ public static class TimetableScheduleProvider
                 }
                 catch (Exception e)
                 {
-                    Log.Warning($"[课表组件] 插件课表读取失败 [{pluginId}]: {e.Message}");
+                    Log.Warning($"[课表组件] 插件课表读取失败 [{key}]: {e.Message}");
                     return result;
                 }
             }
-            Log.Warning($"[课表组件] 插件课表来源不存在: {pluginId}");
-            return result;
+            // 来源失效 回落本地档案
+            Log.Warning($"[课表组件] 插件课表来源不可用: {key} 回落本地档案");
         }
         if (!UseLocalScheduleData())
         {
@@ -2482,6 +2485,23 @@ public static class TimetableScheduleProvider
     }
 
     /// <summary>联动跟随模式使用外部数据 自编辑或 Glimpseon 使用本地档案</summary>
+    /// <summary>按 key 找提供者 兼容裸 id</summary>
+    private static (string PluginId, string Name, Func<List<ScheduleRow>> Provider)? ResolvePluginProvider(string key)
+    {
+        if (PluginService.ScheduleProviders.TryGetValue(key, out var direct))
+        {
+            return direct;
+        }
+        foreach (var kv in PluginService.ScheduleProviders)
+        {
+            if (string.Equals(kv.Value.PluginId, key, StringComparison.Ordinal))
+            {
+                return kv.Value;
+            }
+        }
+        return null;
+    }
+
     private static bool UseLocalScheduleData() => Config.ProfileSource.Value switch
     {
         "classisland" => !Config.ScheduleProfileCiFollow.Value,

@@ -31,6 +31,52 @@ namespace Glimpseon.Core;
 public static class PluginApi
 {
     public const int HostApiVersion = 1;
+
+    /// <summary>0=未登记 视为兼容</summary>
+    public static bool IsCompatible(int apiVersion) => apiVersion == 0 || apiVersion == HostApiVersion;
+
+    // 事件名
+    public const string EventTimeTick = "TimeTick";
+    public const string EventCourseChanged = "CourseChanged";
+    public const string EventClassStateChanged = "ClassStateChanged";
+    public const string EventAppClosing = "AppClosing";
+}
+
+internal static class PluginFs
+{
+    /// <summary>解析到 root 内 越界返回 false</summary>
+    public static bool TryResolveInside(string root, string? relative, out string full)
+    {
+        full = "";
+        if (string.IsNullOrWhiteSpace(relative) || Path.IsPathRooted(relative))
+        {
+            return false;
+        }
+        string rootFull;
+        string candidate;
+        try
+        {
+            rootFull = Path.GetFullPath(root);
+            candidate = Path.GetFullPath(Path.Combine(rootFull, relative));
+        }
+        catch
+        {
+            return false;
+        }
+        var prefix = rootFull.EndsWith(Path.DirectorySeparatorChar) ? rootFull : rootFull + Path.DirectorySeparatorChar;
+        if (!candidate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        full = candidate;
+        return true;
+    }
+
+    /// <summary>http/https 绝对地址</summary>
+    public static bool IsHttpUrl(string? value) =>
+        !string.IsNullOrWhiteSpace(value)
+        && Uri.TryCreate(value, UriKind.Absolute, out var uri)
+        && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
 }
 
 /// <summary>manifest 依赖项</summary>
@@ -47,20 +93,19 @@ public sealed class PluginManifest
     public string Version { get; init; } = "";
     public string Author { get; init; } = "";
     public string Description { get; init; } = "";
+    public string Homepage { get; init; } = "";
     public string Entrance { get; init; } = "";
     public int ApiVersion { get; init; }
     public string Icon { get; init; } = "";
     public string Readme { get; init; } = "";
     public List<PluginDependency> Dependencies { get; init; } = [];
 
-    public static PluginManifest? Load(string dir, out string error, bool checkDirName = true)
+    public static (PluginManifest? Manifest, string Error) Load(string dir, bool checkDirName = true)
     {
-        error = "";
         var path = Path.Combine(dir, "manifest.json");
         if (!File.Exists(path))
         {
-            error = "manifest.json 缺失";
-            return null;
+            return (null, $"manifest.json 缺失: {path}");
         }
         PluginManifest? m;
         try
@@ -70,35 +115,42 @@ public sealed class PluginManifest
         }
         catch (Exception e)
         {
-            error = $"manifest.json 解析失败: {e.Message}";
-            return null;
+            return (null, $"manifest.json 解析失败: {e.Message}");
         }
         if (m is null)
         {
-            error = "manifest.json 内容为空";
-            return null;
+            return (null, "manifest.json 内容为空");
         }
         if (string.IsNullOrWhiteSpace(m.Id))
         {
-            error = "manifest.id 为空";
-            return null;
+            return (null, "manifest.id 为空");
+        }
+        if (string.IsNullOrWhiteSpace(m.Name))
+        {
+            return (null, "manifest.name 为空");
+        }
+        if (string.IsNullOrWhiteSpace(m.Version))
+        {
+            // 不拒载, 但版本为空会让"可更新"判断失真
+            Log.Warning($"[插件] {m.Id} manifest.version 为空 更新检测会不可靠");
+        }
+        if (!PluginService.IsSafePluginId(m.Id))
+        {
+            return (null, $"manifest.id 非法: {m.Id}");
         }
         if (checkDirName && m.Id != Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)))
         {
-            error = $"manifest.id ({m.Id}) 与目录名 ({Path.GetFileName(dir)}) 不一致";
-            return null;
+            return (null, $"manifest.id ({m.Id}) 与目录名 ({Path.GetFileName(dir)}) 不一致");
         }
-        if (string.IsNullOrWhiteSpace(m.Entrance) || !File.Exists(Path.Combine(dir, m.Entrance)))
+        if (!PluginFs.TryResolveInside(dir, m.Entrance, out var entranceFull) || !File.Exists(entranceFull))
         {
-            error = $"manifest.entrance 文件不存在: {m.Entrance}";
-            return null;
+            return (null, $"manifest.entrance 不在插件目录内或不存在: {m.Entrance}");
         }
-        if (m.ApiVersion != PluginApi.HostApiVersion)
+        if (!PluginApi.IsCompatible(m.ApiVersion))
         {
-            error = $"apiVersion {m.ApiVersion} 不受支持 宿主支持 {PluginApi.HostApiVersion}";
-            return null;
+            return (null, $"apiVersion {m.ApiVersion} 不受支持 宿主支持 {PluginApi.HostApiVersion}");
         }
-        return m;
+        return (m, "");
     }
 }
 
@@ -114,13 +166,14 @@ public sealed class PluginContext
     private readonly string _configPath;
 
     public string Id { get; }
-    public string Directory { get; }
+    /// <summary>插件目录</summary>
+    public string PluginDirectory { get; }
     public int ApiVersion { get; }
 
     internal PluginContext(PluginManifest manifest, string directory)
     {
         Id = manifest.Id;
-        Directory = directory;
+        PluginDirectory = directory;
         ApiVersion = manifest.ApiVersion;
         _configPath = Path.Combine(directory, "config.json");
     }
@@ -149,6 +202,11 @@ public sealed class PluginContext
     {
         try
         {
+            var dir = Path.GetDirectoryName(_configPath);
+            if (!string.IsNullOrEmpty(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
             File.WriteAllText(_configPath, config.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
         }
         catch (Exception e)
@@ -168,16 +226,16 @@ public sealed class PluginContext
     // 事件订阅
 
     public void SubscribeTimeTick(Action<DateTime> handler)
-        => PluginEventBus.Add(new PluginSubscription { PluginId = Id, Event = "TimeTick", Handler = p => handler((DateTime)p!) });
+        => PluginEventBus.Add(new PluginSubscription { PluginId = Id, Event = PluginApi.EventTimeTick, Handler = p => handler((DateTime)p!) });
 
     public void SubscribeCourseChanged(Action<ScheduleRow?> handler)
-        => PluginEventBus.Add(new PluginSubscription { PluginId = Id, Event = "CourseChanged", Handler = p => handler(p as ScheduleRow) });
+        => PluginEventBus.Add(new PluginSubscription { PluginId = Id, Event = PluginApi.EventCourseChanged, Handler = p => handler(p as ScheduleRow) });
 
     public void SubscribeClassStateChanged(Action<PluginClassState> handler)
-        => PluginEventBus.Add(new PluginSubscription { PluginId = Id, Event = "ClassStateChanged", Handler = p => handler((PluginClassState)p!) });
+        => PluginEventBus.Add(new PluginSubscription { PluginId = Id, Event = PluginApi.EventClassStateChanged, Handler = p => handler((PluginClassState)p!) });
 
     public void SubscribeAppClosing(Action handler)
-        => PluginEventBus.Add(new PluginSubscription { PluginId = Id, Event = "AppClosing", Handler = _ => handler() });
+        => PluginEventBus.Add(new PluginSubscription { PluginId = Id, Event = PluginApi.EventAppClosing, Handler = _ => handler() });
 
     // 状态拉取
 
@@ -218,9 +276,15 @@ public sealed class PluginContext
     // 通知
 
     private static readonly NotificationManager NotifManager = new();
+    private static readonly TimeSpan NotifyMinInterval = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan NotifyDedupeWindow = TimeSpan.FromSeconds(3);
+    private readonly object _notifyLock = new();
+    private DateTime _lastNotifyAt = DateTime.MinValue;
+    private string _lastNotifyContent = "";
 
     /// <summary>弹通知 style: corner/scroll/fullscreen</summary>
-    public void ShowNotification(string content, int durationSeconds = 5, string style = "corner")
+    /// <param name="speak">是否朗读</param>
+    public void ShowNotification(string content, int durationSeconds = 5, string style = "corner", bool speak = false)
     {
         content = (content ?? "").Trim();
         if (content.Length == 0)
@@ -228,10 +292,25 @@ public sealed class PluginContext
             LogWarning("通知内容为空 跳过");
             return;
         }
-        var type = style switch
+        var now = AppUtils.PreciseNow();
+        lock (_notifyLock)
         {
-            "scroll" => NotifType.Scroll,
-            "fullscreen" => NotifType.Fullscreen,
+            if (now - _lastNotifyAt < NotifyMinInterval)
+            {
+                LogWarning("通知过于频繁 已丢弃");
+                return;
+            }
+            if (content == _lastNotifyContent && now - _lastNotifyAt < NotifyDedupeWindow)
+            {
+                return;
+            }
+            _lastNotifyAt = now;
+            _lastNotifyContent = content;
+        }
+        var type = (style ?? "").Trim().ToLowerInvariant() switch
+        {
+            NotifType.Scroll => NotifType.Scroll,
+            NotifType.Fullscreen => NotifType.Fullscreen,
             _ => NotifType.Corner,
         };
         NotifManager.HandleNotification(new NotificationRequest
@@ -239,8 +318,14 @@ public sealed class PluginContext
             Type = type,
             Content = content,
             Duration = Math.Clamp(durationSeconds, 1, 120),
+            // "done" = 关闭 TTS
+            TtsVoice = speak ? "zh-CN-XiaoxiaoNeural" : "done",
         });
-        Announcements.Append(content);
+        // 按配置同步到公告板
+        if (Config.NotificationSyncBoard.Value)
+        {
+            Announcements.Append(content);
+        }
     }
 }
 
@@ -273,11 +358,10 @@ public sealed class PluginInfo
     public string? ReadmeSource { get; set; }
     public string? LocalVersion { get; set; }
     public string? MarketVersion { get; set; }
-    public bool IsLocal { get; set; }
-    public bool IsMarket { get; set; }
 
+    /// <summary>元数据已就绪</summary>
     public bool MetadataReady { get; set; }
-
+    /// <summary>等待回源</summary>
     public bool MetaPending { get; set; }
     public bool IsIncompatible { get; set; }
     public bool IsUpdateAvailable { get; set; }
@@ -289,6 +373,9 @@ public sealed class PluginInfo
     public List<PluginDependency> Dependencies { get; set; } = [];
     public LoadedPlugin? Local { get; set; }
     public MarketPlugin? Market { get; set; }
+
+    public bool IsLocal => Local is not null;
+    public bool IsMarket => Market is not null;
 }
 
 public static class PluginCatalog
@@ -302,25 +389,7 @@ public static class PluginCatalog
         var map = new Dictionary<string, PluginInfo>(StringComparer.Ordinal);
         foreach (var lp in PluginService.Plugins)
         {
-            var info = new PluginInfo
-            {
-                Id = lp.Manifest.Id,
-                Local = lp,
-                IsLocal = true,
-                Name = lp.Manifest.Name,
-                Author = lp.Manifest.Author,
-                Description = lp.Manifest.Description,
-                LocalVersion = lp.Manifest.Version,
-                Enabled = lp.Enabled,
-                Status = lp.Status,
-                Error = lp.Error,
-                Directory = lp.Directory,
-                Dependencies = lp.Manifest.Dependencies,
-                IconSource = ResolveLocalIcon(lp),
-                ReadmeSource = ResolveLocalReadme(lp),
-                MetadataReady = true,
-            };
-            map[info.Id] = info;
+            map[lp.Manifest.Id] = BuildLocal(lp);
         }
         if (market is not null)
         {
@@ -328,64 +397,10 @@ public static class PluginCatalog
             {
                 if (!map.TryGetValue(mp.Id, out var info))
                 {
-                    info = new PluginInfo
-                    {
-                        Id = mp.Id,
-                        IsMarket = true,
-                        PendingRestart = Directory.Exists(Path.Combine(Paths.DataPlugins, mp.Id)),
-                    };
+                    info = new PluginInfo { Id = mp.Id };
                     map[info.Id] = info;
                 }
-                info.Market = mp;
-                info.IsMarket = true;
-                info.MetaPending = mp.Meta is null && !PluginMetaStore.IsNotFound(mp.Id);
-                info.MetaPending = mp.Meta is null && !PluginMetaStore.IsNotFound(mp.Id);
-                var meta = mp.Meta;
-                // 版本看索引
-                var marketVersion = !string.IsNullOrWhiteSpace(mp.LatestVersion)
-                    ? mp.LatestVersion
-                    : meta?.Version ?? "";
-                var marketApi = meta is { ApiVersion: > 0 } ? meta.ApiVersion : mp.LatestApiVersion;
-                info.MarketVersion = marketVersion;
-                info.IsIncompatible = marketApi != 0 && marketApi != PluginApi.HostApiVersion;
-                if (!info.IsLocal)
-                {
-                    // 名称/作者/描述/图标/说明以插件项目看 manifest
-                    info.Name = !string.IsNullOrWhiteSpace(meta?.Name) ? meta!.Name! : mp.Name;
-                    info.MetadataReady = !string.IsNullOrWhiteSpace(info.Name);
-                    info.Author = !string.IsNullOrWhiteSpace(meta?.Author) ? meta!.Author! : mp.Author;
-                    info.Description = !string.IsNullOrWhiteSpace(meta?.Description) ? meta!.Description! : mp.Description;
-                    info.Homepage = mp.Homepage;
-                    info.IconSource = !string.IsNullOrWhiteSpace(meta?.IconUrl) ? meta!.IconUrl : mp.IconUrl;
-                    info.ReadmeSource = !string.IsNullOrWhiteSpace(meta?.ReadmeUrl) ? meta!.ReadmeUrl : mp.ReadmeUrl;
-                }
-                else
-                {
-                    info.IsUpdateAvailable = !info.IsIncompatible
-                        && PluginMarket.CompareVersions(marketVersion, info.LocalVersion ?? "0") > 0;
-                    // 本地 manifest 没有主页字段 用索引补全
-                    if (string.IsNullOrEmpty(info.Homepage))
-                    {
-                        info.Homepage = mp.Homepage;
-                    }
-                    if (string.IsNullOrEmpty(info.Author))
-                    {
-                        info.Author = mp.Author;
-                    }
-                    if (string.IsNullOrEmpty(info.Description))
-                    {
-                        info.Description = mp.Description;
-                    }
-                    // 本地包缺图标/说明时用插件项目(云端)的补上
-                    if (string.IsNullOrEmpty(info.IconSource))
-                    {
-                        info.IconSource = meta?.IconUrl ?? mp.IconUrl;
-                    }
-                    if (string.IsNullOrEmpty(info.ReadmeSource))
-                    {
-                        info.ReadmeSource = meta?.ReadmeUrl ?? mp.ReadmeUrl;
-                    }
-                }
+                MergeMarket(info, mp);
             }
         }
         _items = map.Values
@@ -394,52 +409,108 @@ public static class PluginCatalog
             .ToList();
     }
 
-    public static PluginInfo? Find(string id) => _items.FirstOrDefault(x => x.Id == id);
-
-    // 本地图标/说明解析
-    private static readonly string[] IconFileCandidates = { "icon.png", "icon.jpg", "icon.jpeg", "icon.ico", "logo.png" };
-
-    private static string? ResolveLocalIcon(LoadedPlugin lp)
+    private static PluginInfo BuildLocal(LoadedPlugin lp)
     {
-        var name = lp.Manifest.Icon;
-        if (!string.IsNullOrWhiteSpace(name))
+        var (icon, readme) = ResolveLocalAssets(lp);
+        return new PluginInfo
         {
-            if (name.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-            {
-                return name;
-            }
-            var path = Path.Combine(lp.Directory, name);
-            if (File.Exists(path))
-            {
-                return path;
-            }
-        }
-        // manifest 没写 icon 时, 兜底找目录里的常见图标文件名
-        foreach (var candidate in IconFileCandidates)
-        {
-            var path = Path.Combine(lp.Directory, candidate);
-            if (File.Exists(path))
-            {
-                return path;
-            }
-        }
-        return null;
+            Id = lp.Manifest.Id,
+            Local = lp,
+            Name = lp.Manifest.Name,
+            Author = lp.Manifest.Author,
+            Description = lp.Manifest.Description,
+            Homepage = lp.Manifest.Homepage,
+            LocalVersion = lp.Manifest.Version,
+            Enabled = lp.Enabled,
+            Status = lp.Status,
+            Error = lp.Error,
+            Directory = lp.Directory,
+            Dependencies = lp.Manifest.Dependencies,
+            IconSource = icon,
+            ReadmeSource = readme,
+            MetadataReady = true,
+        };
     }
 
-    private static string? ResolveLocalReadme(LoadedPlugin lp)
+    private static void MergeMarket(PluginInfo info, MarketPlugin mp)
     {
-        foreach (var name in new[] { lp.Manifest.Readme, "README.md" })
+        info.Market = mp;
+        var meta = mp.Meta;
+        // 0=未登记 视为兼容
+        var marketApi = meta is { ApiVersion: > 0 } ? meta.ApiVersion : mp.LatestApiVersion;
+        info.MarketVersion = !string.IsNullOrWhiteSpace(mp.LatestVersion) ? mp.LatestVersion : meta?.Version ?? "";
+        info.IsIncompatible = !PluginApi.IsCompatible(marketApi);
+        info.MetaPending = meta is null && !PluginMetaStore.IsNotFound(mp.Id) && !PluginMetaStore.EnrichmentFinished;
+        if (info.IsLocal)
         {
-            if (string.IsNullOrWhiteSpace(name))
+            info.IsUpdateAvailable = !info.IsIncompatible
+                && PluginMarket.CompareVersions(info.MarketVersion, info.LocalVersion ?? "0") > 0;
+            info.PendingRestart |= PluginService.PendingRestartIds.Contains(info.Id);
+            // 缺字段用索引/回源补
+            if (string.IsNullOrEmpty(info.Homepage)) info.Homepage = mp.Homepage;
+            if (string.IsNullOrEmpty(info.Author)) info.Author = mp.Author;
+            if (string.IsNullOrEmpty(info.Description)) info.Description = mp.Description;
+            if (string.IsNullOrEmpty(info.IconSource)) info.IconSource = meta?.IconUrl ?? mp.IconUrl;
+            if (string.IsNullOrEmpty(info.ReadmeSource)) info.ReadmeSource = meta?.ReadmeUrl ?? mp.ReadmeUrl;
+            return;
+        }
+        // 市场条目 以项目 manifest 为准
+        info.Name = !string.IsNullOrWhiteSpace(meta?.Name) ? meta!.Name! : mp.Name;
+        info.MetadataReady = !string.IsNullOrWhiteSpace(info.Name);
+        info.Author = !string.IsNullOrWhiteSpace(meta?.Author) ? meta!.Author! : mp.Author;
+        info.Description = !string.IsNullOrWhiteSpace(meta?.Description) ? meta!.Description! : mp.Description;
+        info.Homepage = mp.Homepage;
+        info.IconSource = !string.IsNullOrWhiteSpace(meta?.IconUrl) ? meta!.IconUrl : mp.IconUrl;
+        info.ReadmeSource = !string.IsNullOrWhiteSpace(meta?.ReadmeUrl) ? meta!.ReadmeUrl : mp.ReadmeUrl;
+        info.PendingRestart = PluginService.PendingRestartIds.Contains(info.Id) || PluginService.IsInstalledOnDisk(info.Id);
+    }
+
+    public static PluginInfo? Find(string id) => _items.FirstOrDefault(x => x.Id == id);
+
+    // 本地图标/说明 按 mtime 缓存
+
+    private static readonly string[] IconFileCandidates = { "icon.png", "icon.jpg", "icon.jpeg", "icon.ico", "logo.png" };
+    private static readonly ConcurrentDictionary<string, (DateTime Stamp, string? Icon, string? Readme)> LocalAssetCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private static (string? Icon, string? Readme) ResolveLocalAssets(LoadedPlugin lp)
+    {
+        DateTime stamp;
+        try
+        {
+            stamp = Directory.GetLastWriteTimeUtc(lp.Directory);
+        }
+        catch
+        {
+            stamp = DateTime.MinValue;
+        }
+        if (LocalAssetCache.TryGetValue(lp.Directory, out var cached) && cached.Stamp == stamp)
+        {
+            return (cached.Icon, cached.Readme);
+        }
+        var icon = ResolveLocalAsset(lp, lp.Manifest.Icon, IconFileCandidates);
+        var readme = ResolveLocalAsset(lp, lp.Manifest.Readme, ["README.md", "readme.md"]);
+        LocalAssetCache[lp.Directory] = (stamp, icon, readme);
+        return (icon, readme);
+    }
+
+    private static string? ResolveLocalAsset(LoadedPlugin lp, string? declared, string[] fallbacks)
+    {
+        if (!string.IsNullOrWhiteSpace(declared))
+        {
+            if (PluginFs.IsHttpUrl(declared))
             {
-                continue;
+                return declared;
             }
-            if (name.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            // 限定插件目录内
+            if (PluginFs.TryResolveInside(lp.Directory, declared, out var path) && File.Exists(path))
             {
-                return name;
+                return path;
             }
-            var path = Path.Combine(lp.Directory, name);
-            if (File.Exists(path))
+        }
+        // 兜底常见文件名
+        foreach (var candidate in fallbacks)
+        {
+            if (PluginFs.TryResolveInside(lp.Directory, candidate, out var path) && File.Exists(path))
             {
                 return path;
             }
@@ -462,9 +533,9 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
 
     protected override Assembly? Load(AssemblyName name)
     {
-        if (name.Name is "GlimpseonMain" or "Avalonia.Base" or "Avalonia.Controls"
-            or "Avalonia.Skia" or "Avalonia.Markup" or "FluentAvalonia")
+        if (IsHostAssembly(name.Name))
         {
+            // 回落 Default ALC 保证类型同一
             return null;
         }
         foreach (var dep in _dependencies)
@@ -482,28 +553,79 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
         var path = _resolver.ResolveAssemblyToPath(name);
         return path is not null ? LoadFromAssemblyPath(path) : null;
     }
+
+    /// <summary>宿主/框架/UI 栈程序集</summary>
+    private static bool IsHostAssembly(string? name)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            return true;
+        }
+        if (name == "GlimpseonMain" || name == "netstandard" || name == "mscorlib" || name == "Microsoft.CSharp")
+        {
+            return true;
+        }
+        // 框架 + Avalonia/Skia 生态
+        return name.StartsWith("System.", StringComparison.Ordinal)
+            || name.StartsWith("System", StringComparison.Ordinal) && name.Length == 6
+            || name.StartsWith("Avalonia", StringComparison.Ordinal)
+            || name.StartsWith("FluentAvalonia", StringComparison.Ordinal)
+            || name.StartsWith("SkiaSharp", StringComparison.Ordinal)
+            || name.StartsWith("HarfBuzzSharp", StringComparison.Ordinal)
+            || name is "MicroCom.Runtime" or "Tmds.DBus.Protocol" or "WinRT.Runtime"
+            || name.StartsWith("Microsoft.Windows.SDK.NET", StringComparison.Ordinal)
+            || name.StartsWith("ColorTextBlock.Avalonia", StringComparison.Ordinal)
+            || name.StartsWith("Markdown.Avalonia", StringComparison.Ordinal)
+            || name.StartsWith("Svg.", StringComparison.Ordinal);
+    }
+}
+
+public enum PluginOperationCode
+{
+    Ok,
+    Pending,
+    ShaMismatch,
+    Network,
+    InvalidPackage,
+    Io,
+}
+
+public sealed record PluginResult(bool Ok, string Message, PluginOperationCode Code)
+{
+    public static PluginResult Success(string message = "") => new(true, message, PluginOperationCode.Ok);
+    public static PluginResult Pending(string message) => new(true, message, PluginOperationCode.Pending);
+    public static PluginResult Fail(string message, PluginOperationCode code = PluginOperationCode.Io) => new(false, message, code);
 }
 
 public static class PluginService
 {
-    public static List<LoadedPlugin> Plugins { get; } = new();
-    public static List<ComponentDefinition> PluginComponentDefinitions { get; } = new();
-    private static readonly Dictionary<string, Func<JsonElement?, Control>> ComponentFactories = new();
-    public static Dictionary<string, (string Name, Func<List<ScheduleRow>> Provider)> ScheduleProviders { get; } = new();
-    internal static Dictionary<string, PluginLoadContext> LoadContexts { get; } = new();
+    private static readonly List<LoadedPlugin> PluginList = new();
+    private static readonly List<ComponentDefinition> ComponentDefinitions = new();
+    private static readonly Dictionary<string, Func<JsonElement?, Control>> ComponentFactories = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, (string PluginId, string Name, Func<List<ScheduleRow>> Provider)> Providers = new(StringComparer.Ordinal);
 
-    private static string EnabledMapPath => Path.Combine(Paths.DataConfig, "plugins.json");
-    private static string PackagesCacheDir => Path.Combine(Paths.DataCache, "plugin-packages");
+    /// <summary>已扫描插件 按目录名序</summary>
+    public static IReadOnlyList<LoadedPlugin> Plugins => PluginList;
+
+    /// <summary>插件组件定义</summary>
+    public static IReadOnlyList<ComponentDefinition> PluginComponentDefinitions => ComponentDefinitions;
+
+    /// <summary>课表提供者 providerKey → 条目</summary>
+    public static IReadOnlyDictionary<string, (string PluginId, string Name, Func<List<ScheduleRow>> Provider)> ScheduleProviders => Providers;
+
+    /// <summary>待重启生效的插件 id</summary>
+    public static HashSet<string> PendingRestartIds { get; } = new(StringComparer.Ordinal);
+
+    internal static Dictionary<string, PluginLoadContext> LoadContexts { get; } = new(StringComparer.Ordinal);
+
+    internal static string EnabledMapPath => Path.Combine(Paths.DataConfig, "plugins.json");
+    internal static string PackagesCacheDir => Path.Combine(Paths.DataCache, "plugin-packages");
 
     // 加载
 
     public static void InitializePlugins()
     {
-        Plugins.Clear();
-        PluginComponentDefinitions.Clear();
-        ComponentFactories.Clear();
-        ScheduleProviders.Clear();
-        LoadContexts.Clear();
+        ResetRuntime();
         try
         {
             Directory.CreateDirectory(Paths.DataPlugins);
@@ -533,12 +655,12 @@ public static class PluginService
         {
             try
             {
-                Plugins.Add(PreprocessPlugin(dir, enabledMap));
+                PluginList.Add(PreprocessPlugin(dir, enabledMap));
             }
             catch (Exception e)
             {
                 Log.Error($"[插件] 预处理异常 {Path.GetFileName(dir)}: {e.Message}");
-                Plugins.Add(new LoadedPlugin
+                PluginList.Add(new LoadedPlugin
                 {
                     Manifest = new PluginManifest { Id = Path.GetFileName(dir), Name = Path.GetFileName(dir) },
                     Directory = dir,
@@ -549,28 +671,74 @@ public static class PluginService
             }
         }
 
-        var loadOrder = ResolveLoadOrder(Plugins.Where(x => x.Status == PluginLoadStatus.NotLoaded).ToList());
+        var loadOrder = ResolveLoadOrder(PluginList.Where(x => x.Status == PluginLoadStatus.NotLoaded).ToList());
         Log.Info($"[插件] 加载顺序: {string.Join(" -> ", loadOrder)}");
         foreach (var id in loadOrder)
         {
-            LoadPlugin(Plugins.First(x => x.Manifest.Id == id));
-        }
-
-        var loaded = Plugins.Count(x => x.Status == PluginLoadStatus.Loaded);
-        var failed = Plugins.Count(x => x.Status == PluginLoadStatus.Error);
-        var disabled = Plugins.Count(x => x.Status == PluginLoadStatus.Disabled);
-        Log.Info($"[插件] 扫描 {dirs.Count} 加载成功 {loaded} 失败 {failed} 未启用 {disabled}");
-
-        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
-        {
+            var plugin = PluginList.FirstOrDefault(x => x.Manifest.Id == id);
+            if (plugin is null)
+            {
+                continue;
+            }
+            // 单插件异常不外溢
             try
             {
-                PluginEventBus.RaiseAppClosing();
+                LoadPlugin(plugin);
             }
-            catch
+            catch (Exception e)
             {
+                plugin.Status = PluginLoadStatus.Error;
+                plugin.Error = $"加载异常: {e.Message}";
+                Log.Error($"[插件] {id} 加载异常 {e.GetType().Name}: {e.Message}\n{e.StackTrace}");
             }
-        };
+        }
+
+        var loaded = PluginList.Count(x => x.Status == PluginLoadStatus.Loaded);
+        var failed = PluginList.Count(x => x.Status == PluginLoadStatus.Error);
+        var disabled = PluginList.Count(x => x.Status == PluginLoadStatus.Disabled);
+        Log.Info($"[插件] 扫描 {dirs.Count} 加载成功 {loaded} 失败 {failed} 未启用 {disabled}");
+    }
+
+    /// <summary>清空运行期注册物</summary>
+    private static void ResetRuntime()
+    {
+        PluginList.Clear();
+        ComponentDefinitions.Clear();
+        ComponentFactories.Clear();
+        Providers.Clear();
+        LoadContexts.Clear();
+        PendingRestartIds.Clear();
+        PluginEventBus.RemoveAll();
+    }
+
+    /// <summary>退出收尾 AppClosing/OnUnload</summary>
+    public static void ShutdownPlugins()
+    {
+        try
+        {
+            PluginEventBus.RaiseAppClosing();
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"[插件] AppClosing 派发失败: {e.Message}");
+        }
+        foreach (var lp in PluginList)
+        {
+            if (lp.Instance is not { } instance)
+            {
+                continue;
+            }
+            try
+            {
+                instance.OnUnload();
+            }
+            catch (Exception e)
+            {
+                Log.Warning($"[插件] {lp.Manifest.Id} OnUnload 失败: {e.Message}");
+            }
+            lp.Instance = null;
+        }
+        PluginEventBus.RemoveAll();
     }
 
     private static void ProcessPendingPackages()
@@ -582,9 +750,9 @@ public static class PluginService
                 var ok = false;
                 try
                 {
-                    string message;
-                    (ok, message) = InstallPackage(pkg);
-                    Log.Info($"[插件] 启动期安装 {Path.GetFileName(pkg)}: {(ok ? $"成功 {message}" : $"失败 {message}")}");
+                    var result = InstallPackage(pkg);
+                    ok = result.Ok;
+                    Log.Info($"[插件] 启动期安装 {Path.GetFileName(pkg)}: {(ok ? $"成功 {result.Message}" : $"失败 {result.Message}")}");
                 }
                 catch (Exception e)
                 {
@@ -599,6 +767,7 @@ public static class PluginService
                     try
                     {
                         File.Move(pkg, pkg + ".failed", true);
+                        Log.Warning($"[插件] 安装失败 已保留待排查: {Path.GetFileName(pkg)}.failed");
                     }
                     catch
                     {
@@ -643,7 +812,7 @@ public static class PluginService
     private static LoadedPlugin PreprocessPlugin(string dir, Dictionary<string, bool> enabledMap)
     {
         var dirName = Path.GetFileName(dir);
-        var manifest = PluginManifest.Load(dir, out var error);
+        var (manifest, error) = PluginManifest.Load(dir);
         if (manifest is null)
         {
             Log.Warning($"[插件] {dirName} 拒载: {error}");
@@ -700,59 +869,85 @@ public static class PluginService
 
     private static void ResolveDependencyNode(Dictionary<string, DependencyNode> nodes, DependencyNode node, List<DependencyNode> walking)
     {
+        // 循环判断须在 Discovered 之前
+        if (walking.Contains(node))
+        {
+            var chain = string.Join(" -> ", walking.Select(x => x.Plugin.Manifest.Id));
+            node.Plugin.Status = PluginLoadStatus.Error;
+            node.Plugin.Error = $"循环依赖: {chain} -> {node.Plugin.Manifest.Id}";
+            Log.Warning($"[插件] {node.Plugin.Manifest.Id} {node.Plugin.Error}");
+            return;
+        }
         if (node.Discovered)
         {
             return;
         }
-        if (walking.Contains(node))
-        {
-            node.Plugin.Status = PluginLoadStatus.Error;
-            node.Plugin.Error = $"循环依赖: {string.Join(" -> ", walking.Select(x => x.Plugin.Manifest.Id))} -> {node.Plugin.Manifest.Id}";
-            Log.Warning($"[插件] {node.Plugin.Manifest.Id} {node.Plugin.Error}");
-            return;
-        }
         node.Discovered = true;
         walking.Add(node);
-        var depth = 0;
-        foreach (var dep in node.Plugin.Manifest.Dependencies)
+        try
         {
-            if (string.IsNullOrWhiteSpace(dep.Id))
+            var depth = 0;
+            foreach (var dep in node.Plugin.Manifest.Dependencies)
             {
-                continue;
-            }
-            if (!nodes.TryGetValue(dep.Id, out var dependency) || dependency.Plugin.Status != PluginLoadStatus.NotLoaded)
-            {
-                if (dep.Required)
+                if (string.IsNullOrWhiteSpace(dep.Id))
+                {
+                    continue;
+                }
+                if (!nodes.TryGetValue(dep.Id, out var dependency) || dependency.Plugin.Status != PluginLoadStatus.NotLoaded)
+                {
+                    if (dep.Required)
+                    {
+                        node.Plugin.Status = PluginLoadStatus.Error;
+                        node.Plugin.Error = $"依赖的必选插件 {dep.Id} 不存在或不可加载";
+                        Log.Warning($"[插件] {node.Plugin.Manifest.Id} {node.Plugin.Error}");
+                        return;
+                    }
+                    continue;
+                }
+                ResolveDependencyNode(nodes, dependency, walking);
+                if (dependency.Plugin.Status == PluginLoadStatus.NotLoaded)
+                {
+                    depth = Math.Max(depth, dependency.Depth);
+                }
+                else if (dep.Required)
                 {
                     node.Plugin.Status = PluginLoadStatus.Error;
-                    node.Plugin.Error = $"依赖的必选插件 {dep.Id} 不存在或不可加载";
+                    node.Plugin.Error = $"依赖的必选插件 {dep.Id} 加载失败";
                     Log.Warning($"[插件] {node.Plugin.Manifest.Id} {node.Plugin.Error}");
                     return;
                 }
-                continue;
             }
-            ResolveDependencyNode(nodes, dependency, walking);
-            if (dependency.Plugin.Status == PluginLoadStatus.NotLoaded)
-            {
-                depth = Math.Max(depth, dependency.Depth);
-            }
-            else if (dep.Required)
-            {
-                node.Plugin.Status = PluginLoadStatus.Error;
-                node.Plugin.Error = $"依赖的必选插件 {dep.Id} 加载失败";
-                Log.Warning($"[插件] {node.Plugin.Manifest.Id} {node.Plugin.Error}");
-                return;
-            }
+            node.Depth = depth + 1;
         }
-        node.Depth = depth + 1;
-        walking.Remove(node);
+        finally
+        {
+            walking.Remove(node);
+        }
     }
 
     private static void LoadPlugin(LoadedPlugin lp)
     {
         var manifest = lp.Manifest;
-        var dllPath = Path.GetFullPath(Path.Combine(lp.Directory, manifest.Entrance));
-        var alc = new PluginLoadContext(manifest.Id, manifest.Dependencies, dllPath);
+        if (!PluginFs.TryResolveInside(lp.Directory, manifest.Entrance, out var dllPath) || !File.Exists(dllPath))
+        {
+            lp.Status = PluginLoadStatus.Error;
+            lp.Error = $"入口程序集不存在或不在插件目录内: {manifest.Entrance}";
+            Log.Warning($"[插件] {manifest.Id} {lp.Error}");
+            return;
+        }
+        PluginLoadContext alc;
+        try
+        {
+            // deps.json 损坏会在此抛异常
+            alc = new PluginLoadContext(manifest.Id, manifest.Dependencies, dllPath);
+        }
+        catch (Exception e)
+        {
+            lp.Status = PluginLoadStatus.Error;
+            lp.Error = $"依赖解析器初始化失败 (deps.json 可能损坏): {e.Message}";
+            Log.Warning($"[插件] {manifest.Id} {lp.Error}");
+            return;
+        }
         Assembly asm;
         try
         {
@@ -773,6 +968,15 @@ public static class PluginService
         catch (ReflectionTypeLoadException rtle)
         {
             type = rtle.Types.Where(t => t is not null).Cast<Type>().FirstOrDefault(IsPluginType);
+            if (type is null)
+            {
+                var reasons = string.Join(" | ", rtle.LoaderExceptions
+                    .Where(e => e is not null)
+                    .Select(e => e!.Message)
+                    .Distinct()
+                    .Take(3));
+                Log.Warning($"[插件] {manifest.Id} 类型加载失败: {reasons}");
+            }
         }
         catch (Exception e)
         {
@@ -782,7 +986,7 @@ public static class PluginService
         if (type is null)
         {
             lp.Status = PluginLoadStatus.Error;
-            lp.Error = "未找到 GlimpseonPlugin 派生类";
+            lp.Error = "未找到 GlimpseonPlugin 派生类 (需要 public 无参构造)";
             return;
         }
         GlimpseonPlugin instance;
@@ -804,8 +1008,17 @@ public static class PluginService
         catch (Exception e)
         {
             Log.Warning($"[插件] {manifest.Id} OnLoad 失败: {e}");
+            // 回滚半初始化的注册物
+            UnregisterPluginRuntime(manifest.Id);
+            try
+            {
+                instance.OnUnload();
+            }
+            catch
+            {
+            }
             lp.Status = PluginLoadStatus.Error;
-            lp.Instance = instance;
+            lp.Instance = null;
             lp.Error = $"OnLoad 失败: {e.Message}";
             return;
         }
@@ -820,23 +1033,67 @@ public static class PluginService
 
     // 注册表
 
+    private static readonly Dictionary<string, string> ComponentOwners = new(StringComparer.Ordinal);
+
     public static void RegisterComponent(string pluginId, ComponentDefinition definition, Func<JsonElement?, Control> factory)
     {
-        if (definition is null || string.IsNullOrWhiteSpace(definition.Id))
+        var id = definition?.Id?.Trim() ?? "";
+        if (id.Length == 0)
         {
             Log.Warning($"[plugin:{pluginId}] 组件定义 Id 为空 跳过注册");
             return;
         }
-        PluginComponentDefinitions.RemoveAll(d => d.Id == definition.Id);
-        PluginComponentDefinitions.Add(definition);
-        ComponentFactories[definition.Id] = factory;
-        Log.Info($"[plugin:{pluginId}] 注册组件 {definition.Id}");
+        // 存档按 type_style 还原 缺下划线会丢
+        var underscore = id.IndexOf('_');
+        if (underscore <= 0 || underscore == id.Length - 1)
+        {
+            Log.Warning($"[plugin:{pluginId}] 组件 Id \"{id}\" 不符合 <type>_<style> 命名 跳过注册");
+            return;
+        }
+        if (factory is null)
+        {
+            Log.Warning($"[plugin:{pluginId}] 组件 {id} 工厂为空 跳过注册");
+            return;
+        }
+        ComponentDefinitions.RemoveAll(d => d.Id == id);
+        ComponentDefinitions.Add(definition!);
+        ComponentFactories[id] = factory;
+        ComponentOwners[id] = pluginId;
+        Log.Info($"[plugin:{pluginId}] 注册组件 {id}");
     }
 
     public static void RegisterScheduleProvider(string pluginId, string name, Func<List<ScheduleRow>> provider)
     {
-        ScheduleProviders[pluginId] = (name, provider);
-        Log.Info($"[plugin:{pluginId}] 注册课表提供者 {name}");
+        if (provider is null)
+        {
+            Log.Warning($"[plugin:{pluginId}] 课表提供者委托为空 跳过注册");
+            return;
+        }
+        name = string.IsNullOrWhiteSpace(name) ? pluginId : name.Trim();
+        var key = BuildProviderKey(pluginId, name);
+        Providers[key] = (pluginId, name, provider);
+        Log.Info($"[plugin:{pluginId}] 注册课表提供者 {name} (key={key})");
+    }
+
+    /// <summary>providerKey = pluginId:name</summary>
+    public static string BuildProviderKey(string pluginId, string name) => $"{pluginId}:{name}";
+
+    /// <summary>注销插件的全部注册物</summary>
+    public static void UnregisterPluginRuntime(string pluginId)
+    {
+        foreach (var key in Providers.Where(kv => kv.Value.PluginId == pluginId).Select(kv => kv.Key).ToList())
+        {
+            Providers.Remove(key);
+        }
+        var owned = ComponentOwners.Where(kv => kv.Value == pluginId).Select(kv => kv.Key).ToList();
+        foreach (var id in owned)
+        {
+            ComponentFactories.Remove(id);
+            ComponentDefinitions.RemoveAll(d => d.Id == id);
+            ComponentOwners.Remove(id);
+        }
+        PluginEventBus.RemovePlugin(pluginId);
+        Log.Info($"[插件] 已清理 {pluginId} 的运行期注册 (组件 {owned.Count} 个)");
     }
 
     public static DraggableContainer? CreatePluginWidget(string typeId, ComponentDefinition definition, JsonElement? config)
@@ -870,7 +1127,7 @@ public static class PluginService
 
     public static Dictionary<string, bool> ReadEnabledMap()
     {
-        var map = new Dictionary<string, bool>();
+        var map = new Dictionary<string, bool>(StringComparer.Ordinal);
         try
         {
             if (File.Exists(EnabledMapPath) && JsonNode.Parse(File.ReadAllText(EnabledMapPath)) is { } root
@@ -887,9 +1144,29 @@ public static class PluginService
         }
         catch (Exception e)
         {
-            Log.Warning($"[插件] plugins.json 读取失败 视为全启用: {e.Message}");
+            // 损坏则备份 缺省启用
+            Log.Error($"[插件] plugins.json 读取失败 已备份并视为全启用: {e.Message}");
+            TryBackup(EnabledMapPath);
         }
         return map;
+    }
+
+    private static void TryBackup(string path)
+    {
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return;
+            }
+            var backup = $"{path}.corrupt_{DateTime.Now:yyyyMMdd_HHmmss}";
+            File.Move(path, backup, true);
+            Log.Warning($"[插件] 已备份损坏配置: {Path.GetFileName(backup)}");
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"[插件] 损坏配置备份失败: {e.Message}");
+        }
     }
 
     private static void WriteEnabledMap(Dictionary<string, bool> map)
@@ -921,16 +1198,43 @@ public static class PluginService
 
     // 安装卸载
 
-    public static (bool Ok, string Message) InstallPackage(string packagePath)
+    private const int MaxPackageEntries = 4096;
+    private const long MaxEntryBytes = 128L * 1024 * 1024;
+    private const long MaxTotalBytes = 512L * 1024 * 1024;
+    private const long MaxCompressionRatio = 1000;
+
+    public static PluginResult InstallPackage(string packagePath)
     {
         string? staging = null;
+        long totalBytes = 0;
         try
         {
             using var zip = ZipFile.OpenRead(packagePath);
+            if (zip.Entries.Count > MaxPackageEntries)
+            {
+                return PluginResult.Fail($"包内条目过多 ({zip.Entries.Count} > {MaxPackageEntries})", PluginOperationCode.InvalidPackage);
+            }
             var entries = zip.Entries
                 .Select(e => (Entry: e, Name: e.FullName.Replace('\\', '/')))
                 .Where(x => x.Name.Length > 0)
                 .ToList();
+            // 解压炸弹防护
+            foreach (var (entry, name) in entries)
+            {
+                if (entry.Length > MaxEntryBytes)
+                {
+                    return PluginResult.Fail($"包内文件过大: {name} ({entry.Length / 1024 / 1024}MB)", PluginOperationCode.InvalidPackage);
+                }
+                if (entry.CompressedLength > 0 && entry.Length / entry.CompressedLength > MaxCompressionRatio)
+                {
+                    return PluginResult.Fail($"包内文件压缩比异常: {name}", PluginOperationCode.InvalidPackage);
+                }
+                totalBytes += entry.Length;
+                if (totalBytes > MaxTotalBytes)
+                {
+                    return PluginResult.Fail($"解压后体积超限 (> {MaxTotalBytes / 1024 / 1024}MB)", PluginOperationCode.InvalidPackage);
+                }
+            }
             var entryNames = entries.Select(x => x.Name).ToList();
             var prefix = "";
             var manifestEntry = entries.FirstOrDefault(x => x.Name == "manifest.json").Entry;
@@ -945,11 +1249,12 @@ public static class PluginService
             }
             if (manifestEntry is null)
             {
-                return (false, "包内缺少 manifest.json");
+                return PluginResult.Fail("包内缺少 manifest.json", PluginOperationCode.InvalidPackage);
             }
             Directory.CreateDirectory(PackagesCacheDir);
             staging = Path.Combine(PackagesCacheDir, "stage_" + Guid.NewGuid().ToString("N")[..8]);
             Directory.CreateDirectory(staging);
+            var stagingFull = Path.GetFullPath(staging);
             foreach (var entry in zip.Entries)
             {
                 var name = entry.FullName.Replace('\\', '/');
@@ -958,7 +1263,7 @@ public static class PluginService
                     continue;
                 }
                 var target = Path.GetFullPath(Path.Combine(staging, name[prefix.Length..]));
-                if (!target.StartsWith(Path.GetFullPath(staging) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                if (!target.StartsWith(stagingFull + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
                 {
                     throw new InvalidDataException($"包内非法路径: {name}");
                 }
@@ -969,21 +1274,31 @@ public static class PluginService
         catch (Exception e)
         {
             CleanupStaging(staging);
-            return (false, $"解压失败: {e.Message}");
+            return PluginResult.Fail($"解压失败: {e.Message}", PluginOperationCode.InvalidPackage);
         }
-        var manifest = PluginManifest.Load(staging, out var error, checkDirName: false);
+        var (manifest, error) = PluginManifest.Load(staging!, checkDirName: false);
         if (manifest is null)
         {
             CleanupStaging(staging);
-            return (false, error);
-        }
-        if (!IsSafePluginId(manifest.Id))
-        {
-            CleanupStaging(staging);
-            return (false, $"manifest.id 非法: {manifest.Id}");
+            return PluginResult.Fail(error, PluginOperationCode.InvalidPackage);
         }
         var targetDir = Path.Combine(Paths.DataPlugins, manifest.Id);
         string? backup = null;
+        // 覆盖安装保留私有配置
+        try
+        {
+            var oldConfig = Path.Combine(targetDir, "config.json");
+            var newConfig = Path.Combine(staging!, "config.json");
+            if (File.Exists(oldConfig) && !File.Exists(newConfig))
+            {
+                File.Copy(oldConfig, newConfig);
+                Log.Info($"[插件] {manifest.Id} 覆盖安装 保留原 config.json");
+            }
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"[插件] {manifest.Id} 保留 config.json 失败: {e.Message}");
+        }
         try
         {
             if (Directory.Exists(targetDir))
@@ -991,7 +1306,7 @@ public static class PluginService
                 backup = targetDir + ".bak_" + Guid.NewGuid().ToString("N")[..6];
                 Directory.Move(targetDir, backup);
             }
-            Directory.Move(staging, targetDir);
+            Directory.Move(staging!, targetDir);
         }
         catch (Exception e)
         {
@@ -1007,7 +1322,7 @@ public static class PluginService
                 }
             }
             CleanupStaging(staging);
-            return (false, $"安装失败: {e.Message}");
+            return PluginResult.Fail($"安装失败: {e.Message}");
         }
         if (backup is not null)
         {
@@ -1027,16 +1342,22 @@ public static class PluginService
             map[manifest.Id] = true;
         }
         WriteEnabledMap(map);
+        // 本会话不生效 标记待重启
+        PendingRestartIds.Add(manifest.Id);
         Log.Info($"[插件] 已安装 {manifest.Id} v{manifest.Version} 重启后加载");
-        return (true, manifest.Name);
+        return PluginResult.Success(manifest.Name);
     }
 
-    public static (bool Ok, string Message) Uninstall(string pluginId)
+    public static PluginResult Uninstall(string pluginId)
     {
+        if (!IsSafePluginId(pluginId))
+        {
+            return PluginResult.Fail($"插件 id 非法: {pluginId}", PluginOperationCode.InvalidPackage);
+        }
         var dir = Path.Combine(Paths.DataPlugins, pluginId);
         if (!Directory.Exists(dir))
         {
-            return (false, "插件目录不存在");
+            return PluginResult.Fail("插件目录不存在");
         }
         try
         {
@@ -1047,29 +1368,60 @@ public static class PluginService
             try
             {
                 File.WriteAllText(Path.Combine(dir, ".uninstall"), "");
+                // dll 占用中 先停用 重启后删目录
+                UnregisterPluginRuntime(pluginId);
                 ForgetPlugin(pluginId);
+                PendingRestartIds.Add(pluginId);
                 Log.Info($"[插件] {pluginId} 已标记卸载 重启后自动删除");
-                return (true, "pending");
+                return PluginResult.Pending("pending");
             }
             catch (Exception e)
             {
-                return (false, $"标记卸载失败: {e.Message}");
+                return PluginResult.Fail($"标记卸载失败: {e.Message}");
             }
         }
+        UnregisterPluginRuntime(pluginId);
         ForgetPlugin(pluginId);
         Log.Info($"[插件] 已卸载 {pluginId}");
-        return (true, pluginId);
+        return PluginResult.Success(pluginId);
     }
 
-    private static bool IsSafePluginId(string id) =>
+    /// <summary>插件目录是否已落盘</summary>
+    public static bool IsInstalledOnDisk(string pluginId)
+    {
+        if (!IsSafePluginId(pluginId))
+        {
+            return false;
+        }
+        try
+        {
+            return Directory.Exists(Path.Combine(Paths.DataPlugins, pluginId));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    internal static bool IsSafePluginId(string id) =>
         !string.IsNullOrWhiteSpace(id)
         && id.Length <= 128
         && id.IndexOfAny(['\\', '/', ':', '*', '?', '"', '<', '>', '|']) < 0
+        && id.Trim() == id
+        && !id.EndsWith('.')
+        && !ReservedNames.Contains(id)
         && id != "." && id != "..";
+
+    private static readonly HashSet<string> ReservedNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CON", "PRN", "AUX", "NUL",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    };
 
     private static void ForgetPlugin(string pluginId)
     {
-        Plugins.RemoveAll(p => p.Manifest.Id == pluginId);
+        PluginList.RemoveAll(p => p.Manifest.Id == pluginId);
         var map = ReadEnabledMap();
         if (map.Remove(pluginId))
         {
@@ -1103,6 +1455,12 @@ public static class PluginService
                 catch
                 {
                 }
+            }
+            // 清理装失败的包
+            foreach (var failed in Directory.EnumerateFiles(Paths.DataPlugins, "*.gplugin.failed").ToList())
+            {
+                Log.Warning($"[插件] 清理上次安装失败的包: {Path.GetFileName(failed)}");
+                TryDeleteFile(failed);
             }
         }
         catch (Exception e)
@@ -1166,10 +1524,50 @@ public sealed class MarketPlugin
 
     public MarketMetadata? Meta { get; set; }
 
-    public string EffectiveDownloadUrl =>
-        !string.IsNullOrWhiteSpace(DownloadUrl) ? DownloadUrl
-        : string.IsNullOrWhiteSpace(Repo) ? "" 
-        : $"https://github.com/{Repo}/releases/latest/download/{(string.IsNullOrWhiteSpace(Asset) ? Id + ".gplugin" : Asset)}";
+    private string AssetName => string.IsNullOrWhiteSpace(Asset) ? Id + ".gplugin" : Asset;
+
+    /// <summary>下载地址候选</summary>
+    public IReadOnlyList<string> DownloadCandidates()
+    {
+        var list = new List<string>();
+        void Add(string url)
+        {
+            if (!string.IsNullOrWhiteSpace(url) && !list.Contains(url))
+            {
+                list.Add(url);
+            }
+        }
+        if (!string.IsNullOrWhiteSpace(DownloadUrl))
+        {
+            Add(DownloadUrl);
+            return list;
+        }
+        if (string.IsNullOrWhiteSpace(Repo))
+        {
+            return list;
+        }
+        // 按登记版本取 tag
+        if (!string.IsNullOrWhiteSpace(LatestVersion))
+        {
+            Add($"https://github.com/{Repo}/releases/download/v{LatestVersion.TrimStart('v', 'V')}/{AssetName}");
+        }
+        // 作者可能没打 v 前缀
+        if (!string.IsNullOrWhiteSpace(LatestVersion))
+        {
+            Add($"https://github.com/{Repo}/releases/download/{LatestVersion.TrimStart('v', 'V')}/{AssetName}");
+        }
+        Add($"https://github.com/{Repo}/releases/latest/download/{AssetName}");
+        return list;
+    }
+
+    public string EffectiveDownloadUrl
+    {
+        get
+        {
+            var candidates = DownloadCandidates();
+            return candidates.Count > 0 ? candidates[0] : "";
+        }
+    }
 }
 
 public sealed class MarketMetadata
@@ -1212,13 +1610,66 @@ public static class PluginMarket
         return parts.Length == 2 && parts.All(x => x.Length > 0) ? t : "";
     }
 
+    /// <summary>语义化版本比较</summary>
     public static int CompareVersions(string a, string b)
     {
-        if (Version.TryParse(a, out var va) && Version.TryParse(b, out var vb))
+        var pa = ParseSemver(a);
+        var pb = ParseSemver(b);
+        if (pa is not { } va || pb is not { } vb)
         {
-            return va.CompareTo(vb);
+            return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
         }
-        return string.CompareOrdinal(a, b);
+        var len = Math.Max(va.Numbers.Length, vb.Numbers.Length);
+        for (var i = 0; i < len; i++)
+        {
+            var na = i < va.Numbers.Length ? va.Numbers[i] : 0;
+            var nb = i < vb.Numbers.Length ? vb.Numbers[i] : 0;
+            if (na != nb)
+            {
+                return na.CompareTo(nb);
+            }
+        }
+        // 正式版 > 预发布
+        if (va.Pre.Length == 0 && vb.Pre.Length > 0)
+        {
+            return 1;
+        }
+        if (va.Pre.Length > 0 && vb.Pre.Length == 0)
+        {
+            return -1;
+        }
+        return string.Compare(va.Pre, vb.Pre, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static (long[] Numbers, string Pre)? ParseSemver(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+        var text = raw.Trim().TrimStart('v', 'V');
+        var plus = text.IndexOf('+');
+        if (plus >= 0)
+        {
+            text = text[..plus];
+        }
+        var dash = text.IndexOf('-');
+        var pre = "";
+        if (dash >= 0)
+        {
+            pre = text[(dash + 1)..];
+            text = text[..dash];
+        }
+        var segs = text.Split('.');
+        var numbers = new long[segs.Length];
+        for (var i = 0; i < segs.Length; i++)
+        {
+            if (!long.TryParse(segs[i], out numbers[i]))
+            {
+                return null;
+            }
+        }
+        return (numbers, pre);
     }
 
     // 索引缓存
@@ -1226,28 +1677,29 @@ public static class PluginMarket
     private static List<MarketPlugin>? _indexCache;
     private static DateTime _indexCacheTime = DateTime.MinValue;
 
-    // 源顺序
-    public static async Task<(List<MarketPlugin>? Plugins, string? Error)> FetchIndexAsync(bool force = false)
+    /// <summary>拉索引 Stale=旧缓存</summary>
+    public static async Task<(List<MarketPlugin>? Plugins, string? Error, bool Stale)> FetchIndexAsync(bool force = false)
     {
         var startedAt = AppUtils.PreciseNow();
         Log.Info($"[市场] 拉取索引 force={force} 源={Config.MarketSource.Value}");
         if (!force && _indexCache is not null && AppUtils.PreciseNow() - _indexCacheTime < IndexSessionTtl)
         {
             Log.Debug($"[市场] 命中会话缓存 {_indexCache.Count} 项 ({(AppUtils.PreciseNow() - _indexCacheTime).TotalSeconds:F0}s 前)");
-            return (_indexCache, null);
+            return (_indexCache, null, false);
         }
         var configured = Config.MarketSource.Value;
-        // 竞态镜像
         var element = await GitHubFetch.GetJsonAsync(configured);
         if (element is { } el)
         {
             try
             {
-                if (el.TryGetProperty("apiVersion", out var rootApi)
-                    && rootApi.ValueKind == JsonValueKind.Number
-                    && rootApi.GetInt32() != PluginApi.HostApiVersion)
+                if (el.TryGetProperty("apiVersion", out var rootApi) && rootApi.ValueKind == JsonValueKind.Number)
                 {
-                    Log.Warning($"[插件市场] 索引 apiVersion={rootApi.GetInt32()} 宿主={PluginApi.HostApiVersion} 兼容性未知");
+                    var api = rootApi.GetInt32();
+                    if (!PluginApi.IsCompatible(api))
+                    {
+                        Log.Warning($"[插件市场] 索引 apiVersion={api} 宿主={PluginApi.HostApiVersion} 不兼容");
+                    }
                 }
                 var plugins = ParseIndex(el, configured);
                 _indexCache = plugins;
@@ -1259,7 +1711,7 @@ public static class PluginMarket
                     Log.Debug($"[市场] 条目 id={sp.Id} repo={sp.Repo}@{sp.Branch} path={sp.ManifestPath} " +
                               $"version={sp.LatestVersion} asset={sp.Asset} dl={sp.EffectiveDownloadUrl} sha={sp.Sha256}");
                 }
-                return (plugins, null);
+                return (plugins, null, false);
             }
             catch (Exception e)
             {
@@ -1273,15 +1725,15 @@ public static class PluginMarket
         if (_indexCache is not null)
         {
             Log.Warning($"[市场] 索引全部失败 回退会话缓存 {_indexCache.Count} 项 (耗时 {(AppUtils.PreciseNow() - startedAt).TotalSeconds:F2}s)");
-            return (_indexCache, null);
+            return (_indexCache, null, true);
         }
         if (AppUtils.GetCachedContent("plugin-market", ignoreExpiry: true) is { } cache)
         {
             Log.Warning($"[市场] 索引全部失败 回退磁盘旧缓存 (耗时 {(AppUtils.PreciseNow() - startedAt).TotalSeconds:F2}s)");
-            return (ParseIndex(cache, null), null);
+            return (ParseIndex(cache, null), null, true);
         }
         Log.Error($"[市场] 索引拉取失败, 无任何可用缓存 (耗时 {(AppUtils.PreciseNow() - startedAt).TotalSeconds:F2}s)");
-        return (null, "network");
+        return (null, "network", false);
     }
 
     /// <summary>先拿旧索引</summary>
@@ -1315,19 +1767,18 @@ public static class PluginMarket
         }
         if (url.StartsWith("{root}", StringComparison.Ordinal) && !string.IsNullOrEmpty(indexSource))
         {
-            var dir = indexSource[..(indexSource.LastIndexOf('/') + 1)];
+            var slash = indexSource.LastIndexOf('/');
+            var dir = slash >= 0 ? indexSource[..(slash + 1)] : indexSource;
             return dir + url["{root}".Length..].TrimStart('/');
         }
-        if (url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        if (PluginFs.IsHttpUrl(url))
         {
             return url;
         }
-        if (!string.IsNullOrEmpty(indexSource) && Uri.TryCreate(indexSource, UriKind.Absolute, out var baseUri))
+        if (!string.IsNullOrEmpty(indexSource) && Uri.TryCreate(indexSource, UriKind.Absolute, out var baseUri)
+            && Uri.TryCreate(baseUri, url, out var abs))
         {
-            if (Uri.TryCreate(baseUri, url, out var abs))
-            {
-                return abs.ToString();
-            }
+            return abs.ToString();
         }
         return url;
     }
@@ -1347,7 +1798,6 @@ public static class PluginMarket
                 continue;
             }
             string S(string name) => p.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
-            int I(string name) => p.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : 0;
             var latest = p.TryGetProperty("latest", out var l) && l.ValueKind == JsonValueKind.Object ? l : default;
             string LS(string name) => latest.ValueKind == JsonValueKind.Object && latest.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? ""
                 : (p.TryGetProperty(name, out var top) && top.ValueKind == JsonValueKind.String ? top.GetString() ?? "" : "");
@@ -1357,6 +1807,12 @@ public static class PluginMarket
             var downloadUrl = LS("downloadUrl");
             if (string.IsNullOrWhiteSpace(id) || (string.IsNullOrWhiteSpace(downloadUrl) && string.IsNullOrWhiteSpace(repo)))
             {
+                continue;
+            }
+            // id 参与路径拼接 需白名单
+            if (!PluginService.IsSafePluginId(id))
+            {
+                Log.Warning($"[插件市场] 索引条目 id 非法 已跳过: {id}");
                 continue;
             }
             list.Add(new MarketPlugin
@@ -1383,64 +1839,104 @@ public static class PluginMarket
     }
 
     // sha256 校验
-    private static async Task<(bool Ok, string Message)> DownloadAsync(MarketPlugin plugin, string dest, Action<double>? progress = null)
+    private static async Task<PluginResult> DownloadAsync(MarketPlugin plugin, string dest, Action<double>? progress = null, CancellationToken ct = default)
     {
         var lastError = "";
         var downloaded = false;
-        var candidates = DownloadSources.Candidates(plugin.EffectiveDownloadUrl);
+        // 加速改写 + 多 tag 候选
+        var candidates = new List<string>();
+        foreach (var raw in plugin.DownloadCandidates())
+        {
+            foreach (var candidate in DownloadSources.Candidates(raw))
+            {
+                if (!candidates.Contains(candidate))
+                {
+                    candidates.Add(candidate);
+                }
+            }
+        }
+        if (candidates.Count == 0)
+        {
+            return PluginResult.Fail("索引未提供可下载地址", PluginOperationCode.InvalidPackage);
+        }
         Log.Info($"[下载] {plugin.Id} v{plugin.LatestVersion} 目标 {dest}");
-        Log.Debug($"[下载] {plugin.Id} 候选源 {candidates.Count} 个: {string.Join(" | ", candidates)}");
+        Log.Debug($"[下载] {plugin.Id} 候选 {candidates.Count} 个: {string.Join(" | ", candidates)}");
         foreach (var url in candidates)
         {
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            try
+            for (var attempt = 1; attempt <= 2 && !downloaded; attempt++)
             {
-                using var req = new HttpRequestMessage(HttpMethod.Get, url);
-                req.Headers.TryAddWithoutValidation("User-Agent", $"Glimpseon/{Paths.Version}");
-                Log.Debug($"[下载] {plugin.Id} → GET {url}");
-                using var resp = await GitHubFetch.Http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
-                var status = (int)resp.StatusCode;
-                var total = resp.Content.Headers.ContentLength ?? -1;
-                Log.Debug($"[下载] {plugin.Id} ← {status} 大小={total}B type={resp.Content.Headers.ContentType} {url}");
-                resp.EnsureSuccessStatusCode();
-                await using var stream = await resp.Content.ReadAsStreamAsync();
-                await using var fs = File.Create(dest);
-                var buffer = new byte[81920];
-                long read = 0;
-                var lastTier = -1;
-                int n;
-                while ((n = await stream.ReadAsync(buffer)) > 0)
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                try
                 {
-                    await fs.WriteAsync(buffer.AsMemory(0, n));
-                    read += n;
-                    if (total > 0)
+                    using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                    req.Headers.TryAddWithoutValidation("User-Agent", $"Glimpseon/{Paths.Version}");
+                    req.Headers.TryAddWithoutValidation("Accept", "application/octet-stream, */*");
+                    Log.Debug($"[下载] {plugin.Id} → GET {url} 第 {attempt} 次");
+                    using var resp = await GitHubFetch.Http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+                    var status = (int)resp.StatusCode;
+                    var total = resp.Content.Headers.ContentLength ?? -1;
+                    Log.Debug($"[下载] {plugin.Id} ← {status} 大小={total}B type={resp.Content.Headers.ContentType} {url}");
+                    resp.EnsureSuccessStatusCode();
+                    await using var stream = await resp.Content.ReadAsStreamAsync(ct);
+                    await using var fs = File.Create(dest);
+                    var buffer = new byte[81920];
+                    long read = 0;
+                    var lastTier = -1;
+                    // -1 = 长度未知
+                    progress?.Invoke(total > 0 ? 0 : -1);
+                    int n;
+                    while ((n = await stream.ReadAsync(buffer, ct)) > 0)
                     {
-                        var pct = read * 100.0 / total;
+                        await fs.WriteAsync(buffer.AsMemory(0, n), ct);
+                        read += n;
+                        var pct = total > 0 ? read * 100.0 / total : -1;
                         progress?.Invoke(pct);
-                        var tier = (int)(pct / 10);
-                        if (tier > lastTier)
+                        if (pct >= 0)
                         {
-                            lastTier = tier;
-                            Log.Debug($"[下载] {plugin.Id} {pct:F0}% ({read}/{total}B)");
+                            var tier = (int)(pct / 10);
+                            if (tier > lastTier)
+                            {
+                                lastTier = tier;
+                                Log.Debug($"[下载] {plugin.Id} {pct:F0}% ({read}/{total}B)");
+                            }
+                        }
+                    }
+                    sw.Stop();
+                    Log.Info($"[下载] {plugin.Id} 完成 {read}B 耗时 {sw.Elapsed.TotalSeconds:F2}s 源={url}");
+                    downloaded = true;
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    TryDelete(dest);
+                    throw;
+                }
+                catch (Exception e)
+                {
+                    sw.Stop();
+                    lastError = e.Message;
+                    TryDelete(dest);
+                    Log.Warning($"[下载] {plugin.Id} 源失败 {sw.ElapsedMilliseconds}ms {url}: {e.GetType().Name}: {e.Message}");
+                    if (attempt < 2)
+                    {
+                        try
+                        {
+                            await Task.Delay(300, ct);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            throw;
                         }
                     }
                 }
-                sw.Stop();
-                Log.Info($"[下载] {plugin.Id} 完成 {read}B 耗时 {sw.Elapsed.TotalSeconds:F2}s 源={url}");
-                downloaded = true;
-                break;
             }
-            catch (Exception e)
+            if (downloaded)
             {
-                sw.Stop();
-                lastError = e.Message;
-                TryDelete(dest);
-                Log.Warning($"[下载] {plugin.Id} 源失败 {sw.ElapsedMilliseconds}ms {url}: {e.GetType().Name}: {e.Message}");
+                break;
             }
         }
         if (!downloaded)
         {
-            return (false, $"下载失败: {lastError}");
+            return PluginResult.Fail($"下载失败: {lastError}", PluginOperationCode.Network);
         }
         if (!string.IsNullOrWhiteSpace(plugin.Sha256))
         {
@@ -1450,7 +1946,7 @@ public static class PluginMarket
             {
                 TryDelete(dest);
                 Log.Error($"[下载] {plugin.Id} sha256 校验失败, 已删除临时包");
-                return (false, "sha");
+                return PluginResult.Fail("sha256 校验未通过", PluginOperationCode.ShaMismatch);
             }
             Log.Info($"[下载] {plugin.Id} sha256 校验通过");
         }
@@ -1458,21 +1954,25 @@ public static class PluginMarket
         {
             Log.Warning($"[下载] {plugin.Id} 索引未提供 sha256, 跳过校验");
         }
-        return (true, "");
+        return PluginResult.Success();
     }
 
-    public static async Task<(bool Ok, string Message)> InstallFromMarketAsync(MarketPlugin plugin, Action<double>? progress = null)
+    public static async Task<PluginResult> InstallFromMarketAsync(MarketPlugin plugin, Action<double>? progress = null, CancellationToken ct = default)
     {
-        Directory.CreateDirectory(Path.Combine(Paths.DataCache, "plugin-packages"));
-        var dest = Path.Combine(Paths.DataCache, "plugin-packages", plugin.Id + ".gplugin");
-        var (ok, message) = await DownloadAsync(plugin, dest, progress);
-        if (!ok)
+        if (!PluginService.IsSafePluginId(plugin.Id))
         {
-            return (false, message);
+            return PluginResult.Fail($"索引条目 id 非法: {plugin.Id}", PluginOperationCode.InvalidPackage);
         }
-        var (installed, msg) = PluginService.InstallPackage(dest);
+        Directory.CreateDirectory(PluginService.PackagesCacheDir);
+        var dest = Path.Combine(PluginService.PackagesCacheDir, plugin.Id + ".gplugin");
+        var download = await DownloadAsync(plugin, dest, progress, ct);
+        if (!download.Ok)
+        {
+            return download;
+        }
+        var installed = PluginService.InstallPackage(dest);
         TryDelete(dest);
-        return (installed, msg);
+        return installed;
     }
 
     // 自动更新
@@ -1482,7 +1982,7 @@ public static class PluginMarket
         {
             return;
         }
-        var (plugins, _) = await FetchIndexAsync();
+        var (plugins, _, _) = await FetchIndexAsync();
         if (plugins is null)
         {
             return;
@@ -1494,22 +1994,29 @@ public static class PluginMarket
             {
                 continue;
             }
-            if (mp.LatestApiVersion != PluginApi.HostApiVersion
+            // 已下载待重启的不重复下
+            if (PluginService.PendingRestartIds.Contains(mp.Id))
+            {
+                continue;
+            }
+            // 0=未登记 视为兼容
+            if (!PluginApi.IsCompatible(mp.LatestApiVersion)
                 || CompareVersions(mp.LatestVersion, local.Manifest.Version) <= 0)
             {
                 continue;
             }
             var dest = Path.Combine(Paths.DataPlugins, mp.Id + ".gplugin");
-            var (ok, message) = await DownloadAsync(mp, dest);
-            if (ok)
+            var result = await DownloadAsync(mp, dest);
+            if (result.Ok)
             {
                 Log.Info($"[插件市场] 自动更新已下载 {mp.Id} v{mp.LatestVersion}");
+                PluginService.PendingRestartIds.Add(mp.Id);
                 AppUtils.MarkRestartPending();
                 Announcements.Append($"插件已自动更新: {mp.Name}");
             }
             else
             {
-                Log.Warning($"[插件市场] 自动更新失败 {mp.Id}: {message}");
+                Log.Warning($"[插件市场] 自动更新失败 {mp.Id}: {result.Message}");
             }
         }
     }
@@ -1541,22 +2048,28 @@ public static class PluginMarket
 /// </summary>
 public static class PluginMetaStore
 {
-    private static readonly ConcurrentDictionary<string, MarketMetadata> Cache = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, (MarketMetadata Meta, DateTime At)> Cache = new(StringComparer.Ordinal);
     private static readonly ConcurrentDictionary<string, Task<MarketMetadata?>> Inflight = new(StringComparer.Ordinal);
 
-    /// <summary>回源确定 404 的插件</summary>
+    /// <summary>已确认 404 的插件</summary>
     private static readonly ConcurrentDictionary<string, bool> NotFound = new(StringComparer.Ordinal);
+
+    /// <summary>回源批次已结束</summary>
+    public static bool EnrichmentFinished { get; set; }
 
     public static bool IsNotFound(string id) => NotFound.ContainsKey(id);
 
     private static string MetaDir => Path.Combine(Paths.DataCache, "plugin-meta");
 
-    /// <summary>元数据磁盘缓存有效期</summary>
-    private static readonly TimeSpan MetaCacheTtl = TimeSpan.FromMinutes(3);
+    /// <summary>缓存有效期</summary>
+    private static readonly TimeSpan MetaCacheTtl = TimeSpan.FromHours(6);
 
     public static void Clear()
     {
         Cache.Clear();
+        Inflight.Clear();
+        NotFound.Clear();
+        EnrichmentFinished = false;
         try
         {
             if (Directory.Exists(MetaDir))
@@ -1570,15 +2083,19 @@ public static class PluginMetaStore
         }
     }
 
-    /// <summary>弃单个插件的缓存</summary>
+    /// <summary>丢弃单个插件的缓存</summary>
     public static void Remove(string id)
     {
+        if (!PluginService.IsSafePluginId(id))
+        {
+            return;
+        }
         Cache.TryRemove(id, out _);
         NotFound.TryRemove(id, out _);
         try
         {
-            var path = Path.Combine(MetaDir, id + ".json");
-            if (File.Exists(path))
+            var path = DiskPath(id);
+            if (path is not null && File.Exists(path))
             {
                 File.Delete(path);
             }
@@ -1603,30 +2120,28 @@ public static class PluginMetaStore
         }
         Log.Debug($"[回源] {mp.Id} 请求元数据 repo={mp.Repo}@{mp.Branch} path={mp.ManifestPath} force={force} " +
                   $"indexVersion={mp.LatestVersion}");
-        if (!force && Cache.TryGetValue(mp.Id, out var cached))
+        if (!force && Cache.TryGetValue(mp.Id, out var entry))
         {
-            Log.Debug($"[回源] {mp.Id} 命中内存缓存 name={cached.Name} version={cached.Version} icon={cached.IconUrl} readme={cached.ReadmeUrl}");
-            return cached;
+            if (AppUtils.PreciseNow() - entry.At < MetaCacheTtl)
+            {
+                Log.Debug($"[回源] {mp.Id} 命中内存缓存 name={entry.Meta.Name} version={entry.Meta.Version}");
+                return entry.Meta;
+            }
+            Cache.TryRemove(mp.Id, out _);
         }
         if (!force && TryLoadDisk(mp) is { } disk)
         {
-            Cache[mp.Id] = disk;
-            Log.Debug($"[回源] {mp.Id} 命中磁盘缓存 (版本匹配) name={disk.Name} version={disk.Version}");
+            Cache[mp.Id] = (disk, AppUtils.PreciseNow());
+            Log.Debug($"[回源] {mp.Id} 命中磁盘缓存 name={disk.Name} version={disk.Version}");
             return disk;
         }
-        if (Inflight.TryGetValue(mp.Id, out var running))
-        {
-            Log.Debug($"[回源] {mp.Id} 复用进行中的请求");
-            return await running;
-        }
-        var task = FetchAsync(mp);
-        Inflight[mp.Id] = task;
+        var task = Inflight.GetOrAdd(mp.Id, _ => FetchAsync(mp));
         try
         {
             var meta = await task;
             if (meta is not null)
             {
-                Cache[mp.Id] = meta;
+                Cache[mp.Id] = (meta, AppUtils.PreciseNow());
                 SaveDisk(mp, meta);
             }
             else
@@ -1654,7 +2169,7 @@ public static class PluginMetaStore
         var fetched = await GitHubFetch.GetJsonAsync(manifestUrl);
         if (fetched is not { } root)
         {
-            var status = GitHubFetch.LastStatus.TryGetValue(manifestUrl, out var st) ? st : 0;
+            var status = GitHubFetch.LastStatusFor(manifestUrl);
             if (status is 404 or 410)
             {
                 NotFound[mp.Id] = true;
@@ -1670,7 +2185,7 @@ public static class PluginMetaStore
         int Num(string name) => root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : 0;
         string Url(string path) => string.IsNullOrWhiteSpace(path)
             ? ""
-            : path.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? path : assetBase + path.TrimStart('/');
+            : PluginFs.IsHttpUrl(path) ? path : assetBase + path.TrimStart('/');
 
         var manifestId = Str("id");
         if (!string.IsNullOrWhiteSpace(manifestId) && !string.Equals(manifestId, mp.Id, StringComparison.Ordinal))
@@ -1708,29 +2223,39 @@ public static class PluginMetaStore
         public string Source { get; set; } = "";
     }
 
-    private static string DiskPath(MarketPlugin mp) => Path.Combine(MetaDir, mp.Id + ".json");
+    /// <summary>磁盘缓存路径</summary>
+    private static string? DiskPath(string id)
+        => PluginService.IsSafePluginId(id) ? Path.Combine(MetaDir, id + ".json") : null;
+
+    private static string? DiskPath(MarketPlugin mp) => DiskPath(mp.Id);
 
     private static MarketMetadata? TryLoadDisk(MarketPlugin mp)
     {
         try
         {
             var path = DiskPath(mp);
-            if (!File.Exists(path))
+            if (path is null || !File.Exists(path))
             {
                 return null;
             }
             var entry = JsonSerializer.Deserialize<DiskEntry>(File.ReadAllText(path),
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-            // 版本变了就重取
-            if (entry is null || (!string.IsNullOrEmpty(mp.LatestVersion) && entry.Version != mp.LatestVersion))
+            if (entry is null)
             {
-                Log.Debug($"[回源] {mp.Id} 磁盘缓存版本不匹配 (缓存 {entry?.Version} 索引 {mp.LatestVersion}), 重新获取");
+                return null;
+            }
+            // 索引版本更高才重取
+            if (!string.IsNullOrEmpty(mp.LatestVersion)
+                && !string.IsNullOrEmpty(entry.Version)
+                && PluginMarket.CompareVersions(mp.LatestVersion, entry.Version) > 0)
+            {
+                Log.Debug($"[回源] {mp.Id} 磁盘缓存版本落后 (缓存 {entry.Version} 索引 {mp.LatestVersion}), 重新获取");
                 return null;
             }
             var age = DateTime.UtcNow - entry.FetchedAt;
             if (entry.FetchedAt == default || age > MetaCacheTtl)
             {
-                Log.Debug($"[回源] {mp.Id} 磁盘缓存过期 ({age.TotalMinutes:F0} 分钟 > {(int)MetaCacheTtl.TotalMinutes} 分钟), 重新获取");
+                Log.Debug($"[回源] {mp.Id} 磁盘缓存过期 ({age.TotalHours:F1} 小时), 重新获取");
                 return null;
             }
             return new MarketMetadata
@@ -1755,6 +2280,12 @@ public static class PluginMetaStore
     {
         try
         {
+            var path = DiskPath(mp);
+            if (path is null)
+            {
+                Log.Warning($"[插件市场] {mp.Id} id 非法, 跳过元数据缓存");
+                return;
+            }
             Directory.CreateDirectory(MetaDir);
             var entry = new DiskEntry
             {
@@ -1768,7 +2299,6 @@ public static class PluginMetaStore
                 ReadmeUrl = meta.ReadmeUrl,
                 Source = meta.Source,
             };
-            var path = DiskPath(mp);
             File.WriteAllText(path, JsonSerializer.Serialize(entry,
                 new JsonSerializerOptions { WriteIndented = true }));
             Log.Debug($"[回源] {mp.Id} 写入缓存 {path}");

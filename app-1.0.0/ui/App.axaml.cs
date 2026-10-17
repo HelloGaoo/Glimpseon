@@ -54,6 +54,18 @@ public partial class App : Application
                 return;
             }
             lifetime.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            // 退出前派发 AppClosing/OnUnload
+            lifetime.ShutdownRequested += (_, _) =>
+            {
+                try
+                {
+                    Glimpseon.Core.PluginService.ShutdownPlugins();
+                }
+                catch (Exception e)
+                {
+                    Glimpseon.Core.Log.Warning($"[退出] 插件收尾失败: {e.Message}");
+                }
+            };
             Avalonia.Threading.Dispatcher.UIThread.UnhandledException += async (_, e) =>
             {
                 var ex = e.Exception;

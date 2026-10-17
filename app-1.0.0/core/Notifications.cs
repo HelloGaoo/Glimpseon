@@ -47,7 +47,32 @@ public static class Announcements
     // 公告变更信号
     public static event Action? Changed;
 
-    private static void NotifyChanged() => Changed?.Invoke();
+    private static readonly object Gate = new();
+
+    private static void NotifyChanged()
+    {
+        if (Changed is not { } handler)
+        {
+            return;
+        }
+        // 插件可能跨线程调用
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            handler();
+            return;
+        }
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                handler();
+            }
+            catch (Exception e)
+            {
+                Log.Warning($"[Announce] 变更通知失败: {e.Message}");
+            }
+        });
+    }
 
     public static List<Announcement> Load()
     {
@@ -122,16 +147,20 @@ public static class Announcements
             return false;
         }
         text = text[..Math.Min(200, text.Length)];
-        var items = Clean(new JsonArray(Load().Select(a => (JsonNode?)new JsonObject { ["text"] = a.Text, ["created"] = a.Created }).ToArray()));
-        var created = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
-        if (items.Count > 0 && items[0].Text == text && items[0].Created == created)
+        lock (Gate)
         {
-            Log.Debug("[Announce] 去重跳过");
-            return false;
+            var created = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+            var items = Load();
+            if (items.Count > 0 && items[0].Text == text && items[0].Created == created)
+            {
+                Log.Debug("[Announce] 去重跳过");
+                return false;
+            }
+            items.Insert(0, new Announcement(text, created));
+            Save(items);
+            Log.Info($"[Announce] 公告已写入 共{Math.Min(items.Count, Max)}条: {text[..Math.Min(30, text.Length)]}");
         }
-        items.Insert(0, new Announcement(text, created));
-        Save(items);
-        Log.Info($"[Announce] 公告已写入 共{items.Count}条: {text[..Math.Min(30, text.Length)]}");
+        NotifyChanged();
         return true;
     }
 }

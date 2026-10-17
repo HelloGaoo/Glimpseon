@@ -1824,15 +1824,25 @@ public partial class ScheduleWindow : GlimpseonWindow
         _sourceCombo.Items.Add("Glimpseon");
         _sourceCombo.Items.Add("ClassIsland");
         _sourceCombo.Items.Add("ClassWidgets");
+        // 提供者显示名 重名补 id
         var pluginProviders = PluginService.ScheduleProviders.ToList();
+        var duplicatedNames = pluginProviders
+            .GroupBy(x => x.Value.Name)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToHashSet(StringComparer.Ordinal);
         foreach (var p in pluginProviders)
         {
-            _sourceCombo.Items.Add(p.Value.Name);
+            var label = duplicatedNames.Contains(p.Value.Name)
+                ? $"{p.Value.Name} ({p.Value.PluginId})"
+                : p.Value.Name;
+            _sourceCombo.Items.Add(label);
         }
-        var buildSource = Config.ProfileSource.Value;
+        var buildSource = Config.ProfileSource.Value ?? "";
         if (buildSource.StartsWith("plugin:", StringComparison.Ordinal))
         {
-            var pIdx = pluginProviders.FindIndex(x => x.Key == buildSource["plugin:".Length..]);
+            var key = buildSource["plugin:".Length..];
+            var pIdx = pluginProviders.FindIndex(x => x.Key == key || x.Value.PluginId == key);
             _sourceCombo.SelectedIndex = pIdx >= 0 ? 3 + pIdx : 0;
         }
         else

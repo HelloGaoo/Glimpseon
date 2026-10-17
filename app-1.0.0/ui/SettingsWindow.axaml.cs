@@ -110,6 +110,7 @@ public partial class SettingsWindow : GlimpseonWindow
         NavPrivacy.Content = Tr("settings.privacy");
         NavAdvanced.Content = Tr("settings.advanced");
         NavPlugins.Content = Tr("settings.plugins.title");
+        // FASymbol 无 Puzzle 用 Shop
         var pluginsIcon = FAIcons.IconSource(FASymbol.Shop);
         pluginsIcon.FontSize = 20;
         NavPlugins.IconSource = pluginsIcon;
@@ -1498,13 +1499,21 @@ public partial class SettingsWindow : GlimpseonWindow
 
     // 插件
 
+    private enum MarketLoadState
+    {
+        Idle,
+        Loading,
+        Fresh,
+        Stale,
+        Failed,
+    }
+
     private Panel? _pluginsPageHost;
     private List<MarketPlugin>? _lastMarketPlugins;
-    private bool _marketFetched;
-    private bool _marketLoading;
+    private MarketLoadState _marketState = MarketLoadState.Idle;
     private bool _isMarketTab;
     private string? _downloadingPluginId;
-    private double _downloadPercent;
+    private double _downloadPercent = -1;
     private TextBlock? _detailProgressText;
 
     private TextBox? _pluginsSearchBox;
@@ -1516,14 +1525,6 @@ public partial class SettingsWindow : GlimpseonWindow
 
     private readonly Dictionary<string, PluginListItemUi> _localItems = new();
     private readonly Dictionary<string, PluginListItemUi> _marketItems = new();
-
-    /// <summary>已经尝试过回源的插件</summary>
-    private readonly HashSet<string> _metaAttempted = new();
-
-    private readonly Dictionary<string, bool> _enabledOverrides = new();
-
-    private bool IsEnabledEffective(PluginInfo info) =>
-        _enabledOverrides.TryGetValue(info.Id, out var v) ? v : info.Enabled;
 
     private Control BuildPluginsPage()
     {
@@ -1547,11 +1548,25 @@ public partial class SettingsWindow : GlimpseonWindow
         page.Children.Add(body);
 
         _pluginsPageHost = infoHost;
-        if (!_marketFetched && !_marketLoading)
+        // 页面预构建 不可联网 可见后再拉
+        page.AttachedToVisualTree += (_, _) =>
         {
-            _ = FetchMarketIndexAsync();
-        }
+            if (_isMarketTab)
+            {
+                EnsureMarketLoaded();
+            }
+        };
         return page;
+    }
+
+    /// <summary>按需拉市场索引</summary>
+    private void EnsureMarketLoaded()
+    {
+        if (_marketState is MarketLoadState.Loading or MarketLoadState.Fresh)
+        {
+            return;
+        }
+        _ = FetchMarketIndexAsync();
     }
 
     // 左列表右详情
@@ -1564,7 +1579,7 @@ public partial class SettingsWindow : GlimpseonWindow
         // 搜索框
         _pluginsSearchBox = new TextBox
         {
-            Watermark = Tr("settings.plugins.search"),
+            PlaceholderText = Tr("settings.plugins.search"),
             MinHeight = 34,
             VerticalContentAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 0, 6),
@@ -1604,7 +1619,11 @@ public partial class SettingsWindow : GlimpseonWindow
             _marketListHost.IsVisible = _isMarketTab;
             if (_isMarketTab)
             {
-                RenderMarketList();
+                if (_lastMarketPlugins is { Count: > 0 })
+                {
+                    RenderMarketList();
+                }
+                EnsureMarketLoaded();
             }
             else
             {
@@ -1688,10 +1707,14 @@ public partial class SettingsWindow : GlimpseonWindow
         RefreshCatalog();
         RebuildPluginList();
         RenderMarketList();
-        if (_lastMarketPlugins is { Count: > 0 })
+        // 可见后再回源
+        root.AttachedToVisualTree += (_, _) =>
         {
-            _ = EnrichMarketMetadataAsync(_lastMarketPlugins);
-        }
+            if (_isMarketTab && !_enrichStarted && _lastMarketPlugins is { Count: > 0 })
+            {
+                _ = EnrichMarketMetadataAsync(_lastMarketPlugins);
+            }
+        };
         return root;
     }
 
@@ -1785,22 +1808,24 @@ public partial class SettingsWindow : GlimpseonWindow
 
     private async Task FetchMarketIndexAsync(bool refreshMeta = false)
     {
-        if (_marketListHost is null || _marketLoading)
+        if (_marketListHost is null || _marketState == MarketLoadState.Loading)
         {
             return;
         }
         if (refreshMeta)
         {
             PluginMetaStore.Clear();
+            _enrichStarted = false;
         }
-        _marketLoading = true;
+        _marketState = MarketLoadState.Loading;
         var swIdx = System.Diagnostics.Stopwatch.StartNew();
         RenderMarketList();
         List<MarketPlugin>? plugins;
         string? error;
+        var stale = false;
         try
         {
-            (plugins, error) = await PluginMarket.FetchIndexAsync(force: true);
+            (plugins, error, stale) = await PluginMarket.FetchIndexAsync(force: true);
         }
         catch (Exception e)
         {
@@ -1809,10 +1834,13 @@ public partial class SettingsWindow : GlimpseonWindow
             error = "network";
         }
         swIdx.Stop();
-        _marketLoading = false;
-        Log.Info($"[市场] UI 刷新完成 {swIdx.Elapsed.TotalSeconds:F2}s 条目={plugins?.Count.ToString() ?? "null"} error={error ?? "-"}");
+        Log.Info($"[市场] UI 刷新完成 {swIdx.Elapsed.TotalSeconds:F2}s 条目={plugins?.Count.ToString() ?? "null"} " +
+                 $"error={error ?? "-"} stale={stale}");
         _lastMarketPlugins = plugins;
-        _marketFetched = error is null;
+        // 旧缓存 下次仍重试
+        _marketState = error is not null ? MarketLoadState.Failed
+            : stale ? MarketLoadState.Stale
+            : MarketLoadState.Fresh;
         RefreshCatalog();
         RenderMarketList();
         RebuildPluginList();
@@ -1822,71 +1850,78 @@ public partial class SettingsWindow : GlimpseonWindow
         }
     }
 
-    private bool _enriching;
+    private int _enrichGeneration;
+    private bool _enrichStarted;
 
     private async Task EnrichMarketMetadataAsync(List<MarketPlugin> list)
     {
-        if (_enriching)
-        {
-            Log.Debug("[回源] 已有回源任务进行中, 跳过本次");
-            return;
-        }
-        _enriching = true;
+        // 新批次取代旧批次
+        var generation = ++_enrichGeneration;
+        _enrichStarted = true;
+        PluginMetaStore.EnrichmentFinished = false;
         var swAll = System.Diagnostics.Stopwatch.StartNew();
-        Log.Info($"[回源] 开始补全 {list.Count} 个插件的云端信息");
+        Log.Info($"[回源] 开始补全 {list.Count} 个插件的云端信息 (第 {generation} 代)");
         try
         {
-            await Task.WhenAll(list.Select(async mp =>
-            {
-                var swOne = System.Diagnostics.Stopwatch.StartNew();
-                try
-                {
-                    mp.Meta = await PluginMetaStore.GetAsync(mp);
-                    swOne.Stop();
-                    Log.Info($"[回源] {mp.Id} {(mp.Meta is null ? "无结果" : "完成")} {swOne.ElapsedMilliseconds}ms " +
-                             $"name={mp.Meta?.Name ?? "-"} version={mp.Meta?.Version ?? "-"}");
-                }
-                catch (Exception e)
-                {
-                    swOne.Stop();
-                    Log.Warning($"[回源] {mp.Id} 异常 {swOne.ElapsedMilliseconds}ms: {e.GetType().Name}: {e.Message}");
-                }
-            }));
+            await Task.WhenAll(list.Select(mp => FetchMetaWithRetryAsync(mp, generation)));
         }
         finally
         {
-            _enriching = false;
-        }
-        // 超时/失败自动重试
-        for (var round = 1; round <= 5; round++)
-        {
-            var pending = list.Where(mp => mp.Meta is null && !PluginMetaStore.IsNotFound(mp.Id)).ToList();
-            if (pending.Count == 0)
+            if (generation == _enrichGeneration)
             {
-                break;
+                PluginMetaStore.EnrichmentFinished = true;
             }
-            Log.Info($"[回源] 第 {round} 轮重试 {pending.Count} 个: {string.Join(",", pending.Select(x => x.Id))}");
-            await Task.Delay(2000);
-            await Task.WhenAll(pending.Select(async mp =>
-            {
-                try
-                {
-                    mp.Meta = await PluginMetaStore.GetAsync(mp, force: true);
-                }
-                catch (Exception e)
-                {
-                    Log.Warning($"[回源] 重试异常 {mp.Id}: {e.Message}");
-                }
-            }));
-            RefreshCatalog();
-            RenderMarketList();
-            RebuildPluginList();
+        }
+        if (generation != _enrichGeneration)
+        {
+            Log.Debug($"[回源] 第 {generation} 代已被新任务取代, 不刷新 UI");
+            return;
         }
         swAll.Stop();
         Log.Info($"[回源] 全部结束 耗时 {swAll.Elapsed.TotalSeconds:F2}s");
         RefreshCatalog();
         RenderMarketList();
         RebuildPluginList();
+    }
+
+    /// <summary>单插件回源 3 次退避</summary>
+    private async Task FetchMetaWithRetryAsync(MarketPlugin mp, int generation)
+    {
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            if (generation != _enrichGeneration)
+            {
+                return;
+            }
+            if (attempt > 1)
+            {
+                try
+                {
+                    await Task.Delay(1500 * (attempt - 1));
+                }
+                catch
+                {
+                    return;
+                }
+            }
+            var swOne = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                mp.Meta = await PluginMetaStore.GetAsync(mp, force: attempt > 1);
+                swOne.Stop();
+                Log.Info($"[回源] {mp.Id} {(mp.Meta is null ? "无结果" : "完成")} {swOne.ElapsedMilliseconds}ms " +
+                         $"第{attempt}次 name={mp.Meta?.Name ?? "-"} version={mp.Meta?.Version ?? "-"}");
+            }
+            catch (Exception e)
+            {
+                swOne.Stop();
+                Log.Warning($"[回源] {mp.Id} 异常 {swOne.ElapsedMilliseconds}ms: {e.GetType().Name}: {e.Message}");
+            }
+            if (mp.Meta is not null || PluginMetaStore.IsNotFound(mp.Id) || generation != _enrichGeneration)
+            {
+                return;
+            }
+        }
     }
 
     private void RenderMarketList()
@@ -1897,7 +1932,8 @@ public partial class SettingsWindow : GlimpseonWindow
         }
         _marketListHost.Children.Clear();
         _marketItems.Clear();
-        if (_marketLoading)
+        // Idle 也显示加载态
+        if (_marketState is MarketLoadState.Loading or MarketLoadState.Idle)
         {
             // 进度条
             _marketListHost.Children.Add(new ProgressBar
@@ -2006,14 +2042,14 @@ public partial class SettingsWindow : GlimpseonWindow
             pendingMeta ? " " : info.Description,
             dimmed: info.IsLocal && info.Status != PluginLoadStatus.Loaded,
             statusIcons,
-            BuildPluginItemActions(info, marketTab),
+            BuildPluginItemActions(info),
             selected,
             marketTab ? () => SelectMarketPlugin(info) : () => SelectLocalPlugin(info),
             skeleton: pendingMeta);
     }
 
     // 条目右下角操作
-    private Control BuildPluginItemActions(PluginInfo info, bool marketTab)
+    private Control BuildPluginItemActions(PluginInfo info)
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Bottom };
         if (info.IsLocal)
@@ -2031,30 +2067,33 @@ public partial class SettingsWindow : GlimpseonWindow
 
             var toggle = new CheckBox
             {
-                IsChecked = IsEnabledEffective(info),
+                IsChecked = info.Enabled,
                 Padding = new Thickness(0),
                 Margin = new Thickness(4, 0, 0, 0),
                 VerticalAlignment = VerticalAlignment.Bottom,
             };
             ToolTip.SetTip(toggle, Tr("settings.plugins.enabled"));
-            toggle.IsCheckedChanged += async (_, _) =>
+            toggle.IsCheckedChanged += (_, _) =>
             {
                 var enabled = toggle.IsChecked == true;
-                if (enabled == IsEnabledEffective(info))
+                if (enabled == info.Enabled)
                 {
                     return;
                 }
-                _enabledOverrides[info.Id] = enabled;
                 PluginService.SetEnabled(info.Id, enabled);
                 if (info.Local is not null)
                 {
                     info.Local.Enabled = enabled;
                 }
-                await Common.ConfirmPendingRestartAsync(Common.ResolveActiveWindow(this),
-                    AppUtils.Tr("settings.plugins.restart_hint"), AppUtils.Tr("settings.restart_required_desc"));
-                RefreshCatalog();
-                RebuildPluginList();
-                RenderMarketList();
+                // 事件后再重建列表
+                Dispatcher.UIThread.Post(async () =>
+                {
+                    await Common.ConfirmPendingRestartAsync(Common.ResolveActiveWindow(this),
+                        AppUtils.Tr("settings.plugins.restart_hint"), AppUtils.Tr("settings.restart_required_desc"));
+                    RefreshCatalog();
+                    RebuildPluginList();
+                    RenderMarketList();
+                });
             };
             row.Children.Add(toggle);
             return row;
@@ -2073,19 +2112,10 @@ public partial class SettingsWindow : GlimpseonWindow
         if (info.Market is not null && !info.IsIncompatible)
         {
             var market = info.Market;
-            var installBtn = new Button
-            {
-                Width = 28,
-                Height = 28,
-                Padding = new Thickness(0),
-                CornerRadius = new CornerRadius(14),
-                HorizontalContentAlignment = HorizontalAlignment.Center,
-                VerticalContentAlignment = VerticalAlignment.Center,
-                Content = FAIcons.Icon(info.IsUpdateAvailable ? FASymbol.Sync : FASymbol.Download, 14),
-                VerticalAlignment = VerticalAlignment.Bottom,
-            };
-            installBtn.Classes.Add("accent");
-            ToolTip.SetTip(installBtn, Tr("settings.plugins.market_install"));
+            var installBtn = MakeRoundIconButton(
+                FAIcons.Icon(info.IsUpdateAvailable ? FASymbol.Sync : FASymbol.Download, 14),
+                Tr("settings.plugins.market_install"),
+                accent: true);
             installBtn.Click += (_, _) => _ = InstallMarketPluginAsync(market);
             row.Children.Add(installBtn);
         }
@@ -2185,7 +2215,8 @@ public partial class SettingsWindow : GlimpseonWindow
         }
         var version = info.IsLocal ? info.LocalVersion : info.MarketVersion;
         AddMetaText(string.IsNullOrEmpty(version) ? null : version);
-        if (!string.IsNullOrEmpty(info.Homepage))
+        // 仅 http(s) 才给主页入口
+        if (PluginFs.IsHttpUrl(info.Homepage))
         {
             AddMetaSep();
             var homepage = info.Homepage;
@@ -2254,7 +2285,9 @@ public partial class SettingsWindow : GlimpseonWindow
             dlRow.Children.Add(new FAProgressRing { Width = 16, Height = 16, IsIndeterminate = true });
             _detailProgressText = new TextBlock
             {
-                Text = AppUtils.Tr("settings.plugins.market_downloading", ("percent", ((int)_downloadPercent).ToString())),
+                Text = _downloadPercent < 0
+                    ? Tr("settings.plugins.market_downloading_unknown")
+                    : AppUtils.Tr("settings.plugins.market_downloading", ("percent", ((int)_downloadPercent).ToString())),
                 FontSize = 13,
                 VerticalAlignment = VerticalAlignment.Center,
             };
@@ -2274,37 +2307,42 @@ public partial class SettingsWindow : GlimpseonWindow
         return viewer;
     }
 
+    // 挂载后按时间点重复挂样式
+    private static readonly int[] MarkdownLookSteps = { 0, 80, 200, 400, 800, 1500 };
+    private const int MarkdownLookDeadlineMs = 1600;
+
     private static void ScheduleMarkdownLook(MarkdownScrollViewer viewer)
     {
-        var delay = 0;
-        foreach (var step in new[] { 0, 80, 200, 400, 800, 1500 })
-        {
-            var wait = step - delay;
-            delay = step;
-            var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(wait) };
-            timer.Tick += (_, _) =>
-            {
-                timer.Stop();
-                if (!viewer.IsLoaded)
-                {
-                    return;
-                }
-                var applied = ApplyMarkdownLook(viewer);
-                if (applied)
-                {
-                    viewer.Opacity = 1;
-                }
-            };
-            timer.Start();
-        }
-        var fallback = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1600) };
-        fallback.Tick += (_, _) =>
-        {
-            fallback.Stop();
-            viewer.Opacity = 1;
-        };
-        fallback.Start();
         viewer.Opacity = 0;
+        var index = 0;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            var ms = (int)sw.ElapsedMilliseconds;
+            if (viewer.IsLoaded)
+            {
+                while (index < MarkdownLookSteps.Length && ms >= MarkdownLookSteps[index])
+                {
+                    if (ApplyMarkdownLook(viewer))
+                    {
+                        viewer.Opacity = 1;
+                    }
+                    index++;
+                }
+            }
+            // 到点强制显示
+            if (index >= MarkdownLookSteps.Length || ms >= MarkdownLookDeadlineMs)
+            {
+                viewer.Opacity = 1;
+                return;
+            }
+            var next = viewer.IsLoaded ? Math.Min(MarkdownLookSteps[index], MarkdownLookDeadlineMs) : 250;
+            timer.Interval = TimeSpan.FromMilliseconds(Math.Max(1, next - ms));
+            timer.Start();
+        };
+        timer.Start();
     }
 
     private static bool _mdTreeLogged;
@@ -2445,7 +2483,8 @@ public partial class SettingsWindow : GlimpseonWindow
         catch (Exception e)
         {
             Log.Warning($"[说明] Markdown 样式后处理失败: {e.Message}");
-            return true;
+            // 本轮未生效
+            return false;
         }
     }
 
@@ -2568,12 +2607,17 @@ public partial class SettingsWindow : GlimpseonWindow
 
     private async Task InstallMarketPluginAsync(MarketPlugin mp)
     {
-        if (_pluginsPageHost is null || _downloadingPluginId is not null)
+        if (_pluginsPageHost is null)
         {
             return;
         }
+        if (_downloadingPluginId is not null)
+        {
+            Info(_pluginsPageHost, FAInfoBarSeverity.Warning, Tr("settings.plugins.busy"));
+            return;
+        }
         _downloadingPluginId = mp.Id;
-        _downloadPercent = 0;
+        _downloadPercent = -1;
         RenderMarketList();
         if (_isMarketTab && _selectedMarketId == mp.Id && PluginCatalog.Find(mp.Id) is { } selected)
         {
@@ -2581,30 +2625,32 @@ public partial class SettingsWindow : GlimpseonWindow
         }
         try
         {
-            var (ok, msg) = await PluginMarket.InstallFromMarketAsync(mp, pct =>
+            var result = await PluginMarket.InstallFromMarketAsync(mp, pct =>
                 Dispatcher.UIThread.Post(() =>
                 {
                     _downloadPercent = pct;
                     if (_detailProgressText is not null)
                     {
-                        _detailProgressText.Text = AppUtils.Tr("settings.plugins.market_downloading",
-                            ("percent", ((int)Math.Clamp(pct, 0, 100)).ToString()));
+                        _detailProgressText.Text = pct < 0
+                            ? Tr("settings.plugins.market_downloading_unknown")
+                            : AppUtils.Tr("settings.plugins.market_downloading",
+                                ("percent", ((int)Math.Clamp(pct, 0, 100)).ToString()));
                     }
                 }));
             _downloadingPluginId = null;
-            if (ok)
+            if (result.Ok)
             {
                 await Common.ConfirmPendingRestartAsync(Common.ResolveActiveWindow(this),
-                    AppUtils.Tr("settings.plugins.import_success", ("name", msg)),
+                    AppUtils.Tr("settings.plugins.import_success", ("name", result.Message)),
                     AppUtils.Tr("settings.restart_required_desc"));
             }
-            else if (msg == "sha")
+            else if (result.Code == PluginOperationCode.ShaMismatch)
             {
                 Info(_pluginsPageHost, FAInfoBarSeverity.Error, Tr("settings.plugins.market_sha_mismatch"));
             }
             else
             {
-                Info(_pluginsPageHost, FAInfoBarSeverity.Error, AppUtils.Tr("settings.plugins.import_failed", ("error", msg)));
+                Info(_pluginsPageHost, FAInfoBarSeverity.Error, AppUtils.Tr("settings.plugins.import_failed", ("error", result.Message)));
             }
         }
         catch (Exception e)
@@ -2652,6 +2698,10 @@ public partial class SettingsWindow : GlimpseonWindow
 
     // 条目右下角小按钮
     private static Button MakeItemIconButton(char glyph, string tooltip, bool accent = false)
+        => MakeRoundIconButton(GlyphIcon(glyph, 14), tooltip, accent);
+
+    // 28×28 圆形图标按钮
+    private static Button MakeRoundIconButton(object content, string? tooltip, bool accent = false)
     {
         var btn = new Button
         {
@@ -2662,14 +2712,17 @@ public partial class SettingsWindow : GlimpseonWindow
             BorderThickness = new Thickness(0),
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
-            Content = GlyphIcon(glyph, 14),
+            Content = content,
             VerticalAlignment = VerticalAlignment.Bottom,
         };
         if (accent)
         {
             btn.Classes.Add("accent");
         }
-        ToolTip.SetTip(btn, tooltip);
+        if (!string.IsNullOrEmpty(tooltip))
+        {
+            ToolTip.SetTip(btn, tooltip);
+        }
         return btn;
     }
 
@@ -2748,7 +2801,8 @@ public partial class SettingsWindow : GlimpseonWindow
     {
         var grid = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"),
+            // 图标/文本/徽标/操作 四列
+            ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto"),
             RowDefinitions = new RowDefinitions("*,*"),
         };
         var chip = MakeIconChip(iconSource, fallbackIcon, 48);
@@ -2796,7 +2850,7 @@ public partial class SettingsWindow : GlimpseonWindow
             bottomActions.VerticalAlignment = VerticalAlignment.Bottom;
             bottomActions.HorizontalAlignment = HorizontalAlignment.Right;
             bottomActions.Margin = new Thickness(4, 0, 0, 0);
-            Grid.SetColumn(bottomActions, 2);
+            Grid.SetColumn(bottomActions, 3);
             Grid.SetRow(bottomActions, 0);
             Grid.SetRowSpan(bottomActions, 2);
             grid.Children.Add(bottomActions);
@@ -2925,9 +2979,9 @@ public partial class SettingsWindow : GlimpseonWindow
     }
 
     // 图标内存缓存 去重
-    private static readonly Dictionary<string, Bitmap> IconBitmapCache = new();
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> IconFailures = new();
-    private static readonly Dictionary<string, Task<byte[]?>> IconFetchTasks = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Bitmap> IconBitmapCache = new(StringComparer.Ordinal);
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> IconFailures = new(StringComparer.Ordinal);
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task<byte[]?>> IconFetchTasks = new(StringComparer.Ordinal);
 
     private static async void LoadIconIntoChipAsync(Border chip, string source, double size)
     {
@@ -2959,13 +3013,9 @@ public partial class SettingsWindow : GlimpseonWindow
             Log.Debug($"[图标] 命中内存缓存 {source} ({cached.PixelSize.Width}x{cached.PixelSize.Height})");
             return cached;
         }
-        if (!IconFetchTasks.TryGetValue(source, out var task))
-        {
-            task = LoadIconBytesAsync(source);
-            IconFetchTasks[source] = task;
-        }
+        var task = IconFetchTasks.GetOrAdd(source, LoadIconBytesAsync);
         var bytes = await task;
-        IconFetchTasks.Remove(source);
+        IconFetchTasks.TryRemove(source, out _);
         if (bytes is null)
         {
             return null;
@@ -3002,7 +3052,7 @@ public partial class SettingsWindow : GlimpseonWindow
             {
                 return await File.ReadAllBytesAsync(source);
             }
-            if (!source.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            if (!PluginFs.IsHttpUrl(source))
             {
                 return null;
             }
@@ -3052,30 +3102,17 @@ public partial class SettingsWindow : GlimpseonWindow
         }
     }
 
-    // 加载 readme 文档
-    private static readonly Dictionary<string, string> ReadmeCache = new();
-    private static readonly Dictionary<string, Task<string?>> ReadmeTasks = new();
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> ReadmeMissing = new();
+    // readme 缓存 并发安全
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> ReadmeCache = new(StringComparer.Ordinal);
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task<string?>> ReadmeTasks = new(StringComparer.Ordinal);
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> ReadmeMissing = new(StringComparer.Ordinal);
 
     private static Task<string?> GetMarkdownAsync(string source)
-    {
-        if (ReadmeCache.TryGetValue(source, out var cached))
-        {
-            Log.Debug($"[说明] 命中内存缓存 {cached.Length} 字符 {source}");
-            return Task.FromResult<string?>(cached);
-        }
-        if (ReadmeTasks.TryGetValue(source, out var running))
-        {
-            Log.Debug($"[说明] 复用进行中的请求 {source}");
-            return running;
-        }
-        Log.Debug($"[说明] 开始加载 {source}");
-        var task = LoadMarkdownAsync(source);
-        ReadmeTasks[source] = task;
-        return task;
-    }
+        => ReadmeCache.TryGetValue(source, out var cached)
+            ? Task.FromResult<string?>(cached)
+            : ReadmeTasks.GetOrAdd(source, LoadMarkdownAsync);
 
-    private static async Task<string?> LoadMarkdownAsync(string? source)
+    private static async Task<string?> LoadMarkdownAsync(string source)
     {
         try
         {
@@ -3084,11 +3121,10 @@ public partial class SettingsWindow : GlimpseonWindow
                 return null;
             }
             string? doc = null;
-            if (source.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            if (PluginFs.IsHttpUrl(source))
             {
                 if (ReadmeMissing.ContainsKey(source))
                 {
-                    ReadmeTasks.Remove(source);
                     return null;
                 }
                 var swDoc = System.Diagnostics.Stopwatch.StartNew();
@@ -3113,7 +3149,6 @@ public partial class SettingsWindow : GlimpseonWindow
             {
                 doc = await File.ReadAllTextAsync(source);
             }
-            ReadmeTasks.Remove(source);
             if (string.IsNullOrWhiteSpace(doc))
             {
                 Log.Debug($"[设置/插件] readme 取不到: {source}");
@@ -3124,9 +3159,12 @@ public partial class SettingsWindow : GlimpseonWindow
         }
         catch (Exception e)
         {
-            ReadmeTasks.Remove(source);
             Log.Warning($"[设置/插件] readme 加载失败 {source}: {e.Message}");
             return null;
+        }
+        finally
+        {
+            ReadmeTasks.TryRemove(source, out _);
         }
     }
 
@@ -3165,16 +3203,16 @@ public partial class SettingsWindow : GlimpseonWindow
                 return;
             }
             var path = files[0].Path.LocalPath;
-            var (ok, msg) = await Task.Run(() => PluginService.InstallPackage(path));
-            if (ok)
+            var result = await Task.Run(() => PluginService.InstallPackage(path));
+            if (result.Ok)
             {
                 await Common.ConfirmPendingRestartAsync(this,
-                    AppUtils.Tr("settings.plugins.import_success", ("name", msg)),
+                    AppUtils.Tr("settings.plugins.import_success", ("name", result.Message)),
                     AppUtils.Tr("settings.restart_required_desc"));
             }
             else
             {
-                Info(_pluginsPageHost, FAInfoBarSeverity.Error, AppUtils.Tr("settings.plugins.import_failed", ("error", msg)));
+                Info(_pluginsPageHost, FAInfoBarSeverity.Error, AppUtils.Tr("settings.plugins.import_failed", ("error", result.Message)));
             }
             RefreshCatalog();
             RebuildPluginList();
@@ -3197,19 +3235,19 @@ public partial class SettingsWindow : GlimpseonWindow
         {
             return;
         }
-        var (ok, msg) = await Task.Run(() => PluginService.Uninstall(info.Id));
-        if (ok && msg == "pending")
+        var result = await Task.Run(() => PluginService.Uninstall(info.Id));
+        if (result.Ok && result.Code == PluginOperationCode.Pending)
         {
             Info(_pluginsPageHost, FAInfoBarSeverity.Warning,
                 AppUtils.Tr("settings.plugins.uninstall_pending", ("name", info.Name)));
         }
-        else if (ok)
+        else if (result.Ok)
         {
             Info(_pluginsPageHost, FAInfoBarSeverity.Success, AppUtils.Tr("settings.plugins.uninstall_success", ("name", info.Name)));
         }
         else
         {
-            Info(_pluginsPageHost, FAInfoBarSeverity.Error, AppUtils.Tr("settings.plugins.uninstall_failed", ("error", msg)));
+            Info(_pluginsPageHost, FAInfoBarSeverity.Error, AppUtils.Tr("settings.plugins.uninstall_failed", ("error", result.Message)));
         }
         RefreshCatalog();
         RebuildPluginList();

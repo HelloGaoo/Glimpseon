@@ -110,11 +110,7 @@ public static class DownloadSources
         var resolved = Resolve(url);
         Add(resolved);
         // jsDelivr 有 CDN 缓存延迟 (会返回旧 manifest), 不参与竞速, 见 MirrorCandidate
-        // 直连只在未配置加速源时保留 (raw.githubusercontent 在多数网络下直接超时, 留着只会拖满超时)
-        if (string.Equals(resolved, url, StringComparison.Ordinal))
-        {
-            Add(url);
-        }
+        // 配了加速源就不再直连
         Log.Debug($"[源] 主候选 {list.Count} 个: {string.Join(" | ", list)}");
         return list;
     }
@@ -647,7 +643,7 @@ public class Downloader
                 Log.Info($"{softwareName}: 已清理 {filePath}");
                 return;
             }
-            catch (IOException err) when (attempt < maxRetries - 1)
+            catch (IOException) when (attempt < maxRetries - 1)
             {
                 Log.Warning($"{softwareName}: 文件被占用 {retryDelay}秒后重试 ({attempt + 1}/{maxRetries})");
                 await Task.Delay((int)(retryDelay * 1000));
@@ -1197,6 +1193,11 @@ public static class GitHubFetch
             using var resp = await Http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
             var status = (int)resp.StatusCode;
             LastStatus[url] = status;
+            if (LastStatus.Count > 512)
+            {
+                // 诊断缓存 超限清空
+                LastStatus.Clear();
+            }
             var headerLength = resp.Content.Headers.ContentLength;
             var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
             sw.Stop();
@@ -1321,11 +1322,29 @@ public static class GitHubFetch
         {
             return (true, 200, text);
         }
-        var status = (int)(LastStatus.TryGetValue(url, out var st) ? st : 0);
+        var status = LastStatusFor(url);
         return (false, status, null);
     }
 
     internal static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> LastStatus = new();
+
+    /// <summary>查地址的状态码</summary>
+    public static int LastStatusFor(string url)
+    {
+        if (LastStatus.TryGetValue(url, out var status))
+        {
+            return status;
+        }
+        foreach (var candidate in DownloadSources.Candidates(url))
+        {
+            if (LastStatus.TryGetValue(candidate, out status))
+            {
+                return status;
+            }
+        }
+        var mirror = DownloadSources.MirrorCandidate(url);
+        return mirror is not null && LastStatus.TryGetValue(mirror, out status) ? status : 0;
+    }
 
     public static Task<string?> GetStringAsync(string url) =>
         RaceAsync(url, async (_, u, ct) =>

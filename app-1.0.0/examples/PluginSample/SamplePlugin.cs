@@ -45,9 +45,10 @@ public class SamplePlugin : GlimpseonPlugin
         Context.RegisterScheduleProvider("示例课表", () =>
         {
             var now = Context.GetNow();
+            // IsCurrent 须自行计算
             return
             [
-                new ScheduleRow("自习", "", now.ToString("HH:mm"), now.AddMinutes(40).ToString("HH:mm"), 1, false, false, ""),
+                new ScheduleRow("自习", "", now.ToString("HH:mm"), now.AddMinutes(40).ToString("HH:mm"), 1, true, false, ""),
             ];
         });
 

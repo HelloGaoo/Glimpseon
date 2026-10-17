@@ -56,30 +56,69 @@ public static class PluginEventBus
 
     internal static void Add(PluginSubscription s)
     {
+        var duplicate = false;
         lock (Subscriptions)
         {
-            Subscriptions.Add(s);
+            duplicate = Subscriptions.Any(x => x.PluginId == s.PluginId
+                && x.Event == s.Event
+                && Equals(x.Handler.Target, s.Handler.Target)
+                && x.Handler.Method == s.Handler.Method);
+            if (!duplicate)
+            {
+                Subscriptions.Add(s);
+            }
+        }
+        if (duplicate)
+        {
+            Log.Debug($"[plugin:{s.PluginId}] 订阅 {s.Event} 已存在 跳过");
+            return;
         }
         Log.Info($"[plugin:{s.PluginId}] 订阅事件 {s.Event}");
     }
 
-    public static void RaiseTimeTick(DateTime now) => Raise("TimeTick", now);
+    /// <summary>移除某插件的全部订阅</summary>
+    public static void RemovePlugin(string pluginId)
+    {
+        int removed;
+        lock (Subscriptions)
+        {
+            removed = Subscriptions.RemoveAll(s => s.PluginId == pluginId);
+        }
+        if (removed > 0)
+        {
+            Log.Info($"[plugin:{pluginId}] 已移除 {removed} 个事件订阅");
+        }
+    }
 
-    public static void RaiseCourseChanged(ScheduleRow? row) => Raise("CourseChanged", row);
+    public static void RemoveAll()
+    {
+        lock (Subscriptions)
+        {
+            Subscriptions.Clear();
+        }
+    }
+
+    public static void RaiseTimeTick(DateTime now) => Raise(PluginApi.EventTimeTick, now);
+
+    public static void RaiseCourseChanged(ScheduleRow? row) => Raise(PluginApi.EventCourseChanged, row);
 
     public static void RaiseClassStateChanged(PluginClassState state)
     {
         LatestClassState = state;
-        Raise("ClassStateChanged", state);
+        Raise(PluginApi.EventClassStateChanged, state);
     }
 
-    public static void RaiseAppClosing() => Raise("AppClosing", null);
+    public static void RaiseAppClosing() => Raise(PluginApi.EventAppClosing, null);
 
     private static void Raise(string name, object? payload)
     {
         PluginSubscription[] snapshot;
         lock (Subscriptions)
         {
+            if (Subscriptions.Count == 0)
+            {
+                return;
+            }
             snapshot = Subscriptions.Where(s => s.Event == name).ToArray();
         }
         foreach (var s in snapshot)
@@ -90,7 +129,35 @@ public static class PluginEventBus
             }
             catch (Exception e)
             {
-                Log.Warning($"[plugin:{s.PluginId}] {name} 处理失败: {e.Message}");
+                LogHandlerError(s.PluginId, name, e);
+            }
+        }
+    }
+
+    // 插件事件节流
+    private static readonly Dictionary<string, (int Count, DateTime Window)> ErrorCounters = new(StringComparer.Ordinal);
+
+    private static void LogHandlerError(string pluginId, string name, Exception e)
+    {
+        var key = pluginId + "|" + name;
+        lock (ErrorCounters)
+        {
+            var now = DateTime.UtcNow;
+            if (!ErrorCounters.TryGetValue(key, out var entry) || now - entry.Window > TimeSpan.FromMinutes(1))
+            {
+                ErrorCounters[key] = (1, now);
+                Log.Warning($"[plugin:{pluginId}] {name} 处理失败 {e.GetType().Name}: {e.Message}");
+                return;
+            }
+            if (entry.Count < 3)
+            {
+                ErrorCounters[key] = (entry.Count + 1, entry.Window);
+                Log.Warning($"[plugin:{pluginId}] {name} 处理失败 {e.GetType().Name}: {e.Message}");
+            }
+            else if (entry.Count == 3)
+            {
+                ErrorCounters[key] = (entry.Count + 1, entry.Window);
+                Log.Warning($"[plugin:{pluginId}] {name} 持续失败, 本轮不再记录");
             }
         }
     }
