@@ -24,6 +24,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Controls.Shapes;
+using Avalonia.Animation;
+using Avalonia.Animation.Easings;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -33,6 +35,7 @@ using FluentAvalonia.UI.Controls;
 using FluentAvalonia.UI.Navigation;
 using Glimpseon.Core;
 using Glimpseon.Core.Services;
+using Markdown.Avalonia;
 
 namespace Glimpseon.UI;
 
@@ -1468,6 +1471,11 @@ public partial class SettingsWindow : GlimpseonWindow
             }));
         stack.Children.Add(CardSwitch(FASymbol.Switch, Tr("settings.allow_multiple_instances"), Tr("settings.allow_multiple_instances_desc"), Config.AllowMultipleInstances));
         stack.Children.Add(CardSwitch(FASymbol.Video, Tr("settings.gpu_acceleration"), Tr("settings.gpu_acceleration_desc"), Config.EnableGpuAcceleration));
+        // GitHub 加速源
+        stack.Children.Add(CardCombo(FASymbol.Globe, Tr("settings.github_source"), Tr("settings.github_source_desc"), Config.DownloadSource,
+            DownloadSources.Sources
+                .Select(kv => (Tr(kv.Value.NameKey), kv.Key))
+                .ToArray()));
 
         // 配置导入/导出(
         var exportBtn = new Button { Content = Tr("settings.export_button"), MinWidth = 90 };
@@ -1491,223 +1499,1246 @@ public partial class SettingsWindow : GlimpseonWindow
     // 插件
 
     private Panel? _pluginsPageHost;
-    private Control? _installedSection;
-    private Control? _marketSection;
-    private StackPanel? _pluginsListHost;
-    private StackPanel? _marketListHost;
-    private bool _pluginsSegmentMarket;
+    private List<MarketPlugin>? _lastMarketPlugins;
     private bool _marketFetched;
     private bool _marketLoading;
+    private bool _isMarketTab;
     private string? _downloadingPluginId;
+    private double _downloadPercent;
+    private TextBlock? _detailProgressText;
+
+    private TextBox? _pluginsSearchBox;
+    private StackPanel? _installedListHost;
+    private StackPanel? _marketListHost;
+    private Panel? _pluginsDetailHost;
+    private string? _selectedLocalId;
+    private string? _selectedMarketId;
+
+    private readonly Dictionary<string, PluginListItemUi> _localItems = new();
+    private readonly Dictionary<string, PluginListItemUi> _marketItems = new();
+
+    private readonly Dictionary<string, bool> _enabledOverrides = new();
+
+    private bool IsEnabledEffective(PluginInfo info) =>
+        _enabledOverrides.TryGetValue(info.Id, out var v) ? v : info.Enabled;
 
     private Control BuildPluginsPage()
     {
         var stack = MakePageStack(Tr("settings.plugins.title"));
         _pluginsPageHost = stack;
-        stack.Children.Add(new TextBlock
+        stack.Children.Add(BuildPluginsBody());
+        if (!_marketFetched && !_marketLoading)
         {
-            Text = Tr("settings.plugins.note"),
-            FontSize = 12,
-            Opacity = 0.6,
-            Margin = new Thickness(0, 0, 0, 10),
-            TextWrapping = TextWrapping.Wrap,
-        });
-
-        // 已安装/市场
-        var installedBtn = new Avalonia.Controls.Primitives.ToggleButton
-        {
-            Content = Tr("settings.plugins.tab_installed"),
-            IsChecked = true,
-            MinWidth = 110,
-        };
-        var marketBtn = new Avalonia.Controls.Primitives.ToggleButton { Content = Tr("settings.plugins.tab_market"), MinWidth = 110 };
-        installedBtn.Click += (_, _) =>
-        {
-            _pluginsSegmentMarket = false;
-            installedBtn.IsChecked = true;
-            marketBtn.IsChecked = false;
-            if (_installedSection is not null)
-            {
-                _installedSection.IsVisible = true;
-            }
-            if (_marketSection is not null)
-            {
-                _marketSection.IsVisible = false;
-            }
-        };
-        marketBtn.Click += (_, _) =>
-        {
-            _pluginsSegmentMarket = true;
-            marketBtn.IsChecked = true;
-            installedBtn.IsChecked = false;
-            if (_installedSection is not null)
-            {
-                _installedSection.IsVisible = false;
-            }
-            if (_marketSection is not null)
-            {
-                _marketSection.IsVisible = true;
-            }
-            if (!_marketFetched && !_marketLoading)
-            {
-                _ = FetchMarketIndexAsync();
-            }
-        };
-        stack.Children.Add(new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 4,
-            Margin = new Thickness(0, 0, 0, 12),
-            Children = { installedBtn, marketBtn },
-        });
-
-        _installedSection = BuildInstalledPluginsSection();
-        _marketSection = BuildMarketSection();
-        _marketSection.IsVisible = false;
-        stack.Children.Add(_installedSection);
-        stack.Children.Add(_marketSection);
+            _ = FetchMarketIndexAsync();
+        }
         return stack;
     }
 
-    private Control BuildInstalledPluginsSection()
+    // 左列表右详情
+    private Control BuildPluginsBody()
     {
-        var panel = new StackPanel { Spacing = 8 };
+        _installedListHost = new StackPanel { Spacing = 2 };
+        _marketListHost = new StackPanel { Spacing = 2, IsVisible = false };
+        _pluginsDetailHost = new Panel { MinHeight = 360 };
 
-        // 导入卡片
-        var importBtn = new Button { Content = Tr("settings.plugins.import"), MinWidth = 110 };
-        importBtn.Click += (_, _) => _ = ImportPluginAsync();
-        panel.Children.Add(Card(FASymbol.Download, Tr("settings.plugins.import"), Tr("settings.plugins.import_desc"), importBtn));
+        // 搜索框
+        _pluginsSearchBox = new TextBox
+        {
+            Watermark = Tr("settings.plugins.search"),
+            MinHeight = 34,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 6),
+        };
+        var searchIcon = GlyphIcon('\uE721', 14);
+        searchIcon.Opacity = 0.6;
+        searchIcon.Margin = new Thickness(8, 0, 0, 0);
+        searchIcon.VerticalAlignment = VerticalAlignment.Center;
+        _pluginsSearchBox.InnerLeftContent = searchIcon;
+        _pluginsSearchBox.PropertyChanged += (_, e) =>
+        {
+            if (e.Property.Name == nameof(TextBox.Text))
+            {
+                if (_isMarketTab)
+                {
+                    RenderMarketList();
+                }
+                else
+                {
+                    RebuildPluginList();
+                }
+            }
+        };
 
-        _pluginsListHost = new StackPanel { Spacing = 8 };
+        // 市场 / 已安装
+        var marketTab = new Avalonia.Controls.Primitives.TabStripItem { Content = Tr("settings.plugins.tab_market"), FontSize = 15 };
+        var installedTab = new Avalonia.Controls.Primitives.TabStripItem { Content = Tr("settings.plugins.tab_installed"), FontSize = 15 };
+        var tabStrip = new Avalonia.Controls.Primitives.TabStrip { VerticalAlignment = VerticalAlignment.Center };
+        tabStrip.Items.Add(marketTab);
+        tabStrip.Items.Add(installedTab);
+        tabStrip.SelectedItem = marketTab;
+        _isMarketTab = true;
+        tabStrip.SelectionChanged += (_, _) =>
+        {
+            _isMarketTab = tabStrip.SelectedItem == marketTab;
+            _installedListHost.IsVisible = !_isMarketTab;
+            _marketListHost.IsVisible = _isMarketTab;
+            if (_isMarketTab)
+            {
+                RenderMarketList();
+            }
+            else
+            {
+                RebuildPluginList();
+            }
+        };
+
+        // 工具行
+        var refreshBtn = MakeToolButton(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            Children =
+            {
+                FAIcons.IconCenter(FASymbol.Sync, 13),
+                new TextBlock { Text = Tr("settings.plugins.market_refresh"), FontSize = 12, VerticalAlignment = VerticalAlignment.Center },
+            },
+        }, null);
+        refreshBtn.Click += (_, _) =>
+        {
+            if (_isMarketTab)
+            {
+                _ = FetchMarketIndexAsync(refreshMeta: true);
+            }
+            else
+            {
+                RefreshCatalog();
+                RebuildPluginList();
+            }
+        };
+        var moreBtn = MakeToolButton(GlyphIcon('\uE712', 14), Tr("settings.plugins.more"));
+        moreBtn.Flyout = BuildPluginsMoreFlyout();
+        var toolbar = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), Margin = new Thickness(0, 0, 0, 4) };
+        toolbar.Children.Add(tabStrip);
+        Grid.SetColumn(refreshBtn, 1);
+        refreshBtn.VerticalAlignment = VerticalAlignment.Center;
+        toolbar.Children.Add(refreshBtn);
+        Grid.SetColumn(moreBtn, 2);
+        moreBtn.VerticalAlignment = VerticalAlignment.Center;
+        toolbar.Children.Add(moreBtn);
+
+        var lists = new Panel();
+        lists.Children.Add(_installedListHost);
+        lists.Children.Add(_marketListHost);
+        _installedListHost.IsVisible = !_isMarketTab;
+        _marketListHost.IsVisible = _isMarketTab;
+
+        var left = new Grid { RowDefinitions = new RowDefinitions("Auto,Auto,*") };
+        left.Children.Add(_pluginsSearchBox);
+        Grid.SetRow(toolbar, 1);
+        left.Children.Add(toolbar);
+        Grid.SetRow(lists, 2);
+        left.Children.Add(lists);
+
+        var root = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*") };
+        root.Children.Add(left);
+        _pluginsDetailHost.Margin = new Thickness(4, 0, 0, 0);
+        Grid.SetColumn(_pluginsDetailHost, 1);
+        root.Children.Add(_pluginsDetailHost);
+
+        RefreshCatalog();
         RebuildPluginList();
-        panel.Children.Add(_pluginsListHost);
-        return panel;
+        RenderMarketList();
+        return root;
     }
+
+    // 目录重建
+    private void RefreshCatalog() => PluginCatalog.Reload(_lastMarketPlugins);
+
+    // 菜单
+    private MenuFlyout BuildPluginsMoreFlyout()
+    {
+        var importItem = new MenuItem { Header = Tr("settings.plugins.install_from_local"), Icon = FAIcons.Icon(FASymbol.Download, 14) };
+        importItem.Click += (_, _) => _ = ImportPluginAsync();
+        var autoUpdateItem = new MenuItem
+        {
+            Header = Tr("settings.plugins.auto_update"),
+            Icon = FAIcons.Icon(FASymbol.Sync, 14),
+            ToggleType = Avalonia.Controls.MenuItemToggleType.CheckBox,
+            IsChecked = Config.PluginsAutoUpdate.Value,
+        };
+        autoUpdateItem.Click += (_, _) => Config.PluginsAutoUpdate.Value = autoUpdateItem.IsChecked == true;
+        var openFolderItem = new MenuItem { Header = Tr("settings.plugins.open_plugins_folder"), Icon = FAIcons.Icon(FASymbol.Folder, 14) };
+        openFolderItem.Click += (_, _) => OpenPluginsFolder();
+        var flyout = new MenuFlyout();
+        flyout.Items.Add(importItem);
+        flyout.Items.Add(autoUpdateItem);
+        flyout.Items.Add(new Separator());
+        flyout.Items.Add(openFolderItem);
+        return flyout;
+    }
+
+    private void OpenPluginsFolder()
+    {
+        try
+        {
+            Directory.CreateDirectory(Paths.DataPlugins);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = Paths.DataPlugins, UseShellExecute = true });
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"[设置/插件] 打开插件目录失败: {e.Message}");
+        }
+    }
+
+    // 已安装列表
 
     private void RebuildPluginList()
     {
-        if (_pluginsListHost is null)
+        if (_installedListHost is null)
         {
             return;
         }
-        _pluginsListHost.Children.Clear();
-        if (PluginService.Plugins.Count == 0)
+        _installedListHost.Children.Clear();
+        _localItems.Clear();
+        var filter = _pluginsSearchBox?.Text?.Trim();
+        var items = PluginCatalog.Items
+            .Where(x => x.IsLocal)
+            .Where(x => string.IsNullOrEmpty(filter) || MatchFilter(x.Id, x.Name, x.Description, filter))
+            .ToList();
+        if (items.Count == 0)
         {
-            _pluginsListHost.Children.Add(new TextBlock
+            _selectedLocalId = null;
+            _installedListHost.Children.Add(new TextBlock
             {
-                Text = Tr("settings.plugins.empty"),
+                Text = string.IsNullOrEmpty(filter) ? Tr("settings.plugins.empty") : Tr("settings.plugins.filter_empty"),
                 FontSize = 13,
                 Opacity = 0.55,
-                Margin = new Thickness(4, 8, 0, 8),
+                Margin = new Thickness(6, 12, 0, 0),
             });
+            if (!_isMarketTab)
+            {
+                RenderPluginDetail(null, false);
+            }
             return;
         }
-        foreach (var lp in PluginService.Plugins)
+        if (_selectedLocalId is null || items.All(x => x.Id != _selectedLocalId))
         {
-            _pluginsListHost.Children.Add(BuildPluginCard(lp));
+            _selectedLocalId = items[0].Id;
+        }
+        foreach (var info in items)
+        {
+            var item = BuildPluginItem(info, marketTab: false, selected: _selectedLocalId == info.Id);
+            _localItems[info.Id] = item;
+            _installedListHost.Children.Add(item.Root);
+        }
+        if (!_isMarketTab)
+        {
+            RenderPluginDetail(PluginCatalog.Find(_selectedLocalId), false);
         }
     }
 
-    private Control BuildPluginCard(LoadedPlugin lp)
+    // 市场列表
+
+    private async Task FetchMarketIndexAsync(bool refreshMeta = false)
     {
-        var card = new Border
+        if (_marketListHost is null || _marketLoading)
         {
-            CornerRadius = new CornerRadius(8),
-            BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(Colors.Gray, 0.25),
-            Background = new SolidColorBrush(Colors.Gray, 0.08),
-            Padding = new Thickness(14, 10, 14, 12),
-        };
-        var body = new StackPanel { Spacing = 6 };
-
-        // 行1 名称 版本 开关
-        var row1 = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
-        var nameStack = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-        nameStack.Children.Add(new TextBlock { Text = lp.Manifest.Name, FontSize = 15, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
-        if (!string.IsNullOrEmpty(lp.Manifest.Version))
-        {
-            nameStack.Children.Add(new TextBlock { Text = "v" + lp.Manifest.Version, FontSize = 12, Opacity = 0.55, VerticalAlignment = VerticalAlignment.Center });
+            return;
         }
-        Grid.SetColumn(nameStack, 0);
-        row1.Children.Add(nameStack);
-        var toggle = new ToggleSwitch { IsChecked = lp.Enabled, OnContent = null, OffContent = null };
-        toggle.IsCheckedChanged += async (_, _) =>
+        if (refreshMeta)
         {
-            if (toggle.IsChecked == lp.Enabled)
-            {
-                return;
-            }
-            PluginService.SetEnabled(lp.Manifest.Id, toggle.IsChecked == true);
-            // 弹窗询问
-            await Common.ConfirmPendingRestartAsync(Common.ResolveActiveWindow(this),
-                AppUtils.Tr("settings.plugins.restart_hint"), AppUtils.Tr("settings.restart_required_desc"));
-        };
-        Grid.SetColumn(toggle, 1);
-        row1.Children.Add(toggle);
-        body.Children.Add(row1);
-
-        // 行2 作者  描述
-        var row2Text = string.Join("  ", new[] { lp.Manifest.Author, lp.Manifest.Description }.Where(s => !string.IsNullOrEmpty(s)));
-        if (row2Text.Length > 0)
-        {
-            body.Children.Add(new TextBlock { Text = row2Text, FontSize = 12, Opacity = 0.6, TextWrapping = TextWrapping.Wrap });
+            PluginMetaStore.Clear();
         }
+        _marketLoading = true;
+        RenderMarketList();
+        List<MarketPlugin>? plugins;
+        string? error;
+        try
+        {
+            (plugins, error) = await PluginMarket.FetchIndexAsync(force: true);
+        }
+        catch (Exception e)
+        {
+            Log.Error($"[设置/插件市场] 索引拉取异常: {e.Message}");
+            plugins = null;
+            error = "network";
+        }
+        _marketLoading = false;
+        _lastMarketPlugins = plugins;
+        _marketFetched = error is null;
+        RefreshCatalog();
+        RenderMarketList();
+        RebuildPluginList();
+        if (_lastMarketPlugins is { Count: > 0 })
+        {
+            _ = EnrichMarketMetadataAsync(_lastMarketPlugins);
+        }
+    }
 
-        // 行3 状态
-        var stateText = (lp.Error, lp.Enabled, lp.Instance) switch
-        {
-            ( { } err, _, _) => Tr("settings.plugins.state_error") + ": " + err,
-            (_, false, _) => Tr("settings.plugins.state_disabled"),
-            (_, true, not null) => Tr("settings.plugins.state_loaded"),
-            _ => Tr("settings.plugins.state_error"),
-        };
-        body.Children.Add(new TextBlock
-        {
-            Text = stateText,
-            FontSize = 12,
-            Opacity = 0.7,
-            TextWrapping = TextWrapping.Wrap,
-        });
-
-        // 行4 按钮 打开目录 / 卸载
-        var row4 = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        var openBtn = new Button
-        {
-            Content = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 6,
-                Children = { FAIcons.IconCenter(FASymbol.Folder, 14), new TextBlock { Text = Tr("settings.plugins.open_folder"), VerticalAlignment = VerticalAlignment.Center } },
-            },
-        };
-        openBtn.Click += (_, _) =>
+    private async Task EnrichMarketMetadataAsync(List<MarketPlugin> list)
+    {
+        await Task.WhenAll(list.Select(async mp =>
         {
             try
             {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = lp.Directory, UseShellExecute = true });
+                mp.Meta = await PluginMetaStore.GetAsync(mp);
             }
             catch (Exception e)
             {
-                Log.Warning($"[设置/插件] 打开目录失败: {e.Message}");
+                Log.Warning($"[设置/插件市场] {mp.Id} 回源失败: {e.Message}");
             }
-        };
-        row4.Children.Add(openBtn);
-        var uninstallBtn = new Button
+        }));
+        RefreshCatalog();
+        RenderMarketList();
+        RebuildPluginList();
+    }
+
+    private void RenderMarketList()
+    {
+        if (_marketListHost is null)
         {
-            Content = new StackPanel
+            return;
+        }
+        _marketListHost.Children.Clear();
+        _marketItems.Clear();
+        if (_marketLoading)
+        {
+            // 进度条
+            _marketListHost.Children.Add(new ProgressBar
+            {
+                IsIndeterminate = true,
+                Margin = new Thickness(0, 2, 0, 8),
+            });
+            if (_isMarketTab)
+            {
+                RenderPluginDetail(null, true);
+            }
+            return;
+        }
+        if (_lastMarketPlugins is null)
+        {
+            var retry = MakeToolButton(new StackPanel
             {
                 Orientation = Orientation.Horizontal,
                 Spacing = 6,
-                Children = { FAIcons.IconCenter(FASymbol.Dismiss, 14), new TextBlock { Text = Tr("settings.plugins.uninstall"), VerticalAlignment = VerticalAlignment.Center } },
+                Children =
+                {
+                    FAIcons.IconCenter(FASymbol.Sync, 13),
+                    new TextBlock { Text = Tr("settings.plugins.market_retry"), FontSize = 12, VerticalAlignment = VerticalAlignment.Center },
+                },
+            }, null);
+            retry.Click += (_, _) => _ = FetchMarketIndexAsync(refreshMeta: true);
+            _marketListHost.Children.Add(new FAInfoBar
+            {
+                Severity = FAInfoBarSeverity.Error,
+                Message = Tr("settings.plugins.market_network_error"),
+                IsOpen = true,
+                IsClosable = false,
+                Margin = new Thickness(0, 0, 0, 8),
+            });
+            _marketListHost.Children.Add(retry);
+            if (_isMarketTab)
+            {
+                RenderPluginDetail(null, true);
+            }
+            return;
+        }
+        var filter = _pluginsSearchBox?.Text?.Trim();
+        var items = PluginCatalog.Items
+            .Where(x => x.IsMarket)
+            .Where(x => string.IsNullOrEmpty(filter) || MatchFilter(x.Id, x.Name, x.Description, filter))
+            .ToList();
+        if (items.Count == 0)
+        {
+            _selectedMarketId = null;
+            _marketListHost.Children.Add(new TextBlock
+            {
+                Text = string.IsNullOrEmpty(filter) ? Tr("settings.plugins.market_empty") : Tr("settings.plugins.filter_empty"),
+                FontSize = 13,
+                Opacity = 0.55,
+                Margin = new Thickness(6, 12, 0, 0),
+            });
+            if (_isMarketTab)
+            {
+                RenderPluginDetail(null, true);
+            }
+            return;
+        }
+        if (_selectedMarketId is null || items.All(x => x.Id != _selectedMarketId))
+        {
+            _selectedMarketId = items[0].Id;
+        }
+        foreach (var info in items)
+        {
+            var item = BuildPluginItem(info, marketTab: true, selected: _selectedMarketId == info.Id);
+            _marketItems[info.Id] = item;
+            _marketListHost.Children.Add(item.Root);
+        }
+        if (_isMarketTab)
+        {
+            RenderPluginDetail(PluginCatalog.Find(_selectedMarketId), true);
+        }
+    }
+
+    // 条目
+    private PluginListItemUi BuildPluginItem(PluginInfo info, bool marketTab, bool selected)
+    {
+        var statusIcons = new List<Control>();
+        if (info.PendingRestart)
+        {
+            statusIcons.Add(StatusGlyph('\uE823', null, Tr("settings.plugins.restart_hint")));
+        }
+        if (info.IsLocal && info.Status == PluginLoadStatus.Error)
+        {
+            statusIcons.Add(StatusGlyph('\uE783', Color.Parse("#E81123"), Tr("settings.plugins.state_error")));
+        }
+        if (info.IsUpdateAvailable)
+        {
+            statusIcons.Add(StatusGlyph('\uE1A0', null, Tr("settings.plugins.market_updatable")));
+        }
+        if (info.IsIncompatible)
+        {
+            statusIcons.Add(StatusGlyph('\uE783', Color.Parse("#E81123"), Tr("settings.plugins.market_incompatible")));
+        }
+
+        return BuildPluginListItem(
+            info.Id,
+            info.IconSource,
+            info.IsLocal ? FASymbol.AllApps : FASymbol.Shop,
+            info.Name,
+            info.Description,
+            dimmed: info.IsLocal && info.Status != PluginLoadStatus.Loaded,
+            statusIcons,
+            BuildPluginItemActions(info, marketTab),
+            selected,
+            marketTab ? () => SelectMarketPlugin(info) : () => SelectLocalPlugin(info));
+    }
+
+    // 条目右下角操作
+    private Control BuildPluginItemActions(PluginInfo info, bool marketTab)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Bottom };
+        if (info.IsLocal)
+        {
+            if (info.IsUpdateAvailable && info.Market is not null)
+            {
+                var market = info.Market;
+                var updateBtn = MakeItemIconButton('\uE1A0', Tr("settings.plugins.market_update"), accent: true);
+                updateBtn.Click += (_, _) => _ = InstallMarketPluginAsync(market);
+                row.Children.Add(updateBtn);
+            }
+            var removeBtn = MakeItemIconButton('\uE74D', Tr("settings.plugins.uninstall"));
+            removeBtn.Click += (_, _) => _ = UninstallPluginAsync(info);
+            row.Children.Add(removeBtn);
+
+            var toggle = new CheckBox
+            {
+                IsChecked = IsEnabledEffective(info),
+                Padding = new Thickness(0),
+                Margin = new Thickness(4, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Bottom,
+            };
+            ToolTip.SetTip(toggle, Tr("settings.plugins.enabled"));
+            toggle.IsCheckedChanged += async (_, _) =>
+            {
+                var enabled = toggle.IsChecked == true;
+                if (enabled == IsEnabledEffective(info))
+                {
+                    return;
+                }
+                _enabledOverrides[info.Id] = enabled;
+                PluginService.SetEnabled(info.Id, enabled);
+                if (info.Local is not null)
+                {
+                    info.Local.Enabled = enabled;
+                }
+                await Common.ConfirmPendingRestartAsync(Common.ResolveActiveWindow(this),
+                    AppUtils.Tr("settings.plugins.restart_hint"), AppUtils.Tr("settings.restart_required_desc"));
+                RefreshCatalog();
+                RebuildPluginList();
+                RenderMarketList();
+            };
+            row.Children.Add(toggle);
+            return row;
+        }
+        if (info.PendingRestart)
+        {
+            row.Children.Add(new TextBlock
+            {
+                Text = Tr("settings.plugins.restart_hint"),
+                FontSize = 11,
+                Opacity = 0.65,
+                VerticalAlignment = VerticalAlignment.Bottom,
+            });
+            return row;
+        }
+        if (info.Market is not null && !info.IsIncompatible)
+        {
+            var market = info.Market;
+            var installBtn = new Button
+            {
+                Width = 28,
+                Height = 28,
+                Padding = new Thickness(0),
+                CornerRadius = new CornerRadius(14),
+                HorizontalContentAlignment = HorizontalAlignment.Center,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Content = FAIcons.Icon(info.IsUpdateAvailable ? FASymbol.Sync : FASymbol.Download, 14),
+                VerticalAlignment = VerticalAlignment.Bottom,
+            };
+            installBtn.Classes.Add("accent");
+            ToolTip.SetTip(installBtn, Tr("settings.plugins.market_install"));
+            installBtn.Click += (_, _) => _ = InstallMarketPluginAsync(market);
+            row.Children.Add(installBtn);
+        }
+        return row;
+    }
+
+    // 选中切换
+    private void SelectLocalPlugin(PluginInfo info)
+    {
+        if (_selectedLocalId == info.Id)
+        {
+            return;
+        }
+        if (_selectedLocalId is not null && _localItems.TryGetValue(_selectedLocalId, out var prev))
+        {
+            prev.SetSelected(false);
+        }
+        _selectedLocalId = info.Id;
+        if (_localItems.TryGetValue(info.Id, out var cur))
+        {
+            cur.SetSelected(true);
+        }
+        RenderPluginDetail(info, false);
+    }
+
+    private void SelectMarketPlugin(PluginInfo info)
+    {
+        if (_selectedMarketId == info.Id)
+        {
+            return;
+        }
+        if (_selectedMarketId is not null && _marketItems.TryGetValue(_selectedMarketId, out var prev))
+        {
+            prev.SetSelected(false);
+        }
+        _selectedMarketId = info.Id;
+        if (_marketItems.TryGetValue(info.Id, out var cur))
+        {
+            cur.SetSelected(true);
+        }
+        RenderPluginDetail(info, true);
+    }
+
+    // 详情
+    private void RenderPluginDetail(PluginInfo? info, bool marketTab)
+    {
+        var host = _pluginsDetailHost;
+        if (host is null)
+        {
+            return;
+        }
+        host.Children.Clear();
+        _detailProgressText = null;
+        if (info is null)
+        {
+            host.Children.Add(MakeDetailEmptyState());
+            return;
+        }
+        host.Children.Add(BuildPluginDetail(info));
+    }
+
+    private Control BuildPluginDetail(PluginInfo info)
+    {
+        var root = new StackPanel { Spacing = 12 };
+
+        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), Margin = new Thickness(4, 8, 4, 0) };
+        var chip = MakeIconChip(info.IconSource, info.IsLocal ? FASymbol.AllApps : FASymbol.Shop, 60);
+        chip.VerticalAlignment = VerticalAlignment.Top;
+        chip.Margin = new Thickness(0, 0, 8, 0);
+        header.Children.Add(chip);
+
+        var textCol = new StackPanel { Spacing = 4 };
+        textCol.Children.Add(new TextBlock { Text = info.Name, FontSize = 24, FontWeight = FontWeight.Medium, TextTrimming = TextTrimming.CharacterEllipsis });
+        // 元信息行
+        var meta = new WrapPanel { Orientation = Orientation.Horizontal };
+        void AddMetaText(string? t)
+        {
+            if (string.IsNullOrEmpty(t))
+            {
+                return;
+            }
+            meta.Children.Add(new TextBlock { Text = t, FontSize = 12, Opacity = 0.7, VerticalAlignment = VerticalAlignment.Center });
+        }
+        void AddMetaSep()
+        {
+            if (meta.Children.Count > 0)
+            {
+                meta.Children.Add(new TextBlock { Text = "|", FontSize = 12, Opacity = 0.35, Margin = new Thickness(7, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center });
+            }
+        }
+        var version = info.IsLocal ? info.LocalVersion : info.MarketVersion;
+        AddMetaText(string.IsNullOrEmpty(version) ? null : version);
+        if (!string.IsNullOrEmpty(info.Homepage))
+        {
+            AddMetaSep();
+            var homepage = info.Homepage;
+            var link = new Button
+            {
+                Content = new TextBlock { Text = Tr("settings.plugins.homepage_link"), FontSize = 12, Foreground = AccentBrush() },
+                Padding = new Thickness(0),
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            link.Click += (_, _) =>
+            {
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = homepage, UseShellExecute = true });
+                }
+                catch (Exception e)
+                {
+                    Log.Warning($"[设置/插件] 打开主页失败: {e.Message}");
+                }
+            };
+            meta.Children.Add(link);
+        }
+        if (!string.IsNullOrEmpty(info.Author))
+        {
+            AddMetaSep();
+            AddMetaText(info.Author);
+        }
+        textCol.Children.Add(meta);
+        Grid.SetColumn(textCol, 1);
+        header.Children.Add(textCol);
+
+        // 头部菜单
+        if (info.IsLocal && info.Directory is not null)
+        {
+            var moreBtn = MakeToolButton(GlyphIcon('\uE712', 14), Tr("settings.plugins.more"));
+            moreBtn.VerticalAlignment = VerticalAlignment.Top;
+            var openItem = new MenuItem { Header = Tr("settings.plugins.open_folder"), Icon = FAIcons.Icon(FASymbol.Folder, 14) };
+            openItem.Click += (_, _) =>
+            {
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = info.Directory, UseShellExecute = true });
+                }
+                catch (Exception e)
+                {
+                    Log.Warning($"[设置/插件] 打开目录失败: {e.Message}");
+                }
+            };
+            var uninstallItem = new MenuItem { Header = Tr("settings.plugins.uninstall"), Icon = FAIcons.Icon(FASymbol.Dismiss, 14) };
+            uninstallItem.Click += (_, _) => _ = UninstallPluginAsync(info);
+            var flyout = new MenuFlyout();
+            flyout.Items.Add(openItem);
+            flyout.Items.Add(uninstallItem);
+            moreBtn.Flyout = flyout;
+            Grid.SetColumn(moreBtn, 2);
+            header.Children.Add(moreBtn);
+        }
+        root.Children.Add(header);
+
+        // 下载进度
+        if (_downloadingPluginId == info.Id)
+        {
+            var dlRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(4, 0, 0, 0) };
+            dlRow.Children.Add(new FAProgressRing { Width = 16, Height = 16, IsIndeterminate = true });
+            _detailProgressText = new TextBlock
+            {
+                Text = AppUtils.Tr("settings.plugins.market_downloading", ("percent", ((int)_downloadPercent).ToString())),
+                FontSize = 13,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            dlRow.Children.Add(_detailProgressText);
+            root.Children.Add(dlRow);
+        }
+
+        root.Children.Add(BuildReadmeContent(info));
+        return root;
+    }
+
+    private Control BuildReadmeContent(PluginInfo info)
+    {
+        var panel = new StackPanel { Spacing = 10, Margin = new Thickness(4, 4, 4, 0) };
+        if (info.IsLocal && info.Status == PluginLoadStatus.Error && !string.IsNullOrEmpty(info.Error))
+        {
+            panel.Children.Add(new FAInfoBar
+            {
+                Severity = FAInfoBarSeverity.Error,
+                Message = info.Error,
+                IsOpen = true,
+                IsClosable = false,
+            });
+        }
+        if (string.IsNullOrEmpty(info.ReadmeSource))
+        {
+            panel.Children.Add(new TextBlock { Text = Tr("settings.plugins.no_readme"), FontSize = 13, Opacity = 0.6 });
+            return panel;
+        }
+        // 已缓存
+        if (ReadmeCache.TryGetValue(info.ReadmeSource, out var cached))
+        {
+            panel.Children.Add(new MarkdownScrollViewer { Markdown = cached });
+            return panel;
+        }
+        // 未缓存
+        var holder = new StackPanel { Spacing = 10 };
+        holder.Children.Add(new ProgressBar { IsIndeterminate = true, Height = 3, HorizontalAlignment = HorizontalAlignment.Stretch });
+        var skeleton = BuildReadmeSkeleton();
+        holder.Children.Add(skeleton);
+        panel.Children.Add(holder);
+        var source = info.ReadmeSource;
+        _ = Task.Run(async () =>
+        {
+            var doc = await GetMarkdownAsync(source);
+            Dispatcher.UIThread.Post(() =>
+            {
+                try
+                {
+                    StopPulse(skeleton);
+                    holder.Children.Clear();
+                    holder.Children.Add(doc is null
+                        ? new TextBlock { Text = Tr("settings.plugins.no_readme"), FontSize = 13, Opacity = 0.6 }
+                        : new MarkdownScrollViewer { Markdown = doc });
+                }
+                catch
+                {
+                }
+            });
+        });
+        return panel;
+    }
+
+    // 详情空态
+    private Control MakeDetailEmptyState()
+    {
+        var icon = FAIcons.Icon(FASymbol.AllApps, 40);
+        icon.HorizontalAlignment = HorizontalAlignment.Center;
+        return new StackPanel
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Spacing = 10,
+            Opacity = 0.5,
+            Children =
+            {
+                icon,
+                new TextBlock { Text = Tr("settings.plugins.detail_empty"), FontSize = 13, HorizontalAlignment = HorizontalAlignment.Center },
             },
         };
-        uninstallBtn.Click += (_, _) => _ = UninstallPluginAsync(lp);
-        row4.Children.Add(uninstallBtn);
-        body.Children.Add(row4);
-
-        card.Child = body;
-        return card;
     }
+
+    private async Task InstallMarketPluginAsync(MarketPlugin mp)
+    {
+        if (_pluginsPageHost is null || _downloadingPluginId is not null)
+        {
+            return;
+        }
+        _downloadingPluginId = mp.Id;
+        _downloadPercent = 0;
+        RenderMarketList();
+        if (_isMarketTab && _selectedMarketId == mp.Id && PluginCatalog.Find(mp.Id) is { } selected)
+        {
+            RenderPluginDetail(selected, true);
+        }
+        try
+        {
+            var (ok, msg) = await PluginMarket.InstallFromMarketAsync(mp, pct =>
+                Dispatcher.UIThread.Post(() =>
+                {
+                    _downloadPercent = pct;
+                    if (_detailProgressText is not null)
+                    {
+                        _detailProgressText.Text = AppUtils.Tr("settings.plugins.market_downloading",
+                            ("percent", ((int)Math.Clamp(pct, 0, 100)).ToString()));
+                    }
+                }));
+            _downloadingPluginId = null;
+            if (ok)
+            {
+                await Common.ConfirmPendingRestartAsync(Common.ResolveActiveWindow(this),
+                    AppUtils.Tr("settings.plugins.import_success", ("name", msg)),
+                    AppUtils.Tr("settings.restart_required_desc"));
+            }
+            else if (msg == "sha")
+            {
+                Info(_pluginsPageHost, FAInfoBarSeverity.Error, Tr("settings.plugins.market_sha_mismatch"));
+            }
+            else
+            {
+                Info(_pluginsPageHost, FAInfoBarSeverity.Error, AppUtils.Tr("settings.plugins.import_failed", ("error", msg)));
+            }
+        }
+        catch (Exception e)
+        {
+            _downloadingPluginId = null;
+            Info(_pluginsPageHost, FAInfoBarSeverity.Error, AppUtils.Tr("settings.plugins.import_failed", ("error", e.Message)));
+        }
+        RefreshCatalog();
+        RenderMarketList();
+        RebuildPluginList();
+    }
+
+    // 通用小件
+
+    private static Color AccentColor() => Common.ParseAccentColor(Config.ThemeColor.Value);
+
+    private static IBrush AccentBrush() => new SolidColorBrush(AccentColor());
+
+    // Segoe Fluent 字图标
+    private static FAFontIcon GlyphIcon(char glyph, double fontSize = 16) => new()
+    {
+        FontFamily = FAIcons.SymbolsFont,
+        Glyph = glyph.ToString(),
+        FontSize = fontSize,
+    };
+
+    // 透明工具小按钮
+    private static Button MakeToolButton(object content, string? tooltip)
+    {
+        var btn = new Button
+        {
+            Content = content,
+            Padding = new Thickness(8, 5, 8, 5),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
+        if (!string.IsNullOrEmpty(tooltip))
+        {
+            ToolTip.SetTip(btn, tooltip);
+        }
+        return btn;
+    }
+
+    // 条目右下角小按钮
+    private static Button MakeItemIconButton(char glyph, string tooltip, bool accent = false)
+    {
+        var btn = new Button
+        {
+            Width = 28,
+            Height = 28,
+            Padding = new Thickness(0),
+            CornerRadius = new CornerRadius(14),
+            BorderThickness = new Thickness(0),
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Content = GlyphIcon(glyph, 14),
+            VerticalAlignment = VerticalAlignment.Bottom,
+        };
+        if (accent)
+        {
+            btn.Classes.Add("accent");
+        }
+        ToolTip.SetTip(btn, tooltip);
+        return btn;
+    }
+
+    // 右上角状态小图标
+    private static FAFontIcon StatusGlyph(char glyph, Color? foreground = null, string? tooltip = null)
+    {
+        var icon = GlyphIcon(glyph, 16);
+        if (foreground is not null)
+        {
+            icon.Foreground = new SolidColorBrush(foreground.Value);
+        }
+        if (!string.IsNullOrEmpty(tooltip))
+        {
+            ToolTip.SetTip(icon, tooltip);
+        }
+        icon.VerticalAlignment = VerticalAlignment.Center;
+        return icon;
+    }
+
+    // 列表条目
+    private sealed class PluginListItemUi
+    {
+        public Border Root = null!;
+        public Border Bar = null!;
+        public Control Content = null!;
+        public Color Accent;
+
+        public void SetSelected(bool selected)
+        {
+            Bar.IsVisible = selected;
+            Root.Background = selected ? new SolidColorBrush(Accent, 0.10) : Brushes.Transparent;
+            Content.Margin = new Thickness(selected ? 8 : 4, 0, 0, 0);
+        }
+    }
+
+    private PluginListItemUi MakeListItemRoot(bool selected, Control content)
+    {
+        var accent = AccentColor();
+        var host = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
+        var bar = new Border
+        {
+            Width = 3,
+            CornerRadius = new CornerRadius(2),
+            Background = new SolidColorBrush(accent),
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Margin = new Thickness(0, 2, 0, 2),
+            IsVisible = selected,
+        };
+        host.Children.Add(bar);
+        content.Margin = new Thickness(selected ? 8 : 4, 0, 0, 0);
+        Grid.SetColumn(content, 1);
+        host.Children.Add(content);
+        var root = new Border
+        {
+            Background = selected ? new SolidColorBrush(accent, 0.10) : Brushes.Transparent,
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(10, 8, 10, 8),
+            Child = host,
+        };
+        return new PluginListItemUi { Root = root, Bar = bar, Content = content, Accent = accent };
+    }
+
+    // 条目主体
+    private PluginListItemUi BuildPluginListItem(
+        string pluginId,
+        string? iconSource,
+        FASymbol fallbackIcon,
+        string name,
+        string description,
+        bool dimmed,
+        List<Control> statusIcons,
+        Control? bottomActions,
+        bool selected,
+        Action activate)
+    {
+        var grid = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"),
+            RowDefinitions = new RowDefinitions("*,*"),
+        };
+        var chip = MakeIconChip(iconSource, fallbackIcon, 48);
+        chip.Margin = new Thickness(0, 0, 8, 0);
+        Grid.SetRowSpan(chip, 2);
+        grid.Children.Add(chip);
+
+        var nameText = new TextBlock { Text = name, FontSize = 16, FontWeight = FontWeight.Medium, TextWrapping = TextWrapping.Wrap };
+        Grid.SetColumn(nameText, 1);
+        grid.Children.Add(nameText);
+
+        var descText = new TextBlock
+        {
+            Text = string.IsNullOrEmpty(description) ? pluginId : description,
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        Grid.SetColumn(descText, 1);
+        Grid.SetRow(descText, 1);
+        grid.Children.Add(descText);
+
+        if (statusIcons.Count > 0)
+        {
+            var badges = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 2,
+                VerticalAlignment = VerticalAlignment.Top,
+                HorizontalAlignment = HorizontalAlignment.Right,
+            };
+            foreach (var b in statusIcons)
+            {
+                badges.Children.Add(b);
+            }
+            Grid.SetColumn(badges, 2);
+            grid.Children.Add(badges);
+        }
+
+        if (bottomActions is not null)
+        {
+            bottomActions.VerticalAlignment = VerticalAlignment.Bottom;
+            bottomActions.HorizontalAlignment = HorizontalAlignment.Right;
+            bottomActions.Margin = new Thickness(4, 0, 0, 0);
+            Grid.SetColumn(bottomActions, 2);
+            Grid.SetRow(bottomActions, 0);
+            Grid.SetRowSpan(bottomActions, 2);
+            grid.Children.Add(bottomActions);
+        }
+
+        var item = MakeListItemRoot(selected, grid);
+        if (dimmed)
+        {
+            item.Root.Opacity = 0.75;
+        }
+        item.Root.PointerReleased += (_, _) => activate();
+        return item;
+    }
+
+    // 图标 chip
+    private Border MakeIconChip(string? source, FASymbol fallback, double size)
+    {
+        var chip = new Border
+        {
+            Width = size,
+            Height = size,
+            CornerRadius = new CornerRadius(Math.Max(6, size / 6)),
+            Background = new SolidColorBrush(Colors.Gray, 0.14),
+            ClipToBounds = true,
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = FAIcons.IconCenter(fallback, size * 0.45),
+        };
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            return chip;
+        }
+        if (IconBitmapCache.TryGetValue(source, out var cached))
+        {
+            SetChipImage(chip, cached, size);
+            return chip;
+        }
+        StartPulse(chip);
+        LoadIconIntoChipAsync(chip, source, size);
+        return chip;
+    }
+
+    // 骨架
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Control, DispatcherTimer> PulseTimers = new();
+
+    private static void StartPulse(Control target)
+    {
+        target.Transitions ??= new Transitions();
+        target.Transitions.Add(new DoubleTransition
+        {
+            Property = Visual.OpacityProperty,
+            Duration = TimeSpan.FromMilliseconds(650),
+            Easing = new SineEaseInOut(),
+        });
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(720) };
+        timer.Tick += (_, _) => target.Opacity = target.Opacity > 0.6 ? 0.35 : 1.0;
+        timer.Start();
+        PulseTimers.AddOrUpdate(target, timer);
+    }
+
+    private static void StopPulse(Control target)
+    {
+        if (PulseTimers.TryGetValue(target, out var timer))
+        {
+            timer.Stop();
+            PulseTimers.Remove(target);
+        }
+        target.Opacity = 1;
+    }
+
+    // 说明骨架
+    private static StackPanel BuildReadmeSkeleton()
+    {
+        var panel = new StackPanel { Spacing = 10 };
+        StartPulse(panel);
+        foreach (var width in new[] { 1.0, 0.92, 0.75, 0.86, 0.5 })
+        {
+            panel.Children.Add(new Border
+            {
+                Height = 12,
+                CornerRadius = new CornerRadius(6),
+                Background = new SolidColorBrush(Colors.Gray, 0.18),
+                Width = 320 * width,
+                HorizontalAlignment = HorizontalAlignment.Left,
+            });
+        }
+        return panel;
+    }
+
+    private static void SetChipImage(Border chip, Bitmap bitmap, double size)
+    {
+        StopPulse(chip);
+        chip.Child = new Image
+        {
+            Source = bitmap,
+            Width = size,
+            Height = size,
+            Stretch = Stretch.UniformToFill,
+        };
+    }
+
+    // 图标内存缓存 去重
+    private static readonly Dictionary<string, Bitmap> IconBitmapCache = new();
+    private static readonly Dictionary<string, Task<byte[]?>> IconFetchTasks = new();
+
+    private static async void LoadIconIntoChipAsync(Border chip, string source, double size)
+    {
+        var bitmap = await GetIconBitmapAsync(source);
+        if (bitmap is null)
+        {
+            Dispatcher.UIThread.Post(() => StopPulse(chip));
+            return;
+        }
+        Dispatcher.UIThread.Post(() => SetChipImage(chip, bitmap, size));
+    }
+
+    private static async Task<Bitmap?> GetIconBitmapAsync(string source)
+    {
+        if (IconBitmapCache.TryGetValue(source, out var cached))
+        {
+            return cached;
+        }
+        if (!IconFetchTasks.TryGetValue(source, out var task))
+        {
+            task = LoadIconBytesAsync(source);
+            IconFetchTasks[source] = task;
+        }
+        var bytes = await task;
+        IconFetchTasks.Remove(source);
+        if (bytes is null)
+        {
+            return null;
+        }
+        try
+        {
+            var bitmap = new Bitmap(new MemoryStream(bytes));
+            IconBitmapCache[source] = bitmap;
+            return bitmap;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string IconDiskCachePath(string url)
+    {
+        var name = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(url)))[..24] + ".img";
+        return System.IO.Path.Combine(System.IO.Path.GetTempPath(), "Glimpseon", "iconcache", name);
+    }
+
+    // 文件直读
+    private static async Task<byte[]?> LoadIconBytesAsync(string? source)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(source))
+            {
+                return null;
+            }
+            if (System.IO.File.Exists(source))
+            {
+                return await File.ReadAllBytesAsync(source);
+            }
+            if (!source.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+            var diskPath = IconDiskCachePath(source);
+            if (File.Exists(diskPath))
+            {
+                try
+                {
+                    return await File.ReadAllBytesAsync(diskPath);
+                }
+                catch
+                {
+                }
+            }
+            foreach (var url in DownloadSources.Candidates(source))
+            {
+                try
+                {
+                    using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(12) };
+                    var bytes = await http.GetByteArrayAsync(url);
+                    if (bytes is { Length: > 0 })
+                    {
+                        try
+                        {
+                            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(diskPath)!);
+                            await File.WriteAllBytesAsync(diskPath, bytes);
+                        }
+                        catch
+                        {
+                        }
+                        return bytes;
+                    }
+                }
+                catch
+                {
+                }
+            }
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    // 加载 readme 文档
+    private static readonly Dictionary<string, string> ReadmeCache = new();
+    private static readonly Dictionary<string, Task<string?>> ReadmeTasks = new();
+
+    private static Task<string?> GetMarkdownAsync(string source)
+    {
+        if (ReadmeCache.TryGetValue(source, out var cached))
+        {
+            return Task.FromResult<string?>(cached);
+        }
+        if (ReadmeTasks.TryGetValue(source, out var running))
+        {
+            return running;
+        }
+        var task = LoadMarkdownAsync(source);
+        ReadmeTasks[source] = task;
+        return task;
+    }
+
+    private static async Task<string?> LoadMarkdownAsync(string? source)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(source))
+            {
+                return null;
+            }
+            string? doc = null;
+            if (source.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (var url in DownloadSources.Candidates(source))
+                {
+                    try
+                    {
+                        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                        doc = await http.GetStringAsync(url);
+                        if (!string.IsNullOrWhiteSpace(doc))
+                        {
+                            break;
+                        }
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+            else if (File.Exists(source))
+            {
+                doc = await File.ReadAllTextAsync(source);
+            }
+            ReadmeTasks.Remove(source);
+            if (string.IsNullOrWhiteSpace(doc))
+            {
+                Log.Debug($"[设置/插件] readme 取不到: {source}");
+                return null;
+            }
+            ReadmeCache[source] = doc;
+            return doc;
+        }
+        catch (Exception e)
+        {
+            ReadmeTasks.Remove(source);
+            Log.Warning($"[设置/插件] readme 加载失败 {source}: {e.Message}");
+            return null;
+        }
+    }
+
+    private static bool MatchFilter(string id, string name, string description, string filter) =>
+        name.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+        description.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+        id.Contains(filter, StringComparison.OrdinalIgnoreCase);
 
     private async Task ImportPluginAsync()
     {
@@ -1730,7 +2761,6 @@ public partial class SettingsWindow : GlimpseonWindow
             var (ok, msg) = await Task.Run(() => PluginService.InstallPackage(path));
             if (ok)
             {
-                // 弹窗询问 立即重启 / 稍后
                 await Common.ConfirmPendingRestartAsync(this,
                     AppUtils.Tr("settings.plugins.import_success", ("name", msg)),
                     AppUtils.Tr("settings.restart_required_desc"));
@@ -1739,7 +2769,9 @@ public partial class SettingsWindow : GlimpseonWindow
             {
                 Info(_pluginsPageHost, FAInfoBarSeverity.Error, AppUtils.Tr("settings.plugins.import_failed", ("error", msg)));
             }
+            RefreshCatalog();
             RebuildPluginList();
+            RenderMarketList();
         }
         catch (Exception e)
         {
@@ -1747,280 +2779,35 @@ public partial class SettingsWindow : GlimpseonWindow
         }
     }
 
-    private async Task UninstallPluginAsync(LoadedPlugin lp)
+    private async Task UninstallPluginAsync(PluginInfo info)
     {
         if (_pluginsPageHost is null)
         {
             return;
         }
         if (!await Common.Confirm(this, Tr("settings.plugins.uninstall"),
-                AppUtils.Tr("settings.plugins.uninstall_confirm", ("name", lp.Manifest.Name))))
+                AppUtils.Tr("settings.plugins.uninstall_confirm", ("name", info.Name))))
         {
             return;
         }
-        var (ok, msg) = await Task.Run(() => PluginService.Uninstall(lp.Manifest.Id));
-        if (ok)
+        var (ok, msg) = await Task.Run(() => PluginService.Uninstall(info.Id));
+        if (ok && msg == "pending")
         {
-            Info(_pluginsPageHost, FAInfoBarSeverity.Success, AppUtils.Tr("settings.plugins.uninstall_success", ("name", lp.Manifest.Name)));
+            Info(_pluginsPageHost, FAInfoBarSeverity.Warning,
+                AppUtils.Tr("settings.plugins.uninstall_pending", ("name", info.Name)));
+        }
+        else if (ok)
+        {
+            Info(_pluginsPageHost, FAInfoBarSeverity.Success, AppUtils.Tr("settings.plugins.uninstall_success", ("name", info.Name)));
         }
         else
         {
             Info(_pluginsPageHost, FAInfoBarSeverity.Error, AppUtils.Tr("settings.plugins.uninstall_failed", ("error", msg)));
         }
+        RefreshCatalog();
         RebuildPluginList();
+        RenderMarketList();
     }
-
-    // 市场
-
-    private Control BuildMarketSection()
-    {
-        var panel = new StackPanel { Spacing = 8 };
-
-        // 刷新按钮
-        var head = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
-        var refreshBtn = new Button
-        {
-            Content = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 6,
-                Children = { FAIcons.IconCenter(FASymbol.Sync, 14), new TextBlock { Text = Tr("settings.plugins.market_refresh"), VerticalAlignment = VerticalAlignment.Center } },
-            },
-            MinWidth = 96,
-        };
-        refreshBtn.Click += (_, _) => _ = FetchMarketIndexAsync();
-        Grid.SetColumn(refreshBtn, 1);
-        head.Children.Add(refreshBtn);
-        panel.Children.Add(head);
-
-        _marketListHost = new StackPanel { Spacing = 8 };
-        RenderMarketLoading();
-        panel.Children.Add(_marketListHost);
-        return panel;
-    }
-
-    private async Task FetchMarketIndexAsync()
-    {
-        if (_marketListHost is null || _marketLoading)
-        {
-            return;
-        }
-        _marketLoading = true;
-        RenderMarketLoading();
-        List<MarketPlugin>? plugins;
-        string? error;
-        try
-        {
-            (plugins, error) = await PluginMarket.FetchIndexAsync();
-        }
-        catch (Exception e)
-        {
-            Log.Error($"[设置/插件市场] 索引拉取异常: {e.Message}");
-            plugins = null;
-            error = "network";
-        }
-        _marketLoading = false;
-        _lastMarketPlugins = plugins;
-        _marketFetched = error is null;
-        RenderMarket(plugins, error);
-    }
-
-    private void RenderMarketLoading()
-    {
-        if (_marketListHost is null)
-        {
-            return;
-        }
-        _marketListHost.Children.Clear();
-        _marketListHost.Children.Add(new TextBlock { Text = "...", FontSize = 13, Opacity = 0.5, Margin = new Thickness(4, 8, 0, 8) });
-    }
-
-    private void RenderMarket(List<MarketPlugin>? plugins, string? error)
-    {
-        if (_marketListHost is null)
-        {
-            return;
-        }
-        _marketListHost.Children.Clear();
-        if (plugins is null)
-        {
-            var retry = new Button
-            {
-                Content = Tr("settings.plugins.market_retry"),
-                MinWidth = 90,
-                HorizontalAlignment = HorizontalAlignment.Left,
-            };
-            retry.Click += (_, _) => _ = FetchMarketIndexAsync();
-            _marketListHost.Children.Add(new TextBlock
-            {
-                Text = Tr("settings.plugins.market_network_error"),
-                FontSize = 13,
-                Opacity = 0.7,
-                TextWrapping = TextWrapping.Wrap,
-            });
-            _marketListHost.Children.Add(retry);
-            return;
-        }
-        if (plugins.Count == 0)
-        {
-            _marketListHost.Children.Add(new TextBlock
-            {
-                Text = Tr("settings.plugins.market_empty"),
-                FontSize = 13,
-                Opacity = 0.55,
-                Margin = new Thickness(4, 8, 0, 8),
-            });
-            return;
-        }
-        foreach (var mp in plugins)
-        {
-            _marketListHost.Children.Add(BuildMarketCard(mp));
-        }
-    }
-
-    private Control BuildMarketCard(MarketPlugin mp)
-    {
-        var incompatible = mp.LatestApiVersion != PluginApi.HostApiVersion;
-        var local = PluginService.Plugins.FirstOrDefault(p => p.Manifest.Id == mp.Id);
-        var localVersion = local?.Manifest.Version;
-        var updatable = !incompatible && localVersion is not null && PluginMarket.CompareVersions(mp.LatestVersion, localVersion) > 0;
-        var installedSame = !incompatible && localVersion is not null && !updatable;
-
-        var card = new Border
-        {
-            CornerRadius = new CornerRadius(8),
-            BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(Colors.Gray, 0.25),
-            Background = new SolidColorBrush(Colors.Gray, 0.08),
-            Padding = new Thickness(14, 10, 14, 12),
-        };
-        var body = new StackPanel { Spacing = 6 };
-
-        // 行1 名称 版本 标记
-        var row1 = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        row1.Children.Add(new TextBlock { Text = mp.Name, FontSize = 15, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
-        if (!string.IsNullOrEmpty(mp.LatestVersion))
-        {
-            row1.Children.Add(new TextBlock { Text = "v" + mp.LatestVersion, FontSize = 12, Opacity = 0.55, VerticalAlignment = VerticalAlignment.Center });
-        }
-        if (incompatible)
-        {
-            row1.Children.Add(MakeBadge(Tr("settings.plugins.market_incompatible"), FAInfoBarSeverity.Error));
-        }
-        else if (updatable)
-        {
-            row1.Children.Add(MakeBadge(Tr("settings.plugins.market_updatable"), FAInfoBarSeverity.Warning));
-        }
-        body.Children.Add(row1);
-
-        // 行2 作者  描述
-        var row2Text = string.Join("  ", new[] { mp.Author, mp.Description }.Where(s => !string.IsNullOrEmpty(s)));
-        if (row2Text.Length > 0)
-        {
-            body.Children.Add(new TextBlock { Text = row2Text, FontSize = 12, Opacity = 0.6, TextWrapping = TextWrapping.Wrap });
-        }
-
-        // 行3 操作按钮
-        var actionBtn = new Button { MinWidth = 110 };
-        if (incompatible)
-        {
-            actionBtn.Content = Tr("settings.plugins.market_install");
-            actionBtn.IsEnabled = false;
-        }
-        else if (_downloadingPluginId == mp.Id)
-        {
-            actionBtn.Content = AppUtils.Tr("settings.plugins.market_downloading", ("percent", "0"));
-            actionBtn.IsEnabled = false;
-        }
-        else if (installedSame)
-        {
-            actionBtn.Content = Tr("settings.plugins.market_installed");
-            actionBtn.IsEnabled = false;
-        }
-        else
-        {
-            actionBtn.Content = updatable ? Tr("settings.plugins.market_update") : Tr("settings.plugins.market_install");
-            actionBtn.Click += (_, _) => _ = InstallMarketPluginAsync(mp, actionBtn);
-        }
-        body.Children.Add(actionBtn);
-
-        card.Child = body;
-        return card;
-    }
-
-    private static Control MakeBadge(string text, FAInfoBarSeverity severity)
-    {
-        var bg = severity switch
-        {
-            FAInfoBarSeverity.Error => Colors.IndianRed,
-            FAInfoBarSeverity.Warning => Colors.DarkOrange,
-            _ => Colors.Gray,
-        };
-        return new Border
-        {
-            Background = new SolidColorBrush(bg, 0.85),
-            CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(6, 1, 6, 2),
-            VerticalAlignment = VerticalAlignment.Center,
-            Child = new TextBlock { Text = text, FontSize = 11, Foreground = Brushes.White },
-        };
-    }
-
-    private async Task InstallMarketPluginAsync(MarketPlugin mp, Button actionBtn)
-    {
-        if (_pluginsPageHost is null || _downloadingPluginId is not null)
-        {
-            return;
-        }
-        _downloadingPluginId = mp.Id;
-        actionBtn.IsEnabled = false;
-        actionBtn.Content = AppUtils.Tr("settings.plugins.market_downloading", ("percent", "0"));
-        try
-        {
-            var (ok, msg) = await PluginMarket.InstallFromMarketAsync(mp, pct =>
-                Dispatcher.UIThread.Post(() =>
-                {
-                    actionBtn.Content = AppUtils.Tr("settings.plugins.market_downloading", ("percent", ((int)Math.Clamp(pct, 0, 100)).ToString()));
-                }));
-            _downloadingPluginId = null;
-            if (ok)
-            {
-                // 弹窗询问
-                await Common.ConfirmPendingRestartAsync(this,
-                    AppUtils.Tr("settings.plugins.import_success", ("name", msg)),
-                    AppUtils.Tr("settings.restart_required_desc"));
-            }
-            else if (msg == "sha")
-            {
-                Info(_pluginsPageHost, FAInfoBarSeverity.Error, Tr("settings.plugins.market_sha_mismatch"));
-            }
-            else
-            {
-                Info(_pluginsPageHost, FAInfoBarSeverity.Error, AppUtils.Tr("settings.plugins.import_failed", ("error", msg)));
-            }
-        }
-        catch (Exception e)
-        {
-            _downloadingPluginId = null;
-            Info(_pluginsPageHost, FAInfoBarSeverity.Error, AppUtils.Tr("settings.plugins.import_failed", ("error", e.Message)));
-        }
-        RebuildMarketList();
-    }
-
-    private void RebuildMarketList()
-    {
-        if (_marketListHost is null)
-        {
-            return;
-        }
-        _marketListHost.Children.Clear();
-        foreach (var mp in _lastMarketPlugins ?? new List<MarketPlugin>())
-        {
-            _marketListHost.Children.Add(BuildMarketCard(mp));
-        }
-    }
-
-    private List<MarketPlugin>? _lastMarketPlugins;
 
     private async Task ExportConfigAsync(Panel host)
     {
@@ -2127,7 +2914,7 @@ public partial class SettingsWindow : GlimpseonWindow
         {
             var owner = Common.ResolveActiveWindow(this);
             if (!await Common.ConfirmRestartWithAsync(owner,
-                    Tr("settings.restart_required"), Tr("settings.reset_default_confirm")))
+                    Tr("settings.restart_title"), Tr("settings.reset_default_confirm")))
             {
                 Log.Debug("[设置/高级] 配置重置已取消");
                 return;

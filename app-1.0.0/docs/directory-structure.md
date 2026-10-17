@@ -91,10 +91,9 @@ GlimpseonMain.exe/.dll
 
 | 目录                       | 内容                                                | 写入方                                 |
 | ------------------------ | ------------------------------------------------- | ----------------------------------- |
-| config                   | config.json Setup\_Wizard.json home\_layout.json plugins.json | Config / WizardWindow / PageManager / PluginService |
+| config                   | config.json Setup\_Wizard.json home\_layout.json  | Config / WizardWindow / PageManager |
 | log                      | 滚动日志                                              | Logging                             |
-| cache                    | {name}.json 服务缓存 plugin-packages/ 安装暂存 plugin-market.json 市场索引缓存          | AppUtils.SaveCache / PluginService  |
-| plugins                  | <pluginId>/ manifest.json 入口 dll config.json      | PluginService / 插件                  |
+| cache                    | {name}.json 服务缓存                                  | AppUtils.SaveCache                  |
 | temp/update temp/extract | 更新包                                               | Updater                             |
 | profile                  | 总档案 schedule/ 分档案 course|timetable|duty|subject/              | ScheduleStore |
 | user                     | announcements.json notes/ qlgrid\_\* homework\_\* | 通知与组件                               |
@@ -105,6 +104,6 @@ GlimpseonMain.exe/.dll
 
 - 配置 key > 组/项 PascalCase JSON 落盘同构 (Weather/UpdateInterval)
 - locale key > 小写分组下划线 (dialog.instance\_running)
-- 课表档案 > 总档案 总档案-{N}.json 分档案 课表-{N}/时间表-{N}/值周表-{N}/学科-{N}.json 课表来源常量 Glimpseon/classisland/classwidgets/plugin:<id>
+- 课表档案 > 总档案 总档案-{N}.json 分档案 课表-{N}/时间表-{N}/值周表-{N}/学科-{N}.json 课表来源常量 Glimpseon/classisland/classwidgets
 - 日志 tag > \[模块名] 前缀 (\[PRELOAD] \[CM] \[PageManager])
 

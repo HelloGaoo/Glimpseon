@@ -214,6 +214,7 @@ public static class Common
     /// <summary>待重启状态确认</summary>
     private static bool _restartDialogShowing;
 
+    /// <summary>待重启弹窗</summary>
     public static async Task ConfirmPendingRestartAsync(Window? owner, string? title = null, string? content = null)
     {
         if (_restartDialogShowing)

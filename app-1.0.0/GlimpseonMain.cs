@@ -184,6 +184,7 @@ internal static class GlimpseonMain
         splash.SetProgress(60);
         await Task.Delay(60);
         PluginService.InitializePlugins();
+        StartPluginEventTicker();
 
         // 主窗口
         splash.UpdateStatus(AppUtils.Tr("splash.creating_main_window"));
@@ -240,8 +241,93 @@ internal static class GlimpseonMain
         }
     }
 
-    private static void LogConfigSummary()
+    // 插件事件
+    private static DispatcherTimer? _pluginTickTimer;
+    private static string? _lastCourseSignature;
+    private static string? _lastClassStateSignature;
+    private static void StartPluginEventTicker()
     {
+        _pluginTickTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _pluginTickTimer.Tick += (_, _) =>
+        {
+            try
+            {
+                var now = AppUtils.PreciseNow();
+                PluginEventBus.RaiseTimeTick(now);
+                if (!PluginEventBus.HasSubscribers("CourseChanged") && !PluginEventBus.HasSubscribers("ClassStateChanged"))
+                {
+                    _lastCourseSignature = null;
+                    _lastClassStateSignature = null;
+                    return;
+                }
+                List<ScheduleRow> rows;
+                try
+                {
+                    rows = TimetableScheduleProvider.GetTodaySchedule();
+                }
+                catch (Exception e)
+                {
+                    Log.Warning($"[插件事件] 课表计算失败: {e.Message}");
+                    return;
+                }
+
+                // 当前正课行
+                ScheduleRow? classRow = rows.FirstOrDefault(r => r.IsCurrent && !r.IsBreak);
+                var courseSignature = classRow is null ? "" : $"{classRow.Index}|{classRow.Subject}|{classRow.StartTime}-{classRow.EndTime}";
+                if (PluginEventBus.HasSubscribers("CourseChanged") && courseSignature != _lastCourseSignature)
+                {
+                    _lastCourseSignature = courseSignature;
+                    PluginEventBus.RaiseCourseChanged(classRow);
+                }
+
+                // 三态
+                var nowTime = TimeOnly.FromDateTime(now);
+                PluginClassPhase phase;
+                ScheduleRow? next = null;
+                var breakRemaining = 0;
+                if (classRow is not null)
+                {
+                    phase = PluginClassPhase.Class;
+                }
+                else if (rows.FirstOrDefault(r => r.IsCurrent && r.IsBreak) is { } breakRow)
+                {
+                    phase = PluginClassPhase.Break;
+                    next = rows.FirstOrDefault(r => !r.IsBreak && TimeOnly.TryParse(r.StartTime, out var st) && nowTime < st);
+                    if (next is not null && TimeOnly.TryParse(next.StartTime, out var nextStart))
+                    {
+                        breakRemaining = Math.Max(0, (int)(nextStart.ToTimeSpan() - nowTime.ToTimeSpan()).TotalSeconds);
+                    }
+                }
+                else
+                {
+                    phase = PluginClassPhase.AfterSchool;
+                    next = rows.FirstOrDefault(r => !r.IsBreak && TimeOnly.TryParse(r.StartTime, out var st) && nowTime < st);
+                }
+
+                var stateSignature = $"{phase}|{classRow?.Subject}|{next?.Index}|{breakRemaining / 30}";
+                if (stateSignature != _lastClassStateSignature)
+                {
+                    _lastClassStateSignature = stateSignature;
+                    PluginEventBus.RaiseClassStateChanged(new PluginClassState
+                    {
+                        Phase = phase,
+                        Current = classRow,
+                        Next = next,
+                        BreakRemainingSeconds = breakRemaining,
+                    });
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Warning($"[插件事件] 节拍分发异常: {e.Message}");
+            }
+        };
+        _pluginTickTimer.Start();
+        Log.Info("[插件事件] 秒级节拍已启动");
+        _ = PluginMarket.AutoUpdateAsync();
+    }
+
+    private static void LogConfigSummary()    {
         Log.Info($"主窗口 主题={Config.ThemeMode.Value} 颜色={Config.ThemeColor.Value} DPI={Config.DpiScale.Value} 语言={Config.Language.Value}");
         Log.Info($"日志配置 禁用={Config.DisableLog.Value} 级别={Config.LogVerbosity.Value} 条目={Config.LogMaxCount.Value} 保留={Config.LogMaxDays.Value}");
         Log.Info($"其他 关闭={Config.CloseAction.Value} 多实例={Config.AllowMultipleInstances.Value} 调试={Config.DebugMode.Value} 自启={Config.AutoStart.Value}");

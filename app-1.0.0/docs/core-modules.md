@@ -448,14 +448,3 @@ flowchart TD
 ## 12 Win32/Native.cs — P/Invoke (internal)
 
 能力域 > 系统壁纸 (SystemParametersInfoW) 空闲毫秒 (GetLastInputInfo) 字体注册与 WM\_FONTCHANGE 广播 原生 MessageBox 进程内存读取 (OpenProcess/ReadProcessMemory 性能组件用) 窗口枚举与标题 强制置顶 鼠标穿透 (WS\_EX\_TRANSPARENT) > 成员清单以 Native.cs 为准
-
-## 13 Plugins.cs — 插件系统
-
-> 单一事实源为 docs/plugin-system.md 此处仅索引
-
-- 模型 PluginManifest (.id/entrance/apiVersion 校验) GlimpseonPlugin (OnLoad/OnUnload) PluginContext (日志/私有配置/RegisterComponent/RegisterScheduleProvider/PushAnnouncement)
-- 加载 PluginService.InitializePlugins 扫描 data/plugins/ 一级子目录 逐插件独立 PluginLoadContext (ALC 隔离 宿主程序集回落 Default ALC) 失败收集到 LoadedPlugin.Error 不崩宿主
-- 注册表 PluginComponentDefinitions (经 HomeView 注入 ComponentRegistry) 组件工厂 (StyleWidgetFactory 前置查询) ScheduleProviders (ProfileSource plugin:<id> 分发链首位)
-- 启停 data/config/plugins.json enabled 映射 缺省视为启用 重启后生效
-- 安装卸载 .gplugin (zip + 根 manifest.json 兼容单目录下钻) InstallPackage/Uninstall
-- 市场 PluginMarket 索引多源拉取 (Config Plugins/MarketSource > jsDelivr 镜像 > data/cache/plugin-market.json 旧缓存) 下载 sha256 校验 语义化版本比较

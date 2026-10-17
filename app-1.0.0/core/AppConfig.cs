@@ -507,6 +507,7 @@ public static class Config
     // Plugins
     public static readonly ConfigItem<string> MarketSource = new("Plugins", "MarketSource",
         "https://raw.githubusercontent.com/HelloGaoo/Glimpseon-Plugins/main/plugins.json");
+    public static readonly ConfigItem<bool> PluginsAutoUpdate = new("Plugins", "AutoUpdate", false);
 
     // PreciseTime
     public static readonly ConfigItem<bool> UsePreciseTime = new("PreciseTime", "UsePreciseTime", true);

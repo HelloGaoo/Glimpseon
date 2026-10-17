@@ -8,17 +8,17 @@ namespace PluginSample;
 
 public class SamplePlugin : GlimpseonPlugin
 {
+    private TextBlock? _statusText;
+
     public override void OnLoad()
     {
         Context.LogInfo("已加载");
 
-        // 私有配置读写
         var config = Context.ReadConfig();
         var greet = config["greeting"]?.GetValue<string>() ?? "Hello Plugin";
         config["greeting"] = greet;
         Context.WriteConfig(config);
 
-        // 注册主界面组件
         Context.RegisterComponent(new ComponentDefinition
         {
             Id = "sample_hello",
@@ -27,26 +27,55 @@ public class SamplePlugin : GlimpseonPlugin
             Icon = "Puzzle",
             DefaultWidthPx = 400,
             DefaultHeightPx = 200,
-        }, _ => new TextBlock
+        }, _ =>
         {
-            Text = greet,
-            FontSize = 28,
-            FontWeight = FontWeight.Bold,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
+            _statusText = new TextBlock
+            {
+                Text = greet,
+                FontSize = 20,
+                FontWeight = FontWeight.Bold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Center,
+            };
+            return _statusText;
         });
 
-        // 注册课表数据提供者
         Context.RegisterScheduleProvider("示例课表", () =>
         {
-            var now = AppUtils.PreciseNow();
+            var now = Context.GetNow();
             return
             [
                 new ScheduleRow("自习", "", now.ToString("HH:mm"), now.AddMinutes(40).ToString("HH:mm"), 1, false, false, ""),
             ];
         });
 
-        // 公告
+        Context.SubscribeTimeTick(now =>
+        {
+            if (_statusText is { } text)
+            {
+                var course = Context.GetCurrentCourse();
+                text.Text = course is null
+                    ? $"{greet}\n当前无课 {now:HH:mm:ss}"
+                    : $"{greet}\n当前: {course.Subject} {course.StartTime}-{course.EndTime}";
+            }
+        });
+
+        Context.SubscribeClassStateChanged(state =>
+        {
+            var text = state.Phase switch
+            {
+                PluginClassPhase.Class => $"上课了: {state.Current?.Subject}",
+                PluginClassPhase.Break => $"课间 {state.BreakRemainingSeconds / 60 + 1} 分钟后上 {state.Next?.Subject ?? "自习"}",
+                _ => state.Next is null ? "已放学" : $"未上课 下一节 {state.Next.Subject} {state.Next.StartTime}",
+            };
+            Context.LogInfo($"时段变化: {text}");
+            Context.ShowNotification(text);
+        });
+
+        Context.SubscribeAppClosing(() => Context.LogInfo("应用即将退出 保存状态"));
+
         Context.PushAnnouncement("示例插件已加载");
     }
 

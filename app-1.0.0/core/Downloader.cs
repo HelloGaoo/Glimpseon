@@ -59,6 +59,58 @@ public static class DownloadSources
         get { lock (SourceLock) { return _currentSource; } }
     }
 
+    public static string Resolve(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return url;
+        }
+        var key = Config.DownloadSource.Value;
+        if (!Sources.TryGetValue(key, out var src) || key == SourceGithub)
+        {
+            return url;
+        }
+        if (url.StartsWith("https://github.com/", StringComparison.OrdinalIgnoreCase)
+            || url.StartsWith("https://raw.githubusercontent.com/", StringComparison.OrdinalIgnoreCase)
+            || url.StartsWith("https://objects.githubusercontent.com/", StringComparison.OrdinalIgnoreCase))
+        {
+            return src.Prefix + url;
+        }
+        return url;
+    }
+
+    public static IReadOnlyList<string> Candidates(string url)
+    {
+        var list = new List<string>();
+        void Add(string? u)
+        {
+            if (!string.IsNullOrWhiteSpace(u) && !list.Contains(u))
+            {
+                list.Add(u);
+            }
+        }
+        Add(Resolve(url));
+        Add(url);
+        Add(RawToJsDelivr(url));
+        return list;
+    }
+
+    // raw.githubusercontent.com/Owner/Repo/branch/path 到 cdn.jsdelivr.net/gh/Owner/Repo@branch/path
+    public static string? RawToJsDelivr(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            || !string.Equals(uri.Host, "raw.githubusercontent.com", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+        var segs = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segs.Length < 4)
+        {
+            return null;
+        }
+        return $"https://cdn.jsdelivr.net/gh/{segs[0]}/{segs[1]}@{segs[2]}/{string.Join('/', segs[3..])}";
+    }
+
     public static void SetDownloadSrc(string sourceKey)
     {
         lock (SourceLock)
