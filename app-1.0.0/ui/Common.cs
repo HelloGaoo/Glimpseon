@@ -71,6 +71,26 @@ public static class FAIcons
         FontFamily = SymbolsFont,
         Glyph = char.ConvertFromUtf32((int)symbol),
     };
+
+    // 图标前景色 字体图标
+    public static void SetIconBrush(Control icon, IBrush brush)
+    {
+        if (icon is FAFontIcon fi)
+        {
+            fi.Foreground = brush;
+        }
+        else if (icon is TextBlock tb)
+        {
+            tb.Foreground = brush;
+        }
+    }
+
+    public static FAFontIcon CursorIcon(double fontSize = 16) => new()
+    {
+        FontFamily = SymbolsFont,
+        Glyph = "\uE8B0",
+        FontSize = fontSize,
+    };
 }
 
 public static class Common

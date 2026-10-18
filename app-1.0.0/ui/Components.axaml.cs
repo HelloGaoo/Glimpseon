@@ -1259,7 +1259,6 @@ public static class StyleWidgetFactory
             "system_performance" => new PerformanceMonitorWidget(definition),
             "system_netspeed" => new NativeNetworkSpeedWidget(definition),
             "study_meter" => new NativeDecibelMeterWidget(definition),
-            "writing_pad" => new WritingPadWidget(definition),
             _ => null,
         };
         return widget;
@@ -6389,238 +6388,6 @@ public sealed class ClassAlbumWidget : WidgetCardBase
     }
 }
 
-/// <summary>
-/// 书写板
-/// 卡片点击开启全屏透明书写层 笔/橡皮/撤销/清除 等效 Inkeys 分层渲染
-/// </summary>
-public sealed class WritingPadWidget : WidgetCardBase
-{
-    private static WritingPadOverlay? _overlay;
-
-    public WritingPadWidget(ComponentDefinition definition) : base(definition)
-    {
-        var stack = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Spacing = 4,
-        };
-        var btn = new Button
-        {
-            Content = AppUtils.Tr("writing_pad.open"),
-            HorizontalContentAlignment = HorizontalAlignment.Center,
-            MinWidth = 120,
-        };
-        btn.Click += (_, _) => ToggleOverlay();
-        stack.Children.Add(btn);
-        Card.Child = stack;
-        Content = Card;
-        ApplyCardStyle();
-    }
-
-    public static void ToggleOverlay()
-    {
-        if (_overlay is { IsVisible: true })
-        {
-            _overlay.Close();
-            _overlay = null;
-            return;
-        }
-        _overlay = new WritingPadOverlay();
-        _overlay.Show();
-    }
-}
-
-/// <summary>全屏书写层</summary>
-public sealed class WritingPadOverlay : Window
-{
-    private readonly InkPadControl _pad = new();
-
-    public WritingPadOverlay()
-    {
-        TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
-        Background = Brushes.Transparent;
-        SystemDecorations = Avalonia.Controls.WindowDecorations.None;
-        Topmost = true;
-        ShowInTaskbar = false;
-        WindowState = WindowState.Maximized;
-
-        var padHost = new Border { Child = _pad };
-        var toolbar = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Bottom,
-            Margin = new Thickness(0, 0, 0, 24),
-            Spacing = 8,
-        };
-        AddTool(toolbar, "🖊", () => _pad.Tool.Mode = ToolMode.Pen);
-        AddTool(toolbar, "🧽", () => _pad.Tool.Mode = ToolMode.Eraser);
-        AddTool(toolbar, "↩", () => _pad.Undo());
-        AddTool(toolbar, "🗑", () => _pad.ClearAll());
-        AddTool(toolbar, "✕", () => Close());
-
-        var root = new Panel();
-        root.Children.Add(padHost);
-        root.Children.Add(toolbar);
-        Content = root;
-    }
-
-    private void AddTool(StackPanel bar, string glyph, Action action)
-    {
-        var btn = new Button
-        {
-            Content = glyph,
-            FontSize = 18,
-            Width = 44,
-            Height = 40,
-            Padding = new Thickness(0),
-        };
-        btn.Click += (_, _) => action();
-        bar.Children.Add(btn);
-    }
-}
-
-internal enum ToolMode
-{
-    Pen,
-    Eraser,
-}
-
-internal sealed class WritingTool
-{
-    public ToolMode Mode = ToolMode.Pen;
-    public double Width = 3;
-    public Color Color = Colors.Red;
-}
-
-/// <summary>墨迹渲染控件: 笔画列表 直绘 橡皮=删除命中笔画 撤销=弹栈</summary>
-internal sealed class InkPadControl : Control
-{
-    private readonly List<List<Point>> _strokes = new();
-    private readonly WritingTool _tool;
-    private List<Point>? _current;
-
-    /// <summary>渲染与指针处理实际使用的工具实例 工具栏必须改这一个(此前 Overlay 自持实例导致橡皮失效)</summary>
-    public WritingTool Tool => _tool;
-
-    public InkPadControl()
-    {
-        _tool = new WritingTool();
-        ClipToBounds = true;
-    }
-
-    public void Undo()
-    {
-        if (_strokes.Count > 0)
-        {
-            _strokes.RemoveAt(_strokes.Count - 1);
-            InvalidateVisual();
-        }
-    }
-
-    public void ClearAll()
-    {
-        _strokes.Clear();
-        InvalidateVisual();
-    }
-
-    protected override void OnPointerPressed(PointerPressedEventArgs e)
-    {
-        var pt = e.GetCurrentPoint(this);
-        if (pt.Properties.IsLeftButtonPressed)
-        {
-            _current = new List<Point> { pt.Position };
-            e.Pointer.Capture(this);
-            e.Handled = true;
-        }
-    }
-
-    protected override void OnPointerMoved(PointerEventArgs e)
-    {
-        if (_current is null || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-        {
-            return;
-        }
-        var pt = e.GetCurrentPoint(this).Position;
-        if (_tool.Mode == ToolMode.Eraser)
-        {
-            // 橡皮: 删除经过的笔画
-            for (var i = _strokes.Count - 1; i >= 0; i--)
-            {
-                foreach (var p in _strokes[i])
-                {
-                    if (Math.Abs(p.X - pt.X) < 12 && Math.Abs(p.Y - pt.Y) < 12)
-                    {
-                        _strokes.RemoveAt(i);
-                        break;
-                    }
-                }
-            }
-        }
-        else
-        {
-            _current.Add(pt);
-        }
-        InvalidateVisual();
-    }
-
-    protected override void OnPointerReleased(PointerReleasedEventArgs e)
-    {
-        if (_current is { Count: > 0 } && _tool.Mode == ToolMode.Pen)
-        {
-            _strokes.Add(_current);
-        }
-        _current = null;
-        e.Pointer.Capture(null);
-        InvalidateVisual();
-    }
-
-    public override void Render(DrawingContext ctx)
-    {
-        var dark = ThemeSense.IsDark(this);
-        var pen = new Pen(new SolidColorBrush(dark ? Colors.White : Colors.Black), _tool.Width)
-        {
-            LineCap = PenLineCap.Round,
-            LineJoin = PenLineJoin.Round,
-        };
-        foreach (var stroke in _strokes)
-        {
-            if (stroke.Count < 2)
-            {
-                continue;
-            }
-            var geo = new StreamGeometry();
-            using (var g = geo.Open())
-            {
-                g.BeginFigure(stroke[0], false);
-                for (var i = 1; i < stroke.Count; i++)
-                {
-                    g.LineTo(stroke[i]);
-                }
-                g.EndFigure(false);
-            }
-            ctx.DrawGeometry(null, pen, geo);
-        }
-        if (_current is { Count: > 1 } cur && _tool.Mode == ToolMode.Pen)
-        {
-            var geo = new StreamGeometry();
-            using (var g = geo.Open())
-            {
-                g.BeginFigure(cur[0], false);
-                for (var i = 1; i < cur.Count; i++)
-                {
-                    g.LineTo(cur[i]);
-                }
-                g.EndFigure(false);
-            }
-            ctx.DrawGeometry(null, pen, geo);
-        }
-    }
-}
-
-
 // NativeWidgets.cs
 
 /// <summary>原版模板颜色/字体常量与取值助手</summary>
@@ -6741,6 +6508,12 @@ public sealed class NativeSquareClock1Widget : WidgetCardBase
         }
 
         private bool _renderLogged;
+        // 表盘(底色+刻度+数字)离屏缓存 尺寸/主题/圆角变更才重建 每帧只重绘指针
+        private RenderTargetBitmap? _dial;
+        private PixelSize _dialPixels;
+        private bool _dialDark;
+        private int _dialRadius;
+        private bool _dialUnavailable;
 
         public override void Render(DrawingContext ctx)
         {
@@ -6755,24 +6528,78 @@ public sealed class NativeSquareClock1Widget : WidgetCardBase
             {
                 return;
             }
+            var dark = _owner.Dark();
+            var scale = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
+            var dial = _dialUnavailable ? null : DialLayer(w, h, dark, scale);
             var s = Math.Min(w, h) / 400.0;
             var matrix = Matrix.CreateTranslation((float)(w / 2), (float)(h / 2))
                          * Matrix.CreateScale((float)s, (float)s)
                          * Matrix.CreateTranslation(-200, -200);
             using (ctx.PushTransform(matrix))
             {
-                RenderFace(ctx);
+                if (dial is null)
+                {
+                    RenderFace(ctx);
+                    return;
+                }
+                ctx.DrawImage(dial, new Rect(0, 0, 400, 400));
+                RenderHands(ctx, dark);
+            }
+        }
+
+        private RenderTargetBitmap? DialLayer(double w, double h, bool dark, double scale)
+        {
+            var px = new PixelSize(
+                Math.Max(1, (int)Math.Round(w * scale)),
+                Math.Max(1, (int)Math.Round(h * scale)));
+            var radius = _owner.FaceRadius;
+            if (_dial is not null && _dialPixels == px && _dialDark == dark && _dialRadius == radius)
+            {
+                return _dial;
+            }
+            try
+            {
+                _dial?.Dispose();
+                var layer = new RenderTargetBitmap(px, new Vector(96 * scale, 96 * scale));
+                var s = Math.Min(w, h) / 400.0;
+                var matrix = Matrix.CreateTranslation((float)(w / 2), (float)(h / 2))
+                             * Matrix.CreateScale((float)s, (float)s)
+                             * Matrix.CreateTranslation(-200, -200);
+                using (var dc = layer.CreateDrawingContext(true))
+                using (dc.PushTransform(matrix))
+                {
+                    RenderDial(dc, dark);
+                }
+                _dial = layer;
+                _dialPixels = px;
+                _dialDark = dark;
+                _dialRadius = radius;
+                return _dial;
+            }
+            catch (Exception e)
+            {
+                Glimpseon.Core.Log.Warning($"表盘缓存层创建失败 回退逐帧重绘: {e.Message}");
+                _dial?.Dispose();
+                _dial = null;
+                _dialUnavailable = true;
+                return null;
             }
         }
 
         private void RenderFace(DrawingContext ctx)
         {
             var dark = _owner.Dark();
+            RenderDial(ctx, dark);
+            RenderHands(ctx, dark);
+        }
+
+        // 静态部分
+        private void RenderDial(DrawingContext ctx, bool dark)
+        {
             var face = NativeTheme.Parse(dark ? "#000000" : "#ffffff");
             var tickMajor = NativeTheme.Parse(dark ? "#ffffff" : "#1d1d1f");
             var tickMinor = NativeTheme.Parse(dark ? "#888888" : "#777777");
             var ink = NativeTheme.Parse(dark ? "#ffffff" : "#1d1d1f");
-            var second = NativeTheme.Parse("#C9A66B");
 
             // 表盘 rx=$radius(卡片圆角 x2)
             ctx.FillRectangle(NativeTheme.Brush(face), new Rect(0, 0, 400, 400), (float)_owner.FaceRadius);
@@ -6792,25 +6619,27 @@ public sealed class NativeSquareClock1Widget : WidgetCardBase
             DrawNumeral(ctx, typeface, "3", 320, 200, ink);
             DrawNumeral(ctx, typeface, "6", 200, 320, ink);
             DrawNumeral(ctx, typeface, "9", 80, 200, ink);
+        }
 
-            // 时针 M -5 18 L -3 -72 L 0 -82 L 3 -72 L 5 18 Z
-            DrawHand(ctx, ink, _hourAngle, new Point(-5, 18),
-                new[] { new Point(-3, -72), new Point(0, -82), new Point(3, -72), new Point(5, 18) }, shadow: true);
-            // 分针 M -3.5 22 L -2.5 -118 L 0 -128 L 2.5 -118 L 3.5 22 Z
-            DrawHand(ctx, ink, _minuteAngle, new Point(-3.5, 22),
-                new[] { new Point(-2.5, -118), new Point(0, -128), new Point(2.5, -118), new Point(3.5, 22) }, shadow: true);
+        // 每帧重绘部分: 时/分/秒针 + 中轴
+        private void RenderHands(DrawingContext ctx, bool dark)
+        {
+            var ink = dark ? InkDarkBrush : InkLightBrush;
+            var face = dark ? FaceDarkBrush : FaceLightBrush;
+
+            DrawHand(ctx, ink, HourHandGeo, _hourAngle, shadow: true);
+            DrawHand(ctx, ink, MinuteHandGeo, _minuteAngle, shadow: true);
 
             // 秒针: (0,28)-(0,-158) + 尾 (0,0)-(0,32) 圆帽
             using (ctx.PushTransform(Matrix.CreateRotation(_secondAngle * Math.PI / 180.0) * Matrix.CreateTranslation(200, 200)))
             {
-                var pen = new Pen(NativeTheme.Brush(second), 2, null, PenLineCap.Round, PenLineJoin.Round);
-                ctx.DrawLine(pen, new Point(0, 28), new Point(0, -158));
-                ctx.DrawLine(pen, new Point(0, 0), new Point(0, 32));
+                ctx.DrawLine(SecondPen, new Point(0, 28), new Point(0, -158));
+                ctx.DrawLine(SecondPen, new Point(0, 0), new Point(0, 32));
             }
 
             // 中轴: r9 秒针色 + r4.5 表盘色
-            ctx.DrawEllipse(NativeTheme.Brush(second), null, new Point(200, 200), 9, 9);
-            ctx.DrawEllipse(NativeTheme.Brush(face), null, new Point(200, 200), 4.5, 4.5);
+            ctx.DrawEllipse(SecondBrush, null, new Point(200, 200), 9, 9);
+            ctx.DrawEllipse(face, null, new Point(200, 200), 4.5, 4.5);
         }
 
         private static void DrawNumeral(DrawingContext ctx, Typeface typeface, string text, int cx, int cy, Color color)
@@ -6820,27 +6649,47 @@ public sealed class NativeSquareClock1Widget : WidgetCardBase
             ctx.DrawText(ft, new Point(cx - ft.WidthIncludingTrailingWhitespace / 2, cy + 17.5 - ft.Baseline));
         }
 
-        private void DrawHand(DrawingContext ctx, Color ink, double angle, Point start, Point[] pts, bool shadow)
+        // 固定几何与刷子提为静态 每帧只做旋转变换 免逐帧新建 PathGeometry/刷子
+        private static readonly PathGeometry HourHandGeo = BuildHand(new Point(-5, 18),
+            [new Point(-3, -72), new Point(0, -82), new Point(3, -72), new Point(5, 18)]);
+
+        private static readonly PathGeometry MinuteHandGeo = BuildHand(new Point(-3.5, 22),
+            [new Point(-2.5, -118), new Point(0, -128), new Point(2.5, -118), new Point(3.5, 22)]);
+
+        private static readonly IBrush ShadowDarkBrush = new SolidColorBrush(Colors.Black, 0.28);
+        private static readonly IBrush ShadowLightBrush = new SolidColorBrush(Colors.Black, 0.12);
+        private static readonly IBrush InkDarkBrush = NativeTheme.Brush(NativeTheme.Parse("#ffffff"));
+        private static readonly IBrush InkLightBrush = NativeTheme.Brush(NativeTheme.Parse("#1d1d1f"));
+        private static readonly IBrush FaceDarkBrush = NativeTheme.Brush(NativeTheme.Parse("#000000"));
+        private static readonly IBrush FaceLightBrush = NativeTheme.Brush(NativeTheme.Parse("#ffffff"));
+        private static readonly IBrush SecondBrush = NativeTheme.Brush(NativeTheme.Parse("#C9A66B"));
+        private static readonly Pen SecondPen = new(NativeTheme.Brush(NativeTheme.Parse("#C9A66B")), 2, null,
+            PenLineCap.Round, PenLineJoin.Round);
+
+        private static PathGeometry BuildHand(Point start, Point[] pts)
         {
             var fig = new PathFigure { StartPoint = start, IsClosed = true, IsFilled = true };
             foreach (var p in pts)
             {
                 fig.Segments!.Add(new LineSegment { Point = p });
             }
-            var geo = new PathGeometry { Figures = { fig } };
+            return new PathGeometry { Figures = { fig } };
+        }
+
+        private void DrawHand(DrawingContext ctx, IBrush brush, PathGeometry geo, double angle, bool shadow)
+        {
             var matrix = Matrix.CreateRotation(angle * Math.PI / 180.0) * Matrix.CreateTranslation(200, 200);
             using (ctx.PushTransform(matrix))
             {
                 if (shadow)
                 {
                     // 原版 feDropShadow dy=1.5 blur=2 opacity .5/.18: 半透明偏移形近似
-                    var op = _owner.Dark() ? 0.28 : 0.12;
                     using (ctx.PushTransform(Matrix.CreateTranslation(0, 1.5)))
                     {
-                        ctx.DrawGeometry(new SolidColorBrush(Colors.Black, op), null, geo);
+                        ctx.DrawGeometry(_owner.Dark() ? ShadowDarkBrush : ShadowLightBrush, null, geo);
                     }
                 }
-                ctx.DrawGeometry(NativeTheme.Brush(ink), null, geo);
+                ctx.DrawGeometry(brush, null, geo);
             }
         }
     }

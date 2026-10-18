@@ -369,4 +369,24 @@ internal static class Native
             SetWindowLongW(hwnd, GwlExstyle, updated);
         }
     }
+
+    private const uint WdaNone = 0x0;
+    private const uint WdaExcludeFromCapture = 0x11;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
+
+    // 屏幕捕获排除
+    public static void SetCaptureExclusion(IntPtr hwnd, bool excluded)
+    {
+        if (hwnd == nint.Zero)
+        {
+            return;
+        }
+        var affinity = excluded ? WdaExcludeFromCapture : WdaNone;
+        if (!SetWindowDisplayAffinity(hwnd, affinity) && excluded)
+        {
+            Log.Warning($"屏幕捕获排除失败: {Marshal.GetLastWin32Error()}");
+        }
+    }
 }

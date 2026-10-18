@@ -228,6 +228,8 @@ internal static class GlimpseonMain
         window.WindowState = WindowState.Maximized;
         window.SwitchToHome();
 
+        new FloatingBallWindow().Show();
+
         AppUtils.SyncAutostartCfg();
 
         lifetime.ShutdownMode = ShutdownMode.OnMainWindowClose;

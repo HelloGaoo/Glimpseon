@@ -84,7 +84,7 @@ DragDrop 允许 + Pointer 事件 Tunnel 挂接 (Pressed/Moved/Released/Wheel)
 | 新闻   | NewsWidget (ItemCount=4 单条点击 OpenNews)                                                                                                                           |
 | 课表联动 | TimetablePreviewWidget (行进度条) / TimetableNowLessonWidget (预备态 RenderPrepare + 常态 RenderNormal TeacherDisplay 缩写)                                                 |
 | 媒体   | MediaPlayerWidget (进度/歌词/封面/控制)                                                                                                                                  |
-| 工具系  | 快捷启动 (图标经 Native 提取落 data/icon) 书写板 便签 计算器 性能 网速 分贝仪 作业板 相册 公告栏等                                                                                                 |
+| 工具系  | 快捷启动 (图标经 Native 提取落 data/icon) 便签 计算器 性能 网速 分贝仪 作业板 相册 公告栏等                                                                                                 |
 
 ## 6 WallpaperView — 壁纸页
 

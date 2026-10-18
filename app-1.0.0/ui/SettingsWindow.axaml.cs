@@ -385,6 +385,7 @@ public partial class SettingsWindow : GlimpseonWindow
         stack.Children.Add(CardSwitch(FASymbol.View, Tr("wizard.auto_open_idle"), Tr("wizard.auto_open_idle_desc"), Config.AutoOpenOnIdle));
         stack.Children.Add(CardSpin(FASymbol.ClockFilled, Tr("settings.idle_minutes"), Tr("settings.idle_minutes_desc"), Config.IdleMinutes, 1, 60));
         stack.Children.Add(CardSwitch(FASymbol.FullScreenMaximize, Tr("wizard.auto_open_maximize"), Tr("wizard.auto_open_maximize_desc"), Config.AutoOpenMaximize));
+        stack.Children.Add(CardSwitch(FASymbol.SlideShow, Tr("settings.writing_freeze"), Tr("settings.writing_freeze_desc"), Config.WritingFreeze));
         return stack;
     }
 

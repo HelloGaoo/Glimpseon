@@ -71,7 +71,6 @@ GridWidthPx/HeightPx = n*cellSize + (n-1)*gap
 | Launcher | 快捷启动   | quick\_launch\_dock           |
 | Launcher | 快捷启动II | quick\_launch\_grid           |
 | Tools    | 计算器    | Math\_calculator              |
-| Tools    | 书写板    | writing\_pad                  |
 | Tools    | 便签     | sticky\_note                  |
 | System   | 性能监测   | system\_performance           |
 | System   | 网速监控   | system\_netspeed              |
@@ -177,7 +176,7 @@ flowchart TD
 ## 10 扩展新组件步骤
 
 1. ComponentModels.cs > All 数组追加 Def(id 显示名 分类 图标 尺寸约束 ResizeMode DefaultConfig)
-2. ui/Components/ > StyleWidgetFactory.Create 加 `{type}_{style}` 分支返回 DraggableContainer 派生控件 > 继承 WidgetCardBase (ApplyTheme/BindOpacity 自动生效) > 未完成可暂用 PlaceholderWidget 占位
+2. Components.axaml.cs > StyleWidgetFactory.Create 加 `{type}_{style}` 分支返回 DraggableContainer 派生控件 > 继承 WidgetCardBase (ApplyTheme/BindOpacity 自动生效) > 未完成可暂用 PlaceholderWidget 占位
 3. 数据读取 > 服务缓存 (GetCachedContent) 或组件私有文件 > 禁止直连 UI 外部状态
 4. locale > 新文案补 zh\_CN/zh\_TW/en\_US 三份
 5. 验证 > DebugMode 启动 > 编辑态添加 > 拖拽缩放 (缩放上限 300%) > 改配置 (确认重建后位置保留) > 重启确认 home\_layout.json 回读无丢失
