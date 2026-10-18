@@ -26,6 +26,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using FluentAvalonia.UI.Controls;
 using Glimpseon.Core;
+using Glimpseon.Core.Win32;
 
 namespace Glimpseon.UI;
 
@@ -147,6 +148,7 @@ public class FloatingBallWindow : Window
     private const double ClearKnobInset = 5;
     private Border _clearBar = null!;
     private Border? _clearKnob;
+    private TranslateTransform? _clearShift;
     private DispatcherTimer? _clearBackTimer;
     private bool _clOpen;
     private bool _clearDragging;
@@ -161,6 +163,25 @@ public class FloatingBallWindow : Window
     private bool _pnOpen;
     private readonly Interp _pnH = new();
     private readonly Interp _pnO = new();
+
+    private const double VolBarW = 280;
+    private const double VolBarH = ClearBarH;
+    private const double VolKnobSize = 44;
+    private const double VolKnobInset = 5;
+    private Border _volBar = null!;
+    private Border? _volKnob;
+    private TextBlock? _volText;
+    private BarButton? _volBtn;
+    private bool _volOpen;
+    private bool _volDragging;
+    private double _volDragX;
+    private long _volSetMs;
+    private int _volPct = -1;
+    private TranslateTransform? _volShift;
+    private readonly Interp _volH = new();
+    private readonly Interp _volO = new();
+
+    private static double VolTravel => VolBarW - 34 - VolKnobSize - VolKnobInset * 2;
     private BarButton? _penBtn;
     private BarButton? _wbMouse, _wbPenTool, _wbEraser, _wbTrans, _wbWhite, _wbFreeze;
     private readonly Interp _fillA = new();
@@ -243,6 +264,11 @@ public class FloatingBallWindow : Window
             {
                 _penBtn = btn;
                 btn.Clicked += OnPenClick;
+            }
+            else if (label == "音量")
+            {
+                _volBtn = btn;
+                btn.Clicked += OnVolumeClick;
             }
             else if (action is not null)
             {
@@ -355,6 +381,14 @@ public class FloatingBallWindow : Window
         _penBar.ClipToBounds = true;
         Canvas.SetTop(_penBar, CanvasH + WritingBarGap + WritingBarH + WritingBarGap);
         _canvas.Children.Add(_penBar);
+
+        // 音量条
+        _volBar = BuildVolBar();
+        _volBar.Height = 0;
+        _volBar.Opacity = 0;
+        _volBar.IsHitTestVisible = false;
+        _volBar.ClipToBounds = true;
+        _canvas.Children.Add(_volBar);
         return _canvas;
     }
 
@@ -376,6 +410,8 @@ public class FloatingBallWindow : Window
             Cursor = new Cursor(StandardCursorType.Hand),
             Child = ClearKnobIcon(),
         };
+        _clearShift = new TranslateTransform();
+        _clearKnob.RenderTransform = _clearShift;
         _clearKnob.PointerPressed += OnClearKnobPressed;
         _clearKnob.PointerMoved += OnClearKnobMoved;
         _clearKnob.PointerReleased += (_, _) => EndClearDrag();
@@ -412,6 +448,197 @@ public class FloatingBallWindow : Window
         var bar = MakeBar(WritingBarW);
         bar.Child = new PenSettingsRow();
         return bar;
+    }
+
+    // 音量条
+    private Border BuildVolBar()
+    {
+        _volKnob = new Border
+        {
+            Width = VolKnobSize,
+            Height = VolKnobSize,
+            CornerRadius = new CornerRadius(VolKnobSize / 2),
+            Background = ClearKnobBrush(),
+            BoxShadow = BoxShadows.Parse("0 2 8 0 #33000000"),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(VolKnobInset, 0, 0, 0),
+            Cursor = new Cursor(StandardCursorType.Hand),
+            Child = VolKnobIcon(),
+        };
+        _volShift = new TranslateTransform();
+        _volKnob.RenderTransform = _volShift;
+        _volKnob.PointerPressed += OnVolKnobPressed;
+        _volKnob.PointerMoved += OnVolKnobMoved;
+        _volKnob.PointerReleased += (_, _) => EndVolDrag();
+        _volKnob.PointerCaptureLost += (_, _) => EndVolDrag();
+
+        _volText = new TextBlock
+        {
+            Text = "音量",
+            FontSize = 14,
+            FontWeight = FontWeight.Medium,
+            Foreground = ClearTextBrush(),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(VolKnobSize + 16, 0, 18, 0),
+            IsHitTestVisible = false,
+        };
+        var track = new Border
+        {
+            CornerRadius = new CornerRadius((VolBarH - 20 - 2) / 2),
+            Background = ClearTrackBrush(),
+            BorderBrush = ClearTrackBorderBrush(),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(16, 10, 16, 10),
+            Child = new Panel { Children = { _volText, _volKnob } },
+        };
+        var bar = MakeBar(VolBarW);
+        bar.Child = track;
+        return bar;
+    }
+
+    // 滑钮图标
+    private Control VolKnobIcon()
+    {
+        var icon = FAIcons.Icon(FASymbol.Volume, 20);
+        icon.HorizontalAlignment = HorizontalAlignment.Center;
+        icon.VerticalAlignment = VerticalAlignment.Center;
+        icon.IsHitTestVisible = false;
+        FAIcons.SetIconBrush(icon, new SolidColorBrush(Color.Parse(DarkMode ? "#E0E0E0" : "#5A5A5A")));
+        return icon;
+    }
+
+    // 音量条开关
+    private void OnVolumeClick()
+    {
+        if (_volOpen)
+        {
+            CloseVolumeBar();
+        }
+        else
+        {
+            OpenVolumeBar();
+        }
+    }
+
+    private void OpenVolumeBar()
+    {
+        if (_volOpen)
+        {
+            return;
+        }
+        _volOpen = true;
+        RefreshVolume();
+        _volH.Set(VolBarH, 3);
+        _volO.Set(1, 3);
+        UpdateWindowHeight();
+        StartAnim();
+        SetChecked(_volBtn, true);
+    }
+
+    private void CloseVolumeBar()
+    {
+        if (!_volOpen)
+        {
+            return;
+        }
+        _volOpen = false;
+        _volDragging = false;
+        _volH.Set(0, 5);
+        _volO.Set(0, 5);
+        UpdateWindowHeight();
+        StartAnim();
+        SetChecked(_volBtn, false);
+    }
+
+    private void RefreshVolume() =>
+        SetVolKnob(VolTravel * Math.Clamp(Audio.Volume, 0, 1));
+
+    private void SetVolKnob(double travel)
+    {
+        if (_volKnob is null)
+        {
+            return;
+        }
+        var t = Math.Clamp(travel, 0, VolTravel);
+        if (_volShift is not null)
+        {
+            _volShift.X = t;
+        }
+        var pct = (int)Math.Round(t / VolTravel * 100);
+        if (_volText is not null && pct != _volPct)
+        {
+            _volPct = pct;
+            _volText.Text = $"音量 {pct}%";
+        }
+    }
+
+    private void OnVolKnobPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(_volKnob).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+        _volDragging = true;
+        _volDragX = e.GetPosition(_volBar).X - (_volShift?.X ?? 0);
+        e.Pointer.Capture(_volKnob);
+        e.Handled = true;
+    }
+
+    private void OnVolKnobMoved(object? sender, PointerEventArgs e)
+    {
+        if (!_volDragging || !e.GetCurrentPoint(_volKnob).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+        var travel = Math.Clamp(e.GetPosition(_volBar).X - _volDragX, 0, VolTravel);
+        SetVolKnob(travel);
+        PushVolume(travel);
+    }
+
+    private void EndVolDrag()
+    {
+        if (!_volDragging)
+        {
+            return;
+        }
+        _volDragging = false;
+        PushVolume(_volShift?.X ?? 0, force: true);
+    }
+
+    private void PushVolume(double travel, bool force = false)
+    {
+        var now = Environment.TickCount64;
+        if (!force && now - _volSetMs < 40)
+        {
+            return;
+        }
+        _volSetMs = now;
+        Audio.SetVolume(travel / VolTravel);
+    }
+
+    private double VolBarX()
+    {
+        if (_volBtn?.TranslatePoint(new Point(_volBtn.Bounds.Width / 2, 0), _canvas) is { } center)
+        {
+            return Math.Clamp(center.X - VolBarW / 2, 2, Math.Max(2, WinW - 2 - VolBarW));
+        }
+        return WritingBarX();
+    }
+
+    private double VolBarTop()
+    {
+        var top = CanvasH + WritingBarGap;
+        if (_wbOpen || _wbH.V > 1)
+        {
+            top += WritingBarH + WritingBarGap;
+        }
+        if (_clOpen || _clH.V > 1 || _pnOpen || _pnH.V > 1)
+        {
+            top += ClearBarH + WritingBarGap;
+        }
+        return top;
     }
 
     // 滑钮图标
@@ -690,6 +917,10 @@ public class FloatingBallWindow : Window
         {
             h += WritingBarGap + ClearBarH;
         }
+        if (_volOpen || _volH.V > 1)
+        {
+            h += WritingBarGap + VolBarH;
+        }
         if (Math.Abs(Height - h) > 0.5)
         {
             Height = h;
@@ -715,7 +946,7 @@ public class FloatingBallWindow : Window
         }
         _clearDragging = true;
         _clearBackTimer?.Stop();
-        _clearDragX = e.GetPosition(_clearBar).X;
+        _clearDragX = e.GetPosition(_clearBar).X - (_clearShift?.X ?? 0);
         e.Pointer.Capture(_clearKnob);
         e.Handled = true;
     }
@@ -754,7 +985,7 @@ public class FloatingBallWindow : Window
             _clearBackTimer?.Stop();
             return;
         }
-        var current = _clearKnob.Margin.Left - ClearKnobInset;
+        var current = _clearShift?.X ?? 0;
         var next = Math.Max(0, current - Math.Max(6, current * 0.35));
         SetClearKnob(next);
         if (next <= 0)
@@ -771,9 +1002,9 @@ public class FloatingBallWindow : Window
 
     private void SetClearKnob(double travel)
     {
-        if (_clearKnob is not null)
+        if (_clearShift is not null)
         {
-            _clearKnob.Margin = new Thickness(ClearKnobInset + travel, 0, 0, 0);
+            _clearShift.X = travel;
         }
     }
 
@@ -1007,6 +1238,11 @@ public class FloatingBallWindow : Window
         _penBar.Height = Math.Max(0, _pnH.V);
         _penBar.Opacity = _pnO.V;
         _penBar.IsHitTestVisible = _pnH.V > 1;
+        Canvas.SetLeft(_volBar, VolBarX());
+        Canvas.SetTop(_volBar, VolBarTop());
+        _volBar.Height = Math.Max(0, _volH.V);
+        _volBar.Opacity = _volO.V;
+        _volBar.IsHitTestVisible = _volH.V > 1;
     }
 
     private double BarReveal => Math.Clamp((_barW.V - HiddenBarW) / (BarW - HiddenBarW), 0, 1);
@@ -1078,6 +1314,7 @@ public class FloatingBallWindow : Window
             _expanded = false;
             _wbRestoreOnExpand = _wbOpen && !_pendingMouseCommit;
             CloseWritingBar();
+            CloseVolumeBar();
             SetCollapseTargets();
             _pendingShrink = true;
             StartAnim();
@@ -1145,6 +1382,7 @@ public class FloatingBallWindow : Window
             _expanded = false;
             _wbRestoreOnExpand = _wbOpen && !_pendingMouseCommit;
             CloseWritingBar();
+            CloseVolumeBar();
             SetCollapseTargets();
             _pendingShrink = true;
             StartAnim();
@@ -1184,6 +1422,8 @@ public class FloatingBallWindow : Window
         _clO.Step(dtMs);
         _pnH.Step(dtMs);
         _pnO.Step(dtMs);
+        _volH.Step(dtMs);
+        _volO.Step(dtMs);
         _fillA.Step(dtMs);
         _strokeR.Step(dtMs);
         _strokeG.Step(dtMs);
@@ -1208,6 +1448,8 @@ public class FloatingBallWindow : Window
             _clO.V = _clO.T;
             _pnH.V = _pnH.T;
             _pnO.V = _pnO.T;
+            _volH.V = _volH.T;
+            _volO.V = _volO.T;
             _fillA.V = _fillA.T;
             _strokeR.V = _strokeR.T;
             _strokeG.V = _strokeG.T;
@@ -1223,7 +1465,7 @@ public class FloatingBallWindow : Window
 
         var done = _barX.Done && _barW.Done && _barO.Done
             && _wbH.Done && _wbO.Done && _clH.Done && _clO.Done
-            && _pnH.Done && _pnO.Done
+            && _pnH.Done && _pnO.Done && _volH.Done && _volO.Done
             && _fillA.Done && _strokeR.Done && _strokeG.Done && _strokeB.Done && _strokeA.Done;
         foreach (var t in _btnX)
         {
