@@ -272,7 +272,6 @@
     "crash_dialog_ignore": "忽略",
     "crash_dialog_exit": "結束",
     "crash_dialog_restart": "重新啟動",
-    "debug.crash_test": "模擬崩潰",
     "storage_full_notify": "儲存空間不足提醒",
     "storage_full_notify_desc": "定期偵測本機磁碟 剩餘空間低於閾值時在右下角彈出通知提醒清理",
     "storage_full_threshold": "提醒閾值(%)",
@@ -1170,7 +1169,9 @@
     "repaint_failed": "重繪失敗",
     "element_check_enabled": "鼠標懸停查看組件資訊",
     "element_check_disabled": "已禁用",
-    "stopped": "已停止"
+    "stopped": "已停止",
+    "refresh": "重新整理",
+    "crash_test": "模擬崩潰"
   },
   "install": {
     "complete": "安裝完成",
