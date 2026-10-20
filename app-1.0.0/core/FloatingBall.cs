@@ -14,10 +14,137 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// 系统音量
+// 悬浮球
+using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Glimpseon.UI;
 
-namespace Glimpseon.Core.Win32;
+namespace Glimpseon.Core;
+
+internal enum CustomActionKind
+{
+    App = 0,
+    Url = 1,
+    Builtin = 2,
+}
+
+internal sealed class CustomAction
+{
+    // 存 FASymbol 成员名 渲染时解析
+    public string Icon { get; set; } = "Edit";
+    public string Label { get; set; } = "";
+    public CustomActionKind Kind { get; set; }
+    public string Target { get; set; } = "";
+}
+
+internal static class CustomActions
+{
+    private static readonly JsonSerializerOptions Json = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Converters = { new JsonStringEnumConverter() },
+    };
+
+    // 懒加载
+    private static List<CustomAction>? _items;
+
+    public static event Action? Changed;
+
+    public static IReadOnlyList<CustomAction> Items => _items ??= Load();
+
+
+    public const int MaxItems = 7;
+
+    public static readonly (string Value, string Key)[] Builtins =
+    [
+        ("main", "custom_action.builtin_main"),
+        ("pen", "custom_action.builtin_pen"),
+        ("undo", "custom_action.builtin_undo"),
+        ("clear", "custom_action.builtin_clear"),
+        ("whiteboard", "custom_action.builtin_whiteboard"),
+        ("freeze", "custom_action.builtin_freeze"),
+    ];
+
+    public static List<CustomAction> Load()
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<List<CustomAction>>(Config.BallCustomActions.Value, Json) ?? [];
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"自定义按钮解析失败: {e.Message}");
+            return [];
+        }
+    }
+
+    public static void Save(List<CustomAction> items)
+    {
+        _items = items;
+        Config.BallCustomActions.Value = JsonSerializer.Serialize(items, Json);
+        Changed?.Invoke();
+    }
+
+    public static void Run(CustomAction action)
+    {
+        try
+        {
+            if (action.Kind == CustomActionKind.Builtin)
+            {
+                RunBuiltin(action.Target);
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(action.Target))
+            {
+                return;
+            }
+            Process.Start(new ProcessStartInfo(action.Target.Trim()) { UseShellExecute = true });
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"自定义按钮执行失败: {e.Message}");
+        }
+    }
+
+    private static void RunBuiltin(string value)
+    {
+        switch (value)
+        {
+            case "main":
+                if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime { MainWindow: { } window })
+                {
+                    window.Show();
+                    if (window.WindowState == WindowState.Minimized)
+                    {
+                        window.WindowState = WindowState.Maximized;
+                    }
+                    window.Activate();
+                }
+                break;
+            case "pen":
+                WritingPadService.TogglePen();
+                break;
+            case "undo":
+                WritingPadService.Undo();
+                break;
+            case "clear":
+                WritingPadService.ClearAll();
+                break;
+            case "whiteboard":
+                WritingPadService.SetWhiteboard(!WritingPadService.Whiteboard);
+                break;
+            case "freeze":
+                WritingPadService.ToggleFreeze();
+                break;
+        }
+    }
+}
+
 
 internal static class Audio
 {

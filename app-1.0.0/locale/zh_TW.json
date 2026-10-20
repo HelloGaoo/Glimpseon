@@ -213,10 +213,20 @@
     "title": "設定",
     "general": "一般",
     "appearance": "外觀",
-    "component_card_opacity": "組件卡片不透明度",
-    "component_card_opacity_desc": "調整主介面組件背景的不透明度（0=完全透明，100=完全不透明）",
-    "component_card_radius": "組件卡片圓角",
-    "component_card_radius_desc": "調整主介面組件背景的圓角大小",
+    "grid": {
+      "title": "網格",
+      "preview": "網格預覽",
+      "cornerRadius_preview": "卡片預覽",
+      "inset_percent": "邊緣內縮百分比",
+      "inset_percent_desc": "設定網格相對於容器邊緣的內縮距離（0-30%）",
+      "short_side_cells": "短邊格子數",
+      "short_side_cells_desc": "設定網格短邊的格子數量（6-96）",
+      "component_card_opacity": "組件卡片不透明度",
+      "component_card_opacity_desc": "調整主介面組件背景的不透明度（0=完全透明，100=完全不透明）",
+      "component_card_radius": "組件卡片圓角",
+      "component_card_radius_desc": "調整主介面組件背景的圓角大小"
+    },
+    "log": "日誌",
     "advanced": "進階",
     "plugins": {
       "title": "外掛",
@@ -492,6 +502,7 @@
   },
   "home": {
     "edit": "編輯",
+    "back_to_desktop": "回到 Windows",
     "menu_settings": "設定",
     "menu_restart": "重新啟動",
     "menu_shutdown": "關機",
@@ -671,6 +682,19 @@
     "load_failed": "載入失敗"
   },
   "component_library": {
+    "title": "組件庫",
+    "no_preview": "無預覽",
+    "no_components": "該分類暫無組件",
+    "no_placed": "暫無已放置組件",
+    "placed_list": "已放置組件",
+    "drag_hint": "拖拽到桌面新增",
+    "category_clock": "時鐘",
+    "category_weather": "天氣",
+    "category_info": "資訊",
+    "category_media": "媒體",
+    "category_launcher": "啟動器",
+    "category_school": "教學",
+    "category_tools": "工具",
     "category_system": "系統",
     "category_study": "自習"
   },
@@ -1306,6 +1330,10 @@
     "will_display_next": "將優先顯示該通知",
     "banner_bg_height": "橫幅背景高度",
     "banner_mouse_through": "滑鼠穿透",
+    "tts_voice_label": "朗讀音色",
+    "tts_no_speak": "不朗讀",
+    "tts_rate_label": "朗讀語速(%)",
+    "tts_volume_label": "朗讀音量(%)",
     "schedule_label": "定時",
     "sync_to_board": "同步到公告欄"
   },
@@ -1346,5 +1374,27 @@
     "confirm_clear": "確認",
     "yesterday": "昨天",
     "new": "NEW"
+  },
+  "custom_action": {
+    "title": "自訂按鈕",
+    "hint": "在這裡設定「更多」第二列的按鈕：選圖示、填名稱、指定類型與目標。按完成儲存，懸浮球立即生效。",
+    "add": "新增",
+    "done": "完成",
+    "name_hint": "按鈕名稱",
+    "kind_app": "程式 / 檔案",
+    "kind_url": "網址",
+    "kind_builtin": "內建動作",
+    "target_hint": "程式或檔案路徑",
+    "browse": "瀏覽…",
+    "delete": "刪除",
+    "empty": "還沒有自訂按鈕，按左下角「新增」建立一個",
+    "builtin_main": "開啟主視窗",
+    "builtin_pen": "切換畫筆",
+    "builtin_undo": "復原筆跡",
+    "builtin_clear": "清除筆跡",
+    "builtin_whiteboard": "白板開關",
+    "builtin_freeze": "定格開關",
+    "empty_row": "按右側「+」新增自訂按鈕",
+    "max_tip": "一列最多放 7 個按鈕"
   }
 }

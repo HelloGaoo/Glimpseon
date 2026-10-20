@@ -1374,5 +1374,27 @@
     "confirm_clear": "Sure?",
     "yesterday": "Yesterday",
     "new": "NEW"
+  },
+  "custom_action": {
+    "title": "Custom buttons",
+    "hint": "Configure the extra buttons shown under \"More\": pick an icon, a label, a type and a target. Press Done to save — the ball updates immediately.",
+    "add": "Add",
+    "done": "Done",
+    "name_hint": "Button label",
+    "kind_app": "App / file",
+    "kind_url": "URL",
+    "kind_builtin": "Built-in",
+    "target_hint": "App or file path",
+    "browse": "Browse…",
+    "delete": "Delete",
+    "empty": "No custom buttons yet — press Add to create one",
+    "builtin_main": "Open main window",
+    "builtin_pen": "Toggle pen",
+    "builtin_undo": "Undo ink",
+    "builtin_clear": "Clear ink",
+    "builtin_whiteboard": "Toggle whiteboard",
+    "builtin_freeze": "Toggle freeze",
+    "empty_row": "Press + on the right to add custom buttons",
+    "max_tip": "Up to 7 buttons per row"
   }
 }

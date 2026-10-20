@@ -1374,5 +1374,27 @@
     "confirm_clear": "确认",
     "yesterday": "昨天",
     "new": "NEW"
+  },
+  "custom_action": {
+    "title": "自定义按钮",
+    "hint": "在这里配置「更多」第二行的按钮：选图标、填名称、指定类型和目标。点完成保存，悬浮球立刻生效。",
+    "add": "添加",
+    "done": "完成",
+    "name_hint": "按钮名称",
+    "kind_app": "程序 / 文件",
+    "kind_url": "网址",
+    "kind_builtin": "内置动作",
+    "target_hint": "程序或文件路径",
+    "browse": "浏览…",
+    "delete": "删除",
+    "empty": "还没有自定义按钮，点左下角「添加」新建一个",
+    "builtin_main": "打开主窗口",
+    "builtin_pen": "切换画笔",
+    "builtin_undo": "撤回笔迹",
+    "builtin_clear": "清空笔迹",
+    "builtin_whiteboard": "白板开关",
+    "builtin_freeze": "定格开关",
+    "empty_row": "点右侧「+」添加自定义按钮",
+    "max_tip": "一行最多放 7 个按钮"
   }
 }

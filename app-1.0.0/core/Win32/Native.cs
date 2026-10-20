@@ -320,6 +320,7 @@ internal static class Native
     }
 
     private static readonly IntPtr HwndTopmost = new(-1);
+    private const uint SwpNoactivate = 0x0010;
     private const uint SwpNomove = 0x0002;
     private const uint SwpNosize = 0x0001;
     private const uint SwpShowwindow = 0x0040;
@@ -353,9 +354,23 @@ internal static class Native
         EnumWindows(callback, nint.Zero);
     }
 
+    // 保持置顶 不抢激活 定时刷新用
+    public static void KeepTopmost(IntPtr hwnd)
+    {
+        if (hwnd == nint.Zero)
+        {
+            return;
+        }
+        SetWindowPos(hwnd, HwndTopmost, 0, 0, 0, 0, SwpNomove | SwpNosize | SwpNoactivate | SwpShowwindow);
+    }
+
     // 强制置顶
     public static void ForceTopmost(IntPtr hwnd)
     {
+        if (hwnd == nint.Zero)
+        {
+            return;
+        }
         SetWindowPos(hwnd, HwndTopmost, 0, 0, 0, 0, SwpNomove | SwpNosize | SwpShowwindow);
     }
 

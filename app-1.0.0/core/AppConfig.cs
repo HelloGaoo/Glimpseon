@@ -380,6 +380,7 @@ public static class Config
     public static readonly ConfigItem<int> IdleMinutes = new("Other", "IdleMinutes", 5, min: 1, max: 60);
     public static readonly ConfigItem<bool> AutoOpenMaximize = new("Other", "AutoOpenMaximize", false);
     public static readonly ConfigItem<bool> WritingFreeze = new("Other", "WritingFreeze", false);
+    public static readonly ConfigItem<string> BallCustomActions = new("Other", "BallCustomActions", "[]");
     public static readonly ConfigItem<bool> AutoCheckUpdate = new("Other", "AutoCheckUpdate", true);
     public static readonly ConfigItem<bool> AutoUpdate = new("Other", "AutoUpdate", false);
     public static readonly ConfigItem<string> UpdateChannel = new("Other", "UpdateChannel", "stable",

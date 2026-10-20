@@ -59,6 +59,12 @@ public static class FAIcons
         FontSize = fontSize,
     };
 
+    public static FAFontIcon IconByName(string? name, double fontSize = 16)
+    {
+        var symbol = Enum.TryParse<FASymbol>(name, out var parsed) ? parsed : FASymbol.Edit;
+        return Icon(symbol, fontSize);
+    }
+
     public static FAFontIcon IconCenter(FASymbol symbol, double fontSize = 16)
     {
         var icon = Icon(symbol, fontSize);
