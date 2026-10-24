@@ -16,12 +16,14 @@
 
 // 悬浮球
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Glimpseon.Core.Win32;
 using Glimpseon.UI;
 
 namespace Glimpseon.Core;
@@ -60,15 +62,103 @@ internal static class CustomActions
 
     public const int MaxItems = 7;
 
-    public static readonly (string Value, string Key)[] Builtins =
+    // 按键码
+    private const byte VkWin = 0x5B;
+    private const byte VkShift = 0x10;
+    private const byte VkTab = 0x09;
+    private const byte VkV = 0x56;
+    private const byte VkD = 0x44;
+    private const byte VkS = 0x53;
+    private const byte VkP = 0x50;
+    private const byte VkF11 = 0x7A;
+    private const byte VkMediaPlay = 0xB3;
+    private const byte VkMediaMute = 0xAD;
+    private const byte VkUp = 0x26;
+
+    // 内置动作
+    public static readonly IReadOnlyList<BuiltinAction> Builtins =
     [
-        ("main", "custom_action.builtin_main"),
-        ("pen", "custom_action.builtin_pen"),
-        ("undo", "custom_action.builtin_undo"),
-        ("clear", "custom_action.builtin_clear"),
-        ("whiteboard", "custom_action.builtin_whiteboard"),
-        ("freeze", "custom_action.builtin_freeze"),
+        // 窗口 屏幕
+        new("topmost", "Target", ToggleTopmost),
+        new("fullscreen", "View", () => Native.SendKeys(VkF11)),
+        new("closewindow", "Dismiss", Native.CloseForegroundWindow),
+        new("snipping", "Scan", () => Native.SendKeys(VkWin, VkShift, VkS)),
+        new("project", "Switch", () => Native.SendKeys(VkWin, VkP)),
+        new("magnifier", "Zoom", () => Launch("magnify.exe")),
+        new("osk", "Edit", () => Launch("osk.exe")),
+        new("taskview", "ViewAll", () => Native.SendKeys(VkWin, VkTab)),
+        new("showdesktop", "TwoBars", () => Native.SendKeys(VkWin, VkD)),
+        new("clipboard", "Copy", () => Native.SendKeys(VkWin, VkV)),
+        new("maximize", "FullScreenMaximize", () => Native.SendKeys(VkWin, VkUp)),
+
+        // 音量 画面
+        new("mute", "Volume", () => Native.SendKeys(VkMediaMute)),
+        new("volume", "Volume", () => ToggleVolume?.Invoke(), true),
+        new("brightness", "WeatherSunny", () => ToggleBrightness?.Invoke(), true),
+        new("playpause", "Play", () => Native.SendKeys(VkMediaPlay)),
+
+        // 文件夹
+        new("explorer", "Folder", () => Launch("explorer.exe")),
+        new("documents", "Page", () => Launch("shell:Personal")),
+        new("downloads", "Download", OpenDownloads),
+        new("pictures", "SaveLocal", () => Launch("shell:MyPictures")),
+        new("recyclebin", "Sync", () => Launch("shell:RecycleBinFolder")),
+
+        // 程序与工具
+        new("notepad", "Page", () => Launch("notepad.exe")),
+        new("calc", "Ruler", () => Launch("calc.exe")),
+        new("paint", "SaveAs", () => Launch("mspaint.exe")),
+        new("taskmgr", "TwoBars", () => Launch("taskmgr.exe")),
+
+        // 课程表与设置
+        new("schedule", "Clock", ShowSchedule),
+        new("settings", "Settings", () => Launch("ms-settings:")),
+
+        // 电源
+        new("lock", "ReportHacked", Native.LockScreen),
+        new("sleep", "Clock", Native.SleepSystem),
+        new("restart", "RotateClockwise", () => Launch("shutdown.exe", "/r /t 0")),
+        new("shutdown", "Dismiss", () => Launch("shutdown.exe", "/s /t 0")),
     ];
+
+    public static Action? ToggleVolume { get; set; }
+    public static Action? ToggleBrightness { get; set; }
+
+    private static readonly Dictionary<string, string> Aliases = new()
+    {
+        ["volumeup"] = "volume",
+        ["volumedown"] = "volume",
+        ["brightnessup"] = "brightness",
+        ["brightnessdown"] = "brightness",
+    };
+
+    public static BuiltinAction? FindBuiltin(string? key)
+    {
+        if (key is not null && Aliases.TryGetValue(key, out var alias))
+        {
+            key = alias;
+        }
+        return Builtins.FirstOrDefault(x => x.Key == key);
+    }
+
+    // 保留更多行
+    public static bool IsPersistent(CustomAction action) =>
+        action.Kind == CustomActionKind.Builtin && FindBuiltin(action.Target)?.Stays == true;
+
+    // 按钮文案
+    public static string LabelOf(CustomAction action) =>
+        action.Kind == CustomActionKind.Builtin
+            ? AppUtils.Tr(FindBuiltin(action.Target)?.LabelKey ?? action.Label)
+            : action.Label;
+
+    // 图标名
+    public static string IconNameOf(CustomAction action) =>
+        action.Kind switch
+        {
+            CustomActionKind.Builtin => FindBuiltin(action.Target)?.Icon ?? "Edit",
+            CustomActionKind.Url => "Globe",
+            _ => "Page",
+        };
 
     public static List<CustomAction> Load()
     {
@@ -111,41 +201,135 @@ internal static class CustomActions
         }
     }
 
-    private static void RunBuiltin(string value)
+    private static void RunBuiltin(string value) => FindBuiltin(value)?.Run();
+
+    private static void Launch(string target) => Launch(target, null);
+
+    private static void Launch(string target, string? args)
     {
-        switch (value)
+        try
         {
-            case "main":
-                if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime { MainWindow: { } window })
-                {
-                    window.Show();
-                    if (window.WindowState == WindowState.Minimized)
-                    {
-                        window.WindowState = WindowState.Maximized;
-                    }
-                    window.Activate();
-                }
-                break;
-            case "pen":
-                WritingPadService.TogglePen();
-                break;
-            case "undo":
-                WritingPadService.Undo();
-                break;
-            case "clear":
-                WritingPadService.ClearAll();
-                break;
-            case "whiteboard":
-                WritingPadService.SetWhiteboard(!WritingPadService.Whiteboard);
-                break;
-            case "freeze":
-                WritingPadService.ToggleFreeze();
-                break;
+            var info = args is null ? new ProcessStartInfo(target) : new ProcessStartInfo(target, args);
+            info.UseShellExecute = true;
+            Process.Start(info);
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"打开 {target} 失败: {e.Message}");
+        }
+    }
+
+    // 课程表
+    private static void ShowSchedule()
+    {
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime
+            { MainWindow: MainWindow main })
+        {
+            main.OpenScheduleWindow();
+        }
+    }
+
+    private static void ToggleTopmost()
+    {
+        Native.ToggleForegroundTopmost();
+        var ball = WritingPadService.BallHandleProvider?.Invoke() ?? nint.Zero;
+        if (ball != nint.Zero)
+        {
+            Native.KeepTopmost(ball);
+        }
+    }
+
+    private static void OpenDownloads()
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var path = Path.Combine(home, "Downloads");
+        Launch(Directory.Exists(path) ? path : home);
+    }
+}
+
+// 内置动作
+internal sealed class BuiltinAction(string key, string icon, Action run, bool stays = false)
+{
+    public string Key { get; } = key;
+    public string Icon { get; } = icon;
+    public Action Run { get; } = run;
+    public bool Stays { get; } = stays;
+    public string LabelKey => $"custom_action.builtin_{Key}";
+}
+
+// 文件图标
+internal static class FileIcon
+{
+    private const uint ShgfiIcon = 0x100;
+    private const uint ShgfiLargeIcon = 0x0;
+
+    private static readonly Dictionary<string, Avalonia.Media.Imaging.Bitmap?> Cache =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct SHFILEINFO
+    {
+        public IntPtr hIcon;
+        public int iIcon;
+        public uint dwAttributes;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string szDisplayName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
+        public string szTypeName;
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr SHGetFileInfo(string path, uint attributes, ref SHFILEINFO info,
+        uint size, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern bool DestroyIcon(IntPtr icon);
+
+    public static Avalonia.Media.Imaging.Bitmap? For(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+        if (Cache.TryGetValue(path, out var cached))
+        {
+            return cached;
+        }
+        var bitmap = Load(path);
+        Cache[path] = bitmap;
+        return bitmap;
+    }
+
+    private static Avalonia.Media.Imaging.Bitmap? Load(string path)
+    {
+        var info = new SHFILEINFO();
+        var ok = SHGetFileInfo(path, 0, ref info, (uint)Marshal.SizeOf<SHFILEINFO>(),
+            ShgfiIcon | ShgfiLargeIcon);
+        if (ok == IntPtr.Zero || info.hIcon == IntPtr.Zero)
+        {
+            return null;
+        }
+        try
+        {
+            using var drawing = System.Drawing.Icon.FromHandle(info.hIcon).ToBitmap();
+            using var stream = new MemoryStream();
+            drawing.Save(stream, System.Drawing.Imaging.ImageFormat.Png);
+            stream.Position = 0;
+            return new Avalonia.Media.Imaging.Bitmap(stream);
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"文件图标读取失败: {e.Message}");
+            return null;
+        }
+        finally
+        {
+            DestroyIcon(info.hIcon);
         }
     }
 }
 
-
+// 系统音量
 internal static class Audio
 {
     private static Guid _ctx = Guid.Empty;

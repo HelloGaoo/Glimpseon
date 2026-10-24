@@ -21,6 +21,7 @@ using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
@@ -134,6 +135,167 @@ public class FloatingBallWindow : Window
         public bool Done => Math.Abs(T - V) <= E;
     }
 
+    // 滑钮拖动/回弹
+    private sealed class SlideBar
+    {
+        private readonly Border _bar;
+        private readonly Border _knob;
+        private readonly double _travel;
+        private readonly TranslateTransform _shift = new();
+        private readonly DispatcherTimer _back;
+        private bool _dragging;
+        private double _anchor;
+
+        public TextBlock Label { get; }
+        public Border Bar => _bar;
+
+        // 0..1
+        public double Value => _travel <= 0 ? 0 : Math.Clamp(_shift.X, 0, _travel) / _travel;
+        public int Percent => (int)Math.Round(Value * 100);
+
+        // 释放回弹 0
+        public bool SpringBack { get; set; }
+
+        public event Action? Moved;
+        public event Action? Released;
+
+        public SlideBar(Border bar, Border knob, TextBlock label, double knobSize, double inset)
+        {
+            _bar = bar;
+            _knob = knob;
+            Label = label;
+            _travel = Math.Max(0, bar.Width - 34 - knobSize - inset * 2);
+            knob.RenderTransform = _shift;
+            knob.PointerPressed += OnPressed;
+            knob.PointerMoved += OnMoved;
+            knob.PointerReleased += (_, _) => End();
+            knob.PointerCaptureLost += (_, _) => End();
+            _back = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+            _back.Tick += StepBack;
+        }
+
+        public void SetValue(double value) => SetX(Math.Clamp(value, 0, 1) * _travel);
+
+        public void Reset()
+        {
+            _back.Stop();
+            SetX(0);
+        }
+
+        // 关条停住
+        public void Stop()
+        {
+            _dragging = false;
+            _back.Stop();
+        }
+
+        public void StopDrag()
+        {
+            _dragging = false;
+        }
+
+        private void SetX(double x) => _shift.X = x;
+
+        private void OnPressed(object? sender, PointerPressedEventArgs e)
+        {
+            if (!e.GetCurrentPoint(_knob).Properties.IsLeftButtonPressed)
+            {
+                return;
+            }
+            _dragging = true;
+            _back.Stop();
+            // 扣减行程
+            _anchor = e.GetPosition(_bar).X - _shift.X;
+            e.Pointer.Capture(_knob);
+            e.Handled = true;
+        }
+
+        private void OnMoved(object? sender, PointerEventArgs e)
+        {
+            if (!_dragging || !e.GetCurrentPoint(_knob).Properties.IsLeftButtonPressed)
+            {
+                return;
+            }
+            SetX(Math.Clamp(e.GetPosition(_bar).X - _anchor, 0, _travel));
+            Moved?.Invoke();
+        }
+
+        private void End()
+        {
+            if (!_dragging)
+            {
+                return;
+            }
+            _dragging = false;
+            Released?.Invoke();
+            if (SpringBack)
+            {
+                _back.Start();
+            }
+        }
+
+        private void StepBack(object? sender, EventArgs e)
+        {
+            var next = Math.Max(0, _shift.X - Math.Max(6, _shift.X * 0.35));
+            SetX(next);
+            if (next <= 0)
+            {
+                _back.Stop();
+            }
+        }
+    }
+
+    // 底部横条
+    private sealed class BottomRow(Border bar, double fullHeight, BarButton? toggle = null)
+    {
+        private readonly Interp _h = new();
+        private readonly Interp _o = new();
+
+        public Border Bar { get; } = bar;
+        public double FullHeight { get; } = fullHeight;
+        public bool IsOpen { get; private set; }
+
+        public double Height => _h.V;
+        public double Opacity => _o.V;
+
+        public bool Rising => IsOpen || _h.V > 1;
+
+        public bool Done => _h.Done && _o.Done;
+
+        public void Set(bool on)
+        {
+            IsOpen = on;
+            _h.Set(on ? FullHeight : 0, on ? 3 : 5);
+            _o.Set(on ? 1 : 0, on ? 3 : 5);
+            if (toggle is not null)
+            {
+                toggle.Selected = on;
+            }
+        }
+
+        public void Step(double dtMs)
+        {
+            _h.Step(dtMs);
+            _o.Step(dtMs);
+        }
+
+        public void Snap()
+        {
+            _h.V = _h.T;
+            _o.V = _o.T;
+        }
+
+        public void Layout(double left, double top)
+        {
+            Canvas.SetLeft(Bar, left);
+            Canvas.SetTop(Bar, top);
+            Bar.Height = Math.Max(0, _h.V);
+            Bar.Opacity = _o.V;
+            Bar.IsHitTestVisible = _h.V > 1;
+        }
+    }
+
+
     private readonly Canvas _canvas = new();
     private readonly Border _ball = new();
     private readonly Border _bar = new();
@@ -149,7 +311,7 @@ public class FloatingBallWindow : Window
     private readonly Interp _wbO = new();
     private bool _wbOpen;
     // 收起前各子条的开合状态 展开时一并还原
-    private bool _restoreWb, _restoreCl, _restorePn, _restoreVol, _restoreCus;
+    private bool _restoreWb, _restoreCl, _restorePn, _restoreVol, _restoreCus, _restoreBright;
     private bool _wbRetracting;
     private bool _pendingMouseCommit;
 
@@ -157,54 +319,33 @@ public class FloatingBallWindow : Window
     private const double ClearBarW = 280;
     private const double ClearKnobSize = 52;
     private const double ClearKnobInset = 5;
-    private Border _clearBar = null!;
-    private Border? _clearKnob;
-    private TranslateTransform? _clearShift;
-    private DispatcherTimer? _clearBackTimer;
-    private bool _clOpen;
-    private bool _clearDragging;
-    private double _clearDragX;
-    private readonly Interp _clH = new();
-    private readonly Interp _clO = new();
-
-    private static double ClearTravel => ClearBarW - 34 - ClearKnobSize - ClearKnobInset * 2;
+    private BottomRow _clearRow = null!;
+    private SlideBar _clearSlide = null!;
 
     private const double PenBarH = ClearBarH;
-    private Border _penBar = null!;
-    private bool _pnOpen;
-    private readonly Interp _pnH = new();
-    private readonly Interp _pnO = new();
+    private BottomRow _penRow = null!;
 
     private const double VolBarW = 280;
     private const double VolBarH = ClearBarH;
     private const double VolKnobSize = 44;
     private const double VolKnobInset = 5;
-    private Border _volBar = null!;
-    private Border? _volKnob;
-    private TextBlock? _volText;
+    private BottomRow _volRow = null!;
+    private SlideBar _volSlide = null!;
+    private BottomRow _brightRow = null!;
+    private SlideBar _brightSlide = null!;
     private BarButton? _volBtn;
-    private bool _volOpen;
-    private bool _volDragging;
-    private double _volDragX;
     private long _volSetMs;
     private int _volPct = -1;
-    private TranslateTransform? _volShift;
-    private readonly Interp _volH = new();
-    private readonly Interp _volO = new();
 
-    private static double VolTravel => VolBarW - 34 - VolKnobSize - VolKnobInset * 2;
-
-    // 自定义按钮条 更多键唤出 行尾一枚加号小按钮进编辑窗
+    // 自定义按钮条 更多键唤出
     private const double CusBarH = ClearBarH;
-    private const double CusPlusSize = 32;   // 其他按钮一半边长 即 1/4 面积
-    private Border _cusBar = null!;
-    private StackPanel _cusRow = null!;
+    private const double CusPlusSize = 32;   // 其他按钮一半边长（1/4）
+    private BottomRow _cusRow = null!;
+    private StackPanel _cusList = null!;
     private BarButton? _moreBtn;
     private BarButton? _cusPlus;
     private TextBlock? _cusHint;
-    private bool _cusOpen;
-    private readonly Interp _cusH = new();
-    private readonly Interp _cusO = new();
+    private BottomRow[] _rows = [];
 
     private BarButton? _penBtn;
     private BarButton? _wbMouse, _wbPenTool, _wbEraser, _wbTrans, _wbWhite, _wbFreeze;
@@ -263,7 +404,12 @@ public class FloatingBallWindow : Window
         SnapCollapsedLayout();
         PlaceInitial();
 
-        Opened += (_, _) => ClampToScreen();
+        Opened += (_, _) =>
+        {
+            ClampToScreen();
+            // WS_EX_NOACTIVATE 保前台窗口
+            Native.SetNoActivate(TryGetPlatformHandle()?.Handle ?? nint.Zero);
+        };
     }
 
     private double BallX => _dir == ExpandDir.Left ? WinW - 2 - BallSize : 2;
@@ -393,94 +539,56 @@ public class FloatingBallWindow : Window
         Canvas.SetTop(_writingBar, CanvasH + WritingBarGap);
         _canvas.Children.Add(_writingBar);
 
-        // 滑动清屏条
-        _clearBar = BuildClearBar();
-        _clearBar.Height = 0;
-        _clearBar.Opacity = 0;
-        _clearBar.IsHitTestVisible = false;
-        _clearBar.ClipToBounds = true;
-        Canvas.SetTop(_clearBar, CanvasH + WritingBarGap + WritingBarH + WritingBarGap);
-        _canvas.Children.Add(_clearBar);
+        // 清屏/笔设置共用槽位
+        _clearRow = new BottomRow(BuildClearBar(), ClearBarH);
+        _canvas.Children.Add(_clearRow.Bar);
 
-        // 笔设置条
-        _penBar = BuildPenBar();
-        _penBar.Height = 0;
-        _penBar.Opacity = 0;
-        _penBar.IsHitTestVisible = false;
-        _penBar.ClipToBounds = true;
-        Canvas.SetTop(_penBar, CanvasH + WritingBarGap + WritingBarH + WritingBarGap);
-        _canvas.Children.Add(_penBar);
+        _penRow = new BottomRow(BuildPenBar(), PenBarH);
+        _canvas.Children.Add(_penRow.Bar);
 
-        // 音量条
-        _volBar = BuildVolBar();
-        _volBar.Height = 0;
-        _volBar.Opacity = 0;
-        _volBar.IsHitTestVisible = false;
-        _volBar.ClipToBounds = true;
-        _canvas.Children.Add(_volBar);
+        _volRow = new BottomRow(BuildVolBar(), VolBarH, _volBtn);
+        _canvas.Children.Add(_volRow.Bar);
+
+        _brightRow = new BottomRow(BuildBrightBar(), VolBarH);
+        _canvas.Children.Add(_brightRow.Bar);
 
         // 自定义按钮条 更多键唤出
-        _cusBar = BuildCusBar();
-        _cusBar.Height = 0;
-        _cusBar.Opacity = 0;
-        _cusBar.IsHitTestVisible = false;
-        _cusBar.ClipToBounds = true;
-        Canvas.SetLeft(_cusBar, WritingBarX());
-        Canvas.SetTop(_cusBar, CanvasH + WritingBarGap + WritingBarH + WritingBarGap);
-        _canvas.Children.Add(_cusBar);
+        _cusRow = new BottomRow(BuildCusBar(), CusBarH, _moreBtn);
+        _canvas.Children.Add(_cusRow.Bar);
+        _rows = [_clearRow, _penRow, _volRow, _brightRow, _cusRow];
         CustomActions.Changed += OnCustomActionsChanged;
-        Closed += (_, _) => CustomActions.Changed -= OnCustomActionsChanged;
+        CustomActions.ToggleBrightness = ToggleBrightnessBar;
+        CustomActions.ToggleVolume = OnVolumeClick;
+        Closed += (_, _) =>
+        {
+            CustomActions.Changed -= OnCustomActionsChanged;
+            CustomActions.ToggleBrightness = null;
+            CustomActions.ToggleVolume = null;
+        };
         return _canvas;
     }
 
     // 滑动清屏条
+    // 拖到底触发清屏
     private Border BuildClearBar()
     {
-        _clearBackTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
-        _clearBackTimer.Tick += (_, _) => StepClearKnobBack();
-        _clearKnob = new Border
-        {
-            Width = ClearKnobSize,
-            Height = ClearKnobSize,
-            CornerRadius = new CornerRadius(ClearKnobSize / 2),
-            Background = ClearKnobBrush(),
-            BoxShadow = BoxShadows.Parse("0 2 8 0 #33000000"),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(ClearKnobInset, 0, 0, 0),
-            Cursor = new Cursor(StandardCursorType.Hand),
-            Child = ClearKnobIcon(),
-        };
-        _clearShift = new TranslateTransform();
-        _clearKnob.RenderTransform = _clearShift;
-        _clearKnob.PointerPressed += OnClearKnobPressed;
-        _clearKnob.PointerMoved += OnClearKnobMoved;
-        _clearKnob.PointerReleased += (_, _) => EndClearDrag();
-        _clearKnob.PointerCaptureLost += (_, _) => EndClearDrag();
+        _clearSlide = BuildSlideBar(ClearBarW, ClearBarH, ClearKnobSize, ClearKnobInset,
+            "滑动清除笔迹", ClearKnobIcon());
+        _clearSlide.SpringBack = true;
+        _clearSlide.Moved += OnClearDrag;
+        return _clearSlide.Bar;
+    }
 
-        var text = new TextBlock
+    // 拖到底清屏 释放回弹
+    private void OnClearDrag()
+    {
+        if (_clearSlide.Value < 0.999)
         {
-            Text = "滑动清除笔迹",
-            FontSize = 14,
-            FontWeight = FontWeight.Medium,
-            Foreground = ClearTextBrush(),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(ClearKnobSize + 16, 0, 18, 0),
-            IsHitTestVisible = false,
-        };
-        var track = new Border
-        {
-            CornerRadius = new CornerRadius((ClearBarH - 20 - 2) / 2),
-            Background = ClearTrackBrush(),
-            BorderBrush = ClearTrackBorderBrush(),
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(16, 10, 16, 10),
-            Child = new Panel { Children = { text, _clearKnob } },
-        };
-        var bar = MakeBar(ClearBarW);
-        bar.Child = track;
-        return bar;
+            return;
+        }
+        _clearSlide.StopDrag();
+        WritingPadService.ClearAll();
+        CloseClearBar();
     }
 
     // 笔设置条
@@ -491,52 +599,152 @@ public class FloatingBallWindow : Window
         return bar;
     }
 
-    // 音量条
+    // 音量条复用清屏条滑钮
     private Border BuildVolBar()
     {
-        _volKnob = new Border
+        _volSlide = BuildSlideBar(VolBarW, VolBarH, VolKnobSize, VolKnobInset, "音量", VolKnobIcon());
+        _volSlide.Moved += OnVolumeDrag;
+        _volSlide.Released += () => PushVolume(_volSlide.Value, force: true);
+        return _volSlide.Bar;
+    }
+
+    private void OnVolumeDrag()
+    {
+        VolLabel();
+        PushVolume(_volSlide.Value);
+    }
+
+    // COM 写音量 拖动节流
+    private void PushVolume(double value, bool force = false)
+    {
+        var now = Environment.TickCount64;
+        if (!force && now - _volSetMs < 40)
         {
-            Width = VolKnobSize,
-            Height = VolKnobSize,
-            CornerRadius = new CornerRadius(VolKnobSize / 2),
+            return;
+        }
+        _volSetMs = now;
+        Audio.SetVolume(value);
+    }
+
+    // 亮度条 拖动即时调节
+    private Border BuildBrightBar()
+    {
+        _brightSlide = BuildSlideBar(VolBarW, VolBarH, VolKnobSize, VolKnobInset, "亮度", BrightKnobIcon());
+        _brightSlide.SetValue(SystemBrightnessRatio());
+        _brightSlide.Moved += OnBrightnessDrag;
+        BrightLabel();
+        PushBrightness(_brightSlide.Value);
+        return _brightSlide.Bar;
+    }
+
+
+    private void OnBrightnessDrag()
+    {
+        BrightLabel();
+        PushBrightness(_brightSlide.Value);
+    }
+
+    private Control BrightKnobIcon()
+    {
+        var icon = FAIcons.Icon(FASymbol.WeatherSunny, 20);
+        icon.HorizontalAlignment = HorizontalAlignment.Center;
+        icon.VerticalAlignment = VerticalAlignment.Center;
+        icon.IsHitTestVisible = false;
+        FAIcons.SetIconBrush(icon, new SolidColorBrush(Color.Parse(DarkMode ? "#E0E0E0" : "#5A5A5A")));
+        return icon;
+    }
+
+    // 0..1 映射 0~100%
+    private void PushBrightness(double value) =>
+        Native.SetBrightness((int)Math.Round(Math.Clamp(value, 0, 1) * 100));
+
+    private void BrightLabel()
+    {
+        var pct = (int)Math.Round(Math.Clamp(_brightSlide.Value, 0, 1) * 100);
+        _brightSlide.Label.Text = $"亮度 {pct}%";
+    }
+
+    // 读系统亮度 读不到按 100
+    private static double SystemBrightnessRatio() => Math.Clamp(Native.GetBrightness(), 0, 100) / 100.0;
+
+    // 与音量条互斥
+    private void ToggleBrightnessBar()
+    {
+        if (_brightRow.IsOpen)
+        {
+            CloseBrightnessBar();
+            return;
+        }
+        CloseVolumeBar();
+        _brightSlide.SetValue(SystemBrightnessRatio());
+        BrightLabel();
+        _brightRow.Set(true);
+        UpdateWindowHeight();
+        StartAnim();
+        SyncMainBarLock();
+    }
+
+    private void CloseBrightnessBar()
+    {
+        if (!_brightRow.IsOpen)
+        {
+            return;
+        }
+        _brightRow.Set(false);
+        UpdateWindowHeight();
+        StartAnim();
+        SyncMainBarLock();
+    }
+
+    // 滑条骨架 清屏/音量复用
+    // 滑钮左对齐 文案居中
+    private static DockPanel BuildSlideHost(TextBlock label, Border knob)
+    {
+        var host = new DockPanel();
+        DockPanel.SetDock(knob, Dock.Left);
+        host.Children.Add(knob);
+        host.Children.Add(label);
+        return host;
+    }
+
+    private SlideBar BuildSlideBar(double width, double barHeight, double knobSize, double inset,
+        string text, Control knobIcon)
+    {
+        var knob = new Border
+        {
+            Width = knobSize,
+            Height = knobSize,
+            CornerRadius = new CornerRadius(knobSize / 2),
             Background = ClearKnobBrush(),
             BoxShadow = BoxShadows.Parse("0 2 8 0 #33000000"),
-            HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(VolKnobInset, 0, 0, 0),
+            // 滑钮左对齐 平移叠加
+            Margin = new Thickness(inset, 0, 0, 0),
             Cursor = new Cursor(StandardCursorType.Hand),
-            Child = VolKnobIcon(),
+            Child = knobIcon,
         };
-        _volShift = new TranslateTransform();
-        _volKnob.RenderTransform = _volShift;
-        _volKnob.PointerPressed += OnVolKnobPressed;
-        _volKnob.PointerMoved += OnVolKnobMoved;
-        _volKnob.PointerReleased += (_, _) => EndVolDrag();
-        _volKnob.PointerCaptureLost += (_, _) => EndVolDrag();
-
-        _volText = new TextBlock
+        var label = new TextBlock
         {
-            Text = "音量",
+            Text = text,
             FontSize = 14,
             FontWeight = FontWeight.Medium,
             Foreground = ClearTextBrush(),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(VolKnobSize + 16, 0, 18, 0),
+            Margin = new Thickness(knobSize + 16, 0, 18, 0),
             IsHitTestVisible = false,
         };
         var track = new Border
         {
-            CornerRadius = new CornerRadius((VolBarH - 20 - 2) / 2),
+            CornerRadius = new CornerRadius((barHeight - 22) / 2),
             Background = ClearTrackBrush(),
             BorderBrush = ClearTrackBorderBrush(),
             BorderThickness = new Thickness(1),
             Margin = new Thickness(16, 10, 16, 10),
-            Child = new Panel { Children = { _volText, _volKnob } },
-        };
-        var bar = MakeBar(VolBarW);
+            Child = BuildSlideHost(label, knob),
+        };        var bar = MakeBar(width);
         bar.Child = track;
-        return bar;
+        return new SlideBar(bar, knob, label, knobSize, inset);
     }
 
     // 滑钮图标
@@ -553,7 +761,7 @@ public class FloatingBallWindow : Window
     // 音量条开关
     private void OnVolumeClick()
     {
-        if (_volOpen)
+        if (_volRow.IsOpen)
         {
             CloseVolumeBar();
         }
@@ -565,100 +773,47 @@ public class FloatingBallWindow : Window
 
     private void OpenVolumeBar()
     {
-        if (_volOpen)
+        if (_volRow.IsOpen)
         {
             return;
         }
-        _volOpen = true;
+        CloseBrightnessBar();
         RefreshVolume();
-        _volH.Set(VolBarH, 3);
-        _volO.Set(1, 3);
+        _volRow.Set(true);
         UpdateWindowHeight();
         StartAnim();
-        SetChecked(_volBtn, true);
         SyncMainBarLock();
     }
 
     private void CloseVolumeBar()
     {
-        if (!_volOpen)
+        if (!_volRow.IsOpen)
         {
             return;
         }
-        _volOpen = false;
-        _volDragging = false;
-        _volH.Set(0, 5);
-        _volO.Set(0, 5);
+        _volSlide.StopDrag();
+        _volRow.Set(false);
         UpdateWindowHeight();
         StartAnim();
-        SetChecked(_volBtn, false);
         SyncMainBarLock();
     }
 
-    private void RefreshVolume() =>
-        SetVolKnob(VolTravel * Math.Clamp(Audio.Volume, 0, 1));
-
-    private void SetVolKnob(double travel)
+    // 打开时同步系统音量
+    private void RefreshVolume()
     {
-        if (_volKnob is null)
-        {
-            return;
-        }
-        var t = Math.Clamp(travel, 0, VolTravel);
-        if (_volShift is not null)
-        {
-            _volShift.X = t;
-        }
-        var pct = (int)Math.Round(t / VolTravel * 100);
-        if (_volText is not null && pct != _volPct)
-        {
-            _volPct = pct;
-            _volText.Text = $"音量 {pct}%";
-        }
+        _volSlide.SetValue(Math.Clamp(Audio.Volume, 0, 1));
+        VolLabel();
     }
 
-    private void OnVolKnobPressed(object? sender, PointerPressedEventArgs e)
+    private void VolLabel()
     {
-        if (!e.GetCurrentPoint(_volKnob).Properties.IsLeftButtonPressed)
+        var pct = _volSlide.Percent;
+        if (pct == _volPct)
         {
             return;
         }
-        _volDragging = true;
-        _volDragX = e.GetPosition(_volBar).X - (_volShift?.X ?? 0);
-        e.Pointer.Capture(_volKnob);
-        e.Handled = true;
-    }
-
-    private void OnVolKnobMoved(object? sender, PointerEventArgs e)
-    {
-        if (!_volDragging || !e.GetCurrentPoint(_volKnob).Properties.IsLeftButtonPressed)
-        {
-            return;
-        }
-        var travel = Math.Clamp(e.GetPosition(_volBar).X - _volDragX, 0, VolTravel);
-        SetVolKnob(travel);
-        PushVolume(travel);
-    }
-
-    private void EndVolDrag()
-    {
-        if (!_volDragging)
-        {
-            return;
-        }
-        _volDragging = false;
-        PushVolume(_volShift?.X ?? 0, force: true);
-    }
-
-    private void PushVolume(double travel, bool force = false)
-    {
-        var now = Environment.TickCount64;
-        if (!force && now - _volSetMs < 40)
-        {
-            return;
-        }
-        _volSetMs = now;
-        Audio.SetVolume(travel / VolTravel);
+        _volPct = pct;
+        _volSlide.Label.Text = $"音量 {pct}%";
     }
 
     private double VolBarX()
@@ -670,24 +825,10 @@ public class FloatingBallWindow : Window
         return WritingBarX();
     }
 
-    private double VolBarTop()
-    {
-        var top = CanvasH + WritingBarGap;
-        if (_wbOpen || _wbH.V > 1)
-        {
-            top += WritingBarH + WritingBarGap;
-        }
-        if (_clOpen || _clH.V > 1 || _pnOpen || _pnH.V > 1)
-        {
-            top += ClearBarH + WritingBarGap;
-        }
-        return top;
-    }
-
     // 自定义按钮条
     private Border BuildCusBar()
     {
-        _cusRow = new StackPanel
+        _cusList = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 3,
@@ -714,7 +855,7 @@ public class FloatingBallWindow : Window
         };
 
         var host = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,Auto") };
-        host.Children.Add(new Panel { Children = { _cusRow, _cusHint } });
+        host.Children.Add(new Panel { Children = { _cusList, _cusHint } });
         Grid.SetColumn(_cusPlus, 1);
         host.Children.Add(_cusPlus);
 
@@ -730,21 +871,26 @@ public class FloatingBallWindow : Window
         {
             return;
         }
-        _cusRow.Children.Clear();
+        _cusList.Children.Clear();
         foreach (var item in CustomActions.Items.Take(CustomActions.MaxItems))
         {
             var action = item;
-            var btn = MakeBarButton(FAIcons.IconByName(action.Icon, WbIconSize), action.Label, WbBtnSize, WbBtnRadius, WbLabelSize);
+            var btn = MakeBarButton(BallIcons.Of(action, WbIconSize), CustomActions.LabelOf(action),
+                WbBtnSize, WbBtnRadius, WbLabelSize);
             btn.Clicked += () =>
             {
-                CloseCusBar();
+                // 开关类动作不收更多行
+                if (!CustomActions.IsPersistent(action))
+                {
+                    CloseCusBar();
+                }
                 CustomActions.Run(action);
             };
-            _cusRow.Children.Add(btn);
+            _cusList.Children.Add(btn);
         }
         if (_cusHint is not null)
         {
-            _cusHint.IsVisible = _cusRow.Children.Count == 0;
+            _cusHint.IsVisible = _cusList.Children.Count == 0;
         }
     }
 
@@ -753,7 +899,7 @@ public class FloatingBallWindow : Window
     // 更多键开关
     private void OnMoreClick()
     {
-        if (_cusOpen)
+        if (_cusRow.IsOpen)
         {
             CloseCusBar();
         }
@@ -765,44 +911,29 @@ public class FloatingBallWindow : Window
 
     private void OpenCusBar()
     {
-        if (_cusOpen)
+        if (_cusRow.IsOpen)
         {
             return;
         }
         RebuildCusRow();
-        _cusOpen = true;
-        _cusH.Set(CusBarH, 3);
-        _cusO.Set(1, 3);
+        _cusRow.Set(true);
         UpdateWindowHeight();
         StartAnim();
-        SetChecked(_moreBtn, true);
         SyncMainBarLock();
     }
 
     private void CloseCusBar()
     {
-        if (!_cusOpen)
+        if (!_cusRow.IsOpen)
         {
             return;
         }
-        _cusOpen = false;
-        _cusH.Set(0, 5);
-        _cusO.Set(0, 5);
+        // 亮度条随更多行联动收起
+        CloseBrightnessBar();
+        _cusRow.Set(false);
         UpdateWindowHeight();
         StartAnim();
-        SetChecked(_moreBtn, false);
         SyncMainBarLock();
-    }
-
-    // 自定义条紧跟音量条
-    private double CusBarTop()
-    {
-        var top = VolBarTop();
-        if (_volOpen || _volH.V > 1)
-        {
-            top += VolBarH + WritingBarGap;
-        }
-        return top;
     }
 
     // 编辑窗
@@ -926,7 +1057,7 @@ public class FloatingBallWindow : Window
     // 主动关闭
     private void OnCloseRequested()
     {
-        _restoreWb = _restoreCl = _restorePn = _restoreVol = _restoreCus = false;
+        _restoreWb = _restoreCl = _restorePn = _restoreVol = _restoreCus = _restoreBright = false;
         _pendingMouseCommit = true;
         if (!CloseWritingBar())
         {
@@ -988,13 +1119,13 @@ public class FloatingBallWindow : Window
     // 子条开合后同步顶层键 灰化+锁点击
     private void SyncMainBarLock()
     {
-        LockMainBar(_wbOpen || _cusOpen || _volOpen);
+        LockMainBar(_wbOpen || _cusRow.IsOpen || _volRow.IsOpen);
         ApplyBarDim(BarReveal);
     }
 
     // 当前铺开子条对应的顶层键
     private BarButton? FocusButton =>
-        _wbOpen ? _penBtn : _cusOpen ? _moreBtn : _volOpen ? _volBtn : null;
+        _wbOpen ? _penBtn : _cusRow.IsOpen ? _moreBtn : _volRow.IsOpen ? _volBtn : null;
 
     // 灰化其他按键
     private void LockMainBar(bool locked)
@@ -1008,7 +1139,7 @@ public class FloatingBallWindow : Window
 
     private void ToggleClearBar()
     {
-        if (_clOpen)
+        if (_clearRow.IsOpen)
         {
             CloseClearBar();
         }
@@ -1020,37 +1151,32 @@ public class FloatingBallWindow : Window
 
     private void OpenClearBar()
     {
-        if (!_wbOpen || _wbRetracting || _clOpen)
+        if (!_wbOpen || _wbRetracting || _clearRow.IsOpen)
         {
             return;
         }
         ClosePenBar();
-        _clOpen = true;
-        ResetClearKnob();
-        _clH.Set(ClearBarH, 3);
-        _clO.Set(1, 3);
+        _clearSlide.Reset();
+        _clearRow.Set(true);
         UpdateWindowHeight();
         StartAnim();
     }
 
     private void CloseClearBar()
     {
-        if (!_clOpen)
+        if (!_clearRow.IsOpen)
         {
             return;
         }
-        _clOpen = false;
-        _clearDragging = false;
-        _clearBackTimer?.Stop();
-        _clH.Set(0, 5);
-        _clO.Set(0, 5);
+        _clearSlide.Stop();
+        _clearRow.Set(false);
         UpdateWindowHeight();
         StartAnim();
     }
 
     private void TogglePenBar()
     {
-        if (_pnOpen)
+        if (_penRow.IsOpen)
         {
             ClosePenBar();
         }
@@ -1062,27 +1188,23 @@ public class FloatingBallWindow : Window
 
     private void OpenPenBar()
     {
-        if (!_wbOpen || _wbRetracting || _pnOpen)
+        if (!_wbOpen || _wbRetracting || _penRow.IsOpen)
         {
             return;
         }
         CloseClearBar();
-        _pnOpen = true;
-        _pnH.Set(PenBarH, 3);
-        _pnO.Set(1, 3);
+        _penRow.Set(true);
         UpdateWindowHeight();
         StartAnim();
     }
 
     private void ClosePenBar()
     {
-        if (!_pnOpen)
+        if (!_penRow.IsOpen)
         {
             return;
         }
-        _pnOpen = false;
-        _pnH.Set(0, 5);
-        _pnO.Set(0, 5);
+        _penRow.Set(false);
         UpdateWindowHeight();
         StartAnim();
     }
@@ -1094,15 +1216,15 @@ public class FloatingBallWindow : Window
         {
             h += WritingBarGap + WritingBarH;
         }
-        if (_clOpen || _clH.V > 1 || _pnOpen || _pnH.V > 1)
+        if (ToolRising)
         {
             h += WritingBarGap + ClearBarH;
         }
-        if (_volOpen || _volH.V > 1)
+        if (VolSlotRising)
         {
             h += WritingBarGap + VolBarH;
         }
-        if (_cusOpen || _cusH.V > 1)
+        if (_cusRow.Rising)
         {
             h += WritingBarGap + CusBarH;
         }
@@ -1111,6 +1233,32 @@ public class FloatingBallWindow : Window
             Height = h;
             ClampToScreen();
         }
+    }
+
+    // 清屏/笔设置共用槽位
+    private bool ToolRising => _clearRow.Rising || _penRow.Rising;
+
+    // 音量条与亮度条同槽
+    private bool VolSlotRising => _volRow.Rising || _brightRow.Rising;
+
+    // 槽位上沿 累加前序高度
+    private double RowTop(int slot)
+    {
+        var top = CanvasH + WritingBarGap;
+        if (slot > 0 && (_wbOpen || _wbH.V > 1))
+        {
+            top += WritingBarH + WritingBarGap;
+        }
+        if (slot > 1 && ToolRising)
+        {
+            top += ClearBarH + WritingBarGap;
+        }
+        // 跟随更多条实际高度
+        if (slot > 2 && _cusRow.Height > 1)
+        {
+            top += _cusRow.Height + WritingBarGap;
+        }
+        return top;
     }
 
     private double ClearBarX()
@@ -1123,75 +1271,11 @@ public class FloatingBallWindow : Window
         return Math.Clamp(fallback, 2, Math.Max(2, WinW - 2 - ClearBarW));
     }
 
-    private void OnClearKnobPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (!e.GetCurrentPoint(_clearKnob).Properties.IsLeftButtonPressed)
-        {
-            return;
-        }
-        _clearDragging = true;
-        _clearBackTimer?.Stop();
-        _clearDragX = e.GetPosition(_clearBar).X - (_clearShift?.X ?? 0);
-        e.Pointer.Capture(_clearKnob);
-        e.Handled = true;
-    }
 
-    private void OnClearKnobMoved(object? sender, PointerEventArgs e)
-    {
-        if (!_clearDragging || !e.GetCurrentPoint(_clearKnob).Properties.IsLeftButtonPressed)
-        {
-            return;
-        }
-        var dx = e.GetPosition(_clearBar).X - _clearDragX;
-        var travel = Math.Clamp(dx, 0, ClearTravel);
-        SetClearKnob(travel);
-        if (travel >= ClearTravel - 0.5)
-        {
-            _clearDragging = false;
-            WritingPadService.ClearAll();
-            CloseClearBar();
-        }
-    }
 
-    private void EndClearDrag()
-    {
-        if (!_clearDragging)
-        {
-            return;
-        }
-        _clearDragging = false;
-        _clearBackTimer?.Start();
-    }
 
-    private void StepClearKnobBack()
-    {
-        if (_clearKnob is null)
-        {
-            _clearBackTimer?.Stop();
-            return;
-        }
-        var current = _clearShift?.X ?? 0;
-        var next = Math.Max(0, current - Math.Max(6, current * 0.35));
-        SetClearKnob(next);
-        if (next <= 0)
-        {
-            _clearBackTimer?.Stop();
-        }
-    }
 
-    private void ResetClearKnob()
-    {
-        _clearBackTimer?.Stop();
-        SetClearKnob(0);
-    }
 
-    private void SetClearKnob(double travel)
-    {
-        if (_clearShift is not null)
-        {
-            _clearShift.X = travel;
-        }
-    }
 
     private void RefreshPadButtons()
     {
@@ -1199,11 +1283,11 @@ public class FloatingBallWindow : Window
         var mode = WritingPadService.Mode;
         var wb = WritingPadService.Whiteboard;
         var frozen = WritingPadService.Freeze;
-        if (_clOpen && mode != WritingToolMode.Eraser)
+        if (_clearRow.IsOpen && mode != WritingToolMode.Eraser)
         {
             CloseClearBar();
         }
-        if (_pnOpen && mode != WritingToolMode.Pen)
+        if (_penRow.IsOpen && mode != WritingToolMode.Pen)
         {
             ClosePenBar();
         }
@@ -1415,25 +1499,12 @@ public class FloatingBallWindow : Window
         _writingBar.Height = Math.Max(0, _wbH.V);
         _writingBar.Opacity = _wbO.V;
         _writingBar.IsHitTestVisible = _wbH.V > 1;
-        Canvas.SetLeft(_clearBar, ClearBarX());
-        _clearBar.Height = Math.Max(0, _clH.V);
-        _clearBar.Opacity = _clO.V;
-        _clearBar.IsHitTestVisible = _clH.V > 1;
-        Canvas.SetLeft(_penBar, WritingBarX());
-        _penBar.Height = Math.Max(0, _pnH.V);
-        _penBar.Opacity = _pnO.V;
-        _penBar.IsHitTestVisible = _pnH.V > 1;
-        Canvas.SetLeft(_volBar, VolBarX());
-        Canvas.SetTop(_volBar, VolBarTop());
-        _volBar.Height = Math.Max(0, _volH.V);
-        _volBar.Opacity = _volO.V;
-        _volBar.IsHitTestVisible = _volH.V > 1;
-        // 自定义按钮条 跟在音量条后面
-        Canvas.SetLeft(_cusBar, WritingBarX());
-        Canvas.SetTop(_cusBar, CusBarTop());
-        _cusBar.Height = Math.Max(0, _cusH.V);
-        _cusBar.Opacity = _cusO.V;
-        _cusBar.IsHitTestVisible = _cusH.V > 1;
+        _clearRow.Layout(ClearBarX(), RowTop(1));
+        _penRow.Layout(WritingBarX(), RowTop(1));
+        // 更多条固定 滑条下移一级
+        _cusRow.Layout(WritingBarX(), RowTop(2));
+        _volRow.Layout(VolBarX(), RowTop(3));
+        _brightRow.Layout(VolBarX(), RowTop(3));
     }
 
     private double BarReveal => Math.Clamp((_barW.V - HiddenBarW) / (BarW - HiddenBarW), 0, 1);
@@ -1548,10 +1619,11 @@ public class FloatingBallWindow : Window
     {
         var keep = !_pendingMouseCommit;
         _restoreWb = _wbOpen && keep;
-        _restoreCl = _clOpen && keep;
-        _restorePn = _pnOpen && keep;
-        _restoreVol = _volOpen;
-        _restoreCus = _cusOpen;
+        _restoreCl = _clearRow.IsOpen && keep;
+        _restorePn = _penRow.IsOpen && keep;
+        _restoreVol = _volRow.IsOpen;
+        _restoreCus = _cusRow.IsOpen;
+        _restoreBright = _brightRow.IsOpen;
     }
 
     // 展开时还原 
@@ -1576,8 +1648,12 @@ public class FloatingBallWindow : Window
         if (_restoreCus)
         {
             OpenCusBar();
+            if (_restoreBright)
+            {
+                ToggleBrightnessBar();
+            }
         }
-        _restoreWb = _restoreCl = _restorePn = _restoreVol = _restoreCus = false;
+        _restoreWb = _restoreCl = _restorePn = _restoreVol = _restoreCus = _restoreBright = false;
     }
 
     private void ToggleExpand()
@@ -1645,14 +1721,10 @@ public class FloatingBallWindow : Window
         _barO.Step(dtMs);
         _wbH.Step(dtMs);
         _wbO.Step(dtMs);
-        _clH.Step(dtMs);
-        _clO.Step(dtMs);
-        _pnH.Step(dtMs);
-        _pnO.Step(dtMs);
-        _volH.Step(dtMs);
-        _volO.Step(dtMs);
-        _cusH.Step(dtMs);
-        _cusO.Step(dtMs);
+        foreach (var row in _rows)
+        {
+            row.Step(dtMs);
+        }
         _fillA.Step(dtMs);
         _strokeR.Step(dtMs);
         _strokeG.Step(dtMs);
@@ -1673,14 +1745,10 @@ public class FloatingBallWindow : Window
             _barO.V = _barO.T;
             _wbH.V = _wbH.T;
             _wbO.V = _wbO.T;
-            _clH.V = _clH.T;
-            _clO.V = _clO.T;
-            _pnH.V = _pnH.T;
-            _pnO.V = _pnO.T;
-            _volH.V = _volH.T;
-            _volO.V = _volO.T;
-            _cusH.V = _cusH.T;
-            _cusO.V = _cusO.T;
+            foreach (var row in _rows)
+            {
+                row.Snap();
+            }
             _fillA.V = _fillA.T;
             _strokeR.V = _strokeR.T;
             _strokeG.V = _strokeG.T;
@@ -1694,10 +1762,12 @@ public class FloatingBallWindow : Window
         }
         ApplyInterp();
 
-        var done = _barX.Done && _barW.Done && _barO.Done
-            && _wbH.Done && _wbO.Done && _clH.Done && _clO.Done
-            && _pnH.Done && _pnO.Done && _volH.Done && _volO.Done && _cusH.Done && _cusO.Done
+        var done = _barX.Done && _barW.Done && _barO.Done && _wbH.Done && _wbO.Done
             && _fillA.Done && _strokeR.Done && _strokeG.Done && _strokeB.Done && _strokeA.Done;
+        foreach (var row in _rows)
+        {
+            done &= row.Done;
+        }
         foreach (var t in _btnX)
         {
             done &= t.Done;
@@ -1745,6 +1815,9 @@ internal sealed class BarButton : Border
     private IBrush _selectedBg = Brushes.Transparent;
     private bool _selected;
     private bool _pressed;
+    private Point _pressPos;
+    // 触控漂移容差 28px
+    private const double TapTolerance = 28;
 
     public event Action? Clicked;
 
@@ -1777,10 +1850,9 @@ internal sealed class BarButton : Border
             panel.Children.Add(_label);
         }
         Child = panel;
-        PointerPressed += (_, e) => _pressed = e.GetCurrentPoint(this).Properties.IsLeftButtonPressed;
+        PointerPressed += OnPressed;
         PointerReleased += OnReleased;
         PointerCaptureLost += (_, _) => _pressed = false;
-        PointerExited += (_, _) => _pressed = false;
     }
 
     public void SetPalette(IBrush normalFg, IBrush selectedBg)
@@ -1812,11 +1884,30 @@ internal sealed class BarButton : Border
         FAIcons.SetIconBrush(_icon, fg);
     }
 
+    private void OnPressed(object? sender, PointerPressedEventArgs e)
+    {
+        var pt = e.GetCurrentPoint(this);
+        _pressPos = pt.Position;
+        _pressed = pt.Properties.IsLeftButtonPressed;
+        if (_pressed)
+        {
+            // PointerCapture 越界收 Release
+            e.Pointer.Capture(this);
+        }
+    }
+
     private void OnReleased(object? sender, PointerReleasedEventArgs e)
     {
         var hit = _pressed;
         _pressed = false;
-        if (!hit || e.InitialPressMouseButton != MouseButton.Left)
+        e.Pointer.Capture(null);
+        // 触控 Release 可能为 None
+        if (!hit || e.InitialPressMouseButton is not (MouseButton.Left or MouseButton.None))
+        {
+            return;
+        }
+        var d = e.GetPosition(this) - _pressPos;
+        if (Math.Abs(d.X) > TapTolerance || Math.Abs(d.Y) > TapTolerance)
         {
             return;
         }
@@ -1994,18 +2085,6 @@ internal static class WritingPadService
         }
     }
 
-    public static void ToggleEraser()
-    {
-        if (OverlayVisible && Mode == WritingToolMode.Eraser)
-        {
-            CloseOverlay();
-        }
-        else
-        {
-            SetMode(WritingToolMode.Eraser);
-        }
-    }
-
     public static void SetWhiteboard(bool on)
     {
         if (Freeze)
@@ -2059,8 +2138,12 @@ internal sealed class WritingPadOverlay : Window
     private readonly Image _freezeBg;
     private readonly Panel _root;
     private PixelRect _unionPx;
+    // 区域未变 跳过 SetWindowRgn
+    private int _holeX = int.MinValue;
+    private int _holeY;
+    private int _freezeGeneration;
+    private const int CaptureDelayMs = 50; // 抓屏前等一帧提交
     private readonly DispatcherTimer _topGuard = new() { Interval = TimeSpan.FromMilliseconds(400) };
-    private bool _captureExcluded;
 
     public WritingToolMode Mode { get; private set; } = WritingToolMode.Pen;
     public bool Whiteboard { get; private set; }
@@ -2071,8 +2154,6 @@ internal sealed class WritingPadOverlay : Window
     public Color PenColor => _surface.PenColor;
 
     public double PenWidth => _surface.PenWidth;
-
-    internal InkSurface Surface => _surface;
 
     // 白板底色切换
     public void ApplyWhiteboard(bool on)
@@ -2090,20 +2171,6 @@ internal sealed class WritingPadOverlay : Window
         EndAllStrokes();
         InvalidateVisual();
     }
-
-    // 定格开关
-    public void SetFreeze(bool on)
-    {
-        FreezeOn = on;
-        if (on && Whiteboard)
-        {
-            ApplyWhiteboard(false);
-            return;
-        }
-        RefreshFreezeBg();
-    }
-
-    public void ToggleFreeze() => SetFreeze(!FreezeOn);
 
     public WritingPadOverlay()
     {
@@ -2123,14 +2190,14 @@ internal sealed class WritingPadOverlay : Window
             IsHitTestVisible = false,
             IsVisible = false,
         };
+        _surface = new InkSurface(this);
+        _root = new Panel();
         _freezeBg = new Image
         {
             Stretch = Stretch.Fill,
             IsHitTestVisible = false,
             IsVisible = false,
         };
-        _surface = new InkSurface(this);
-        _root = new Panel();
         _root.Children.Add(_freezeBg);
         _root.Children.Add(_whiteBg);
         _root.Children.Add(_surface);
@@ -2150,11 +2217,7 @@ internal sealed class WritingPadOverlay : Window
             }
         };
         _topGuard.Tick += OnTopGuardTick;
-        Closed += (_, _) =>
-        {
-            _topGuard.Stop();
-            ApplyCaptureExclusion(false);
-        };
+        Closed += (_, _) => _topGuard.Stop();
     }
 
     // 覆盖全部屏幕
@@ -2173,7 +2236,8 @@ internal sealed class WritingPadOverlay : Window
         var s = Screens.Primary?.Scaling ?? RenderScaling;
         Position = union.TopLeft;
         Width = union.Width / s;
-        Height = union.Height / s;
+        // 缩 2px 规避全屏判定
+        Height = Math.Max(1, union.Height - 2) / s;
         _surface.FitBounds(Width, Height);
     }
 
@@ -2187,9 +2251,9 @@ internal sealed class WritingPadOverlay : Window
             Show();
         }
         FitScreens();
-        ApplyCaptureExclusion(true);
         RaiseAboveAll();
         _topGuard.Start();
+        ApplyOcclusionHole();
         if (wasHidden)
         {
             RefreshFreezeBg();
@@ -2203,34 +2267,52 @@ internal sealed class WritingPadOverlay : Window
     private void SyncFreezeVisibility() =>
         _freezeBg.IsVisible = FreezeOn && !Whiteboard && _freezeBg.Source is not null;
 
-    private void ApplyCaptureExclusion(bool on)
+    // 定格开关
+    public void SetFreeze(bool on)
     {
-        if (_captureExcluded == on)
+        Log.Info($"[定格] {on}");
+        FreezeOn = on;
+        if (on && Whiteboard)
         {
+            ApplyWhiteboard(false);
             return;
         }
-        _captureExcluded = on;
-        Native.SetCaptureExclusion(TryGetPlatformHandle()?.Handle ?? nint.Zero, on);
+        if (!on)
+        {
+            _freezeGeneration++;
+            _freezeBg.Source = null;
+            _freezeBg.IsVisible = false;
+            InvalidateVisual();
+            return;
+        }
+        RefreshFreezeBg();
     }
 
-    private void OnTopGuardTick(object? sender, EventArgs e) => RaiseAboveAll();
+    public void ToggleFreeze() => SetFreeze(!FreezeOn);
 
-    public void RaiseAboveAll()
-    {
-        Native.KeepTopmost(TryGetPlatformHandle()?.Handle ?? nint.Zero);
-        Native.KeepTopmost(WritingPadService.BallHandleProvider?.Invoke() ?? nint.Zero);
-    }
-
-    private void RefreshFreezeBg()
+    // 等一帧提交后截屏
+    private async void RefreshFreezeBg()
     {
         if (!FreezeOn || Whiteboard || _unionPx == default)
         {
             SyncFreezeVisibility();
             return;
         }
-        if (CaptureScreen(_unionPx) is { } capture)
+        var generation = ++_freezeGeneration;
+        // 仅隐笔迹层与球 整窗隐会闪
+        var ball = WritingPadService.BallHandleProvider?.Invoke() ?? nint.Zero;
+        _surface.IsVisible = false;
+        Native.HideWindow(ball);
+        Native.FlushDwm();
+        try
         {
-            try
+            await Task.Delay(CaptureDelayMs);
+            // 期间被关掉或重开 本次作废
+            if (generation != _freezeGeneration)
+            {
+                return;
+            }
+            if (CaptureScreen(_unionPx) is { } capture)
             {
                 var handle = GCHandle.Alloc(capture.Pixels, GCHandleType.Pinned);
                 try
@@ -2243,12 +2325,21 @@ internal sealed class WritingPadOverlay : Window
                     handle.Free();
                 }
             }
-            catch (Exception e)
-            {
-                Log.Warning($"定格位图创建失败: {e.Message}");
-            }
         }
-        SyncFreezeVisibility();
+        catch (Exception e)
+        {
+            Log.Warning($"定格位图创建失败: {e.Message}");
+        }
+        finally
+        {
+            Native.ShowWindowNoActivate(ball);
+            _surface.IsVisible = true;
+            Native.FlushDwm();
+        }
+        if (generation == _freezeGeneration)
+        {
+            SyncFreezeVisibility();
+        }
     }
 
     private static (byte[] Pixels, PixelSize Size, int Stride)? CaptureScreen(PixelRect bounds)
@@ -2277,10 +2368,58 @@ internal sealed class WritingPadOverlay : Window
         }
     }
 
+    // Topmost 守卫 顺带重设洞
+    private void OnTopGuardTick(object? sender, EventArgs e)
+    {
+        ApplyOcclusionHole();
+        RaiseAboveAll();
+    }
+
+    // 挖洞 规避遮挡剔除
+    private void ApplyOcclusionHole()
+    {
+        var self = TryGetPlatformHandle()?.Handle ?? nint.Zero;
+        if (self == nint.Zero || _unionPx == default || !IsVisible)
+        {
+            return;
+        }
+        if (!Native.TryGetWindowRect(self, out var selfRect))
+        {
+            return;
+        }
+        var w = selfRect.Right - selfRect.Left;
+        var h = selfRect.Bottom - selfRect.Top;
+        var target = Native.FirstForeignWindowBelow(self);
+        var holeX = w - 8;
+        var holeY = h - 8;
+        if (target != nint.Zero && Native.TryGetWindowRect(target, out var r))
+        {
+            // 洞置于目标窗口右下角 2px
+            holeX = r.Right - selfRect.Left - 8;
+            holeY = r.Bottom - selfRect.Top - 8;
+        }
+        if (holeX == _holeX && holeY == _holeY)
+        {
+            return;
+        }
+        _holeX = holeX;
+        _holeY = holeY;
+        Native.SetRegionWithHole(self, w, h, holeX, holeY, 2);
+    }
+
+    public void RaiseAboveAll()
+    {
+        Native.KeepTopmost(TryGetPlatformHandle()?.Handle ?? nint.Zero);
+        Native.KeepTopmost(WritingPadService.BallHandleProvider?.Invoke() ?? nint.Zero);
+    }
+
     public void HideOverlay()
     {
         _topGuard.Stop();
-        ApplyCaptureExclusion(false);
+        _freezeGeneration++;
+        _holeX = int.MinValue;
+        _freezeBg.Source = null;
+        _freezeBg.IsVisible = false;
         _surface.CleanupState();
         Hide();
     }
@@ -2300,13 +2439,6 @@ internal sealed class WritingPadOverlay : Window
         {
             _surface.ResetEraseState();
         }
-        WritingPadService.NotifyStateChanged();
-    }
-
-    public void SetWhiteboardMode(bool on)
-    {
-        EndAllStrokes();
-        ShowOverlay(on);
         WritingPadService.NotifyStateChanged();
     }
 
@@ -3286,15 +3418,11 @@ internal sealed class PenSettingsRow : StackPanel
 
 public sealed class CustomActionWindow : GlimpseonWindow
 {
+    // 弹层高度取行高整倍数
+    private const double DropDownItemHeight = 37;
+    private const int DropDownRows = 8;
     // 这是dsf老师不知道什么意味写的。。 下次一定改
-    private static readonly string[] Palette =
-    [
-        "Home", "Edit", "Volume", "Folder", "Download", "Clock", "Settings", "Search",
-        "Play", "Save", "Undo", "Redo", "Copy", "Delete", "Globe", "View",
-        "SlideShow", "AllApps", "Code", "People", "Page", "Ruler", "Switch", "Target",
-        "WeatherSunny", "WeatherMoon", "Zoom", "Refresh", "Shop", "Sync", "Video", "TwoBars",
-        "Scan", "World", "SaveAs", "SaveLocal", "ViewAll", "RotateClockwise", "ReportHacked", "Dismiss",
-    ];
+
 
     private readonly List<CustomAction> _items;
     private readonly StackPanel _rows = new() { Spacing = 8 };
@@ -3406,7 +3534,10 @@ public sealed class CustomActionWindow : GlimpseonWindow
     private void Save()
     {
         _saved = true;
-        CustomActions.Save(_items.Where(x => !string.IsNullOrWhiteSpace(x.Label) || !string.IsNullOrWhiteSpace(x.Target)).ToList());
+        var keep = _items.Where(x => !string.IsNullOrWhiteSpace(x.Label) || !string.IsNullOrWhiteSpace(x.Target)).ToList();
+        Log.Info($"[自定义按钮] 保存 {keep.Count} 条: " +
+            string.Join(" | ", keep.Select(x => $"{x.Kind}/{x.Target}/{x.Label}/{x.Icon}")));
+        CustomActions.Save(keep);
     }
 
     private void Rebuild()
@@ -3435,22 +3566,16 @@ public sealed class CustomActionWindow : GlimpseonWindow
 
     private Control BuildRow(CustomAction item)
     {
-        var iconButton = new Button
+        var icon = new Border
         {
             Width = 40,
             Height = 40,
-            Padding = new Thickness(0),
             CornerRadius = new CornerRadius(8),
-            Background = Brushes.Transparent,
             BorderThickness = new Thickness(1),
             BorderBrush = new SolidColorBrush(Colors.Gray, 0.28),
-            HorizontalContentAlignment = HorizontalAlignment.Center,
-            VerticalContentAlignment = VerticalAlignment.Center,
-            Content = FAIcons.IconByName(item.Icon, 18),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = BallIcons.Of(item, 18),
         };
-        var flyout = BuildIconFlyout(item, iconButton);
-        FlyoutBase.SetAttachedFlyout(iconButton, flyout);
-        iconButton.Click += (_, _) => FlyoutBase.ShowAttachedFlyout(iconButton);
 
         var name = new TextBox
         {
@@ -3459,7 +3584,14 @@ public sealed class CustomActionWindow : GlimpseonWindow
             PlaceholderText = AppUtils.Tr("custom_action.name_hint"),
             VerticalAlignment = VerticalAlignment.Center,
         };
-        name.TextChanged += (_, _) => item.Label = name.Text ?? "";
+        name.TextChanged += (_, _) =>
+        {
+            // 内置动作名字只读
+            if (item.Kind != CustomActionKind.Builtin)
+            {
+                item.Label = name.Text ?? "";
+            }
+        };
 
         var kinds = new[]
         {
@@ -3472,6 +3604,7 @@ public sealed class CustomActionWindow : GlimpseonWindow
             ItemsSource = kinds,
             SelectedIndex = (int)item.Kind,
             Width = 132,
+            MaxDropDownHeight = DropDownItemHeight * 3,
             VerticalAlignment = VerticalAlignment.Center,
         };
 
@@ -3507,23 +3640,31 @@ public sealed class CustomActionWindow : GlimpseonWindow
             }
         };
 
+        // 内置下拉 图标/文案取预设
         var builtins = new ComboBox
         {
-            ItemsSource = CustomActions.Builtins.Select(x => AppUtils.Tr(x.Key)).ToList(),
-            Width = 180,
+            ItemsSource = CustomActions.Builtins,
+            Width = 210,
+            MaxDropDownHeight = DropDownItemHeight * DropDownRows,
             VerticalAlignment = VerticalAlignment.Center,
-        };
-        var index = Array.FindIndex(CustomActions.Builtins, x => x.Value == item.Target);
-        builtins.SelectedIndex = index < 0 ? 0 : index;
-        builtins.SelectionChanged += (_, _) =>
-        {
-            if (builtins.SelectedIndex >= 0)
+            ItemTemplate = new FuncDataTemplate<BuiltinAction>((action, _) =>
             {
-                item.Target = CustomActions.Builtins[builtins.SelectedIndex].Value;
-            }
+                var row = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 8,
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                row.Children.Add(FAIcons.IconByName(action.Icon, 14));
+                row.Children.Add(new TextBlock
+                {
+                    Text = AppUtils.Tr(action.LabelKey),
+                    VerticalAlignment = VerticalAlignment.Center,
+                });
+                return row;
+            }, true),
         };
-
-        var targetCell = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,Auto") };
+        builtins.SelectedIndex = IndexOfBuiltin(item.Target);
         var fileCell = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"), ColumnSpacing = 6 };
         fileCell.Children.Add(target);
         Grid.SetColumn(browse, 1);
@@ -3536,30 +3677,75 @@ public sealed class CustomActionWindow : GlimpseonWindow
             Children = { builtins },
         };
 
+        var targetCell = new Grid();
+        targetCell.Children.Add(fileCell);
+        targetCell.Children.Add(builtinCell);
+
         void Sync()
         {
             var isBuiltin = item.Kind == CustomActionKind.Builtin;
             fileCell.IsVisible = !isBuiltin;
             builtinCell.IsVisible = isBuiltin;
             browse.IsVisible = item.Kind == CustomActionKind.App;
-            if (isBuiltin && string.IsNullOrWhiteSpace(item.Target))
+            name.IsReadOnly = isBuiltin;
+            name.Opacity = isBuiltin ? 0.7 : 1;
+            if (isBuiltin)
             {
-                item.Target = CustomActions.Builtins[0].Value;
+                // 非法 key 回退首个内置项
+                if (CustomActions.FindBuiltin(item.Target) is null)
+                {
+                    item.Target = CustomActions.Builtins[0].Key;
+                }
+                var want = IndexOfBuiltin(item.Target);
+                if (builtins.SelectedIndex != want)
+                {
+                    builtins.SelectedIndex = want;
+                }
+                if (name.Text != CustomActions.LabelOf(item))
+                {
+                    name.Text = CustomActions.LabelOf(item);
+                }
             }
+            icon.Child = BallIcons.Of(item, 18);
         }
 
-        kind.SelectionChanged += (_, _) =>
+        builtins.SelectionChanged += (_, _) =>
         {
-            if (kind.SelectedIndex < 0)
+            if (builtins.SelectedItem is not BuiltinAction action)
             {
                 return;
             }
-            item.Kind = (CustomActionKind)kind.SelectedIndex;
+            item.Target = action.Key;
+            item.Icon = action.Icon;
             Sync();
+            // SelectionBox 不刷新 重设模板
+            var tpl = builtins.ItemTemplate;
+            builtins.ItemTemplate = null;
+            builtins.ItemTemplate = tpl;
+            Log.Info($"[自定义按钮] 选中 {action.Key} 名字={name.Text}");
         };
 
-        fileCell.Children.Add(builtinCell);
-        targetCell.Children.Add(fileCell);
+        kind.SelectionChanged += (_, _) =>
+        {
+            if (kind.SelectedIndex >= 0)
+            {
+                item.Kind = (CustomActionKind)kind.SelectedIndex;
+                // 切类型清空旧目标
+                if (item.Kind == CustomActionKind.Builtin)
+                {
+                    if (CustomActions.FindBuiltin(item.Target) is null)
+                    {
+                        item.Target = CustomActions.Builtins[0].Key;
+                    }
+                }
+                else if (CustomActions.FindBuiltin(item.Target) is not null)
+                {
+                    item.Target = "";
+                    target.Text = "";
+                }
+                Sync();
+            }
+        };
         Sync();
 
         var remove = new Button
@@ -3586,7 +3772,7 @@ public sealed class CustomActionWindow : GlimpseonWindow
             ColumnDefinitions = ColumnDefinitions.Parse("Auto,Auto,Auto,*,Auto"),
             ColumnSpacing = 8,
         };
-        row.Children.Add(iconButton);
+        row.Children.Add(icon);
         Grid.SetColumn(name, 1);
         row.Children.Add(name);
         Grid.SetColumn(kind, 2);
@@ -3607,35 +3793,36 @@ public sealed class CustomActionWindow : GlimpseonWindow
         };
     }
 
-    // 图标选择浮层
-    private Flyout BuildIconFlyout(CustomAction item, Button target)
+    // 未命中回退首个 兼容旧别名
+    private static int IndexOfBuiltin(string? key)
     {
-        var flyout = new Flyout { Placement = PlacementMode.Bottom };
-        var grid = new UniformGrid { Columns = 8, Rows = 5 };
-        foreach (var icon in Palette)
+        var target = CustomActions.FindBuiltin(key)?.Key;
+        for (var i = 0; i < CustomActions.Builtins.Count; i++)
         {
-            var choice = new Button
+            if (CustomActions.Builtins[i].Key == target)
             {
-                Width = 34,
-                Height = 34,
-                Margin = new Thickness(2),
-                Padding = new Thickness(0),
-                CornerRadius = new CornerRadius(6),
-                Background = Brushes.Transparent,
-                HorizontalContentAlignment = HorizontalAlignment.Center,
-                VerticalContentAlignment = VerticalAlignment.Center,
-                Content = FAIcons.IconByName(icon, 16),
-            };
-            ToolTip.SetTip(choice, icon);
-            choice.Click += (_, _) =>
-            {
-                item.Icon = icon;
-                target.Content = FAIcons.IconByName(icon, 18);
-                flyout.Hide();
-            };
-            grid.Children.Add(choice);
+                return i;
+            }
         }
-        flyout.Content = grid;
-        return flyout;
+        return 0;
+    }
+}
+
+// 图标 内置取预设 文件取原图标
+internal static class BallIcons
+{
+    public static Control Of(CustomAction action, double size)
+    {
+        if (action.Kind == CustomActionKind.App && FileIcon.For(action.Target) is { } bitmap)
+        {
+            return new Image
+            {
+                Source = bitmap,
+                Width = size,
+                Height = size,
+                Stretch = Stretch.Uniform,
+            };
+        }
+        return FAIcons.IconByName(CustomActions.IconNameOf(action), size);
     }
 }

@@ -15,6 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 // Win32
+using System.Management;
 using System.Runtime.InteropServices;
 
 namespace Glimpseon.Core.Win32;
@@ -385,23 +386,388 @@ internal static class Native
         }
     }
 
-    private const uint WdaNone = 0x0;
-    private const uint WdaExcludeFromCapture = 0x11;
+    private const int SwHide = 0;
+    private const int SwShowNoActivate = 4;
 
     [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
+    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
-    // 屏幕捕获排除
-    public static void SetCaptureExclusion(IntPtr hwnd, bool excluded)
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmFlush();
+
+    public static void HideWindow(IntPtr hwnd)
+    {
+        if (hwnd != nint.Zero)
+        {
+            ShowWindow(hwnd, SwHide);
+        }
+    }
+
+    public static void ShowWindowNoActivate(IntPtr hwnd)
+    {
+        if (hwnd != nint.Zero)
+        {
+            ShowWindow(hwnd, SwShowNoActivate);
+        }
+    }
+
+    // DwmFlush 后截屏
+    public static void FlushDwm() => DwmFlush();
+
+    // NOACTIVATE 不抢焦点
+    private const int WsExNoActivate = 0x08000000;
+
+    public static void SetNoActivate(IntPtr hwnd)
     {
         if (hwnd == nint.Zero)
         {
             return;
         }
-        var affinity = excluded ? WdaExcludeFromCapture : WdaNone;
-        if (!SetWindowDisplayAffinity(hwnd, affinity) && excluded)
+        var ex = GetWindowLongW(hwnd, GwlExstyle);
+        if ((ex & WsExNoActivate) == 0)
         {
-            Log.Warning($"屏幕捕获排除失败: {Marshal.GetLastWin32Error()}");
+            SetWindowLongW(hwnd, GwlExstyle, ex | WsExNoActivate);
         }
+    }
+
+    [DllImport("gdi32.dll")]
+    private static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
+
+    [DllImport("gdi32.dll")]
+    private static extern int CombineRgn(IntPtr dest, IntPtr src1, IntPtr src2, int mode);
+
+    [DllImport("gdi32.dll")]
+    private static extern bool DeleteObject(IntPtr obj);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern int SetWindowRgn(IntPtr hWnd, IntPtr hRgn, bool redraw);
+
+    // 挖洞
+    public static bool SetRegionWithHole(IntPtr hwnd, int width, int height, int holeX, int holeY, int holeSize)
+    {
+        if (hwnd == nint.Zero || width <= 0 || height <= 0)
+        {
+            return false;
+        }
+        var size = Math.Clamp(holeSize, 1, 8);
+        var x = Math.Clamp(holeX, 0, Math.Max(0, width - size));
+        var y = Math.Clamp(holeY, 0, Math.Max(0, height - size));
+        var region = CreateRectRgn(0, 0, width, height);
+        var hole = CreateRectRgn(x, y, x + size, y + size);
+        CombineRgn(region, region, hole, 4);
+        DeleteObject(hole);
+        var ok = SetWindowRgn(hwnd, region, true) != 0;
+        if (!ok)
+        {
+            DeleteObject(region);
+        }
+        return ok;
+    }
+
+    private const uint GwHwndNext = 2;
+
+    [DllImport("user32.dll", SetLastError = false)]
+    private static extern IntPtr GetWindow(IntPtr hWnd, uint cmd);
+
+    [DllImport("user32.dll", SetLastError = false)]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+
+    [DllImport("user32.dll", SetLastError = false)]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = false)]
+    private static extern bool IsIconic(IntPtr hWnd);
+
+    public static IntPtr FirstForeignWindowBelow(IntPtr hwnd)
+    {
+        var self = (uint)Environment.ProcessId;
+        var next = hwnd;
+        for (var i = 0; i < 40; i++)
+        {
+            next = GetWindow(next, GwHwndNext);
+            if (next == nint.Zero)
+            {
+                return nint.Zero;
+            }
+            if (!IsWindowVisible(next) || IsIconic(next))
+            {
+                continue;
+            }
+            GetWindowThreadProcessId(next, out var pid);
+            if (pid == self)
+            {
+                continue;
+            }
+            if (!TryGetWindowRect(next, out var r) || r.Right - r.Left < 200)
+            {
+                continue;
+            }
+            return next;
+        }
+        return nint.Zero;
+    }
+
+    // 系统亮度 WMI(内置屏)/ DDC/CI(外接屏)
+    private static ManagementObject? _brightnessMethod;
+    private static bool _wmiUnsupported;
+    private static IntPtr[]? _ddcMonitors;
+    private static readonly object DdcLock = new();
+
+    public static int GetBrightness()
+    {
+        if (!_wmiUnsupported && TryWmiGet(out var value))
+        {
+            return value;
+        }
+        if (TryDdcGet(out value))
+        {
+            return value;
+        }
+        return -1;
+    }
+
+    private static int _pendingPercent = -1;
+    private static int _applying;
+
+    public static void SetBrightness(int percent)
+    {
+        Volatile.Write(ref _pendingPercent, Math.Clamp(percent, 0, 100));
+        if (Interlocked.Exchange(ref _applying, 1) == 1)
+        {
+            return;
+        }
+        Task.Run(DrainBrightness);
+    }
+
+    private static void DrainBrightness()
+    {
+        try
+        {
+            while (true)
+            {
+                var value = Interlocked.Exchange(ref _pendingPercent, -1);
+                if (value < 0)
+                {
+                    break;
+                }
+                ApplyBrightness(value);
+            }
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _applying, 0);
+            if (Volatile.Read(ref _pendingPercent) >= 0 && Interlocked.Exchange(ref _applying, 1) == 0)
+            {
+                Task.Run(DrainBrightness);
+            }
+        }
+    }
+
+    private static void ApplyBrightness(int value)
+    {
+        if (!_wmiUnsupported && TryWmiSet(value))
+        {
+            return;
+        }
+        TryDdcSet(value);
+    }
+
+    private static bool TryWmiGet(out int percent)
+    {
+        percent = -1;
+        try
+        {
+            using var searcher = new ManagementObjectSearcher("root\\WMI",
+                "SELECT CurrentBrightness FROM WmiMonitorBrightness");
+            foreach (ManagementObject item in searcher.Get())
+            {
+                percent = Convert.ToInt32(item["CurrentBrightness"]);
+                return true;
+            }
+        }
+        catch (Exception e)
+        {
+            _wmiUnsupported = true;
+            Log.Info($"WMI 无亮度: {e.Message}");
+        }
+        return false;
+    }
+
+    private static bool TryWmiSet(int value)
+    {
+        try
+        {
+            _brightnessMethod ??= FindBrightnessMethod();
+            if (_brightnessMethod is null)
+            {
+                return false;
+            }
+            using var args = _brightnessMethod.GetMethodParameters("WmiSetBrightness");
+            args["Timeout"] = 0u;
+            args["Brightness"] = (byte)value;
+            _brightnessMethod.InvokeMethod("WmiSetBrightness", args, null);
+            return true;
+        }
+        catch (Exception e)
+        {
+            _brightnessMethod = null;
+            if (!_wmiUnsupported)
+            {
+                _wmiUnsupported = true;
+                Log.Info($"WMI 写亮度失败: {e.Message}");
+            }
+        }
+        return false;
+    }
+
+    private static ManagementObject? FindBrightnessMethod()
+    {
+        using var searcher = new ManagementObjectSearcher("root\\WMI",
+            "SELECT * FROM WmiMonitorBrightnessMethods");
+        foreach (ManagementObject item in searcher.Get())
+        {
+            return item;
+        }
+        return null;
+    }
+
+    // DDC/CI 显示器 句柄取句柄
+    private static IntPtr[] DdcMonitors()
+    {
+        lock (DdcLock)
+        {
+            if (_ddcMonitors is not null)
+            {
+                return _ddcMonitors;
+            }
+            var found = new List<IntPtr>();
+            EnumDisplayMonitors(nint.Zero, nint.Zero, (monitor, _, _, _) =>
+            {
+                if (!GetNumberOfPhysicalMonitorsFromHMONITOR(monitor, out var count) || count == 0)
+                {
+                    return true;
+                }
+                var physical = new PHYSICAL_MONITOR[count];
+                if (!GetPhysicalMonitorsFromHMONITOR(monitor, count, physical))
+                {
+                    return true;
+                }
+                foreach (var item in physical)
+                {
+                    if (GetMonitorBrightness(item.Handle, out _, out _, out _))
+                    {
+                        found.Add(item.Handle);
+                    }
+                }
+                return true;
+            }, nint.Zero);
+            _ddcMonitors = [.. found];
+            return _ddcMonitors;
+        }
+    }
+
+    private static bool TryDdcGet(out int percent)
+    {
+        percent = -1;
+        foreach (var handle in DdcMonitors())
+        {
+            if (GetMonitorBrightness(handle, out var min, out var cur, out var max) && max > min)
+            {
+                percent = (int)Math.Round((cur - min) * 100.0 / (max - min));
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool TryDdcSet(int value)
+    {
+        var ok = false;
+        foreach (var handle in DdcMonitors())
+        {
+            if (!GetMonitorBrightness(handle, out var min, out _, out var max) || max <= min)
+            {
+                continue;
+            }
+            var target = (uint)Math.Round(min + (max - min) * value / 100.0);
+            ok |= SetMonitorBrightness(handle, target);
+        }
+        return ok;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct PHYSICAL_MONITOR
+    {
+        public IntPtr Handle;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+        public string Description;
+    }
+
+    private delegate bool MonitorEnumProc(IntPtr monitor, IntPtr hdc, IntPtr rect, IntPtr data);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr clip, MonitorEnumProc callback, IntPtr data);
+
+    [DllImport("dxva2.dll", SetLastError = true)]
+    private static extern bool GetNumberOfPhysicalMonitorsFromHMONITOR(IntPtr monitor, out uint count);
+
+    [DllImport("dxva2.dll", SetLastError = true)]
+    private static extern bool GetPhysicalMonitorsFromHMONITOR(IntPtr monitor, uint count,
+        [Out] PHYSICAL_MONITOR[] monitors);
+
+    [DllImport("dxva2.dll", SetLastError = true)]
+    private static extern bool GetMonitorBrightness(IntPtr monitor, out uint min, out uint current, out uint max);
+
+    [DllImport("dxva2.dll", SetLastError = true)]
+    private static extern bool SetMonitorBrightness(IntPtr monitor, uint value);
+
+    [DllImport("user32.dll", SetLastError = false)]
+    private static extern void keybd_event(byte vk, byte scan, uint flags, IntPtr extra);
+
+    public static void SendKeys(params byte[] keys)
+    {
+        foreach (var key in keys)
+        {
+            keybd_event(key, 0, 0, IntPtr.Zero);
+        }
+        for (var i = keys.Length - 1; i >= 0; i--)
+        {
+            keybd_event(keys[i], 0, 2, IntPtr.Zero);
+        }
+    }
+
+    [DllImport("user32.dll", SetLastError = false)]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    private const uint WmClose = 0x0010;
+    private const int WsExTopmost = 0x0008;
+
+    private static readonly IntPtr HwndNotTopmost = new(-2);
+
+    // 关闭前台窗口
+    public static void CloseForegroundWindow()
+    {
+        var hwnd = GetForegroundWindow();
+        if (hwnd != nint.Zero)
+        {
+            PostMessage(hwnd, WmClose, nint.Zero, nint.Zero);
+        }
+    }
+
+    // 前台窗口切 Topmost
+    public static void ToggleForegroundTopmost()
+    {
+        var hwnd = GetForegroundWindow();
+        if (hwnd == nint.Zero)
+        {
+            return;
+        }
+        var topmost = (GetWindowLongW(hwnd, GwlExstyle) & WsExTopmost) != 0;
+        SetWindowPos(hwnd, topmost ? HwndNotTopmost : HwndTopmost, 0, 0, 0, 0,
+            SwpNomove | SwpNosize | SwpNoactivate);
     }
 }
