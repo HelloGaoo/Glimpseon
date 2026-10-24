@@ -44,6 +44,11 @@
             <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE716;" FontSize="20" />
           </fa:FANavigationViewItem.IconSource>
         </fa:FANavigationViewItem>
+        <fa:FANavigationViewItem x:Name="NavRoster" Tag="roster">
+          <fa:FANavigationViewItem.IconSource>
+            <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE838;" FontSize="20" />
+          </fa:FANavigationViewItem.IconSource>
+        </fa:FANavigationViewItem>
         <fa:FANavigationViewItem x:Name="NavSubject" Tag="subject">
           <fa:FANavigationViewItem.IconSource>
             <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE82D;" FontSize="20" />

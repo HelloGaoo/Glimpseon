@@ -17,7 +17,12 @@
 // 公共 ui 工具
 using System.IO;
 using Avalonia;
+using Avalonia.Animation;
+using Avalonia.Animation.Easings;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Input;
+using Avalonia.Media.Transformation;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
@@ -76,6 +81,20 @@ public static class FAIcons
     {
         FontFamily = SymbolsFont,
         Glyph = char.ConvertFromUtf32((int)symbol),
+    };
+
+    // 码位直引 枚举缺字形时用
+    public static FAFontIcon IconGlyph(string hexCode, double fontSize = 16) => new()
+    {
+        FontFamily = SymbolsFont,
+        Glyph = char.ConvertFromUtf32(Convert.ToInt32(hexCode, 16)),
+        FontSize = fontSize,
+    };
+
+    public static FAFontIconSource IconSourceGlyph(string hexCode) => new()
+    {
+        FontFamily = SymbolsFont,
+        Glyph = char.ConvertFromUtf32(Convert.ToInt32(hexCode, 16)),
     };
 
     // 图标前景色 字体图标
@@ -405,4 +424,227 @@ public sealed class PassThroughNavigationPageFactory : IFANavigationPageFactory
     public Control? GetPage(Type srcType) => null;
 
     public Control GetPageFromObject(object target) => (Control)target;
+}
+
+// 组件展开层 公用
+/// <summary>组件展开层 遮罩+Fluent 卡片</summary>
+public static class ComponentExpander
+{
+    /// <summary>弹出展开层 对齐课程表窗口尺寸</summary>
+    public static void Show(Visual host, string title, Control content, double width = 1280, double height = 800)
+    {
+        var layer = OverlayLayer.GetOverlayLayer(host);
+        if (layer is null)
+        {
+            Log.Warning($"[展开层] 宿主无 OverlayLayer: {title}");
+            return;
+        }
+
+        var closed = false;
+        var p = WidgetSurfacePalette.Resolve(ThemeSense.IsDark(host));
+        var radius = Math.Max(8, Config.ComponentCardRadius.Value);
+        var accent = Common.ParseAccentColor(Config.ThemeColor.Value);
+
+        // 遮罩
+        var scrim = new Border
+        {
+            Background = new SolidColorBrush(Colors.Black, 0.40),
+            Opacity = 0,
+            Transitions = new Transitions
+            {
+                new DoubleTransition
+                {
+                    Property = Visual.OpacityProperty,
+                    Duration = TimeSpan.FromMilliseconds(160),
+                    Easing = new CubicEaseOut(),
+                },
+            },
+        };
+
+        // 卡片
+        var closeBtn = new Button
+        {
+            Width = 30,
+            Height = 30,
+            Padding = new Thickness(0),
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            CornerRadius = new CornerRadius(15),
+            Content = FAIcons.IconGlyph("E8BB", 13),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 10, 0),
+        };
+        ToolTip.SetTip(closeBtn, AppUtils.Tr("common.close"));
+
+        var titleText = new TextBlock
+        {
+            Text = title,
+            FontSize = 16,
+            FontWeight = FontWeight.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(20, 0, 0, 0),
+        };
+        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Height = 48 };
+        header.Children.Add(titleText);
+        header.Children.Add(closeBtn);
+        Grid.SetColumn(closeBtn, 1);
+
+        var body = new ContentControl
+        {
+            Margin = new Thickness(14, 12, 14, 14),
+            Content = content,
+        };
+        Grid.SetRow(body, 2);
+
+        var divider = new Border
+        {
+            Background = new SolidColorBrush(p.Line),
+        };
+        Grid.SetRow(divider, 1);
+
+        var card = new Border
+        {
+            CornerRadius = new CornerRadius(radius),
+            BorderThickness = new Thickness(1),
+            Opacity = 0,
+            RenderTransformOrigin = RelativePoint.Center,
+            RenderTransform = TransformOperations.Parse("scale(0.96)"),
+            Child = new Grid
+            {
+                RowDefinitions = new RowDefinitions("Auto,1,*"),
+                Children = { header, divider, body },
+            },
+            Transitions = new Transitions
+            {
+                new DoubleTransition
+                {
+                    Property = Visual.OpacityProperty,
+                    Duration = TimeSpan.FromMilliseconds(160),
+                    Easing = new CubicEaseOut(),
+                },
+                new TransformOperationsTransition
+                {
+                    Property = Visual.RenderTransformProperty,
+                    Duration = TimeSpan.FromMilliseconds(160),
+                    Easing = new CubicEaseOut(),
+                },
+            },
+        };
+
+        // 公用表面色 纯色
+        card.Background = new SolidColorBrush(p.Card);
+        card.BorderBrush = new SolidColorBrush(ThemeSense.IsDark(host) ? Colors.White : Colors.Black, ThemeSense.IsDark(host) ? 0.10 : 0.06);
+        card.SetValue(Avalonia.Controls.Documents.TextElement.ForegroundProperty,
+            new SolidColorBrush(p.Text));
+
+        var root = new Panel { Children = { scrim, card } };
+        root.Focusable = true;
+
+        // 尺寸随层重算 防首帧未就绪
+        void SyncSize()
+        {
+            var b = layer.Bounds;
+            scrim.Width = b.Width;
+            scrim.Height = b.Height;
+            card.Width = Math.Clamp(width, 320, Math.Max(320, b.Width - 48));
+            card.Height = Math.Clamp(height, 240, Math.Max(240, b.Height - 48));
+        }
+        SyncSize();
+        layer.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == Visual.BoundsProperty)
+            {
+                SyncSize();
+            }
+        };
+
+        async Task RemoveAsync()
+        {
+            await Task.Delay(180);
+            try
+            {
+                layer.Children.Remove(root);
+            }
+            catch (Exception e)
+            {
+                Log.Debug($"[展开层] 移除失败: {e.Message}");
+            }
+        }
+
+        void Close()
+        {
+            if (closed)
+            {
+                return;
+            }
+            closed = true;
+            scrim.Opacity = 0;
+            card.Opacity = 0;
+            card.RenderTransform = TransformOperations.Parse("scale(0.96)");
+            _ = RemoveAsync();
+        }
+
+        scrim.Tapped += (_, _) => Close();
+        closeBtn.Click += (_, _) => Close();
+        root.KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Escape)
+            {
+                e.Handled = true;
+                Close();
+            }
+        };
+
+        layer.Children.Add(root);
+        root.Focus();
+        Dispatcher.UIThread.Post(() =>
+        {
+            scrim.Opacity = 1;
+            card.Opacity = 1;
+            card.RenderTransform = TransformOperations.Parse("scale(1)");
+        }, DispatcherPriority.Background);
+        Log.Debug($"[展开层] 打开: {title} {width:F0}x{height:F0}");
+    }
+}
+
+// 组件表面主题色 公用
+/// <summary>组件表面主题色 深浅两套实色</summary>
+public sealed class WidgetSurfacePalette
+{
+    public Color Card { get; private init; }
+    public Color Text { get; private init; }
+    public Color Sub { get; private init; }
+    public Color Line { get; private init; }
+    public Color BandA { get; private init; }
+    public Color BandB { get; private init; }
+    public Color Gutter { get; private init; }
+
+    public static WidgetSurfacePalette Resolve(bool dark) => dark
+        ? new()
+        {
+            Card = Color.FromRgb(30, 30, 30),
+            Text = Color.Parse("#ececec"),
+            Sub = Color.Parse("#8f8f8f"),
+            Line = Color.FromRgb(61, 61, 61),
+            BandA = Color.FromRgb(30, 30, 30),
+            BandB = Color.FromRgb(37, 37, 37),
+            Gutter = Color.FromRgb(43, 43, 43),
+        }
+        : new()
+        {
+            Card = Colors.White,
+            Text = Color.Parse("#1c1c1c"),
+            Sub = Color.Parse("#8a8a8a"),
+            Line = Color.FromRgb(208, 208, 208),
+            BandA = Colors.White,
+            BandB = Color.FromRgb(246, 246, 246),
+            Gutter = Color.FromRgb(240, 240, 240),
+        };
+
+    /// <summary>底色向 tint 预混</summary>
+    public Color Blend(Color tint, double t) => Color.FromArgb(255,
+        (byte)(Card.R + (tint.R - Card.R) * t),
+        (byte)(Card.G + (tint.G - Card.G) * t),
+        (byte)(Card.B + (tint.B - Card.B) * t));
 }

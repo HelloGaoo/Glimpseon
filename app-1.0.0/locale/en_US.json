@@ -87,7 +87,9 @@
     "select_data_dir": "Select Data Directory",
     "btn_auto_detect": "Auto Detect",
     "btn_open_data_dir": "Open Data Directory",
-    "btn_select_dir": "Select Directory Manually"
+    "btn_select_dir": "Select Directory Manually",
+    "week_schedule": "Weekly Schedule",
+    "day_empty": "No classes"
   },
   "schedule": {
     "title": "Schedule",
@@ -126,7 +128,7 @@
     "profile_rename": "Rename",
     "profile_copy": "Duplicate",
     "profile_delete": "Delete",
-    "profile_hint": "A master profile binds four sub profiles (courses, time table, duty roster, subjects). Both master and sub profiles support use, delete, rename, duplicate, import and export",
+    "profile_hint": "A master profile binds course, timetable, duty, subject and roster sub-documents. All master and sub documents support delete, rename, copy, import and export.",
     "follow_mode": "Profile State",
     "follow_mode_follow": "Follow External Config",
     "follow_mode_edit": "Self Edit",
@@ -146,7 +148,23 @@
     "confirm_delete_sub": "Delete {type} sub profile \"{name}\"?",
     "name_exists": "This name already exists",
     "rename_master_title": "Rename Master Profile",
-    "rename_sub_title": "Rename Sub Profile"
+    "rename_sub_title": "Rename Sub Profile",
+    "tab_roster": "Roster",
+    "roster_title": "Roster",
+    "col_no": "No.",
+    "roster_search": "Search ID or name",
+    "roster_empty": "Roster is empty\nClick \"Add Row\" above or import an Excel file",
+    "roster_draw": "Random Pick",
+    "roster_import": "Import Roster",
+    "roster_export": "Export Roster",
+    "roster_result": "Picked: {no}{name}",
+    "roster_none": "No usable names in roster",
+    "roster_import_title": "Import Roster",
+    "roster_import_ask": "Parsed {n} rows, skipped {m} invalid rows\nReplace clears the current roster, append keeps it",
+    "roster_replace": "Replace",
+    "roster_append": "Append",
+    "roster_import_failed": "Import failed: {msg}",
+    "roster_import_empty": "No valid data rows parsed"
   },
   "wizard": {
     "title": "Glimpseon Setup Wizard",

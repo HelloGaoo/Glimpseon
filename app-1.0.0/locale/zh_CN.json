@@ -87,7 +87,9 @@
     "select_data_dir": "选择数据目录",
     "btn_auto_detect": "自动检测",
     "btn_open_data_dir": "打开数据目录",
-    "btn_select_dir": "手动选择目录"
+    "btn_select_dir": "手动选择目录",
+    "week_schedule": "本周课表",
+    "day_empty": "无课程"
   },
   "schedule": {
     "title": "课程表",
@@ -126,7 +128,7 @@
     "profile_rename": "重命名",
     "profile_copy": "复制",
     "profile_delete": "删除",
-    "profile_hint": "总档案绑定课表 时间表 值周表 学科四类分档案 总档案与分档案均可使用 删除 重命名 复制 导入导出",
+    "profile_hint": "总档案绑定课表 时间表 值周表 学科 花名册五类分档案 总档案与分档案均可使用 删除 重命名 复制 导入导出",
     "follow_mode": "档案状态",
     "follow_mode_follow": "跟随外部配置",
     "follow_mode_edit": "自编辑",
@@ -146,7 +148,23 @@
     "confirm_delete_sub": "确定要删除{type}分档案 \"{name}\" 吗",
     "name_exists": "该名称已存在",
     "rename_master_title": "重命名总档案",
-    "rename_sub_title": "重命名分档案"
+    "rename_sub_title": "重命名分档案",
+    "tab_roster": "花名册",
+    "roster_title": "花名册配置",
+    "col_no": "编号",
+    "roster_search": "搜索编号或姓名",
+    "roster_empty": "花名册为空\n点击上方\"添加行\"或导入 Excel 开始",
+    "roster_draw": "随机点名",
+    "roster_import": "导入花名册",
+    "roster_export": "导出花名册",
+    "roster_result": "点到了：{no}{name}",
+    "roster_none": "名册中没有可用姓名",
+    "roster_import_title": "导入花名册",
+    "roster_import_ask": "已解析 {n} 行 跳过 {m} 行无效行\n替换将清空当前花名册 追加则保留",
+    "roster_replace": "替换现有",
+    "roster_append": "追加",
+    "roster_import_failed": "导入失败：{msg}",
+    "roster_import_empty": "未解析到有效数据行"
   },
   "wizard": {
     "title": "Glimpseon 向导",

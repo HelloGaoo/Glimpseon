@@ -148,6 +148,22 @@ public partial class ScheduleWindow : GlimpseonWindow
     private FACommandBar? _dutyCommandBar;
     private Border? _dutyEditorCard;
 
+    // 花名册页
+    private RosterDoc _roster = new();
+    private WrapPanel _rosterCardsHost = null!;
+    private readonly List<Border> _rosterCards = [];
+    private readonly List<int> _rosterVisibleRows = [];
+    private TextBox _rosterSearch = null!;
+    private TextBlock _rosterResult = null!;
+    private TextBlock _rosterEmpty = null!;
+    private TextBlock _rosterCount = null!;
+    private TextBlock? _rosterCaption;
+    private FACommandBar? _rosterCommandBar;
+    private int _rosterSelIdx = -1;
+    private int _rosterFlashRow = -1;
+    private bool _drawing;
+    private DispatcherTimer? _drawTimer;
+
     // 学科页
     private StackPanel _subjectRowsHost = null!;
     private readonly List<Border> _subjectCells = [];
@@ -230,6 +246,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         NavCourse.Content = Tr("schedule.tab_course");
         NavTime.Content = Tr("schedule.tab_time");
         NavDuty.Content = Tr("schedule.tab_duty");
+        NavRoster.Content = Tr("schedule.tab_roster");
         NavSubject.Content = Tr("schedule.tab_subject");
         NavProfile.Content = Tr("schedule.tab_profile");
     }
@@ -289,7 +306,8 @@ public partial class ScheduleWindow : GlimpseonWindow
         _course = CourseDoc.LoadOrDefault(_master.Course);
         _duty = DutyDoc.LoadOrDefault(_master.Duty);
         _subject = SubjectDoc.LoadOrDefault(_master.Subject);
-        Log.Info($"[课表窗口] 切到总档案: {_master.Name} 来源={Config.ProfileSource.Value} 课表={_master.Course} 时间表={_master.Timetable} 值周表={_master.Duty} 学科={_master.Subject}");
+        _roster = RosterDoc.LoadOrDefault(_master.Roster);
+        Log.Info($"[课表窗口] 切到总档案: {_master.Name} 来源={Config.ProfileSource.Value} 课表={_master.Course} 时间表={_master.Timetable} 值周表={_master.Duty} 学科={_master.Subject} 花名册={_master.Roster}");
     }
 
     // 页面构建
@@ -300,6 +318,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         _pages["course"] = BuildCoursePage();
         _pages["time"] = BuildTimePage();
         _pages["duty"] = BuildDutyPage();
+        _pages["roster"] = BuildRosterPage();
         _pages["subject"] = BuildSubjectPage();
         _pages["profile"] = BuildProfilePage();
     }
@@ -417,6 +436,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         RefreshCourseTable();
         RefreshTimeTable();
         RefreshDutyTable();
+        RefreshRosterCards();
         RefreshSubjectTable();
         RebuildSubjectFlow();
         UpdateCaptions();
@@ -1546,6 +1566,419 @@ public partial class ScheduleWindow : GlimpseonWindow
         RefreshDutyTable();
     }
 
+    // 花名册页
+
+    /// <summary>码位直引图标源</summary>
+    private static FAFontIconSource GlyphIconSource(string hexCode) => FAIcons.IconSourceGlyph(hexCode);
+
+    private static FACommandBar MakeRosterCommandBar(params (string Glyph, string Label, Action OnClick)[] commands)
+    {
+        var bar = new FACommandBar { DefaultLabelPosition = FACommandBarDefaultLabelPosition.Right };
+        foreach (var (glyph, label, onClick) in commands)
+        {
+            var btn = new FACommandBarButton { IconSource = GlyphIconSource(glyph), Label = label };
+            btn.Click += (_, _) => onClick();
+            bar.PrimaryCommands.Add(btn);
+        }
+        return bar;
+    }
+
+    private Control BuildRosterPage()
+    {
+        // 根布局
+        var root = new Grid { RowDefinitions = new RowDefinitions("Auto,Auto,Auto,*") };
+        root.Children.Add(PageTitle(Tr("schedule.tab_roster")));
+
+        // 档案名 人数 结果
+        var captionRow = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*,Auto"),
+            Margin = new Thickness(24, 0, 24, 4),
+        };
+        _rosterCaption = MakeCaption();
+        captionRow.Children.Add(_rosterCaption);
+        _rosterCount = new TextBlock
+        {
+            FontSize = 13,
+            Opacity = 0.55,
+            Margin = new Thickness(10, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(_rosterCount, 1);
+        captionRow.Children.Add(_rosterCount);
+        _rosterResult = new TextBlock
+        {
+            FontSize = 14,
+            FontWeight = FontWeight.SemiBold,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        Grid.SetColumn(_rosterResult, 3);
+        captionRow.Children.Add(_rosterResult);
+        Grid.SetRow(captionRow, 1);
+        root.Children.Add(captionRow);
+
+        // 命令条+搜索
+        var bar = MakeRosterCommandBar(
+            ("E8B1", Tr("schedule.roster_draw"), OnRosterDraw),
+            ("E8B5", Tr("schedule.roster_import"), OnRosterImport),
+            ("E8B6", Tr("schedule.roster_export"), OnRosterExport),
+            ("E710", Tr("schedule.add_row"), OnRosterAddRow),
+            ("E74D", Tr("schedule.delete_row"), OnRosterDeleteRow));
+        _rosterCommandBar = bar;
+        _rosterSearch = new TextBox
+        {
+            Watermark = Tr("schedule.roster_search"),
+            Width = 220,
+            Height = 32,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        _rosterSearch.TextChanged += (_, _) => RefreshRosterCards();
+        var toolRow = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+            Margin = new Thickness(24, 0, 24, 8),
+        };
+        toolRow.Children.Add(bar);
+        Grid.SetColumn(_rosterSearch, 1);
+        toolRow.Children.Add(_rosterSearch);
+        Grid.SetRow(toolRow, 2);
+        root.Children.Add(toolRow);
+
+        // 卡片流 WrapPanel
+        _rosterCardsHost = new WrapPanel { Orientation = Orientation.Horizontal };
+        var scroll = new ScrollViewer
+        {
+            Content = _rosterCardsHost,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Padding = new Thickness(12, 10, 12, 10),
+        };
+        _rosterEmpty = new TextBlock
+        {
+            Text = Tr("schedule.roster_empty"),
+            FontSize = 12,
+            Opacity = 0.45,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            TextAlignment = TextAlignment.Center,
+            Margin = new Thickness(24),
+        };
+        var hostGrid = new Grid();
+        hostGrid.Children.Add(scroll);
+        hostGrid.Children.Add(_rosterEmpty);
+        var frame = MakeCardFrame(hostGrid);
+        frame.Margin = new Thickness(24, 0, 24, 12);
+        Grid.SetRow(frame, 3);
+        root.Children.Add(frame);
+
+        RefreshRosterCards();
+        return root;
+    }
+
+    private Control BuildRosterCard(int rowIdx, string no, string name)
+    {
+        var noEdit = new TextBox
+        {
+            Text = no,
+            PlaceholderText = Tr("schedule.col_no"),
+            FontSize = 12,
+            MinHeight = 26,
+            Padding = new Thickness(2, 1, 2, 1),
+            BorderThickness = new Thickness(0),
+            Background = Brushes.Transparent,
+            Width = 48,
+            TextAlignment = TextAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var nameEdit = new TextBox
+        {
+            Text = name,
+            PlaceholderText = Tr("schedule.col_name"),
+            FontSize = 13,
+            MinHeight = 26,
+            Padding = new Thickness(2, 1, 2, 1),
+            BorderThickness = new Thickness(0),
+            Background = Brushes.Transparent,
+            Width = 104,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        noEdit.TextChanged += (_, _) =>
+        {
+            if (!_blockSync && rowIdx < _roster.Rows.Count)
+            {
+                _roster.Rows[rowIdx]["no"] = noEdit.Text ?? "";
+                _roster.Save();
+            }
+        };
+        nameEdit.TextChanged += (_, _) =>
+        {
+            if (!_blockSync && rowIdx < _roster.Rows.Count)
+            {
+                _roster.Rows[rowIdx]["name"] = nameEdit.Text ?? "";
+                _roster.Save();
+            }
+        };
+        var content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 2,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        content.Children.Add(noEdit);
+        content.Children.Add(nameEdit);
+        var card = new Border
+        {
+            Width = 176,
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(Colors.Gray, 0.25),
+            Background = CardBg,
+            Padding = new Thickness(8, 6, 8, 6),
+            Margin = new Thickness(5),
+            Child = content,
+            Tag = rowIdx,
+        };
+        card.PointerPressed += (_, _) => SelectRosterCard(rowIdx);
+        _rosterCards.Add(card);
+        return card;
+    }
+
+    private void RefreshRosterCards()
+    {
+        if (_rosterCardsHost is null)
+        {
+            return;
+        }
+        var filter = _rosterSearch.Text?.Trim() ?? "";
+        _blockSync = true;
+        _rosterCardsHost.Children.Clear();
+        _rosterCards.Clear();
+        _rosterVisibleRows.Clear();
+        for (var i = 0; i < _roster.Rows.Count; i++)
+        {
+            var (no, name) = _roster.Entry(i);
+            if (filter.Length > 0 &&
+                !no.Contains(filter, StringComparison.OrdinalIgnoreCase) &&
+                !name.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            _rosterVisibleRows.Add(i);
+            _rosterCardsHost.Children.Add(BuildRosterCard(i, no, name));
+        }
+        _blockSync = false;
+        _rosterEmpty.IsVisible = _roster.Rows.Count == 0;
+        _rosterCount.Text = $"{_roster.Rows.Count} 人";
+        if (_rosterSelIdx >= _roster.Rows.Count)
+        {
+            _rosterSelIdx = -1;
+        }
+        PaintRosterSelection();
+    }
+
+    private void SelectRosterCard(int rowIdx)
+    {
+        _rosterSelIdx = rowIdx;
+        PaintRosterSelection();
+    }
+
+    /// <summary>选中/闪动高亮</summary>
+    private void PaintRosterSelection()
+    {
+        var accent = Common.ParseAccentColor(Config.ThemeColor.Value);
+        foreach (var card in _rosterCards)
+        {
+            var row = (int)card.Tag!;
+            var hot = row == _rosterSelIdx || row == _rosterFlashRow;
+            card.BorderThickness = hot ? new Thickness(2) : new Thickness(1);
+            card.BorderBrush = hot
+                ? AccentBrush
+                : new SolidColorBrush(Colors.Gray, 0.25);
+            card.Background = hot
+                ? new SolidColorBrush(Color.FromArgb(56, accent.R, accent.G, accent.B))
+                : CardBg;
+        }
+    }
+
+    private void OnRosterAddRow()
+    {
+        _roster.AddRow();
+        _roster.Save();
+        _rosterSelIdx = _roster.Rows.Count - 1;
+        RefreshRosterCards();
+    }
+
+    private void OnRosterDeleteRow()
+    {
+        if (_rosterSelIdx < 0 || _rosterSelIdx >= _roster.Rows.Count)
+        {
+            return;
+        }
+        _roster.Rows.RemoveAt(_rosterSelIdx);
+        _roster.Save();
+        _rosterSelIdx = -1;
+        RefreshRosterCards();
+    }
+
+    /// <summary>随机点名 减速扫动</summary>
+    private void OnRosterDraw()
+    {
+        if (_drawing)
+        {
+            return;
+        }
+        var candidates = _rosterVisibleRows
+            .Where(i => (_roster.Rows[i]["name"]?.GetValue<string>() ?? "").Length > 0)
+            .ToList();
+        if (candidates.Count == 0)
+        {
+            _rosterResult.Text = Tr("schedule.roster_none");
+            return;
+        }
+        var winner = candidates[Random.Shared.Next(candidates.Count)];
+        _drawing = true;
+        _rosterSelIdx = -1;
+        PaintRosterSelection();
+
+        _drawTimer?.Stop();
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(45) };
+        _drawTimer = timer;
+        var ticks = 0;
+        var prev = -1;
+        timer.Tick += (_, _) =>
+        {
+            ticks++;
+            // 步进减速 扫动渐停
+            timer.Interval = TimeSpan.FromMilliseconds(45 + ticks * 16);
+            int pick;
+            do
+            {
+                pick = candidates[Random.Shared.Next(candidates.Count)];
+            } while (candidates.Count > 1 && pick == prev);
+            prev = pick;
+            _rosterFlashRow = pick;
+            PaintRosterSelection();
+            if (ticks >= 18)
+            {
+                timer.Stop();
+                _drawing = false;
+                _rosterFlashRow = -1;
+                _rosterSelIdx = winner;
+                PaintRosterSelection();
+                var (wno, wname) = _roster.Entry(winner);
+                _rosterResult.Text = Tr("schedule.roster_result", ("no", wno.Length > 0 ? $"{wno} " : ""), ("name", wname));
+                if (_rosterCards.FirstOrDefault(c => (int)c.Tag! == winner) is { } winnerCard)
+                {
+                    winnerCard.BringIntoView();
+                }
+                Log.Info($"[课表窗口] 随机点名: {wno} {wname}");
+            }
+        };
+        timer.Start();
+    }
+
+    private async void OnRosterImport()
+    {
+        if (OwnerWindow is null)
+        {
+            return;
+        }
+        var files = await OwnerWindow.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = Tr("schedule.roster_import"),
+            AllowMultiple = false,
+            FileTypeFilter = [new FilePickerFileType("Excel/CSV") { Patterns = ["*.xlsx", "*.csv"] }],
+        });
+        if (files.Count == 0)
+        {
+            return;
+        }
+        RosterImportResult result;
+        try
+        {
+            result = RosterExcel.Import(files[0].Path.LocalPath);
+        }
+        catch (Exception e)
+        {
+            Log.Error($"[课表窗口] 花名册导入失败: {e.Message}");
+            _rosterResult.Text = Tr("schedule.roster_import_failed", ("msg", e.Message));
+            return;
+        }
+        if (result.Rows.Count == 0)
+        {
+            _rosterResult.Text = Tr("schedule.roster_import_empty");
+            return;
+        }
+        var dialog = new FAContentDialog
+        {
+            Title = Tr("schedule.roster_import_title"),
+            Content = Tr("schedule.roster_import_ask", ("n", result.Rows.Count.ToString()), ("m", result.Skipped.ToString())),
+            PrimaryButtonText = Tr("schedule.roster_replace"),
+            SecondaryButtonText = Tr("schedule.roster_append"),
+            CloseButtonText = Tr("common.cancel"),
+            DefaultButton = FAContentDialogButton.Primary,
+        };
+        var choice = await dialog.ShowAsync(OwnerWindow);
+        if (choice == FAContentDialogResult.None)
+        {
+            return;
+        }
+        if (choice == FAContentDialogResult.Primary)
+        {
+            _roster.Rows.Clear();
+        }
+        foreach (var r in result.Rows)
+        {
+            _roster.Rows.Add(r);
+        }
+        _roster.Save();
+        _rosterSelIdx = -1;
+        RefreshRosterCards();
+        Log.Info($"[课表窗口] 花名册导入: {files[0].Path.LocalPath} +{result.Rows.Count} 跳过{result.Skipped}");
+    }
+
+    private async void OnRosterExport()
+    {
+        if (OwnerWindow is null)
+        {
+            return;
+        }
+        try
+        {
+            var file = await OwnerWindow.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = Tr("schedule.roster_export"),
+                SuggestedFileName = $"{_roster.Name}.xlsx",
+                FileTypeChoices =
+                [
+                    new FilePickerFileType("XLSX") { Patterns = ["*.xlsx"] },
+                    new FilePickerFileType("CSV") { Patterns = ["*.csv"] },
+                ],
+            });
+            if (file is null)
+            {
+                return;
+            }
+            var path = file.Path.LocalPath;
+            if (path.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            {
+                RosterExcel.ExportCsv(path, _roster.Rows);
+            }
+            else
+            {
+                RosterExcel.ExportXlsx(path, _roster.Rows);
+            }
+            Log.Info($"[课表窗口] 花名册导出: {_roster.Name} -> {path}");
+        }
+        catch (Exception e)
+        {
+            Log.Error($"[课表窗口] 花名册导出失败: {e.Message}");
+        }
+    }
+
     // 学科页
 
     private Control BuildSubjectPage()
@@ -2064,6 +2497,7 @@ public partial class ScheduleWindow : GlimpseonWindow
             "course" => master.Course,
             "timetable" => master.Timetable,
             "duty" => master.Duty,
+            "roster" => master.Roster,
             _ => master.Subject,
         };
         var subs = ScheduleStore.ListSubs(type);
@@ -2169,6 +2603,7 @@ public partial class ScheduleWindow : GlimpseonWindow
             case "course": master.Course = pick; break;
             case "timetable": master.Timetable = pick; break;
             case "duty": master.Duty = pick; break;
+            case "roster": master.Roster = pick; break;
             default: master.Subject = pick; break;
         }
         master.Save();
@@ -2187,6 +2622,7 @@ public partial class ScheduleWindow : GlimpseonWindow
             case "course": new CourseDoc { Name = name }.Save(); break;
             case "timetable": new TimetableDoc { Name = name }.Save(); break;
             case "duty": new DutyDoc { Name = name }.Save(); break;
+            case "roster": new RosterDoc { Name = name }.Save(); break;
             default: new SubjectDoc { Name = name }.Save(); break;
         }
         BindSub(masterName, type, name);
@@ -2502,6 +2938,10 @@ public partial class ScheduleWindow : GlimpseonWindow
         if (_subjectCaption is not null)
         {
             _subjectCaption.Text = $"{Tr("schedule.subject_title")} · {_subject.Name}";
+        }
+        if (_rosterCaption is not null)
+        {
+            _rosterCaption.Text = $"{Tr("schedule.roster_title")} · {_roster.Name}";
         }
     }
 

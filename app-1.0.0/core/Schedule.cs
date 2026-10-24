@@ -15,9 +15,12 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 // 课程表总档案与分档案
+using System.IO.Compression;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 namespace Glimpseon.Core;
 
@@ -253,6 +256,67 @@ public sealed class DutyDoc
         Rows.Add(new JsonObject { ["parity"] = parity, ["weekday"] = weekday, ["group"] = group, ["name"] = name, ["role"] = role });
 }
 
+/// <summary>花名册分档案 行={no 编号, name 姓名}</summary>
+public sealed class RosterDoc
+{
+    public string Name { get; set; } = "花名册-1";
+    public List<JsonObject> Rows { get; set; } = new();
+
+    public JsonObject ToJson()
+    {
+        var rows = new JsonArray();
+        foreach (var r in Rows)
+        {
+            rows.Add(r.DeepClone());
+        }
+        return new JsonObject
+        {
+            ["name"] = Name,
+            ["rows"] = rows,
+        };
+    }
+
+    public static RosterDoc FromJson(JsonObject obj)
+    {
+        var doc = new RosterDoc
+        {
+            Name = obj["name"]?.GetValue<string>() ?? "花名册-1",
+        };
+        if (obj["rows"] is JsonArray rows)
+        {
+            foreach (var r in rows)
+            {
+                if (r is JsonObject ro)
+                {
+                    doc.Rows.Add(JsonNode.Parse(ro.ToJsonString())!.AsObject());
+                }
+            }
+        }
+        return doc;
+    }
+
+    public void Save(string? filepath = null)
+    {
+        filepath ??= ScheduleStore.SubPath("roster", Name);
+        ScheduleStore.WriteJson(filepath, ToJson());
+    }
+
+    public static RosterDoc Load(string filepath) =>
+        FromJson(JsonNode.Parse(File.ReadAllText(filepath))!.AsObject());
+
+    public static RosterDoc LoadOrDefault(string name)
+    {
+        var path = ScheduleStore.SubPath("roster", name);
+        return File.Exists(path) ? Load(path) : new RosterDoc { Name = name };
+    }
+
+    public void AddRow(string no = "", string name = "") =>
+        Rows.Add(new JsonObject { ["no"] = no, ["name"] = name });
+
+    public (string No, string Name) Entry(int idx) =>
+        (Rows[idx]["no"]?.GetValue<string>() ?? "", Rows[idx]["name"]?.GetValue<string>() ?? "");
+}
+
 /// <summary>学科分档案 行={name 科目, short 简写, teacher 老师, outdoor 室外课程}</summary>
 public sealed class SubjectDoc
 {
@@ -322,6 +386,7 @@ public sealed class ScheduleProfile
     public string Timetable { get; set; } = "";
     public string Duty { get; set; } = "";
     public string Subject { get; set; } = "";
+    public string Roster { get; set; } = "";
 
     public JsonObject ToJson() => new()
     {
@@ -330,6 +395,7 @@ public sealed class ScheduleProfile
         ["timetable"] = Timetable,
         ["duty"] = Duty,
         ["subject"] = Subject,
+        ["roster"] = Roster,
     };
 
     public static ScheduleProfile FromJson(JsonObject obj) => new()
@@ -339,6 +405,7 @@ public sealed class ScheduleProfile
         Timetable = obj["timetable"]?.GetValue<string>() ?? "",
         Duty = obj["duty"]?.GetValue<string>() ?? "",
         Subject = obj["subject"]?.GetValue<string>() ?? "",
+        Roster = obj["roster"]?.GetValue<string>() ?? "",
     };
 
     public void Save(string? filepath = null)
@@ -368,6 +435,8 @@ public sealed class ScheduleProfile
                 DutyDoc.Load(ScheduleStore.SubPath("duty", Duty)).ToJson(),
             "subject" when Subject.Length > 0 && File.Exists(ScheduleStore.SubPath("subject", Subject)) =>
                 SubjectDoc.Load(ScheduleStore.SubPath("subject", Subject)).ToJson(),
+            "roster" when Roster.Length > 0 && File.Exists(ScheduleStore.SubPath("roster", Roster)) =>
+                RosterDoc.Load(ScheduleStore.SubPath("roster", Roster)).ToJson(),
             _ => null,
         });
         var subs = new JsonObject();
@@ -394,6 +463,7 @@ public sealed class ScheduleProfile
             master.Timetable = inner.Timetable;
             master.Duty = inner.Duty;
             master.Subject = inner.Subject;
+            master.Roster = inner.Roster;
         }
         if (bundle["subs"] is JsonObject subs)
         {
@@ -411,6 +481,7 @@ public sealed class ScheduleProfile
                         case "timetable": master.Timetable = subName; break;
                         case "duty": master.Duty = subName; break;
                         case "subject": master.Subject = subName; break;
+                        case "roster": master.Roster = subName; break;
                     }
                 }
             }
@@ -444,6 +515,11 @@ public sealed class ScheduleProfile
             // 新总档案学科分档案默认带全科目种子
             new SubjectDoc { Name = Subject, Rows = ScheduleStore.DefaultSubjectRows() }.Save();
         }
+        if (Roster.Length == 0 || !File.Exists(ScheduleStore.SubPath("roster", Roster)))
+        {
+            Roster = ScheduleStore.NextSubName("roster");
+            new RosterDoc { Name = Roster }.Save();
+        }
     }
 }
 
@@ -451,7 +527,7 @@ public sealed class ScheduleProfile
 public static class ScheduleStore
 {
     public const string DefaultMasterName = "总档案-1";
-    public static readonly string[] SubTypes = ["course", "timetable", "duty", "subject"];
+    public static readonly string[] SubTypes = ["course", "timetable", "duty", "subject", "roster"];
 
     public static string MasterDir => Path.Combine(Paths.DataProfile, "schedule");
 
@@ -506,6 +582,7 @@ public static class ScheduleStore
             "course" => "课表",
             "timetable" => "时间表",
             "duty" => "值周表",
+            "roster" => "花名册",
             _ => "学科",
         };
         var names = ListSubs(type);
@@ -569,6 +646,7 @@ public static class ScheduleStore
             if (type == "timetable" && master.Timetable == oldName) { master.Timetable = newName; changed = true; }
             if (type == "duty" && master.Duty == oldName) { master.Duty = newName; changed = true; }
             if (type == "subject" && master.Subject == oldName) { master.Subject = newName; changed = true; }
+            if (type == "roster" && master.Roster == oldName) { master.Roster = newName; changed = true; }
             if (changed)
             {
                 master.Save();
@@ -592,6 +670,7 @@ public static class ScheduleStore
             if (type == "timetable" && master.Timetable == name) { master.Timetable = ""; changed = true; }
             if (type == "duty" && master.Duty == name) { master.Duty = ""; changed = true; }
             if (type == "subject" && master.Subject == name) { master.Subject = ""; changed = true; }
+            if (type == "roster" && master.Roster == name) { master.Roster = ""; changed = true; }
             if (changed)
             {
                 master.Save();
@@ -685,6 +764,7 @@ public static class ScheduleStore
         course.Save();
         new DutyDoc { Name = "值周表-1" }.Save();
         new SubjectDoc { Name = "学科-1", Rows = DefaultSubjectRows() }.Save();
+        new RosterDoc { Name = "花名册-1" }.Save();
         var master = new ScheduleProfile
         {
             Name = "总档案-1",
@@ -692,6 +772,7 @@ public static class ScheduleStore
             Timetable = timetable.Name,
             Duty = "值周表-1",
             Subject = "学科-1",
+            Roster = "花名册-1",
         };
         master.Save();
         Log.Info("[档案] 已创建默认总档案: 总档案-1");
@@ -715,5 +796,412 @@ public static class ScheduleStore
             rows.Add(new JsonObject { ["name"] = name, ["short"] = shortName, ["teacher"] = "", ["outdoor"] = outdoor });
         }
         return rows;
+    }
+}
+
+// 花名册 xlsx/csv 导入导出
+/// <summary>花名册导入结果</summary>
+public sealed class RosterImportResult
+{
+    public List<JsonObject> Rows { get; } = new();
+    public int Skipped { get; set; }
+}
+
+public static class RosterExcel
+{
+    private static readonly string[] NoKeys =
+        ["学号", "编号", "序号", "号码", "考号", "座号", "座位号", "no.", "no", "id", "number"];
+
+    private static readonly string[] NameKeys = ["姓名", "名字", "学生", "学员", "name", "student"];
+
+    private static readonly XNamespace Main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+    private static readonly XNamespace Rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    private static readonly XNamespace PkgRel = "http://schemas.openxmlformats.org/package/2006/relationships";
+
+    /// <summary>按扩展名分派导入</summary>
+    public static RosterImportResult Import(string path)
+    {
+        var table = path.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) ? ReadXlsx(path) : ReadCsv(path);
+        var (noCol, nameCol, skip) = MapColumns(table);
+        var result = new RosterImportResult();
+        for (var i = skip; i < table.Length; i++)
+        {
+            var row = table[i];
+            var name = CellAt(row, nameCol);
+            var no = noCol >= 0 ? CellAt(row, noCol) : "";
+            if (name.Length == 0 && no.Length == 0)
+            {
+                continue;
+            }
+            if (name.Length == 0)
+            {
+                result.Skipped++;
+                continue;
+            }
+            result.Rows.Add(new JsonObject { ["no"] = no, ["name"] = name });
+        }
+        return result;
+    }
+
+    /// <summary>表头定位 前8行内找</summary>
+    private static (int NoCol, int NameCol, int Skip) MapColumns(string[][] table)
+    {
+        for (var r = 0; r < Math.Min(8, table.Length); r++)
+        {
+            var row = table[r];
+            int? noCol = null, nameCol = null;
+            for (var c = 0; c < row.Length; c++)
+            {
+                var text = Normalize(row[c]).ToLowerInvariant();
+                if (text.Length == 0)
+                {
+                    continue;
+                }
+                if (nameCol is null && NameKeys.Any(k => text.Contains(k)))
+                {
+                    nameCol = c;
+                    continue;
+                }
+                if (noCol is null && NoKeys.Any(k => MatchKey(text, k)))
+                {
+                    noCol = c;
+                }
+            }
+            if (nameCol is not null)
+            {
+                return (noCol ?? -1, nameCol.Value, r + 1);
+            }
+        }
+        // 无表头启发 数值列=编号
+        if (table.Length > 0)
+        {
+            var width = table.Max(r => r.Length);
+            if (width >= 2)
+            {
+                var leftNumeric = ColumnNumericish(table, 0);
+                var rightNumeric = ColumnNumericish(table, 1);
+                if (leftNumeric && !rightNumeric)
+                {
+                    return (0, 1, 0);
+                }
+                if (rightNumeric && !leftNumeric)
+                {
+                    return (1, 0, 0);
+                }
+                return (-1, 0, 0);
+            }
+            return (-1, 0, 0);
+        }
+        return (-1, 0, 0);
+    }
+
+    /// <summary>数值主导列=编号</summary>
+    private static bool ColumnNumericish(string[][] table, int col)
+    {
+        var hits = 0;
+        var total = 0;
+        for (var r = 0; r < Math.Min(20, table.Length); r++)
+        {
+            var text = CellAt(table[r], col);
+            if (text.Length == 0)
+            {
+                continue;
+            }
+            total++;
+            if (text.All(char.IsDigit) || (text.Length > 0 && char.IsDigit(text[0]) && text.All(c => char.IsDigit(c) || c == '.')))
+            {
+                hits++;
+            }
+        }
+        return total > 0 && hits * 2 >= total;
+    }
+
+    /// <summary>英文短键全等 中文键子串</summary>
+    private static bool MatchKey(string text, string key) =>
+        key is "no" or "id" ? text == key : text.Contains(key);
+
+    private static string CellAt(string[] row, int col) =>
+        col >= 0 && col < row.Length ? Normalize(row[col]) : "";
+
+    /// <summary>去首尾 全角空格 空白折叠</summary>
+    private static string Normalize(string text)
+    {
+        var trimmed = text.Trim().Trim('\u3000', '\u00A0').Trim();
+        return trimmed.Length == 0 ? "" : string.Join(' ', trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    /// <summary>xlsx sheet 解析为文本矩阵</summary>
+    private static string[][] ReadXlsx(string path)
+    {
+        using var zip = ZipFile.OpenRead(path);
+        string[]? shared = null;
+        var sharedEntry = zip.GetEntry("xl/sharedStrings.xml");
+        if (sharedEntry is not null)
+        {
+            using var s = sharedEntry.Open();
+            var doc = XDocument.Load(s);
+            shared = doc.Root!.Elements(Main + "si")
+                .Select(si => string.Concat(si.Descendants(Main + "t").Select(t => t.Value)))
+                .ToArray();
+        }
+
+        // 首个 sheet rid->target
+        XElement wb;
+        using (var s = EntryStream(zip, "xl/workbook.xml"))
+        {
+            wb = XDocument.Load(s).Root!;
+        }
+        var firstSheet = wb.Element(Main + "sheets")?.Elements(Main + "sheet").FirstOrDefault()
+            ?? throw new InvalidDataException("xlsx 无工作表");
+        var rid = firstSheet.Attribute(Rel + "id")?.Value ?? "rId1";
+        string target;
+        using (var s = EntryStream(zip, "xl/_rels/workbook.xml.rels"))
+        {
+            var rels = XDocument.Load(s).Root!.Elements(PkgRel + "Relationship");
+            target = rels.First(r => r.Attribute("Id")?.Value == rid).Attribute("Target")!.Value;
+        }
+        if (target.StartsWith('/'))
+        {
+            target = target[1..];
+        }
+        else if (!target.StartsWith("xl/", StringComparison.OrdinalIgnoreCase))
+        {
+            target = "xl/" + target;
+        }
+
+        XElement sheet;
+        using (var s = EntryStream(zip, target))
+        {
+            sheet = XDocument.Load(s).Root!;
+        }
+        var rows = new List<string[]>();
+        foreach (var row in sheet.Descendants(Main + "row"))
+        {
+            var cells = new SortedDictionary<int, string>();
+            foreach (var c in row.Elements(Main + "c"))
+            {
+                var col = ColumnIndex(c.Attribute("r")?.Value ?? "");
+                var type = c.Attribute("t")?.Value ?? "n";
+                string text = type switch
+                {
+                    "s" when shared is not null => c.Element(Main + "v") is { } v
+                        && int.TryParse(v.Value, out var si) && si >= 0 && si < shared.Length ? shared[si] : "",
+                    "inlineStr" => string.Concat(c.Element(Main + "is")?.Descendants(Main + "t").Select(t => t.Value) ?? []),
+                    "b" => c.Element(Main + "v")?.Value == "1" ? "TRUE" : "FALSE",
+                    _ => c.Element(Main + "v")?.Value ?? "",
+                };
+                if (text.Length > 0)
+                {
+                    cells[col] = text;
+                }
+            }
+            rows.Add(cells.Count == 0 ? [] : cells.Keys.Max() + 1 <= cells.Count
+                ? [.. cells.Values]
+                : Expand(cells));
+        }
+        return [.. rows];
+    }
+
+    private static string[] Expand(SortedDictionary<int, string> cells)
+    {
+        var arr = new string[cells.Keys.Max() + 1];
+        for (var i = 0; i < arr.Length; i++)
+        {
+            arr[i] = "";
+        }
+        foreach (var (k, v) in cells)
+        {
+            arr[k] = v;
+        }
+        return arr;
+    }
+
+    private static Stream EntryStream(ZipArchive zip, string name)
+    {
+        var e = zip.GetEntry(name) ?? zip.GetEntry(name.Replace('/', '\\'))
+            ?? throw new InvalidDataException($"xlsx 缺少 {name}");
+        return e.Open();
+    }
+
+    /// <summary>A1 引用转列下标</summary>
+    private static int ColumnIndex(string reference)
+    {
+        var col = 0;
+        foreach (var ch in reference)
+        {
+            if (ch is >= 'A' and <= 'Z')
+            {
+                col = col * 26 + (ch - 'A' + 1);
+            }
+            else if (ch is >= 'a' and <= 'z')
+            {
+                col = col * 26 + (ch - 'a' + 1);
+            }
+            else
+            {
+                break;
+            }
+        }
+        return Math.Max(0, col - 1);
+    }
+
+    /// <summary>csv 解析 引号转义</summary>
+    private static string[][] ReadCsv(string path)
+    {
+        var text = File.ReadAllText(path);
+        var table = new List<string[]>();
+        var fields = new List<string>();
+        var field = new StringBuilder();
+        var inQuote = false;
+        void EndField()
+        {
+            fields.Add(field.ToString());
+            field.Clear();
+        }
+        void EndRow()
+        {
+            EndField();
+            table.Add([.. fields]);
+            fields.Clear();
+        }
+        for (var i = 0; i < text.Length; i++)
+        {
+            var ch = text[i];
+            if (inQuote)
+            {
+                if (ch == '"')
+                {
+                    if (i + 1 < text.Length && text[i + 1] == '"')
+                    {
+                        field.Append('"');
+                        i++;
+                    }
+                    else
+                    {
+                        inQuote = false;
+                    }
+                }
+                else
+                {
+                    field.Append(ch);
+                }
+            }
+            else if (ch == '"')
+            {
+                inQuote = true;
+            }
+            else if (ch == ',')
+            {
+                EndField();
+            }
+            else if (ch == '\n')
+            {
+                EndRow();
+            }
+            else if (ch == '\r')
+            {
+                // \r\n 与裸 \r 都收行
+                if (i + 1 < text.Length && text[i + 1] == '\n')
+                {
+                    i++;
+                }
+                EndRow();
+            }
+            else
+            {
+                field.Append(ch);
+            }
+        }
+        if (field.Length > 0 || fields.Count > 0)
+        {
+            EndRow();
+        }
+        return [.. table.Where(r => r.Any(f => f.Trim().Length > 0))];
+    }
+
+    /// <summary>导出 csv UTF-8 BOM</summary>
+    public static void ExportCsv(string path, IReadOnlyList<JsonObject> rows)
+    {
+        var sb = new StringBuilder();
+        sb.Append("编号,姓名\r\n");
+        foreach (var r in rows)
+        {
+            sb.Append(CsvField(r["no"]?.GetValue<string>() ?? ""));
+            sb.Append(',');
+            sb.Append(CsvField(r["name"]?.GetValue<string>() ?? ""));
+            sb.Append("\r\n");
+        }
+        File.WriteAllText(path, sb.ToString(), new UTF8Encoding(true));
+    }
+
+    private static string CsvField(string text) =>
+        text.Contains(',') || text.Contains('"') || text.Contains('\n') || text.Contains('\r')
+            ? $"\"{text.Replace("\"", "\"\"")}\""
+            : text;
+
+    /// <summary>导出 xlsx inlineStr</summary>
+    public static void ExportXlsx(string path, IReadOnlyList<JsonObject> rows)
+    {
+        using var zip = ZipFile.Open(path, ZipArchiveMode.Create);
+        WriteEntry(zip, "[Content_Types].xml",
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+              <Default Extension="xml" ContentType="application/xml"/>
+              <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+              <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+            </Types>
+            """);
+        WriteEntry(zip, "_rels/.rels",
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+            </Relationships>
+            """);
+        WriteEntry(zip, "xl/workbook.xml",
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+              <sheets><sheet name="花名册" sheetId="1" r:id="rId1"/></sheets>
+            </workbook>
+            """);
+        WriteEntry(zip, "xl/_rels/workbook.xml.rels",
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+            </Relationships>
+            """);
+
+        var sb = new StringBuilder();
+        sb.Append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""");
+        sb.Append($"""<worksheet xmlns="{Main}"><sheetData>""");
+        sb.Append(RowXml(1, "编号", "姓名"));
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var no = rows[i]["no"]?.GetValue<string>() ?? "";
+            var name = rows[i]["name"]?.GetValue<string>() ?? "";
+            sb.Append(RowXml(i + 2, no, name));
+        }
+        sb.Append("</sheetData></worksheet>");
+        WriteEntry(zip, "xl/worksheets/sheet1.xml", sb.ToString());
+    }
+
+    private static string RowXml(int idx, string no, string name) =>
+        $"<row r=\"{idx}\">" +
+        $"<c r=\"A{idx}\" t=\"inlineStr\"><is><t xml:space=\"preserve\">{Esc(no)}</t></is></c>" +
+        $"<c r=\"B{idx}\" t=\"inlineStr\"><is><t xml:space=\"preserve\">{Esc(name)}</t></is></c>" +
+        "</row>";
+
+    private static string Esc(string text) => text
+        .Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+
+    private static void WriteEntry(ZipArchive zip, string name, string content)
+    {
+        var entry = zip.CreateEntry(name, CompressionLevel.Optimal);
+        using var s = entry.Open();
+        s.Write(Encoding.UTF8.GetBytes(content));
     }
 }

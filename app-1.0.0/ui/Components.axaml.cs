@@ -1270,8 +1270,7 @@ public abstract class WidgetCardBase : DraggableContainer
 {
     protected readonly Border Card;
 
-    // 组件级背景覆盖
-    protected double? CfgBgOpacity;
+    // 组件级圆角覆盖
     protected int? CfgRadius;
 
     protected WidgetCardBase(ComponentDefinition definition)
@@ -1290,16 +1289,12 @@ public abstract class WidgetCardBase : DraggableContainer
         ActualThemeVariantChanged += (_, _) => ApplyCardStyle();
     }
 
-    // 读取组件配置中的背景覆盖
+    // 读圆角覆盖
     protected void ReadBgOverride(JsonElement? config)
     {
         if (config is not { ValueKind: JsonValueKind.Object } obj)
         {
             return;
-        }
-        if (obj.TryGetProperty("bg_opacity", out var o) && o.ValueKind == JsonValueKind.Number)
-        {
-            CfgBgOpacity = o.GetDouble();
         }
         if (obj.TryGetProperty("corner_radius", out var r) && r.ValueKind == JsonValueKind.Number)
         {
@@ -1307,26 +1302,57 @@ public abstract class WidgetCardBase : DraggableContainer
         }
     }
 
-    protected double EffectiveOpacity =>
-        CfgBgOpacity is { } o ? Math.Clamp(o / 100.0, 0, 1) : Math.Clamp(Config.ComponentCardOpacity.Value / 100.0, 0, 1);
-
     protected double EffectiveRadius =>
         CfgRadius is { } r ? Math.Max(8, r) : Math.Max(8, Config.ComponentCardRadius.Value);
 
-    // 卡片背景与文字色随主题 对齐原版深色 rgba(30,30,30) 浅色 rgba(255,255,255) 文字 #e0e0e0/#1a1a1a
+    // 卡片纯色 公用表面色
     protected virtual void ApplyCardStyle()
     {
         var dark = ThemeSense.IsDark(this);
-        var op = EffectiveOpacity;
-        Card.Background = dark
-            ? new SolidColorBrush(Color.FromRgb(30, 30, 30), op)
-            : new SolidColorBrush(Colors.White, op);
+        var p = WidgetSurfacePalette.Resolve(dark);
+        Card.Background = new SolidColorBrush(p.Card);
         Card.BorderBrush = new SolidColorBrush(dark ? Colors.White : Colors.Black, dark ? 0.10 : 0.06);
         Card.CornerRadius = new CornerRadius(EffectiveRadius);
         CardRadius = EffectiveRadius;
-        // 未显式设色的子文本继承卡片文字色(原版 is_dark ? #e0e0e0 : #1a1a1a)
+        // 子文本继承卡片文字色
         Card.SetValue(Avalonia.Controls.Documents.TextElement.ForegroundProperty,
-            new SolidColorBrush(Color.Parse(dark ? "#e0e0e0" : "#1a1a1a")));
+            new SolidColorBrush(p.Text));
+    }
+
+    // 展开层支持
+
+    /// <summary>启用展开层 右上角按钮</summary>
+    protected void EnableExpansion(string title, double width, double height, Func<Control> buildContent)
+    {
+        var btn = new Button
+        {
+            Width = 26,
+            Height = 26,
+            Padding = new Thickness(0),
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            CornerRadius = new CornerRadius(13),
+            Content = FAIcons.IconGlyph("E8A7", 12),
+            Opacity = 0.55,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 8, 8, 0),
+        };
+        ToolTip.SetTip(btn, title);
+        // 拦按下防拖拽
+        btn.AddHandler(PointerPressedEvent, (_, e) => e.Handled = true, RoutingStrategies.Bubble);
+        btn.Click += (_, _) => ComponentExpander.Show(this, title, buildContent(), width, height);
+
+        // 先摘再包 防双重父级
+        var original = Card.Child;
+        Card.Child = null;
+        var host = new Grid();
+        if (original is not null)
+        {
+            host.Children.Add(original);
+        }
+        host.Children.Add(btn);
+        Card.Child = host;
     }
 }
 
@@ -2484,6 +2510,121 @@ public static class TimetableScheduleProvider
     }
 
     /// <summary>联动跟随模式使用外部数据 自编辑或 Glimpseon 使用本地档案</summary>
+    /// <summary>整周课表 键 monday..sunday</summary>
+    public static Dictionary<string, List<ScheduleRow>> GetWeekSchedule()
+    {
+        var result = new Dictionary<string, List<ScheduleRow>>();
+        if (Config.ProfileSource.Value is "classisland" or "classwidgets" && !UseLocalScheduleData())
+        {
+            try
+            {
+                var bridge = EnsureBridge();
+                if (bridge is LinkageBridge ci)
+                {
+                    // CI 键 Mon=1..Sun=7
+                    var week = ci.GetWeekSchedule();
+                    for (var wd = 1; wd <= 7; wd++)
+                    {
+                        result[DayKey(wd)] = week.GetValueOrDefault(wd) ?? [];
+                    }
+                    return result;
+                }
+                if (bridge is ClassWidgetsBridge cw)
+                {
+                    // CW 键 Mon=0..Sun=6
+                    var week = cw.GetWeekSchedule();
+                    for (var wd = 1; wd <= 7; wd++)
+                    {
+                        result[DayKey(wd)] = week.GetValueOrDefault(wd - 1) ?? [];
+                    }
+                    return result;
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Warning($"[课表组件] 周课表联动读取失败: {e.Message}");
+            }
+        }
+        try
+        {
+            var (timetable, course) = LoadActiveDocs();
+            // 学科档补教师名
+            var teachers = new Dictionary<string, string>();
+            try
+            {
+                var master = ScheduleStore.LoadMaster(ActiveScheduleItem().Value);
+                var subject = SubjectDoc.LoadOrDefault(master.Subject);
+                foreach (var r in subject.Rows)
+                {
+                    var name = r["name"]?.GetValue<string>() ?? "";
+                    var teacher = r["teacher"]?.GetValue<string>() ?? "";
+                    if (name.Length > 0 && teacher.Length > 0)
+                    {
+                        teachers[name] = teacher;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Debug($"[课表组件] 学科教师读取失败: {e.Message}");
+            }
+            var now = AppUtils.PreciseNow();
+            var nowTime = TimeOnly.FromDateTime(now);
+            var todayKey = DayKey(((int)now.DayOfWeek + 6) % 7 + 1);
+            for (var wd = 1; wd <= 7; wd++)
+            {
+                var dayKey = DayKey(wd);
+                var rows = new List<ScheduleRow>();
+                var classCounter = 0;
+                for (var i = 0; i < timetable.Periods.Count; i++)
+                {
+                    var p = timetable.Periods[i];
+                    var start = p["start"]?.GetValue<string>() ?? "";
+                    var end = p["end"]?.GetValue<string>() ?? "";
+                    var ptype = p["type"]?.GetValue<string>() ?? "";
+                    var isCurrent = dayKey == todayKey &&
+                                    TimeOnly.TryParse(start, out var st) && TimeOnly.TryParse(end, out var et) &&
+                                    st <= nowTime && nowTime < et;
+                    if (ptype is "课间" or "活动")
+                    {
+                        rows.Add(new ScheduleRow("", "", start, end, 0, isCurrent, true, ptype));
+                    }
+                    else
+                    {
+                        classCounter++;
+                        var subj = course.GetCell(i, dayKey);
+                        rows.Add(new ScheduleRow(subj, teachers.GetValueOrDefault(subj, ""), start, end, classCounter, isCurrent, false, ""));
+                    }
+                }
+                result[dayKey] = rows;
+            }
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"[课表组件] 周课表本地读取失败: {e.Message}");
+        }
+        for (var wd = 1; wd <= 7; wd++)
+        {
+            result.TryAdd(DayKey(wd), []);
+        }
+        return result;
+    }
+
+    private static string DayKey(int pythonWeekday) => pythonWeekday switch
+    {
+        1 => "monday",
+        2 => "tuesday",
+        3 => "wednesday",
+        4 => "thursday",
+        5 => "friday",
+        6 => "saturday",
+        _ => "sunday",
+    };
+
+    /// <summary>周日首列展示列序</summary>
+    public static readonly string[] DisplayDayOrder =
+        ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
     /// <summary>按 key 找提供者 兼容裸 id</summary>
     private static (string PluginId, string Name, Func<List<ScheduleRow>> Provider)? ResolvePluginProvider(string key)
     {
@@ -2772,6 +2913,195 @@ public sealed class NewsWidget : WidgetCardBase
 // 第X节15px(宽68) 课程名20px w500 时间15px 右对齐 当前行底部进度条3px #4cc2ff
 // 行背景 深色 op*0.08/当前op*0.18/已过op*0.04 浅色 0.04/0.10/0.02 已过文字#999999
 
+/// <summary>周课表 HTML 风 仅列色</summary>
+public sealed class WeekTimetablePanel : UserControl
+{
+    private static readonly string[] DayOrder = TimetableScheduleProvider.DisplayDayOrder;
+
+    public WeekTimetablePanel()
+    {
+        var week = TimetableScheduleProvider.GetWeekSchedule();
+        var now = AppUtils.PreciseNow();
+        var todayKey = now.DayOfWeek switch
+        {
+            DayOfWeek.Monday => "monday",
+            DayOfWeek.Tuesday => "tuesday",
+            DayOfWeek.Wednesday => "wednesday",
+            DayOfWeek.Thursday => "thursday",
+            DayOfWeek.Friday => "friday",
+            DayOfWeek.Saturday => "saturday",
+            _ => "sunday",
+        };
+        var dark = ThemeSense.IsDark(this);
+        var accent = Common.ParseAccentColor(Config.ThemeColor.Value);
+        var p = WidgetSurfacePalette.Resolve(dark);
+        var textColor = p.Text;
+        var subColor = p.Sub;
+        var lineColor = p.Line;
+
+        // 竖带按天交替 今日仅表头 accent
+        var bandA = p.BandA;
+        var bandB = p.BandB;
+        var gutterBg = p.Gutter;
+
+        // 时间线取最长日 位置对齐
+        var reference = week.Values.OrderByDescending(r => r.Count).FirstOrDefault() ?? [];
+
+        var cols = "96," + string.Join(",", Enumerable.Repeat("*", 7));
+        var rowDefs = "Auto," + string.Join(",", Enumerable.Repeat("Auto", Math.Max(0, reference.Count)));
+
+        // 无边框 底色成列带
+        Border Cell(Control content, int r, int c, Color? bg)
+        {
+            var border = new Border
+            {
+                Background = bg is { } b ? new SolidColorBrush(b) : null,
+                Padding = new Thickness(8, 10, 8, 10),
+                MinHeight = 58,
+                Child = content,
+            };
+            Grid.SetRow(border, r);
+            Grid.SetColumn(border, c);
+            return border;
+        }
+
+        // 表头 文字+横杠
+        StackPanel HeadCell(string title, bool today)
+        {
+            var text = new TextBlock
+            {
+                Text = title,
+                FontSize = 16,
+                FontWeight = FontWeight.SemiBold,
+                Foreground = new SolidColorBrush(today ? accent : textColor),
+                TextAlignment = TextAlignment.Center,
+            };
+            var bar = new Border
+            {
+                Height = 2,
+                Margin = new Thickness(14, 9, 14, 0),
+                Background = new SolidColorBrush(today ? accent : lineColor),
+            };
+            return new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { text, bar } };
+        }
+
+        // 科目主 教师次
+        StackPanel SubjectCell(string subject, string teacher, bool current)
+        {
+            return new StackPanel
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = subject,
+                        FontSize = 16,
+                        FontWeight = FontWeight.SemiBold,
+                        Foreground = new SolidColorBrush(current ? accent : textColor),
+                        TextAlignment = TextAlignment.Center,
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                    },
+                    new TextBlock
+                    {
+                        Text = teacher.Length > 0 ? teacher : "—",
+                        FontSize = 12,
+                        Foreground = new SolidColorBrush(current ? accent : subColor),
+                        TextAlignment = TextAlignment.Center,
+                        Margin = new Thickness(0, 4, 0, 0),
+                    },
+                },
+            };
+        }
+
+        // 表头行
+        var header = new Grid { ColumnDefinitions = new ColumnDefinitions(cols) };
+        header.Children.Add(Cell(HeadCell(AppUtils.Tr("timetable.time_range"), false), 0, 0, gutterBg));
+        for (var d = 0; d < 7; d++)
+        {
+            var dayKey = DayOrder[d];
+            header.Children.Add(Cell(HeadCell(AppUtils.Tr($"timetable.{dayKey}"), dayKey == todayKey), 0, d + 1, d % 2 == 1 ? bandB : bandA));
+        }
+
+        // 节次行
+        var body = new Grid { ColumnDefinitions = new ColumnDefinitions(cols), RowDefinitions = new RowDefinitions(rowDefs) };
+        for (var i = 0; i < reference.Count; i++)
+        {
+            var refRow = reference[i];
+            var isBreak = refRow.IsBreak;
+            var current = refRow.IsCurrent;
+
+            var gutter = new StackPanel
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = isBreak ? (refRow.BreakName.Length > 0 ? refRow.BreakName : "课间") : $"第{refRow.Index}节",
+                        FontSize = 15,
+                        FontWeight = FontWeight.SemiBold,
+                        Foreground = new SolidColorBrush(current ? accent : textColor),
+                        TextAlignment = TextAlignment.Center,
+                    },
+                    new TextBlock
+                    {
+                        Text = $"{refRow.StartTime}~{refRow.EndTime}",
+                        FontSize = 11,
+                        Foreground = new SolidColorBrush(subColor),
+                        TextAlignment = TextAlignment.Center,
+                        Margin = new Thickness(0, 3, 0, 0),
+                    },
+                },
+            };
+            body.Children.Add(Cell(gutter, i, 0, gutterBg));
+
+            for (var d = 0; d < 7; d++)
+            {
+                var dayKey = DayOrder[d];
+                var rows = week.GetValueOrDefault(dayKey) ?? [];
+                var bg = d % 2 == 1 ? bandB : bandA;
+                if (i < rows.Count && !rows[i].IsBreak)
+                {
+                    var row = rows[i];
+                    body.Children.Add(Cell(SubjectCell(row.Subject, row.Teacher, current), i, d + 1, bg));
+                }
+                else
+                {
+                    // 课间空档 同列带
+                    body.Children.Add(Cell(new TextBlock(), i, d + 1, bg));
+                }
+            }
+        }
+
+        if (reference.Count == 0)
+        {
+            body.Children.Add(new TextBlock
+            {
+                Text = AppUtils.Tr("timetable.day_empty"),
+                FontSize = 13,
+                Opacity = 0.45,
+                TextAlignment = TextAlignment.Center,
+                Margin = new Thickness(0, 24, 0, 0),
+            });
+            Grid.SetColumnSpan(body.Children[^1], 8);
+        }
+
+        // 表头固定 行区滚
+        var root = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
+        root.Children.Add(header);
+        var scroll = new ScrollViewer
+        {
+            Content = body,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+        };
+        Grid.SetRow(scroll, 1);
+        root.Children.Add(scroll);
+        Content = root;
+    }
+}
+
 public sealed class TimetablePreviewWidget : WidgetCardBase
 {
     private readonly TextBlock _titleText = new();
@@ -2820,6 +3150,9 @@ public sealed class TimetablePreviewWidget : WidgetCardBase
         _refreshTimer.Start();
         _progressTimer.Start();
         RefreshSchedule();
+
+        // 展开层 单日弹整周
+        EnableExpansion(AppUtils.Tr("timetable.week_schedule"), 1280, 800, () => new WeekTimetablePanel());
     }
 
     private void RefreshSchedule()
