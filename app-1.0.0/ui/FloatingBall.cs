@@ -409,6 +409,8 @@ public class FloatingBallWindow : Window
             ClampToScreen();
             // WS_EX_NOACTIVATE 保前台窗口
             Native.SetNoActivate(TryGetPlatformHandle()?.Handle ?? nint.Zero);
+            // 关 DWM 窗口阴影
+            Native.DisableShadow(TryGetPlatformHandle()?.Handle ?? nint.Zero);
         };
     }
 
@@ -465,7 +467,6 @@ public class FloatingBallWindow : Window
         _ball.BorderThickness = new Thickness(2);
         _ball.BorderBrush = new SolidColorBrush(Colors.White, 0.9);
         _ball.Background = new SolidColorBrush(_accent, 0.25);
-        _ball.BoxShadow = BallShade;
         _ball.Cursor = new Cursor(StandardCursorType.Hand);
         _ball.Child = logo;
         Canvas.SetTop(_ball, 1);
@@ -987,9 +988,6 @@ public class FloatingBallWindow : Window
 
     private bool DarkMode => ThemeSense.IsDark(this);
 
-    private static readonly BoxShadows BarShade = BoxShadows.Parse("0 10 26 0 #38000000");
-    private static readonly BoxShadows BallShade = BoxShadows.Parse("0 5 16 0 #4D000000");
-
     // 主文字色
     private IBrush TextBrush() => new SolidColorBrush(Color.Parse(DarkMode ? "#EAEAEA" : "#1C1C1C"));
 
@@ -1007,7 +1005,6 @@ public class FloatingBallWindow : Window
         bar.CornerRadius = new CornerRadius(BarRadius);
         bar.BorderThickness = new Thickness(1);
         bar.BorderBrush = BarBorderBrush();
-        bar.BoxShadow = BarShade;
         bar.Background = ResolveBrush("ApplicationBackgroundBrush", Color.FromRgb(0x1E, 0x21, 0x29), 0.98);
     }
 
@@ -2138,9 +2135,7 @@ internal sealed class WritingPadOverlay : Window
     private readonly Image _freezeBg;
     private readonly Panel _root;
     private PixelRect _unionPx;
-    // 区域未变 跳过 SetWindowRgn
-    private int _holeX = int.MinValue;
-    private int _holeY;
+    private bool _captureExcluded;
     private int _freezeGeneration;
     private const int CaptureDelayMs = 50; // 抓屏前等一帧提交
     private readonly DispatcherTimer _topGuard = new() { Interval = TimeSpan.FromMilliseconds(400) };
@@ -2239,6 +2234,7 @@ internal sealed class WritingPadOverlay : Window
         // 缩 2px 规避全屏判定
         Height = Math.Max(1, union.Height - 2) / s;
         _surface.FitBounds(Width, Height);
+        Log.Info($"[画笔] union={union} 屏缩放={s} win={Width}x{Height} render={RenderScaling} surface={_surface.Bounds} white={_whiteBg.Bounds}");
     }
 
     public void ShowOverlay(bool whiteboard)
@@ -2253,7 +2249,7 @@ internal sealed class WritingPadOverlay : Window
         FitScreens();
         RaiseAboveAll();
         _topGuard.Start();
-        ApplyOcclusionHole();
+        ApplyCaptureExclusion(true);
         if (wasHidden)
         {
             RefreshFreezeBg();
@@ -2368,43 +2364,18 @@ internal sealed class WritingPadOverlay : Window
         }
     }
 
-    // Topmost 守卫 顺带重设洞
-    private void OnTopGuardTick(object? sender, EventArgs e)
-    {
-        ApplyOcclusionHole();
-        RaiseAboveAll();
-    }
+    // Topmost 守卫
+    private void OnTopGuardTick(object? sender, EventArgs e) => RaiseAboveAll();
 
-    // 挖洞 规避遮挡剔除
-    private void ApplyOcclusionHole()
+    // 屏幕捕获排除
+    private void ApplyCaptureExclusion(bool on)
     {
-        var self = TryGetPlatformHandle()?.Handle ?? nint.Zero;
-        if (self == nint.Zero || _unionPx == default || !IsVisible)
+        if (_captureExcluded == on)
         {
             return;
         }
-        if (!Native.TryGetWindowRect(self, out var selfRect))
-        {
-            return;
-        }
-        var w = selfRect.Right - selfRect.Left;
-        var h = selfRect.Bottom - selfRect.Top;
-        var target = Native.FirstForeignWindowBelow(self);
-        var holeX = w - 8;
-        var holeY = h - 8;
-        if (target != nint.Zero && Native.TryGetWindowRect(target, out var r))
-        {
-            // 洞置于目标窗口右下角 2px
-            holeX = r.Right - selfRect.Left - 8;
-            holeY = r.Bottom - selfRect.Top - 8;
-        }
-        if (holeX == _holeX && holeY == _holeY)
-        {
-            return;
-        }
-        _holeX = holeX;
-        _holeY = holeY;
-        Native.SetRegionWithHole(self, w, h, holeX, holeY, 2);
+        _captureExcluded = on;
+        Native.SetCaptureExclusion(TryGetPlatformHandle()?.Handle ?? nint.Zero, on);
     }
 
     public void RaiseAboveAll()
@@ -2417,7 +2388,7 @@ internal sealed class WritingPadOverlay : Window
     {
         _topGuard.Stop();
         _freezeGeneration++;
-        _holeX = int.MinValue;
+        ApplyCaptureExclusion(false);
         _freezeBg.Source = null;
         _freezeBg.IsVisible = false;
         _surface.CleanupState();
@@ -3453,12 +3424,11 @@ public sealed class CustomActionWindow : GlimpseonWindow
 
     private Control BuildRoot()
     {
-        var hint = new TextBlock
+        var title = new TextBlock
         {
-            Text = AppUtils.Tr("custom_action.hint"),
-            FontSize = 12,
-            Opacity = 0.7,
-            TextWrapping = TextWrapping.Wrap,
+            Text = AppUtils.Tr("custom_action.title"),
+            FontSize = 18,
+            FontWeight = FontWeight.SemiBold,
             Margin = new Thickness(2, 0, 2, 14),
         };
 
@@ -3523,9 +3493,9 @@ public sealed class CustomActionWindow : GlimpseonWindow
         };
 
         var root = new DockPanel { Margin = new Thickness(24, 20, 24, 20) };
-        DockPanel.SetDock(hint, Dock.Top);
+        DockPanel.SetDock(title, Dock.Top);
         DockPanel.SetDock(footer, Dock.Bottom);
-        root.Children.Add(hint);
+        root.Children.Add(title);
         root.Children.Add(footer);
         root.Children.Add(scroll);
         return root;

@@ -1377,7 +1377,6 @@
   },
   "custom_action": {
     "title": "Custom buttons",
-    "hint": "Configure the buttons under \"More\": pick a type and a target. Apps and files use their own icon; built-in actions come with preset icons and names.",
     "add": "Add",
     "done": "Done",
     "name_hint": "Button label",

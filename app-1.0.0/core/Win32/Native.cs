@@ -414,6 +414,23 @@ internal static class Native
     // DwmFlush 后截屏
     public static void FlushDwm() => DwmFlush();
 
+    private const int DwmwaNcRenderingPolicy = 2;
+    private const int DwmncrpDisabled = 2;
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+
+    // 关 DWM 窗口阴影
+    public static void DisableShadow(IntPtr hwnd)
+    {
+        if (hwnd == nint.Zero)
+        {
+            return;
+        }
+        var policy = DwmncrpDisabled;
+        DwmSetWindowAttribute(hwnd, DwmwaNcRenderingPolicy, ref policy, sizeof(int));
+    }
+
     // NOACTIVATE 不抢焦点
     private const int WsExNoActivate = 0x08000000;
 
@@ -442,69 +459,24 @@ internal static class Native
     [DllImport("user32.dll", SetLastError = true)]
     private static extern int SetWindowRgn(IntPtr hWnd, IntPtr hRgn, bool redraw);
 
-    // 挖洞
-    public static bool SetRegionWithHole(IntPtr hwnd, int width, int height, int holeX, int holeY, int holeSize)
+    private const uint WdaNone = 0x0;
+    private const uint WdaExcludeFromCapture = 0x11;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
+
+    // 屏幕捕获排除
+    public static void SetCaptureExclusion(IntPtr hwnd, bool excluded)
     {
-        if (hwnd == nint.Zero || width <= 0 || height <= 0)
+        if (hwnd == nint.Zero)
         {
-            return false;
+            return;
         }
-        var size = Math.Clamp(holeSize, 1, 8);
-        var x = Math.Clamp(holeX, 0, Math.Max(0, width - size));
-        var y = Math.Clamp(holeY, 0, Math.Max(0, height - size));
-        var region = CreateRectRgn(0, 0, width, height);
-        var hole = CreateRectRgn(x, y, x + size, y + size);
-        CombineRgn(region, region, hole, 4);
-        DeleteObject(hole);
-        var ok = SetWindowRgn(hwnd, region, true) != 0;
-        if (!ok)
+        var affinity = excluded ? WdaExcludeFromCapture : WdaNone;
+        if (!SetWindowDisplayAffinity(hwnd, affinity) && excluded)
         {
-            DeleteObject(region);
+            Log.Warning($"捕获排除失败: {Marshal.GetLastWin32Error()}");
         }
-        return ok;
-    }
-
-    private const uint GwHwndNext = 2;
-
-    [DllImport("user32.dll", SetLastError = false)]
-    private static extern IntPtr GetWindow(IntPtr hWnd, uint cmd);
-
-    [DllImport("user32.dll", SetLastError = false)]
-    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
-
-    [DllImport("user32.dll", SetLastError = false)]
-    private static extern bool IsWindowVisible(IntPtr hWnd);
-
-    [DllImport("user32.dll", SetLastError = false)]
-    private static extern bool IsIconic(IntPtr hWnd);
-
-    public static IntPtr FirstForeignWindowBelow(IntPtr hwnd)
-    {
-        var self = (uint)Environment.ProcessId;
-        var next = hwnd;
-        for (var i = 0; i < 40; i++)
-        {
-            next = GetWindow(next, GwHwndNext);
-            if (next == nint.Zero)
-            {
-                return nint.Zero;
-            }
-            if (!IsWindowVisible(next) || IsIconic(next))
-            {
-                continue;
-            }
-            GetWindowThreadProcessId(next, out var pid);
-            if (pid == self)
-            {
-                continue;
-            }
-            if (!TryGetWindowRect(next, out var r) || r.Right - r.Left < 200)
-            {
-                continue;
-            }
-            return next;
-        }
-        return nint.Zero;
     }
 
     // 系统亮度 WMI(内置屏)/ DDC/CI(外接屏)
