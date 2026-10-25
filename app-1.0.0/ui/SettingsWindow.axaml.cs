@@ -54,6 +54,7 @@ public partial class SettingsWindow : GlimpseonWindow
         ("time", "settings.time"),
         ("appearance", "settings.appearance"),
         ("weather", "settings.weather"),
+        ("ai", "settings.ai.title"),
         ("grid", "settings.grid.title"),
         ("log", "settings.log"),
         ("reminder", "settings.reminder"),
@@ -103,6 +104,7 @@ public partial class SettingsWindow : GlimpseonWindow
         NavTime.Content = Tr("settings.time");
         NavAppearance.Content = Tr("settings.appearance");
         NavWeather.Content = Tr("settings.weather");
+        NavAi.Content = Tr("settings.ai.title");
         NavGrid.Content = Tr("settings.grid.title");
         NavLog.Content = Tr("settings.log");
         NavReminder.Content = Tr("settings.reminder");
@@ -271,6 +273,81 @@ public partial class SettingsWindow : GlimpseonWindow
         ? $"#{c.R:X2}{c.G:X2}{c.B:X2}"
         : $"#{c.A:X2}{c.R:X2}{c.G:X2}{c.B:X2}";
 
+    /// <summary>码位直引卡片</summary>
+    private static FASettingsExpander Card(string hexIcon, string header, string? description, Control? footer)
+    {
+        var card = new FASettingsExpander
+        {
+            IconSource = FAIcons.IconSourceGlyph(hexIcon),
+            Header = header,
+        };
+        if (!string.IsNullOrEmpty(description))
+        {
+            card.Description = description;
+        }
+        if (footer is not null)
+        {
+            card.Footer = footer;
+        }
+        return card;
+    }
+
+    /// <summary>开关卡片 码位直引</summary>
+    private static FASettingsExpander CardSwitch(string hexIcon, string header, string description, ConfigItem<bool> item)
+    {
+        var toggle = new ToggleSwitch { IsChecked = item.Value, OnContent = null, OffContent = null };
+        toggle.IsCheckedChanged += (_, _) => item.Value = toggle.IsChecked == true;
+        return Card(hexIcon, header, description, toggle);
+    }
+
+    /// <summary>小数数值卡片</summary>
+    private static FASettingsExpander CardSpin(FASymbol icon, string header, string description, ConfigItem<double> item, double min, double max, double increment, string format = "0.0")
+    {
+        var num = new NumericUpDown
+        {
+            Value = (decimal)item.Value,
+            Minimum = (decimal)min,
+            Maximum = (decimal)max,
+            Increment = (decimal)increment,
+            FormatString = format,
+            Width = 150,
+        };
+        num.ValueChanged += (_, e) => item.Value = (double)(e.NewValue ?? 0);
+        return Card(icon, header, description, num);
+    }
+
+    /// <summary>小数数值卡片 码位直引</summary>
+    private static FASettingsExpander CardSpin(string hexIcon, string header, string description, ConfigItem<double> item, double min, double max, double increment, string format = "0.0")
+    {
+        var num = new NumericUpDown
+        {
+            Value = (decimal)item.Value,
+            Minimum = (decimal)min,
+            Maximum = (decimal)max,
+            Increment = (decimal)increment,
+            FormatString = format,
+            Width = 150,
+        };
+        num.ValueChanged += (_, e) => item.Value = (double)(e.NewValue ?? 0);
+        return Card(hexIcon, header, description, num);
+    }
+
+    /// <summary>整数数值卡片 码位直引</summary>
+    private static FASettingsExpander CardSpin(string hexIcon, string header, string description, ConfigItem<int> item, double min, double max)
+    {
+        var num = new NumericUpDown
+        {
+            Value = item.Value,
+            Minimum = (decimal)min,
+            Maximum = (decimal)max,
+            Increment = 1,
+            Width = 150,
+            FormatString = "0",
+        };
+        num.ValueChanged += (_, e) => item.Value = (int)(e.NewValue ?? 0);
+        return Card(hexIcon, header, description, num);
+    }
+
     private static StackPanel MakePageStack(string pageTitle)
     {
         return new StackPanel
@@ -291,7 +368,7 @@ public partial class SettingsWindow : GlimpseonWindow
     };
 
     /// <summary>页内提示条</summary>
-    private static void Info(Panel host, FAInfoBarSeverity severity, string message)
+    private static void Info(Panel host, FAInfoBarSeverity severity, string message, bool persist = false)
     {
         var bar = new FAInfoBar
         {
@@ -302,6 +379,10 @@ public partial class SettingsWindow : GlimpseonWindow
             Margin = new Thickness(0, 0, 0, 8),
         };
         host.Children.Insert(0, bar);
+        if (persist)
+        {
+            return;
+        }
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
         timer.Tick += (_, _) =>
         {
@@ -333,6 +414,7 @@ public partial class SettingsWindow : GlimpseonWindow
         _pages["time"] = Wrap(BuildTimePage());
         _pages["appearance"] = Wrap(BuildAppearancePage());
         _pages["weather"] = Wrap(BuildWeatherPage());
+        _pages["ai"] = Wrap(BuildAiPage());
         _pages["grid"] = Wrap(BuildGridPage());
         _pages["log"] = Wrap(BuildLogPage());
         _pages["reminder"] = Wrap(BuildReminderPage());
@@ -1460,6 +1542,139 @@ public partial class SettingsWindow : GlimpseonWindow
         return stack;
     }
 
+    // AI
+
+    private Control BuildAiPage()
+    {
+        var stack = MakePageStack(Tr("settings.ai.title"));
+        stack.Children.Add(new TextBlock
+        {
+            Text = Tr("settings.ai.note"),
+            TextWrapping = TextWrapping.Wrap,
+            Opacity = 0.75,
+            Margin = new Thickness(0, 0, 0, 8),
+        });
+
+        stack.Children.Add(CardSwitch("E99A", Tr("settings.ai.enabled"), Tr("settings.ai.enabled_desc"), Config.AiEnabled));
+
+        var providers = new (string Id, string Label)[]
+        {
+            ("default", Tr("settings.ai.provider_default")),
+            ("zhipu", Tr("settings.ai.provider_zhipu")),
+            ("deepseek", Tr("settings.ai.provider_deepseek")),
+            ("custom", Tr("settings.ai.provider_custom")),
+        };
+        var providerCombo = new ComboBox { MinWidth = 200 };
+        providerCombo.ItemsSource = providers.Select(p => p.Label).ToList();
+        var currentProvider = Config.AiProvider.Value;
+        providerCombo.SelectedIndex = Math.Max(0, Array.FindIndex(providers, p => p.Id == currentProvider));
+
+        var baseUrlBox = new TextBox { Width = 260 };
+        var keyBox = new TextBox { Width = 190, PasswordChar = '●', RevealPassword = false };
+        var modelBox = new TextBox { Width = 260 };
+        var promptBox = new TextBox { Width = 260, Height = 90, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap };
+
+        void LoadSlot(string p)
+        {
+            var (b, k, m, t) = AiService.Slot(p);
+            baseUrlBox.Text = b.Value;
+            keyBox.Text = k.Value;
+            modelBox.Text = m.Value;
+            promptBox.Text = t.Value;
+        }
+
+        void SaveSlot(string p)
+        {
+            var (b, k, m, t) = AiService.Slot(p);
+            b.Value = baseUrlBox.Text ?? "";
+            k.Value = keyBox.Text ?? "";
+            m.Value = modelBox.Text ?? "";
+            t.Value = promptBox.Text ?? "";
+        }
+
+        LoadSlot(currentProvider);
+
+        baseUrlBox.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == TextBox.TextProperty)
+            {
+                AiService.Slot(currentProvider).BaseUrl.Value = baseUrlBox.Text ?? "";
+            }
+        };
+        keyBox.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == TextBox.TextProperty)
+            {
+                AiService.Slot(currentProvider).Key.Value = keyBox.Text ?? "";
+            }
+        };
+        modelBox.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == TextBox.TextProperty)
+            {
+                AiService.Slot(currentProvider).Model.Value = modelBox.Text ?? "";
+            }
+        };
+        promptBox.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == TextBox.TextProperty)
+            {
+                AiService.Slot(currentProvider).Prompt.Value = promptBox.Text ?? "";
+            }
+        };
+
+        providerCombo.SelectionChanged += (_, _) =>
+        {
+            var p = providers[Math.Max(0, providerCombo.SelectedIndex)].Id;
+            if (p == currentProvider)
+            {
+                return;
+            }
+            SaveSlot(currentProvider);
+            currentProvider = p;
+            Config.AiProvider.Value = p;
+            LoadSlot(p);
+        };
+
+        stack.Children.Add(Card(FASymbol.Globe, Tr("settings.ai.provider"), Tr("settings.ai.provider_desc"), providerCombo));
+        stack.Children.Add(Card(FASymbol.World, Tr("settings.ai.base_url"), Tr("settings.ai.base_url_desc"), baseUrlBox));
+        stack.Children.Add(Card("E191", Tr("settings.ai.api_key"), Tr("settings.ai.api_key_desc"), keyBox));
+        stack.Children.Add(Card("E70F", Tr("settings.ai.model"), Tr("settings.ai.model_desc"), modelBox));
+
+        stack.Children.Add(SectionHeader(Tr("settings.ai.advanced"), FASymbol.Setting));
+        stack.Children.Add(CardSpin("E945", Tr("settings.ai.temperature"), Tr("settings.ai.temperature_desc"), Config.AiTemperature, 0, 2, 0.1));
+        stack.Children.Add(CardSpin("E8A5", Tr("settings.ai.max_tokens"), Tr("settings.ai.max_tokens_desc"), Config.AiMaxTokens, 64, 8192));
+        stack.Children.Add(CardSpin("E823", Tr("settings.ai.timeout"), Tr("settings.ai.timeout_desc"), Config.AiTimeout, 5, 300));
+        stack.Children.Add(Card("E8BD", Tr("settings.ai.system_prompt"), Tr("settings.ai.system_prompt_desc"), promptBox));
+
+        var testBtn = new Button { Content = Tr("settings.ai.test"), MinWidth = 110 };
+        stack.Children.Add(Card("E9D9", Tr("settings.ai.test"), Tr("settings.ai.test_desc"), testBtn));
+        testBtn.Click += async (_, _) =>
+        {
+            testBtn.IsEnabled = false;
+            var original = (string)testBtn.Content!;
+            testBtn.Content = Tr("settings.ai.testing");
+            var prompt = AiService.Slot(currentProvider).Prompt.Value.Trim();
+            if (prompt.Length == 0)
+            {
+                prompt = "你好";
+            }
+            var result = await AiService.ChatAsync(prompt);
+            testBtn.Content = original;
+            testBtn.IsEnabled = true;
+            if (result.Ok)
+            {
+                var reply = result.Content.Length > 120 ? result.Content[..120] + "…" : result.Content;
+                Info(stack, FAInfoBarSeverity.Success, AppUtils.Tr("settings.ai.test_ok", ("ms", result.LatencyMs), ("reply", reply)), persist: true);
+            }
+            else
+            {
+                Info(stack, FAInfoBarSeverity.Error, AppUtils.Tr("settings.ai.test_fail", ("error", result.Error)), persist: true);
+            }
+        };
+        return stack;
+    }
+
     // 高级
 
     private Control BuildAdvancedPage()
@@ -1479,7 +1694,7 @@ public partial class SettingsWindow : GlimpseonWindow
                 .Select(kv => (Tr(kv.Value.NameKey), kv.Key))
                 .ToArray()));
 
-        // 配置导入/导出(
+        // 配置导入/导出
         var exportBtn = new Button { Content = Tr("settings.export_button"), MinWidth = 90 };
         var importBtn = new Button { Content = Tr("settings.import_button"), MinWidth = 90 };
         exportBtn.Click += (_, _) => _ = ExportConfigAsync(stack);

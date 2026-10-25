@@ -541,6 +541,30 @@ public static class Config
     public static readonly ConfigItem<bool> CrashUpload = new("Telemetry", "CrashUpload", true);
     public static readonly ConfigItem<bool> UsageUpload = new("Telemetry", "UsageUpload", true);
 
+    // Ai
+    public static readonly ConfigItem<bool> AiEnabled = new("Ai", "Enabled", false);
+    public static readonly ConfigItem<string> AiProvider = new("Ai", "Provider", "default",
+        options: new string?[] { "default", "zhipu", "deepseek", "custom" });
+    public static readonly ConfigItem<string> AiDefaultBaseUrl = new("Ai", "DefaultBaseUrl", "https://text.pollinations.ai/openai");
+    public static readonly ConfigItem<string> AiDefaultApiKey = new("Ai", "DefaultApiKey", "");
+    public static readonly ConfigItem<string> AiDefaultModel = new("Ai", "DefaultModel", "openai-fast");
+    public static readonly ConfigItem<string> AiDefaultPrompt = new("Ai", "DefaultPrompt", "你好");
+    public static readonly ConfigItem<string> AiZhipuBaseUrl = new("Ai", "ZhipuBaseUrl", "https://open.bigmodel.cn/api/paas/v4/chat/completions");
+    public static readonly ConfigItem<string> AiZhipuApiKey = new("Ai", "ZhipuApiKey", "");
+    public static readonly ConfigItem<string> AiZhipuModel = new("Ai", "ZhipuModel", "glm-4-flash");
+    public static readonly ConfigItem<string> AiZhipuPrompt = new("Ai", "ZhipuPrompt", "你好");
+    public static readonly ConfigItem<string> AiDeepseekBaseUrl = new("Ai", "DeepseekBaseUrl", "https://api.deepseek.com/chat/completions");
+    public static readonly ConfigItem<string> AiDeepseekApiKey = new("Ai", "DeepseekApiKey", "");
+    public static readonly ConfigItem<string> AiDeepseekModel = new("Ai", "DeepseekModel", "deepseek-v4-flash");
+    public static readonly ConfigItem<string> AiDeepseekPrompt = new("Ai", "DeepseekPrompt", "你好大肥鱼");
+    public static readonly ConfigItem<string> AiCustomBaseUrl = new("Ai", "CustomBaseUrl", "");
+    public static readonly ConfigItem<string> AiCustomApiKey = new("Ai", "CustomApiKey", "");
+    public static readonly ConfigItem<string> AiCustomModel = new("Ai", "CustomModel", "");
+    public static readonly ConfigItem<string> AiCustomPrompt = new("Ai", "CustomPrompt", "你好");
+    public static readonly ConfigItem<double> AiTemperature = new("Ai", "Temperature", 0.7, min: 0, max: 2);
+    public static readonly ConfigItem<int> AiMaxTokens = new("Ai", "MaxTokens", 1024, min: 64, max: 8192);
+    public static readonly ConfigItem<int> AiTimeout = new("Ai", "Timeout", 60, min: 5, max: 300);
+
     private static bool _loaded;
 
     public static void Load()
