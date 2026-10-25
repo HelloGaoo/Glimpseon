@@ -1469,5 +1469,33 @@
     "builtin_volume": "音量",
     "builtin_brightness": "亮度",
     "builtin_maximize": "視窗最大化"
+  },
+  "ai_chat": {
+    "title": "",
+    "watermark": "鍵入文字與大模型問答",
+    "clear_tip": "清空對話",
+    "not_ready": "AI 未啟用，請在設定中開啟",
+    "thinking": "思考中…",
+    "err": "呼叫失敗：",
+    "copy_tip": "複製",
+    "regen_tip": "重新產生",
+    "reasoning": "思考",
+    "thought": "已思考（用時 {s} 秒）",
+    "welcome": "你好，有何需要？",
+    "ai_note": "內容由 AI 產生，僅供參考",
+    "edit_tip": "編輯",
+    "history_tip": "歷史對話",
+    "new_chat_tip": "新對話",
+    "delete_tip": "刪除",
+    "empty_history": "暫無歷史對話",
+    "stopped": "（已停止）",
+    "confirm_del_title": "刪除該對話",
+    "confirm_del_content": "刪除後，該對話將不可恢復。確認刪除嗎？",
+    "confirm_clear_title": "清空對話",
+    "confirm_clear_content": "當前對話的所有訊息將被清空，無法恢復。確認清空嗎？",
+    "group_today": "今天",
+    "group_yesterday": "昨天",
+    "group_30": "30 天內",
+    "group_older": "更早"
   }
 }

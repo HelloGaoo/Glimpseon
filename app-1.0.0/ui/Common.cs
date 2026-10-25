@@ -34,6 +34,9 @@ using FluentAvalonia.UI.Windowing;
 using FluentAvalonia.Styling;
 using Glimpseon.Core;
 
+using Markdown.Avalonia;
+using ColorTextBlock.Avalonia;
+
 namespace Glimpseon.UI;
 
 // 深浅色判断
@@ -648,3 +651,190 @@ public sealed class WidgetSurfacePalette
         (byte)(Card.G + (tint.G - Card.G) * t),
         (byte)(Card.B + (tint.B - Card.B) * t));
 }
+
+/// <summary>Markdown 渲染 主题化后处理 插件详情/AI 气泡共用</summary>
+public static class MarkdownLook
+{
+    public static MarkdownScrollViewer Create(string markdown, bool compact = false)
+    {
+        var viewer = new MarkdownScrollViewer { Markdown = markdown };
+        viewer.AttachedToVisualTree += (_, _) => ScheduleMarkdownLook(viewer, compact);
+        return viewer;
+    }
+
+    // 挂载后按时间点重复挂样式
+    private static readonly int[] LookSteps = { 0, 80, 200, 400, 800, 1500 };
+    private const int LookDeadlineMs = 1600;
+
+    private static void ScheduleMarkdownLook(MarkdownScrollViewer viewer, bool compact)
+    {
+        viewer.Opacity = 0;
+        var index = 0;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            var ms = (int)sw.ElapsedMilliseconds;
+            if (viewer.IsLoaded)
+            {
+                while (index < LookSteps.Length && ms >= LookSteps[index])
+                {
+                    if (ApplyMarkdownLook(viewer, compact))
+                    {
+                        viewer.Opacity = 1;
+                    }
+                    index++;
+                }
+            }
+            // 到点强制显示
+            if (index >= LookSteps.Length || ms >= LookDeadlineMs)
+            {
+                viewer.Opacity = 1;
+                return;
+            }
+            var next = viewer.IsLoaded ? Math.Min(LookSteps[index], LookDeadlineMs) : 250;
+            timer.Interval = TimeSpan.FromMilliseconds(Math.Max(1, next - ms));
+            timer.Start();
+        };
+        timer.Start();
+    }
+
+    private static bool _mdTreeLogged;
+
+    private static bool ApplyMarkdownLook(MarkdownScrollViewer viewer, bool compact = false)
+    {
+        try
+        {
+            var dark = viewer.ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark;
+            var primary = new SolidColorBrush(dark ? Color.Parse("#FFFFFFFF") : Color.Parse("#E4000000"));
+            var secondary = new SolidColorBrush(dark ? Color.Parse("#C4FFFFFF") : Color.Parse("#B0000000"));
+            var tertiary = new SolidColorBrush(dark ? Color.Parse("#59FFFFFF") : Color.Parse("#59000000"));
+            var codeBg = new SolidColorBrush(dark ? Color.Parse("#1AFFFFFF") : Color.Parse("#0F000000"));
+            var spliceBg = new SolidColorBrush(dark ? Color.Parse("#24FFFFFF") : Color.Parse("#12000000"));
+            var tableHead = new SolidColorBrush(dark ? Color.Parse("#12FFFFFF") : Color.Parse("#0A000000"));
+            var mono = new FontFamily("Cascadia Mono, Consolas, monospace");
+            var count = 0;
+            foreach (var v in Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(viewer))
+            {
+                switch (v)
+                {
+                    case ColorTextBlock.Avalonia.CTextBlock tb:
+                        var isCodeBlock = tb.Classes.Contains("CodeBlock");
+                        if (isCodeBlock)
+                        {
+                            tb.Foreground = secondary;
+                            tb.FontFamily = mono;
+                            tb.FontSize = 13;
+                        }
+                        else
+                        {
+                            tb.Foreground = primary;
+                            // compact 档 DeepSeek 规格: 标题=14px 加粗 无大字号
+                            if (tb.Classes.Contains("Heading1") || tb.Classes.Contains("Heading2"))
+                            {
+                                tb.FontSize = compact ? 14 : 26;
+                                tb.FontWeight = FontWeight.SemiBold;
+                                tb.LineHeight = compact ? 20 : double.NaN;
+                                tb.Margin = compact ? new Thickness(0, 10, 0, 6) : new Thickness(0, 0, 0, 14);
+                            }
+                            else if (tb.Classes.Contains("Heading3") || tb.Classes.Contains("Heading4"))
+                            {
+                                tb.FontSize = compact ? 14 : 16;
+                                tb.FontWeight = FontWeight.Medium;
+                                tb.LineHeight = compact ? 20 : double.NaN;
+                                tb.Margin = compact ? new Thickness(0, 8, 0, 4) : new Thickness(0, 14, 0, 8);
+                            }
+                            else
+                            {
+                                tb.FontSize = compact ? 14 : 15;
+                                tb.LineHeight = compact ? 24 : double.NaN;
+                                tb.Margin = new Thickness(0, 0, 0, compact ? 8 : 10);
+                            }
+                        }
+
+                        if (tb.Content is { } content)
+                        {
+                            foreach (var item in content)
+                            {
+                                switch (item)
+                                {
+                                    case ColorTextBlock.Avalonia.CHyperlink _:
+                                        break;
+                                    case ColorTextBlock.Avalonia.CCode code:
+                                        code.Foreground = secondary;
+                                        code.FontFamily = mono;
+                                        code.IsUnderline = false;
+                                        code.Background = isCodeBlock ? null : spliceBg;
+                                        break;
+                                    case ColorTextBlock.Avalonia.CSpan span:
+                                        span.Foreground = isCodeBlock ? secondary : primary;
+                                        if (isCodeBlock)
+                                        {
+                                            span.FontFamily = mono;
+                                        }
+                                        span.IsUnderline = false;
+                                        break;
+                                }
+                            }
+                        }
+                        count++;
+                        break;
+                    case TextBlock t when t.Classes.Contains("CodeBlock"):
+                        t.Foreground = secondary;
+                        t.FontFamily = mono;
+                        t.FontSize = 13;
+                        count++;
+                        break;
+                    case Border b when b.Classes.Contains("CodeBlock"):
+                        b.Background = codeBg;
+                        b.CornerRadius = new CornerRadius(8);
+                        b.Padding = new Thickness(compact ? 8 : 10);
+                        b.Margin = new Thickness(0, 0, 0, compact ? 8 : 14);
+                        b.BorderThickness = new Thickness(0);
+                        count++;
+                        break;
+                    case Border b when b.Classes.Contains("TableHeader"):
+                        b.Background = tableHead;
+                        b.Padding = new Thickness(8);
+                        b.BorderThickness = new Thickness(1, 1, 0, 0);
+                        b.BorderBrush = tertiary;
+                        count++;
+                        break;
+                    case Border b when b.Classes.Contains("OddTableRow") || b.Classes.Contains("EvenTableRow"):
+                        b.Padding = new Thickness(8);
+                        b.BorderThickness = new Thickness(1, 1, 0, 0);
+                        b.BorderBrush = tertiary;
+                        b.Background = Brushes.Transparent;
+                        count++;
+                        break;
+                }
+            }
+            if (count > 0)
+            {
+                Log.Debug($"[说明] Markdown 样式已应用 {count} 个元素 dark={dark}");
+                if (!_mdTreeLogged)
+                {
+                    _mdTreeLogged = true;
+                    var dump = new List<string>();
+                    foreach (var vv in Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(viewer).Take(40))
+                    {
+                        var cls = vv.Classes.Count > 0 ? "[" + string.Join(",", vv.Classes) + "]" : "";
+                        dump.Add($"{vv.GetType().Name}{cls}");
+                    }
+                    Log.Debug($"[说明] 文档结构: {string.Join(" | ", dump)}");
+                }
+            }
+            return count > 0;
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"[说明] Markdown 样式后处理失败: {e.Message}");
+            // 本轮未生效
+            return false;
+        }
+    }
+
+}
+
+// 公共 ui 工具

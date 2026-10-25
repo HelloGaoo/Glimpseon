@@ -1469,5 +1469,33 @@
     "builtin_volume": "音量",
     "builtin_brightness": "亮度",
     "builtin_maximize": "窗口最大化"
+  },
+  "ai_chat": {
+    "title": "",
+    "watermark": "键入文本与大模型问答",
+    "clear_tip": "清空对话",
+    "not_ready": "AI 未启用，请在设置中开启",
+    "thinking": "思考中…",
+    "err": "调用失败：",
+    "copy_tip": "复制",
+    "regen_tip": "重新生成",
+    "reasoning": "思考",
+    "thought": "已思考（用时 {s} 秒）",
+    "welcome": "你好，有何需要？",
+    "ai_note": "内容由 AI 生成，仅供参考",
+    "edit_tip": "编辑",
+    "history_tip": "历史对话",
+    "new_chat_tip": "新对话",
+    "delete_tip": "删除",
+    "empty_history": "暂无历史对话",
+    "stopped": "（已停止）",
+    "confirm_del_title": "删除该对话",
+    "confirm_del_content": "删除后，该对话将不可恢复。确认删除吗？",
+    "confirm_clear_title": "清空对话",
+    "confirm_clear_content": "当前对话的所有消息将被清空，无法恢复。确认清空吗？",
+    "group_today": "今天",
+    "group_yesterday": "昨天",
+    "group_30": "30 天内",
+    "group_older": "更早"
   }
 }

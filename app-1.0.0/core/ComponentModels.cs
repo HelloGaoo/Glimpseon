@@ -229,6 +229,7 @@ public static class BuiltinComponentDefinitions
         Def("quick_launch_grid", "快捷启动II", "Launcher", "App", 4, 2, 4, 2, wPx: 400, hPx: 200, config: Cfg("""{"apps":[]}""")),
         Def("Math_calculator", "计算器", "Tools", "Calculator", 2, 2, 2, 2, ResizeMode.Fixed, wPx: 280, hPx: 420),
         Def("sticky_note", "便签", "Tools", "Edit", 1, 1, 2, 2, wPx: 280, hPx: 280, config: Cfg("""{"color":"yellow"}""")),
+        Def("ai_chat", "AI 问答", "AI", "ChatBubblesQuestion", 2, 4, 3, 6, wPx: 350, hPx: 600),
         Def("system_performance", "性能监测", "System", "Gauge", 4, 2, 4, 2, wPx: 400, hPx: 200),
         Def("system_netspeed", "网速监控", "System", "Globe", 3, 2, 4, 2, wPx: 400, hPx: 200),
         Def("study_meter", "分贝仪", "Study", "Microphone", 3, 2, 4, 2, wPx: 400, hPx: 200),

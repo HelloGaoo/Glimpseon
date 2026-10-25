@@ -1469,5 +1469,33 @@
     "builtin_volume": "Volume",
     "builtin_brightness": "Brightness",
     "builtin_maximize": "Maximize Window"
+  },
+  "ai_chat": {
+    "title": "",
+    "watermark": "Type to chat with the model",
+    "clear_tip": "Clear chat",
+    "not_ready": "AI is disabled, enable it in Settings",
+    "thinking": "Thinking…",
+    "err": "Failed: ",
+    "copy_tip": "Copy",
+    "regen_tip": "Regenerate",
+    "reasoning": "Thinking",
+    "thought": "Thought for {s}s",
+    "welcome": "Hi, what do you need?",
+    "ai_note": "AI-generated, for reference only",
+    "edit_tip": "Edit",
+    "history_tip": "History",
+    "new_chat_tip": "New chat",
+    "delete_tip": "Delete",
+    "empty_history": "No history yet",
+    "stopped": " (stopped)",
+    "confirm_del_title": "Delete this chat",
+    "confirm_del_content": "This chat will be permanently deleted. Delete it?",
+    "confirm_clear_title": "Clear chat",
+    "confirm_clear_content": "All messages in this chat will be cleared and cannot be recovered. Clear it?",
+    "group_today": "Today",
+    "group_yesterday": "Yesterday",
+    "group_30": "Previous 30 days",
+    "group_older": "Earlier"
   }
 }
