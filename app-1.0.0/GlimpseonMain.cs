@@ -186,6 +186,9 @@ internal static class GlimpseonMain
         PluginService.InitializePlugins();
         StartPluginEventTicker();
 
+        // 自动化
+        AutomationService.Initialize();
+
         // 主窗口
         splash.UpdateStatus(AppUtils.Tr("splash.creating_main_window"));
         splash.SetProgress(70);

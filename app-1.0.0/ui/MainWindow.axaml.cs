@@ -36,6 +36,7 @@ public partial class MainWindow : GlimpseonWindow
     public HomeView HomeView { get; private set; } = null!;
     public WallpaperView WallpaperView { get; private set; } = null!;
     public NotificationView NotificationView { get; private set; } = null!;
+    public AutomationView AutomationView { get; private set; } = null!;
     public DownloadView DownloadView { get; private set; } = null!;
     public AboutView AboutView { get; private set; } = null!;
     public DebugView DebugView { get; private set; } = null!;
@@ -103,6 +104,7 @@ public partial class MainWindow : GlimpseonWindow
         NavItemWallpaper.Content = AppUtils.Tr("navigation.wallpaper");
         NavItemNotification.Content = AppUtils.Tr("navigation.notification");
         NavItemTimetable.Content = AppUtils.Tr("navigation.timetable");
+        NavItemAutomation.Content = AppUtils.Tr("navigation.automation");
         NavItemDownload.Content = AppUtils.Tr("navigation.download");
         NavItemAbout.Content = AppUtils.Tr("navigation.about");
         NavItemDebug.Content = AppUtils.Tr("navigation.debug");
@@ -114,6 +116,7 @@ public partial class MainWindow : GlimpseonWindow
         HomeView = new HomeView(this);
         WallpaperView = new WallpaperView(this);
         NotificationView = new NotificationView(this);
+        AutomationView = new AutomationView();
         DownloadView = new DownloadView();
         AboutView = new AboutView();
         DebugView = new DebugView();
@@ -129,6 +132,7 @@ public partial class MainWindow : GlimpseonWindow
     {
         "wallpaper" => WallpaperView,
         "notification" => NotificationView,
+        "automation" => AutomationView,
         "download" => DownloadView,
         "about" => AboutView,
         "debug" => DebugView,

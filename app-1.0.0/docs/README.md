@@ -17,6 +17,7 @@ Glimpseon 是一款基于 Avalonia 的 Windows 桌面信息看板
 | [服务模块](services.md)            | core/Services/ 下数据获取服务              |
 | [UI 模块](ui-modules.md)         | ui/ 下各界面实现                          |
 | [组件系统](component-system.md)    | 网格布局 组件定义 页面管理 编辑模式                 |
+| [自动化系统](automation-system.md)  | 触发器 条件 动作 策略编辑器                     |
 | [配置系统](configuration.md)       | 配置项机制与全表                            |
 | [版本机制](Versioning.md)          | 启动器选择 record.json 更新流水线 回退          |
 

@@ -49,6 +49,11 @@
           <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE163;" FontSize="20" />
         </fa:FANavigationViewItem.IconSource>
       </fa:FANavigationViewItem>
+      <fa:FANavigationViewItem x:Name="NavItemAutomation" Tag="automation">
+        <fa:FANavigationViewItem.IconSource>
+          <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE945;" FontSize="20" />
+        </fa:FANavigationViewItem.IconSource>
+      </fa:FANavigationViewItem>
       <fa:FANavigationViewItem x:Name="NavItemDownload" Tag="download">
         <fa:FANavigationViewItem.IconSource>
           <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE118;" FontSize="20" />

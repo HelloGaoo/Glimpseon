@@ -433,14 +433,14 @@ public sealed class PassThroughNavigationPageFactory : IFANavigationPageFactory
 /// <summary>组件展开层 遮罩+Fluent 卡片</summary>
 public static class ComponentExpander
 {
-    /// <summary>弹出展开层 对齐课程表窗口尺寸</summary>
-    public static void Show(Visual host, string title, Control content, double width = 1280, double height = 800)
+    /// <summary>弹出展开层 返回关闭句柄</summary>
+    public static Action Show(Visual host, string title, Control content, double width = 1280, double height = 800)
     {
         var layer = OverlayLayer.GetOverlayLayer(host);
         if (layer is null)
         {
             Log.Warning($"[展开层] 宿主无 OverlayLayer: {title}");
-            return;
+            return () => { };
         }
 
         var closed = false;
@@ -608,6 +608,7 @@ public static class ComponentExpander
             card.RenderTransform = TransformOperations.Parse("scale(1)");
         }, DispatcherPriority.Background);
         Log.Debug($"[展开层] 打开: {title} {width:F0}x{height:F0}");
+        return Close;
     }
 }
 

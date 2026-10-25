@@ -565,6 +565,9 @@ public static class Config
     public static readonly ConfigItem<int> AiMaxTokens = new("Ai", "MaxTokens", 1024, min: 64, max: 8192);
     public static readonly ConfigItem<int> AiTimeout = new("Ai", "Timeout", 60, min: 5, max: 300);
 
+    // 自动化
+    public static readonly ConfigItem<bool> AutomationEnabled = new("Automation", "Enabled", true);
+
     private static bool _loaded;
 
     public static void Load()

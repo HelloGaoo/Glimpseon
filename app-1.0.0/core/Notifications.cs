@@ -748,6 +748,19 @@ public class NotificationManager
         });
     }
 
+    /// <summary>仅朗读 不弹通知 自动化动作用</summary>
+    public void SpeakOnly(string text, string voice = "zh-CN-XiaoxiaoNeural", int rate = 100)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+        _ttsVoice = string.IsNullOrWhiteSpace(voice) ? "zh-CN-XiaoxiaoNeural" : voice;
+        _ttsRate = Math.Clamp(rate, 50, 200);
+        _ttsVolume = 100;
+        SpeakText(text);
+    }
+
     private static async Task<(bool Ok, string Error)> RunProcessAsync(string fileName, string arguments)
     {
         try
