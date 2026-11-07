@@ -24,13 +24,13 @@ using System.Xml.Linq;
 
 namespace Glimpseon.Core;
 
-/// <summary>时间表分档案 时段线与默认时长</summary>
+/// <summary>时间表分档案</summary>
 public sealed class TimetableDoc
 {
     public string Name { get; set; } = "时间表-1";
     public int DefaultClassDuration { get; set; } = 40;
     public int DefaultBreakDuration { get; set; } = 10;
-    // periods: [{type, start, end}]
+    // periods: [{type,start,end,name?,actions?,fixed?}]
     public List<JsonObject> Periods { get; set; } = new();
 
     public JsonObject ToJson()
@@ -63,7 +63,7 @@ public sealed class TimetableDoc
             {
                 if (p is JsonObject po)
                 {
-                    doc.Periods.Add(JsonNode.Parse(po.ToJsonString())!.AsObject());
+                    doc.Periods.Add((JsonObject)po.DeepClone());
                 }
             }
         }
@@ -108,11 +108,11 @@ public sealed class TimetableDoc
     public int PeriodCount() => Periods.Count;
 }
 
-/// <summary>课表分档案 时段索引>星期>科目</summary>
+/// <summary>课表分档案 时段>星期>科目</summary>
 public sealed class CourseDoc
 {
     public string Name { get; set; } = "课表-1";
-    // key = 时段索引 value = {monday..sunday}
+    // key=时段索引 val={monday..sunday}
     public Dictionary<string, JsonObject> Courses { get; set; } = new();
 
     public JsonObject ToJson()
@@ -141,7 +141,7 @@ public sealed class CourseDoc
             {
                 if (value is JsonObject vo)
                 {
-                    doc.Courses[key] = JsonNode.Parse(vo.ToJsonString())!.AsObject();
+                    doc.Courses[key] = (JsonObject)vo.DeepClone();
                 }
             }
         }
@@ -177,7 +177,7 @@ public sealed class CourseDoc
         row[day] = text;
     }
 
-    /// <summary>时段删除后课程键重排 删除位丢弃 后续键前移</summary>
+    /// <summary>时段删除键重排</summary>
     public void RemovePeriodIndex(int removedIdx)
     {
         var rebased = new Dictionary<string, JsonObject>();
@@ -198,7 +198,7 @@ public sealed class CourseDoc
     }
 }
 
-/// <summary>值周表分档案 行={parity 单双周, weekday 星期几, group 小组, name 姓名, role 职责}</summary>
+/// <summary>值周表分档案 行={parity,weekday,group,name,role}</summary>
 public sealed class DutyDoc
 {
     public string Name { get; set; } = "值周表-1";
@@ -230,7 +230,7 @@ public sealed class DutyDoc
             {
                 if (r is JsonObject ro)
                 {
-                    doc.Rows.Add(JsonNode.Parse(ro.ToJsonString())!.AsObject());
+                    doc.Rows.Add((JsonObject)ro.DeepClone());
                 }
             }
         }
@@ -256,7 +256,7 @@ public sealed class DutyDoc
         Rows.Add(new JsonObject { ["parity"] = parity, ["weekday"] = weekday, ["group"] = group, ["name"] = name, ["role"] = role });
 }
 
-/// <summary>花名册分档案 行={no 编号, name 姓名}</summary>
+/// <summary>花名册分档案 行={no,name}</summary>
 public sealed class RosterDoc
 {
     public string Name { get; set; } = "花名册-1";
@@ -288,7 +288,7 @@ public sealed class RosterDoc
             {
                 if (r is JsonObject ro)
                 {
-                    doc.Rows.Add(JsonNode.Parse(ro.ToJsonString())!.AsObject());
+                    doc.Rows.Add((JsonObject)ro.DeepClone());
                 }
             }
         }
@@ -317,7 +317,7 @@ public sealed class RosterDoc
         (Rows[idx]["no"]?.GetValue<string>() ?? "", Rows[idx]["name"]?.GetValue<string>() ?? "");
 }
 
-/// <summary>学科分档案 行={name 科目, short 简写, teacher 老师, outdoor 室外课程}</summary>
+/// <summary>学科分档案 行={name,short,teacher,outdoor,color}</summary>
 public sealed class SubjectDoc
 {
     public string Name { get; set; } = "学科-1";
@@ -349,7 +349,7 @@ public sealed class SubjectDoc
             {
                 if (r is JsonObject ro)
                 {
-                    doc.Rows.Add(JsonNode.Parse(ro.ToJsonString())!.AsObject());
+                    doc.Rows.Add((JsonObject)ro.DeepClone());
                 }
             }
         }
@@ -477,7 +477,7 @@ public sealed class ScheduleProfile
         ScheduleStore.WriteJson(filepath, ToJson());
     }
 
-    /// <summary>过期留 7 天</summary>
+    /// <summary>清7天外过期规则</summary>
     public bool CleanExpiredDateRules(DateTime today)
     {
         var cutoff = DateOnly.FromDateTime(today).AddDays(-7);
@@ -492,7 +492,7 @@ public sealed class ScheduleProfile
     public static ScheduleProfile Load(string filepath) =>
         FromJsonFull(JsonNode.Parse(File.ReadAllText(filepath))!.AsObject());
 
-    /// <summary>总档案导出 捆绑全部已绑定分档案</summary>
+    /// <summary>导出捆绑分档案</summary>
     public JsonObject ExportBundle()
     {
         var bundle = new JsonObject
@@ -527,7 +527,7 @@ public sealed class ScheduleProfile
         return bundle;
     }
 
-    /// <summary>总档案导入 解包写入分档案并绑定</summary>
+    /// <summary>导入解包绑定</summary>
     public static ScheduleProfile ImportBundle(JsonObject bundle, string name)
     {
         var master = new ScheduleProfile { Name = name };
@@ -542,6 +542,7 @@ public sealed class ScheduleProfile
             master.Subject = inner.Subject;
             master.Roster = inner.Roster;
             master.WeekStart = inner.WeekStart;
+            master.PrepareMinutes = inner.PrepareMinutes;
             master.Courses = inner.Courses;
             master.Overrides = inner.Overrides;
             master.Patches = inner.Patches;
@@ -553,7 +554,7 @@ public sealed class ScheduleProfile
                 if (subs[type] is JsonObject doc)
                 {
                     var subName = ScheduleStore.NextSubName(type);
-                    var renamed = (JsonObject)JsonNode.Parse(doc.ToJsonString())!.AsObject();
+                    var renamed = (JsonObject)doc.DeepClone();
                     renamed["name"] = subName;
                     ScheduleStore.WriteJson(ScheduleStore.SubPath(type, subName), renamed);
                     switch (type)
@@ -598,7 +599,6 @@ public sealed class ScheduleProfile
         if (Subject.Length == 0 || !File.Exists(ScheduleStore.SubPath("subject", Subject)))
         {
             Subject = ScheduleStore.NextSubName("subject");
-            // 新总档案学科分档案默认带全科目种子
             new SubjectDoc { Name = Subject, Rows = ScheduleStore.DefaultSubjectRows() }.Save();
         }
         if (Roster.Length == 0 || !File.Exists(ScheduleStore.SubPath("roster", Roster)))
@@ -619,7 +619,7 @@ public static class ScheduleRules
     public static DateOnly? ParseWeekStart(string weekStart) =>
         DateOnly.TryParse(weekStart, out var d) ? d : null;
 
-    /// <summary>经过周数 开学前为负 向 -∞ 取整</summary>
+    /// <summary>经过周数 向-∞取整</summary>
     private static int ElapsedWeeks(DateOnly date, DateOnly weekStart) =>
         (int)Math.Floor((date.DayNumber - weekStart.DayNumber) / 7.0);
 
@@ -637,10 +637,10 @@ public static class ScheduleRules
         return EuclidMod(ElapsedWeeks(date, ws), weekTotal) + 1;
     }
 
-    /// <summary>整日覆盖 首个命中</summary>
+    /// <summary>整日覆盖条目</summary>
     public sealed record DayOverride(string Kind, string Name, string CourseName, JsonObject Entry);
 
-    /// <summary>整日覆盖解析 plan→course 名 其余→name</summary>
+    /// <summary>整日覆盖 首个有效命中</summary>
     public static DayOverride? ResolveOverride(ScheduleProfile profile, DateOnly date)
     {
         foreach (var o in profile.Overrides)
@@ -658,21 +658,26 @@ public static class ScheduleRules
             }
             var name = o["name"]?.GetValue<string>() ?? "";
             var course = o["course"]?.GetValue<string>() ?? "";
-            return kind switch
+            var hit = kind switch
             {
                 "plan" when course.Length > 0 => new DayOverride(kind, name, course, o),
                 "exam" when name.Length > 0 => new DayOverride(kind, name, "", o),
                 "holiday" => new DayOverride(kind, name.Length > 0 ? name : "假期", "", o),
                 _ => null,
             };
+            // 残缺条目跳过 续扫后续
+            if (hit is not null)
+            {
+                return hit;
+            }
         }
         return null;
     }
 
-    /// <summary>单节覆盖 expectStart 漂移 → NeedsCheck</summary>
+    /// <summary>单节覆盖 漂移→NeedsCheck</summary>
     public sealed record PeriodPatch(int Index, string Subject, string Room, string Note, bool NeedsCheck);
 
-    /// <summary>period 索引 兼容 number/string 无效 -1</summary>
+    /// <summary>period索引 兼容num/str</summary>
     public static int ReadPeriod(JsonObject p)
     {
         if (p["period"] is not JsonValue jv)
@@ -747,7 +752,7 @@ public static class ScheduleRules
         return null;
     }
 
-    /// <summary>条目周次命中 weeks 绝对周号 / div+total 轮换 / 二者缺省=每周</summary>
+    /// <summary>条目周次命中 缺省每周</summary>
     private static bool MatchesEntry(ScheduleProfile profile, JsonObject entry, DateOnly date)
     {
         if (entry["weeks"] is JsonArray weeks && weeks.Count > 0)
@@ -787,14 +792,13 @@ public static class ScheduleRules
         {
             return hit;
         }
-        // 回落项同受周次约束
+        // 默认课表在轮换表中即受约束 未命中无课
         foreach (var c in profile.Courses)
         {
-            if ((c["course"]?.GetValue<string>() ?? "") != profile.Course)
+            if ((c["course"]?.GetValue<string>() ?? "") == profile.Course)
             {
-                continue;
+                return null;
             }
-            return MatchesEntry(profile, c, date) ? profile.Course : null;
         }
         return profile.Course;
     }
@@ -931,7 +935,7 @@ public static class ScheduleStore
         Log.Info($"[档案] 总档案已复制: {name} -> {target}");
     }
 
-    /// <summary>分档案重命名 同步更新全部总档案引用</summary>
+    /// <summary>分档案重命名 同步引用</summary>
     public static void RenameSub(string type, string oldName, string newName)
     {
         newName = SanitizeName(newName);
@@ -963,7 +967,7 @@ public static class ScheduleStore
         Log.Info($"[档案] {type} 分档案重命名: {oldName} -> {newName}");
     }
 
-    /// <summary>分档案删除 同步清空全部总档案引用</summary>
+    /// <summary>分档案删除 同步清引用</summary>
     public static void DeleteSub(string type, string name)
     {
         if (File.Exists(SubPath(type, name)))
@@ -992,7 +996,7 @@ public static class ScheduleStore
         Log.Info($"[档案] {type} 分档案已删除: {name}");
     }
 
-    /// <summary>course 引用同步 返回变更</summary>
+    /// <summary>course引用重映射</summary>
     internal static bool RemapListCourseRefs(List<JsonObject> list, string oldName, string newName)
     {
         var changed = false;
@@ -1021,7 +1025,7 @@ public static class ScheduleStore
         Log.Info($"[档案] {type} 分档案已复制: {name} -> {target}");
     }
 
-    /// <summary>分档案导入 文件复制为该类型新分档案 返回新名</summary>
+    /// <summary>分档案导入 返新名</summary>
     public static string ImportSub(string type, string filePath)
     {
         var target = NextSubName(type);
@@ -1032,7 +1036,7 @@ public static class ScheduleStore
         return target;
     }
 
-    /// <summary>确保至少一个总档案与全部绑定齐备 空库建默认结构 每个课表来源各自保底活动总档案</summary>
+    /// <summary>初始化档案库 来源保底</summary>
     public static void EnsureDefaults()
     {
         Directory.CreateDirectory(MasterDir);
@@ -1044,20 +1048,19 @@ public static class ScheduleStore
         {
             CreateDefault();
         }
-        // 每来源活动总档案有效性 CI/CW 单开专属总档案
         EnsureActiveMaster(Config.ScheduleProfile);
         EnsureActiveMaster(Config.ScheduleProfileCi, "总档案-CI");
         EnsureActiveMaster(Config.ScheduleProfileCw, "总档案-CW");
         var profile = LoadMaster(Config.ScheduleProfile.Value);
-        var before = (profile.Course, profile.Timetable, profile.Duty, profile.Subject);
+        var before = (profile.Course, profile.Timetable, profile.Duty, profile.Subject, profile.Roster);
         profile.RepairBindings();
-        if (before != (profile.Course, profile.Timetable, profile.Duty, profile.Subject))
+        if (before != (profile.Course, profile.Timetable, profile.Duty, profile.Subject, profile.Roster))
         {
             profile.Save();
         }
     }
 
-    /// <summary>活动总档案失效时校正 优先落到 preferredName 缺档则补建</summary>
+    /// <summary>活动总档案校正</summary>
     private static void EnsureActiveMaster(ConfigItem<string> item, string? preferredName = null)
     {
         var masters = ListMasters();
@@ -1083,7 +1086,7 @@ public static class ScheduleStore
         Log.Info($"[档案] 活动总档案校正: {item.Group}/{item.Name} = {item.Value}");
     }
 
-    /// <summary>空库时创建默认总档案与四类分档案</summary>
+    /// <summary>空库默认档案种子</summary>
     private static void CreateDefault()
     {
         var timetable = new TimetableDoc { Name = "时间表-1" };
@@ -1113,13 +1116,12 @@ public static class ScheduleStore
             ("语文", "语"), ("数学", "数"), ("英语", "英"), ("政治", "政"), ("历史", "史"),
             ("地理", "地"), ("生物", "生"), ("物理", "物"), ("化学", "化"), ("音乐", "音"),
             ("体育", "体"), ("美术", "美"), ("信息技术", "信"), ("心理", "心"), ("劳动", "劳"),
-            ("科学", "科"), ("自习", "自"), ("考试", "考"), ("早读", "早"), ("班会", "班"), 
-            ("社团", "社"), ("选修", "选")
-                   ];
+            ("科学", "科"), ("自习", "自"), ("考试", "考"), ("早读", "早"), ("班会", "班"),
+            ("社团", "社"), ("选修", "选"),
+        ];
         var rows = new List<JsonObject>();
         foreach (var (name, shortName) in seeds)
         {
-            // 户外课程
             var outdoor = name is "音乐" or "信息技术" or "体育" or "社团";
             rows.Add(new JsonObject { ["name"] = name, ["short"] = shortName, ["teacher"] = "", ["outdoor"] = outdoor });
         }
@@ -1127,7 +1129,7 @@ public static class ScheduleStore
     }
 }
 
-// 花名册 xlsx/csv 导入导出
+// 花名册导入导出
 /// <summary>花名册导入结果</summary>
 public sealed class RosterImportResult
 {
@@ -1171,7 +1173,7 @@ public static class RosterExcel
         return result;
     }
 
-    /// <summary>表头定位 前8行内找</summary>
+    /// <summary>表头定位 前8行</summary>
     private static (int NoCol, int NameCol, int Skip) MapColumns(string[][] table)
     {
         for (var r = 0; r < Math.Min(8, table.Length); r++)
@@ -1216,9 +1218,7 @@ public static class RosterExcel
                 {
                     return (1, 0, 0);
                 }
-                return (-1, 0, 0);
             }
-            return (-1, 0, 0);
         }
         return (-1, 0, 0);
     }
@@ -1236,7 +1236,7 @@ public static class RosterExcel
                 continue;
             }
             total++;
-            if (text.All(char.IsDigit) || (text.Length > 0 && char.IsDigit(text[0]) && text.All(c => char.IsDigit(c) || c == '.')))
+            if (char.IsDigit(text[0]) && text.All(c => char.IsDigit(c) || c == '.'))
             {
                 hits++;
             }
@@ -1244,14 +1244,14 @@ public static class RosterExcel
         return total > 0 && hits * 2 >= total;
     }
 
-    /// <summary>英文短键全等 中文键子串</summary>
+    /// <summary>短键全等 长键子串</summary>
     private static bool MatchKey(string text, string key) =>
         key is "no" or "id" ? text == key : text.Contains(key);
 
     private static string CellAt(string[] row, int col) =>
         col >= 0 && col < row.Length ? Normalize(row[col]) : "";
 
-    /// <summary>去首尾 全角空格 空白折叠</summary>
+    /// <summary>Trim 全角 折叠空白</summary>
     private static string Normalize(string text)
     {
         var trimmed = text.Trim().Trim('\u3000', '\u00A0').Trim();
@@ -1428,7 +1428,7 @@ public static class RosterExcel
             }
             else if (ch == '\r')
             {
-                // \r\n 与裸 \r 都收行
+                // 兼容裸\r
                 if (i + 1 < text.Length && text[i + 1] == '\n')
                 {
                     i++;

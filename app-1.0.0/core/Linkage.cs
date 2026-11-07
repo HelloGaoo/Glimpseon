@@ -55,6 +55,16 @@ public sealed class LessonInfo
     public string EndTime { get; set; } = "";
     public int Index { get; set; } = -1;
 
+    public LessonInfo Clone() => new()
+    {
+        SubjectName = SubjectName,
+        TeacherName = TeacherName,
+        Initial = Initial,
+        StartTime = StartTime,
+        EndTime = EndTime,
+        Index = Index,
+    };
+
     public static LessonInfo FromSubjectData(JsonElement? data)
     {
         if (data is not { ValueKind: JsonValueKind.Object } obj)
@@ -87,24 +97,8 @@ public sealed class LinkageState
     {
         TimeState = TimeState,
         CurrentSubject = CurrentSubject,
-        CurrentLesson = CurrentLesson is null ? null : new LessonInfo
-        {
-            SubjectName = CurrentLesson.SubjectName,
-            TeacherName = CurrentLesson.TeacherName,
-            Initial = CurrentLesson.Initial,
-            StartTime = CurrentLesson.StartTime,
-            EndTime = CurrentLesson.EndTime,
-            Index = CurrentLesson.Index,
-        },
-        NextLesson = NextLesson is null ? null : new LessonInfo
-        {
-            SubjectName = NextLesson.SubjectName,
-            TeacherName = NextLesson.TeacherName,
-            Initial = NextLesson.Initial,
-            StartTime = NextLesson.StartTime,
-            EndTime = NextLesson.EndTime,
-            Index = NextLesson.Index,
-        },
+        CurrentLesson = CurrentLesson?.Clone(),
+        NextLesson = NextLesson?.Clone(),
         IsConnected = IsConnected,
         LastUpdate = LastUpdate,
         OnClassLeft = OnClassLeft,
@@ -114,7 +108,7 @@ public sealed class LinkageState
     };
 }
 
-// 时段行动
+// 时段动作
 public sealed record ScheduleAction(string Name, string At);
 
 public static class ScheduleMark
@@ -373,9 +367,8 @@ public static class LinkageLocator
                 }
                 catch (Exception e)
                 {
-
-                    Glimpseon.Core.Log.Warning($"[LINKAGE] 自动检测跳过(访问被拒): {e.Message}");
                     // 访问被拒等 跳过
+                    Log.Warning($"[LINKAGE] 自动检测跳过(访问被拒): {e.Message}");
                 }
                 finally
                 {
@@ -499,7 +492,7 @@ public sealed class LinkageBridge : LinkageBridgeBase
             }
             var now = AppUtils.PreciseNow();
             var t = TimeOnly.FromDateTime(now);
-            var dotnetWd = PythonWeekdayToDotnet((int)now.DayOfWeek == 0 ? 7 : (int)now.DayOfWeek);
+            var dotnetWd = PythonWeekdayToDotnet(PythonWeekday(now));
             if (!_dayPlans.TryGetValue(dotnetWd, out var plan))
             {
                 Log.Debug($"[Linkage] 今日(周{dotnetWd}) 无课程安排");
@@ -606,7 +599,7 @@ public sealed class LinkageBridge : LinkageBridgeBase
         }
     }
 
-    // 返回一周课表 键 Mon=1..Sun=7 
+    // 返回一周课表 键 Mon=1..Sun=7
     public Dictionary<int, List<ScheduleRow>> GetWeekSchedule()
     {
         var result = new Dictionary<int, List<ScheduleRow>>();
@@ -619,6 +612,9 @@ public sealed class LinkageBridge : LinkageBridgeBase
     }
 
     internal static int PythonWeekdayToDotnet(int pythonWeekday) => pythonWeekday == 7 ? 0 : pythonWeekday;
+
+    /// <summary>Python 周序 Mon=1..Sun=7</summary>
+    internal static int PythonWeekday(DateTime dt) => (int)dt.DayOfWeek == 0 ? 7 : (int)dt.DayOfWeek;
 
     private void ClearCache()
     {
@@ -698,26 +694,24 @@ public sealed class LinkageBridge : LinkageBridgeBase
         var slots = new List<CiTimeSlot>();
         if (layouts.ValueKind == JsonValueKind.Object)
         {
-            string? firstId = null;
+            // 首个 layout 的 Layouts 数组
             foreach (var p in layouts.EnumerateObject())
             {
-                firstId = p.Name;
-                break;
-            }
-            if (firstId is not null && layouts.GetProperty(firstId).TryGetProperty("Layouts", out var layoutArr) &&
-                layoutArr.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in layoutArr.EnumerateArray())
+                if (p.Value.TryGetProperty("Layouts", out var layoutArr) && layoutArr.ValueKind == JsonValueKind.Array)
                 {
-                    var s = TimeFromStr(item.TryGetProperty("StartTime", out var st) ? st.GetString() : null);
-                    var e = TimeFromStr(item.TryGetProperty("EndTime", out var et) ? et.GetString() : null);
-                    if (s.HasValue && e.HasValue)
+                    foreach (var item in layoutArr.EnumerateArray())
                     {
-                        slots.Add(new CiTimeSlot(s.Value, e.Value,
-                            item.TryGetProperty("TimeType", out var tt) ? tt.GetInt32() : 1,
-                            item.TryGetProperty("BreakName", out var bn) ? bn.GetString() ?? "" : ""));
+                        var s = TimeFromStr(item.TryGetProperty("StartTime", out var st) ? st.GetString() : null);
+                        var e = TimeFromStr(item.TryGetProperty("EndTime", out var et) ? et.GetString() : null);
+                        if (s.HasValue && e.HasValue)
+                        {
+                            slots.Add(new CiTimeSlot(s.Value, e.Value,
+                                item.TryGetProperty("TimeType", out var tt) ? tt.GetInt32() : 1,
+                                item.TryGetProperty("BreakName", out var bn) ? bn.GetString() ?? "" : ""));
+                        }
                     }
                 }
+                break;
             }
         }
 
@@ -832,8 +826,8 @@ public sealed class LinkageBridge : LinkageBridgeBase
     {
         var now = AppUtils.PreciseNow();
         var today = now.Date;
-        var weekday = (int)now.DayOfWeek == 0 ? 7 : (int)now.DayOfWeek;
-        var dotnetWd = PythonWeekdayToDotnet((int)now.DayOfWeek == 0 ? 7 : (int)now.DayOfWeek);
+        var pyWd = PythonWeekday(now);
+        var dotnetWd = PythonWeekdayToDotnet(pyWd);
         var t = TimeOnly.FromDateTime(now);
 
         if (!LoadFileIfChanged())
@@ -924,7 +918,7 @@ public sealed class LinkageBridge : LinkageBridgeBase
         }
         Log.Debug($"[Linkage] {st.TimeState.DisplayName()}|{(st.CurrentSubject.Length > 0 ? st.CurrentSubject : "-")}|" +
                   $"{slot.StartTime:HH:mm}-{slot.EndTime:HH:mm}|下节:{(st.NextLesson is { } nl ? nl.SubjectName : "-")}|" +
-                  $"{plan.Name}(周{weekday}) 第{slotIdx + 1}/{slots.Count}段|剩余{FmtDelta(left)}");
+                  $"{plan.Name}(周{pyWd}) 第{slotIdx + 1}/{slots.Count}段|剩余{FmtDelta(left)}");
         return st;
     }
 
@@ -949,6 +943,11 @@ public sealed class LinkageBridge : LinkageBridgeBase
             {
                 nClasses++;
             }
+        }
+        // 前无课程 当前态无索引 下一节=首节
+        if (offset == 0 && nClasses == 0)
+        {
+            return -1;
         }
         return Math.Max(0, nClasses - 1 + offset);
     }
@@ -1054,13 +1053,9 @@ public sealed class ClassWidgetsBridge : LinkageBridgeBase
             return [];
         }
         var slots = ParseSchedule(todayData, now);
-        int currentIdx;
-        bool isBreaking;
-        lock (_lock)
-        {
-            currentIdx = GetState().CurrentIndex;
-            isBreaking = GetState().TimeState == TimeState.Breaking;
-        }
+        var snap = GetState();
+        var currentIdx = snap.CurrentIndex;
+        var isBreaking = snap.TimeState == TimeState.Breaking;
         var result = new List<ScheduleRow>();
         foreach (var slot in slots)
         {
@@ -1233,8 +1228,7 @@ public sealed class ClassWidgetsBridge : LinkageBridgeBase
         }
         catch (Exception e)
         {
-
-            Glimpseon.Core.Log.Debug($"[LINKAGE] 读取失败: {e.Message}");
+            Log.Debug($"[LINKAGE] 读取失败: {e.Message}");
             return null;
         }
     }
@@ -1340,7 +1334,7 @@ public sealed class ClassWidgetsBridge : LinkageBridgeBase
         // 当前不在任何时间段内
         if (currentSlot is null)
         {
-            if (slots.Count > 0 && t >= slots[^1].EndTime)
+            if (t >= slots[^1].EndTime)
             {
                 st.TimeState = TimeState.AfterSchool;
                 return st;
@@ -1462,9 +1456,10 @@ public sealed class ClassWidgetsBridge : LinkageBridgeBase
         }
         if (dayTimeline.ValueKind == JsonValueKind.Undefined || dayTimeline.GetArrayLength() == 0)
         {
-            if (_lastParseSig is null || _lastParseSig.Value.Item2 != "empty" || _lastParseSig.Value.Item3 != int.Parse(wdKey))
+            var wdNum = int.Parse(wdKey);
+            if (_lastParseSig is null || _lastParseSig.Value.Item2 != "empty" || _lastParseSig.Value.Item3 != wdNum)
             {
-                _lastParseSig = (DateTime.MinValue, "empty", int.Parse(wdKey));
+                _lastParseSig = (DateTime.MinValue, "empty", wdNum);
                 Log.Debug($"[CW-Linkage] 周{wdKey} 无时间线数据");
             }
             return slots;
@@ -1539,7 +1534,7 @@ public sealed class ClassWidgetsBridge : LinkageBridgeBase
         {
             _lastParseSig = sig;
             var classN = slots.Count(s => !s.IsBreak);
-            Log.Debug($"[CW-Linkage] 解析{slots.Count}时段 周{wdKey} {(weekType == 1 ? "双周" : "单周")} {classN}节)");
+            Log.Debug($"[CW-Linkage] 解析{slots.Count}时段 周{wdKey} {(weekType == 1 ? "双周" : "单周")} {classN}节");
         }
         return slots;
     }

@@ -12,7 +12,7 @@
       <Grid VerticalAlignment="Center" ColumnDefinitions="Auto,Auto,*,Auto" Margin="12,0,0,0">
         <Image x:Name="WindowIcon" Width="18" Height="18" Margin="0,2,0,0" />
         <TextBlock Grid.Column="1" x:Name="TitleLabel" FontSize="12" Margin="10,2,0,0" VerticalAlignment="Center" Opacity="0.85" />
-        <!-- 右侧: 待重启徽标 版本号  -->
+        <!-- 徽标+版本 -->
         <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
           <Button x:Name="RestartBadge" VerticalAlignment="Center" />
           <TextBlock x:Name="VersionText" FontSize="12" Margin="0,2,0,0" VerticalAlignment="Center" Opacity="0.55" />
@@ -31,7 +31,7 @@
       <fa:FANavigationView.MenuItems>
         <fa:FANavigationViewItem x:Name="NavCourse" Tag="course">
           <fa:FANavigationViewItem.IconSource>
-            <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE163;" FontSize="20" />
+            <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE8C0;" FontSize="20" />
           </fa:FANavigationViewItem.IconSource>
         </fa:FANavigationViewItem>
         <fa:FANavigationViewItem x:Name="NavTime" Tag="time">
@@ -61,7 +61,7 @@
         </fa:FANavigationViewItem>
         <fa:FANavigationViewItem x:Name="NavProfile" Tag="profile">
           <fa:FANavigationViewItem.IconSource>
-            <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE838;" FontSize="20" />
+            <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE8F1;" FontSize="20" />
           </fa:FANavigationViewItem.IconSource>
         </fa:FANavigationViewItem>
       </fa:FANavigationView.MenuItems>

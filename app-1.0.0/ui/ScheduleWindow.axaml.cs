@@ -39,6 +39,7 @@ namespace Glimpseon.UI;
 
 public partial class ScheduleWindow : GlimpseonWindow
 {
+    // 周日起列 DayOfWeek 同构
     private static readonly string[] DayOrder =
         ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
@@ -48,8 +49,30 @@ public partial class ScheduleWindow : GlimpseonWindow
     private static readonly string[] PeriodTypes = ["上课", "课间", "活动"];
     private static readonly string[] Parities = ["单周", "双周"];
 
-    private static readonly string[] SubjectShort =
-        ["语", "数", "英", "政", "史", "地", "生", "物", "化", "科", "通", "劳", "班", "社", "心", "信", "考", "体", "早", "自"];
+    // 周视图列宽 行头 + 七日
+    private const string WeekCols = "96,*,*,*,*,*,*,*";
+
+    /// <summary>所在周周一</summary>
+    private static DateOnly MondayOf(DateOnly d) => d.AddDays(-(((int)d.DayOfWeek + 6) % 7));
+
+    /// <summary>时段命令组</summary>
+    private (Control Icon, string Label, Action OnClick)[] PeriodCommands() =>
+    [
+        (FAIcons.IconCenter(FASymbol.Add, 13), Tr("timetable.btn_class"), () => AddPeriod("上课")),
+        (FAIcons.IconCenter(FASymbol.Clock, 13), Tr("timetable.btn_break"), () => AddPeriod("课间")),
+        (FAIcons.IconCenter(FASymbol.Play, 13), Tr("timetable.btn_activity"), () => AddPeriod("活动")),
+        (FAIcons.IconCenter(FASymbol.Delete, 13), Tr("timetable.btn_delete_row"), OnDeleteSelectedRow),
+    ];
+
+    /// <summary>计时器重启 防重复订阅</summary>
+    private static void PulseTimer(ref DispatcherTimer? timer, TimeSpan interval, EventHandler onTick)
+    {
+        timer ??= new DispatcherTimer { Interval = interval };
+        timer.Tick -= onTick;
+        timer.Tick += onTick;
+        timer.Stop();
+        timer.Start();
+    }
 
     private readonly Dictionary<string, Control> _pages = new();
     private FAFrame? _navFrame;
@@ -104,6 +127,7 @@ public partial class ScheduleWindow : GlimpseonWindow
     private int _courseSelCol = -1;
     private TextBlock _courseInfo = null!;
     private TextBlock _courseStatus = null!;
+    private Control _courseTableEmpty = null!;
     private WrapPanel _subjectFlow = null!;
     private DispatcherTimer? _subjectFlowDebounce;
     private ComboBox _sourceCombo = null!;
@@ -116,7 +140,7 @@ public partial class ScheduleWindow : GlimpseonWindow
     private TextBlock? _courseCaption;
     // 单双周切换组
     private StackPanel? _courseWeekSwitch;
-    private FACommandBar? _courseCommandBar;
+    private Control? _courseCommandBar;
     private readonly LinkageBridge _ciBridge = new();
     private readonly ClassWidgetsBridge _cwBridge = new();
     private LinkageBridgeBase? _activeBridge;
@@ -141,7 +165,7 @@ public partial class ScheduleWindow : GlimpseonWindow
     private StackPanel _timeEditHost = null!;
     private Control _timeEmpty = null!;
     private TextBlock? _timeCaption;
-    private FACommandBar? _timeCommandBar;
+    private Control? _timeCommandBar;
     private Border? _timeEditorCard;
     private Border? _durCard;
     // 行动编辑
@@ -151,7 +175,7 @@ public partial class ScheduleWindow : GlimpseonWindow
     private double _dragY0;
     private int _dragOrigB;
     private DispatcherTimer? _timeMsgTimer;
-    // 时间轴 分钟→px 1.8 刻度留白 62
+    // 时间轴 min→px 1.8 留白62
     private double _timeScale = 1.8;
     private const double TimeScaleMax = 3.0;
     private const double TimeScaleMin = 0.6;
@@ -197,6 +221,7 @@ public partial class ScheduleWindow : GlimpseonWindow
 
     // 值周表页
     private StackPanel _dutyRowsHost = null!;
+    private Control _dutyTableEmpty = null!;
     private readonly List<Border> _dutyCells = [];
     private readonly List<ComboBox> _dutyParityCombos = [];
     private readonly List<ComboBox> _dutyWeekdayCombos = [];
@@ -213,7 +238,7 @@ public partial class ScheduleWindow : GlimpseonWindow
     private TextBox _dutyNameEdit = null!;
     private TextBox _dutyRoleEdit = null!;
     private TextBlock? _dutyCaption;
-    private FACommandBar? _dutyCommandBar;
+    private Control? _dutyCommandBar;
     private Border? _dutyEditorCard;
 
     // 花名册页
@@ -223,10 +248,10 @@ public partial class ScheduleWindow : GlimpseonWindow
     private readonly List<int> _rosterVisibleRows = [];
     private TextBox _rosterSearch = null!;
     private TextBlock _rosterResult = null!;
-    private TextBlock _rosterEmpty = null!;
+    private Control _rosterEmpty = null!;
     private TextBlock _rosterCount = null!;
     private TextBlock? _rosterCaption;
-    private FACommandBar? _rosterCommandBar;
+    private Control? _rosterCommandBar;
     private int _rosterSelIdx = -1;
     private int _rosterFlashRow = -1;
     private bool _drawing;
@@ -234,6 +259,7 @@ public partial class ScheduleWindow : GlimpseonWindow
 
     // 学科页
     private StackPanel _subjectRowsHost = null!;
+    private Control _subjectTableEmpty = null!;
     private readonly List<Border> _subjectCells = [];
     private readonly List<TextBox> _subjectNameEditors = [];
     private readonly List<TextBox> _subjectShortEditors = [];
@@ -264,7 +290,8 @@ public partial class ScheduleWindow : GlimpseonWindow
         ("灰 #888780", "#888780"),
     ];
     private TextBlock? _subjectCaption;
-    private FACommandBar? _subjectCommandBar;
+    private TextBlock? _adjustCaption;
+    private Control? _subjectCommandBar;
     private Border? _subjectEditorCard;
 
     // 跟随外部时内存副本
@@ -274,8 +301,9 @@ public partial class ScheduleWindow : GlimpseonWindow
 
     // 档案页
     private StackPanel _mastersHost = null!;
+    private StackPanel _profileSummary = null!;
     private Button _addMasterBtn = null!;
-    private Button _importMasterBtn = null!;
+    private MenuItem _importMasterBtn = null!;
 
     private Window? OwnerWindow => TopLevel.GetTopLevel(this) as Window;
 
@@ -351,7 +379,7 @@ public partial class ScheduleWindow : GlimpseonWindow
 
     // 活动档案装载
 
-    /// <summary>当前课表来源对应的活动总档案配置项</summary>
+    /// <summary>活动总档案配置项</summary>
     private static ConfigItem<string> ActiveMasterItem() => Config.ProfileSource.Value switch
     {
         "classisland" => Config.ScheduleProfileCi,
@@ -359,7 +387,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         _ => Config.ScheduleProfile,
     };
 
-    /// <summary>CI/CW 跟随外部配置模式 true=分档案只读实时跟随 false=自编辑</summary>
+    /// <summary>CI/CW 跟随外部标志</summary>
     private static bool SourceFollowMode() => Config.ProfileSource.Value switch
     {
         "classisland" => Config.ScheduleProfileCiFollow.Value,
@@ -367,7 +395,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         _ => false,
     };
 
-    /// <summary>总档案对应来源的跟随状态 null=非来源专属档案</summary>
+    /// <summary>来源跟随项 无则null</summary>
     private static ConfigItem<bool>? FollowItemOf(string masterName)
     {
         if (Config.ScheduleProfileCi.Value == masterName)
@@ -409,26 +437,23 @@ public partial class ScheduleWindow : GlimpseonWindow
         _pages["profile"] = BuildProfilePage();
     }
 
+    /// <summary>页标题</summary>
     private static TextBlock PageTitle(string text) => new()
     {
         Text = text,
-        FontSize = 21,
+        FontSize = 22,
         FontWeight = FontWeight.Medium,
-        Margin = new Thickness(24, 2, 24, 6),
     };
 
-    private static Border MakeCard(Control content, Thickness? padding = null) => new()
+    private static Border MakeCard(Control content, Thickness? padding = null)
     {
-        CornerRadius = new CornerRadius(0),
-        BorderThickness = new Thickness(1),
-        BorderBrush = new SolidColorBrush(Colors.Gray, 0.20),
-        Background = Common.MakeCard().Background,
-        Padding = padding ?? new Thickness(10, 8, 10, 8),
-        Child = content,
-        Margin = new Thickness(0, 0, 0, 8),
-    };
+        var card = MakeCardFrame(content);
+        card.Padding = padding ?? new Thickness(10, 8, 10, 8);
+        card.Margin = new Thickness(0, 0, 0, 8);
+        return card;
+    }
 
-    /// <summary>禁 null 背景 否则失去命中测试</summary>
+    /// <summary>禁null背景 保命中测试</summary>
     private static Border MakeCell(Control content, int row, int col, bool header = false, Action? onClick = null)
     {
         var border = new Border
@@ -447,7 +472,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         }
         if (onClick is not null)
         {
-            // 格内控件(ComboBox/CheckBox等)会吃掉 PointerPressed 使用 handledEventsToo 保证选中始终触发
+            // handledEventsToo 穿透子控件
             border.AddHandler(InputElement.PointerPressedEvent, (_, _) => onClick(), RoutingStrategies.Bubble, true);
         }
         return border;
@@ -477,7 +502,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         VerticalContentAlignment = VerticalAlignment.Center,
     };
 
-    /// <summary>行容器 hover + 命中转选中</summary>
+    /// <summary>行容器 hover 命中选中</summary>
     private static Border MakeRowHost(Grid rowGrid, Action? onClick = null)
     {
         var border = new Border { Child = rowGrid, Background = Brushes.Transparent };
@@ -535,7 +560,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         return btn;
     }
 
-    /// <summary>全部页刷新 总档案切换后调用</summary>
+    /// <summary>全页刷新</summary>
     private void RefreshAllPages()
     {
         RefreshCourseTable();
@@ -553,30 +578,203 @@ public partial class ScheduleWindow : GlimpseonWindow
 
     // 页面布局
 
-    /// <summary>区域命令条</summary>
-    private static FACommandBar MakeCommandBar(params (FASymbol Icon, string Label, Action OnClick)[] commands)
+    /// <summary>文本工具钮 透明底</summary>
+    private static Button MakeTextToolButton(Control? icon, string label, Action onClick)
     {
-        var bar = new FACommandBar { DefaultLabelPosition = FACommandBarDefaultLabelPosition.Right };
-        foreach (var (icon, label, onClick) in commands)
+        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        if (icon is not null)
         {
-            var btn = new FACommandBarButton { IconSource = FAIcons.IconSource(icon), Label = label };
-            btn.Click += (_, _) => onClick();
-            bar.PrimaryCommands.Add(btn);
+            content.Children.Add(icon);
         }
-        return bar;
+        content.Children.Add(new TextBlock { Text = label, FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
+        var btn = new Button
+        {
+            Content = content,
+            Padding = new Thickness(8, 5, 8, 5),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
+        btn.Click += (_, _) => onClick();
+        return btn;
     }
 
-    /// <summary>左右分栏 右列 26px 下沉</summary>
-    private static Grid MakeSplit(Control left, Control right)
+    /// <summary>图标工具钮 透明底</summary>
+    private static Button MakeIconToolButton(FASymbol symbol, string tip, Action onClick)
     {
-        var rightWrap = new Border { Child = right, Margin = new Thickness(0, 26, 0, 0) };
-        Grid.SetColumn(rightWrap, 2);
-        return new Grid
+        var btn = new Button
         {
-            ColumnDefinitions = new ColumnDefinitions("*,12,320"),
-            Margin = new Thickness(24, 0, 24, 16),
-            Children = { left, rightWrap },
+            Content = FAIcons.IconCenter(symbol, 13),
+            Padding = new Thickness(7, 5, 7, 5),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            VerticalAlignment = VerticalAlignment.Center,
         };
+        ToolTip.SetTip(btn, tip);
+        btn.Click += (_, _) => onClick();
+        return btn;
+    }
+
+    /// <summary>下拉菜单 图标 + 文本</summary>
+    private static MenuFlyout MakeMenu(params (Control Icon, string Label, Action OnClick)[] items)
+    {
+        var menu = new MenuFlyout();
+        foreach (var (icon, label, onClick) in items)
+        {
+            var item = new MenuItem { Header = label, Icon = icon };
+            item.Click += (_, _) => onClick();
+            menu.Items.Add(item);
+        }
+        return menu;
+    }
+
+    /// <summary>工具行 左命令右更多</summary>
+    private static Grid MakeToolRow(
+        (Control Icon, string Label, Action OnClick)[] primary,
+        Control? trailing = null,
+        MenuFlyout? more = null,
+        Control? first = null)
+    {
+        var left = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2 };
+        if (first is not null)
+        {
+            left.Children.Add(first);
+        }
+        foreach (var (icon, label, onClick) in primary)
+        {
+            left.Children.Add(MakeTextToolButton(icon, label, onClick));
+        }
+        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto") };
+        row.Children.Add(left);
+        if (trailing is not null)
+        {
+            trailing.VerticalAlignment = VerticalAlignment.Center;
+            trailing.Margin = new Thickness(0, 0, 8, 0);
+            Grid.SetColumn(trailing, 2);
+            row.Children.Add(trailing);
+        }
+        if (more is not null)
+        {
+            // 右对齐展开 防越界
+            more.Placement = PlacementMode.BottomEdgeAlignedRight;
+            var moreBtn = new Button
+            {
+                Content = FAIcons.Icon(FASymbol.More, 14),
+                Padding = new Thickness(8, 5, 8, 5),
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Flyout = more,
+            };
+            ToolTip.SetTip(moreBtn, Tr("schedule.sub_more"));
+            Grid.SetColumn(moreBtn, 3);
+            row.Children.Add(moreBtn);
+        }
+        return row;
+    }
+
+    /// <summary>空态叠层</summary>
+    private static StackPanel MakeEmptyState(string text, FASymbol symbol)
+    {
+        var icon = FAIcons.Icon(symbol, 26);
+        icon.Opacity = 0.22;
+        icon.HorizontalAlignment = HorizontalAlignment.Center;
+        return new StackPanel
+        {
+            Spacing = 10,
+            // 不拦截滚动
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(24, 0, 24, 24),
+            IsHitTestVisible = false,
+            Children =
+            {
+                icon,
+                new TextBlock
+                {
+                    Text = text,
+                    FontSize = 12.5,
+                    Opacity = 0.45,
+                    TextWrapping = TextWrapping.Wrap,
+                    TextAlignment = TextAlignment.Center,
+                    MaxWidth = 240,
+                },
+            },
+        };
+    }
+
+    /// <summary>表格区 表+底栏</summary>
+    private static Grid MakeTableArea(Control table, Control? footer = null)
+    {
+        var grid = new Grid { RowDefinitions = new RowDefinitions("*,Auto") };
+        grid.Children.Add(table);
+        if (footer is not null)
+        {
+            Grid.SetRow(footer, 1);
+            grid.Children.Add(footer);
+        }
+        return grid;
+    }
+
+    /// <summary>表格 + 空态叠层</summary>
+    private static Grid MakeTableStack(Control table, Control empty) => new() { Children = { table, empty } };
+
+    /// <summary>整页骨架</summary>
+    private static Grid MakePage(string title, Control? subtitle, Control? commands, string rightTitle, Control left, Control? right = null)
+    {
+        var head = new StackPanel { Spacing = 2 };
+        head.Children.Add(PageTitle(title));
+        if (subtitle is not null)
+        {
+            head.Children.Add(subtitle);
+        }
+        Grid.SetColumnSpan(head, 3);
+        var root = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,20,320"),
+            RowDefinitions = new RowDefinitions("Auto,Auto,*"),
+            Margin = new Thickness(24, 4, 24, 16),
+            Children = { head },
+        };
+        if (commands is not null)
+        {
+            // 光学对齐
+            commands.Margin = new Thickness(-8, 8, 0, 8);
+            Grid.SetRow(commands, 1);
+            root.Children.Add(commands);
+        }
+        var rightHead = new TextBlock
+        {
+            Text = rightTitle,
+            FontSize = 13,
+            FontWeight = FontWeight.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 8, 0, 8),
+        };
+        Grid.SetRow(rightHead, 1);
+        Grid.SetColumn(rightHead, 2);
+        root.Children.Add(rightHead);
+        // 分栏竖线 仅贯正文
+        var rule = new Border
+        {
+            Width = 1,
+            Background = new SolidColorBrush(Colors.Gray, 0.16),
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        Grid.SetColumn(rule, 1);
+        Grid.SetRow(rule, 2);
+        root.Children.Add(rule);
+        Grid.SetRow(left, 2);
+        root.Children.Add(left);
+        if (right is not null)
+        {
+            Grid.SetRow(right, 2);
+            Grid.SetColumn(right, 2);
+            root.Children.Add(right);
+        }
+        return root;
     }
 
     /// <summary>卡片外框</summary>
@@ -610,35 +808,17 @@ public partial class ScheduleWindow : GlimpseonWindow
         };
     }
 
-    /// <summary>左侧内容区</summary>
-    private static Grid MakeLeftPanel(Control caption, Control? header, Control table, Control? footer = null)
+    /// <summary>副标题 配置名</summary>
+    private static TextBlock MakeCaption(string text = "") => new()
     {
-        var grid = new Grid { RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto") };
-        grid.Children.Add(caption);
-        if (header is not null)
-        {
-            Grid.SetRow(header, 1);
-            grid.Children.Add(header);
-        }
-        Grid.SetRow(table, 2);
-        grid.Children.Add(table);
-        if (footer is not null)
-        {
-            Grid.SetRow(footer, 3);
-            grid.Children.Add(footer);
-        }
-        return grid;
-    }
-
-    private static TextBlock MakeCaption() => new()
-    {
-        FontSize = 13,
-        FontWeight = FontWeight.SemiBold,
-        Margin = new Thickness(2, 0, 0, 0),
+        Text = text,
+        FontSize = 12,
+        Opacity = 0.6,
+        TextTrimming = TextTrimming.CharacterEllipsis,
     };
 
-    /// <summary>编辑卡 标题分隔线 + 空态</summary>
-    private (Border Card, Control Empty, StackPanel Host, StackPanel Inner) MakeEditorCard(string title)
+    /// <summary>操作卡 空态/表单</summary>
+    private (Border Card, Control Empty, StackPanel Host, StackPanel Inner) MakeEditorCard()
     {
         var emptyIcon = FAIcons.Icon(FASymbol.Edit, 24);
         emptyIcon.Opacity = 0.18;
@@ -646,7 +826,9 @@ public partial class ScheduleWindow : GlimpseonWindow
         var empty = new StackPanel
         {
             Spacing = 8,
-            Margin = new Thickness(12, 44, 12, 0),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(16, 0, 16, 0),
             Children =
             {
                 emptyIcon,
@@ -656,28 +838,23 @@ public partial class ScheduleWindow : GlimpseonWindow
                     FontSize = 12.5,
                     Opacity = 0.42,
                     TextWrapping = TextWrapping.Wrap,
+                    MaxWidth = 220,
                     TextAlignment = TextAlignment.Center,
                     HorizontalAlignment = HorizontalAlignment.Center,
                 },
             },
         };
+        // 叠层垂直居中
+        var emptyLayer = new Grid { Children = { empty } };
         var host = new StackPanel { Spacing = 12, IsVisible = false };
-        var inner = new StackPanel { Spacing = 12 };
-        // 空 title 省略表头行
-        if (title.Length > 0)
+        var scroll = new ScrollViewer
         {
-            inner.Children.Add(new TextBlock { Text = title, FontSize = 15.5, FontWeight = FontWeight.SemiBold });
-            inner.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Colors.Gray, 0.16), Margin = new Thickness(0, -2, 0, 0) });
-        }
-        inner.Children.Add(empty);
-        inner.Children.Add(host);
-        var card = MakeCardFrame(new ScrollViewer
-        {
-            Content = inner,
+            Content = host,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Padding = new Thickness(16, 12, 16, 12),
-        });
-        return (card, empty, host, inner);
+            Padding = new Thickness(16, 14, 16, 14),
+        };
+        var card = MakeCardFrame(new Grid { Children = { scroll, emptyLayer } });
+        return (card, emptyLayer, host, host);
     }
 
     private static void ShowEditor(Control empty, StackPanel host, bool hasSelection)
@@ -719,48 +896,46 @@ public partial class ScheduleWindow : GlimpseonWindow
 
     private Control BuildCoursePage()
     {
-        // 根布局
-        var root = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
-        root.Children.Add(PageTitle(Tr("schedule.tab_course")));
-
         // 左: 周课表
-        var cols = "96," + string.Join(",", Enumerable.Repeat("*", 7));
-        var header = new Grid { ColumnDefinitions = new ColumnDefinitions(cols) };
+        var header = new Grid { ColumnDefinitions = new ColumnDefinitions(WeekCols) };
         header.Children.Add(MakeCell(CellText(Tr("timetable.time_range"), true), 0, 0, header: true));
         for (var d = 0; d < 7; d++)
         {
             header.Children.Add(MakeCell(CellText(Tr($"timetable.{DayOrder[d]}"), true), 0, d + 1, header: true));
         }
         _courseRowsHost = new StackPanel();
-        var table = MakeScrollableTable(header, _courseRowsHost);
-
-        var commandBar = MakeCommandBar(
-            (FASymbol.Add, Tr("timetable.btn_class"), () => AddPeriod("上课")),
-            (FASymbol.Clock, Tr("timetable.btn_break"), () => AddPeriod("课间")),
-            (FASymbol.Play, Tr("timetable.btn_activity"), () => AddPeriod("活动")),
-            (FASymbol.Delete, Tr("timetable.btn_delete_row"), OnDeleteSelectedRow),
-            (FASymbol.Save, Tr("schedule.course_export_png"), OnExportPng),
-            (FASymbol.Download, Tr("schedule.course_ai_import"), OnAiImport));
-        _courseCommandBar = commandBar;
+        _courseTableEmpty = MakeEmptyState(Tr("schedule.course_empty_hint"), FASymbol.Add);
+        var table = MakeTableStack(MakeScrollableTable(header, _courseRowsHost), _courseTableEmpty);
 
         _courseCaption = MakeCaption();
-        _courseStatus = new TextBlock { FontSize = 11, Opacity = 0.7, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 4, 0, 0) };
+        // 状态行 空折叠
+        _courseStatus = new TextBlock { FontSize = 11, Opacity = 0.7, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 4, 0, 0), IsVisible = false };
+        _courseStatus.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == TextBlock.TextProperty)
+            {
+                _courseStatus.IsVisible = !string.IsNullOrWhiteSpace(_courseStatus.Text);
+            }
+        };
         // 单双周切换
         _courseWeekSwitch = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 14,
             VerticalAlignment = VerticalAlignment.Center,
+            // 右留白 避右栏
+            Margin = new Thickness(8, 0, 16, 0),
             IsVisible = false,
         };
-        var captionRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14 };
-        captionRow.Children.Add(_courseCaption);
-        captionRow.Children.Add(_courseWeekSwitch);
-        var left = MakeLeftPanel(captionRow, commandBar, table, _courseStatus);
-        Grid.SetColumn(left, 0);
+        var cmdRow = MakeToolRow(PeriodCommands(), _courseWeekSwitch,
+            MakeMenu(
+                (FAIcons.IconCenter(FASymbol.Save, 13), Tr("schedule.course_export_png"), OnExportPng),
+                (FAIcons.IconCenter(FASymbol.Download, 13), Tr("schedule.course_ai_import"), OnAiImport)));
+        _courseCommandBar = cmdRow;
+        var left = MakeTableArea(table, _courseStatus);
 
         // 右: 选中格编辑
-        var (editorCard, editorEmpty, editorHost, editorInner) = MakeEditorCard(Tr("schedule.course_editor_title"));
+        var (editorCard, editorEmpty, editorHost, editorInner) = MakeEditorCard();
         _courseEditorCard = editorCard;
         _courseEditorEmpty = editorEmpty;
         _courseEditorHost = editorHost;
@@ -796,18 +971,15 @@ public partial class ScheduleWindow : GlimpseonWindow
         _linkageTable = new ListBox { MaxHeight = 460 };
         _linkagePanel.Children.Add(_linkageTable);
         editorInner.Children.Add(_linkagePanel);
-        Grid.SetColumn(editorCard, 2);
 
-        var split = MakeSplit(left, editorCard);
-        Grid.SetRow(split, 1);
-        root.Children.Add(split);
+        var root = MakePage(Tr("schedule.tab_course"), _courseCaption, cmdRow, Tr("schedule.course_editor_title"), left, editorCard);
         RebuildSubjectFlow();
         RefreshCourseTable();
         RebuildCourseWeekSwitch();
         return root;
     }
 
-    /// <summary>非课间活动行索引 参与课程表行</summary>
+    /// <summary>非课间/活动行索引</summary>
     private List<int> NonBreakIndices() =>
         Enumerable.Range(0, _timetable.Periods.Count)
             .Where(i => PeriodField(_timetable.Periods[i], "type") is not ("课间" or "活动"))
@@ -815,7 +987,7 @@ public partial class ScheduleWindow : GlimpseonWindow
 
     // 导出 PNG / AI 导入
 
-    /// <summary>离屏 RenderTargetBitmap 白底</summary>
+    /// <summary>离屏 RenderTargetBitmap</summary>
     private async void OnExportPng()
     {
         if (_linkageMode)
@@ -916,7 +1088,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         return grid;
     }
 
-    /// <summary>剪贴板文本 → LLM JSON → 填格</summary>
+    /// <summary>剪贴板→LLM JSON→填格</summary>
     private async void OnAiImport()
     {
         if (_linkageMode)
@@ -1024,41 +1196,26 @@ public partial class ScheduleWindow : GlimpseonWindow
         }
 
         var viewingDual = _course.Name == dual;
-        var group = $"courseweek-{_master.Name}";
-        var rbSingle = new RadioButton
+        // 勾=双周表
+        var chkDual = new CheckBox
         {
-            Content = Tr("schedule.week_switch_single"),
-            GroupName = group,
-            IsChecked = !viewingDual,
-            MinWidth = 0,
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        var rbDual = new RadioButton
-        {
-            Content = Tr("schedule.week_switch_double"),
-            GroupName = group,
+            // 基线回正 抵消内容框下移
+            Content = new TextBlock { Text = Tr("schedule.week_switch_double"), FontSize = 12, Margin = new Thickness(0, -2, 0, 0) },
             IsChecked = viewingDual,
             MinWidth = 0,
+            MinHeight = 0,
             FontSize = 12,
             VerticalAlignment = VerticalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
         };
-        rbSingle.IsCheckedChanged += (_, _) =>
+        chkDual.IsCheckedChanged += (_, _) =>
         {
-            if (rbSingle.IsChecked == true && viewingDual)
+            if (chkDual.IsChecked != viewingDual)
             {
-                SwitchCourseView(single);
+                SwitchCourseView(chkDual.IsChecked == true ? dual : single);
             }
         };
-        rbDual.IsCheckedChanged += (_, _) =>
-        {
-            if (rbDual.IsChecked == true && !viewingDual)
-            {
-                SwitchCourseView(dual);
-            }
-        };
-        _courseWeekSwitch.Children.Add(rbSingle);
-        _courseWeekSwitch.Children.Add(rbDual);
+        _courseWeekSwitch.Children.Add(chkDual);
     }
 
     /// <summary>切换配置课表</summary>
@@ -1101,30 +1258,18 @@ public partial class ScheduleWindow : GlimpseonWindow
         _courseCells.Clear();
         _courseHeadRangeTexts.Clear();
         _courseDayEditors.Clear();
-
-        var cols = "96," + string.Join(",", Enumerable.Repeat("*", 7));
         var nb = NonBreakIndices();
-        if (nb.Count == 0)
-        {
-            _courseRowsHost.Children.Add(new TextBlock
-            {
-                Text = Tr("schedule.course_empty_hint"),
-                FontSize = 12,
-                Opacity = 0.45,
-                Margin = new Thickness(12, 14, 12, 0),
-                TextWrapping = TextWrapping.Wrap,
-            });
-        }
+        _courseTableEmpty.IsVisible = nb.Count == 0;
         for (var tableRow = 0; tableRow < nb.Count; tableRow++)
         {
             var periodIdx = nb[tableRow];
             var p = _timetable.Periods[periodIdx];
-            var rowGrid = new Grid { ColumnDefinitions = new ColumnDefinitions(cols), MinHeight = 34 };
+            var rowGrid = new Grid { ColumnDefinitions = new ColumnDefinitions(WeekCols), MinHeight = 34 };
 
             var head = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             head.Children.Add(new TextBlock
             {
-                Text = $"第{tableRow + 1}节",
+                Text = Tr("schedule.period_n", ("n", tableRow + 1)),
                 FontSize = 12,
                 FontWeight = FontWeight.SemiBold,
                 TextAlignment = TextAlignment.Center,
@@ -1154,14 +1299,12 @@ public partial class ScheduleWindow : GlimpseonWindow
                 edit.GotFocus += (_, _) => SelectCourseCell(row, col);
                 edit.TextChanged += (_, _) => OnCourseCellChanged(row, col, edit.Text ?? "");
                 var cell = MakeCell(edit, row, col, onClick: () => SelectCourseCell(row, col));
-                Grid.SetColumn(cell, d + 1);
                 rowGrid.Children.Add(cell);
                 _courseCells.Add(cell);
                 dayEditors[d] = edit;
             }
             _courseDayEditors.Add(dayEditors);
 
-            // 行容器
             var r = tableRow;
             _courseRowsHost.Children.Add(MakeRowHost(rowGrid,
                 () => SelectCourseCell(r, _courseSelCol < 0 ? 0 : Math.Min(_courseSelCol, 7))));
@@ -1244,12 +1387,12 @@ public partial class ScheduleWindow : GlimpseonWindow
         var range = $"{PeriodField(p, "start")}~{PeriodField(p, "end")}";
         if (_courseSelCol <= 0)
         {
-            _courseInfo.Text = $"第{_courseSelRow + 1}节 · {range}";
+            _courseInfo.Text = $"{Tr("schedule.period_n", ("n", _courseSelRow + 1))} · {range}";
             HighlightSubjectButton(null);
             return;
         }
         var day = Tr($"timetable.{DayOrder[_courseSelCol - 1]}");
-        _courseInfo.Text = $"第{_courseSelRow + 1}节 · {range} · {day}";
+        _courseInfo.Text = $"{Tr("schedule.period_n", ("n", _courseSelRow + 1))} · {range} · {day}";
         HighlightSubjectButton(_course.GetCell(periodIdx, DayOrder[_courseSelCol - 1]));
     }
 
@@ -1264,7 +1407,8 @@ public partial class ScheduleWindow : GlimpseonWindow
         var names = _subject.SubjectNames();
         if (names.Count == 0)
         {
-            names = [.. SubjectShort];
+            // 空表回退 默认学科
+            names = ScheduleStore.DefaultSubjectRows().Select(r => r["name"]?.GetValue<string>() ?? "").ToList();
         }
         foreach (var name in names)
         {
@@ -1288,13 +1432,7 @@ public partial class ScheduleWindow : GlimpseonWindow
     /// <summary>防抖重建</summary>
     private void QueueSubjectFlowRebuild()
     {
-        if (_subjectFlowDebounce is null)
-        {
-            _subjectFlowDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
-            _subjectFlowDebounce.Tick += (_, _) => RebuildSubjectFlow();
-        }
-        _subjectFlowDebounce.Stop();
-        _subjectFlowDebounce.Start();
+        PulseTimer(ref _subjectFlowDebounce, TimeSpan.FromMilliseconds(300), (_, _) => RebuildSubjectFlow());
     }
 
     private string? CurrentCourseCellText()
@@ -1332,7 +1470,6 @@ public partial class ScheduleWindow : GlimpseonWindow
             return;
         }
         Log.Debug($"[课表窗口] 科目按钮: {subject} @ 行{_courseSelRow} 列{_courseSelCol}");
-        // 差分更新当前格
         SyncCourseCell(_courseSelRow, _courseSelCol);
         HighlightSubjectButton(subject);
         var nb = NonBreakIndices();
@@ -1388,11 +1525,7 @@ public partial class ScheduleWindow : GlimpseonWindow
 
     private Control BuildTimePage()
     {
-        // 根布局
-        var root = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
-        root.Children.Add(PageTitle(Tr("schedule.tab_time")));
-
-        // 左: 时间轴视图 刻度 + 彩色时间块
+        // 左: 时间轴
         _timeRowsHost = new StackPanel();
         _timeScroll = new ScrollViewer
         {
@@ -1401,31 +1534,21 @@ public partial class ScheduleWindow : GlimpseonWindow
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             Padding = new Thickness(0, 6, 0, 6),
         };
-        var table = new Border
-        {
-            BorderBrush = LineBrush,
-            BorderThickness = new Thickness(1),
-            Background = CardBg,
-            CornerRadius = new CornerRadius(8),
-            ClipToBounds = true,
-            Child = _timeScroll,
-        };
+        // 表框叠层 滚动+缩放条
+        var tableStack = new Grid();
+        tableStack.Children.Add(_timeScroll);
 
-        var commandBar = MakeCommandBar(
-            (FASymbol.Add, Tr("timetable.btn_class"), () => AddPeriod("上课")),
-            (FASymbol.Clock, Tr("timetable.btn_break"), () => AddPeriod("课间")),
-            (FASymbol.Play, Tr("timetable.btn_activity"), () => AddPeriod("活动")),
-            (FASymbol.Delete, Tr("timetable.btn_delete_row"), OnDeleteSelectedRow));
+        var commandBar = MakeToolRow(PeriodCommands());
         _timeCommandBar = commandBar;
 
         _timeCaption = MakeCaption();
-        // 缩放 紧凑图标组 右下角 不占版面
+        // 缩放防抖 140ms
         _zoomTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(140) };
         _zoomTimer.Tick += (_, _) =>
         {
             _zoomTimer?.Stop();
             RefreshTimeTable();
-            // 锚定视口中心分钟 缩放后视界不跳
+            // 视口中心锚定 防跳
             if (_timeScroll is { Bounds.Height: > 0 })
             {
                 var target = Math.Max(0, _zoomAnchorMin * _timeScale + TimelinePadTop - _timeScroll.Bounds.Height / 2);
@@ -1444,7 +1567,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         };
         void ApplyScale(double v)
         {
-            // 记录视口中心分钟 作缩放锚点
+            // 取视口中心为锚
             if (_timeScroll is { Bounds.Height: > 0 })
             {
                 _zoomAnchorMin = Math.Max(0, (_timeScroll.Offset.Y + _timeScroll.Bounds.Height / 2 - TimelinePadTop) / _timeScale);
@@ -1474,8 +1597,8 @@ public partial class ScheduleWindow : GlimpseonWindow
             Orientation = Orientation.Horizontal,
             Spacing = 2,
             HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 2, 10, 4),
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 10, 10),
         };
         zoomBar.Children.Add(MiniBtn(Tr("timetable.zoom_fit"), 44, () =>
         {
@@ -1483,18 +1606,26 @@ public partial class ScheduleWindow : GlimpseonWindow
             {
                 return;
             }
-            // 全天 24 小时压进可视高度
+            // 24h 压进视口
             var viewH = _timeScroll?.Bounds.Height ?? 560;
             ApplyScale(viewH / (24 * 60));
         }));
         zoomBar.Children.Add(MiniBtn("−", 26, () => ApplyScale(_timeScale - 0.1)));
         zoomBar.Children.Add(pctText);
         zoomBar.Children.Add(MiniBtn("+", 26, () => ApplyScale(_timeScale + 0.1)));
-        var left = MakeLeftPanel(_timeCaption, commandBar, table, zoomBar);
-        Grid.SetColumn(left, 0);
+        tableStack.Children.Add(zoomBar);
+        var table = new Border
+        {
+            BorderBrush = LineBrush,
+            BorderThickness = new Thickness(1),
+            Background = CardBg,
+            ClipToBounds = true,
+            Child = tableStack,
+        };
+        var left = MakeTableArea(table);
 
-        // 右: 时间点编辑 类型圆环 / 标题 / 时分选择器 / 确认 移除
-        var (editorCard, editorEmpty, editorHost, _) = MakeEditorCard(Tr("schedule.time_editor_title"));
+        // 右: 时段编辑
+        var (editorCard, editorEmpty, editorHost, _) = MakeEditorCard();
         _timeEditorCard = editorCard;
         _timeEmpty = editorEmpty;
         _timeEditHost = editorHost;
@@ -1502,7 +1633,15 @@ public partial class ScheduleWindow : GlimpseonWindow
         _typeRadios = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
         foreach (var t in PeriodTypes)
         {
-            var rb = new RadioButton { Content = t, GroupName = "periodType", FontSize = 12.5, MinWidth = 0 };
+            var rb = new RadioButton
+            {
+                Content = t,
+                GroupName = "periodType",
+                FontSize = 12.5,
+                MinWidth = 0,
+                MinHeight = 0,
+                VerticalContentAlignment = VerticalAlignment.Center,
+            };
             var typeName = t;
             rb.IsCheckedChanged += (_, _) =>
             {
@@ -1514,7 +1653,7 @@ public partial class ScheduleWindow : GlimpseonWindow
             _typeRadios.Children.Add(rb);
         }
         editorHost.Children.Add(MakeFieldRow(Tr("timetable.type"), _typeRadios));
-        // 标题 即时改模型 防抖 250ms 落盘+重建
+        // 标题 防抖250ms 落盘
         _titleBox = new TextBox { FontSize = 12.5, Height = 32 };
         _titleBox.TextChanged += (_, _) =>
         {
@@ -1531,11 +1670,7 @@ public partial class ScheduleWindow : GlimpseonWindow
             {
                 pp["name"] = _titleBox.Text!.Trim();
             }
-            _titleDebounce ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
-            _titleDebounce.Tick -= OnTitleDebounceTick;
-            _titleDebounce.Tick += OnTitleDebounceTick;
-            _titleDebounce.Stop();
-            _titleDebounce.Start();
+            PulseTimer(ref _titleDebounce, TimeSpan.FromMilliseconds(250), OnTitleDebounceTick);
         };
         editorHost.Children.Add(MakeFieldRow(Tr("timetable.title"), _titleBox));
         // 行动 到点事件
@@ -1568,7 +1703,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         editorHost.Children.Add(_timeMsg);
         ShowEditor(editorEmpty, editorHost, false);
 
-        // 单位在标签内 去后缀
+        // 单位入标签 免后缀
         _classDurSpin = new NumericUpDown { Minimum = 1, Maximum = 120, Value = _timetable.DefaultClassDuration, HorizontalAlignment = HorizontalAlignment.Stretch };
         _classDurSpin.ValueChanged += (_, _) => OnDurationChanged();
         _breakDurSpin = new NumericUpDown { Minimum = 1, Maximum = 60, Value = _timetable.DefaultBreakDuration, HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -1578,7 +1713,8 @@ public partial class ScheduleWindow : GlimpseonWindow
         var breakField = MakeField(Tr("timetable.default_break_duration"), _breakDurSpin);
         Grid.SetColumn(breakField, 2);
         durRow.Children.Add(breakField);
-        var durCard = MakeCard(durRow, new Thickness(12, 8, 12, 10));
+        var durCard = MakeCard(durRow, new Thickness(12, 10, 12, 10));
+        durCard.Margin = new Thickness(0);
         _durCard = durCard;
 
         var rightColumn = new Grid { RowDefinitions = new RowDefinitions("*,8,Auto") };
@@ -1586,16 +1722,13 @@ public partial class ScheduleWindow : GlimpseonWindow
         rightColumn.Children.Add(editorCard);
         Grid.SetRow(durCard, 2);
         rightColumn.Children.Add(durCard);
-        Grid.SetColumn(rightColumn, 2);
 
-        var split = MakeSplit(left, rightColumn);
-        Grid.SetRow(split, 1);
-        root.Children.Add(split);
+        var root = MakePage(Tr("schedule.tab_time"), _timeCaption, commandBar, Tr("schedule.time_editor_title"), left, rightColumn);
         RefreshTimeTable();
         return root;
     }
 
-    /// <summary>时间轴重建 刻度 + 块 + 分界胶囊</summary>
+    /// <summary>时间轴重建</summary>
     private void RefreshTimeTable()
     {
         var readOnly = _linkageMode;
@@ -1637,7 +1770,7 @@ public partial class ScheduleWindow : GlimpseonWindow
             Canvas.SetTop(rule, y + TimelinePadTop);
             canvas.Children.Add(rule);
         }
-        // 块 opacity 分层 选中提亮
+        // 块分层 选中提亮
         for (var i = 0; i < ps.Count; i++)
         {
             var p = ps[i];
@@ -1646,10 +1779,8 @@ public partial class ScheduleWindow : GlimpseonWindow
             var span = endMin - startMin;
             var type = PeriodField(p, "type");
             var isSel = i == _timeSelRow;
-            var (fill, fgColor) = PeriodPalette(type);
-            // 高度按 span 比例
+            var (fill, ink, inkOpacity) = PeriodPalette(type, isSel);
             var h = span * _timeScale;
-            // 字号 ∝ scale
             var ratio = _timeScale / 1.8;
             var fs = Math.Clamp(12.5 * ratio, 10, 22);
             // 高度不足 退化为色条
@@ -1660,14 +1791,14 @@ public partial class ScheduleWindow : GlimpseonWindow
                 Background = new SolidColorBrush(fill),
                 ClipToBounds = true,
                 Cursor = new Cursor(StandardCursorType.Hand),
-                Opacity = isSel ? 1 : 0.4,
             };
             var text = new TextBlock
             {
                 Text = FormatPeriod(type, PeriodField(p, "start"), PeriodField(p, "end"), span),
                 FontSize = fs,
                 LineHeight = fs * 1.44,
-                Foreground = new SolidColorBrush(fgColor, 0.95),
+                Foreground = new SolidColorBrush(ink),
+                Opacity = inkOpacity,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(12, 0, 10, 0),
                 TextTrimming = TextTrimming.CharacterEllipsis,
@@ -1690,7 +1821,7 @@ public partial class ScheduleWindow : GlimpseonWindow
             _timeBlocks.Add(block);
             _timeBlockTexts.Add(text);
         }
-        // 分界胶囊 连续段可拖
+        // 分界胶囊 可拖
         for (var i = 0; i + 1 < ps.Count; i++)
         {
             if (readOnly || IsFixed(ps[i]) || IsFixed(ps[i + 1]))
@@ -1713,7 +1844,6 @@ public partial class ScheduleWindow : GlimpseonWindow
                 Tag = i,
             };
             ToolTip.SetTip(dot, Tr("schedule.drag_hint"));
-            // 水平居中块内
             Canvas.SetLeft(dot, TimelineLeft + BlockWidth(canvas) / 2 - _dotSize / 2);
             Canvas.SetTop(dot, b * _timeScale + TimelinePadTop - _dotH / 2);
             dot.PointerPressed += OnBoundaryPressed;
@@ -1757,26 +1887,43 @@ public partial class ScheduleWindow : GlimpseonWindow
         SyncPickers();
     }
 
-    /// <summary>块可用宽度 首帧 bounds 为 0 用 640 兜底</summary>
+    /// <summary>块宽 兜底640</summary>
     private static double BlockWidth(Canvas canvas) =>
         Math.Max(80, (canvas.Bounds.Width > 0 ? canvas.Bounds.Width : 640) - TimelineLeft - 10);
 
-    /// <summary>块配色 选中靠 opacity</summary>
-    private static (Color Fill, Color Foreground) PeriodPalette(string type)
+    /// <summary>块配色 选中实色</summary>
+    private (Color Fill, Color Ink, double InkOpacity) PeriodPalette(string type, bool selected)
     {
-        var fill = type switch
+        // 课程蓝/课间绿/活动黄
+        var baseColor = type switch
         {
-            "课间" => Color.FromRgb(0x3B, 0x86, 0x58),
-            "活动" => Color.FromRgb(0xC2, 0x9B, 0x3E),
-            _ => Color.FromRgb(0x39, 0x76, 0xB4),
+            "课间" => Color.FromRgb(0x63, 0x99, 0x22),
+            "活动" => Color.FromRgb(0xBA, 0x75, 0x17),
+            _ => Color.FromRgb(0x37, 0x8A, 0xDD),
         };
-        // BT.601 亮度定前景
-        var lum = (0.299 * fill.R + 0.587 * fill.G + 0.114 * fill.B) / 255.0;
-        var fg = lum > 0.55 ? Color.FromRgb(0x16, 0x12, 0x06) : Color.FromRgb(0xFF, 0xFF, 0xFF);
-        return (fill, fg);
+        if (selected)
+        {
+            return (baseColor, Colors.White, 1);
+        }
+        // 暗压亮 亮混白
+        return ThemeSense.IsDark(this)
+            ? (Shade(baseColor, 0.45), Colors.White, 0.86)
+            : (Tint(baseColor, 0.78), Shade(baseColor, 0.62), 1);
     }
 
-    /// <summary>块文案 type/起止/时长</summary>
+    /// <summary>线性压暗</summary>
+    private static Color Shade(Color c, double k) => Color.FromRgb(
+        (byte)Math.Min(255, c.R * k),
+        (byte)Math.Min(255, c.G * k),
+        (byte)Math.Min(255, c.B * k));
+
+    /// <summary>白混提亮</summary>
+    private static Color Tint(Color c, double k) => Color.FromRgb(
+        (byte)(c.R + (255 - c.R) * k),
+        (byte)(c.G + (255 - c.G) * k),
+        (byte)(c.B + (255 - c.B) * k));
+
+    /// <summary>块文案</summary>
     private static string FormatPeriod(string type, string start, string end, int span) =>
         $"{type}  {start} - {end}  ({span} {Tr("timetable.minutes")})";
 
@@ -1818,7 +1965,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         var b = Math.Clamp(_dragOrigB + (int)Math.Round((e.GetPosition(null).Y - _dragY0) / _timeScale / 5) * 5, lo, hi);
         ps[_dragIdx]["end"] = MinStr(b);
         ps[_dragIdx + 1]["start"] = MinStr(b);
-        // 就地改几何 保 PointerCapture
+        // 就地改几何 保Capture
         var prevStart = ToMin(PeriodField(ps[_dragIdx], "start"));
         if (_dragIdx < _timeBlocks.Count)
         {
@@ -1849,12 +1996,11 @@ public partial class ScheduleWindow : GlimpseonWindow
         e.Pointer.Capture(null);
         _timetable.Save();
         Log.Info($"[课表窗口] 拖分界线: 段{_dragIdx} -> {PeriodField(_timetable.Periods[_dragIdx], "start")}~{PeriodField(_timetable.Periods[_dragIdx], "end")}");
-        SyncCourseTable();
         RefreshCourseTable();
         _dragIdx = -1;
     }
 
-    /// <summary>确认 强制保存并刷新</summary>
+    /// <summary>确认保存</summary>
     private void OnConfirmTime()
     {
         if (_timeSelRow < 0 || _timeSelRow >= _timetable.Periods.Count)
@@ -1862,12 +2008,10 @@ public partial class ScheduleWindow : GlimpseonWindow
             return;
         }
         _timetable.Save();
-        SyncCourseTable();
         RefreshCourseTable();
         ShowTimeMsg(Tr("timetable.saved"));
     }
-
-    /// <summary>类型圆环切换 改写当前段类型</summary>
+    /// <summary>改写当前段类型</summary>
     private void OnTypeSelected(string type)
     {
         if (_linkageMode || _timeSelRow < 0 || _timeSelRow >= _timetable.Periods.Count)
@@ -1895,7 +2039,7 @@ public partial class ScheduleWindow : GlimpseonWindow
     {
         var hasSel = _timeSelRow >= 0 && _timeSelRow < _timetable.Periods.Count;
         ShowEditor(_timeEmpty, _timeEditHost, hasSel);
-        // 先上闸 回填会触发 TextChanged/IsCheckedChanged
+        // 先上闸 防回填触发
         _blockSync = true;
         if (_typeRadios is not null && hasSel)
         {
@@ -1953,11 +2097,11 @@ public partial class ScheduleWindow : GlimpseonWindow
             : 480;
     }
 
-    /// <summary>分钟 → HH:mm 24:00 保留不折返</summary>
+    /// <summary>分钟→HH:mm 保24:00</summary>
     private static string MinStr(int m) =>
         m >= DayMinutes ? "24:00" : $"{m / 60:00}:{m % 60:00}";
 
-    /// <summary>落位校验 上界 + 邻段不重叠</summary>
+    /// <summary>落位校验 邻段不叠</summary>
     private bool CanPlace(int idx, string start, string end)
     {
         var s = ToMin(start);
@@ -1967,7 +2111,6 @@ public partial class ScheduleWindow : GlimpseonWindow
             return false;
         }
         var ps = _timetable.Periods;
-        // 相邻不重叠 接续相等允许
         if (idx > 0 && ToMin(PeriodField(ps[idx - 1], "end")) > s)
         {
             return false;
@@ -1983,11 +2126,7 @@ public partial class ScheduleWindow : GlimpseonWindow
     {
         _timeMsg.Text = text;
         _timeMsg.IsVisible = true;
-        _timeMsgTimer ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
-        _timeMsgTimer.Tick -= OnTimeMsgTick;
-        _timeMsgTimer.Tick += OnTimeMsgTick;
-        _timeMsgTimer.Stop();
-        _timeMsgTimer.Start();
+        PulseTimer(ref _timeMsgTimer, TimeSpan.FromSeconds(3), OnTimeMsgTick);
     }
 
     private void OnTimeMsgTick(object? sender, EventArgs e)
@@ -2004,7 +2143,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         RefreshCourseTable();
     }
 
-    /// <summary>原生 TimePicker 选值提交 校验失败回滚</summary>
+    /// <summary>TimePicker提交 校验回滚</summary>
     private void OnPickerTimeChanged()
     {
         if (_blockSync || _linkageMode || _timeSelRow < 0 || _timeSelRow >= _timetable.Periods.Count)
@@ -2012,7 +2151,6 @@ public partial class ScheduleWindow : GlimpseonWindow
             return;
         }
         OnTimeCommitted(FromSpan(_startPicker.SelectedTime), FromSpan(_endPicker.SelectedTime));
-        SyncPickers();
     }
 
     /// <summary>HH:mm → TimeSpan</summary>
@@ -2023,7 +2161,7 @@ public partial class ScheduleWindow : GlimpseonWindow
     private static string FromSpan(TimeSpan? t) =>
         t is { } v ? $"{v.Hours:00}:{v.Minutes:00}" : "08:00";
 
-    /// <summary>原生 TimePicker 24 小时制 5 分钟步进 铺满行</summary>
+    /// <summary>TimePicker 24h 5min步进</summary>
     private static TimePicker MakeTimePicker() => new()
     {
         ClockIdentifier = "24HourClock",
@@ -2046,13 +2184,12 @@ public partial class ScheduleWindow : GlimpseonWindow
         p["end"] = end;
         Log.Info($"[课表窗口] 修改时间行: 行{_timeSelRow} -> {start}~{end}");
         _timetable.Save();
-        // RefreshTimeTable 内部已 SyncPickers
+        // RefreshTimeTable 内含SyncPickers
         RefreshTimeTable();
-        SyncCourseTable();
         RefreshCourseTable();
     }
 
-    /// <summary>行动编辑行 名称/at/删除 变更即写回</summary>
+    /// <summary>行动编辑行 变更即写回</summary>
     private void RebuildActionsEditor()
     {
         if (_actionsHost is null)
@@ -2121,7 +2258,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         }
     }
 
-    /// <summary>追加行动 缺省 at = 段起始</summary>
+    /// <summary>追加行动 缺省段起</summary>
     private void OnAddAction()
     {
         if (_linkageMode || _timeSelRow < 0 || _timeSelRow >= _timetable.Periods.Count)
@@ -2155,7 +2292,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         _timetable.Save();
         _course.Save();
         RefreshCourseTable();
-        // SelectTimeRow 内部重建时间轴 无需重复
+        // SelectTimeRow 内含重建
         SelectTimeRow(_timetable.Periods.Count - 1);
     }
 
@@ -2165,15 +2302,20 @@ public partial class ScheduleWindow : GlimpseonWindow
         {
             return;
         }
+        // 按页取选中 防stale索引
         int periodIdx;
-        if (_timeSelRow >= 0)
+        if (_currentTag == "time")
         {
+            if (_timeSelRow < 0)
+            {
+                return;
+            }
             periodIdx = _timeSelRow;
         }
-        else if (_courseSelRow >= 0)
+        else if (_currentTag == "course")
         {
             var nb = NonBreakIndices();
-            if (_courseSelRow >= nb.Count)
+            if (_courseSelRow < 0 || _courseSelRow >= nb.Count)
             {
                 return;
             }
@@ -2215,38 +2357,32 @@ public partial class ScheduleWindow : GlimpseonWindow
     private Control BuildAdjustPage()
     {
         var today = DateOnly.FromDateTime(AppUtils.PreciseNow());
-        _adjustMonday = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
-        // 初始选中今天
+        _adjustMonday = MondayOf(today);
         _adjustSelDate = today;
-        _adjustSelPeriod = NonBreakIndices().Count > 0 ? NonBreakIndices()[0] : -1;
-        var root = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
+        var nbInit = NonBreakIndices();
+        _adjustSelPeriod = nbInit.Count > 0 ? nbInit[0] : -1;
 
-        // 标题行 左页标题 右周导航
-        var headRow = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
-        headRow.Children.Add(PageTitle(Tr("schedule.tab_adjust")));
-        var navRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 24, 0) };
-        navRow.Children.Add(MakeToolButton(FASymbol.ChevronLeft, Tr("schedule.adjust_prev"), () => { _adjustMonday = _adjustMonday.AddDays(-7); RefreshAdjustGrid(); }));
+        _adjustCaption = MakeCaption();
+        // 周导航命令区
+        var navRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        navRow.Children.Add(MakeIconToolButton(FASymbol.ChevronLeft, Tr("schedule.adjust_prev"), () => { _adjustMonday = _adjustMonday.AddDays(-7); RefreshAdjustGrid(); }));
         _adjustWeekLabel = new TextBlock
         {
-            FontSize = 14,
+            FontSize = 12,
             FontWeight = FontWeight.SemiBold,
             VerticalAlignment = VerticalAlignment.Center,
-            MinWidth = 170,
+            MinWidth = 150,
             TextAlignment = TextAlignment.Center,
         };
         navRow.Children.Add(_adjustWeekLabel);
-        navRow.Children.Add(MakeToolButton(FASymbol.ChevronRight, Tr("schedule.adjust_next"), () => { _adjustMonday = _adjustMonday.AddDays(7); RefreshAdjustGrid(); }));
-        navRow.Children.Add(MakeSmallButton(Tr("schedule.adjust_today"), () =>
+        navRow.Children.Add(MakeIconToolButton(FASymbol.ChevronRight, Tr("schedule.adjust_next"), () => { _adjustMonday = _adjustMonday.AddDays(7); RefreshAdjustGrid(); }));
+        navRow.Children.Add(MakeTextToolButton(null, Tr("schedule.adjust_today"), () =>
         {
-            var t = DateOnly.FromDateTime(AppUtils.PreciseNow());
-            _adjustMonday = t.AddDays(-(((int)t.DayOfWeek + 6) % 7));
+            _adjustMonday = MondayOf(DateOnly.FromDateTime(AppUtils.PreciseNow()));
             RefreshAdjustGrid();
         }));
-        Grid.SetColumn(navRow, 1);
-        headRow.Children.Add(navRow);
-        root.Children.Add(headRow);
 
-        // 左: 周视图 单层外框
+        // 左: 周视图
         _adjustGridHost = new StackPanel();
         var table = new Border
         {
@@ -2258,21 +2394,20 @@ public partial class ScheduleWindow : GlimpseonWindow
             Child = new ScrollViewer
             {
                 Content = _adjustGridHost,
-                MaxHeight = 580,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             },
         };
-        var left = MakeLeftPanel(new TextBlock { Text = Tr("schedule.adjust_grid_caption"), FontSize = 13, FontWeight = FontWeight.SemiBold, Margin = new Thickness(2, 0, 0, 0) }, null, table);
-        Grid.SetColumn(left, 0);
+        var left = MakeTableArea(table);
 
         // 右: 紧凑编辑卡
-        var (editorCard, editorEmpty, editorHost, _) = MakeEditorCard("");
+        var (editorCard, editorEmpty, editorHost, _) = MakeEditorCard();
         _adjustSwapBanner = new Border
         {
             Background = SelCellBg,
             BorderBrush = AccentBrush,
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(6),
+            CornerRadius = new CornerRadius(0),
             Padding = new Thickness(10, 6, 10, 6),
             IsVisible = false,
             Child = new TextBlock { Text = Tr("schedule.adjust_swap_banner"), FontSize = 12, TextWrapping = TextWrapping.Wrap },
@@ -2317,7 +2452,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         cellRow.Children.Add(_adjustSubjectBox);
         Grid.SetColumn(_adjustRoomBox, 1);
         cellRow.Children.Add(_adjustRoomBox);
-        // 主操作 保存这一节 + 调换 + 低频收进菜单
+        // 主操作 低频入菜单
         _adjustSaveCellBtn = MakeSmallButton(Tr("schedule.adjust_save_cell"), OnAdjustSaveCell);
         _adjustSaveCellBtn.Classes.Add("accent");
         _adjustSaveCellBtn.Height = 34;
@@ -2379,17 +2514,12 @@ public partial class ScheduleWindow : GlimpseonWindow
         ShowEditor(editorEmpty, editorHost, true);
         RebuildDayModeForm();
 
-        var rightColumn = editorCard;
-        Grid.SetColumn(rightColumn, 2);
-
-        var split = MakeSplit(left, rightColumn);
-        Grid.SetRow(split, 1);
-        root.Children.Add(split);
+        var root = MakePage(Tr("schedule.tab_adjust"), _adjustCaption, navRow, Tr("schedule.adjust_editor_title"), left, editorCard);
         RefreshAdjustGrid();
         return root;
     }
 
-    /// <summary>课表分档缓存 一次刷新内复用</summary>
+    /// <summary>课表分档缓存</summary>
     private static CourseDoc LoadCourseCached(string name, Dictionary<string, CourseDoc>? cache)
     {
         if (cache is null)
@@ -2404,7 +2534,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         return doc;
     }
 
-    /// <summary>周视图重建 选中态后绘</summary>
+    /// <summary>周视图重建</summary>
     private void RefreshAdjustGrid()
     {
         if (_adjustGridHost is null)
@@ -2421,12 +2551,12 @@ public partial class ScheduleWindow : GlimpseonWindow
                                 (weekInfo is { Parity: { } p } && weekNum == weekInfo.Value.Week ? $" · {p}" : "");
 
         var nb = NonBreakIndices();
-        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("96,*,*,*,*,*,*,*") };
+        var header = new Grid { ColumnDefinitions = new ColumnDefinitions(WeekCols) };
         header.Children.Add(MakeCell(CellText(Tr("timetable.period"), true), 0, 0, header: true));
         var todayDate = DateOnly.FromDateTime(AppUtils.PreciseNow());
         for (var c = 0; c < 7; c++)
         {
-            // 周日起列 key↔date 对位
+            // 周日起列 对位
             var key = DayOrder[c];
             var date = monday.AddDays((c + 6) % 7);
             var isToday = date == todayDate;
@@ -2446,7 +2576,7 @@ public partial class ScheduleWindow : GlimpseonWindow
                 TextAlignment = TextAlignment.Center,
                 Opacity = isToday ? 0.9 : 0.5,
             };
-            // Foreground 置 null 会盖掉主题刷子致文字隐身 只在今日列设色
+            // null盖主题刷 仅今日设色
             if (isToday)
             {
                 dayText.Foreground = AccentBrush;
@@ -2463,7 +2593,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         for (var r = 0; r < nb.Count; r++)
         {
             var periodIdx = nb[r];
-            var rowGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("96,*,*,*,*,*,*,*"), MinHeight = 42 };
+            var rowGrid = new Grid { ColumnDefinitions = new ColumnDefinitions(WeekCols), MinHeight = 42 };
             var pd = _timetable.Periods[periodIdx];
             var headStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             headStack.Children.Add(new TextBlock { Text = Tr("schedule.period_n", ("n", r + 1)), FontSize = 12, FontWeight = FontWeight.Medium, TextAlignment = TextAlignment.Center });
@@ -2497,7 +2627,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         }
     }
 
-    /// <summary>格子内容 覆盖来源出胶囊</summary>
+    /// <summary>格内容 覆盖出胶囊</summary>
     private (StackPanel View, string Source, string Subject, bool WholeDay) AdjustCellContent(DateOnly date, int periodIdx, string dayKey,
         Dictionary<string, CourseDoc>? cache = null)
     {
@@ -2618,7 +2748,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         _adjustSwapBanner.IsVisible = false;
     }
 
-    /// <summary>对调 = 两条单节覆盖互换</summary>
+    /// <summary>对调=互换单节覆盖</summary>
     private void DoAdjustSwap((DateOnly Date, int Period, string Subject) from, DateOnly toDate, int toPeriod)
     {
         var toContent = AdjustCellContent(toDate, toPeriod, DayKeyOf(toDate));
@@ -2629,24 +2759,15 @@ public partial class ScheduleWindow : GlimpseonWindow
         Log.Info($"[课表窗口] 调课对调: {from.Date:MM-dd}第{from.Period}节 <-> {toDate:MM-dd}第{toPeriod}节");
     }
 
-    private static string DayKeyOf(DateOnly date) => date.DayOfWeek switch
-    {
-        DayOfWeek.Monday => "monday",
-        DayOfWeek.Tuesday => "tuesday",
-        DayOfWeek.Wednesday => "wednesday",
-        DayOfWeek.Thursday => "thursday",
-        DayOfWeek.Friday => "friday",
-        DayOfWeek.Saturday => "saturday",
-        _ => "sunday",
-    };
+    private static string DayKeyOf(DateOnly date) => DayOrder[(int)date.DayOfWeek];
 
-    /// <summary>删除指定日期+节的单节覆盖</summary>
+    /// <summary>删单节覆盖</summary>
     private void RemovePatchAt(DateOnly date, int periodIdx) =>
         _master.Patches.RemoveAll(p =>
             DateOnly.TryParse(p["date"]?.GetValue<string>(), out var d) && d == date &&
             ScheduleRules.ReadPeriod(p) == periodIdx);
 
-    /// <summary>写单节覆盖 同 date+period 去重</summary>
+    /// <summary>写单节覆盖 去重</summary>
     private void WritePatch(DateOnly date, int periodIdx, string subject, string room, string expectStart, string note = "")
     {
         RemovePatchAt(date, periodIdx);
@@ -2663,7 +2784,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         Log.Info($"[课表窗口] 单节覆盖: {date:yyyy-MM-dd} 第{periodIdx}节 -> {subject}");
     }
 
-    /// <summary>写整日覆盖 同日期去重 (列表顺序首个命中) 返回是否替换了已有覆盖</summary>
+    /// <summary>写整日覆盖 同日去重</summary>
     private bool WriteOverride(DateOnly date, JsonObject entry)
     {
         var before = _master.Overrides.Count;
@@ -2708,13 +2829,13 @@ public partial class ScheduleWindow : GlimpseonWindow
             _adjustSourceLabel.Text = content.Source;
             _adjustSourceLabel.IsVisible = content.Source != Tr("schedule.src_normal");
         }
-        // 仅目标变化时重置输入框 不吞正在编辑的文字
+        // 换目标才回填 防吞输入
         if (_adjustEditorKey != key)
         {
             _adjustSubjectBox.Text = content.Subject;
             _adjustRoomBox.Text = "";
             _adjustEditorKey = key;
-            // 整日类型跟随当天已有覆盖
+            // 整日类型随既有覆盖
             var ovKind = ScheduleRules.ResolveOverride(_master, date)?.Kind;
             _adjustDayModeCombo.SelectedIndex = ovKind switch
             {
@@ -2757,7 +2878,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         }
     }
 
-    /// <summary>当日摘要 命中链+patches</summary>
+    /// <summary>当日摘要</summary>
     private string BuildAdjustSummary(DateOnly date)
     {
         var lines = new List<string>();
@@ -2774,7 +2895,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         }
         else
         {
-            // 只在轮换真正命中时提示 常规日不占版面
+            // 仅轮换命中提示
             var hit = ScheduleRules.ResolveCourse(_master, date);
             var parity = ScheduleRules.WeekParityLabel(_master, date);
             if (hit is not null && parity is not null)
@@ -2852,7 +2973,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         RefreshAdjustEditor();
     }
 
-    /// <summary>设为默认 轮换→写命中那张; plan→写 override 指向那张; exam/holiday 拒绝</summary>
+    /// <summary>设为默认写命中课表</summary>
     private void OnAdjustSetDefault()
     {
         if (_adjustSelPeriod < 0 || _adjustSelDate == default)
@@ -2893,7 +3014,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         {
             return;
         }
-        // 假期/考试日: 清除覆盖 = 清除整日覆盖
+        // 考试/假期 清整日覆盖
         var ov = ScheduleRules.ResolveOverride(_master, _adjustSelDate);
         if (ov is not null && ov.Kind != "plan")
         {
@@ -2914,7 +3035,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         RefreshAdjustGrid();
     }
 
-    /// <summary>整日类型动态表单 常规提示 / 调课选表 / 考试假期填名</summary>
+    /// <summary>整日类型动态表单</summary>
     private void RebuildDayModeForm()
     {
         if (_dayModeHost is null)
@@ -2925,7 +3046,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         _adjustPlanCombo = null;
         _adjustDayNameBox = null;
         var mode = _adjustDayModeCombo.SelectedIndex;
-        // 常规不展开任何表单与按钮 保持卡片极简
+        // 常规不展开表单
         if (_dayOps is not null)
         {
             _dayOps.IsVisible = mode != 0;
@@ -2934,8 +3055,9 @@ public partial class ScheduleWindow : GlimpseonWindow
         switch (mode)
         {
             case 1: // 调课
+                var subs = ScheduleStore.ListSubs("course");
                 var combo = new ComboBox { MinWidth = 0, FontSize = 12, HorizontalAlignment = HorizontalAlignment.Stretch };
-                foreach (var s in ScheduleStore.ListSubs("course"))
+                foreach (var s in subs)
                 {
                     combo.Items.Add(s);
                 }
@@ -2946,7 +3068,7 @@ public partial class ScheduleWindow : GlimpseonWindow
                 // 已有调课覆盖时预选
                 if (ov is { Kind: "plan" })
                 {
-                    var idx = ScheduleStore.ListSubs("course").IndexOf(ov.CourseName);
+                    var idx = subs.IndexOf(ov.CourseName);
                     if (idx >= 0)
                     {
                         combo.SelectedIndex = idx;
@@ -2970,7 +3092,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         }
     }
 
-    /// <summary>应用整日类型 常规=清除覆盖 调课/考试/假期=写 override</summary>
+    /// <summary>应用整日类型</summary>
     private void OnApplyDayMode()
     {
         if (_adjustSelDate == default)
@@ -3009,7 +3131,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         RefreshAdjustGrid();
     }
 
-    /// <summary>写单日覆盖并提示替换 plan 走 course 其余走 name</summary>
+    /// <summary>写单日覆盖</summary>
     private void ApplyDayOverride(string kind, string name)
     {
         var entry = new JsonObject
@@ -3056,11 +3178,7 @@ public partial class ScheduleWindow : GlimpseonWindow
     {
         _adjustMsg.Text = text;
         _adjustMsg.IsVisible = true;
-        _adjustMsgTimer ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
-        _adjustMsgTimer.Tick -= OnAdjustMsgTick;
-        _adjustMsgTimer.Tick += OnAdjustMsgTick;
-        _adjustMsgTimer.Stop();
-        _adjustMsgTimer.Start();
+        PulseTimer(ref _adjustMsgTimer, TimeSpan.FromSeconds(3), OnAdjustMsgTick);
     }
 
     private void OnAdjustMsgTick(object? sender, EventArgs e)
@@ -3073,10 +3191,6 @@ public partial class ScheduleWindow : GlimpseonWindow
 
     private Control BuildDutyPage()
     {
-        // 根布局
-        var root = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
-        root.Children.Add(PageTitle(Tr("schedule.tab_duty")));
-
         // 左: 值周表格
         var header = new Grid { ColumnDefinitions = new ColumnDefinitions("110,110,*,*,*") };
         header.Children.Add(MakeCell(CellText(Tr("schedule.col_parity"), true), 0, 0, header: true));
@@ -3085,19 +3199,21 @@ public partial class ScheduleWindow : GlimpseonWindow
         header.Children.Add(MakeCell(CellText(Tr("schedule.col_name"), true), 0, 3, header: true));
         header.Children.Add(MakeCell(CellText(Tr("schedule.col_role"), true), 0, 4, header: true));
         _dutyRowsHost = new StackPanel();
-        var table = MakeScrollableTable(header, _dutyRowsHost);
+        _dutyTableEmpty = MakeEmptyState(Tr("schedule.duty_empty"), FASymbol.Add);
+        var table = MakeTableStack(MakeScrollableTable(header, _dutyRowsHost), _dutyTableEmpty);
 
-        var commandBar = MakeCommandBar(
-            (FASymbol.Add, Tr("schedule.add_row"), OnDutyAddRow),
-            (FASymbol.Delete, Tr("schedule.delete_row"), OnDutyDeleteRow));
+        var commandBar = MakeToolRow(
+            [
+                (FAIcons.IconCenter(FASymbol.Add, 13), Tr("schedule.add_row"), OnDutyAddRow),
+                (FAIcons.IconCenter(FASymbol.Delete, 13), Tr("schedule.delete_row"), OnDutyDeleteRow),
+            ]);
         _dutyCommandBar = commandBar;
 
         _dutyCaption = MakeCaption();
-        var left = MakeLeftPanel(_dutyCaption, commandBar, table);
-        Grid.SetColumn(left, 0);
+        var left = MakeTableArea(table);
 
         // 右: 选中行编辑
-        var (editorCard, editorEmpty, editorHost, _) = MakeEditorCard(Tr("schedule.duty_editor_title"));
+        var (editorCard, editorEmpty, editorHost, _) = MakeEditorCard();
         _dutyEditorCard = editorCard;
         _dutyEmpty = editorEmpty;
         _dutyEditHost = editorHost;
@@ -3125,11 +3241,8 @@ public partial class ScheduleWindow : GlimpseonWindow
         editorHost.Children.Add(MakeField(Tr("schedule.col_name"), _dutyNameEdit));
         editorHost.Children.Add(MakeField(Tr("schedule.col_role"), _dutyRoleEdit));
         ShowEditor(editorEmpty, editorHost, false);
-        Grid.SetColumn(editorCard, 2);
 
-        var split = MakeSplit(left, editorCard);
-        Grid.SetRow(split, 1);
-        root.Children.Add(split);
+        var root = MakePage(Tr("schedule.tab_duty"), _dutyCaption, commandBar, Tr("schedule.duty_editor_title"), left, editorCard);
         RefreshDutyTable();
         return root;
     }
@@ -3145,17 +3258,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         _dutyGroupEditors.Clear();
         _dutyNameEditors.Clear();
         _dutyRoleEditors.Clear();
-        if (_duty.Rows.Count == 0)
-        {
-            _dutyRowsHost.Children.Add(new TextBlock
-            {
-                Text = Tr("schedule.duty_empty"),
-                FontSize = 12,
-                Opacity = 0.4,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 48, 0, 0),
-            });
-        }
+        _dutyTableEmpty.IsVisible = _duty.Rows.Count == 0;
         for (var i = 0; i < _duty.Rows.Count; i++)
         {
             var r = _duty.Rows[i];
@@ -3214,7 +3317,6 @@ public partial class ScheduleWindow : GlimpseonWindow
                 _duty.Save();
             };
             var weekdayCell = MakeCell(weekdayCombo, row, 1, onClick: () => SelectDutyCell(row, 1));
-            Grid.SetColumn(weekdayCell, 1);
             rowGrid.Children.Add(weekdayCell);
             _dutyCells.Add(weekdayCell);
             _dutyWeekdayCombos.Add(weekdayCombo);
@@ -3230,7 +3332,6 @@ public partial class ScheduleWindow : GlimpseonWindow
                 }
             };
             var groupCell = MakeCell(groupEdit, row, 2, onClick: () => SelectDutyCell(row, 2));
-            Grid.SetColumn(groupCell, 2);
             rowGrid.Children.Add(groupCell);
             _dutyCells.Add(groupCell);
             _dutyGroupEditors.Add(groupEdit);
@@ -3246,7 +3347,6 @@ public partial class ScheduleWindow : GlimpseonWindow
                 }
             };
             var nameCell = MakeCell(nameEdit, row, 3, onClick: () => SelectDutyCell(row, 3));
-            Grid.SetColumn(nameCell, 3);
             rowGrid.Children.Add(nameCell);
             _dutyCells.Add(nameCell);
             _dutyNameEditors.Add(nameEdit);
@@ -3262,12 +3362,10 @@ public partial class ScheduleWindow : GlimpseonWindow
                 }
             };
             var roleCell = MakeCell(roleEdit, row, 4, onClick: () => SelectDutyCell(row, 4));
-            Grid.SetColumn(roleCell, 4);
             rowGrid.Children.Add(roleCell);
             _dutyCells.Add(roleCell);
             _dutyRoleEditors.Add(roleEdit);
 
-            // 行容器
             var rowIdx = i;
             _dutyRowsHost.Children.Add(MakeRowHost(rowGrid,
                 () => SelectDutyCell(rowIdx, _dutySelCol < 0 ? 0 : Math.Min(_dutySelCol, 4))));
@@ -3290,7 +3388,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         SyncDutyEditor();
     }
 
-    /// <summary>右侧编辑表单回填选中行</summary>
+    /// <summary>表单回填选中行</summary>
     private void SyncDutyEditor()
     {
         var hasSel = _dutySelRow >= 0 && _dutySelRow < _duty.Rows.Count;
@@ -3311,7 +3409,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         _blockSync = false;
     }
 
-    /// <summary>右侧编辑表单写回选中行</summary>
+    /// <summary>表单写回选中行</summary>
     private void OnDutyEditorChanged(string field)
     {
         if (_blockSync || _dutySelRow < 0 || _dutySelRow >= _duty.Rows.Count)
@@ -3342,21 +3440,21 @@ public partial class ScheduleWindow : GlimpseonWindow
                 break;
             case "group":
                 r["group"] = _dutyGroupEdit.Text ?? "";
-                SyncDutyEditorField(row, _dutyGroupEditors, _dutyGroupEdit.Text);
+                SyncEditorField(row, _dutyGroupEditors, _dutyGroupEdit.Text);
                 break;
             case "name":
                 r["name"] = _dutyNameEdit.Text ?? "";
-                SyncDutyEditorField(row, _dutyNameEditors, _dutyNameEdit.Text);
+                SyncEditorField(row, _dutyNameEditors, _dutyNameEdit.Text);
                 break;
             case "role":
                 r["role"] = _dutyRoleEdit.Text ?? "";
-                SyncDutyEditorField(row, _dutyRoleEditors, _dutyRoleEdit.Text);
+                SyncEditorField(row, _dutyRoleEditors, _dutyRoleEdit.Text);
                 break;
         }
         _duty.Save();
     }
 
-    private void SyncDutyEditorField(int row, List<TextBox> editors, string? text)
+    private void SyncEditorField(int row, List<TextBox> editors, string? text)
     {
         if (row >= editors.Count)
         {
@@ -3393,85 +3491,22 @@ public partial class ScheduleWindow : GlimpseonWindow
 
     // 花名册页
 
-    /// <summary>码位直引图标源</summary>
-    private static FAFontIconSource GlyphIconSource(string hexCode) => FAIcons.IconSourceGlyph(hexCode);
-
-    private static FACommandBar MakeRosterCommandBar(params (string Glyph, string Label, Action OnClick)[] commands)
-    {
-        var bar = new FACommandBar { DefaultLabelPosition = FACommandBarDefaultLabelPosition.Right };
-        foreach (var (glyph, label, onClick) in commands)
-        {
-            var btn = new FACommandBarButton { IconSource = GlyphIconSource(glyph), Label = label };
-            btn.Click += (_, _) => onClick();
-            bar.PrimaryCommands.Add(btn);
-        }
-        return bar;
-    }
-
     private Control BuildRosterPage()
     {
-        // 根布局
-        var root = new Grid { RowDefinitions = new RowDefinitions("Auto,Auto,Auto,*") };
-        root.Children.Add(PageTitle(Tr("schedule.tab_roster")));
-
-        // 档案名 人数 结果
-        var captionRow = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*,Auto"),
-            Margin = new Thickness(24, 0, 24, 4),
-        };
-        _rosterCaption = MakeCaption();
-        captionRow.Children.Add(_rosterCaption);
-        _rosterCount = new TextBlock
-        {
-            FontSize = 13,
-            Opacity = 0.55,
-            Margin = new Thickness(10, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        Grid.SetColumn(_rosterCount, 1);
-        captionRow.Children.Add(_rosterCount);
-        _rosterResult = new TextBlock
-        {
-            FontSize = 14,
-            FontWeight = FontWeight.SemiBold,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-        };
-        Grid.SetColumn(_rosterResult, 3);
-        captionRow.Children.Add(_rosterResult);
-        Grid.SetRow(captionRow, 1);
-        root.Children.Add(captionRow);
-
-        // 命令条+搜索
-        var bar = MakeRosterCommandBar(
-            ("E8B1", Tr("schedule.roster_draw"), OnRosterDraw),
-            ("E8B5", Tr("schedule.roster_import"), OnRosterImport),
-            ("E8B6", Tr("schedule.roster_export"), OnRosterExport),
-            ("E710", Tr("schedule.add_row"), OnRosterAddRow),
-            ("E74D", Tr("schedule.delete_row"), OnRosterDeleteRow));
+        // 点名增删常驻 低频收菜单
+        var bar = MakeToolRow(
+            [
+                (FAIcons.Icon(FASymbol.Shuffle, 14), Tr("schedule.roster_draw"), OnRosterDraw),
+                (FAIcons.Icon(FASymbol.Add, 14), Tr("schedule.add_row"), OnRosterAddRow),
+                (FAIcons.Icon(FASymbol.Delete, 14), Tr("schedule.delete_row"), OnRosterDeleteRow),
+            ],
+            null,
+            MakeMenu(
+                (FAIcons.Icon(FASymbol.Import, 14), Tr("schedule.roster_import"), OnRosterImport),
+                (FAIcons.Icon(FASymbol.ImportAll, 14), Tr("schedule.roster_export"), OnRosterExport)));
         _rosterCommandBar = bar;
-        _rosterSearch = new TextBox
-        {
-            PlaceholderText = Tr("schedule.roster_search"),
-            Width = 220,
-            Height = 32,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        _rosterSearch.TextChanged += (_, _) => RefreshRosterCards();
-        var toolRow = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
-            Margin = new Thickness(24, 0, 24, 8),
-        };
-        toolRow.Children.Add(bar);
-        Grid.SetColumn(_rosterSearch, 1);
-        toolRow.Children.Add(_rosterSearch);
-        Grid.SetRow(toolRow, 2);
-        root.Children.Add(toolRow);
 
-        // 卡片流 WrapPanel
+        // 左: 卡片流 WrapPanel
         _rosterCardsHost = new WrapPanel { Orientation = Orientation.Horizontal };
         var scroll = new ScrollViewer
         {
@@ -3480,25 +3515,44 @@ public partial class ScheduleWindow : GlimpseonWindow
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             Padding = new Thickness(12, 10, 12, 10),
         };
-        _rosterEmpty = new TextBlock
-        {
-            Text = Tr("schedule.roster_empty"),
-            FontSize = 12,
-            Opacity = 0.45,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextWrapping = TextWrapping.Wrap,
-            TextAlignment = TextAlignment.Center,
-            Margin = new Thickness(24),
-        };
-        var hostGrid = new Grid();
-        hostGrid.Children.Add(scroll);
-        hostGrid.Children.Add(_rosterEmpty);
-        var frame = MakeCardFrame(hostGrid);
-        frame.Margin = new Thickness(24, 0, 24, 12);
-        Grid.SetRow(frame, 3);
-        root.Children.Add(frame);
+        _rosterEmpty = MakeEmptyState(Tr("schedule.roster_empty"), FASymbol.Add);
+        var hostGrid = new Grid { Children = { scroll, _rosterEmpty } };
+        var left = MakeCardFrame(hostGrid);
 
+        // 右: 点名结果 + 名单检索
+        _rosterCaption = MakeCaption();
+        _rosterResult = new TextBlock
+        {
+            Text = "—",
+            FontSize = 18,
+            FontWeight = FontWeight.Medium,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        _rosterCount = new TextBlock { FontSize = 12, Opacity = 0.6 };
+        _rosterSearch = new TextBox
+        {
+            PlaceholderText = Tr("schedule.roster_search"),
+            Height = 32,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        _rosterSearch.TextChanged += (_, _) => RefreshRosterCards();
+        var rightInner = new StackPanel
+        {
+            Spacing = 8,
+            Margin = new Thickness(16, 14, 16, 14),
+            Children =
+            {
+                new TextBlock { Text = Tr("schedule.roster_draw_title"), FontSize = 12, Opacity = 0.65 },
+                _rosterResult,
+                new Separator { Margin = new Thickness(0, 4, 0, 4) },
+                new TextBlock { Text = Tr("schedule.roster_find"), FontSize = 12, Opacity = 0.65 },
+                _rosterSearch,
+                _rosterCount,
+            },
+        };
+        var right = MakeCardFrame(rightInner);
+
+        var root = MakePage(Tr("schedule.tab_roster"), _rosterCaption, bar, Tr("schedule.roster_editor_title"), left, right);
         RefreshRosterCards();
         return root;
     }
@@ -3557,7 +3611,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         var card = new Border
         {
             Width = 176,
-            CornerRadius = new CornerRadius(8),
+            CornerRadius = new CornerRadius(0),
             BorderThickness = new Thickness(1),
             BorderBrush = new SolidColorBrush(Colors.Gray, 0.25),
             Background = CardBg,
@@ -3596,7 +3650,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         }
         _blockSync = false;
         _rosterEmpty.IsVisible = _roster.Rows.Count == 0;
-        _rosterCount.Text = $"{_roster.Rows.Count} 人";
+        _rosterCount.Text = Tr("schedule.roster_count", ("n", _roster.Rows.Count));
         if (_rosterSelIdx >= _roster.Rows.Count)
         {
             _rosterSelIdx = -1;
@@ -3808,10 +3862,6 @@ public partial class ScheduleWindow : GlimpseonWindow
 
     private Control BuildSubjectPage()
     {
-        // 根布局
-        var root = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
-        root.Children.Add(PageTitle(Tr("schedule.tab_subject")));
-
         // 左: 学科表格
         var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,70,220,110") };
         header.Children.Add(MakeCell(CellText(Tr("schedule.col_subject"), true), 0, 0, header: true));
@@ -3819,19 +3869,21 @@ public partial class ScheduleWindow : GlimpseonWindow
         header.Children.Add(MakeCell(CellText(Tr("schedule.col_teacher"), true), 0, 2, header: true));
         header.Children.Add(MakeCell(CellText(Tr("schedule.col_outdoor"), true), 0, 3, header: true));
         _subjectRowsHost = new StackPanel();
-        var table = MakeScrollableTable(header, _subjectRowsHost);
+        _subjectTableEmpty = MakeEmptyState(Tr("schedule.subject_empty"), FASymbol.Add);
+        var table = MakeTableStack(MakeScrollableTable(header, _subjectRowsHost), _subjectTableEmpty);
 
-        var commandBar = MakeCommandBar(
-            (FASymbol.Add, Tr("schedule.add_row"), OnSubjectAddRow),
-            (FASymbol.Delete, Tr("schedule.delete_row"), OnSubjectDeleteRow));
+        var commandBar = MakeToolRow(
+            [
+                (FAIcons.IconCenter(FASymbol.Add, 13), Tr("schedule.add_row"), OnSubjectAddRow),
+                (FAIcons.IconCenter(FASymbol.Delete, 13), Tr("schedule.delete_row"), OnSubjectDeleteRow),
+            ]);
         _subjectCommandBar = commandBar;
 
         _subjectCaption = MakeCaption();
-        var left = MakeLeftPanel(_subjectCaption, commandBar, table);
-        Grid.SetColumn(left, 0);
+        var left = MakeTableArea(table);
 
         // 右: 选中科目编辑
-        var (editorCard, editorEmpty, editorHost, _) = MakeEditorCard(Tr("schedule.subject_editor_title"));
+        var (editorCard, editorEmpty, editorHost, _) = MakeEditorCard();
         _subjectEditorCard = editorCard;
         _subjectEmpty = editorEmpty;
         _subjectEditHost = editorHost;
@@ -3865,7 +3917,7 @@ public partial class ScheduleWindow : GlimpseonWindow
                 r.Remove("color");
             }
             _subject.Save();
-            };
+        };
         var nameShortRow = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*") };
         nameShortRow.Children.Add(MakeField(Tr("schedule.col_subject"), _subjectNameEdit));
         var shortField = MakeField(Tr("schedule.col_short"), _subjectShortEdit);
@@ -3876,11 +3928,8 @@ public partial class ScheduleWindow : GlimpseonWindow
         editorHost.Children.Add(_subjectOutdoorCheck);
         editorHost.Children.Add(MakeField(Tr("schedule.col_color"), _subjectColorCombo));
         ShowEditor(editorEmpty, editorHost, false);
-        Grid.SetColumn(editorCard, 2);
 
-        var split = MakeSplit(left, editorCard);
-        Grid.SetRow(split, 1);
-        root.Children.Add(split);
+        var root = MakePage(Tr("schedule.tab_subject"), _subjectCaption, commandBar, Tr("schedule.subject_editor_title"), left, editorCard);
         RefreshSubjectTable();
         return root;
     }
@@ -3895,17 +3944,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         _subjectShortEditors.Clear();
         _subjectTeacherEditors.Clear();
         _subjectOutdoorChecks.Clear();
-        if (_subject.Rows.Count == 0)
-        {
-            _subjectRowsHost.Children.Add(new TextBlock
-            {
-                Text = Tr("schedule.subject_empty"),
-                FontSize = 12,
-                Opacity = 0.4,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 48, 0, 0),
-            });
-        }
+        _subjectTableEmpty.IsVisible = _subject.Rows.Count == 0;
         for (var i = 0; i < _subject.Rows.Count; i++)
         {
             var r = _subject.Rows[i];
@@ -3939,7 +3978,6 @@ public partial class ScheduleWindow : GlimpseonWindow
                 }
             };
             var shortCell = MakeCell(shortEdit, row, 1, onClick: () => SelectSubjectCell(row, 1));
-            Grid.SetColumn(shortCell, 1);
             rowGrid.Children.Add(shortCell);
             _subjectCells.Add(shortCell);
             _subjectShortEditors.Add(shortEdit);
@@ -3955,7 +3993,6 @@ public partial class ScheduleWindow : GlimpseonWindow
                 }
             };
             var teacherCell = MakeCell(teacherEdit, row, 2, onClick: () => SelectSubjectCell(row, 2));
-            Grid.SetColumn(teacherCell, 2);
             rowGrid.Children.Add(teacherCell);
             _subjectCells.Add(teacherCell);
             _subjectTeacherEditors.Add(teacherEdit);
@@ -3976,12 +4013,10 @@ public partial class ScheduleWindow : GlimpseonWindow
                 }
             };
             var outdoorCell = MakeCell(outdoorCheck, row, 3, onClick: () => SelectSubjectCell(row, 3));
-            Grid.SetColumn(outdoorCell, 3);
             rowGrid.Children.Add(outdoorCell);
             _subjectCells.Add(outdoorCell);
             _subjectOutdoorChecks.Add(outdoorCheck);
 
-            // 行容器
             var rowIdx = i;
             _subjectRowsHost.Children.Add(MakeRowHost(rowGrid,
                 () => SelectSubjectCell(rowIdx, _subjectSelCol < 0 ? 0 : Math.Min(_subjectSelCol, 3))));
@@ -4004,7 +4039,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         SyncSubjectEditor();
     }
 
-    /// <summary>右侧编辑表单回填选中行</summary>
+    /// <summary>表单回填选中行</summary>
     private void SyncSubjectEditor()
     {
         var hasSel = _subjectSelRow >= 0 && _subjectSelRow < _subject.Rows.Count;
@@ -4025,7 +4060,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         _blockSync = false;
     }
 
-    /// <summary>右侧编辑表单写回选中行</summary>
+    /// <summary>表单写回选中行</summary>
     private void OnSubjectEditorChanged(string field)
     {
         if (_blockSync || _subjectSelRow < 0 || _subjectSelRow >= _subject.Rows.Count)
@@ -4038,16 +4073,16 @@ public partial class ScheduleWindow : GlimpseonWindow
         {
             case "name":
                 r["name"] = _subjectNameEdit.Text ?? "";
-                SyncSubjectEditorField(row, _subjectNameEditors, _subjectNameEdit.Text);
+                SyncEditorField(row, _subjectNameEditors, _subjectNameEdit.Text);
                 QueueSubjectFlowRebuild();
                 break;
             case "short":
                 r["short"] = _subjectShortEdit.Text ?? "";
-                SyncSubjectEditorField(row, _subjectShortEditors, _subjectShortEdit.Text);
+                SyncEditorField(row, _subjectShortEditors, _subjectShortEdit.Text);
                 break;
             case "teacher":
                 r["teacher"] = _subjectTeacherEdit.Text ?? "";
-                SyncSubjectEditorField(row, _subjectTeacherEditors, _subjectTeacherEdit.Text);
+                SyncEditorField(row, _subjectTeacherEditors, _subjectTeacherEdit.Text);
                 break;
             case "outdoor":
                 r["outdoor"] = _subjectOutdoorCheck.IsChecked == true;
@@ -4060,21 +4095,6 @@ public partial class ScheduleWindow : GlimpseonWindow
                 break;
         }
         _subject.Save();
-    }
-
-    private void SyncSubjectEditorField(int row, List<TextBox> editors, string? text)
-    {
-        if (row >= editors.Count)
-        {
-            return;
-        }
-        var editor = editors[row];
-        if (editor.Text != text)
-        {
-            _blockSync = true;
-            editor.Text = text;
-            _blockSync = false;
-        }
     }
 
     private void OnSubjectAddRow()
@@ -4103,17 +4123,19 @@ public partial class ScheduleWindow : GlimpseonWindow
 
     private Control BuildProfilePage()
     {
-        // 卡片列表
-        var root = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        root.Content = new StackPanel();
-        var page = (StackPanel)root.Content;
-        page.Children.Add(PageTitle(Tr("schedule.tab_profile")));
-
-        var stack = new StackPanel { Margin = new Thickness(24, 0, 24, 16), Spacing = 8 };
-        var topRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        // 新建常驻 低频收菜单
+        var isGlimpseonSource = Config.ProfileSource.Value == "Glimpseon";
+        _addMasterBtn = MakeTextToolButton(FAIcons.IconCenter(FASymbol.Add, 13), Tr("schedule.profile_add"), OnAddMaster);
+        _addMasterBtn.IsVisible = isGlimpseonSource;
+        var moreMenu = MakeMenu(
+            (FAIcons.IconCenter(FASymbol.Download, 14), Tr("schedule.profile_import"), OnImportMaster),
+            (FAIcons.IconCenter(FASymbol.Folder, 14), Tr("schedule.open_folder"), OnOpenFolder));
+        _importMasterBtn = (MenuItem)moreMenu.Items[0]!;
+        _importMasterBtn.IsVisible = isGlimpseonSource;
+        var cmdRow = MakeToolRow([], null, moreMenu, _addMasterBtn);
 
         // 课表来源选择
-        _sourceCombo = new ComboBox { MinWidth = 150, VerticalAlignment = VerticalAlignment.Center };
+        _sourceCombo = new ComboBox { MinWidth = 150, HorizontalAlignment = HorizontalAlignment.Stretch };
         _sourceCombo.Items.Add("Glimpseon");
         _sourceCombo.Items.Add("ClassIsland");
         _sourceCombo.Items.Add("ClassWidgets");
@@ -4173,32 +4195,74 @@ public partial class ScheduleWindow : GlimpseonWindow
             SwitchSource(source);
         };
         ToolTip.SetTip(_sourceCombo, Tr("timetable.profile_source"));
-        topRow.Children.Add(_sourceCombo);
 
-        // 总档案增删管理
-        var isGlimpseonSource = Config.ProfileSource.Value == "Glimpseon";
-        _addMasterBtn = MakeSmallButton(Tr("schedule.profile_add"), OnAddMaster);
-        _importMasterBtn = MakeSmallButton(Tr("schedule.profile_import"), OnImportMaster);
-        _addMasterBtn.IsVisible = isGlimpseonSource;
-        _importMasterBtn.IsVisible = isGlimpseonSource;
-        topRow.Children.Add(_addMasterBtn);
-        topRow.Children.Add(_importMasterBtn);
-        topRow.Children.Add(MakeSmallButton(Tr("schedule.open_folder"), OnOpenFolder));
-        stack.Children.Add(topRow);
-        stack.Children.Add(new TextBlock
+        // 右: 来源+绑定
+        _profileSummary = new StackPanel { Spacing = 5 };
+        var rightInner = new StackPanel
         {
-            Text = Tr("schedule.profile_hint"),
-            FontSize = 12,
-            Opacity = 0.6,
-            TextWrapping = TextWrapping.Wrap,
+            Spacing = 8,
+            Margin = new Thickness(16, 14, 16, 14),
+            Children =
+            {
+                new TextBlock { Text = Tr("timetable.profile_source"), FontSize = 12, Opacity = 0.65 },
+                _sourceCombo,
+                new Separator { Margin = new Thickness(0, 6, 0, 4) },
+                _profileSummary,
+            },
+        };
+        var right = MakeCardFrame(rightInner);
+
+        // 左: 总档案卡片列表
+        _mastersHost = new StackPanel { Margin = new Thickness(12, 12, 12, 12) };
+        var left = MakeCardFrame(new ScrollViewer
+        {
+            Content = _mastersHost,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         });
 
-        _mastersHost = new StackPanel { Spacing = 8 };
-        stack.Children.Add(_mastersHost);
-        page.Children.Add(stack);
-
+        var root = MakePage(Tr("schedule.tab_profile"), MakeCaption(Tr("schedule.profile_sub")), cmdRow, Tr("schedule.profile_editor_title"), left, right);
         RebuildMasters();
         return root;
+    }
+
+    /// <summary>右栏档案绑定</summary>
+    private void RebuildProfileSummary()
+    {
+        if (_profileSummary is null)
+        {
+            return;
+        }
+        _profileSummary.Children.Clear();
+        _profileSummary.Children.Add(new TextBlock
+        {
+            Text = _master.Name,
+            FontSize = 13.5,
+            FontWeight = FontWeight.Medium,
+            Margin = new Thickness(0, 0, 0, 4),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        });
+        (string Type, string Name)[] rows =
+        [
+            (Tr("schedule.sub_course"), _master.Course),
+            (Tr("schedule.sub_timetable"), _master.Timetable),
+            (Tr("schedule.sub_duty"), _master.Duty),
+            (Tr("schedule.sub_subject"), _master.Subject),
+            (Tr("schedule.sub_roster"), _master.Roster),
+        ];
+        foreach (var (type, name) in rows)
+        {
+            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("68,*") };
+            row.Children.Add(new TextBlock { Text = type, FontSize = 12, Opacity = 0.5 });
+            var value = new TextBlock
+            {
+                Text = name.Length > 0 ? name : Tr("schedule.sub_unbound"),
+                FontSize = 12,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            };
+            Grid.SetColumn(value, 1);
+            row.Children.Add(value);
+            _profileSummary.Children.Add(row);
+        }
     }
 
     private void RebuildMasters()
@@ -4212,6 +4276,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         {
             _mastersHost.Children.Add(BuildMasterCard(name));
         }
+        RebuildProfileSummary();
     }
 
     /// <summary>按来源过滤可见总档案</summary>
@@ -4294,7 +4359,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         ops.Children.Add(MakeToolButton(FASymbol.Save, Tr("schedule.profile_export"), () => ExportMaster(name)));
         header.Children.Add(ops);
 
-        // CI/CW 档案状态选择器
+        // CI/CW 模式选择器
         if (followItem is not null)
         {
             var modeCombo = new ComboBox
@@ -4318,7 +4383,7 @@ public partial class ScheduleWindow : GlimpseonWindow
                 follow.Value = !wantEdit;
                 if (wantEdit)
                 {
-                    // 自编辑起点 = 最后一刻的外部配置快照
+                    // 自编辑起点=外部快照
                     PersistFollowSnapshot();
                 }
                 AfterSubChanged();
@@ -4388,41 +4453,23 @@ public partial class ScheduleWindow : GlimpseonWindow
             VerticalAlignment = VerticalAlignment.Center,
         });
 
-        var group = $"weekmode-{master.Name}";
-        var rbSingle = new RadioButton
-        {
-            Content = Tr("schedule.week_mode_single"),
-            GroupName = group,
-            IsChecked = !doubleWeek,
-            MinWidth = 0,
-            FontSize = 13,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        var rbDouble = new RadioButton
+        // 勾=双周
+        var chkDouble = new CheckBox
         {
             Content = Tr("schedule.week_mode_double"),
-            GroupName = group,
             IsChecked = doubleWeek,
             MinWidth = 0,
             FontSize = 13,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        rbSingle.IsCheckedChanged += (_, _) =>
+        chkDouble.IsCheckedChanged += (_, _) =>
         {
-            if (rbSingle.IsChecked == true && doubleWeek)
+            if (chkDouble.IsChecked != doubleWeek)
             {
-                SwitchWeekMode(master, false);
+                SwitchWeekMode(master, chkDouble.IsChecked == true);
             }
         };
-        rbDouble.IsCheckedChanged += (_, _) =>
-        {
-            if (rbDouble.IsChecked == true && !doubleWeek)
-            {
-                SwitchWeekMode(master, true);
-            }
-        };
-        left.Children.Add(rbSingle);
-        left.Children.Add(rbDouble);
+        left.Children.Add(chkDouble);
 
         if (!doubleWeek)
         {
@@ -4430,7 +4477,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         }
         else
         {
-            // 单周在前 双周在后 各自标注
+            // 单前双后
             var single = WeekCourseOf(master, 1);
             var dual = WeekCourseOf(master, 2);
             left.Children.Add(WeekCaption(Tr("schedule.week_mode_single")));
@@ -4466,9 +4513,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         {
             combo.Items.Add(sub);
         }
-        _blockSync = true;
         combo.SelectedIndex = Math.Max(0, subs.IndexOf(bound));
-        _blockSync = false;
         combo.SelectionChanged += (_, _) =>
         {
             if (_blockSync || combo.SelectedIndex < 0 || combo.SelectedIndex >= subs.Count)
@@ -4526,10 +4571,10 @@ public partial class ScheduleWindow : GlimpseonWindow
     /// <summary>单双周切换</summary>
     private void SwitchWeekMode(ScheduleProfile master, bool toDouble)
     {
-        // 只动两周轮换 保留 3/4 周与指定周
-        master.Courses.RemoveAll(c => (c["weekTotal"]?.GetValue<int>() ?? 0) == 2);
         if (toDouble)
         {
+            // 只动2周轮换 保3/4周
+            master.Courses.RemoveAll(c => (c["weekTotal"]?.GetValue<int>() ?? 0) == 2);
             var first = master.Course;
             // 优先选有内容的表
             var second = ScheduleStore.ListSubs("course")
@@ -4538,7 +4583,7 @@ public partial class ScheduleWindow : GlimpseonWindow
                 .FirstOrDefault() ?? "";
             if (second.Length == 0)
             {
-                // 只有一张表时新建空的顶上
+                // 无余表 新建空表
                 second = ScheduleStore.NextSubName("course");
                 new CourseDoc { Name = second }.Save();
             }
@@ -4548,7 +4593,9 @@ public partial class ScheduleWindow : GlimpseonWindow
         }
         else
         {
+            // 清2周轮换 保3/4周
             var keep = WeekCourseOf(master, 1);
+            master.Courses.RemoveAll(c => (c["weekTotal"]?.GetValue<int>() ?? 0) == 2);
             if (keep.Length > 0)
             {
                 master.Course = keep;
@@ -4615,9 +4662,7 @@ public partial class ScheduleWindow : GlimpseonWindow
             combo.Items.Add(s);
         }
         var idx = bound.Length == 0 ? 0 : subs.IndexOf(bound) + 1;
-        _blockSync = true;
         combo.SelectedIndex = idx;
-        _blockSync = false;
         var masterName = master.Name;
         combo.SelectionChanged += (_, _) =>
         {
@@ -4647,7 +4692,7 @@ public partial class ScheduleWindow : GlimpseonWindow
 
     private void UseMaster(string name)
     {
-        // 使用绑定到当前课表来源的活动总档案
+        // 启用为活动总档案
         ActiveMasterItem().Value = name;
         LoadActive();
         RefreshAllPages();
@@ -4699,7 +4744,7 @@ public partial class ScheduleWindow : GlimpseonWindow
             default: master.Subject = pick; break;
         }
         master.Save();
-        if (masterName == Config.ScheduleProfile.Value)
+        if (masterName == ActiveMasterItem().Value)
         {
             AfterSubChanged();
         }
@@ -4763,7 +4808,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         {
             return;
         }
-        // 被任一来源使用的总档案禁止删除
+        // 占用中禁删
         if (Config.ScheduleProfile.Value == name || Config.ScheduleProfileCi.Value == name || Config.ScheduleProfileCw.Value == name)
         {
             await Common.Confirm(OwnerWindow, Tr("timetable.warning_title"), Tr("schedule.master_in_use"));
@@ -4872,8 +4917,8 @@ public partial class ScheduleWindow : GlimpseonWindow
             {
                 return;
             }
-            var node = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(files[0].Path.LocalPath));
-            if (node is not System.Text.Json.Nodes.JsonObject bundle || bundle["master"] is null)
+            var node = JsonNode.Parse(await File.ReadAllTextAsync(files[0].Path.LocalPath));
+            if (node is not JsonObject bundle || bundle["master"] is null)
             {
                 Log.Warning("[课表窗口] 总档案导入失败: 格式不正确");
                 return;
@@ -5037,9 +5082,13 @@ public partial class ScheduleWindow : GlimpseonWindow
         {
             _rosterCaption.Text = $"{Tr("schedule.roster_title")} · {_roster.Name}";
         }
+        if (_adjustCaption is not null)
+        {
+            _adjustCaption.Text = $"{Tr("schedule.adjust_title")} · {_master.Name}";
+        }
     }
 
-    /// <summary>外部数据映射为内存文档副本</summary>
+    /// <summary>外部数据映射副本</summary>
     private void RebuildFollowDocs()
     {
         var follow = new TimetableDoc { Name = Tr("schedule.follow_data_name") };
@@ -5047,14 +5096,13 @@ public partial class ScheduleWindow : GlimpseonWindow
 
         Dictionary<int, List<ScheduleRow>>? week = _activeBridge switch
         {
-            LinkageBridge => _ciBridge.GetWeekSchedule(),
-            ClassWidgetsBridge => _cwBridge.GetWeekSchedule().ToDictionary(kv => kv.Key + 1, kv => kv.Value),
+            LinkageBridge ci => ci.GetWeekSchedule(),
+            ClassWidgetsBridge cw => cw.GetWeekSchedule().ToDictionary(kv => kv.Key + 1, kv => kv.Value),
             _ => null,
         };
 
         if (week is not null)
         {
-            string[] dayKeys = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
             var monday = week.GetValueOrDefault(1) ?? [];
             for (var i = 0; i < monday.Count; i++)
             {
@@ -5066,6 +5114,7 @@ public partial class ScheduleWindow : GlimpseonWindow
                     ["end"] = r.EndTime,
                 });
             }
+            // wd Mon=1..Sun=7 → DayOrder 周日起列
             for (var wd = 1; wd <= 7; wd++)
             {
                 var rows = week.GetValueOrDefault(wd) ?? [];
@@ -5073,23 +5122,14 @@ public partial class ScheduleWindow : GlimpseonWindow
                 {
                     if (!rows[i].IsBreak && rows[i].Subject.Length > 0)
                     {
-                        course.SetCell(i, dayKeys[wd - 1], rows[i].Subject);
+                        course.SetCell(i, DayOrder[wd % 7], rows[i].Subject);
                     }
                 }
             }
         }
         else
         {
-            var dayKey = AppUtils.PreciseNow().DayOfWeek switch
-            {
-                DayOfWeek.Monday => "monday",
-                DayOfWeek.Tuesday => "tuesday",
-                DayOfWeek.Wednesday => "wednesday",
-                DayOfWeek.Thursday => "thursday",
-                DayOfWeek.Friday => "friday",
-                DayOfWeek.Saturday => "saturday",
-                _ => "sunday",
-            };
+            var dayKey = DayKeyOf(DateOnly.FromDateTime(AppUtils.PreciseNow()));
             var rows = _followRows ?? [];
             for (var i = 0; i < rows.Count; i++)
             {
@@ -5139,10 +5179,10 @@ public partial class ScheduleWindow : GlimpseonWindow
     }
 
     private static List<JsonObject> ClonePeriods(IEnumerable<JsonObject> periods) =>
-        periods.Select(p => (JsonObject)JsonNode.Parse(p.ToJsonString())!).ToList();
+        periods.Select(p => (JsonObject)p.DeepClone()).ToList();
 
     private static Dictionary<string, JsonObject> CloneCourses(Dictionary<string, JsonObject> courses) =>
-        courses.ToDictionary(kv => kv.Key, kv => (JsonObject)JsonNode.Parse(kv.Value.ToJsonString())!);
+        courses.ToDictionary(kv => kv.Key, kv => (JsonObject)kv.Value.DeepClone());
 
     private void RefreshLinkageTable()
     {
@@ -5193,7 +5233,7 @@ public partial class ScheduleWindow : GlimpseonWindow
             foreach (var rowItem in schedule)
             {
                 var subject = rowItem.IsBreak ? rowItem.BreakName : rowItem.Subject;
-                var line = $"{rowItem.StartTime}~{rowItem.EndTime}  {(rowItem.IsBreak ? "[课间] " : "")}{subject}" +
+                var line = $"{rowItem.StartTime}~{rowItem.EndTime}  {(rowItem.IsBreak ? $"[{Tr("timetable.btn_break")}] " : "")}{subject}" +
                            (rowItem.IsCurrent ? "  ●" : "");
                 _linkageTable.Items.Add(new TextBlock
                 {
@@ -5204,7 +5244,7 @@ public partial class ScheduleWindow : GlimpseonWindow
                     FontWeight = rowItem.IsCurrent ? FontWeight.SemiBold : FontWeight.Normal,
                 });
             }
-            // 外部数据同步到主表格展示
+            // 同步主表格
             RefreshTimeTable();
             if (structureChanged)
             {
@@ -5224,7 +5264,7 @@ public partial class ScheduleWindow : GlimpseonWindow
             return;
         }
         var path = _activeBridge.AutoDetect();
-        // 检测失败(空串)时不得覆盖用户已配置的路径
+        // 空串不覆盖既有路径
         if (path.Length == 0)
         {
             _linkagePathLabel.Text = Tr("timetable.auto_detect_failed");
