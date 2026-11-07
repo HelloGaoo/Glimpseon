@@ -346,8 +346,13 @@ public static class Common
         return await dialog.ShowAsync(owner) == FAContentDialogResult.Primary;
     }
 
-    public static async Task<bool> Confirm(Window owner, string title, string content)
+    /// <summary>确认框 owner 空返回 false</summary>
+    public static async Task<bool> Confirm(Window? owner, string title, string content)
     {
+        if (owner is null)
+        {
+            return false;
+        }
         var dialog = new FAContentDialog
         {
             Title = title,

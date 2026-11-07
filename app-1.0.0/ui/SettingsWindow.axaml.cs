@@ -86,9 +86,6 @@ public partial class SettingsWindow : GlimpseonWindow
         }
         VersionText.Text = Paths.Version;
 
-        // 标题栏待重启徽标
-        Common.InitRestartBadge(RestartBadge, this);
-
         SetNavLabels();
         BuildPages();
         _navFrame = new FAFrame { IsNavigationStackEnabled = false, NavigationPageFactory = PassThroughNavigationPageFactory.Instance };
@@ -468,7 +465,49 @@ public partial class SettingsWindow : GlimpseonWindow
         stack.Children.Add(CardSpin(FASymbol.ClockFilled, Tr("settings.idle_minutes"), Tr("settings.idle_minutes_desc"), Config.IdleMinutes, 1, 60));
         stack.Children.Add(CardSwitch(FASymbol.FullScreenMaximize, Tr("wizard.auto_open_maximize"), Tr("wizard.auto_open_maximize_desc"), Config.AutoOpenMaximize));
         stack.Children.Add(CardSwitch(FASymbol.SlideShow, Tr("settings.writing_freeze"), Tr("settings.writing_freeze_desc"), Config.WritingFreeze));
+        stack.Children.Add(BuildWeekStartCard());
         return stack;
+    }
+
+    /// <summary>开学第一周周一</summary>
+    private Control BuildWeekStartCard()
+    {
+        var masterName = Config.ScheduleProfile.Value;
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var picker = new DatePicker { Width = 168, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
+        // 空态规避英文占位
+        var btn = new Button { Content = Tr("schedule.rotation_weekstart_pick"), MinWidth = 96 };
+        var hint = new TextBlock { FontSize = 11, Opacity = 0.55, VerticalAlignment = VerticalAlignment.Center };
+
+        void Load()
+        {
+            var master = ScheduleStore.LoadMaster(masterName);
+            var picked = ScheduleRules.ParseWeekStart(master.WeekStart);
+            picker.SelectedDate = picked is { } ws ? new DateTimeOffset(ws.ToDateTime(TimeOnly.MinValue)) : null;
+            picker.IsVisible = picked is not null;
+            btn.IsVisible = picked is null;
+            var week = picked is null ? 0 : ScheduleRules.GetWeekNumber(DateOnly.FromDateTime(AppUtils.PreciseNow()), master.WeekStart) ?? 0;
+            hint.Text = week > 0 ? AppUtils.Tr("settings.week_start_now", ("week", week)) : "";
+        }
+
+        btn.Click += (_, _) =>
+        {
+            picker.IsVisible = true;
+            btn.IsVisible = false;
+        };
+        picker.SelectedDateChanged += (_, _) =>
+        {
+            var master = ScheduleStore.LoadMaster(masterName);
+            master.WeekStart = picker.SelectedDate?.ToString("yyyy-MM-dd") ?? "";
+            master.Save();
+            Log.Info($"[设置] 开学第一周周一: {masterName} {master.WeekStart}");
+            Load();
+        };
+        panel.Children.Add(picker);
+        panel.Children.Add(btn);
+        panel.Children.Add(hint);
+        Load();
+        return Card(FASymbol.Calendar, Tr("settings.week_start"), Tr("settings.week_start_desc"), panel);
     }
 
     // 时间
@@ -655,8 +694,8 @@ public partial class SettingsWindow : GlimpseonWindow
         cityCard.Footer = pickCityBtn;
 
         // 经纬度卡片(
-        var latBox = new TextBox { Text = Config.Latitude.Value.ToString(CultureInfo.InvariantCulture), Width = 110, Watermark = Tr("settings.weather_latitude") };
-        var lonBox = new TextBox { Text = Config.Longitude.Value.ToString(CultureInfo.InvariantCulture), Width = 110, Watermark = Tr("settings.weather_longitude") };
+        var latBox = new TextBox { Text = Config.Latitude.Value.ToString(CultureInfo.InvariantCulture), Width = 110, PlaceholderText = Tr("settings.weather_latitude") };
+        var lonBox = new TextBox { Text = Config.Longitude.Value.ToString(CultureInfo.InvariantCulture), Width = 110, PlaceholderText = Tr("settings.weather_longitude") };
         foreach (var (box, item) in new (TextBox, ConfigItem<double>)[] { (latBox, Config.Latitude), (lonBox, Config.Longitude) })
         {
             box.PropertyChanged += (_, e) =>
@@ -1680,7 +1719,7 @@ public partial class SettingsWindow : GlimpseonWindow
     private Control BuildAdvancedPage()
     {
         var stack = MakePageStack(Tr("settings.advanced"));
-        stack.Children.Add(CardCombo(FASymbol.ClosePane, Tr("settings.close_action"), Tr("settings.close_action_desc"), Config.CloseAction,
+        stack.Children.Add(CardCombo(FASymbol.Cancel, Tr("settings.close_action"), Tr("settings.close_action_desc"), Config.CloseAction,
             new (string, string)[]
             {
                 (Tr("settings.minimize_to_tray"), "minimize"),

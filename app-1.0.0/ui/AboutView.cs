@@ -869,7 +869,7 @@ public class AboutView : UserControl
             },
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
         };
-        dialog.Show(OwnerWindow);
+        if (OwnerWindow is { } owner) dialog.Show(owner); else dialog.Show();
     }
 
     // 读 credits.json
@@ -922,7 +922,7 @@ public class AboutView : UserControl
             FontFamily = new FontFamily("Consolas, monospace"),
         });
         dialog.Content = stack;
-        dialog.Show(OwnerWindow);
+        if (OwnerWindow is { } owner) dialog.Show(owner); else dialog.Show();
     }
 
     private static void OpenUrl(string url)

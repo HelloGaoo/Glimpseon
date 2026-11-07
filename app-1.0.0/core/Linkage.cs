@@ -114,8 +114,18 @@ public sealed class LinkageState
     };
 }
 
-// 今日课表行 (科目, 教师, 开始, 结束, 序号, 是否当前, 是否课间, 课间名) 
-public sealed record ScheduleRow(string Subject, string Teacher, string StartTime, string EndTime, int Index, bool IsCurrent, bool IsBreak, string BreakName);
+// 时段行动
+public sealed record ScheduleAction(string Name, string At);
+
+public static class ScheduleMark
+{
+    public const string Patch = "patch";
+    public const string Check = "check";
+    public const string Exam = "exam";
+    public const string Holiday = "holiday";
+}
+
+public sealed record ScheduleRow(string Subject, string Teacher, string StartTime, string EndTime, int Index, bool IsCurrent, bool IsBreak, string BreakName, IReadOnlyList<ScheduleAction>? Actions = null, string? Mark = null);
 
 internal sealed record CiTimeSlot(TimeOnly StartTime, TimeOnly EndTime, int TimeType, string BreakName);
 
@@ -460,7 +470,6 @@ public sealed class LinkageBridge : LinkageBridgeBase
     private bool _classIdxOobLogged;
     private bool _schedTruncLogged;
     private bool _schedTruncWdLogged;
-    private bool _lessonBadDataLogged;
 
     public LinkageBridge() : base("Linkage")
     {

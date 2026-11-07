@@ -203,8 +203,8 @@ public abstract class NotifPopupWindow : Window
     protected readonly string BgColor;
     protected readonly int BgAlpha;
     protected readonly string TextColor;
-    protected readonly int FontSize;
-    protected readonly int FontWeight;
+    protected new readonly int FontSize;
+    protected new readonly int FontWeight;
     public Action? Finished { get; set; }
 
     protected NotifPopupWindow(NotificationRequest request, bool mouseThrough)
@@ -216,7 +216,7 @@ public abstract class NotifPopupWindow : Window
         FontSize = request.FontSize;
         FontWeight = request.FontWeight;
 
-        SystemDecorations = global::Avalonia.Controls.WindowDecorations.None;
+        WindowDecorations = global::Avalonia.Controls.WindowDecorations.None;
         Topmost = true;
         ShowInTaskbar = false;
         ShowActivated = false;

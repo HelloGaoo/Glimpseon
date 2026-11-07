@@ -209,7 +209,7 @@ flowchart LR
 - ScheduleStore > ListMasters/ListSubs NextMasterName/NextSubName Rename/Delete/Copy (重命名与删除同步全部总档案引用) ImportSub EnsureDefaults (空库建默认结构 活动总档案失效自动校正)
 - 每来源独立活动总档案 > Timetable/ScheduleProfile (Glimpseon) ScheduleProfileCi (ClassIsland 首选名 总档案-CI) ScheduleProfileCw (ClassWidgets 首选名 总档案-CW) 失效自动校正 缺档自动补建
 - CI/CW 档案状态 > ScheduleProfileCiFollow/ScheduleProfileCwFollow (默认 true 跟随外部配置) 跟随态分档案只读实时跟随桥接数据 自编辑态停同步可本地配置 (课表组件 GetTodaySchedule 按状态分发 桥接实例复用 Start 重入保护)
-- 活动总档案 Config.Timetable/ScheduleProfile 课表组件经 LoadActiveDocs 读取 读取失败返回空档
+- 活动总档案 Config.Timetable/ScheduleProfile 课表组件经 LoadActiveMasterTimetable+ResolveDayCourse 读取 (轮换/整日覆盖解析) 读取失败返回空档
 
 ## 7 Linkage.cs — 外部联动
 

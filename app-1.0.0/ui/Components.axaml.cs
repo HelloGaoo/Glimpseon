@@ -33,7 +33,6 @@ using IOPath = System.IO.Path;
 using Avalonia.Controls.Shapes;
 using System.Text.RegularExpressions;
 using Avalonia.Animation;
-using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Glimpseon.Core.Services;
 using Markdown.Avalonia;
@@ -1085,14 +1084,14 @@ public sealed class ComponentLibraryWindow : GlimpseonWindow
         Control widget;
         try
         {
-            widget = StyleWidgetFactory.Create(def.Id, def, def.DefaultConfig);
-            widget ??= new PlaceholderWidget(def, def.DefaultConfig);
+            widget = StyleWidgetFactory.Create(def.Id, def, def.DefaultConfig)
+                     ?? new PlaceholderWidget(def, def.DefaultConfig);
         }
-            catch (Exception e)
+        catch (Exception e)
+        {
+            Log.Warning($"[组件库] 预览创建失败 {def.Id}: {e.Message}\n{e.StackTrace}");
+            try
             {
-                Log.Warning($"[组件库] 预览创建失败 {def.Id}: {e.Message}\n{e.StackTrace}");
-                try
-                {
                 widget = new PlaceholderWidget(def, def.DefaultConfig);
             }
             catch (Exception e2)
@@ -2423,6 +2422,7 @@ public static class TimetableScheduleProvider
     private static readonly ClassWidgetsBridge CwBridge = new();
     private static bool _bridgeStarted;
 
+    /// <summary>当日课表 按来源分发 联动/插件/本地</summary>
     public static List<ScheduleRow> GetTodaySchedule()
     {
         var result = new List<ScheduleRow>();
@@ -2470,40 +2470,11 @@ public static class TimetableScheduleProvider
         }
         try
         {
-            var (timetable, course) = LoadActiveDocs();
+            var (master, timetable) = LoadActiveMasterTimetable();
             var now = AppUtils.PreciseNow();
-            var dayName = now.DayOfWeek switch
-            {
-                DayOfWeek.Monday => "monday",
-                DayOfWeek.Tuesday => "tuesday",
-                DayOfWeek.Wednesday => "wednesday",
-                DayOfWeek.Thursday => "thursday",
-                DayOfWeek.Friday => "friday",
-                DayOfWeek.Saturday => "saturday",
-                _ => "sunday",
-            };
+            var dayName = DayKey(((int)now.DayOfWeek + 6) % 7 + 1);
             var nowTime = TimeOnly.FromDateTime(now);
-            var classCounter = 0;
-            for (var i = 0; i < timetable.Periods.Count; i++)
-            {
-                var p = timetable.Periods[i];
-                var start = p["start"]?.GetValue<string>() ?? "";
-                var end = p["end"]?.GetValue<string>() ?? "";
-                var ptype = p["type"]?.GetValue<string>() ?? "";
-                var isCurrent = TimeOnly.TryParse(start, out var st) && TimeOnly.TryParse(end, out var et) &&
-                                st <= nowTime && nowTime < et;
-
-                if (ptype is "课间" or "活动")
-                {
-                    result.Add(new ScheduleRow("", "", start, end, 0, isCurrent, true, ptype));
-                }
-                else
-                {
-                    classCounter++;
-                    var subject = course.GetCell(i, dayName);
-                    result.Add(new ScheduleRow(subject, "", start, end, classCounter, isCurrent, false, ""));
-                }
-            }
+            result.AddRange(BuildDayRows(master, timetable, DateOnly.FromDateTime(now), dayName, true, nowTime, _ => ""));
         }
         catch (Exception e)
         {
@@ -2512,7 +2483,46 @@ public static class TimetableScheduleProvider
         return result;
     }
 
-    /// <summary>联动跟随模式使用外部数据 自编辑或 Glimpseon 使用本地档案</summary>
+    /// <summary>单日行 整日占位 / 课间名 / patch 标记</summary>
+    private static List<ScheduleRow> BuildDayRows(ScheduleProfile master, TimetableDoc timetable, DateOnly date,
+        string dayKey, bool isToday, TimeOnly nowTime, Func<string, string> teacherOf)
+    {
+        var rows = new List<ScheduleRow>();
+        var (course, wholeDay) = ResolveDayCourse(master, date);
+        if (wholeDay is not null)
+        {
+            // 整日占位 场次优先
+            rows.AddRange(WholeDayRows(wholeDay, isToday, nowTime));
+            return rows;
+        }
+        var patches = ScheduleRules.ResolvePatches(master, date, timetable);
+        var classCounter = 0;
+        for (var i = 0; i < timetable.Periods.Count; i++)
+        {
+            var p = timetable.Periods[i];
+            var start = p["start"]?.GetValue<string>() ?? "";
+            var end = p["end"]?.GetValue<string>() ?? "";
+            var ptype = p["type"]?.GetValue<string>() ?? "";
+            var actions = ParseActions(p);
+            var isCurrent = isToday &&
+                            TimeOnly.TryParse(start, out var st) && TimeOnly.TryParse(end, out var et) &&
+                            st <= nowTime && nowTime < et;
+            if (ptype is "课间" or "活动")
+            {
+                // BreakName ← name ?? type
+                var bname = p["name"]?.GetValue<string>() ?? "";
+                rows.Add(new ScheduleRow("", "", start, end, 0, isCurrent, true, bname.Length > 0 ? bname : ptype, actions));
+                continue;
+            }
+            classCounter++;
+            var patch = patches.FirstOrDefault(pp => pp.Index == i);
+            var subject = patch is not null && !patch.NeedsCheck ? patch.Subject : course.GetCell(i, dayKey);
+            var mark = patch is null ? null : patch.NeedsCheck ? ScheduleMark.Check : ScheduleMark.Patch;
+            rows.Add(new ScheduleRow(subject, teacherOf(subject), start, end, classCounter, isCurrent, false, "", actions, mark));
+        }
+        return rows;
+    }
+
     /// <summary>整周课表 键 monday..sunday</summary>
     public static Dictionary<string, List<ScheduleRow>> GetWeekSchedule()
     {
@@ -2550,12 +2560,11 @@ public static class TimetableScheduleProvider
         }
         try
         {
-            var (timetable, course) = LoadActiveDocs();
+            var (master, timetable) = LoadActiveMasterTimetable();
             // 学科档补教师名
             var teachers = new Dictionary<string, string>();
             try
             {
-                var master = ScheduleStore.LoadMaster(ActiveScheduleItem().Value);
                 var subject = SubjectDoc.LoadOrDefault(master.Subject);
                 foreach (var r in subject.Rows)
                 {
@@ -2574,32 +2583,13 @@ public static class TimetableScheduleProvider
             var now = AppUtils.PreciseNow();
             var nowTime = TimeOnly.FromDateTime(now);
             var todayKey = DayKey(((int)now.DayOfWeek + 6) % 7 + 1);
+            var mondayDate = DateOnly.FromDateTime(now).AddDays(-(((int)now.DayOfWeek + 6) % 7));
             for (var wd = 1; wd <= 7; wd++)
             {
                 var dayKey = DayKey(wd);
-                var rows = new List<ScheduleRow>();
-                var classCounter = 0;
-                for (var i = 0; i < timetable.Periods.Count; i++)
-                {
-                    var p = timetable.Periods[i];
-                    var start = p["start"]?.GetValue<string>() ?? "";
-                    var end = p["end"]?.GetValue<string>() ?? "";
-                    var ptype = p["type"]?.GetValue<string>() ?? "";
-                    var isCurrent = dayKey == todayKey &&
-                                    TimeOnly.TryParse(start, out var st) && TimeOnly.TryParse(end, out var et) &&
-                                    st <= nowTime && nowTime < et;
-                    if (ptype is "课间" or "活动")
-                    {
-                        rows.Add(new ScheduleRow("", "", start, end, 0, isCurrent, true, ptype));
-                    }
-                    else
-                    {
-                        classCounter++;
-                        var subj = course.GetCell(i, dayKey);
-                        rows.Add(new ScheduleRow(subj, teachers.GetValueOrDefault(subj, ""), start, end, classCounter, isCurrent, false, ""));
-                    }
-                }
-                result[dayKey] = rows;
+                var dayDate = mondayDate.AddDays(wd - 1);
+                result[dayKey] = BuildDayRows(master, timetable, dayDate, dayKey, dayKey == todayKey, nowTime,
+                    s => teachers.GetValueOrDefault(s, ""));
             }
         }
         catch (Exception e)
@@ -2688,22 +2678,170 @@ public static class TimetableScheduleProvider
         return bridge;
     }
 
-    /// <summary>活动总档案的 时间表+课表 分档案 读取失败返回空档</summary>
-    private static (TimetableDoc, CourseDoc) LoadActiveDocs()
+    /// <summary>活动总档案+时间表 读取失败返回空档</summary>
+    private static (ScheduleProfile Master, TimetableDoc Timetable) LoadActiveMasterTimetable()
     {
         try
         {
             ScheduleStore.EnsureDefaults();
             var master = ScheduleStore.LoadMaster(ActiveScheduleItem().Value);
-            return (
-                TimetableDoc.LoadOrDefault(master.Timetable),
-                CourseDoc.LoadOrDefault(master.Course));
+            // 过期覆盖回收
+            if (master.CleanExpiredDateRules(AppUtils.PreciseNow()))
+            {
+                master.Save();
+                Log.Info("[课表组件] 已清理过期日期覆盖");
+            }
+            return (master, TimetableDoc.LoadOrDefault(master.Timetable));
         }
         catch (Exception e)
         {
             Log.Warning($"[课表组件] 总档案读取失败: {e.Message}");
-            return (new TimetableDoc(), new CourseDoc());
+            return (new ScheduleProfile(), new TimetableDoc());
         }
+    }
+
+    /// <summary>当日课表 覆盖→轮换→回落</summary>
+    private static (CourseDoc Course, ScheduleRules.DayOverride? WholeDay) ResolveDayCourse(ScheduleProfile master, DateOnly date)
+    {
+        var ov = ScheduleRules.ResolveOverride(master, date);
+        if (ov is not null && ov.Kind != "plan")
+        {
+            // exam/holiday 占位 课程档回落仅作占位
+            var fallback = ScheduleRules.ResolveCourse(master, date) ?? "";
+            return (CourseDoc.LoadOrDefault(fallback), ov);
+        }
+        var courseName = (ov is not null && ov.CourseName.Length > 0 ? ov.CourseName : null)
+                         ?? ScheduleRules.ResolveCourse(master, date)
+                         ?? "";
+        return (CourseDoc.LoadOrDefault(courseName), null);
+    }
+
+    /// <summary>整日占位行 sessions 优先</summary>
+    private static List<ScheduleRow> WholeDayRows(ScheduleRules.DayOverride hit, bool isToday, TimeOnly nowTime)
+    {
+        var rows = new List<ScheduleRow>();
+        if (hit.Kind == "exam" && hit.Entry["sessions"] is JsonArray sessions && sessions.Count > 0)
+        {
+            foreach (var s in sessions.OfType<JsonObject>())
+            {
+                var start = s["start"]?.GetValue<string>() ?? "";
+                var end = s["end"]?.GetValue<string>() ?? "";
+                var name = s["name"]?.GetValue<string>() ?? "";
+                var cur = isToday && TimeOnly.TryParse(start, out var st) && TimeOnly.TryParse(end, out var et) &&
+                          st <= nowTime && nowTime < et;
+                rows.Add(new ScheduleRow("", "", start, end, 0, cur, true, name.Length > 0 ? name : hit.Name, null, ScheduleMark.Exam));
+            }
+            return rows;
+        }
+        // 整日占位 00:00~24:00
+        rows.Add(new ScheduleRow("", "", "00:00", "24:00", 0, isToday, true, hit.Name, null, hit.Kind));
+        return rows;
+    }
+
+    /// <summary>actions 解析 at← start</summary>
+    private static IReadOnlyList<ScheduleAction>? ParseActions(JsonObject p)
+    {
+        if (p["actions"] is not JsonArray arr || arr.Count == 0)
+        {
+            return null;
+        }
+        var list = new List<ScheduleAction>();
+        foreach (var a in arr.OfType<JsonObject>())
+        {
+            var name = a["name"]?.GetValue<string>() ?? "";
+            if (name.Length == 0)
+            {
+                continue;
+            }
+            list.Add(new ScheduleAction(name, a["at"]?.GetValue<string>() ?? p["start"]?.GetValue<string>() ?? ""));
+        }
+        return list.Count > 0 ? list : null;
+    }
+
+    // 派生值 TTL 缓存 防每帧读盘
+    private static readonly Dictionary<string, (object? Value, DateTime At)> DerivedCache = [];
+
+    /// <summary>派生值缓存 5s 过期</summary>
+    private static T? Cached<T>(string key, Func<T?> factory)
+    {
+        if (DerivedCache.TryGetValue(key, out var hit) && (AppUtils.PreciseNow() - hit.At).TotalSeconds < 5)
+        {
+            return (T?)hit.Value;
+        }
+        var value = factory();
+        DerivedCache[key] = (value, AppUtils.PreciseNow());
+        return value;
+    }
+
+    /// <summary>当前周次 + 奇偶</summary>
+    public static (int Week, string? Parity)? GetWeekInfo() => Cached<(int Week, string? Parity)?>("week", () =>
+    {
+        try
+        {
+            ScheduleStore.EnsureDefaults();
+            var master = ScheduleStore.LoadMaster(ActiveScheduleItem().Value);
+            var today = DateOnly.FromDateTime(AppUtils.PreciseNow());
+            var week = ScheduleRules.GetWeekNumber(today, master.WeekStart);
+            return week is null ? null : (week.Value, ScheduleRules.WeekParityLabel(master, today));
+        }
+        catch (Exception e)
+        {
+            Log.Debug($"[课表组件] 周次读取失败: {e.Message}");
+            return null;
+        }
+    });
+
+    /// <summary>周次标签</summary>
+    public static string? GetWeekLabel() => GetWeekInfo() is { } w
+        ? AppUtils.Tr("schedule.rotation_week_chip", ("n", w.Week)) + (string.IsNullOrEmpty(w.Parity) ? "" : $" · {w.Parity}")
+        : null;
+
+    /// <summary>档案预备分钟 null=未配</summary>
+    public static int? GetProfilePrepareMinutes() => Cached<int?>("prepare", () =>
+    {
+        try
+        {
+            ScheduleStore.EnsureDefaults();
+            var master = ScheduleStore.LoadMaster(ActiveScheduleItem().Value);
+            return master.PrepareMinutes > 0 ? master.PrepareMinutes : null;
+        }
+        catch (Exception e)
+        {
+            Log.Debug($"[课表组件] 预备分钟读取失败: {e.Message}");
+            return null;
+        }
+    });
+
+    /// <summary>科目色 hex 弱耦合</summary>
+    public static string? GetSubjectColor(string subject)
+    {
+        if (subject.Length == 0)
+        {
+            return null;
+        }
+        return Cached($"color:{subject}", () =>
+        {
+            try
+            {
+                ScheduleStore.EnsureDefaults();
+                var master = ScheduleStore.LoadMaster(ActiveScheduleItem().Value);
+                var doc = SubjectDoc.LoadOrDefault(master.Subject);
+                foreach (var r in doc.Rows)
+                {
+                    if ((r["name"]?.GetValue<string>() ?? "") == subject)
+                    {
+                        var color = r["color"]?.GetValue<string>() ?? "";
+                        return color.Length > 0 ? color : null;
+                    }
+                }
+                return null;
+            }
+            catch (Exception e)
+            {
+                Log.Debug($"[课表组件] 科目颜色读取失败: {e.Message}");
+                return null;
+            }
+        });
     }
 
     // 时间轴节点
@@ -2718,6 +2856,14 @@ public static class TimetableScheduleProvider
                 {
                     nodes[^1]["break"] = new Dictionary<string, object?> { ["start"] = row.StartTime, ["end"] = row.EndTime };
                 }
+                continue;
+            }
+            // 连堂合并 仅渲染层
+            if (nodes.Count > 0 &&
+                row.Actions is null && row.Mark is null &&
+                nodes[^1]["name"] is string prevName && prevName == row.Subject)
+            {
+                nodes[^1]["end"] = row.EndTime;
                 continue;
             }
             nodes.Add(new Dictionary<string, object?>
@@ -3371,6 +3517,8 @@ public sealed class TimetablePreviewWidget : WidgetCardBase
 public sealed class TimetableNowLessonWidget : WidgetCardBase
 {
     private readonly TextBlock _subjectText = new();
+    // 主题前景 供科目色回落
+    private IBrush? _subjectFg;
     private readonly TextBlock _countdownText = new();
     private readonly TextBlock _timeProgressText = new();
     private readonly TextBlock _teacherText = new();
@@ -3384,6 +3532,7 @@ public sealed class TimetableNowLessonWidget : WidgetCardBase
     private bool _showDuration = true;
     private bool _showCountdown = true;
     private int _prepareMinutes = 3;
+    private bool _prepareFromConfig;
     private int _fontScale = 100;
 
     public TimetableNowLessonWidget(ComponentDefinition definition, JsonElement? config) : base(definition)
@@ -3493,6 +3642,7 @@ public sealed class TimetableNowLessonWidget : WidgetCardBase
         if (obj.TryGetProperty("prepare_minutes", out var p) && p.ValueKind == JsonValueKind.Number)
         {
             _prepareMinutes = p.GetInt32();
+            _prepareFromConfig = true;
         }
         if (obj.TryGetProperty("font_scale", out var f) && f.ValueKind == JsonValueKind.Number)
         {
@@ -3504,6 +3654,11 @@ public sealed class TimetableNowLessonWidget : WidgetCardBase
     {
         var schedule = TimetableScheduleProvider.GetTodaySchedule();
         var now = AppUtils.PreciseNow();
+        // 控件值优先 回落档案
+        if (!_prepareFromConfig && TimetableScheduleProvider.GetProfilePrepareMinutes() is { } fromProfile)
+        {
+            _prepareMinutes = fromProfile;
+        }
 
         ScheduleRow? currentRow = null;
         ScheduleRow? nextRow = null;
@@ -3566,6 +3721,7 @@ public sealed class TimetableNowLessonWidget : WidgetCardBase
     private void RenderPrepare(ScheduleRow prepare, DateTime now)
     {
         _subjectText.Text = prepare.Subject.Length > 0 ? prepare.Subject : "下节课";
+        ApplySubjectColor(_subjectText.Text);
 
         if (_showCountdown && TimeOnly.TryParse(prepare.StartTime, out var st))
         {
@@ -3606,18 +3762,48 @@ public sealed class TimetableNowLessonWidget : WidgetCardBase
         }
     }
 
+    // 命中覆色 否则还原主题刷子
+    private void ApplySubjectColor(string subject)
+    {
+        if (TimetableScheduleProvider.GetSubjectColor(subject) is { } hex)
+        {
+            try
+            {
+                _subjectText.Foreground = new SolidColorBrush(Color.Parse(hex));
+                return;
+            }
+            catch (Exception e)
+            {
+                Log.Debug($"[课表组件] 科目颜色解析失败: {hex} {e.Message}");
+            }
+        }
+        if (_subjectFg is not null)
+        {
+            _subjectText.Foreground = _subjectFg;
+        }
+    }
+
     // 上课态
     private void RenderNormal(ScheduleRow current, ScheduleRow? nextRow, DateTime now)
     {
         _countdownText.Text = "";
+        // 考试/假期 整日占位 不按课间渲染
+        var wholeDay = current.Mark is ScheduleMark.Exam or ScheduleMark.Holiday;
         _subjectText.Text = current.IsBreak
             ? (current.BreakName.Length > 0 ? current.BreakName : "课间休息")
             : (current.Subject.Length > 0 ? current.Subject : "--");
 
         _teacherText.Text = _showTeacher
-            ? (current.IsBreak ? "课间休息" : TeacherDisplay(current.Teacher))
+            ? (current.IsBreak && !wholeDay ? "课间休息" : TeacherDisplay(current.Teacher))
             : "";
-        _timeText.Text = $"{current.StartTime}~{current.EndTime}";
+        var week = TimetableScheduleProvider.GetWeekLabel();
+        _timeText.Text = wholeDay
+            ? week ?? ""
+            : $"{current.StartTime}~{current.EndTime}" + (week is null ? "" : $" · {week}");
+        if (!current.IsBreak)
+        {
+            ApplySubjectColor(_subjectText.Text);
+        }
 
         if (_showNext)
         {
@@ -3660,7 +3846,8 @@ public sealed class TimetableNowLessonWidget : WidgetCardBase
         double S(int px) => Math.Max(1, px * scale);
         IBrush B(string hex) => new SolidColorBrush(Color.Parse(hex));
 
-        _subjectText.Foreground = B(text);
+        _subjectFg = B(text);
+        _subjectText.Foreground = _subjectFg;
         _subjectText.FontSize = S(40);
         _subjectText.FontWeight = FontWeight.SemiBold;
         _countdownText.Foreground = B("#4cc2ff");
@@ -5184,13 +5371,10 @@ public sealed class CalculatorWidget : WidgetCardBase
 internal static class SystemSampler
 {
     private static System.Diagnostics.PerformanceCounter? _cpu;
-    private static System.Diagnostics.PerformanceCounter? _netIn;
-    private static System.Diagnostics.PerformanceCounter? _netOut;
     private static bool _perfBroken;
 
     public static event Action<double, double, double>? PerfReady; // cpu ram gpu
     public static event Action<double, double>? NetReady;          // down up (bits/s)
-    public static event Action<double>? DbReady;                   // db
 
     public static void EnsureStarted()
     {
@@ -5628,7 +5812,7 @@ public sealed class StickyNoteWidget : WidgetCardBase
         BorderThickness = new Thickness(0),
         FontSize = 13,
         Padding = new Thickness(12, 4, 12, 12),
-        Watermark = "记录内容...",
+        PlaceholderText = "记录内容...",
     };
     private (string Bg, string Header, string Text) _c = ("#FFF9C4", "#FFF176", "#5D4037");
     private string? _dataFile;
@@ -6556,7 +6740,7 @@ public sealed class AiChatWidget : WidgetCardBase
     {
         if (reasoning is { Length: > 0 } && _liveThink is { } think)
         {
-            think.Text = think.Text.Length == 0 ? reasoning.TrimStart() : think.Text + reasoning;
+            think.Text = string.IsNullOrEmpty(think.Text) ? reasoning.TrimStart() : think.Text + reasoning;
             if (_liveThinkBar is { } bar)
             {
                 bar.IsVisible = true;
@@ -8149,7 +8333,9 @@ public sealed class NativeSquareClock1Widget : WidgetCardBase
             {
                 fig.Segments!.Add(new LineSegment { Point = p });
             }
-            return new PathGeometry { Figures = { fig } };
+            var geo = new PathGeometry();
+            geo.Figures!.Add(fig);
+            return geo;
         }
 
         private void DrawHand(DrawingContext ctx, IBrush brush, PathGeometry geo, double angle, bool shadow)
@@ -8589,8 +8775,8 @@ public sealed class NativeAlmanacWidget : WidgetCardBase
     private readonly TextBlock _term = new();
     private readonly TextBlock _good = new();
     private readonly TextBlock _bad = new();
-    private Border _yiBadge;
-    private Border _jiBadge;
+    private Border _yiBadge = null!;
+    private Border _jiBadge = null!;
     private readonly DashedRule _vdiv = new() { Vertical = true };
     private readonly DashedRule _hdiv = new();
 
@@ -11572,7 +11758,7 @@ public sealed class TextField : ConfigField
 
     public override Control Build()
     {
-        _w = new TextBox { Text = _default, Watermark = _placeholder };
+        _w = new TextBox { Text = _default, PlaceholderText = _placeholder };
         if (_inline)
         {
             var lbl = Label();
@@ -11965,7 +12151,7 @@ public static class RegionSelectorDialog
         var db = new RegionDatabase();
         var search = new TextBox
         {
-            Watermark = AppUtils.Tr("weather_service.region_placeholder"),
+            PlaceholderText = AppUtils.Tr("weather_service.region_placeholder"),
             MinWidth = 460,
         };
         // 固定高度: 让 ListBox 内部滚动(而不是外层对话框整页滚动)

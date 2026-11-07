@@ -991,6 +991,7 @@ internal static class AutomationSettingsEditor
                     LessonIndexParts(s, "index")),
                 "idle" => [MakeMiniLabel("automation.field_idle"), NumberInline(s, "minutes", 1, 240)],
                 "network" => [StateField(s, "state")],
+                "action" => [TextField(s, "name", "automation.field_action_hint", 240)],
                 _ => [],
             },
             "condition" => id switch

@@ -129,15 +129,15 @@
         <StackPanel MaxWidth="700" Spacing="12">
           <Grid ColumnDefinitions="120,*" Margin="0,4">
             <TextBlock Text="天气城市" VerticalAlignment="Center" />
-            <TextBox x:Name="CityEdit" Grid.Column="1" MaxWidth="400" HorizontalAlignment="Left" Watermark="输入城市名称 如 北京市" />
+            <TextBox x:Name="CityEdit" Grid.Column="1" MaxWidth="400" HorizontalAlignment="Left" PlaceholderText="输入城市名称 如 北京市" />
           </Grid>
           <Grid ColumnDefinitions="120,*" Margin="0,4">
             <TextBlock Text="学校名称" VerticalAlignment="Center" />
-            <TextBox x:Name="SchoolEdit" Grid.Column="1" MaxWidth="400" HorizontalAlignment="Left" Watermark="请输入学校名称" />
+            <TextBox x:Name="SchoolEdit" Grid.Column="1" MaxWidth="400" HorizontalAlignment="Left" PlaceholderText="请输入学校名称" />
           </Grid>
           <Grid ColumnDefinitions="120,*" Margin="0,4">
             <TextBlock Text="班级" VerticalAlignment="Center" />
-            <TextBox x:Name="ClassEdit" Grid.Column="1" MaxWidth="400" HorizontalAlignment="Left" Watermark="请输入班级（如 1班 高二3班）" />
+            <TextBox x:Name="ClassEdit" Grid.Column="1" MaxWidth="400" HorizontalAlignment="Left" PlaceholderText="请输入班级（如 1班 高二3班）" />
           </Grid>
         </StackPanel>
         <Button x:Name="FinishButton3" Height="36" HorizontalAlignment="Center" Click="OnFinishClicked">

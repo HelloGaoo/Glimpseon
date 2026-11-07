@@ -378,7 +378,7 @@ public sealed class SubjectDoc
         Rows.Select(r => r["name"]?.GetValue<string>() ?? "").Where(n => n.Length > 0).ToList();
 }
 
-/// <summary>总档案 绑定四类分档案</summary>
+/// <summary>总档案</summary>
 public sealed class ScheduleProfile
 {
     public string Name { get; set; } = "总档案-1";
@@ -387,16 +387,55 @@ public sealed class ScheduleProfile
     public string Duty { get; set; } = "";
     public string Subject { get; set; } = "";
     public string Roster { get; set; } = "";
+    public string WeekStart { get; set; } = "";
+    public int PrepareMinutes { get; set; } = 0;
+    public List<JsonObject> Courses { get; set; } = new();
+    public List<JsonObject> Overrides { get; set; } = new();
+    public List<JsonObject> Patches { get; set; } = new();
 
-    public JsonObject ToJson() => new()
+    private static JsonArray ToArray(List<JsonObject> list)
     {
-        ["name"] = Name,
-        ["course"] = Course,
-        ["timetable"] = Timetable,
-        ["duty"] = Duty,
-        ["subject"] = Subject,
-        ["roster"] = Roster,
-    };
+        var arr = new JsonArray();
+        foreach (var o in list)
+        {
+            arr.Add(o.DeepClone());
+        }
+        return arr;
+    }
+
+    public JsonObject ToJson()
+    {
+        var obj = new JsonObject
+        {
+            ["name"] = Name,
+            ["course"] = Course,
+            ["timetable"] = Timetable,
+            ["duty"] = Duty,
+            ["subject"] = Subject,
+            ["roster"] = Roster,
+        };
+        if (WeekStart.Length > 0)
+        {
+            obj["weekStart"] = WeekStart;
+        }
+        if (PrepareMinutes > 0)
+        {
+            obj["prepareMinutes"] = PrepareMinutes;
+        }
+        if (Courses.Count > 0)
+        {
+            obj["courses"] = ToArray(Courses);
+        }
+        if (Overrides.Count > 0)
+        {
+            obj["overrides"] = ToArray(Overrides);
+        }
+        if (Patches.Count > 0)
+        {
+            obj["patches"] = ToArray(Patches);
+        }
+        return obj;
+    }
 
     public static ScheduleProfile FromJson(JsonObject obj) => new()
     {
@@ -406,7 +445,31 @@ public sealed class ScheduleProfile
         Duty = obj["duty"]?.GetValue<string>() ?? "",
         Subject = obj["subject"]?.GetValue<string>() ?? "",
         Roster = obj["roster"]?.GetValue<string>() ?? "",
+        WeekStart = obj["weekStart"]?.GetValue<string>() ?? "",
+        PrepareMinutes = obj["prepareMinutes"]?.GetValue<int>() ?? 0,
     };
+
+    /// <summary>补载列表 深拷贝</summary>
+    public static ScheduleProfile FromJsonFull(JsonObject obj)
+    {
+        var profile = FromJson(obj);
+        Fill(obj["courses"], profile.Courses);
+        Fill(obj["overrides"], profile.Overrides);
+        Fill(obj["patches"], profile.Patches);
+        return profile;
+
+        static void Fill(JsonNode? node, List<JsonObject> target)
+        {
+            if (node is not JsonArray arr)
+            {
+                return;
+            }
+            foreach (var o in arr.OfType<JsonObject>())
+            {
+                target.Add((JsonObject)o.DeepClone());
+            }
+        }
+    }
 
     public void Save(string? filepath = null)
     {
@@ -414,8 +477,20 @@ public sealed class ScheduleProfile
         ScheduleStore.WriteJson(filepath, ToJson());
     }
 
+    /// <summary>过期留 7 天</summary>
+    public bool CleanExpiredDateRules(DateTime today)
+    {
+        var cutoff = DateOnly.FromDateTime(today).AddDays(-7);
+        var before = Overrides.Count + Patches.Count;
+        Overrides.RemoveAll(o =>
+            DateOnly.TryParse(o["end"]?.GetValue<string>(), out var e) && e < cutoff);
+        Patches.RemoveAll(p =>
+            DateOnly.TryParse(p["date"]?.GetValue<string>(), out var d) && d < cutoff);
+        return Overrides.Count + Patches.Count != before;
+    }
+
     public static ScheduleProfile Load(string filepath) =>
-        FromJson(JsonNode.Parse(File.ReadAllText(filepath))!.AsObject());
+        FromJsonFull(JsonNode.Parse(File.ReadAllText(filepath))!.AsObject());
 
     /// <summary>总档案导出 捆绑全部已绑定分档案</summary>
     public JsonObject ExportBundle()
@@ -456,14 +531,20 @@ public sealed class ScheduleProfile
     public static ScheduleProfile ImportBundle(JsonObject bundle, string name)
     {
         var master = new ScheduleProfile { Name = name };
+        string? innerCourse = null;
         if (bundle["master"] is JsonObject mo)
         {
-            var inner = FromJson(mo);
+            var inner = FromJsonFull(mo);
+            innerCourse = inner.Course;
             master.Course = inner.Course;
             master.Timetable = inner.Timetable;
             master.Duty = inner.Duty;
             master.Subject = inner.Subject;
             master.Roster = inner.Roster;
+            master.WeekStart = inner.WeekStart;
+            master.Courses = inner.Courses;
+            master.Overrides = inner.Overrides;
+            master.Patches = inner.Patches;
         }
         if (bundle["subs"] is JsonObject subs)
         {
@@ -485,13 +566,18 @@ public sealed class ScheduleProfile
                     }
                 }
             }
+            if (innerCourse is { Length: > 0 })
+            {
+                ScheduleStore.RemapListCourseRefs(master.Courses, innerCourse, master.Course);
+                ScheduleStore.RemapListCourseRefs(master.Overrides, innerCourse, master.Course);
+            }
         }
         master.RepairBindings();
         master.Save();
         return master;
     }
 
-    /// <summary>补齐缺失绑定 绑定名无文件时新建空档</summary>
+    /// <summary>补齐缺失绑定</summary>
     public void RepairBindings()
     {
         if (Course.Length == 0 || !File.Exists(ScheduleStore.SubPath("course", Course)))
@@ -520,6 +606,223 @@ public sealed class ScheduleProfile
             Roster = ScheduleStore.NextSubName("roster");
             new RosterDoc { Name = Roster }.Save();
         }
+    }
+}
+
+/// <summary>课表日期规则</summary>
+public static class ScheduleRules
+{
+    /// <summary>Euclid mod 恒非负</summary>
+    public static int EuclidMod(int x, int m) => ((x % m) + m) % m;
+
+    /// <summary>weekStart 解析</summary>
+    public static DateOnly? ParseWeekStart(string weekStart) =>
+        DateOnly.TryParse(weekStart, out var d) ? d : null;
+
+    /// <summary>经过周数 开学前为负 向 -∞ 取整</summary>
+    private static int ElapsedWeeks(DateOnly date, DateOnly weekStart) =>
+        (int)Math.Floor((date.DayNumber - weekStart.DayNumber) / 7.0);
+
+    /// <summary>周次 首周=1</summary>
+    public static int? GetWeekNumber(DateOnly date, string weekStart) =>
+        ParseWeekStart(weekStart) is { } ws ? ElapsedWeeks(date, ws) + 1 : null;
+
+    /// <summary>轮换槽位 1..total, 0=不轮换</summary>
+    public static int RotationPosition(DateOnly date, string weekStart, int weekTotal)
+    {
+        if (weekTotal <= 0 || ParseWeekStart(weekStart) is not { } ws)
+        {
+            return 0;
+        }
+        return EuclidMod(ElapsedWeeks(date, ws), weekTotal) + 1;
+    }
+
+    /// <summary>整日覆盖 首个命中</summary>
+    public sealed record DayOverride(string Kind, string Name, string CourseName, JsonObject Entry);
+
+    /// <summary>整日覆盖解析 plan→course 名 其余→name</summary>
+    public static DayOverride? ResolveOverride(ScheduleProfile profile, DateOnly date)
+    {
+        foreach (var o in profile.Overrides)
+        {
+            var kind = o["kind"]?.GetValue<string>() ?? "";
+            if (kind is not ("plan" or "exam" or "holiday"))
+            {
+                continue;
+            }
+            if (!DateOnly.TryParse(o["start"]?.GetValue<string>(), out var start) ||
+                !DateOnly.TryParse(o["end"]?.GetValue<string>(), out var end) ||
+                date < start || date > end)
+            {
+                continue;
+            }
+            var name = o["name"]?.GetValue<string>() ?? "";
+            var course = o["course"]?.GetValue<string>() ?? "";
+            return kind switch
+            {
+                "plan" when course.Length > 0 => new DayOverride(kind, name, course, o),
+                "exam" when name.Length > 0 => new DayOverride(kind, name, "", o),
+                "holiday" => new DayOverride(kind, name.Length > 0 ? name : "假期", "", o),
+                _ => null,
+            };
+        }
+        return null;
+    }
+
+    /// <summary>单节覆盖 expectStart 漂移 → NeedsCheck</summary>
+    public sealed record PeriodPatch(int Index, string Subject, string Room, string Note, bool NeedsCheck);
+
+    /// <summary>period 索引 兼容 number/string 无效 -1</summary>
+    public static int ReadPeriod(JsonObject p)
+    {
+        if (p["period"] is not JsonValue jv)
+        {
+            return -1;
+        }
+        return jv.TryGetValue<int>(out var n)
+            ? n
+            : jv.TryGetValue<string>(out var s) && int.TryParse(s, out var n2) ? n2 : -1;
+    }
+
+    /// <summary>当日 patch 列表</summary>
+    public static List<PeriodPatch> ResolvePatches(ScheduleProfile profile, DateOnly date, TimetableDoc timetable)
+    {
+        var list = new List<PeriodPatch>();
+        foreach (var p in profile.Patches)
+        {
+            if (!DateOnly.TryParse(p["date"]?.GetValue<string>(), out var d) || d != date)
+            {
+                continue;
+            }
+            var idx = ReadPeriod(p);
+            if (idx < 0 || idx >= timetable.Periods.Count)
+            {
+                continue;
+            }
+            var expect = p["expectStart"]?.GetValue<string>() ?? "";
+            var actual = timetable.Periods[idx]["start"]?.GetValue<string>() ?? "";
+            list.Add(new PeriodPatch(
+                idx,
+                p["subject"]?.GetValue<string>() ?? "",
+                p["room"]?.GetValue<string>() ?? "",
+                p["note"]?.GetValue<string>() ?? "",
+                expect.Length > 0 && actual != expect));
+        }
+        return list;
+    }
+
+    /// <summary>单双周标签 仅 total=2</summary>
+    public static string? WeekParityLabel(ScheduleProfile profile, DateOnly date)
+    {
+        if (ParseWeekStart(profile.WeekStart) is null || profile.Courses.Count == 0)
+        {
+            return null;
+        }
+        foreach (var c in profile.Courses)
+        {
+            var weekDiv = c["weekDiv"]?.GetValue<int>() ?? 0;
+            if (weekDiv <= 0 || (c["weekTotal"]?.GetValue<int>() ?? 0) != 2)
+            {
+                continue;
+            }
+            if (RotationPosition(date, profile.WeekStart, 2) == weekDiv)
+            {
+                return weekDiv == 1 ? "单周" : "双周";
+            }
+        }
+        return null;
+    }
+
+    /// <summary>轮换命中 首张生效课表</summary>
+    private static string? ResolveCoursesEntry(ScheduleProfile profile, DateOnly date)
+    {
+        foreach (var c in profile.Courses)
+        {
+            var course = c["course"]?.GetValue<string>() ?? "";
+            if (course.Length > 0 && MatchesEntry(profile, c, date))
+            {
+                return course;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>条目周次命中 weeks 绝对周号 / div+total 轮换 / 二者缺省=每周</summary>
+    private static bool MatchesEntry(ScheduleProfile profile, JsonObject entry, DateOnly date)
+    {
+        if (entry["weeks"] is JsonArray weeks && weeks.Count > 0)
+        {
+            if (ParseWeekStart(profile.WeekStart) is null)
+            {
+                return false;
+            }
+            var weekNum = GetWeekNumber(date, profile.WeekStart) ?? 0;
+            foreach (var w in weeks)
+            {
+                if (w?.GetValue<int>() == weekNum)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+        var div = entry["weekDiv"]?.GetValue<int>() ?? 0;
+        var total = entry["weekTotal"]?.GetValue<int>() ?? 0;
+        if (div <= 0 || total <= 0)
+        {
+            return true;
+        }
+        if (ParseWeekStart(profile.WeekStart) is null)
+        {
+            return false;
+        }
+        return RotationPosition(date, profile.WeekStart, total) == div;
+    }
+
+    /// <summary>当日课表 兜底受周次约束</summary>
+    public static string? ResolveCourse(ScheduleProfile profile, DateOnly date)
+    {
+        var hit = ResolveCoursesEntry(profile, date);
+        if (hit is not null)
+        {
+            return hit;
+        }
+        // 回落项同受周次约束
+        foreach (var c in profile.Courses)
+        {
+            if ((c["course"]?.GetValue<string>() ?? "") != profile.Course)
+            {
+                continue;
+            }
+            return MatchesEntry(profile, c, date) ? profile.Course : null;
+        }
+        return profile.Course;
+    }
+
+    /// <summary>轮换空缺周次</summary>
+    public static List<(int Total, int Div)> RotationGaps(ScheduleProfile profile)
+    {
+        var gaps = new List<(int Total, int Div)>();
+        foreach (var total in profile.Courses
+                     .Select(c => c["weekTotal"]?.GetValue<int>() ?? 0)
+                     .Where(t => t >= 2)
+                     .Distinct())
+        {
+            var covered = new HashSet<int>();
+            foreach (var c in profile.Courses)
+            {
+                if ((c["weekTotal"]?.GetValue<int>() ?? 0) == total &&
+                    (c["course"]?.GetValue<string>() ?? "").Length > 0)
+                {
+                    covered.Add(c["weekDiv"]?.GetValue<int>() ?? 0);
+                }
+            }
+            foreach (var div in Enumerable.Range(1, total).Where(i => !covered.Contains(i)))
+            {
+                gaps.Add((total, div));
+            }
+        }
+        return gaps;
     }
 }
 
@@ -647,6 +950,11 @@ public static class ScheduleStore
             if (type == "duty" && master.Duty == oldName) { master.Duty = newName; changed = true; }
             if (type == "subject" && master.Subject == oldName) { master.Subject = newName; changed = true; }
             if (type == "roster" && master.Roster == oldName) { master.Roster = newName; changed = true; }
+            if (type == "course")
+            {
+                changed |= RemapListCourseRefs(master.Courses, oldName, newName);
+                changed |= RemapListCourseRefs(master.Overrides, oldName, newName);
+            }
             if (changed)
             {
                 master.Save();
@@ -671,12 +979,32 @@ public static class ScheduleStore
             if (type == "duty" && master.Duty == name) { master.Duty = ""; changed = true; }
             if (type == "subject" && master.Subject == name) { master.Subject = ""; changed = true; }
             if (type == "roster" && master.Roster == name) { master.Roster = ""; changed = true; }
+            if (type == "course")
+            {
+                changed |= RemapListCourseRefs(master.Courses, name, "");
+                changed |= RemapListCourseRefs(master.Overrides, name, "");
+            }
             if (changed)
             {
                 master.Save();
             }
         }
         Log.Info($"[档案] {type} 分档案已删除: {name}");
+    }
+
+    /// <summary>course 引用同步 返回变更</summary>
+    internal static bool RemapListCourseRefs(List<JsonObject> list, string oldName, string newName)
+    {
+        var changed = false;
+        foreach (var entry in list)
+        {
+            if (entry["course"]?.GetValue<string>() == oldName)
+            {
+                entry["course"] = newName;
+                changed = true;
+            }
+        }
+        return changed;
     }
 
     public static void CopySub(string type, string name)

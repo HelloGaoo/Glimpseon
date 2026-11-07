@@ -194,6 +194,7 @@ public abstract class GlimpseonPlugin
 - 定义 Id 建议携带插件特征前缀避免与内置冲突 后注册覆盖内置 (RegisterBatch 语义)
 - 工厂在 UI 线程调用 返回任意 Avalonia Control 宿主包入 DraggableContainer 并落定义默认宽高
 - RegisterScheduleProvider 以 `pluginId:name` 为键 同名覆盖; 一个插件可以注册多个不同 name 的提供者
+- ScheduleRow record 末尾两个可选参数 (阶段 3 扩展 ABI): `Actions` = `IReadOnlyList<ScheduleAction>?` (行动 `{Name, At}`, 供行动到点事件) / `Mark` = `string?` (来源标记 `patch|check|exam|holiday`), 插件可传 null 保持原语义
 
 ### 6.3 示例
 
@@ -213,7 +214,7 @@ public class SamplePlugin : GlimpseonPlugin
         Context.RegisterScheduleProvider("示例课表", () =>
         {
             var now = AppUtils.PreciseNow();
-            // 参数: 科目/教师/开始/结束/节次/IsCurrent/IsBreak/课间名
+            // 参数: 科目/教师/开始/结束/节次/IsCurrent/IsBreak/课间名/行动(可选)/标记(可选)
             // IsCurrent 必须由提供者自己算, 传 false 会让 GetCurrentCourse() 永远返回 null
             return [new ScheduleRow("自习", "", now.ToString("HH:mm"), now.AddMinutes(40).ToString("HH:mm"), 1, true, false, "")];
         });

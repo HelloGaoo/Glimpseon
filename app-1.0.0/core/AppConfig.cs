@@ -95,7 +95,7 @@ public sealed class ConfigItem<T> : IConfigItem
             {
                 return typed;
             }
-            return (T)Convert.ChangeType(v, typeof(T));
+            return (T)Convert.ChangeType(v, typeof(T))!;
         });
         _options = options;
         _min = min;

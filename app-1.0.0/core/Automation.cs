@@ -306,6 +306,10 @@ public static class AutomationRegistry
             s => new NetworkTrigger(s),
             s => (s?.TryGet("state") ?? "up") == "down" ? AppUtils.Tr("automation.state_down") : AppUtils.Tr("automation.state_up"),
             new JsonObject { ["state"] = "up" }));
+        Register(new TriggerInfo("action", "E823", "automation.trigger_action",
+            s => new ActionTrigger(s),
+            s => (string?)s?.TryGet("name") is { Length: > 0 } n ? n : AppUtils.Tr("automation.sum_action_any"),
+            new JsonObject { ["name"] = "" }));
 
         // 条件
         Register(new ConditionInfo("time_range", "E823", "automation.cond_time_range",
@@ -334,6 +338,10 @@ public static class AutomationRegistry
             s => AutomationService.IsNetworkUp == (((string?)s?.TryGet("state") ?? "up") == "up"),
             s => ((string?)s?.TryGet("state")) == "down" ? AppUtils.Tr("automation.state_down") : AppUtils.Tr("automation.state_up"),
             new JsonObject { ["state"] = "up" }));
+        Register(new ConditionInfo("week_parity", "E787", "automation.cond_week_parity",
+            s => EvalWeekParity(s),
+            s => ((string?)s?.TryGet("parity") ?? "odd") == "odd" ? AppUtils.Tr("automation.parity_odd") : AppUtils.Tr("automation.parity_even"),
+            new JsonObject { ["parity"] = "odd" }));
 
         // 动作
         Register(new ActionInfo("notification", "E789", "automation.action_notification",
@@ -458,6 +466,18 @@ public static class AutomationRegistry
             return true;
         }
         return start <= end ? now >= start && now <= end : now >= start || now <= end;
+    }
+
+    /// <summary>单双周条件 无 weekStart 不命中</summary>
+    private static bool EvalWeekParity(JsonObject? s)
+    {
+        var info = UI.TimetableScheduleProvider.GetWeekInfo();
+        if (info is null)
+        {
+            return false;
+        }
+        var wantOdd = ((string?)s?.TryGet("parity") ?? "odd") == "odd";
+        return info.Value.Week % 2 == (wantOdd ? 1 : 0);
     }
 
     private static bool EvalWeekday(JsonObject? s)
@@ -748,6 +768,45 @@ public sealed class LessonEndTrigger : IAutomationTrigger
     public void Dispose() { }
 }
 
+/// <summary>period.actions 边沿触发</summary>
+public sealed class ActionTrigger : IAutomationTrigger
+{
+    private readonly string _name;
+    private bool _attached;
+
+    public event Action? Fired;
+
+    public ActionTrigger(JsonObject? s) => _name = (string?)s?.TryGet("name") ?? "";
+
+    public void Start()
+    {
+        AutomationService.ActionFired += OnAction;
+        _attached = true;
+    }
+
+    // 事件源驱动
+    public void Tick(DateTime now)
+    {
+    }
+
+    private void OnAction(AutomationService.ActionEvent e)
+    {
+        if (_name.Length == 0 || e.Name.Contains(_name, StringComparison.Ordinal))
+        {
+            Fired?.Invoke();
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_attached)
+        {
+            AutomationService.ActionFired -= OnAction;
+            _attached = false;
+        }
+    }
+}
+
 /// <summary>课前预备 预备窗口内每节一次 0=任意节</summary>
 public sealed class PreLessonTrigger : IAutomationTrigger
 {
@@ -873,12 +932,21 @@ public static class AutomationService
     private static DateTime _rowsAt = DateTime.MinValue;
     private static bool _initialized;
     private static bool _lastEnabled = true;
+    private static readonly HashSet<string> _actionArmed = [];
+    private static readonly HashSet<string> _actionFired = [];
+    private static string _actionDate = "";
 
     /// <summary>策略列表变化 UI 订阅刷新</summary>
     public static event Action? RecipesChanged;
 
     /// <summary>运行记录变化 UI 订阅刷新</summary>
     public static event Action? LogsChanged;
+
+    /// <summary>行动到点事件</summary>
+    public static event Action<ActionEvent>? ActionFired;
+
+    /// <summary>行动到点事件</summary>
+    public sealed record ActionEvent(string Name, string At, string Date);
 
     public static bool IsEnabled => Config.AutomationEnabled.Value;
     public static IReadOnlyList<AutomationRecipe> Recipes => _recipes;
@@ -1074,6 +1142,7 @@ public static class AutomationService
             var nowTime = TimeOnly.FromDateTime(now);
             CurrentLesson = rows.FirstOrDefault(r => r.IsCurrent && !r.IsBreak);
             CurrentBreakRow = rows.FirstOrDefault(r => r.IsCurrent && r.IsBreak);
+            DetectActions(rows, now, nowTime);
             ScheduleRow? next = null;
             TimeSpan? best = null;
             foreach (var r in rows)
@@ -1099,6 +1168,56 @@ public static class AutomationService
             // 失败保留旧快照
             _rowsAt = now;
             Log.Warning($"[自动化] 课表快照读取失败: {e.Message}");
+        }
+    }
+
+    /// <summary>行动到点检测</summary>
+    private static void DetectActions(List<ScheduleRow> rows, DateTime now, TimeOnly nowTime)
+    {
+        var date = now.ToString("yyyy-MM-dd");
+        if (_actionDate != date)
+        {
+            _actionArmed.Clear();
+            _actionFired.Clear();
+            _actionDate = date;
+        }
+        try
+        {
+            foreach (var row in rows)
+            {
+                if (row.Actions is null)
+                {
+                    continue;
+                }
+                foreach (var action in row.Actions)
+                {
+                    if (!TimeOnly.TryParse(action.At, out var at))
+                    {
+                        continue;
+                    }
+                    var key = $"{date}|{action.At}|{action.Name}";
+                    if (_actionFired.Contains(key))
+                    {
+                        continue;
+                    }
+                    if (nowTime < at)
+                    {
+                        _actionArmed.Add(key);
+                        continue;
+                    }
+                    _actionFired.Add(key);
+                    if (!_actionArmed.Remove(key))
+                    {
+                        continue;
+                    }
+                    Log.Info($"[自动化] 行动到点: {action.Name} @ {action.At}");
+                    ActionFired?.Invoke(new ActionEvent(action.Name, action.At, date));
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"[自动化] 行动检测异常: {e.Message}");
         }
     }
 

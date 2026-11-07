@@ -21,3 +21,4 @@ build/
 *.7z
 runtimes/
 app-1.0.0/telemetry.keys.json
+.probe/

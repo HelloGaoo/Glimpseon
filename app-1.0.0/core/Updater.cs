@@ -125,7 +125,7 @@ public static class Updater
                         var name = asset?["name"]?.GetValue<string>() ?? "";
                         if (name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
                         {
-                            downloadUrl = asset["browser_download_url"]?.GetValue<string>();
+                            downloadUrl = asset?["browser_download_url"]?.GetValue<string>();
                             break;
                         }
                     }

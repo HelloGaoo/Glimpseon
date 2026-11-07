@@ -59,7 +59,6 @@ public class NotificationView : UserControl
     private TextBox _contentEdit = null!;
     private TextBlock _charCountLabel = null!;
     private TextBlock _queueCountLabel = null!;
-    private StackPanel _queueRows = null!;
     private Border _previewBorder = null!;
     private TextBlock _previewText = null!;
     private ComboBox _typeCombo = null!;
@@ -165,7 +164,7 @@ public class NotificationView : UserControl
         contentStack.Children.Add(contentLabel);
         _contentEdit = new TextBox
         {
-            Watermark = AppUtils.Tr("notification.content_placeholder"),
+            PlaceholderText = AppUtils.Tr("notification.content_placeholder"),
             AcceptsReturn = true,
             MinHeight = 140,
             TextWrapping = TextWrapping.Wrap,

@@ -196,7 +196,7 @@ public partial class MainWindow : GlimpseonWindow
     {
         try
         {
-            Avalonia.Controls.Presenters.ContentPresenter Presenter() => _navFrame!
+            Avalonia.Controls.Presenters.ContentPresenter? Presenter() => _navFrame!
                 .GetVisualDescendants()
                 .OfType<Avalonia.Controls.Presenters.ContentPresenter>()
                 .FirstOrDefault(p => p.Name == "ContentPresenter");
