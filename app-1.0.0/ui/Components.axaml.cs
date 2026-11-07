@@ -2503,7 +2503,6 @@ public static class TimetableScheduleProvider
             var start = p["start"]?.GetValue<string>() ?? "";
             var end = p["end"]?.GetValue<string>() ?? "";
             var ptype = p["type"]?.GetValue<string>() ?? "";
-            var actions = ParseActions(p);
             var isCurrent = isToday &&
                             TimeOnly.TryParse(start, out var st) && TimeOnly.TryParse(end, out var et) &&
                             st <= nowTime && nowTime < et;
@@ -2511,14 +2510,14 @@ public static class TimetableScheduleProvider
             {
                 // BreakName ← name ?? type
                 var bname = p["name"]?.GetValue<string>() ?? "";
-                rows.Add(new ScheduleRow("", "", start, end, 0, isCurrent, true, bname.Length > 0 ? bname : ptype, actions));
+                rows.Add(new ScheduleRow("", "", start, end, 0, isCurrent, true, bname.Length > 0 ? bname : ptype));
                 continue;
             }
             classCounter++;
             var patch = patches.FirstOrDefault(pp => pp.Index == i);
             var subject = patch is not null && !patch.NeedsCheck ? patch.Subject : course.GetCell(i, dayKey);
             var mark = patch is null ? null : patch.NeedsCheck ? ScheduleMark.Check : ScheduleMark.Patch;
-            rows.Add(new ScheduleRow(subject, teacherOf(subject), start, end, classCounter, isCurrent, false, "", actions, mark));
+            rows.Add(new ScheduleRow(subject, teacherOf(subject), start, end, classCounter, isCurrent, false, "", mark));
         }
         return rows;
     }
@@ -2729,33 +2728,13 @@ public static class TimetableScheduleProvider
                 var name = s["name"]?.GetValue<string>() ?? "";
                 var cur = isToday && TimeOnly.TryParse(start, out var st) && TimeOnly.TryParse(end, out var et) &&
                           st <= nowTime && nowTime < et;
-                rows.Add(new ScheduleRow("", "", start, end, 0, cur, true, name.Length > 0 ? name : hit.Name, null, ScheduleMark.Exam));
+                rows.Add(new ScheduleRow("", "", start, end, 0, cur, true, name.Length > 0 ? name : hit.Name, ScheduleMark.Exam));
             }
             return rows;
         }
         // 整日占位 00:00~24:00
-        rows.Add(new ScheduleRow("", "", "00:00", "24:00", 0, isToday, true, hit.Name, null, hit.Kind));
+        rows.Add(new ScheduleRow("", "", "00:00", "24:00", 0, isToday, true, hit.Name, hit.Kind));
         return rows;
-    }
-
-    /// <summary>actions 解析 at← start</summary>
-    private static IReadOnlyList<ScheduleAction>? ParseActions(JsonObject p)
-    {
-        if (p["actions"] is not JsonArray arr || arr.Count == 0)
-        {
-            return null;
-        }
-        var list = new List<ScheduleAction>();
-        foreach (var a in arr.OfType<JsonObject>())
-        {
-            var name = a["name"]?.GetValue<string>() ?? "";
-            if (name.Length == 0)
-            {
-                continue;
-            }
-            list.Add(new ScheduleAction(name, a["at"]?.GetValue<string>() ?? p["start"]?.GetValue<string>() ?? ""));
-        }
-        return list.Count > 0 ? list : null;
     }
 
     // 派生值 TTL 缓存 防每帧读盘
@@ -2860,7 +2839,7 @@ public static class TimetableScheduleProvider
             }
             // 连堂合并 仅渲染层
             if (nodes.Count > 0 &&
-                row.Actions is null && row.Mark is null &&
+                row.Mark is null &&
                 nodes[^1]["name"] is string prevName && prevName == row.Subject)
             {
                 nodes[^1]["end"] = row.EndTime;

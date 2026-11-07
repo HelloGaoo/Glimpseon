@@ -108,9 +108,6 @@ public sealed class LinkageState
     };
 }
 
-// 时段动作
-public sealed record ScheduleAction(string Name, string At);
-
 public static class ScheduleMark
 {
     public const string Patch = "patch";
@@ -119,7 +116,7 @@ public static class ScheduleMark
     public const string Holiday = "holiday";
 }
 
-public sealed record ScheduleRow(string Subject, string Teacher, string StartTime, string EndTime, int Index, bool IsCurrent, bool IsBreak, string BreakName, IReadOnlyList<ScheduleAction>? Actions = null, string? Mark = null);
+public sealed record ScheduleRow(string Subject, string Teacher, string StartTime, string EndTime, int Index, bool IsCurrent, bool IsBreak, string BreakName, string? Mark = null);
 
 internal sealed record CiTimeSlot(TimeOnly StartTime, TimeOnly EndTime, int TimeType, string BreakName);
 

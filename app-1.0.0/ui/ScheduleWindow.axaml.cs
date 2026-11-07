@@ -74,6 +74,17 @@ public partial class ScheduleWindow : GlimpseonWindow
         timer.Start();
     }
 
+    // 落盘防抖 250ms
+    private DispatcherTimer? _courseSaveDebounce;
+    private DispatcherTimer? _dutySaveDebounce;
+    private DispatcherTimer? _subjectSaveDebounce;
+    private DispatcherTimer? _rosterSaveDebounce;
+
+    private void QueueCourseSave() => PulseTimer(ref _courseSaveDebounce, TimeSpan.FromMilliseconds(250), (_, _) => _course.Save());
+    private void QueueDutySave() => PulseTimer(ref _dutySaveDebounce, TimeSpan.FromMilliseconds(250), (_, _) => _duty.Save());
+    private void QueueSubjectSave() => PulseTimer(ref _subjectSaveDebounce, TimeSpan.FromMilliseconds(250), (_, _) => _subject.Save());
+    private void QueueRosterSave() => PulseTimer(ref _rosterSaveDebounce, TimeSpan.FromMilliseconds(250), (_, _) => _roster.Save());
+
     private readonly Dictionary<string, Control> _pages = new();
     private FAFrame? _navFrame;
     private string _currentTag = "course";
@@ -168,8 +179,6 @@ public partial class ScheduleWindow : GlimpseonWindow
     private Control? _timeCommandBar;
     private Border? _timeEditorCard;
     private Border? _durCard;
-    // 行动编辑
-    private StackPanel _actionsHost = null!;
     private TextBlock _timeMsg = null!;
     private int _dragIdx = -1;
     private double _dragY0;
@@ -194,6 +203,11 @@ public partial class ScheduleWindow : GlimpseonWindow
     private bool _autoScrollPending = true;
 
     // 调课页
+    // 整日类型索引 对应 day_mode_* 标签序
+    private const int DayModeNormal = 0;
+    private const int DayModePlan = 1;
+    private const int DayModeExam = 2;
+    private const int DayModeHoliday = 3;
     private DateOnly _adjustMonday;
     private DateOnly _adjustSelDate;
     private int _adjustSelPeriod = -1;
@@ -215,6 +229,8 @@ public partial class ScheduleWindow : GlimpseonWindow
     private StackPanel _dayModeHost = null!;
     private StackPanel _dayOps = null!;
     private TextBlock _adjustSummary = null!;
+    private Control _adjustEmpty = null!;
+    private StackPanel _adjustEditHost = null!;
     private Button _adjustSwapBtn = null!;
     private Button _adjustSaveCellBtn = null!;
     private FAMenuFlyoutItem _adjustSetDefaultBtn = null!;
@@ -243,16 +259,21 @@ public partial class ScheduleWindow : GlimpseonWindow
 
     // 花名册页
     private RosterDoc _roster = new();
-    private WrapPanel _rosterCardsHost = null!;
-    private readonly List<Border> _rosterCards = [];
-    private readonly List<int> _rosterVisibleRows = [];
+    private StackPanel _rosterRowsHost = null!;
+    private Control _rosterTableEmpty = null!;
+    private readonly List<Border> _rosterCells = [];
+    private int _rosterSelRow = -1;
+    private int _rosterSelCol = -1;
+    private StackPanel _rosterEditHost = null!;
+    private Control _rosterEmpty = null!;
+    private TextBox _rosterNoEdit = null!;
+    private TextBox _rosterNameEdit = null!;
     private TextBox _rosterSearch = null!;
     private TextBlock _rosterResult = null!;
-    private Control _rosterEmpty = null!;
     private TextBlock _rosterCount = null!;
     private TextBlock? _rosterCaption;
     private Control? _rosterCommandBar;
-    private int _rosterSelIdx = -1;
+    private Border? _rosterEditorCard;
     private int _rosterFlashRow = -1;
     private bool _drawing;
     private DispatcherTimer? _drawTimer;
@@ -566,7 +587,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         RefreshCourseTable();
         RefreshTimeTable();
         RefreshDutyTable();
-        RefreshRosterCards();
+        RefreshRosterTable();
         RefreshSubjectTable();
         RebuildSubjectFlow();
         if (_adjustGridHost is not null)
@@ -1517,7 +1538,7 @@ public partial class ScheduleWindow : GlimpseonWindow
             return false;
         }
         _course.SetCell(nb[row], DayOrder[col - 1], text);
-        _course.Save();
+        QueueCourseSave();
         return true;
     }
 
@@ -1622,7 +1643,6 @@ public partial class ScheduleWindow : GlimpseonWindow
             ClipToBounds = true,
             Child = tableStack,
         };
-        var left = MakeTableArea(table);
 
         // 右: 时段编辑
         var (editorCard, editorEmpty, editorHost, _) = MakeEditorCard();
@@ -1673,12 +1693,6 @@ public partial class ScheduleWindow : GlimpseonWindow
             PulseTimer(ref _titleDebounce, TimeSpan.FromMilliseconds(250), OnTitleDebounceTick);
         };
         editorHost.Children.Add(MakeFieldRow(Tr("timetable.title"), _titleBox));
-        // 行动 到点事件
-        _actionsHost = new StackPanel { Spacing = 6 };
-        var actionBox = new StackPanel { Spacing = 6 };
-        actionBox.Children.Add(_actionsHost);
-        actionBox.Children.Add(MakeSmallButton(Tr("schedule.action_add"), OnAddAction));
-        editorHost.Children.Add(MakeFieldRow(Tr("schedule.actions_editor"), actionBox));
         // 开始 / 结束 时分选择器
         _startPicker = MakeTimePicker();
         _endPicker = MakeTimePicker();
@@ -1714,16 +1728,11 @@ public partial class ScheduleWindow : GlimpseonWindow
         Grid.SetColumn(breakField, 2);
         durRow.Children.Add(breakField);
         var durCard = MakeCard(durRow, new Thickness(12, 10, 12, 10));
-        durCard.Margin = new Thickness(0);
+        durCard.Margin = new Thickness(0, 8, 0, 0);
         _durCard = durCard;
+        var left = MakeTableArea(table, durCard);
 
-        var rightColumn = new Grid { RowDefinitions = new RowDefinitions("*,8,Auto") };
-        Grid.SetRow(editorCard, 0);
-        rightColumn.Children.Add(editorCard);
-        Grid.SetRow(durCard, 2);
-        rightColumn.Children.Add(durCard);
-
-        var root = MakePage(Tr("schedule.tab_time"), _timeCaption, commandBar, Tr("schedule.time_editor_title"), left, rightColumn);
+        var root = MakePage(Tr("schedule.tab_time"), _timeCaption, commandBar, Tr("schedule.time_editor_title"), left, editorCard);
         RefreshTimeTable();
         return root;
     }
@@ -1875,10 +1884,6 @@ public partial class ScheduleWindow : GlimpseonWindow
             _autoScrollPending = false;
             var scroller = _timeScroll;
             Dispatcher.UIThread.Post(() => scroller.Offset = new Vector(0, target));
-        }
-        if (_timeSelRow < 0)
-        {
-            _timeSelRow = 0;
         }
         if (_timeSelRow >= ps.Count)
         {
@@ -2067,7 +2072,6 @@ public partial class ScheduleWindow : GlimpseonWindow
             _endPicker.SelectedTime = ToSpan(MinStr(ToMin(next) + _timetable.DefaultClassDuration));
         }
         _blockSync = false;
-        RebuildActionsEditor();
     }
 
     // 时间编辑 工具
@@ -2106,7 +2110,7 @@ public partial class ScheduleWindow : GlimpseonWindow
     {
         var s = ToMin(start);
         var e = ToMin(end);
-        if (e > DayMinutes || s > e)
+        if (e > DayMinutes || s >= e)
         {
             return false;
         }
@@ -2187,93 +2191,6 @@ public partial class ScheduleWindow : GlimpseonWindow
         // RefreshTimeTable 内含SyncPickers
         RefreshTimeTable();
         RefreshCourseTable();
-    }
-
-    /// <summary>行动编辑行 变更即写回</summary>
-    private void RebuildActionsEditor()
-    {
-        if (_actionsHost is null)
-        {
-            return;
-        }
-        _actionsHost.Children.Clear();
-        if (_timeSelRow < 0 || _timeSelRow >= _timetable.Periods.Count)
-        {
-            return;
-        }
-        var p = _timetable.Periods[_timeSelRow];
-        if (p["actions"] is not JsonArray arr)
-        {
-            return;
-        }
-        for (var i = 0; i < arr.Count; i++)
-        {
-            var idx = i;
-            if (arr[idx] is not JsonObject a)
-            {
-                continue;
-            }
-            var nameBox = new TextBox
-            {
-                Text = a["name"]?.GetValue<string>() ?? "",
-                PlaceholderText = Tr("schedule.action_name_hint"),
-                FontSize = 12,
-                Height = 30,
-            };
-            var atBox = new TextBox
-            {
-                Text = a["at"]?.GetValue<string>() ?? "",
-                PlaceholderText = Tr("schedule.action_at_hint"),
-                FontSize = 12,
-                Height = 30,
-                Width = 76,
-            };
-            void Write()
-            {
-                a["name"] = nameBox.Text ?? "";
-                a["at"] = atBox.Text ?? "";
-            }
-            // 输入期只改模型 失焦落盘
-            nameBox.TextChanged += (_, _) => Write();
-            atBox.TextChanged += (_, _) => Write();
-            nameBox.LostFocus += (_, _) => _timetable.Save();
-            atBox.LostFocus += (_, _) => _timetable.Save();
-            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("*,70,Auto") };
-            row.Children.Add(nameBox);
-            Grid.SetColumn(atBox, 1);
-            row.Children.Add(atBox);
-            var del = MakeToolButton(FASymbol.Delete, Tr("timetable.btn_delete_row"), () =>
-            {
-                if (_timeSelRow >= 0 && _timeSelRow < _timetable.Periods.Count &&
-                    _timetable.Periods[_timeSelRow]["actions"] is JsonArray cur)
-                {
-                    cur.RemoveAt(idx);
-                    _timetable.Save();
-                    RebuildActionsEditor();
-                }
-            });
-            Grid.SetColumn(del, 2);
-            row.Children.Add(del);
-            _actionsHost.Children.Add(row);
-        }
-    }
-
-    /// <summary>追加行动 缺省段起</summary>
-    private void OnAddAction()
-    {
-        if (_linkageMode || _timeSelRow < 0 || _timeSelRow >= _timetable.Periods.Count)
-        {
-            return;
-        }
-        var p = _timetable.Periods[_timeSelRow];
-        if (p["actions"] is not JsonArray arr)
-        {
-            arr = [];
-            p["actions"] = arr;
-        }
-        arr.Add(new JsonObject { ["name"] = "", ["at"] = PeriodField(p, "start") });
-        _timetable.Save();
-        RebuildActionsEditor();
     }
 
     /// <summary>新增时段</summary>
@@ -2358,9 +2275,6 @@ public partial class ScheduleWindow : GlimpseonWindow
     {
         var today = DateOnly.FromDateTime(AppUtils.PreciseNow());
         _adjustMonday = MondayOf(today);
-        _adjustSelDate = today;
-        var nbInit = NonBreakIndices();
-        _adjustSelPeriod = nbInit.Count > 0 ? nbInit[0] : -1;
 
         _adjustCaption = MakeCaption();
         // 周导航命令区
@@ -2402,6 +2316,8 @@ public partial class ScheduleWindow : GlimpseonWindow
 
         // 右: 紧凑编辑卡
         var (editorCard, editorEmpty, editorHost, _) = MakeEditorCard();
+        _adjustEmpty = editorEmpty;
+        _adjustEditHost = editorHost;
         _adjustSwapBanner = new Border
         {
             Background = SelCellBg,
@@ -2427,7 +2343,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         {
             _adjustDayModeCombo.Items.Add(label);
         }
-        _adjustDayModeCombo.SelectedIndex = 0;
+        _adjustDayModeCombo.SelectedIndex = DayModeNormal;
         _adjustDayModeCombo.SelectionChanged += (_, _) => RebuildDayModeForm();
         ToolTip.SetTip(_adjustDayModeCombo, Tr("schedule.day_mode"));
         var titleStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 0 };
@@ -2511,7 +2427,7 @@ public partial class ScheduleWindow : GlimpseonWindow
             IsVisible = false,
         };
         editorHost.Children.Add(_adjustSummary);
-        ShowEditor(editorEmpty, editorHost, true);
+        ShowEditor(editorEmpty, editorHost, false);
         RebuildDayModeForm();
 
         var root = MakePage(Tr("schedule.tab_adjust"), _adjustCaption, navRow, Tr("schedule.adjust_editor_title"), left, editorCard);
@@ -2805,14 +2721,10 @@ public partial class ScheduleWindow : GlimpseonWindow
         var hasSwap = _adjustSwap is not null;
         if (!hasSel && !hasSwap)
         {
-            _adjustCellLabel.Text = Tr("schedule.editor_empty");
-            _adjustSourceLabel.Text = "";
-            _adjustSourceLabel.IsVisible = false;
-            _adjustSummary.Text = "";
-            _adjustSummary.IsVisible = false;
-            SetAdjustEditorEnabled(false);
+            ShowEditor(_adjustEmpty, _adjustEditHost, false);
             return;
         }
+        ShowEditor(_adjustEmpty, _adjustEditHost, true);
         var date = hasSwap ? _adjustSwap!.Value.Date : _adjustSelDate;
         var period = hasSwap ? _adjustSwap!.Value.Period : _adjustSelPeriod;
         var key = (date, period);
@@ -2839,16 +2751,16 @@ public partial class ScheduleWindow : GlimpseonWindow
             var ovKind = ScheduleRules.ResolveOverride(_master, date)?.Kind;
             _adjustDayModeCombo.SelectedIndex = ovKind switch
             {
-                "plan" => 1,
-                "exam" => 2,
-                "holiday" => 3,
-                _ => 0,
+                "plan" => DayModePlan,
+                "exam" => DayModeExam,
+                "holiday" => DayModeHoliday,
+                _ => DayModeNormal,
             };
             RebuildDayModeForm();
         }
         var wholeDay = content.WholeDay;
         // 先全启 再按态禁
-        SetAdjustEditorEnabled(true);
+        EnableAdjustEditor();
         _adjustSaveCellBtn.IsEnabled = !wholeDay && !hasSwap;
         _adjustSwapBtn.IsEnabled = !wholeDay;
         _adjustSetDefaultBtn.IsEnabled = !wholeDay && !hasSwap;
@@ -2860,21 +2772,21 @@ public partial class ScheduleWindow : GlimpseonWindow
         _adjustSummary.IsVisible = summary.Length > 0;
     }
 
-    private void SetAdjustEditorEnabled(bool on)
+    private void EnableAdjustEditor()
     {
-        _adjustSubjectBox.IsEnabled = on;
-        _adjustRoomBox.IsEnabled = on;
-        _adjustSaveCellBtn.IsEnabled = on;
-        _adjustSwapBtn.IsEnabled = on;
-        _adjustSetDefaultBtn.IsEnabled = on;
-        _adjustDayModeCombo.IsEnabled = on;
+        _adjustSubjectBox.IsEnabled = true;
+        _adjustRoomBox.IsEnabled = true;
+        _adjustSaveCellBtn.IsEnabled = true;
+        _adjustSwapBtn.IsEnabled = true;
+        _adjustSetDefaultBtn.IsEnabled = true;
+        _adjustDayModeCombo.IsEnabled = true;
         if (_adjustDayNameBox is { } nameBox)
         {
-            nameBox.IsEnabled = on;
+            nameBox.IsEnabled = true;
         }
         if (_adjustPlanCombo is { } planCombo)
         {
-            planCombo.IsEnabled = on;
+            planCombo.IsEnabled = true;
         }
     }
 
@@ -3049,12 +2961,12 @@ public partial class ScheduleWindow : GlimpseonWindow
         // 常规不展开表单
         if (_dayOps is not null)
         {
-            _dayOps.IsVisible = mode != 0;
+            _dayOps.IsVisible = mode != DayModeNormal;
         }
         var ov = _adjustSelDate == default ? null : ScheduleRules.ResolveOverride(_master, _adjustSelDate);
         switch (mode)
         {
-            case 1: // 调课
+            case DayModePlan:
                 var subs = ScheduleStore.ListSubs("course");
                 var combo = new ComboBox { MinWidth = 0, FontSize = 12, HorizontalAlignment = HorizontalAlignment.Stretch };
                 foreach (var s in subs)
@@ -3077,8 +2989,8 @@ public partial class ScheduleWindow : GlimpseonWindow
                 _adjustPlanCombo = combo;
                 _dayModeHost.Children.Add(combo);
                 break;
-            case 2: // 考试
-            case 3: // 假期
+            case DayModeExam:
+            case DayModeHoliday:
                 var box = new TextBox
                 {
                     PlaceholderText = mode == 2 ? Tr("schedule.day_name_exam") : Tr("schedule.day_name_holiday"),
@@ -3101,7 +3013,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         }
         switch (_adjustDayModeCombo.SelectedIndex)
         {
-            case 1:
+            case DayModePlan:
                 if (_adjustPlanCombo?.SelectedItem is not string course || course.Length == 0)
                 {
                     ShowAdjustMsg(Tr("schedule.msg_need_name"));
@@ -3109,7 +3021,7 @@ public partial class ScheduleWindow : GlimpseonWindow
                 }
                 ApplyDayOverride("plan", course);
                 break;
-            case 2:
+            case DayModeExam:
                 var exam = _adjustDayNameBox?.Text?.Trim();
                 if (string.IsNullOrEmpty(exam))
                 {
@@ -3118,7 +3030,7 @@ public partial class ScheduleWindow : GlimpseonWindow
                 }
                 ApplyDayOverride("exam", exam);
                 break;
-            case 3:
+            case DayModeHoliday:
                 var holiday = _adjustDayNameBox?.Text?.Trim();
                 ApplyDayOverride("holiday", string.IsNullOrEmpty(holiday) ? Tr("schedule.src_holiday") : holiday);
                 break;
@@ -3328,7 +3240,7 @@ public partial class ScheduleWindow : GlimpseonWindow
                 if (!_blockSync && row < _duty.Rows.Count)
                 {
                     _duty.Rows[row]["group"] = groupEdit.Text ?? "";
-                    _duty.Save();
+                    QueueDutySave();
                 }
             };
             var groupCell = MakeCell(groupEdit, row, 2, onClick: () => SelectDutyCell(row, 2));
@@ -3343,7 +3255,7 @@ public partial class ScheduleWindow : GlimpseonWindow
                 if (!_blockSync && row < _duty.Rows.Count)
                 {
                     _duty.Rows[row]["name"] = nameEdit.Text ?? "";
-                    _duty.Save();
+                    QueueDutySave();
                 }
             };
             var nameCell = MakeCell(nameEdit, row, 3, onClick: () => SelectDutyCell(row, 3));
@@ -3358,7 +3270,7 @@ public partial class ScheduleWindow : GlimpseonWindow
                 if (!_blockSync && row < _duty.Rows.Count)
                 {
                     _duty.Rows[row]["role"] = roleEdit.Text ?? "";
-                    _duty.Save();
+                    QueueDutySave();
                 }
             };
             var roleCell = MakeCell(roleEdit, row, 4, onClick: () => SelectDutyCell(row, 4));
@@ -3451,7 +3363,7 @@ public partial class ScheduleWindow : GlimpseonWindow
                 SyncEditorField(row, _dutyRoleEditors, _dutyRoleEdit.Text);
                 break;
         }
-        _duty.Save();
+        QueueDutySave();
     }
 
     private void SyncEditorField(int row, List<TextBox> editors, string? text)
@@ -3493,34 +3405,43 @@ public partial class ScheduleWindow : GlimpseonWindow
 
     private Control BuildRosterPage()
     {
+        // 左: 花名册表格
+        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("90,*") };
+        header.Children.Add(MakeCell(CellText(Tr("schedule.col_no"), true), 0, 0, header: true));
+        header.Children.Add(MakeCell(CellText(Tr("schedule.col_name"), true), 0, 1, header: true));
+        _rosterRowsHost = new StackPanel();
+        _rosterTableEmpty = MakeEmptyState(Tr("schedule.roster_empty"), FASymbol.Add);
+        var table = MakeTableStack(MakeScrollableTable(header, _rosterRowsHost), _rosterTableEmpty);
+
         // 点名增删常驻 低频收菜单
-        var bar = MakeToolRow(
+        var commandBar = MakeToolRow(
             [
-                (FAIcons.Icon(FASymbol.Shuffle, 14), Tr("schedule.roster_draw"), OnRosterDraw),
-                (FAIcons.Icon(FASymbol.Add, 14), Tr("schedule.add_row"), OnRosterAddRow),
-                (FAIcons.Icon(FASymbol.Delete, 14), Tr("schedule.delete_row"), OnRosterDeleteRow),
+                (FAIcons.IconCenter(FASymbol.Shuffle, 13), Tr("schedule.roster_draw"), OnRosterDraw),
+                (FAIcons.IconCenter(FASymbol.Add, 13), Tr("schedule.add_row"), OnRosterAddRow),
+                (FAIcons.IconCenter(FASymbol.Delete, 13), Tr("schedule.delete_row"), OnRosterDeleteRow),
             ],
             null,
             MakeMenu(
-                (FAIcons.Icon(FASymbol.Import, 14), Tr("schedule.roster_import"), OnRosterImport),
-                (FAIcons.Icon(FASymbol.ImportAll, 14), Tr("schedule.roster_export"), OnRosterExport)));
-        _rosterCommandBar = bar;
-
-        // 左: 卡片流 WrapPanel
-        _rosterCardsHost = new WrapPanel { Orientation = Orientation.Horizontal };
-        var scroll = new ScrollViewer
-        {
-            Content = _rosterCardsHost,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Padding = new Thickness(12, 10, 12, 10),
-        };
-        _rosterEmpty = MakeEmptyState(Tr("schedule.roster_empty"), FASymbol.Add);
-        var hostGrid = new Grid { Children = { scroll, _rosterEmpty } };
-        var left = MakeCardFrame(hostGrid);
-
-        // 右: 点名结果 + 名单检索
+                (FAIcons.IconCenter(FASymbol.Import, 13), Tr("schedule.roster_import"), OnRosterImport),
+                (FAIcons.IconCenter(FASymbol.ImportAll, 13), Tr("schedule.roster_export"), OnRosterExport)));
+        _rosterCommandBar = commandBar;
         _rosterCaption = MakeCaption();
+        var left = MakeTableArea(table);
+
+        // 右: 选中行编辑
+        var (editorCard, editorEmpty, editorHost, _) = MakeEditorCard();
+        _rosterEditorCard = editorCard;
+        _rosterEmpty = editorEmpty;
+        _rosterEditHost = editorHost;
+        _rosterNoEdit = new TextBox();
+        _rosterNoEdit.TextChanged += (_, _) => OnRosterEditorChanged("no");
+        _rosterNameEdit = new TextBox();
+        _rosterNameEdit.TextChanged += (_, _) => OnRosterEditorChanged("name");
+        editorHost.Children.Add(MakeField(Tr("schedule.col_no"), _rosterNoEdit));
+        editorHost.Children.Add(MakeField(Tr("schedule.col_name"), _rosterNameEdit));
+        ShowEditor(editorEmpty, editorHost, false);
+
+        // 点名卡 结果 + 检索
         _rosterResult = new TextBlock
         {
             Text = "—",
@@ -3535,150 +3456,148 @@ public partial class ScheduleWindow : GlimpseonWindow
             Height = 32,
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
-        _rosterSearch.TextChanged += (_, _) => RefreshRosterCards();
-        var rightInner = new StackPanel
+        _rosterSearch.TextChanged += (_, _) => RefreshRosterTable();
+        var drawInner = new StackPanel
         {
             Spacing = 8,
             Margin = new Thickness(16, 14, 16, 14),
             Children =
             {
-                new TextBlock { Text = Tr("schedule.roster_draw_title"), FontSize = 12, Opacity = 0.65 },
+                new TextBlock { Text = Tr("schedule.roster_editor_title"), FontSize = 12, Opacity = 0.65 },
                 _rosterResult,
                 new Separator { Margin = new Thickness(0, 4, 0, 4) },
-                new TextBlock { Text = Tr("schedule.roster_find"), FontSize = 12, Opacity = 0.65 },
                 _rosterSearch,
                 _rosterCount,
             },
         };
-        var right = MakeCardFrame(rightInner);
+        var rightColumn = new Grid { RowDefinitions = new RowDefinitions("*,8,Auto") };
+        Grid.SetRow(editorCard, 0);
+        rightColumn.Children.Add(editorCard);
+        var drawCard = MakeCardFrame(drawInner);
+        Grid.SetRow(drawCard, 2);
+        rightColumn.Children.Add(drawCard);
 
-        var root = MakePage(Tr("schedule.tab_roster"), _rosterCaption, bar, Tr("schedule.roster_editor_title"), left, right);
-        RefreshRosterCards();
+        var root = MakePage(Tr("schedule.tab_roster"), _rosterCaption, commandBar, Tr("schedule.roster_edit_title"), left, rightColumn);
+        RefreshRosterTable();
         return root;
     }
 
-    private Control BuildRosterCard(int rowIdx, string no, string name)
-    {
-        var noEdit = new TextBox
-        {
-            Text = no,
-            PlaceholderText = Tr("schedule.col_no"),
-            FontSize = 12,
-            MinHeight = 26,
-            Padding = new Thickness(2, 1, 2, 1),
-            BorderThickness = new Thickness(0),
-            Background = Brushes.Transparent,
-            Width = 48,
-            TextAlignment = TextAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        var nameEdit = new TextBox
-        {
-            Text = name,
-            PlaceholderText = Tr("schedule.col_name"),
-            FontSize = 13,
-            MinHeight = 26,
-            Padding = new Thickness(2, 1, 2, 1),
-            BorderThickness = new Thickness(0),
-            Background = Brushes.Transparent,
-            Width = 104,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        noEdit.TextChanged += (_, _) =>
-        {
-            if (!_blockSync && rowIdx < _roster.Rows.Count)
-            {
-                _roster.Rows[rowIdx]["no"] = noEdit.Text ?? "";
-                _roster.Save();
-            }
-        };
-        nameEdit.TextChanged += (_, _) =>
-        {
-            if (!_blockSync && rowIdx < _roster.Rows.Count)
-            {
-                _roster.Rows[rowIdx]["name"] = nameEdit.Text ?? "";
-                _roster.Save();
-            }
-        };
-        var content = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 2,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        content.Children.Add(noEdit);
-        content.Children.Add(nameEdit);
-        var card = new Border
-        {
-            Width = 176,
-            CornerRadius = new CornerRadius(0),
-            BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(Colors.Gray, 0.25),
-            Background = CardBg,
-            Padding = new Thickness(8, 6, 8, 6),
-            Margin = new Thickness(5),
-            Child = content,
-            Tag = rowIdx,
-        };
-        card.PointerPressed += (_, _) => SelectRosterCard(rowIdx);
-        _rosterCards.Add(card);
-        return card;
-    }
+    private static bool RosterMatch(string no, string name, string filter) =>
+        filter.Length == 0 ||
+        no.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+        name.Contains(filter, StringComparison.OrdinalIgnoreCase);
 
-    private void RefreshRosterCards()
+    private void RefreshRosterTable()
     {
-        if (_rosterCardsHost is null)
-        {
-            return;
-        }
+        var readOnly = _linkageMode;
         var filter = _rosterSearch.Text?.Trim() ?? "";
         _blockSync = true;
-        _rosterCardsHost.Children.Clear();
-        _rosterCards.Clear();
-        _rosterVisibleRows.Clear();
+        _rosterRowsHost.Children.Clear();
+        _rosterCells.Clear();
+        _rosterTableEmpty.IsVisible = _roster.Rows.Count == 0;
         for (var i = 0; i < _roster.Rows.Count; i++)
         {
             var (no, name) = _roster.Entry(i);
-            if (filter.Length > 0 &&
-                !no.Contains(filter, StringComparison.OrdinalIgnoreCase) &&
-                !name.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            if (!RosterMatch(no, name, filter))
             {
                 continue;
             }
-            _rosterVisibleRows.Add(i);
-            _rosterCardsHost.Children.Add(BuildRosterCard(i, no, name));
+            var rowGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("90,*"), MinHeight = 34 };
+            var row = i;
+
+            var noEdit = CellEdit(no);
+            noEdit.IsReadOnly = readOnly;
+            noEdit.TextChanged += (_, _) =>
+            {
+                if (!_blockSync && row < _roster.Rows.Count)
+                {
+                    _roster.Rows[row]["no"] = noEdit.Text ?? "";
+                    QueueRosterSave();
+                }
+            };
+            var noCell = MakeCell(noEdit, row, 0, onClick: () => SelectRosterCell(row, 0));
+            rowGrid.Children.Add(noCell);
+            _rosterCells.Add(noCell);
+
+            var nameEdit = CellEdit(name);
+            nameEdit.IsReadOnly = readOnly;
+            nameEdit.TextChanged += (_, _) =>
+            {
+                if (!_blockSync && row < _roster.Rows.Count)
+                {
+                    _roster.Rows[row]["name"] = nameEdit.Text ?? "";
+                    QueueRosterSave();
+                }
+            };
+            var nameCell = MakeCell(nameEdit, row, 1, onClick: () => SelectRosterCell(row, 1));
+            rowGrid.Children.Add(nameCell);
+            _rosterCells.Add(nameCell);
+
+            var rowIdx = i;
+            _rosterRowsHost.Children.Add(MakeRowHost(rowGrid,
+                () => SelectRosterCell(rowIdx, _rosterSelCol < 0 ? 0 : Math.Min(_rosterSelCol, 1))));
         }
         _blockSync = false;
-        _rosterEmpty.IsVisible = _roster.Rows.Count == 0;
-        _rosterCount.Text = Tr("schedule.roster_count", ("n", _roster.Rows.Count));
-        if (_rosterSelIdx >= _roster.Rows.Count)
+        if (_rosterSelRow >= _roster.Rows.Count)
         {
-            _rosterSelIdx = -1;
+            _rosterSelRow = -1;
+            _rosterSelCol = -1;
         }
-        PaintRosterSelection();
+        PaintCells(_rosterCells, _rosterSelRow, _rosterSelCol);
+        SyncRosterEditor();
+        _rosterCount.Text = Tr("schedule.roster_count", ("n", _roster.Rows.Count));
     }
 
-    private void SelectRosterCard(int rowIdx)
+    private void SelectRosterCell(int row, int col)
     {
-        _rosterSelIdx = rowIdx;
-        PaintRosterSelection();
+        _rosterSelRow = row;
+        _rosterSelCol = col;
+        PaintCells(_rosterCells, row, col);
+        SyncRosterEditor();
     }
 
-    /// <summary>选中/闪动高亮</summary>
-    private void PaintRosterSelection()
+    /// <summary>表单回填选中行</summary>
+    private void SyncRosterEditor()
     {
-        var accent = Common.ParseAccentColor(Config.ThemeColor.Value);
-        foreach (var card in _rosterCards)
+        var hasSel = _rosterSelRow >= 0 && _rosterSelRow < _roster.Rows.Count;
+        ShowEditor(_rosterEmpty, _rosterEditHost, hasSel);
+        if (!hasSel)
         {
-            var row = (int)card.Tag!;
-            var hot = row == _rosterSelIdx || row == _rosterFlashRow;
-            card.BorderThickness = hot ? new Thickness(2) : new Thickness(1);
-            card.BorderBrush = hot
-                ? AccentBrush
-                : new SolidColorBrush(Colors.Gray, 0.25);
-            card.Background = hot
-                ? new SolidColorBrush(Color.FromArgb(56, accent.R, accent.G, accent.B))
-                : CardBg;
+            return;
+        }
+        var r = _roster.Rows[_rosterSelRow];
+        _blockSync = true;
+        _rosterNoEdit.Text = r["no"]?.GetValue<string>() ?? "";
+        _rosterNameEdit.Text = r["name"]?.GetValue<string>() ?? "";
+        _blockSync = false;
+    }
+
+    /// <summary>表单写回选中行</summary>
+    private void OnRosterEditorChanged(string field)
+    {
+        if (_blockSync || _rosterSelRow < 0 || _rosterSelRow >= _roster.Rows.Count)
+        {
+            return;
+        }
+        var r = _roster.Rows[_rosterSelRow];
+        var text = field == "no" ? _rosterNoEdit.Text : _rosterNameEdit.Text;
+        r[field] = text ?? "";
+        SyncRosterCell(_rosterSelRow, field == "no" ? 0 : 1, text);
+        QueueRosterSave();
+    }
+
+    /// <summary>格文本回写 Tag 定位</summary>
+    private void SyncRosterCell(int row, int col, string? text)
+    {
+        foreach (var b in _rosterCells)
+        {
+            if (((int, int))b.Tag! == (row, col) && b.Child is TextBox edit && edit.Text != text)
+            {
+                _blockSync = true;
+                edit.Text = text;
+                _blockSync = false;
+                return;
+            }
         }
     }
 
@@ -3686,20 +3605,20 @@ public partial class ScheduleWindow : GlimpseonWindow
     {
         _roster.AddRow();
         _roster.Save();
-        _rosterSelIdx = _roster.Rows.Count - 1;
-        RefreshRosterCards();
+        RefreshRosterTable();
+        SelectRosterCell(_roster.Rows.Count - 1, 1);
     }
 
     private void OnRosterDeleteRow()
     {
-        if (_rosterSelIdx < 0 || _rosterSelIdx >= _roster.Rows.Count)
+        if (_rosterSelRow < 0 || _rosterSelRow >= _roster.Rows.Count)
         {
             return;
         }
-        _roster.Rows.RemoveAt(_rosterSelIdx);
+        _roster.Rows.RemoveAt(_rosterSelRow);
         _roster.Save();
-        _rosterSelIdx = -1;
-        RefreshRosterCards();
+        _rosterSelRow = Math.Min(_rosterSelRow, _roster.Rows.Count - 1);
+        RefreshRosterTable();
     }
 
     /// <summary>随机点名 减速扫动</summary>
@@ -3709,9 +3628,16 @@ public partial class ScheduleWindow : GlimpseonWindow
         {
             return;
         }
-        var candidates = _rosterVisibleRows
-            .Where(i => (_roster.Rows[i]["name"]?.GetValue<string>() ?? "").Length > 0)
-            .ToList();
+        var filter = _rosterSearch.Text?.Trim() ?? "";
+        var candidates = new List<int>();
+        for (var i = 0; i < _roster.Rows.Count; i++)
+        {
+            var (no, name) = _roster.Entry(i);
+            if (name.Length > 0 && RosterMatch(no, name, filter))
+            {
+                candidates.Add(i);
+            }
+        }
         if (candidates.Count == 0)
         {
             _rosterResult.Text = Tr("schedule.roster_none");
@@ -3719,8 +3645,9 @@ public partial class ScheduleWindow : GlimpseonWindow
         }
         var winner = candidates[Random.Shared.Next(candidates.Count)];
         _drawing = true;
-        _rosterSelIdx = -1;
-        PaintRosterSelection();
+        _rosterSelRow = -1;
+        _rosterSelCol = -1;
+        PaintCells(_rosterCells, -1, -1);
 
         _drawTimer?.Stop();
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(45) };
@@ -3739,20 +3666,19 @@ public partial class ScheduleWindow : GlimpseonWindow
             } while (candidates.Count > 1 && pick == prev);
             prev = pick;
             _rosterFlashRow = pick;
-            PaintRosterSelection();
+            PaintCells(_rosterCells, _rosterFlashRow, -1);
             if (ticks >= 18)
             {
                 timer.Stop();
                 _drawing = false;
                 _rosterFlashRow = -1;
-                _rosterSelIdx = winner;
-                PaintRosterSelection();
+                SelectRosterCell(winner, 0);
+                if (_rosterCells.FirstOrDefault(b => b.Tag is (int r, int) && r == winner) is { } winnerCell)
+                {
+                    winnerCell.BringIntoView();
+                }
                 var (wno, wname) = _roster.Entry(winner);
                 _rosterResult.Text = Tr("schedule.roster_result", ("no", wno.Length > 0 ? $"{wno} " : ""), ("name", wname));
-                if (_rosterCards.FirstOrDefault(c => (int)c.Tag! == winner) is { } winnerCard)
-                {
-                    winnerCard.BringIntoView();
-                }
                 Log.Info($"[课表窗口] 随机点名: {wno} {wname}");
             }
         };
@@ -3814,8 +3740,9 @@ public partial class ScheduleWindow : GlimpseonWindow
             _roster.Rows.Add(r);
         }
         _roster.Save();
-        _rosterSelIdx = -1;
-        RefreshRosterCards();
+        _rosterSelRow = -1;
+        _rosterSelCol = -1;
+        RefreshRosterTable();
         Log.Info($"[课表窗口] 花名册导入: {files[0].Path.LocalPath} +{result.Rows.Count} 跳过{result.Skipped}");
     }
 
@@ -3958,7 +3885,7 @@ public partial class ScheduleWindow : GlimpseonWindow
                 if (!_blockSync && row < _subject.Rows.Count)
                 {
                     _subject.Rows[row]["name"] = nameEdit.Text ?? "";
-                    _subject.Save();
+                    QueueSubjectSave();
                     QueueSubjectFlowRebuild();
                 }
             };
@@ -3974,7 +3901,7 @@ public partial class ScheduleWindow : GlimpseonWindow
                 if (!_blockSync && row < _subject.Rows.Count)
                 {
                     _subject.Rows[row]["short"] = shortEdit.Text ?? "";
-                    _subject.Save();
+                    QueueSubjectSave();
                 }
             };
             var shortCell = MakeCell(shortEdit, row, 1, onClick: () => SelectSubjectCell(row, 1));
@@ -3989,7 +3916,7 @@ public partial class ScheduleWindow : GlimpseonWindow
                 if (!_blockSync && row < _subject.Rows.Count)
                 {
                     _subject.Rows[row]["teacher"] = teacherEdit.Text ?? "";
-                    _subject.Save();
+                    QueueSubjectSave();
                 }
             };
             var teacherCell = MakeCell(teacherEdit, row, 2, onClick: () => SelectSubjectCell(row, 2));
@@ -4094,7 +4021,7 @@ public partial class ScheduleWindow : GlimpseonWindow
                 }
                 break;
         }
-        _subject.Save();
+        QueueSubjectSave();
     }
 
     private void OnSubjectAddRow()
@@ -5036,10 +4963,12 @@ public partial class ScheduleWindow : GlimpseonWindow
         if (_timeCommandBar is { } tb) tb.IsEnabled = interactive;
         if (_dutyCommandBar is { } db) db.IsEnabled = interactive;
         if (_subjectCommandBar is { } sb) sb.IsEnabled = interactive;
+        if (_rosterCommandBar is { } rb) rb.IsEnabled = interactive;
         if (_timeEditorCard is { } tec) tec.IsEnabled = interactive;
         if (_durCard is { } dc) dc.IsEnabled = interactive;
         if (_dutyEditorCard is { } dec) dec.IsEnabled = interactive;
         if (_subjectEditorCard is { } sec) sec.IsEnabled = interactive;
+        if (_rosterEditorCard is { } rec) rec.IsEnabled = interactive;
         UpdateCaptions();
 
         if (follow)

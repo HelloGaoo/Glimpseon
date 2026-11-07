@@ -30,7 +30,7 @@ public sealed class TimetableDoc
     public string Name { get; set; } = "时间表-1";
     public int DefaultClassDuration { get; set; } = 40;
     public int DefaultBreakDuration { get; set; } = 10;
-    // periods: [{type,start,end,name?,actions?,fixed?}]
+    // periods: [{type,start,end,name?,fixed?}]
     public List<JsonObject> Periods { get; set; } = new();
 
     public JsonObject ToJson()
@@ -314,7 +314,9 @@ public sealed class RosterDoc
         Rows.Add(new JsonObject { ["no"] = no, ["name"] = name });
 
     public (string No, string Name) Entry(int idx) =>
-        (Rows[idx]["no"]?.GetValue<string>() ?? "", Rows[idx]["name"]?.GetValue<string>() ?? "");
+        idx >= 0 && idx < Rows.Count
+            ? (Rows[idx]["no"]?.GetValue<string>() ?? "", Rows[idx]["name"]?.GetValue<string>() ?? "")
+            : ("", "");
 }
 
 /// <summary>学科分档案 行={name,short,teacher,outdoor,color}</summary>
