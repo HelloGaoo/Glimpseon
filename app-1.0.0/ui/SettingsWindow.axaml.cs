@@ -1686,6 +1686,15 @@ public partial class SettingsWindow : GlimpseonWindow
         stack.Children.Add(CardSpin("E823", Tr("settings.ai.timeout"), Tr("settings.ai.timeout_desc"), Config.AiTimeout, 5, 300));
         stack.Children.Add(Card("E8BD", Tr("settings.ai.system_prompt"), Tr("settings.ai.system_prompt_desc"), promptBox));
 
+        stack.Children.Add(CardCombo(FASymbol.Shuffle, Tr("settings.ai.pack_rotate"), Tr("settings.ai.pack_rotate_desc"), Config.ContentPackRotate,
+            new (string, string)[]
+            {
+                (Tr("settings.ai.pack_rotate_schedule"), "schedule"),
+                (Tr("settings.ai.pack_rotate_10"), "10分钟"),
+                (Tr("settings.ai.pack_rotate_20"), "20分钟"),
+                (Tr("settings.ai.pack_rotate_30"), "30分钟"),
+            }));
+
         var testBtn = new Button { Content = Tr("settings.ai.test"), MinWidth = 110 };
         stack.Children.Add(Card("E9D9", Tr("settings.ai.test"), Tr("settings.ai.test_desc"), testBtn));
         testBtn.Click += async (_, _) =>

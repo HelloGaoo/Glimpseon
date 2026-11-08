@@ -144,7 +144,13 @@
     "source_chained": "鏈式",
     "cond_week_parity": "單雙週",
     "parity_odd": "單週",
-    "parity_even": "雙週"
+    "parity_even": "雙週",
+    "sample_duty_name": "範例：早讀提示值日生",
+    "sample_duty_content": "今天值日生是 {duty}，請準時到崗。",
+    "sample_clean_name": "範例：下課擦黑板",
+    "sample_clean_content": "下課了，請擦黑板。",
+    "sample_collect_name": "範例：展示昨日作業",
+    "sample_collect_content": "昨日作業：{yesterday_hw}"
   },
   "timetable": {
     "course_table": "單週課程表",
@@ -474,7 +480,13 @@
       "test_desc": "驗證目前設定",
       "testing": "測試中…",
       "test_ok": "連線成功（{ms} ms）：{reply}",
-      "test_fail": "連線失敗：{error}"
+      "test_fail": "連線失敗：{error}",
+      "pack_rotate": "日更輪換節奏",
+      "pack_rotate_desc": "每日英語等元件一天內換新條目的節奏",
+      "pack_rotate_schedule": "跟課表（課間換）",
+      "pack_rotate_10": "每 10 分鐘",
+      "pack_rotate_20": "每 20 分鐘",
+      "pack_rotate_30": "每 30 分鐘"
     },
     "plugins": {
       "title": "外掛",
@@ -886,7 +898,8 @@
     "add_item": "新增作業...",
     "subject_ph": "科目名稱...",
     "empty": "點擊左上角新增科目",
-    "confirm_del": "確認"
+    "confirm_del": "確認",
+    "history": "歷史"
   },
   "netspeed": {
     "title": "網速",
@@ -1624,7 +1637,8 @@
     "clear": "清空",
     "confirm_clear": "確認",
     "yesterday": "昨天",
-    "new": "NEW"
+    "new": "NEW",
+    "history": "歷史"
   },
   "custom_action": {
     "title": "自訂按鈕",
@@ -1698,5 +1712,12 @@
     "group_yesterday": "昨天",
     "group_30": "30 天內",
     "group_older": "更早"
+  },
+  "dailylog": {
+    "empty": "暫無歸檔記錄",
+    "today": "今天",
+    "yesterday": "昨天",
+    "count": "{count} {unit}",
+    "unit_item": "條"
   }
 }

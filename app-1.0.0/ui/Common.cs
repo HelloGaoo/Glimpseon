@@ -438,8 +438,12 @@ public sealed class PassThroughNavigationPageFactory : IFANavigationPageFactory
 /// <summary>组件展开层 遮罩+Fluent 卡片</summary>
 public static class ComponentExpander
 {
+    /// <summary>弹层尺寸</summary>
+    public const double PanelWidth = 1200;
+    public const double PanelHeight = 750;
+
     /// <summary>弹出展开层 返回关闭句柄</summary>
-    public static Action Show(Visual host, string title, Control content, double width = 1280, double height = 800)
+    public static Action Show(Visual host, string title, Control content)
     {
         var layer = OverlayLayer.GetOverlayLayer(host);
         if (layer is null)
@@ -555,8 +559,8 @@ public static class ComponentExpander
             var b = layer.Bounds;
             scrim.Width = b.Width;
             scrim.Height = b.Height;
-            card.Width = Math.Clamp(width, 320, Math.Max(320, b.Width - 48));
-            card.Height = Math.Clamp(height, 240, Math.Max(240, b.Height - 48));
+            card.Width = Math.Clamp(PanelWidth, 320, Math.Max(320, b.Width - 48));
+            card.Height = Math.Clamp(PanelHeight, 240, Math.Max(240, b.Height - 48));
         }
         SyncSize();
         layer.PropertyChanged += (_, e) =>
@@ -612,7 +616,7 @@ public static class ComponentExpander
             card.Opacity = 1;
             card.RenderTransform = TransformOperations.Parse("scale(1)");
         }, DispatcherPriority.Background);
-        Log.Debug($"[展开层] 打开: {title} {width:F0}x{height:F0}");
+        Log.Debug($"[展开层] 打开: {title} {PanelWidth:F0}x{PanelHeight:F0}");
         return Close;
     }
 }

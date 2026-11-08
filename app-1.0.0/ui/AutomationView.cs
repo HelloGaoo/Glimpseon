@@ -415,7 +415,7 @@ public class AutomationView : UserControl
         _logsFill = Fill;
         AutomationService.LogsChanged += Fill;
         Fill();
-        ComponentExpander.Show(this, AppUtils.Tr("automation.logs_title"), host, 640, 620);
+        ComponentExpander.Show(this, AppUtils.Tr("automation.logs_title"), host);
     }
 
     // 编辑器
@@ -454,7 +454,7 @@ public class AutomationView : UserControl
 
         var close = ComponentExpander.Show(this,
             isNew ? AppUtils.Tr("automation.editor_new") : string.Format(AppUtils.Tr("automation.editor_edit"), draft.Name),
-            rootPanel, 980, 780);
+            rootPanel);
 
         saveBtn.Click += (_, _) =>
         {

@@ -144,7 +144,13 @@
     "source_chained": "Chained",
     "cond_week_parity": "Week parity",
     "parity_odd": "Odd week",
-    "parity_even": "Even week"
+    "parity_even": "Even week",
+    "sample_duty_name": "Sample: morning duty reminder",
+    "sample_duty_content": "Today's duty student is {duty}. Please be on time.",
+    "sample_clean_name": "Sample: clean the blackboard",
+    "sample_clean_content": "Class dismissed. Please clean the blackboard.",
+    "sample_collect_name": "Sample: show yesterday's homework",
+    "sample_collect_content": "Yesterday's homework: {yesterday_hw}"
   },
   "timetable": {
     "course_table": "Weekly Course Table",
@@ -474,7 +480,13 @@
       "test_desc": "Verify current settings",
       "testing": "Testing…",
       "test_ok": "Connected ({ms} ms): {reply}",
-      "test_fail": "Failed: {error}"
+      "test_fail": "Failed: {error}",
+      "pack_rotate": "Daily pack rotation",
+      "pack_rotate_desc": "How often widgets like Word of the Day rotate to a new item within the day",
+      "pack_rotate_schedule": "Follow class schedule",
+      "pack_rotate_10": "Every 10 minutes",
+      "pack_rotate_20": "Every 20 minutes",
+      "pack_rotate_30": "Every 30 minutes"
     },
     "plugins": {
       "title": "Plugins",
@@ -1010,7 +1022,8 @@
     "add_item": "Add task...",
     "subject_ph": "Subject name...",
     "empty": "Add a subject from the top bar",
-    "confirm_del": "Sure?"
+    "confirm_del": "Sure?",
+    "history": "History"
   },
   "netspeed": {
     "title": "Network",
@@ -1624,7 +1637,8 @@
     "clear": "Clear",
     "confirm_clear": "Sure?",
     "yesterday": "Yesterday",
-    "new": "NEW"
+    "new": "NEW",
+    "history": "History"
   },
   "custom_action": {
     "title": "Custom buttons",
@@ -1698,5 +1712,12 @@
     "group_yesterday": "Yesterday",
     "group_30": "Previous 30 days",
     "group_older": "Earlier"
+  },
+  "dailylog": {
+    "empty": "No archived records yet",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "count": "{count} {unit}",
+    "unit_item": "records"
   }
 }

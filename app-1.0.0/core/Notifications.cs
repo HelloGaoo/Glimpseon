@@ -105,6 +105,7 @@ public static class Announcements
                 arr.Add(new JsonObject { ["text"] = item.Text, ["created"] = item.Created });
             }
             File.WriteAllText(FilePath, arr.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            DailyLog.Record("announcements", arr);
         }
         catch (Exception e)
         {

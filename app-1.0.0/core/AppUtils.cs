@@ -18,6 +18,7 @@
 using System.Globalization;
 using System.Net.Sockets;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Avalonia.Threading;
 
 namespace Glimpseon.Core;
@@ -208,6 +209,8 @@ public static class AppUtils
         var dict = args.ToDictionary(a => a.Name, a => a.Value);
         return Tr(key, dict);
     }
+
+    public static string WeekdayKey(DayOfWeek day) => $"timetable.{day.ToString().ToLowerInvariant()}";
 
     public static void ApplyLanguageFromConfig()
     {
@@ -840,4 +843,133 @@ public static class AppUtils
             });
         }
     }
+}
+
+// 每日归档
+
+public static class DailyLog
+{
+    public const string HomeworkPrefix = "homework_";
+
+    private static readonly object Gate = new();
+
+    public static string DayDir => Path.Combine(Paths.DataUser, "daily");
+
+    private static string DayPath(DateOnly date) =>
+        Path.Combine(DayDir, date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) + ".json");
+
+    public static void SeedToday()
+    {
+        try
+        {
+            var today = ReadFile(DayPath(DateOnly.FromDateTime(AppUtils.PreciseNow()))) ?? new JsonObject();
+            var anPath = Path.Combine(Paths.DataUser, "announcements.json");
+            if (!today.ContainsKey("announcements") && ParseNode(anPath) is { } anNode)
+            {
+                Record("announcements", anNode);
+            }
+            if (!Directory.Exists(Paths.DataUser))
+            {
+                return;
+            }
+            foreach (var f in Directory.EnumerateFiles(Paths.DataUser, HomeworkPrefix + "*.json"))
+            {
+                var kind = Path.GetFileNameWithoutExtension(f);
+                if (today.ContainsKey(kind) || ParseNode(f) is not { } hwNode)
+                {
+                    continue;
+                }
+                Record(kind, hwNode);
+            }
+            Log.Debug("[归档] 启动种子完成");
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"[归档] 启动种子失败: {e.Message}");
+        }
+    }
+
+    public static void Record(string kind, JsonNode payload)
+    {
+        lock (Gate)
+        {
+            try
+            {
+                Directory.CreateDirectory(DayDir);
+                var path = DayPath(DateOnly.FromDateTime(AppUtils.PreciseNow()));
+                var root = ReadFile(path) ?? new JsonObject();
+                root[kind] = payload.DeepClone();
+                File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            }
+            catch (Exception e)
+            {
+                Log.Warning($"[归档] 写入失败 kind={kind}: {e.Message}");
+            }
+        }
+    }
+
+    public static Dictionary<string, JsonNode> LoadPrefixOnOrBefore(DateOnly date, string prefix, int maxBackDays = 30)
+    {
+        var resolved = new Dictionary<string, JsonNode>();
+        lock (Gate)
+        {
+            for (var i = 0; i <= maxBackDays; i++)
+            {
+                var root = ReadFile(DayPath(date.AddDays(-i)));
+                if (root is null)
+                {
+                    continue;
+                }
+                foreach (var kv in root)
+                {
+                    if (kv.Value is not null && !resolved.ContainsKey(kv.Key) && kv.Key.StartsWith(prefix, StringComparison.Ordinal))
+                    {
+                        resolved[kv.Key] = kv.Value.DeepClone();
+                    }
+                }
+            }
+        }
+        return resolved;
+    }
+
+    public static List<(DateOnly Day, JsonObject Root)> LoadDays(string kind)
+    {
+        var days = new List<(DateOnly Day, JsonObject Root)>();
+        lock (Gate)
+        {
+            if (!Directory.Exists(DayDir))
+            {
+                return days;
+            }
+            foreach (var f in Directory.EnumerateFiles(DayDir, "*.json"))
+            {
+                if (!DateOnly.TryParseExact(Path.GetFileNameWithoutExtension(f), "yyyy-MM-dd",
+                        CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
+                {
+                    continue;
+                }
+                if (ReadFile(f) is { } root && root.ContainsKey(kind))
+                {
+                    days.Add((d, root));
+                }
+            }
+        }
+        days.Sort((a, b) => b.Day.CompareTo(a.Day));
+        return days;
+    }
+
+    private static JsonNode? ParseNode(string path)
+    {
+        try
+        {
+            return File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path)) : null;
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"[归档] 档案解析失败 {path}: {e.Message}");
+            return null;
+        }
+    }
+
+    private static JsonObject? ReadFile(string path) => ParseNode(path) as JsonObject;
 }

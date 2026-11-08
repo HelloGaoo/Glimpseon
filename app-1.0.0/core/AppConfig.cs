@@ -568,6 +568,10 @@ public static class Config
     // 自动化
     public static readonly ConfigItem<bool> AutomationEnabled = new("Automation", "Enabled", true);
 
+    // 日更
+    public static readonly ConfigItem<string> ContentPackRotate = new("ContentPack", "Rotate", "schedule",
+        options: new string?[] { "schedule", "10分钟", "20分钟", "30分钟" });
+
     private static bool _loaded;
 
     public static void Load()

@@ -144,7 +144,13 @@
     "source_chained": "链式",
     "cond_week_parity": "单双周",
     "parity_odd": "单周",
-    "parity_even": "双周"
+    "parity_even": "双周",
+    "sample_duty_name": "示例：早读提示值日生",
+    "sample_duty_content": "今天值日生是 {duty}，请按时到岗。",
+    "sample_clean_name": "示例：下课擦黑板",
+    "sample_clean_content": "下课了，请擦黑板。",
+    "sample_collect_name": "示例：展示昨日作业",
+    "sample_collect_content": "昨日作业：{yesterday_hw}"
   },
   "timetable": {
     "course_table": "单周课程表",
@@ -474,7 +480,13 @@
       "test_desc": "验证当前配置",
       "testing": "测试中…",
       "test_ok": "连接成功（{ms} ms）：{reply}",
-      "test_fail": "连接失败：{error}"
+      "test_fail": "连接失败：{error}",
+      "pack_rotate": "日更轮换节奏",
+      "pack_rotate_desc": "每日英语等组件一天内换新条目的节奏",
+      "pack_rotate_schedule": "跟课表（课间换）",
+      "pack_rotate_10": "每 10 分钟",
+      "pack_rotate_20": "每 20 分钟",
+      "pack_rotate_30": "每 30 分钟"
     },
     "plugins": {
       "title": "插件",
@@ -1010,7 +1022,8 @@
     "add_item": "添加作业...",
     "subject_ph": "科目名称...",
     "empty": "点击左上角添加科目",
-    "confirm_del": "确认"
+    "confirm_del": "确认",
+    "history": "历史"
   },
   "netspeed": {
     "title": "网速",
@@ -1624,7 +1637,8 @@
     "clear": "清空",
     "confirm_clear": "确认",
     "yesterday": "昨天",
-    "new": "NEW"
+    "new": "NEW",
+    "history": "历史"
   },
   "custom_action": {
     "title": "自定义按钮",
@@ -1698,5 +1712,12 @@
     "group_yesterday": "昨天",
     "group_30": "30 天内",
     "group_older": "更早"
+  },
+  "dailylog": {
+    "empty": "暂无归档记录",
+    "today": "今天",
+    "yesterday": "昨天",
+    "count": "{count} {unit}",
+    "unit_item": "条"
   }
 }

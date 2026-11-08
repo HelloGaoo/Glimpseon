@@ -19,6 +19,7 @@ using System.Diagnostics;
 using System.Net.NetworkInformation;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 
@@ -343,7 +344,7 @@ public static class AutomationRegistry
         Register(new ActionInfo("notification", "E789", "automation.action_notification",
             s => DoNotification(s),
             s => $"{(string?)s?.TryGet("content") ?? ""}",
-            new JsonObject { ["content"] = "", ["type"] = "corner", ["duration"] = 5, ["speak"] = false, ["font_size"] = 24 }));
+            new JsonObject { ["content"] = "", ["type"] = NotifType.Corner, ["duration"] = 5, ["speak"] = false, ["font_size"] = 24 }));
         Register(new ActionInfo("speak", "E720", "automation.action_speak",
             s => DoSpeak(s),
             s => (string?)s?.TryGet("text") ?? "",
@@ -506,7 +507,7 @@ public static class AutomationRegistry
     // 动作执行
     private static Task DoNotification(JsonObject? s)
     {
-        var content = (string?)s?.TryGet("content") ?? "";
+        var content = TemplateVars.Render((string?)s?.TryGet("content") ?? "");
         if (content.Length == 0)
         {
             return Task.CompletedTask;
@@ -528,7 +529,7 @@ public static class AutomationRegistry
 
     private static Task DoSpeak(JsonObject? s)
     {
-        var text = (string?)s?.TryGet("text") ?? "";
+        var text = TemplateVars.Render((string?)s?.TryGet("text") ?? "");
         if (text.Length == 0)
         {
             return Task.CompletedTask;
@@ -1250,7 +1251,31 @@ public static class AutomationService
             Enabled = false,
             Triggers = [new AutomationEntry { Id = "time_at", Settings = new JsonObject { ["time"] = "08:00", ["days"] = new JsonArray(1, 2, 3, 4, 5) } }],
             Condition = null,
-            Actions = [new AutomationEntry { Id = "notification", Settings = new JsonObject { ["content"] = AppUtils.Tr("automation.sample_content"), ["type"] = "corner", ["duration"] = 5, ["speak"] = false, ["font_size"] = 24 } }],
+            Actions = [new AutomationEntry { Id = "notification", Settings = new JsonObject { ["content"] = AppUtils.Tr("automation.sample_content"), ["type"] = NotifType.Corner, ["duration"] = 5, ["speak"] = false, ["font_size"] = 24 } }],
+        });
+        _recipes.Add(new AutomationRecipe
+        {
+            Name = AppUtils.Tr("automation.sample_duty_name"),
+            Enabled = false,
+            Triggers = [new AutomationEntry { Id = "time_at", Settings = new JsonObject { ["time"] = "07:40", ["days"] = new JsonArray(1, 2, 3, 4, 5) } }],
+            Condition = null,
+            Actions = [new AutomationEntry { Id = "speak", Settings = new JsonObject { ["text"] = AppUtils.Tr("automation.sample_duty_content"), ["voice"] = "zh-CN-XiaoxiaoNeural", ["rate"] = 0 } }],
+        });
+        _recipes.Add(new AutomationRecipe
+        {
+            Name = AppUtils.Tr("automation.sample_clean_name"),
+            Enabled = false,
+            Triggers = [new AutomationEntry { Id = "lesson_end", Settings = new JsonObject { ["index"] = 0 } }],
+            Condition = null,
+            Actions = [new AutomationEntry { Id = "notification", Settings = new JsonObject { ["content"] = AppUtils.Tr("automation.sample_clean_content"), ["type"] = NotifType.Corner, ["duration"] = 10, ["speak"] = false, ["font_size"] = 28 } }],
+        });
+        _recipes.Add(new AutomationRecipe
+        {
+            Name = AppUtils.Tr("automation.sample_collect_name"),
+            Enabled = false,
+            Triggers = [new AutomationEntry { Id = "time_at", Settings = new JsonObject { ["time"] = "07:50", ["days"] = new JsonArray(1, 2, 3, 4, 5) } }],
+            Condition = null,
+            Actions = [new AutomationEntry { Id = "notification", Settings = new JsonObject { ["content"] = AppUtils.Tr("automation.sample_collect_content"), ["type"] = NotifType.Scroll, ["duration"] = 30, ["speak"] = true, ["font_size"] = 32 } }],
         });
     }
 }
@@ -1260,4 +1285,132 @@ public static class AutomationExtensions
 {
     /// <summary>节次签名 防重触发</summary>
     public static string Signature(this ScheduleRow row) => $"{row.Subject}|{row.StartTime}|{row.Index}";
+}
+
+// 模板变量
+
+public static class TemplateVars
+{
+    private static readonly Regex TokenRe = new(@"\{(\w+)\}", RegexOptions.Compiled);
+
+    public static string Render(string text)
+    {
+        if (string.IsNullOrEmpty(text) || text.IndexOf('{') < 0)
+        {
+            return text;
+        }
+        return TokenRe.Replace(text, m =>
+        {
+            var (known, value) = Resolve(m.Groups[1].Value);
+            return known ? value ?? "" : m.Value;
+        });
+    }
+
+    private static (bool Known, string? Value) Resolve(string key)
+    {
+        var now = AppUtils.PreciseNow();
+        return key switch
+        {
+            "date" => (true, now.ToString("yyyy-MM-dd")),
+            "weekday" => (true, AppUtils.Tr(AppUtils.WeekdayKey(now.DayOfWeek))),
+            "duty" => (true, DutyNames(now)),
+            "lesson" => (true, AutomationService.CurrentLesson?.Subject),
+            "next_lesson" => (true, AutomationService.NextLesson?.Subject),
+            "weather" => (true, WeatherBrief()),
+            "yesterday_hw" => (true, YesterdayHomework()),
+            _ => (false, null),
+        };
+    }
+
+    private static string? DutyNames(DateTime now)
+    {
+        try
+        {
+            var master = ScheduleStore.LoadMaster(Config.ScheduleProfile.Value);
+            if (master.Duty.Length == 0)
+            {
+                return null;
+            }
+            var weekday = now.DayOfWeek.ToString().ToLowerInvariant();
+            var rows = DutyDoc.LoadOrDefault(master.Duty).Rows
+                .Where(r => (r["weekday"]?.GetValue<string>() ?? "") == weekday)
+                .ToList();
+            var parity = ScheduleRules.WeekParityLabel(master, DateOnly.FromDateTime(now))
+                ?? rows.Select(r => r["parity"]?.GetValue<string>() ?? "").FirstOrDefault(p => p.Length > 0)
+                ?? "";
+            var names = rows
+                .Select(r => (Parity: r["parity"]?.GetValue<string>() ?? "", Name: r["name"]?.GetValue<string>() ?? ""))
+                .Where(x => x.Name.Length > 0 && (x.Parity.Length == 0 || x.Parity == parity))
+                .Select(x => x.Name)
+                .ToList();
+            return names.Count > 0 ? string.Join("、", names) : null;
+        }
+        catch (Exception e)
+        {
+            Log.Debug($"[模板] 值日解析失败: {e.Message}");
+            return null;
+        }
+    }
+
+    private static string? WeatherBrief()
+    {
+        try
+        {
+            var data = AppUtils.GetCachedContent("weather");
+            if (data is not { ValueKind: JsonValueKind.Object } root
+                || !root.TryGetProperty("current", out var current)
+                || !current.TryGetProperty("temperature", out var temp)
+                || !temp.TryGetProperty("value", out var value))
+            {
+                return null;
+            }
+            var text = value.ToString();
+            if (text.Length == 0)
+            {
+                return null;
+            }
+            return double.TryParse(text, out var d) ? $"{Math.Round(d)}°" : $"{text}°";
+        }
+        catch (Exception e)
+        {
+            Log.Debug($"[模板] 天气解析失败: {e.Message}");
+            return null;
+        }
+    }
+
+    private static string? YesterdayHomework()
+    {
+        try
+        {
+            var date = DateOnly.FromDateTime(AppUtils.PreciseNow()).AddDays(-1);
+            var boards = DailyLog.LoadPrefixOnOrBefore(date, DailyLog.HomeworkPrefix);
+            if (boards.Count == 0)
+            {
+                return null;
+            }
+            var parts = new List<string>();
+            foreach (var node in boards.Values)
+            {
+                if (node is not JsonObject obj || obj["sections"] is not JsonArray secs)
+                {
+                    continue;
+                }
+                foreach (var s in secs)
+                {
+                    if (s is JsonObject sec
+                        && sec["items"] is JsonArray items
+                        && items.Count > 0)
+                    {
+                        parts.Add($"{sec["title"]?.GetValue<string>() ?? ""}:{items.Count}项");
+                    }
+                }
+            }
+            return parts.Count > 0 ? string.Join(" ", parts) : null;
+        }
+        catch (Exception e)
+        {
+            Log.Debug($"[模板] 昨日作业解析失败: {e.Message}");
+            return null;
+        }
+    }
 }

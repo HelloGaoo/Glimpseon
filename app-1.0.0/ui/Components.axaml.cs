@@ -27,6 +27,7 @@ using Avalonia.Media;
 using FluentAvalonia.UI.Controls;
 using Glimpseon.Core;
 using System.Diagnostics;
+using System.Threading.Tasks;
 using System.IO;
 using Avalonia.Media.Imaging;
 using IOPath = System.IO.Path;
@@ -1324,7 +1325,7 @@ public abstract class WidgetCardBase : DraggableContainer
     // 展开层支持
 
     /// <summary>启用展开层 右上角按钮</summary>
-    protected void EnableExpansion(string title, double width, double height, Func<Control> buildContent)
+    protected void EnableExpansion(string title, Func<Control> buildContent)
     {
         var btn = new Button
         {
@@ -1343,7 +1344,7 @@ public abstract class WidgetCardBase : DraggableContainer
         ToolTip.SetTip(btn, title);
         // 拦按下防拖拽
         btn.AddHandler(PointerPressedEvent, (_, e) => e.Handled = true, RoutingStrategies.Bubble);
-        btn.Click += (_, _) => ComponentExpander.Show(this, title, buildContent(), width, height);
+        btn.Click += (_, _) => ComponentExpander.Show(this, title, buildContent());
 
         // 先摘再包 防双重父级
         var original = Card.Child;
@@ -3280,7 +3281,7 @@ public sealed class TimetablePreviewWidget : WidgetCardBase
         RefreshSchedule();
 
         // 展开层 单日弹整周
-        EnableExpansion(AppUtils.Tr("timetable.week_schedule"), 1280, 800, () => new WeekTimetablePanel());
+        EnableExpansion(AppUtils.Tr("timetable.week_schedule"), () => new WeekTimetablePanel());
     }
 
     private void RefreshSchedule()
@@ -9468,12 +9469,250 @@ public sealed class NativeDecibelMeterWidget : WidgetCardBase
 }
 
 
-// NativeDaily.cs
+internal static class DailyPack
+{
+    private static readonly object Gate = new();
+    private static DispatcherTimer? _midnight;
+    private static bool _generating;
+    private static JsonObject? _cache;
+    private static string _cacheDate = "";
+
+    internal const double NetworkRetryMinutes = 10;
+
+    private static string PackPath => IOPath.Combine(Paths.DataCache, "content_pack.json");
+
+    private static readonly string[] BuiltinWords =
+    [
+        """{"word":"dawn","phonetic":"/dɔːn/","translation":"n. 黎明","example":"The dawn light filled the classroom.","example_trans":"晨光洒满教室。"}""",
+        """{"word":"curious","phonetic":"/ˈkjʊəriəs/","translation":"adj. 好奇的","example":"Curious minds ask why.","example_trans":"好奇的心会追问为什么。"}""",
+        """{"word":"effort","phonetic":"/ˈefət/","translation":"n. 努力","example":"Effort beats talent when talent stops trying.","example_trans":"当天才放弃时,努力胜过天赋。"}""",
+        """{"word":"horizon","phonetic":"/həˈraɪzn/","translation":"n. 地平线","example":"The sun rose above the horizon.","example_trans":"太阳升上地平线。"}""",
+        """{"word":"gather","phonetic":"/ˈɡæðə/","translation":"v. 聚集","example":"We gather here every Monday.","example_trans":"我们每周一在这里集合。"}""",
+        """{"word":"steady","phonetic":"/ˈstedi/","translation":"adj. 稳定的","example":"Steady steps win the long race.","example_trans":"稳扎稳打赢得长跑。"}""",
+        """{"word":"brilliant","phonetic":"/ˈbrɪliənt/","translation":"adj. 灿烂的","example":"A brilliant idea needs a brave start.","example_trans":"灿烂的想法需要勇敢的开始。"}""",
+        """{"word":"journey","phonetic":"/ˈdʒɜːni/","translation":"n. 旅程","example":"Learning is a long journey.","example_trans":"学习是一段漫长的旅程。"}""",
+    ];
+
+    // 兜底句包
+    private static readonly string[] BuiltinSentences =
+    [
+        """{"content":"The best time to plant a tree was ten years ago. The second best is now.","note":"种树最好的时间是十年前,其次是现在。"}""",
+        """{"content":"Well begun is half done.","note":"好的开始是成功的一半。"}""",
+        """{"content":"Little by little, one travels far.","note":"积跬步,至千里。"}""",
+        """{"content":"Actions speak louder than words.","note":"行动胜于言语。"}""",
+        """{"content":"A journey of a thousand miles begins with a single step.","note":"千里之行,始于足下。"}""",
+        """{"content":"Practice makes perfect.","note":"熟能生巧。"}""",
+        """{"content":"Where there is a will, there is a way.","note":"有志者事竟成。"}""",
+        """{"content":"The early bird catches the worm.","note":"早起的鸟儿有虫吃。"}""",
+    ];
+
+    public static void Start()
+    {
+        Ensure();
+        ArmMidnight();
+    }
+
+    public static (string Cursor, JsonObject Item)? Take(string kind)
+    {
+        var pack = Read(kind, todayOnly: true);
+        if (pack is not { Count: > 0 })
+        {
+            Ensure();
+            pack = Read(kind, todayOnly: false);
+        }
+        if (pack is not { Count: > 0 })
+        {
+            return null;
+        }
+        var index = Rotation(pack.Count);
+        return pack[index] is JsonObject item ? ($"{TodayKey()}#{index}", item) : null;
+    }
+
+    private static int Rotation(int count)
+    {
+        if (count <= 0)
+        {
+            return 0;
+        }
+        var now = AppUtils.PreciseNow();
+        var mode = Config.ContentPackRotate.Value;
+        if (mode == "schedule")
+        {
+            var rows = TimetableScheduleProvider.GetTodaySchedule();
+            if (rows.Count > 0)
+            {
+                var started = rows.Count(r => !r.IsBreak && TimeOnly.TryParse(r.StartTime, out var st) && st <= TimeOnly.FromDateTime(now));
+                return started % count;
+            }
+        }
+        var minutes = int.TryParse(mode.TrimEnd('分', '钟'), out var m) ? Math.Max(1, m) : 30;
+        return (int)(now.TimeOfDay.TotalMinutes / minutes) % count;
+    }
+
+    private static void Ensure()
+    {
+        lock (Gate)
+        {
+            if (_generating || (Cached() is { } pack && pack["date"]?.GetValue<string>() == TodayKey()))
+            {
+                return;
+            }
+            _generating = true;
+        }
+        _ = GenerateAsync();
+    }
+
+    private static async Task GenerateAsync()
+    {
+        try
+        {
+            var date = TodayKey();
+            var words = await FromAi("word") ?? Pool(BuiltinWords);
+            var sentences = await FromAi("sentence") ?? Pool(BuiltinSentences);
+            var root = new JsonObject { ["date"] = date, ["word"] = words, ["sentence"] = sentences };
+            lock (Gate)
+            {
+                Directory.CreateDirectory(Paths.DataCache);
+                File.WriteAllText(PackPath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+                _cache = root;
+                _cacheDate = date;
+            }
+            Log.Info($"[日更] 包就绪 words={words.Count} sentences={sentences.Count}");
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"[日更] 生成失败: {e.Message}");
+        }
+        finally
+        {
+            lock (Gate)
+            {
+                _generating = false;
+            }
+        }
+    }
+
+    private static async Task<JsonArray?> FromAi(string kind)
+    {
+        if (!AiService.Ready)
+        {
+            return null;
+        }
+        const string system = "你是英语教学助手。只输出 JSON 数组,不要解释或代码块标记。";
+        var prompt = kind == "word"
+            ? "生成8个适合中学生的英语单词词条,JSON数组,每项含 word(小写)、phonetic(音标含//)、translation(词性+中文)、example(英文例句)、example_trans(中文翻译)。难度循序渐进,主题贴近校园生活。"
+            : "生成8句适合中学生的英语名言或谚语,JSON数组,每项含 content(英文句子)、note(中文翻译或一句点评)。积极向上,适合教室大屏展示。";
+        try
+        {
+            var result = await AiService.ChatAsync(prompt, system);
+            if (!result.Ok)
+            {
+                Log.Warning($"[日更] AI {kind} 失败: {result.Error}");
+                return null;
+            }
+            return Parse(result.Content);
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"[日更] AI {kind} 异常: {e.Message}");
+            return null;
+        }
+    }
+
+    private static JsonArray? Parse(string text)
+    {
+        var s = Regex.Replace(text, "```(?:json)?", "").Trim();
+        var start = s.IndexOf('[');
+        var end = s.LastIndexOf(']');
+        if (start < 0 || end <= start)
+        {
+            return null;
+        }
+        try
+        {
+            return JsonNode.Parse(s[start..(end + 1)]) as JsonArray;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static JsonArray Pool(string[] items)
+    {
+        var arr = new JsonArray();
+        foreach (var item in items)
+        {
+            if (JsonNode.Parse(item) is { } node)
+            {
+                arr.Add(node);
+            }
+        }
+        return arr;
+    }
+
+    private static void ArmMidnight()
+    {
+        if (_midnight is null)
+        {
+            _midnight = new DispatcherTimer();
+            _midnight.Tick += OnMidnight;
+        }
+        _midnight.Stop();
+        var now = AppUtils.PreciseNow();
+        _midnight.Interval = now.Date.AddDays(1) - now + TimeSpan.FromSeconds(2);
+        _midnight.Start();
+    }
+
+    private static void OnMidnight(object? sender, EventArgs e)
+    {
+        _midnight?.Stop();
+        Ensure();
+        ArmMidnight();
+    }
+
+    private static JsonObject? ReadPack()
+    {
+        try
+        {
+            return File.Exists(PackPath) ? JsonNode.Parse(File.ReadAllText(PackPath)) as JsonObject : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static JsonArray? Read(string kind, bool todayOnly)
+    {
+        lock (Gate)
+        {
+            var pack = Cached();
+            if (pack is null || (todayOnly && pack["date"]?.GetValue<string>() != TodayKey()))
+            {
+                return null;
+            }
+            return pack[kind] as JsonArray;
+        }
+    }
+
+    private static JsonObject? Cached()
+    {
+        var date = TodayKey();
+        if (_cacheDate == date)
+        {
+            return _cache;
+        }
+        _cache = ReadPack();
+        _cacheDate = date;
+        return _cache;
+    }
+
+    private static string TodayKey() => AppUtils.PreciseNow().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+}
 
 /// <summary>
 /// 每日单词
-/// 背景水印字母(Georgia 150px accent渐变 op.16) + 日期(Consolas 12) + 单词(Georgia 40px bold 双色渐变)
-/// + 音标胶囊 + 词性拆行(pos 胶囊 12px) + 60% 虚线分隔 + 例句(Georgia italic 18/15)
 /// </summary>
 public sealed class NativeDailyWordWidget : WidgetCardBase
 {
@@ -9517,12 +9756,14 @@ public sealed class NativeDailyWordWidget : WidgetCardBase
     // 最近一次数据 主题切换时重排
     private string _lastWord = "--", _lastPhonetic = "", _lastTrans = "", _lastExText = "", _lastExTrans = "", _lastDate = "";
 
+    private string _packCursor = "";
+    private DateTime _netAt;
+
     public NativeDailyWordWidget(ComponentDefinition definition) : base(definition)
     {
         BuildLayout();
         ActualThemeVariantChanged += (_, _) => Apply(_lastWord, _lastPhonetic, _lastTrans, _lastExText, _lastExTrans, _lastDate);
-        // 原版 30 分钟定期刷新
-        var timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(30) };
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
         timer.Tick += (_, _) => _ = RefreshAsync();
         timer.Start();
         _ = RefreshAsync();
@@ -9625,8 +9866,33 @@ public sealed class NativeDailyWordWidget : WidgetCardBase
         Content = Card;
     }
 
+    private void ApplyFromPack(JsonObject o)
+    {
+        var w = o["word"]?.GetValue<string>() ?? "--";
+        var ph = o["phonetic"]?.GetValue<string>() ?? "";
+        var tr = o["translation"]?.GetValue<string>() ?? "";
+        var ex = o["example"]?.GetValue<string>() ?? "";
+        var exTr = o["example_trans"]?.GetValue<string>() ?? "";
+        var day = DateTime.Today.ToString("yyyy-MM-dd");
+        Dispatcher.UIThread.Post(() => Apply(w, ph, tr, ex, exTr, day));
+    }
+
     private async System.Threading.Tasks.Task RefreshAsync()
     {
+        if (DailyPack.Take("word") is { } take)
+        {
+            if (take.Cursor != _packCursor)
+            {
+                _packCursor = take.Cursor;
+                ApplyFromPack(take.Item);
+            }
+            return;
+        }
+        if ((AppUtils.PreciseNow() - _netAt).TotalMinutes < DailyPack.NetworkRetryMinutes)
+        {
+            return;
+        }
+        _netAt = AppUtils.PreciseNow();
         JsonElement? data = null;
         try
         {
@@ -9785,11 +10051,16 @@ public sealed class NativeDailySentenceWidget : WidgetCardBase
     // 最近一次数据 主题切换时重排
     private string _lastContent = "--", _lastNote = "", _lastDate = "";
 
+    // 包游标 同游标不重绘
+    private string _packCursor = "";
+    private DateTime _netAt;
+
     public NativeDailySentenceWidget(ComponentDefinition definition) : base(definition)
     {
         BuildLayout();
         ActualThemeVariantChanged += (_, _) => Apply(_lastContent, _lastNote, _lastDate);
-        var timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(30) };
+        // 60s tick 本地包零网络
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
         timer.Tick += (_, _) => _ = RefreshAsync();
         timer.Start();
         _ = RefreshAsync();
@@ -9868,8 +10139,33 @@ public sealed class NativeDailySentenceWidget : WidgetCardBase
         Content = Card;
     }
 
+    // 包条目落版
+    private void ApplyFromPack(JsonObject o)
+    {
+        var body = o["content"]?.GetValue<string>() ?? "--";
+        var note = o["note"]?.GetValue<string>() ?? "";
+        var day = DateTime.Today.ToString("yyyy-MM-dd");
+        Dispatcher.UIThread.Post(() => Apply(body, note, day));
+    }
+
     private async System.Threading.Tasks.Task RefreshAsync()
     {
+        // 包优先 同游标不重绘
+        if (DailyPack.Take("sentence") is { } take)
+        {
+            if (take.Cursor != _packCursor)
+            {
+                _packCursor = take.Cursor;
+                ApplyFromPack(take.Item);
+            }
+            return;
+        }
+        // 回落节流 免 60s 轮询
+        if ((AppUtils.PreciseNow() - _netAt).TotalMinutes < DailyPack.NetworkRetryMinutes)
+        {
+            return;
+        }
+        _netAt = AppUtils.PreciseNow();
         JsonElement? data = null;
         try
         {
@@ -9979,6 +10275,27 @@ internal static class CardTheme
 
     internal static readonly Color Danger = NativeTheme.Parse("#e5484d");
 
+    // 顶栏文字开关 字号驱动内距/圆角
+    internal static Border TagButton(string text, double fontSize, bool dark)
+    {
+        var pad = Math.Round(fontSize * 0.87);
+        return new Border
+        {
+            Child = new TextBlock
+            {
+                Text = text,
+                FontSize = fontSize,
+                FontWeight = FontWeight.SemiBold,
+                Foreground = new SolidColorBrush(T("sub", dark)),
+            },
+            Background = new SolidColorBrush(T("chip", dark)),
+            Padding = new Thickness(pad, 3, pad, 3),
+            CornerRadius = new CornerRadius(Math.Round(fontSize * 0.35)),
+            Cursor = new Cursor(StandardCursorType.Hand),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+    }
+
     // 小号操作按钮(公告栏 ✎× 24x24 / 作业板 18x18)
     internal static Border IconButton(string glyph, double size, bool danger, Func<bool> dark)
     {
@@ -10015,6 +10332,486 @@ internal static class CardTheme
             ((TextBlock)btn.Child!).Foreground = new SolidColorBrush(T("sub", dark()));
         };
         return btn;
+    }
+}
+
+/// <summary>归档浏览器</summary>
+public sealed class DailyLogPanel : Grid
+{
+    private static readonly AvColor[] Palette =
+    [
+        NativeTheme.Parse("#f59e0b"), NativeTheme.Parse("#3b82f6"), NativeTheme.Parse("#10b981"), NativeTheme.Parse("#ef4444"),
+        NativeTheme.Parse("#8b5cf6"), NativeTheme.Parse("#ec4899"), NativeTheme.Parse("#06b6d4"), NativeTheme.Parse("#84cc16"),
+    ];
+    private const double FontTitle = 17;
+    private const double FontBody = 15;
+    private const double FontMeta = 13;
+    private const double FontMicro = 12;
+    private const double LineHeight = 24;
+    private static FontFamily NumFont => Common.AppFontFamily;
+
+    private readonly string _kind;
+    private readonly ListBox _dates = new();
+    private readonly ContentControl _pane = new();
+    private readonly StackPanel _emptyStack;
+    private readonly TextBlock _datesEmpty = new();
+    private readonly Border _dateHost;
+    private readonly Border _paneHost;
+    private List<(DateOnly Day, JsonObject Root)> _days = new();
+
+    /// <summary>作业板快照</summary>
+    public static DailyLogPanel ForHomework(string componentId) =>
+        new(DailyLog.HomeworkPrefix + componentId);
+
+    /// <summary>公告快照</summary>
+    public static DailyLogPanel ForAnnouncements() =>
+        new("announcements");
+
+    private static TextBlock Txt(string text, double size, AvColor color, FontWeight? weight = null, FontFamily? family = null)
+    {
+        var tb = new TextBlock
+        {
+            Text = text,
+            FontSize = size,
+            FontFamily = family ?? Common.AppFontFamily,
+            Foreground = new SolidColorBrush(color),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        if (weight is { } w)
+        {
+            tb.FontWeight = w;
+        }
+        return tb;
+    }
+
+    private DailyLogPanel(string kind)
+    {
+        _kind = kind;
+        ColumnDefinitions = new ColumnDefinitions("208,12,*");
+        Avalonia.Controls.Documents.TextElement.SetFontFamily(this, Common.AppFontFamily);
+
+        _dates.SelectionChanged += (_, _) => ShowSelected();
+        _dates.Background = Brushes.Transparent;
+        _dates.BorderThickness = new Thickness(0);
+        _dates.Padding = new Thickness(0, 6, 0, 6);
+        var dateScroll = new ScrollViewer
+        {
+            Content = _dates,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+        };
+        _datesEmpty.FontSize = FontMeta;
+        _datesEmpty.FontFamily = Common.AppFontFamily;
+        _datesEmpty.TextAlignment = TextAlignment.Center;
+        _datesEmpty.HorizontalAlignment = HorizontalAlignment.Center;
+        _datesEmpty.VerticalAlignment = VerticalAlignment.Center;
+        _datesEmpty.IsHitTestVisible = false;
+        var dateGrid = new Grid();
+        dateGrid.Children.Add(dateScroll);
+        dateGrid.Children.Add(_datesEmpty);
+        _dateHost = new Border
+        {
+            Child = dateGrid,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+        };
+
+        // 空态
+        var emptyIcon = FAIcons.Icon(FASymbol.Calendar, 26);
+        emptyIcon.Opacity = 0.22;
+        emptyIcon.HorizontalAlignment = HorizontalAlignment.Center;
+        _emptyStack = new StackPanel
+        {
+            Spacing = 10,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            IsHitTestVisible = false,
+            IsVisible = false,
+            Children =
+            {
+                emptyIcon,
+                new TextBlock
+                {
+                    Text = AppUtils.Tr("dailylog.empty"),
+                    FontSize = FontMeta,
+                    FontFamily = Common.AppFontFamily,
+                    TextAlignment = TextAlignment.Center,
+                    Opacity = 0.45,
+                },
+            },
+        };
+
+        var paneScroll = new ScrollViewer
+        {
+            Content = _pane,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+        };
+        var paneGrid = new Grid();
+        paneGrid.Children.Add(paneScroll);
+        paneGrid.Children.Add(_emptyStack);
+        _paneHost = new Border
+        {
+            Child = paneGrid,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+        };
+
+        Children.Add(_dateHost);
+        Children.Add(_paneHost);
+        SetColumn(_dateHost, 0);
+        SetColumn(_paneHost, 2);
+
+        ApplyTheme();
+        ActualThemeVariantChanged += (_, _) =>
+        {
+            ApplyTheme();
+            RebuildDates();
+        };
+        RebuildDates();
+    }
+
+    private bool IsDarkNow => ThemeSense.IsDark(this);
+
+    private void ApplyTheme()
+    {
+        var hairline = new SolidColorBrush(IsDarkNow
+            ? AvColor.FromArgb(0x1F, 0xFF, 0xFF, 0xFF)
+            : AvColor.FromArgb(0x12, 0x00, 0x00, 0x00));
+        _dateHost.BorderBrush = hairline;
+        _paneHost.BorderBrush = hairline;
+        _datesEmpty.Foreground = new SolidColorBrush(CardTheme.T("empty", IsDarkNow));
+        _datesEmpty.Text = AppUtils.Tr("dailylog.empty");
+    }
+
+    private void RebuildDates()
+    {
+        _days = DailyLog.LoadDays(_kind);
+        _dates.Items.Clear();
+        foreach (var entry in _days)
+        {
+            _dates.Items.Add(BuildDateItem(entry.Day, entry.Root));
+        }
+        _datesEmpty.IsVisible = _days.Count == 0;
+        if (_days.Count > 0)
+        {
+            _dates.SelectedIndex = 0;
+        }
+        else
+        {
+            _pane.Content = null;
+            _emptyStack.IsVisible = true;
+        }
+    }
+
+    private Control BuildDateItem(DateOnly d, JsonObject root)
+    {
+        var dark = IsDarkNow;
+        var grid = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*,Auto"),
+            ColumnSpacing = 8,
+            MinHeight = 46,
+            Margin = new Thickness(16, 0, 16, 0),
+        };
+        var day = Txt(d.ToString("MM-dd"), FontTitle, CardTheme.T("ink", dark), FontWeight.Medium, NumFont);
+        var rel = Txt(DayLabel(d), FontMeta, CardTheme.T("sub", dark));
+        var count = CountEntries(root.TryGetPropertyValue(_kind, out var node) ? node : null);
+        var chip = new Border
+        {
+            Child = Txt(count.ToString(), FontMicro, CardTheme.T("sub", dark), FontWeight.Medium),
+            Background = new SolidColorBrush(CardTheme.T("chip", dark)),
+            CornerRadius = new CornerRadius(9),
+            Padding = new Thickness(8, 1, 8, 2),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(day, 0);
+        Grid.SetColumn(rel, 1);
+        Grid.SetColumn(chip, 3);
+        grid.Children.Add(day);
+        grid.Children.Add(rel);
+        grid.Children.Add(chip);
+        return grid;
+    }
+
+    // 相对日
+    private static string DayLabel(DateOnly d)
+    {
+        var today = DateOnly.FromDateTime(AppUtils.PreciseNow());
+        if (d == today)
+        {
+            return AppUtils.Tr("dailylog.today");
+        }
+        if (d == today.AddDays(-1))
+        {
+            return AppUtils.Tr("dailylog.yesterday");
+        }
+        return AppUtils.Tr(AppUtils.WeekdayKey(d.DayOfWeek));
+    }
+
+    private static int CountEntries(JsonNode? payload)
+    {
+        if (payload is JsonArray an)
+        {
+            return an.Count;
+        }
+        if (payload is JsonObject obj && obj["sections"] is JsonArray secs)
+        {
+            var n = 0;
+            foreach (var s in secs)
+            {
+                if (s is JsonObject sec && sec["items"] is JsonArray items)
+                {
+                    n += items.Count;
+                }
+            }
+            return n;
+        }
+        return 0;
+    }
+
+    private void ShowSelected()
+    {
+        var index = _dates.SelectedIndex;
+        if (index < 0 || index >= _days.Count)
+        {
+            return;
+        }
+        var (date, root) = _days[index];
+        var payload = root.TryGetPropertyValue(_kind, out var node) ? node : null;
+        _pane.Content = payload is null
+            ? null
+            : _kind.StartsWith(DailyLog.HomeworkPrefix, StringComparison.Ordinal)
+                ? RenderHomework(date, payload)
+                : RenderAnnouncements(date, payload);
+        _emptyStack.IsVisible = payload is null;
+    }
+
+    private Control MakeHeader(DateOnly date, int count, string unit)
+    {
+        var dark = IsDarkNow;
+        var head = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*"),
+            ColumnSpacing = 12,
+            Margin = new Thickness(22, 20, 22, 14),
+        };
+        var bar = new Border
+        {
+            Width = 3,
+            Height = 34,
+            CornerRadius = new CornerRadius(2),
+            Background = new SolidColorBrush(Common.ParseAccentColor(Config.ThemeColor.Value)),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var stack = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        var title = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        title.Children.Add(Txt(date.ToString("yyyy-MM-dd"), FontTitle, CardTheme.T("ink", dark), FontWeight.Medium, NumFont));
+        title.Children.Add(Txt(DayLabel(date), FontMeta, CardTheme.T("sub", dark)));
+        stack.Children.Add(title);
+        stack.Children.Add(Txt(AppUtils.Tr("dailylog.count", ("count", count), ("unit", unit)), FontMeta, CardTheme.T("sub", dark)));
+        Grid.SetColumn(bar, 0);
+        Grid.SetColumn(stack, 1);
+        head.Children.Add(bar);
+        head.Children.Add(stack);
+        return head;
+    }
+
+    private Border MakeRule()
+    {
+        return new Border
+        {
+            Height = 1,
+            Background = new SolidColorBrush(CardTheme.T("line", IsDarkNow)),
+        };
+    }
+
+    private Control RenderHomework(DateOnly date, JsonNode payload)
+    {
+        var dark = IsDarkNow;
+        var root = new StackPanel();
+        var sections = payload is JsonObject obj && obj["sections"] is JsonArray arr ? arr : new JsonArray();
+        var total = 0;
+        foreach (var s in sections)
+        {
+            if (s is JsonObject sec && sec["items"] is JsonArray its)
+            {
+                total += its.Count;
+            }
+        }
+        root.Children.Add(MakeHeader(date, total, AppUtils.Tr("dailylog.unit_item")));
+        root.Children.Add(MakeRule());
+
+        var columns = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,16,*"),
+            Margin = new Thickness(20, 14, 20, 18),
+        };
+        var col0 = new StackPanel { Spacing = 18 };
+        var col1 = new StackPanel { Spacing = 18 };
+        double h0 = 0, h1 = 0;
+        for (var si = 0; si < sections.Count; si++)
+        {
+            if (sections[si] is not JsonObject sec)
+            {
+                continue;
+            }
+            var items = sec["items"] as JsonArray ?? new JsonArray();
+            var est = 28 + items.Count * LineHeight;
+            if (h0 <= h1)
+            {
+                h0 += est;
+                col0.Children.Add(BuildSectionCard(si, sec, dark));
+            }
+            else
+            {
+                h1 += est;
+                col1.Children.Add(BuildSectionCard(si, sec, dark));
+            }
+        }
+        Grid.SetColumn(col0, 0);
+        Grid.SetColumn(col1, 2);
+        columns.Children.Add(col0);
+        columns.Children.Add(col1);
+        root.Children.Add(columns);
+        return root;
+    }
+
+    private Control BuildSectionCard(int si, JsonObject sec, bool dark)
+    {
+        var color = Palette[si % Palette.Length];
+        var items = sec["items"] as JsonArray ?? new JsonArray();
+        var doneCount = items.Count(o => o is JsonObject o2 && o2["done"]?.GetValue<bool>() == true);
+
+        var card = new StackPanel { Spacing = 8 };
+        var head = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("Auto,Auto,Auto,*"),
+            ColumnSpacing = 7,
+        };
+        var dot = new Border
+        {
+            Width = 9,
+            Height = 9,
+            CornerRadius = new CornerRadius(2),
+            Background = new SolidColorBrush(color),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var title = Txt(sec["title"]?.GetValue<string>() ?? "", FontBody, CardTheme.T("ink", dark), FontWeight.SemiBold);
+        title.TextTrimming = TextTrimming.CharacterEllipsis;
+        var counter = Txt($"{doneCount}/{items.Count}", FontMicro, CardTheme.T("sub", dark), FontWeight.Medium, NumFont);
+        Grid.SetColumn(dot, 0);
+        Grid.SetColumn(title, 1);
+        Grid.SetColumn(counter, 2);
+        head.Children.Add(dot);
+        head.Children.Add(title);
+        head.Children.Add(counter);
+        card.Children.Add(head);
+
+        foreach (var it in items)
+        {
+            if (it is not JsonObject item)
+            {
+                continue;
+            }
+            var done = item["done"]?.GetValue<bool>() == true;
+            var row = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitions("Auto,*"),
+                ColumnSpacing = 10,
+                Margin = new Thickness(16, 3, 0, 3),
+            };
+            var box = new Border
+            {
+                Width = 16,
+                Height = 16,
+                CornerRadius = new CornerRadius(3),
+                BorderThickness = new Thickness(1.2),
+                BorderBrush = new SolidColorBrush(done ? color : CardTheme.T("dotbd", dark)),
+                Background = done ? new SolidColorBrush(color) : Brushes.Transparent,
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(0, 4, 0, 0),
+            };
+            if (done)
+            {
+                var mark = FAIcons.IconGlyph("E73E", 9);
+                mark.Foreground = Brushes.White;
+                mark.HorizontalAlignment = HorizontalAlignment.Center;
+                mark.VerticalAlignment = VerticalAlignment.Center;
+                box.Child = mark;
+            }
+            var text = Txt(item["text"]?.GetValue<string>() ?? "", FontBody, CardTheme.T("ink", dark));
+            text.TextWrapping = TextWrapping.Wrap;
+            text.VerticalAlignment = VerticalAlignment.Top;
+            text.LineHeight = LineHeight;
+            text.Opacity = done ? 0.5 : 1;
+            Grid.SetColumn(box, 0);
+            Grid.SetColumn(text, 1);
+            row.Children.Add(box);
+            row.Children.Add(text);
+            card.Children.Add(row);
+        }
+        return card;
+    }
+
+    private Control RenderAnnouncements(DateOnly date, JsonNode payload)
+    {
+        var dark = IsDarkNow;
+        var root = new StackPanel();
+        var arr = payload as JsonArray ?? new JsonArray();
+        root.Children.Add(MakeHeader(date, arr.Count, AppUtils.Tr("dailylog.unit_item")));
+        root.Children.Add(MakeRule());
+
+        var list = new StackPanel { Margin = new Thickness(20, 4, 20, 18) };
+        var rows = new List<Control>();
+        foreach (var node in arr)
+        {
+            if (node is not JsonObject item)
+            {
+                continue;
+            }
+            var created = item["created"]?.GetValue<string>() ?? "";
+            var text = item["text"]?.GetValue<string>() ?? "";
+            var row = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitions("Auto,*"),
+                ColumnSpacing = 12,
+                Margin = new Thickness(0, 10, 0, 10),
+            };
+            // 胶囊齐首行 高=行高
+            var chip = new Border
+            {
+                Child = Txt(created.Length >= 16 ? created[11..16] : created, FontMicro,
+                    CardTheme.T("sub", dark), FontWeight.Medium, NumFont),
+                Background = new SolidColorBrush(CardTheme.T("chip", dark)),
+                CornerRadius = new CornerRadius(7),
+                Padding = new Thickness(8, 0),
+                Height = LineHeight,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            var body = Txt(text, FontBody, CardTheme.T("ink", dark));
+            body.TextWrapping = TextWrapping.Wrap;
+            body.VerticalAlignment = VerticalAlignment.Top;
+            body.LineHeight = LineHeight;
+            Grid.SetColumn(chip, 0);
+            Grid.SetColumn(body, 1);
+            row.Children.Add(chip);
+            row.Children.Add(body);
+            rows.Add(row);
+        }
+
+        for (var i = 0; i < rows.Count; i++)
+        {
+            list.Children.Add(rows[i]);
+            if (i < rows.Count - 1)
+            {
+                list.Children.Add(new Border
+                {
+                    Height = 1,
+                    Background = new SolidColorBrush(CardTheme.T("line", dark)),
+                });
+            }
+        }
+        root.Children.Add(list);
+        return root;
     }
 }
 
@@ -10102,14 +10899,19 @@ public sealed class NativeAnnouncementWidget : WidgetCardBase
         _clearBtn.VerticalAlignment = VerticalAlignment.Center;
         _clearBtn.PointerReleased += (_, _) => OnClearClicked();
 
-        var topGrid = new Grid { ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("Auto,Auto,*,Auto,Auto") };
+        var topGrid = new Grid { ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("Auto,Auto,*,Auto,Auto,Auto") };
         topGrid.ColumnSpacing = 10;
+        var anHistoryBtn = CardTheme.TagButton(AppUtils.Tr("announcement.history"), 14, IsDarkNow);
+        anHistoryBtn.PointerReleased += (_, _) => ComponentExpander.Show(this, AppUtils.Tr("announcement.history"),
+            DailyLogPanel.ForAnnouncements());
         Grid.SetColumn(_title, 0);
         Grid.SetColumn(_countBorder, 1);
-        Grid.SetColumn(_addBtn, 3);
-        Grid.SetColumn(_clearBtn, 4);
+        Grid.SetColumn(anHistoryBtn, 3);
+        Grid.SetColumn(_addBtn, 4);
+        Grid.SetColumn(_clearBtn, 5);
         topGrid.Children.Add(_title);
         topGrid.Children.Add(_countBorder);
+        topGrid.Children.Add(anHistoryBtn);
         topGrid.Children.Add(_addBtn);
         topGrid.Children.Add(_clearBtn);
 
@@ -10545,7 +11347,9 @@ public sealed class NativeHomeworkBoardWidget : WidgetCardBase
                 return;
             }
             Directory.CreateDirectory(Paths.DataUser);
-            File.WriteAllText(_dataFile, new JsonObject { ["sections"] = (_sections ?? new JsonArray()).DeepClone() }.ToJsonString());
+            var payload = new JsonObject { ["sections"] = (_sections ?? new JsonArray()).DeepClone() };
+            File.WriteAllText(_dataFile, payload.ToJsonString());
+            DailyLog.Record(DailyLog.HomeworkPrefix + ComponentId, payload);
             Log.Debug($"[HW] 作业板已保存: {(_sections?.Count ?? 0)}个科目");
         }
         catch (Exception e)
@@ -10683,7 +11487,7 @@ public sealed class NativeHomeworkBoardWidget : WidgetCardBase
             }
         };
 
-        var topGrid = new Grid { ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("Auto,Auto,*,Auto,Auto") };
+        var topGrid = new Grid { ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("Auto,Auto,*,Auto,Auto,Auto") };
         topGrid.ColumnSpacing = 8;
         var progTrack = new Border
         {
@@ -10696,10 +11500,15 @@ public sealed class NativeHomeworkBoardWidget : WidgetCardBase
         var progGroup = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
         progGroup.Children.Add(_progText);
         progGroup.Children.Add(progTrack);
+        var historyBtn = CardTheme.TagButton(AppUtils.Tr("homework.history"), 11.5, IsDarkNow);
+        historyBtn.PointerReleased += (_, _) => ComponentExpander.Show(this, AppUtils.Tr("homework.history"),
+            DailyLogPanel.ForHomework(ComponentId));
         Grid.SetColumn(progGroup, 0);
-        Grid.SetColumn(_addSubBtn, 3);
-        Grid.SetColumn(_clearDoneBtn, 4);
+        Grid.SetColumn(historyBtn, 3);
+        Grid.SetColumn(_addSubBtn, 4);
+        Grid.SetColumn(_clearDoneBtn, 5);
         topGrid.Children.Add(progGroup);
+        topGrid.Children.Add(historyBtn);
         topGrid.Children.Add(_addSubBtn);
         topGrid.Children.Add(_clearDoneBtn);
         topGrid.Margin = new Thickness(2, 3, 2, 8);
