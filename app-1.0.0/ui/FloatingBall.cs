@@ -508,7 +508,7 @@ public class FloatingBallWindow : Window
         _wbTrans.Clicked += () => WritingPadService.SetWhiteboard(false);
         _wbWhite = MakeWbButton(FASymbol.SlideShow, "白板");
         _wbWhite.Clicked += () => WritingPadService.SetWhiteboard(true);
-        _wbFreeze = MakeWbButton(FASymbol.CameraFilled, "定格");
+        _wbFreeze = MakeWbButton(FAIcons.Glyph(AppIcons.Camera), "定格");
         _wbFreeze.Clicked += WritingPadService.ToggleFreeze;
         var wbClose = MakeWbButton(FASymbol.Cancel, "关闭");
         wbClose.Clicked += WritingPadService.CloseOverlay;
@@ -647,7 +647,7 @@ public class FloatingBallWindow : Window
 
     private Control BrightKnobIcon()
     {
-        var icon = FAIcons.Icon(FASymbol.WeatherSunny, 20);
+        var icon = FAIcons.Glyph(AppIcons.Sun, 20);
         icon.HorizontalAlignment = HorizontalAlignment.Center;
         icon.VerticalAlignment = VerticalAlignment.Center;
         icon.IsHitTestVisible = false;

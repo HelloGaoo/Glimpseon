@@ -55,7 +55,6 @@ public partial class SettingsWindow : GlimpseonWindow
         ("appearance", "settings.appearance"),
         ("weather", "settings.weather"),
         ("ai", "settings.ai.title"),
-        ("grid", "settings.grid.title"),
         ("log", "settings.log"),
         ("reminder", "settings.reminder"),
         ("storage", "settings.storage.title"),
@@ -102,7 +101,6 @@ public partial class SettingsWindow : GlimpseonWindow
         NavAppearance.Content = Tr("settings.appearance");
         NavWeather.Content = Tr("settings.weather");
         NavAi.Content = Tr("settings.ai.title");
-        NavGrid.Content = Tr("settings.grid.title");
         NavLog.Content = Tr("settings.log");
         NavReminder.Content = Tr("settings.reminder");
         NavStorage.Content = Tr("settings.storage.title");
@@ -131,18 +129,16 @@ public partial class SettingsWindow : GlimpseonWindow
 
     // 卡片构建器
 
-    private static Control SectionHeader(string text, FASymbol symbol)
+    // 分组标签: 纯文字 不带图标 免被误认成可折叠项
+    private static Control SectionHeader(string text)
     {
-        return new StackPanel
+        return new TextBlock
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            Margin = new Thickness(0, 16, 0, 4),
-            Children =
-            {
-                FAIcons.IconCenter(symbol, 16),
-                new TextBlock { Text = text, FontSize = 16, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center },
-            },
+            Text = text,
+            FontSize = 13,
+            FontWeight = FontWeight.SemiBold,
+            Opacity = 0.62,
+            Margin = new Thickness(2, 20, 0, 8),
         };
     }
 
@@ -185,6 +181,14 @@ public partial class SettingsWindow : GlimpseonWindow
             FormatString = "0",
         };
         num.ValueChanged += (_, e) => item.Value = (int)(e.NewValue ?? 0);
+        // 预设整组套用时要回写 否则界面停在旧值
+        item.ValueChanged += v => Dispatcher.UIThread.Post(() =>
+        {
+            if ((int)(num.Value ?? 0) != v)
+            {
+                num.Value = v;
+            }
+        });
         return Card(icon, header, description, num);
     }
 
@@ -232,6 +236,74 @@ public partial class SettingsWindow : GlimpseonWindow
             }
         });
         return Card(icon, header, description, combo);
+    }
+
+    /// <summary>文本行卡片 码位直引</summary>
+    private static FASettingsExpander CardText(string hexIcon, string header, string description, ConfigItem<string> item)
+    {
+        var box = new TextBox { Text = item.Value, Width = 260 };
+        box.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == TextBox.TextProperty)
+            {
+                item.Value = box.Text ?? "";
+            }
+        };
+        item.ValueChanged += v => Dispatcher.UIThread.Post(() =>
+        {
+            if (box.Text != v)
+            {
+                box.Text = v;
+            }
+        });
+        return Card(hexIcon, header, description, box);
+    }
+
+    /// <summary>下拉卡片 码位直引</summary>
+    private static FASettingsExpander CardCombo<T>(string hexIcon, string header, string description, ConfigItem<T> item, (string Text, T Value)[] options)
+    {
+        var combo = new ComboBox { MinWidth = 180 };
+        combo.ItemsSource = options.Select(o => o.Text).ToList();
+        var idx = Array.FindIndex(options, o => EqualityComparer<T>.Default.Equals(o.Value, item.Value));
+        combo.SelectedIndex = idx < 0 ? 0 : idx;
+        combo.SelectionChanged += (_, _) =>
+        {
+            if (combo.SelectedIndex >= 0 && combo.SelectedIndex < options.Length)
+            {
+                item.Value = options[combo.SelectedIndex].Value;
+            }
+        };
+        item.ValueChanged += v => Dispatcher.UIThread.Post(() =>
+        {
+            var i = Array.FindIndex(options, o => EqualityComparer<T>.Default.Equals(o.Value, v));
+            if (i >= 0 && combo.SelectedIndex != i)
+            {
+                combo.SelectedIndex = i;
+            }
+        });
+        return Card(hexIcon, header, description, combo);
+    }
+
+    /// <summary>颜色卡片 码位直引</summary>
+    private static FASettingsExpander CardColor(string hexIcon, string header, string description, ConfigItem<string> item)
+    {
+        var picker = new ColorPicker
+        {
+            Color = ParseColor(item.Value),
+            IsAlphaEnabled = true,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        picker.ColorChanged += (_, e) => item.Value = ToHex(e.NewColor);
+        item.ValueChanged += v => Dispatcher.UIThread.Post(() =>
+        {
+            var c = ParseColor(v);
+            if (picker.Color != c)
+            {
+                picker.Color = c;
+            }
+        });
+        return Card(hexIcon, header, description, picker);
     }
 
     /// <summary>按钮卡片</summary>
@@ -412,7 +484,6 @@ public partial class SettingsWindow : GlimpseonWindow
         _pages["appearance"] = Wrap(BuildAppearancePage());
         _pages["weather"] = Wrap(BuildWeatherPage());
         _pages["ai"] = Wrap(BuildAiPage());
-        _pages["grid"] = Wrap(BuildGridPage());
         _pages["log"] = Wrap(BuildLogPage());
         _pages["reminder"] = Wrap(BuildReminderPage());
         _pages["storage"] = Wrap(BuildStoragePage());
@@ -460,12 +531,23 @@ public partial class SettingsWindow : GlimpseonWindow
     private Control BuildGeneralPage()
     {
         var stack = MakePageStack(Tr("settings.general"));
+
+        stack.Children.Add(SectionHeader(Tr("settings.group_startup")));
         stack.Children.Add(CardSwitch(FASymbol.Play, Tr("wizard.auto_start"), Tr("wizard.auto_start_desc"), Config.AutoStart));
         stack.Children.Add(CardSwitch(FASymbol.View, Tr("wizard.auto_open_idle"), Tr("wizard.auto_open_idle_desc"), Config.AutoOpenOnIdle));
-        stack.Children.Add(CardSpin(FASymbol.ClockFilled, Tr("settings.idle_minutes"), Tr("settings.idle_minutes_desc"), Config.IdleMinutes, 1, 60));
-        stack.Children.Add(CardSwitch(FASymbol.FullScreenMaximize, Tr("wizard.auto_open_maximize"), Tr("wizard.auto_open_maximize_desc"), Config.AutoOpenMaximize));
+        stack.Children.Add(CardSpin("E823", Tr("settings.idle_minutes"), Tr("settings.idle_minutes_desc"), Config.IdleMinutes, 1, 60));
+        stack.Children.Add(CardSwitch("E1D9", Tr("wizard.auto_open_maximize"), Tr("wizard.auto_open_maximize_desc"), Config.AutoOpenMaximize));
+
+        stack.Children.Add(SectionHeader(Tr("settings.group_ui")));
         stack.Children.Add(CardSwitch(FASymbol.SlideShow, Tr("settings.writing_freeze"), Tr("settings.writing_freeze_desc"), Config.WritingFreeze));
-        stack.Children.Add(BuildWeekStartCard());
+        stack.Children.Add(CardCombo(FASymbol.World, Tr("settings.language"), Tr("settings.language_desc"), Config.Language,
+            new (string, LanguageOption)[]
+            {
+                (Tr("settings.lang_zh_cn"), LanguageOption.ChineseSimplified),
+                (Tr("settings.lang_zh_tw"), LanguageOption.ChineseTraditional),
+                ("English", LanguageOption.English),
+                ("Auto", LanguageOption.Auto),
+            }));
         return stack;
     }
 
@@ -516,7 +598,7 @@ public partial class SettingsWindow : GlimpseonWindow
     {
         var stack = MakePageStack(Tr("settings.time"));
         stack.Children.Add(CardSwitch(FASymbol.Calendar, Tr("settings.use_precise_time"), Tr("settings.use_precise_time_desc"), Config.UsePreciseTime));
-        stack.Children.Add(CardText(FASymbol.Earth, Tr("settings.time_server"), Tr("settings.time_server_desc"), Config.TimeServer));
+        stack.Children.Add(CardText("E774", Tr("settings.time_server"), Tr("settings.time_server_desc"), Config.TimeServer));
 
         // 同步状态 + 手动同步(
         var statusText = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Opacity = 0.75 };
@@ -565,6 +647,9 @@ public partial class SettingsWindow : GlimpseonWindow
         stack.Children.Add(Card(FASymbol.Sync, Tr("settings.time_sync_status"), Tr("settings.time_sync_status_desc"), syncRow));
 
         stack.Children.Add(CardSpin(FASymbol.Zoom, Tr("settings.time_offset"), Tr("settings.time_offset_desc"), Config.TimeOffset, -9999, 9999));
+        // 课表的周次基准 归时间页
+        stack.Children.Add(SectionHeader(Tr("settings.group_course")));
+        stack.Children.Add(BuildWeekStartCard());
 
         // 自动偏移: 开关 + 增量(
         var autoToggle = new ToggleSwitch { IsChecked = Config.AutoTimeOffsetEnabled.Value, OnContent = null, OffContent = null };
@@ -591,26 +676,427 @@ public partial class SettingsWindow : GlimpseonWindow
 
     // 外观
 
+    /// <summary>卡片外观预设 一次套用整组</summary>
+    private sealed record SkinPreset(string NameKey, string DescKey, string Bg, int Opacity, string Text, int Radius, int Shadow, int Blur, int Border);
+
+    private static readonly SkinPreset[] Skins =
+    {
+        // 对齐 FullWidget: 每套是一种材质 不靠色相凑数
+        // 真背景模糊 底图由壁纸降采样模糊而来
+        new("settings.skin.glass", "settings.skin.glass_desc", "#101216", 100, "#E8ECEF", 20, 1, 20, 1),
+        // 深空: 半透石墨玻璃 + 薄荷点缀 卡片本身很淡 靠阴影浮起来
+        new("settings.skin.instrument", "settings.skin.instrument_desc", "#101216", 74, "#E8ECEF", 22, 1, 0, 1),
+        // 纸感: 米白纸卡 极淡边线 墨色字
+        new("settings.skin.paper", "settings.skin.paper_desc", "#F7F3EA", 92, "#1F1C18", 18, 1, 0, 1),
+        // 线框: 只有一圈描边没有底色
+        new("settings.skin.wire", "settings.skin.wire_desc", "#FFFFFF", 5, "#F2F2F2", 16, 0, 0, 2),
+        // 贴纸: 白卡黑字 近直角 硬投影
+        new("settings.skin.sticker", "settings.skin.sticker_desc", "#FFFFFF", 100, "#111111", 5, 2, 0, 1),
+        // 极简: 没有卡片
+        new("settings.skin.type", "settings.skin.type_desc", "#000000", 0, "#F2F2F2", 0, 0, 0, 0),
+    };
+
     private Control BuildAppearancePage()
     {
         var stack = MakePageStack(Tr("settings.appearance"));
-        stack.Children.Add(CardCombo(FASymbol.WeatherMoon, Tr("wizard.theme_mode"), Tr("wizard.theme_mode_desc"), Config.ThemeMode,
+
+        // ── 主题: 一键套整组 ──
+        stack.Children.Add(SectionHeader(Tr("settings.skin.title")));
+        stack.Children.Add(Note(Tr("settings.skin.desc")));
+        stack.Children.Add(BuildSkinPicker());
+
+        // ── 卡片外观 ──
+        stack.Children.Add(SectionHeader(Tr("settings.card_group")));
+        stack.Children.Add(CardSpin(FASymbol.View, Tr("settings.card_blur"), Tr("settings.card_blur_desc"), Config.ComponentCardBlur, 0, 40));
+        stack.Children.Add(CardSpin(FASymbol.Crop, Tr("settings.grid.component_card_radius"), Tr("settings.grid.component_card_radius_desc"), Config.ComponentCardRadius, 0, 29));
+        stack.Children.Add(CardCombo("E794", Tr("settings.card_shadow"), Tr("settings.card_shadow_desc"), Config.ComponentCardShadow,
+            new (string, int)[]
+            {
+                (Tr("settings.shadow_soft"), 1),
+                (Tr("settings.shadow_hard"), 2),
+                (Tr("settings.off"), 0),
+            }));
+        stack.Children.Add(CardCombo(FASymbol.Crop, Tr("settings.card_border"), Tr("settings.card_border_desc"), Config.ComponentCardBorder,
+            new (string, int)[]
+            {
+                (Tr("settings.border_thin"), 1),
+                (Tr("settings.border_strong"), 2),
+                (Tr("settings.border_glow"), 3),
+                (Tr("settings.border_twin"), 4),
+                (Tr("settings.off"), 0),
+            }));
+        stack.Children.Add(CardSpin("E793", Tr("settings.grid.component_card_opacity"), Tr("settings.grid.component_card_opacity_desc"), Config.ComponentCardOpacity, 0, 100));
+        stack.Children.Add(CardColor("E790", Tr("settings.card_bg_color"), Tr("settings.card_bg_color_desc"), Config.ComponentCardColor));
+        stack.Children.Add(CardColor("E8C1", Tr("settings.card_text_color"), Tr("settings.card_text_color_desc"), Config.ComponentTextColor));
+
+        // ── 网格: 原独立页并入 ──
+        stack.Children.Add(SectionHeader(Tr("settings.grid.title")));
+        stack.Children.Add(BuildGridSection());
+
+        // ── 其它 ──
+        stack.Children.Add(SectionHeader(Tr("settings.other")));
+        stack.Children.Add(CardCombo("E708", Tr("wizard.theme_mode"), Tr("wizard.theme_mode_desc"), Config.ThemeMode,
             new (string, ThemeMode)[]
             {
                 (Tr("wizard.theme_light"), ThemeMode.Light),
                 (Tr("wizard.theme_dark"), ThemeMode.Dark),
                 (Tr("wizard.theme_system"), ThemeMode.Auto),
             }));
-        stack.Children.Add(CardColor(FASymbol.ColorFill, Tr("wizard.primary_color"), Tr("wizard.primary_color_desc"), Config.ThemeColor));
-        stack.Children.Add(CardCombo(FASymbol.World, Tr("settings.language"), Tr("settings.language_desc"), Config.Language,
-            new (string, LanguageOption)[]
-            {
-                (Tr("settings.lang_zh_cn"), LanguageOption.ChineseSimplified),
-                (Tr("settings.lang_zh_tw"), LanguageOption.ChineseTraditional),
-                ("English", LanguageOption.English),
-                ("Auto", LanguageOption.Auto),
-            }));
+        stack.Children.Add(CardColor("E790", Tr("wizard.primary_color"), Tr("wizard.primary_color_desc"), Config.ThemeColor));
         return stack;
+    }
+
+    // 页内说明小字
+    private static TextBlock Note(string text) => new()
+    {
+        Text = text,
+        FontSize = 12,
+        Opacity = 0.6,
+        TextWrapping = TextWrapping.Wrap,
+        Margin = new Thickness(2, 0, 0, 10),
+    };
+
+    // 网格: 预览 + 两项参数
+    private Control BuildGridSection()
+    {
+        var panel = new StackPanel();
+        var gridPreview = new GridPreviewControl
+        {
+            ShortSideCells = Config.GridShortSideCells.Value,
+            InsetPercent = Config.GridInsetPercent.Value,
+        };
+        var radiusPreview = new CornerRadiusPreviewControl
+        {
+            CardRadius = Config.ComponentCardRadius.Value,
+            CardOpacity = Config.ComponentCardOpacity.Value,
+        };
+        var gridItem = new StackPanel
+        {
+            Spacing = 4,
+            Children =
+            {
+                gridPreview,
+                new TextBlock { Text = Tr("settings.grid.preview"), FontSize = 12, Opacity = 0.7, HorizontalAlignment = HorizontalAlignment.Center },
+            },
+        };
+        var cardItem = new StackPanel
+        {
+            Spacing = 4,
+            Children =
+            {
+                radiusPreview,
+                new TextBlock { Text = Tr("settings.grid.cornerRadius_preview"), FontSize = 12, Opacity = 0.7, HorizontalAlignment = HorizontalAlignment.Center },
+            },
+        };
+        var previewRow = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,Auto,*,Auto,*"), Margin = new Thickness(0, 2, 0, 10) };
+        Grid.SetColumn(gridItem, 1);
+        Grid.SetColumn(cardItem, 3);
+        previewRow.Children.Add(gridItem);
+        previewRow.Children.Add(cardItem);
+        panel.Children.Add(previewRow);
+
+        Config.GridShortSideCells.ValueChanged += v => Dispatcher.UIThread.Post(() => gridPreview.ShortSideCells = v);
+        Config.GridInsetPercent.ValueChanged += v => Dispatcher.UIThread.Post(() => gridPreview.InsetPercent = v);
+        Config.ComponentCardRadius.ValueChanged += v => Dispatcher.UIThread.Post(() => radiusPreview.CardRadius = v);
+        Config.ComponentCardOpacity.ValueChanged += v => Dispatcher.UIThread.Post(() => radiusPreview.CardOpacity = v);
+
+        panel.Children.Add(CardSpin(FASymbol.ViewAll, Tr("settings.grid.short_side_cells"), Tr("settings.grid.short_side_cells_desc"), Config.GridShortSideCells, 6, 96));
+        panel.Children.Add(CardSpin(FASymbol.AllApps, Tr("settings.grid.inset_percent"), Tr("settings.grid.inset_percent_desc"), Config.GridInsetPercent, 0, 30));
+        return panel;
+    }
+
+    // 三列预设卡
+    private Control BuildSkinPicker()
+    {
+        const int columns = 3;
+        var rows = (Skins.Length + columns - 1) / columns;
+        var grid = new Grid { ColumnSpacing = 12, RowSpacing = 14, Margin = new Thickness(0, 0, 0, 6) };
+        for (var c = 0; c < columns; c++)
+        {
+            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+        }
+        for (var r = 0; r < rows; r++)
+        {
+            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        }
+        var accent = ParseColor(Config.ThemeColor.Value);
+        var hosts = new Border[Skins.Length];
+        var checks = new Border[Skins.Length];
+        for (var i = 0; i < Skins.Length; i++)
+        {
+            var skin = Skins[i];
+            var fg = ParseColor(skin.Text);
+
+            // 迷你卡样例
+            var topRow = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("Auto,*,Auto") };
+            topRow.Children.Add(new Border
+            {
+                Width = 5,
+                Height = 5,
+                CornerRadius = new CornerRadius(2.5),
+                Background = new SolidColorBrush(accent),
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            var caption = new TextBlock
+            {
+                Text = Tr("settings.skin.preview"),
+                FontSize = 9,
+                Foreground = new SolidColorBrush(fg, 0.5),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(6, 0, 0, 0),
+            };
+            Grid.SetColumn(caption, 1);
+            topRow.Children.Add(caption);
+
+            var time = new TextBlock
+            {
+                Text = "20:41",
+                FontSize = 28,
+                FontWeight = FontWeight.SemiBold,
+                LetterSpacing = -0.8,
+                Foreground = new SolidColorBrush(fg),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 2, 0, 0),
+            };
+            Grid.SetRow(time, 1);
+
+            var foot = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            foot.Children.Add(new Border
+            {
+                Width = 18,
+                Height = 3,
+                CornerRadius = new CornerRadius(1.5),
+                Background = new SolidColorBrush(accent),
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            foot.Children.Add(new TextBlock
+            {
+                Text = Tr("settings.skin.preview_date"),
+                FontSize = 9.5,
+                Foreground = new SolidColorBrush(fg, 0.55),
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            Grid.SetRow(foot, 2);
+
+            var content = new Grid
+            {
+                Margin = new Thickness(13, 10, 13, 12),
+                RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,*,Auto"),
+                Children = { topRow, time, foot },
+            };
+
+            var previewCard = new Border
+            {
+                Height = 104,
+                CornerRadius = new CornerRadius(Math.Clamp(skin.Radius * 0.8, 2, 24)),
+                Background = PreviewSurface(skin),
+                // 描边强度
+                BorderThickness = new Thickness(skin.Border switch { 0 => 0, 2 => 1.6, 3 => 1.4, _ => 1 }),
+                BorderBrush = skin.Border switch
+                {
+                    3 => new SolidColorBrush(accent, 0.90),
+                    4 => new SolidColorBrush(fg, 0.36),
+                    2 => new SolidColorBrush(fg, 0.55),
+                    1 => new SolidColorBrush(fg, 0.14),
+                    _ => new SolidColorBrush(Colors.Transparent),
+                },
+                BoxShadow = skin.Border switch
+                {
+                    // 霓虹: 强调色外发光
+                    3 => new BoxShadows(
+                        new BoxShadow { Blur = 16, Spread = 2, Color = Color.FromArgb(90, accent.R, accent.G, accent.B) },
+                        new[] { new BoxShadow { Blur = 5, Color = Color.FromArgb(150, accent.R, accent.G, accent.B) } }),
+                    // 双框: 内线由外层再叠一个细框示意
+                    4 => new BoxShadows(new BoxShadow
+                    {
+                        OffsetY = 5,
+                        Blur = 12,
+                        Color = Color.FromArgb(70, 0, 0, 0),
+                    }),
+                    _ => skin.Shadow switch
+                    {
+                        2 => new BoxShadows(new BoxShadow
+                        {
+                            OffsetY = 3,
+                            Blur = 2,
+                            Color = Color.FromArgb(150, 0, 0, 0),
+                        }),
+                        1 => new BoxShadows(new BoxShadow
+                        {
+                            OffsetY = 9,
+                            Blur = 22,
+                            Color = Color.FromArgb(80, 0, 0, 0),
+                        }),
+                        _ => default,
+                    },
+                },
+                Child = content,
+            };
+
+            var check = new Border
+            {
+                Width = 18,
+                Height = 18,
+                CornerRadius = new CornerRadius(9),
+                Background = new SolidColorBrush(accent),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(0, -6, -6, 0),
+                IsVisible = false,
+                Child = new TextBlock
+                {
+                    Text = AppIcons.Check,
+                    FontFamily = FAIcons.SymbolsFont,
+                    FontSize = 10,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
+            };
+            var previewHost = new Grid { Children = { previewCard, check } };
+            if (skin.Opacity <= 0)
+            {
+                // 透明示意框
+                var outlineRadius = Math.Clamp(skin.Radius * 0.8, 4, 16);
+                previewHost.Children.Add(new Rectangle
+                {
+                    Stroke = new SolidColorBrush(fg, 0.32),
+                    StrokeThickness = 1,
+                    StrokeDashArray = new Avalonia.Collections.AvaloniaList<double> { 3, 3 },
+                    RadiusX = outlineRadius,
+                    RadiusY = outlineRadius,
+                    IsHitTestVisible = false,
+                });
+            }
+            else if (skin.Border == 4)
+            {
+                // 双框外线
+                var outerRadius = Math.Clamp(skin.Radius * 0.8 + 3, 2, 26);
+                previewHost.Children.Add(new Rectangle
+                {
+                    Margin = new Thickness(-3),
+                    Stroke = new SolidColorBrush(Colors.Black, 0.22),
+                    StrokeThickness = 3,
+                    RadiusX = outerRadius,
+                    RadiusY = outerRadius,
+                    IsHitTestVisible = false,
+                });
+            }
+
+            var host = new Border
+            {
+                Padding = new Thickness(8),
+                CornerRadius = new CornerRadius(12),
+                BorderThickness = new Thickness(1),
+                BorderBrush = new SolidColorBrush(fg, 0.12),
+                Background = Brushes.Transparent,
+                Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
+                Child = new StackPanel
+                {
+                    Spacing = 5,
+                    Children =
+                    {
+                        previewHost,
+                        new TextBlock { Text = Tr(skin.NameKey), FontSize = 12.5, FontWeight = FontWeight.SemiBold },
+                        new TextBlock { Text = Tr(skin.DescKey), FontSize = 10.5, Opacity = 0.55, TextWrapping = TextWrapping.Wrap },
+                    },
+                },
+            };
+            hosts[i] = host;
+            checks[i] = check;
+            host.PointerEntered += (_, _) => host.Background = new SolidColorBrush(Colors.White, 0.05);
+            host.PointerExited += (_, _) => host.Background = Brushes.Transparent;
+            host.PointerReleased += (_, _) =>
+            {
+                Config.ComponentCardColor.Value = skin.Bg;
+                Config.ComponentCardOpacity.Value = skin.Opacity;
+                Config.ComponentTextColor.Value = skin.Text;
+                Config.ComponentCardRadius.Value = skin.Radius;
+                Config.ComponentCardShadow.Value = skin.Shadow;
+                Config.ComponentCardBlur.Value = skin.Blur;
+                Config.ComponentCardBorder.Value = skin.Border;
+                RefreshSkinMarks(hosts, checks);
+                RebuildWidgetsForSkin();
+            };
+            Grid.SetColumn(host, i % columns);
+            Grid.SetRow(host, i / columns);
+            grid.Children.Add(host);
+        }
+        RefreshSkinMarks(hosts, checks);
+        return grid;
+    }
+
+    // 换肤后重建组件
+    private void RebuildWidgetsForSkin()
+    {
+        if (Owner is MainWindow main)
+        {
+            Dispatcher.UIThread.Post(() => main.HomeView.ComponentManager.RebuildAllForAppearance());
+        }
+    }
+
+    // 预览底色
+    private static IBrush PreviewSurface(SkinPreset skin)
+    {
+        if (skin.Opacity <= 0)
+        {
+            return Brushes.Transparent;
+        }
+        Color top;
+        Color bottom;
+        if (skin.Blur > 0)
+        {
+            top = Color.Parse("#4A5862");
+            bottom = Color.Parse("#101820");
+        }
+        else
+        {
+            var bg = ParseColor(skin.Bg);
+            top = ShiftColor(bg, 0.12);
+            bottom = ShiftColor(bg, -0.12);
+        }
+        var a = (byte)Math.Round(skin.Opacity / 100.0 * 255);
+        return new LinearGradientBrush
+        {
+            StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+            EndPoint = new RelativePoint(1, 1, RelativeUnit.Relative),
+            GradientStops =
+            {
+                new GradientStop(Color.FromArgb(a, top.R, top.G, top.B), 0),
+                new GradientStop(Color.FromArgb(a, bottom.R, bottom.G, bottom.B), 1),
+            },
+        };
+    }
+
+    private static Color ShiftColor(Color c, double k) => Common.ShiftColor(c, k);
+
+    // 选中态
+    private void RefreshSkinMarks(Border[] hosts, Border[] checks)
+    {
+        var accent = ParseColor(Config.ThemeColor.Value);
+        var luminance = (0.299 * accent.R + 0.587 * accent.G + 0.114 * accent.B) / 255.0;
+        var onAccent = luminance > 0.62 ? Color.FromRgb(20, 20, 20) : Colors.White;
+        for (var i = 0; i < hosts.Length; i++)
+        {
+            var s = Skins[i];
+            var active = Config.ComponentCardColor.Value == s.Bg
+                && Config.ComponentCardOpacity.Value == s.Opacity
+                && Config.ComponentTextColor.Value == s.Text
+                && Config.ComponentCardRadius.Value == s.Radius
+                && Config.ComponentCardShadow.Value == s.Shadow
+                && Config.ComponentCardBlur.Value == s.Blur
+                && Config.ComponentCardBorder.Value == s.Border;
+            hosts[i].BorderBrush = active
+                ? new SolidColorBrush(accent)
+                : new SolidColorBrush(ParseColor(s.Text), 0.12);
+            checks[i].IsVisible = active;
+            checks[i].Background = new SolidColorBrush(accent);
+            ((TextBlock)checks[i].Child!).Foreground = new SolidColorBrush(onAccent);
+        }
     }
 
     // 天气
@@ -748,7 +1234,7 @@ public partial class SettingsWindow : GlimpseonWindow
                 (Tr("settings.weather_interval_12h"), "12h"),
                 (Tr("settings.weather_interval_24h"), "24h"),
             }));
-        stack.Children.Add(CardCombo(FASymbol.WeatherSunny, Tr("settings.weather_unit"), Tr("settings.weather_unit_desc"), Config.WeatherUnit,
+        stack.Children.Add(CardCombo("E706", Tr("settings.weather_unit"), Tr("settings.weather_unit_desc"), Config.WeatherUnit,
             new (string, string)[]
             {
                 (Tr("settings.weather_unit_c"), "c"),
@@ -1002,59 +1488,6 @@ public partial class SettingsWindow : GlimpseonWindow
 
     // 网格
 
-    private Control BuildGridPage()
-    {
-        var stack = MakePageStack(Tr("settings.grid.title"));
-
-        // 两个预览(
-        var gridPreview = new GridPreviewControl
-        {
-            ShortSideCells = Config.GridShortSideCells.Value,
-            InsetPercent = Config.GridInsetPercent.Value,
-        };
-        var radiusPreview = new CornerRadiusPreviewControl
-        {
-            CardRadius = Config.ComponentCardRadius.Value,
-            CardOpacity = Config.ComponentCardOpacity.Value,
-        };
-        var previewRow = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,Auto,*,Auto,*") };
-        var gridItem = new StackPanel
-        {
-            Spacing = 4,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Children =
-            {
-                gridPreview,
-                new TextBlock { Text = Tr("settings.grid.preview"), FontSize = 12, Opacity = 0.7, HorizontalAlignment = HorizontalAlignment.Center },
-            },
-        };
-        var cardItem = new StackPanel
-        {
-            Spacing = 4,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Children =
-            {
-                radiusPreview,
-                new TextBlock { Text = Tr("settings.grid.cornerRadius_preview"), FontSize = 12, Opacity = 0.7, HorizontalAlignment = HorizontalAlignment.Center },
-            },
-        };
-        Grid.SetColumn(gridItem, 1);
-        Grid.SetColumn(cardItem, 3);
-        previewRow.Children.Add(gridItem);
-        previewRow.Children.Add(cardItem);
-        stack.Children.Add(new Border { Padding = new Thickness(0, 10, 0, 10), Child = previewRow });
-
-        Config.GridShortSideCells.ValueChanged += v => Dispatcher.UIThread.Post(() => gridPreview.ShortSideCells = v);
-        Config.GridInsetPercent.ValueChanged += v => Dispatcher.UIThread.Post(() => gridPreview.InsetPercent = v);
-        Config.ComponentCardRadius.ValueChanged += v => Dispatcher.UIThread.Post(() => radiusPreview.CardRadius = v);
-        Config.ComponentCardOpacity.ValueChanged += v => Dispatcher.UIThread.Post(() => radiusPreview.CardOpacity = v);
-
-        stack.Children.Add(CardSpin(FASymbol.ViewAll, Tr("settings.grid.short_side_cells"), Tr("settings.grid.short_side_cells_desc"), Config.GridShortSideCells, 6, 96));
-        stack.Children.Add(CardSpin(FASymbol.AllApps, Tr("settings.grid.inset_percent"), Tr("settings.grid.inset_percent_desc"), Config.GridInsetPercent, 0, 30));
-        stack.Children.Add(CardSpin(FASymbol.ColorLine, Tr("settings.grid.component_card_opacity"), Tr("settings.grid.component_card_opacity_desc"), Config.ComponentCardOpacity, 0, 100));
-        stack.Children.Add(CardSpin(FASymbol.Crop, Tr("settings.grid.component_card_radius"), Tr("settings.grid.component_card_radius_desc"), Config.ComponentCardRadius, 0, 29));
-        return stack;
-    }
 
     // 日志
 
@@ -1202,7 +1635,7 @@ public partial class SettingsWindow : GlimpseonWindow
         stack.Spacing = 8;
 
         // 本地磁盘
-        stack.Children.Add(SectionHeader(Tr("settings.storage.drives"), FASymbol.Folder));
+        stack.Children.Add(SectionHeader(Tr("settings.storage.drives")));
         var drivesPanel = new StackPanel();
         stack.Children.Add(new Border
         {
@@ -1215,7 +1648,7 @@ public partial class SettingsWindow : GlimpseonWindow
         });
 
         // 应用数据
-        stack.Children.Add(SectionHeader(Tr("settings.storage.app_data"), FASymbol.Page));
+        stack.Children.Add(SectionHeader(Tr("settings.storage.app_data")));
 
         var totalValue = MakeMetricValue();
         var ratioValue = MakeMetricValue();
@@ -1594,6 +2027,7 @@ public partial class SettingsWindow : GlimpseonWindow
             Margin = new Thickness(0, 0, 0, 8),
         });
 
+        stack.Children.Add(SectionHeader(Tr("settings.ai.title")));
         stack.Children.Add(CardSwitch("E99A", Tr("settings.ai.enabled"), Tr("settings.ai.enabled_desc"), Config.AiEnabled));
 
         var providers = new (string Id, string Label)[]
@@ -1680,7 +2114,8 @@ public partial class SettingsWindow : GlimpseonWindow
         stack.Children.Add(Card("E191", Tr("settings.ai.api_key"), Tr("settings.ai.api_key_desc"), keyBox));
         stack.Children.Add(Card("E70F", Tr("settings.ai.model"), Tr("settings.ai.model_desc"), modelBox));
 
-        stack.Children.Add(SectionHeader(Tr("settings.ai.advanced"), FASymbol.Setting));
+        stack.Children.Add(SectionHeader(Tr("settings.ai.advanced")));
+        stack.Children.Add(SectionHeader(Tr("settings.group_ai_param")));
         stack.Children.Add(CardSpin("E945", Tr("settings.ai.temperature"), Tr("settings.ai.temperature_desc"), Config.AiTemperature, 0, 2, 0.1));
         stack.Children.Add(CardSpin("E8A5", Tr("settings.ai.max_tokens"), Tr("settings.ai.max_tokens_desc"), Config.AiMaxTokens, 64, 8192));
         stack.Children.Add(CardSpin("E823", Tr("settings.ai.timeout"), Tr("settings.ai.timeout_desc"), Config.AiTimeout, 5, 300));
@@ -1728,6 +2163,7 @@ public partial class SettingsWindow : GlimpseonWindow
     private Control BuildAdvancedPage()
     {
         var stack = MakePageStack(Tr("settings.advanced"));
+        stack.Children.Add(SectionHeader(Tr("settings.group_window")));
         stack.Children.Add(CardCombo(FASymbol.Cancel, Tr("settings.close_action"), Tr("settings.close_action_desc"), Config.CloseAction,
             new (string, string)[]
             {
@@ -1737,6 +2173,7 @@ public partial class SettingsWindow : GlimpseonWindow
         stack.Children.Add(CardSwitch(FASymbol.Switch, Tr("settings.allow_multiple_instances"), Tr("settings.allow_multiple_instances_desc"), Config.AllowMultipleInstances));
         stack.Children.Add(CardSwitch(FASymbol.Video, Tr("settings.gpu_acceleration"), Tr("settings.gpu_acceleration_desc"), Config.EnableGpuAcceleration));
         // GitHub 加速源
+        stack.Children.Add(SectionHeader(Tr("settings.group_update")));
         stack.Children.Add(CardCombo(FASymbol.Globe, Tr("settings.github_source"), Tr("settings.github_source_desc"), Config.DownloadSource,
             DownloadSources.Sources
                 .Select(kv => (Tr(kv.Value.NameKey), kv.Key))
@@ -1755,6 +2192,7 @@ public partial class SettingsWindow : GlimpseonWindow
         };
         stack.Children.Add(Card(FASymbol.SaveAs, Tr("settings.config_import_export"), Tr("settings.config_import_export_desc"), ioRow));
 
+        stack.Children.Add(SectionHeader(Tr("settings.group_maint")));
         stack.Children.Add(CardButton(FASymbol.Undo, Tr("settings.reset_default"), Tr("settings.reset_default_desc"), Tr("settings.reset_default_button"),
             () => _ = ResetDefaultAsync(stack)));
         stack.Children.Add(CardSwitch(FASymbol.Flag, Tr("settings.debug_mode"), Tr("settings.debug_mode_desc"), Config.DebugMode));

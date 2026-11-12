@@ -89,36 +89,36 @@ internal static class CustomActions
         new("taskview", "ViewAll", () => Native.SendKeys(VkWin, VkTab)),
         new("showdesktop", "TwoBars", () => Native.SendKeys(VkWin, VkD)),
         new("clipboard", "Copy", () => Native.SendKeys(VkWin, VkV)),
-        new("maximize", "FullScreenMaximize", () => Native.SendKeys(VkWin, VkUp)),
+        new("maximize", "FullScreen", () => Native.SendKeys(VkWin, VkUp)),
 
         // 音量 画面
-        new("mute", "Volume", () => Native.SendKeys(VkMediaMute)),
+        new("mute", "Mute", () => Native.SendKeys(VkMediaMute)),
         new("volume", "Volume", () => ToggleVolume?.Invoke(), true),
-        new("brightness", "WeatherSunny", () => ToggleBrightness?.Invoke(), true),
+        new("brightness", "Brightness", () => ToggleBrightness?.Invoke(), true),
         new("playpause", "Play", () => Native.SendKeys(VkMediaPlay)),
 
         // 文件夹
         new("explorer", "Folder", () => Launch("explorer.exe")),
         new("documents", "Page", () => Launch("shell:Personal")),
         new("downloads", "Download", OpenDownloads),
-        new("pictures", "SaveLocal", () => Launch("shell:MyPictures")),
-        new("recyclebin", "Sync", () => Launch("shell:RecycleBinFolder")),
+        new("pictures", "Pictures", () => Launch("shell:MyPictures")),
+        new("recyclebin", "Delete", () => Launch("shell:RecycleBinFolder")),
 
         // 程序与工具
         new("notepad", "Page", () => Launch("notepad.exe")),
-        new("calc", "Ruler", () => Launch("calc.exe")),
-        new("paint", "SaveAs", () => Launch("mspaint.exe")),
-        new("taskmgr", "TwoBars", () => Launch("taskmgr.exe")),
+        new("calc", "Calculator", () => Launch("calc.exe")),
+        new("paint", "Edit", () => Launch("mspaint.exe")),
+        new("taskmgr", "Diagnostic", () => Launch("taskmgr.exe")),
 
         // 课程表与设置
         new("schedule", "Clock", ShowSchedule),
         new("settings", "Settings", () => Launch("ms-settings:")),
 
         // 电源
-        new("lock", "ReportHacked", Native.LockScreen),
-        new("sleep", "Clock", Native.SleepSystem),
-        new("restart", "RotateClockwise", () => Launch("shutdown.exe", "/r /t 0")),
-        new("shutdown", "Dismiss", () => Launch("shutdown.exe", "/s /t 0")),
+        new("lock", "Lock", Native.LockScreen),
+        new("sleep", "Moon", Native.SleepSystem),
+        new("restart", "Refresh", () => Launch("shutdown.exe", "/r /t 0")),
+        new("shutdown", "Power", () => Launch("shutdown.exe", "/s /t 0")),
     ];
 
     public static Action? ToggleVolume { get; set; }

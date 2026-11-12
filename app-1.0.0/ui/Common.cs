@@ -44,6 +44,11 @@ internal static class ThemeSense
 {
     public static bool IsDark(StyledElement e)
     {
+        // 卡片内取色以卡片明暗为准
+        if (e is WidgetCardBase card)
+        {
+            return card.CardIsDark;
+        }
         if (e.ActualThemeVariant == ThemeVariant.Dark)
         {
             return true;
@@ -56,9 +61,113 @@ internal static class ThemeSense
     }
 }
 
+// 图标唯一来源 Segoe Fluent Icons 码位全部对照字形表核对 语义不得混用
+public static class AppIcons
+{
+    public static readonly FontFamily Family = new("Segoe Fluent Icons, Segoe MDL2 Assets");
+
+    public const string Menu = "\uE700";
+    public const string Edit = "\uE70F";
+    public const string Settings = "\uE713";
+    public const string Search = "\uE721";
+    public const string Attach = "\uE723";
+    public const string Send = "\uE724";
+    public const string Refresh = "\uE72C";
+    public const string Delete = "\uE74D";
+    public const string Save = "\uE74E";
+    public const string Play = "\uE768";
+    public const string Pause = "\uE769";
+    public const string ChevronLeft = "\uE76B";
+    public const string ChevronRight = "\uE76C";
+    public const string ChevronDown = "\uE70D";
+    public const string ChevronUp = "\uE70E";
+    public const string Add = "\uE710";
+    public const string Close = "\uE711";
+    public const string Check = "\uE73E";
+    public const string Calendar = "\uE787";
+    public const string Clock = "\uE823";
+    public const string Stopwatch = "\uE916";
+    public const string History = "\uE81C";
+    public const string Calculator = "\uE8EF";
+    public const string Music = "\uE8D6";
+    public const string Mouse = "\uE8B0";
+    public const string Globe = "\uE774";
+    public const string Home = "\uE80F";
+    public const string Power = "\uE7E8";
+    public const string Lock = "\uE72E";
+    public const string Unlock = "\uE785";
+    public const string Volume = "\uE767";
+    public const string Mute = "\uE74F";
+    public const string People = "\uE716";
+    public const string Mail = "\uE715";
+    public const string Pin = "\uE718";
+    public const string More = "\uE712";
+    public const string OpenInNew = "\uE8A7";
+    public const string Chat = "\uE8BD";
+    public const string Robot = "\uE99A";
+    public const string Photo = "\uE91B";
+    public const string Camera = "\uE722";
+    public const string Library = "\uE1D3";
+    public const string Books = "\uE8F1";
+    public const string Book = "\uE82D";
+    public const string Diagnostic = "\uE9D9";
+    public const string Sync = "\uE895";
+    public const string Page = "\uE7C3";
+    public const string Document = "\uE8A5";
+    public const string List = "\uE71D";
+    public const string ListLines = "\uE8FD";
+    public const string Flash = "\uE945";
+    public const string Stop = "\uE15B";
+    public const string Sun = "\uE706";
+    public const string Moon = "\uE708";
+    public const string Wifi = "\uE701";
+    public const string Education = "\uE7BE";
+    public const string Megaphone = "\uE789";
+    public const string Previous = "\uE100";
+    public const string Next = "\uE101";
+    public const string Wrench = "\uE90F";
+    public const string Blocked = "\uE92C";
+    public const string Info = "\uE946";
+    public const string Warning = "\uE7BA";
+    public const string Logout = "\uE748";
+    public const string Grid = "\uE8A1";
+    public const string Download = "\uE896";
+    public const string Copy = "\uE77F";
+    public const string Desktop = "\uE7F4";
+    public const string Laptop = "\uE7F8";
+    public const string Tag = "\uE8EC";
+    public const string Font = "\uE8D2";
+    public const string Keyboard = "\uE92E";
+    public const string Palette = "\uE790";
+    public const string Bell = "\uE791";
+    public const string Folder = "\uE8B7";
+    public const string Contact = "\uE888";
+    public const string Devices = "\uE975";
+    public const string Undo = "\uE10E";
+    public const string Redo = "\uE10D";
+    public const string Zoom = "\uE71E";
+    public const string Code = "\uE943";
+    public const string Image = "\uE91B";
+
+    public static TextBlock Create(string glyph, double fontSize = 16) => new()
+    {
+        Text = glyph,
+        FontFamily = Family,
+        FontSize = fontSize,
+    };
+
+    public static TextBlock Center(string glyph, double fontSize = 16)
+    {
+        var icon = Create(glyph, fontSize);
+        icon.VerticalAlignment = VerticalAlignment.Center;
+        return icon;
+    }
+}
+
 public static class FAIcons
 {
-    public static readonly FontFamily SymbolsFont = new("avares://FluentAvalonia/Fonts#Symbols");
+    // 统一走 Segoe Fluent Icons 不再使用 FluentAvalonia 自带精简字体
+    public static readonly FontFamily SymbolsFont = AppIcons.Family;
 
     public static FAFontIcon Icon(FASymbol symbol, double fontSize = 16) => new()
     {
@@ -67,10 +176,50 @@ public static class FAIcons
         FontSize = fontSize,
     };
 
+    // 语义码位直引 与 AppIcons 常量配合使用
+    public static FAFontIcon Glyph(string glyph, double fontSize = 16) => new()
+    {
+        FontFamily = SymbolsFont,
+        Glyph = glyph,
+        FontSize = fontSize,
+    };
+
+    public static FAFontIcon GlyphCenter(string glyph, double fontSize = 16)
+    {
+        var icon = Glyph(glyph, fontSize);
+        icon.VerticalAlignment = VerticalAlignment.Center;
+        return icon;
+    }
+
     public static FAFontIcon IconByName(string? name, double fontSize = 16)
     {
-        var symbol = Enum.TryParse<FASymbol>(name, out var parsed) ? parsed : FASymbol.Edit;
-        return Icon(symbol, fontSize);
+        // 语义名优先 避免落到 F8 段旧码位或无关字形
+        var glyph = name switch
+        {
+            "WeatherSunny" or "Brightness" => AppIcons.Sun,
+            "WeatherMoon" or "Moon" => AppIcons.Moon,
+            "Clock" => AppIcons.Clock,
+            "Calculator" => AppIcons.Calculator,
+            "Lock" => AppIcons.Lock,
+            "Power" => AppIcons.Power,
+            "Photo" or "Pictures" => AppIcons.Photo,
+            "Diagnostic" => AppIcons.Diagnostic,
+            "Mute" => AppIcons.Mute,
+            "Delete" => AppIcons.Delete,
+            "Edit" => AppIcons.Edit,
+            "Settings" => AppIcons.Settings,
+            "Refresh" => AppIcons.Refresh,
+            _ => null,
+        };
+        if (glyph is not null)
+        {
+            return Glyph(glyph, fontSize);
+        }
+        if (Enum.TryParse<FASymbol>(name, out var parsed) && (int)parsed < 0xF0000)
+        {
+            return Glyph(char.ConvertFromUtf32((int)parsed), fontSize);
+        }
+        return Glyph(AppIcons.Edit, fontSize);
     }
 
     public static FAFontIcon IconCenter(FASymbol symbol, double fontSize = 16)
@@ -135,8 +284,7 @@ public static class Common
         };
     }
 
-    public static readonly FontFamily AppFontFamily = new(
-        "avares://GlimpseonMain/Assets/font/HarmonyOS_Sans/HarmonyOS_Sans_Regular.ttf, avares://GlimpseonMain/Assets/font/HarmonyOS_Sans/HarmonyOS_Sans_Bold.ttf, HarmonyOS Sans, HarmonyOS Sans SC, Microsoft YaHei UI, Microsoft YaHei, Segoe UI");
+    public static readonly FontFamily AppFontFamily = WidgetFonts.Ui;
 
     public static TextBlock MakeTitle(string text) => new()
     {
@@ -222,6 +370,18 @@ public static class Common
 
     public static Color ParseAccentColor(string? text) =>
         !string.IsNullOrWhiteSpace(text) && Color.TryParse(text.Trim(), out var c) ? c : Color.Parse("#30c361");
+
+    /// <summary>同色系提亮/压暗 k∈[-1,1]</summary>
+    public static Color ShiftColor(Color c, double k)
+    {
+        var t = Math.Clamp(k, -1, 1);
+        var target = t >= 0 ? Colors.White : Colors.Black;
+        var m = Math.Abs(t);
+        return Color.FromArgb(c.A,
+            (byte)Math.Round(c.R + (target.R - c.R) * m),
+            (byte)Math.Round(c.G + (target.G - c.G) * m),
+            (byte)Math.Round(c.B + (target.B - c.B) * m));
+    }
 
     public static Window ResolveActiveWindow(Window fallback)
     {
@@ -482,7 +642,7 @@ public static class ComponentExpander
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
             CornerRadius = new CornerRadius(15),
-            Content = FAIcons.IconGlyph("E8BB", 13),
+            Content = FAIcons.IconGlyph("E711", 13),
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 10, 0),
@@ -660,6 +820,44 @@ public sealed class WidgetSurfacePalette
         (byte)(Card.R + (tint.R - Card.R) * t),
         (byte)(Card.G + (tint.G - Card.G) * t),
         (byte)(Card.B + (tint.B - Card.B) * t));
+}
+
+// 组件字色令牌 四档弱化 全库统一
+/// <summary>字色四档: Fg 全值 / Muted 0.62 / Faint 0.30 / Sub 走色板</summary>
+public static class CardInk
+{
+    // 次要墨色 58% / 26%
+    public const double MutedOpacity = 0.58;
+    public const double FaintOpacity = 0.26;
+
+    public static SolidColorBrush Fg(WidgetSurfacePalette p) => new(p.Text);
+
+    // 次级文本 62% 弱化
+    public static SolidColorBrush Muted(WidgetSurfacePalette p) => new(p.Text, MutedOpacity);
+
+    // 极弱 占位/脚注 38%
+    public static SolidColorBrush Faint(WidgetSurfacePalette p) => new(p.Text, FaintOpacity);
+
+    // 语义色: 警示/危险 阈值触发
+    public static SolidColorBrush Warn() => new(Color.Parse("#f0a33a"));
+    public static SolidColorBrush Danger() => new(Color.Parse("#e5484d"));
+}
+
+// 组件统一强调色 用户主题色兜底
+/// <summary>全组件唯一强调色入口 替换散落的硬编码蓝绿</summary>
+public static class CardAccent
+{
+    public static Color Value => Common.ParseAccentColor(Config.ThemeColor.Value);
+    public static SolidColorBrush Brush() => new(Value);
+    public static SolidColorBrush Brush(double opacity) => new(Value, opacity);
+
+    // 强调色实底上的字色 亮底用深字 暗底用白字
+    public static SolidColorBrush Ink()
+    {
+        var c = Value;
+        var luminance = (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) / 255.0;
+        return new SolidColorBrush(luminance > 0.62 ? Color.FromRgb(22, 22, 22) : Colors.White);
+    }
 }
 
 /// <summary>Markdown 渲染 主题化后处理 插件详情/AI 气泡共用</summary>

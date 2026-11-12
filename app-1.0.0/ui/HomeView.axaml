@@ -39,7 +39,7 @@
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
     <Style Selector="TextBlock.profile-menu-action-glyph">
-      <Setter Property="FontFamily" Value="avares://FluentAvalonia/Fonts#Symbols" />
+      <Setter Property="FontFamily" Value="Segoe Fluent Icons" />
       <Setter Property="Foreground" Value="{DynamicResource ProfileMenuAccentBrush}" />
       <Setter Property="FontSize" Value="20" />
       <Setter Property="VerticalAlignment" Value="Center" />
@@ -83,10 +83,11 @@
         <local:PageIndicator x:Name="PageIndicator" Width="120" Height="20" VerticalAlignment="Center" HorizontalAlignment="Center" />
         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,16,0">
           <Button x:Name="AddPageBtn" IsVisible="False" Click="OnAddPageClicked" />
+          <Button x:Name="ArrangeBtn" IsVisible="False" Click="OnArrangeLayoutClicked" />
           <Button x:Name="RenamePageBtn" IsVisible="False" Click="OnRenamePageClicked" />
           <Button x:Name="DelPageBtn" IsVisible="False" Click="OnDeletePageClicked" />
           <Button x:Name="MenuBtn" Width="36" Height="36" Padding="0" Background="Transparent" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Click="OnMenuClicked">
-            <fa:FAFontIcon FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE700;" FontSize="16" />
+            <fa:FAFontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE700;" FontSize="16" />
           </Button>
         </StackPanel>
       </Panel>
@@ -116,13 +117,13 @@
               <Border Height="1" Background="{DynamicResource ProfileMenuDividerBrush}" />
               <Button x:Name="ProfileMenuSettingsBtn" Classes="profile-menu-action" Click="OnProfileMenuSettingsClick">
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
-                  <fa:FAFontIcon Classes="profile-menu-action-icon" FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE713;" />
+                  <fa:FAFontIcon Classes="profile-menu-action-icon" FontFamily="Segoe Fluent Icons" Glyph="&#xE713;" />
                   <TextBlock x:Name="ProfileMenuSettingsText" Grid.Column="1" Classes="profile-menu-action-text" />
                 </Grid>
               </Button>
               <Button x:Name="ProfileMenuEditBtn" Classes="profile-menu-action" Click="OnProfileMenuEditClick">
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
-                  <fa:FAFontIcon Classes="profile-menu-action-icon" FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE104;" />
+                  <fa:FAFontIcon Classes="profile-menu-action-icon" FontFamily="Segoe Fluent Icons" Glyph="&#xE104;" />
                   <TextBlock x:Name="ProfileMenuEditText" Grid.Column="1" Classes="profile-menu-action-text" />
                 </Grid>
               </Button>
@@ -152,7 +153,7 @@
             <StackPanel Spacing="6">
               <Button x:Name="ProfileMenuBackBtn" Classes="profile-menu-action" HorizontalAlignment="Left" Click="OnProfileMenuPowerBackClick">
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
-                  <fa:FAFontIcon Classes="profile-menu-action-icon" FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE112;" />
+                  <fa:FAFontIcon Classes="profile-menu-action-icon" FontFamily="Segoe Fluent Icons" Glyph="&#xE112;" />
                   <TextBlock x:Name="ProfileMenuBackText" Grid.Column="1" Classes="profile-menu-action-text" />
                 </Grid>
               </Button>
@@ -166,7 +167,7 @@
               </Button>
               <Button x:Name="ProfileMenuRestartBtn" Classes="profile-menu-action" Click="OnProfileMenuRestartClick">
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
-                  <fa:FAFontIcon Classes="profile-menu-action-icon" FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE149;" />
+                  <fa:FAFontIcon Classes="profile-menu-action-icon" FontFamily="Segoe Fluent Icons" Glyph="&#xE149;" />
                   <TextBlock x:Name="ProfileMenuRestartText" Grid.Column="1" Classes="profile-menu-action-text" />
                 </Grid>
               </Button>
@@ -178,7 +179,7 @@
               </Button>
               <Button x:Name="ProfileMenuSleepBtn" Classes="profile-menu-action" Click="OnProfileMenuSleepClick">
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
-                  <fa:FAFontIcon Classes="profile-menu-action-icon" FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xF8102;" />
+                  <fa:FAFontIcon Classes="profile-menu-action-icon" FontFamily="Segoe Fluent Icons" Glyph="&#xE708;" />
                   <TextBlock x:Name="ProfileMenuSleepText" Grid.Column="1" Classes="profile-menu-action-text" />
                 </Grid>
               </Button>

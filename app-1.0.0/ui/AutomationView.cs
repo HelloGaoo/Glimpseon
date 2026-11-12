@@ -192,7 +192,7 @@ public class AutomationView : UserControl
             Spacing = 6,
             Children =
             {
-                FAIcons.IconGlyph("E9D9", 14),
+                FAIcons.IconGlyph("E8A5", 14),
                 new TextBlock
                 {
                     Text = count > 0
@@ -529,14 +529,14 @@ public class AutomationView : UserControl
         panel.Children.Add(trigRows);
 
         // 条件
-        panel.Children.Add(MakeSectionHeader("E9D2", "automation.section_conditions", null, null));
+        panel.Children.Add(MakeSectionHeader("E71C", "automation.section_conditions", null, null));
         panel.Children.Add(BuildConditionEditor(draft));
 
         // 动作
         var actRows = new StackPanel { Spacing = 8 };
         var rebuildActions = CreateRebuilder(SecAction, actRows, draft.Actions);
         rebuildActions();
-        panel.Children.Add(MakeSectionHeader("E931", "automation.section_actions", "automation.add_action", () =>
+        panel.Children.Add(MakeSectionHeader("E768", "automation.section_actions", "automation.add_action", () =>
         {
             var info = AutomationRegistry.ActionInfos.FirstOrDefault();
             if (info is null)

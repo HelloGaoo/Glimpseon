@@ -405,7 +405,7 @@ public static class Config
     public static readonly ConfigItem<bool> ShowClock = new("Time", "ShowClock", true);
     public static readonly ConfigItem<bool> ShowClockSeconds = new("Time", "ShowClockSeconds", true);
     public static readonly ConfigItem<bool> ShowLunarCalendar = new("Time", "ShowLunarCalendar", true);
-    public static readonly ConfigItem<string> ClockColor = new("Time", "ClockColor", "#FFFFFF");
+    public static readonly ConfigItem<string> ClockColor = new("Time", "ClockColor", "");
     public static readonly ConfigItem<int> ClockSize = new("Time", "ClockSize", 80, min: 40, max: 120);
     public static readonly ConfigItem<int> DateSize = new("Time", "DateSize", 16, min: 10, max: 40);
     public static readonly ConfigItem<int> TimeOffset = new("Time", "TimeOffset", 0, min: -9999, max: 9999);
@@ -522,6 +522,15 @@ public static class Config
 
     public static readonly ConfigItem<int> ComponentCardOpacity = new("Grid", "ComponentCardOpacity", 55, min: 0, max: 100);
     public static readonly ConfigItem<int> ComponentCardRadius = new("Grid", "ComponentCardRadius", 16, min: 0, max: 29);
+
+    // 全局外观: 空串 = 跟随主题明暗
+    public static readonly ConfigItem<string> ComponentCardColor = new("Grid", "ComponentCardColor", "");
+    public static readonly ConfigItem<string> ComponentTextColor = new("Grid", "ComponentTextColor", "");
+    public static readonly ConfigItem<int> ComponentCardShadow = new("Grid", "ComponentCardShadow", 1, min: 0, max: 2);
+    // 毛玻璃半径 0=纯色 越大越糊
+    public static readonly ConfigItem<int> ComponentCardBlur = new("Grid", "ComponentCardBlur", 0, min: 0, max: 40);
+    // 卡片描边 0=无 1=细 2=强 3=强调色发光 4=双框
+    public static readonly ConfigItem<int> ComponentCardBorder = new("Grid", "ComponentCardBorder", 1, min: 0, max: 4);
 
     // Download
     public static readonly ConfigItem<string> DownloadSource = new("Download", "Source", "edgeone",

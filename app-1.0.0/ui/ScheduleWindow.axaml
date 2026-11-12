@@ -31,37 +31,37 @@
       <fa:FANavigationView.MenuItems>
         <fa:FANavigationViewItem x:Name="NavCourse" Tag="course">
           <fa:FANavigationViewItem.IconSource>
-            <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE8C0;" FontSize="20" />
+            <fa:FAFontIconSource FontFamily="Segoe Fluent Icons" Glyph="&#xE8A1;" FontSize="20" />
           </fa:FANavigationViewItem.IconSource>
         </fa:FANavigationViewItem>
         <fa:FANavigationViewItem x:Name="NavTime" Tag="time">
           <fa:FANavigationViewItem.IconSource>
-            <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE121;" FontSize="20" />
+            <fa:FAFontIconSource FontFamily="Segoe Fluent Icons" Glyph="&#xE823;" FontSize="20" />
           </fa:FANavigationViewItem.IconSource>
         </fa:FANavigationViewItem>
         <fa:FANavigationViewItem x:Name="NavAdjust" Tag="adjust">
           <fa:FANavigationViewItem.IconSource>
-            <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE787;" FontSize="20" />
+            <fa:FAFontIconSource FontFamily="Segoe Fluent Icons" Glyph="&#xE787;" FontSize="20" />
           </fa:FANavigationViewItem.IconSource>
         </fa:FANavigationViewItem>
         <fa:FANavigationViewItem x:Name="NavDuty" Tag="duty">
           <fa:FANavigationViewItem.IconSource>
-            <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE716;" FontSize="20" />
+            <fa:FAFontIconSource FontFamily="Segoe Fluent Icons" Glyph="&#xE716;" FontSize="20" />
           </fa:FANavigationViewItem.IconSource>
         </fa:FANavigationViewItem>
         <fa:FANavigationViewItem x:Name="NavRoster" Tag="roster">
           <fa:FANavigationViewItem.IconSource>
-            <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE838;" FontSize="20" />
+            <fa:FAFontIconSource FontFamily="Segoe Fluent Icons" Glyph="&#xE779;" FontSize="20" />
           </fa:FANavigationViewItem.IconSource>
         </fa:FANavigationViewItem>
         <fa:FANavigationViewItem x:Name="NavSubject" Tag="subject">
           <fa:FANavigationViewItem.IconSource>
-            <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE82D;" FontSize="20" />
+            <fa:FAFontIconSource FontFamily="Segoe Fluent Icons" Glyph="&#xE82D;" FontSize="20" />
           </fa:FANavigationViewItem.IconSource>
         </fa:FANavigationViewItem>
         <fa:FANavigationViewItem x:Name="NavProfile" Tag="profile">
           <fa:FANavigationViewItem.IconSource>
-            <fa:FAFontIconSource FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE8F1;" FontSize="20" />
+            <fa:FAFontIconSource FontFamily="Segoe Fluent Icons" Glyph="&#xE888;" FontSize="20" />
           </fa:FANavigationViewItem.IconSource>
         </fa:FANavigationViewItem>
       </fa:FANavigationView.MenuItems>

@@ -56,7 +56,7 @@ GlimpseonMain.exe/.dll
 | News.cs            | 央视 api.xcvts.cn + news.orz.ai 多平台热榜        |
 | History.cs         | tmini.net 历史上的今天                           |
 | Almanac.cs         | lunar-csharp 本地计算黄历 农历                     |
-| Media.cs           | 网易云 (xuanmou 网关) / 酷狗 / QQ 音乐 + GSMTC 系统播放 |
+| Media.cs           | 网易云 (music.163.com 官方接口) / 酷狗 / QQ 音乐 + GSMTC 系统播放 |
 | DownloadCatalog.cs | 教学软件下载目录静态数据                               |
 
 ## 5 ui/ 界面模块

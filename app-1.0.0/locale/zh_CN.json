@@ -1,4 +1,4 @@
-{
+﻿{
   "_meta": {
     "language": "简体中文",
     "locale": "zh_CN",
@@ -153,6 +153,7 @@
     "sample_collect_content": "昨日作业：{yesterday_hw}"
   },
   "timetable": {
+    "lessons_count": "{n} 节",
     "course_table": "单周课程表",
     "today_schedule": "今日课表",
     "time_schedule": "时间表",
@@ -208,7 +209,7 @@
     "btn_open_data_dir": "打开数据目录",
     "btn_select_dir": "手动选择目录",
     "week_schedule": "本周课表",
-    "day_empty": "无课程",
+    "day_empty": "暂无课程",
     "title": "标题",
     "title_hint": "可选 如 大课间",
     "btn_apply": "确认",
@@ -701,9 +702,58 @@
     "auto_time_offset_desc": "若启用，每天自动以设定的增量值调整时间偏移量",
     "week_start": "开学第一周周一",
     "week_start_desc": "单双周轮换的起点, 一般填开学那周的周一",
-    "week_start_now": "本周是第 {week} 周"
+    "week_start_now": "本周是第 {week} 周",
+    "skin": {
+      "title": "主题",
+      "desc": "选一套起点，细节在下面继续调",
+      "preview": "组件预览",
+      "preview_date": "11/12 周四",
+      "glass": "磨砂玻璃",
+      "glass_desc": "真背景模糊，隔着毛玻璃看壁纸",
+      "instrument": "深空",
+      "instrument_desc": "半透石墨玻璃，卡很淡，靠影子浮起来",
+      "paper": "作业本",
+      "paper_desc": "米白纸卡，墨色字",
+      "type": "只有字",
+      "type_desc": "没有卡片，字号直接压在壁纸上",
+      "wire": "线框",
+      "wire_desc": "只有描边没有底色，像线框图",
+      "sticker": "贴纸",
+      "sticker_desc": "白卡黑字硬边，像贴上去的标签"
+    },
+    "global_tweak": "全局微调",
+    "global_tweak_desc": "改一处，所有组件一起变",
+    "card_bg_color": "卡片背景色",
+    "card_bg_color_desc": "留空则跟随明暗主题",
+    "card_text_color": "文字颜色",
+    "card_text_color_desc": "留空则跟随明暗主题",
+    "card_shadow": "卡片阴影",
+    "card_shadow_desc": "投一层柔光，卡片从壁纸上浮起来",
+    "shadow_soft": "柔和",
+    "shadow_hard": "硬阴影",
+    "card_border": "卡片描边",
+    "card_border_desc": "卡片边缘的描边强度",
+    "border_thin": "细",
+    "border_strong": "强",
+    "border_glow": "发光",
+    "border_twin": "双框",
+    "on": "开",
+    "off": "关",
+    "card_blur": "毛玻璃强度",
+    "card_blur_desc": "0 为纯色卡片，越大背景越模糊",
+    "card_group": "卡片",
+    "other": "其它",
+    "group_startup": "启动",
+    "group_ui": "界面",
+    "group_window": "窗口",
+    "group_update": "更新",
+    "group_maint": "维护",
+    "group_course": "课表",
+    "group_ai_param": "参数"
   },
   "weather": {
+    "high": "最高",
+    "low": "最低",
     "sunny": "晴",
     "cloudy": "多云",
     "overcast": "阴",
@@ -766,6 +816,7 @@
   "home": {
     "edit": "编辑",
     "back_to_desktop": "回到Windows",
+    "arrange_layout": "整理布局",
     "menu_settings": "设置",
     "menu_restart": "重启",
     "menu_shutdown": "关机",
@@ -877,7 +928,7 @@
     "media": "媒体信息",
     "quick_launch": "快捷启动",
     "system": "性能监测",
-    "click_to_settings": "点击设置",
+    "click_to_settings": "点击配置",
     "announcement": "公告栏",
     "news": "新闻",
     "linkage": "课表联动",
@@ -905,11 +956,19 @@
     "component_config": "组件配置",
     "config_enabled": "启用组件",
     "config_show_seconds": "显示秒",
+    "config_white_face": "白色表盘",
     "config_show_lunar": "显示农历",
     "config_font_size": "字体大小",
     "config_show_icon": "显示图标",
     "config_target_name": "目标名称",
     "config_target_date": "目标日期",
+    "config_note_color": "便签颜色",
+    "note_yellow": "淡黄",
+    "note_green": "浅绿",
+    "note_blue": "淡蓝",
+    "note_pink": "淡粉",
+    "note_orange": "杏色",
+    "note_purple": "淡紫",
     "config_school": "学校名称",
     "config_class": "班级名称",
     "config_show_progress": "显示进度",
@@ -919,6 +978,7 @@
     "config_advanced": "进阶设置",
     "config_save": "保存",
     "config_cancel": "取消",
+    "config_reset": "恢复默认",
     "config_show_teacher": "显示教师",
     "config_show_next": "显示下节课",
     "config_show_duration": "显示课程时长",
@@ -974,7 +1034,7 @@
   },
   "countdown": {
     "no_events": "暂无倒计时",
-    "click_to_config": "单击以配置倒计时",
+    "click_to_config": "点击配置",
     "expired": "已到期"
   },
   "days_matter": {
@@ -983,13 +1043,19 @@
     "target_date": "目标日",
     "still": "还有",
     "today": "就是今天",
-    "past": "已过"
+    "past": "已过",
+    "empty_title": "暂无倒数日",
+    "empty_hint": "点击配置"
   },
   "school_info_component": {
-    "click_to_config": "单击以配置班级卡片"
+    "student_count": "{count} 人",
+    "click_to_config": "点击配置",
+    "empty_title": "暂无班级信息"
   },
   "quick_launch_component": {
-    "click_to_config": "单击以配置快捷启动项"
+    "click_to_config": "点击配置",
+    "empty_title": "暂无应用",
+    "empty_hint": "点击添加应用"
   },
   "component_library": {
     "title": "组件库",
@@ -1013,7 +1079,8 @@
     "no_data": "暂无数据"
   },
   "sticky_note": {
-    "placeholder": "写点东西..."
+    "placeholder": "写点东西...",
+    "char_count": "{count} 字"
   },
   "homework": {
     "title": "作业板",
@@ -1021,6 +1088,7 @@
     "clear_done": "清除已完成",
     "add_item": "添加作业...",
     "subject_ph": "科目名称...",
+    "empty_title": "暂无作业",
     "empty": "点击左上角添加科目",
     "confirm_del": "确认",
     "history": "历史"
@@ -1028,7 +1096,8 @@
   "netspeed": {
     "title": "网速",
     "recv": "接收",
-    "send": "发送"
+    "send": "发送",
+    "since_start": "开机以来"
   },
   "dbmeter": {
     "title": "自习分贝",
@@ -1202,6 +1271,7 @@
     "confirm": "确定",
     "info": "提示",
     "done": "完成",
+    "today": "今天",
     "browse": "浏览",
     "off": "关",
     "on": "开",
@@ -1226,7 +1296,12 @@
   },
   "media": {
     "not_playing": "未在播放",
-    "unknown_song": "未知歌曲"
+    "unknown_song": "未知歌曲",
+    "source_netease": "网易云音乐",
+    "source_qq": "QQ音乐",
+    "source_kugou": "酷狗音乐",
+    "source_system": "系统媒体",
+    "play_hint": "播放任意音乐即可显示"
   },
   "quick_launch": {
     "app": "应用",
@@ -1258,6 +1333,9 @@
   },
   "quick_launch_ii": {
     "add_app": "添加应用",
+    "add_folder": "添加文件夹",
+    "empty_title": "暂无应用",
+    "empty_hint": "点击添加应用或文件夹",
     "select_program": "选择程序",
     "rename": "重命名",
     "rename_title": "重命名应用"
@@ -1615,9 +1693,12 @@
     "delete_confirm": "确定删除「{name}」吗？"
   },
   "timer_countdown": {
+    "presets": "常用时长",
+    "ends_at": "结束",
     "title": "计时与倒计时",
     "timer": "计时",
     "countdown": "倒计时",
+    "stopwatch": "秒表",
     "hours": "时",
     "minutes": "分",
     "seconds": "秒",
@@ -1625,15 +1706,31 @@
     "pause": "暂停",
     "resume": "继续",
     "cancel": "取消",
+    "paused": "已暂停",
+    "time_up": "时间到",
+    "ok": "好",
+    "lap": "计次",
+    "reset": "重置",
+    "lap_n": "第 {n} 次",
+    "empty_laps": "开始后点「计次」记录当前用时",
+    "preset_min": "{n} 分",
+    "preset_hour": "1 小时",
+    "edit_hint": "输入分钟、分:秒 或 时:分:秒",
+    "max_hint": "最长 23:59:59",
     "finished_title": "倒计时",
     "finished_body": "倒计时结束！",
-    "set_time_hint": "请设定倒计时时间"
+    "set_time_hint": "请设定倒计时时间",
+    "custom": "自定义",
+    "edit_time": "点击时间可编辑",
+    "confirm": "确定",
+    "edit_confirm_hint": "回车确定 · Esc 取消"
   },
   "announcement": {
     "title": "公告",
     "add": "添加公告",
     "item_ph": "输入公告内容...",
     "empty": "暂无公告",
+    "empty_hint": "点击添加公告",
     "clear": "清空",
     "confirm_clear": "确认",
     "yesterday": "昨天",

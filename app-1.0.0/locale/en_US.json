@@ -1,4 +1,4 @@
-{
+﻿{
   "_meta": {
     "language": "English",
     "locale": "en_US",
@@ -153,6 +153,7 @@
     "sample_collect_content": "Yesterday's homework: {yesterday_hw}"
   },
   "timetable": {
+    "lessons_count": "{n} classes",
     "course_table": "Weekly Course Table",
     "today_schedule": "Today's Schedule",
     "time_schedule": "Time Schedule",
@@ -701,9 +702,58 @@
     "auto_time_offset_desc": "If enabled, automatically adjusts the time offset by the set increment every day",
     "week_start": "First week Monday",
     "week_start_desc": "Anchor for the odd/even week rotation, usually the Monday of the first school week",
-    "week_start_now": "This week is week {week}"
+    "week_start_now": "This week is week {week}",
+    "skin": {
+      "title": "Theme",
+      "desc": "Pick a starting point, fine-tune below",
+      "preview": "Widget preview",
+      "preview_date": "11/12 Thu",
+      "glass": "Frosted glass",
+      "glass_desc": "Real wallpaper blur behind a frosted pane",
+      "instrument": "Deep space",
+      "instrument_desc": "Translucent graphite glass, lifted by its shadow",
+      "paper": "Exercise book",
+      "paper_desc": "Warm paper card with ink text",
+      "type": "Type only",
+      "type_desc": "No card at all, type sits on the wallpaper",
+      "wire": "Wireframe",
+      "wire_desc": "Outline only, no fill behind the type",
+      "sticker": "Sticker",
+      "sticker_desc": "White card, black ink, hard edge"
+    },
+    "global_tweak": "Global tuning",
+    "global_tweak_desc": "Change once, every widget follows",
+    "card_bg_color": "Card background",
+    "card_bg_color_desc": "Empty follows the light / dark theme",
+    "card_text_color": "Text color",
+    "card_text_color_desc": "Empty follows the light / dark theme",
+    "card_shadow": "Card shadow",
+    "card_shadow_desc": "A soft shadow lifts cards off the wallpaper",
+    "shadow_soft": "Soft",
+    "shadow_hard": "Hard",
+    "card_border": "Card border",
+    "card_border_desc": "How strong the card edge looks",
+    "border_thin": "Thin",
+    "border_strong": "Strong",
+    "border_glow": "Glow",
+    "border_twin": "Twin frame",
+    "on": "On",
+    "off": "Off",
+    "card_blur": "Frosted strength",
+    "card_blur_desc": "0 for a solid card, higher blurs more",
+    "card_group": "Card",
+    "other": "Other",
+    "group_startup": "Startup",
+    "group_ui": "Interface",
+    "group_window": "Window",
+    "group_update": "Updates",
+    "group_maint": "Maintenance",
+    "group_course": "Schedule",
+    "group_ai_param": "Parameters"
   },
   "weather": {
+    "high": "High",
+    "low": "Low",
     "sunny": "Sunny",
     "cloudy": "Cloudy",
     "overcast": "Overcast",
@@ -766,6 +816,7 @@
   "home": {
     "edit": "Edit",
     "back_to_desktop": "Back to Desktop",
+    "arrange_layout": "Arrange layout",
     "menu_settings": "Settings",
     "menu_restart": "Restart",
     "menu_shutdown": "Shutdown",
@@ -877,7 +928,7 @@
     "media": "Media Info",
     "quick_launch": "Quick Launch",
     "system": "Performance Monitor",
-    "click_to_settings": "Click to settings",
+    "click_to_settings": "Click to configure",
     "announcement": "Notice Board",
     "news": "News",
     "linkage": "Timetable",
@@ -905,6 +956,7 @@
     "component_config": "Component Config",
     "config_enabled": "Enable Component",
     "config_show_seconds": "Show Seconds",
+    "config_white_face": "White Dial",
     "config_show_lunar": "Show Lunar",
     "config_font_size": "Font Size",
     "config_show_icon": "Show Icon",
@@ -919,6 +971,7 @@
     "config_advanced": "Advanced",
     "config_save": "Save",
     "config_cancel": "Cancel",
+    "config_reset": "Restore Defaults",
     "config_show_teacher": "Show Teacher",
     "config_show_next": "Show Next Class",
     "config_show_duration": "Show Duration",
@@ -957,6 +1010,13 @@
     "config_target_time_placeholder": "YYYY-MM-DD HH:MM",
     "config_event_name": "Event Name",
     "config_title_bg": "Title Background Color",
+    "config_note_color": "Note color",
+    "note_yellow": "Yellow",
+    "note_green": "Green",
+    "note_blue": "Blue",
+    "note_pink": "Pink",
+    "note_orange": "Orange",
+    "note_purple": "Purple",
     "config_apps": "App List",
     "group_apps": "App Management",
     "config_app_add": "Add App",
@@ -973,8 +1033,8 @@
     "config_confirm_delete_msg": "Delete \"{name}\"?"
   },
   "countdown": {
-    "no_events": "No countdown events",
-    "click_to_config": "Click to configure countdown",
+    "no_events": "No countdowns",
+    "click_to_config": "Click to configure",
     "expired": "Expired"
   },
   "days_matter": {
@@ -983,13 +1043,19 @@
     "target_date": "Until",
     "still": "in",
     "today": "is today",
-    "past": "since"
+    "past": "since",
+    "empty_title": "No countdown days",
+    "empty_hint": "Click to configure"
   },
   "school_info_component": {
-    "click_to_config": "Click to configure class card"
+    "student_count": "{count} students",
+    "click_to_config": "Click to configure",
+    "empty_title": "No class info"
   },
   "quick_launch_component": {
-    "click_to_config": "Click to configure quick launch"
+    "click_to_config": "Click to configure",
+    "empty_title": "No apps",
+    "empty_hint": "Click to add apps"
   },
   "component_library": {
     "title": "Component Library",
@@ -1009,7 +1075,8 @@
     "category_study": "Study"
   },
   "sticky_note": {
-    "placeholder": "Write something..."
+    "placeholder": "Write something...",
+    "char_count": "{count} chars"
   },
   "history_today": {
     "title": "Today in History",
@@ -1021,14 +1088,16 @@
     "clear_done": "Clear done",
     "add_item": "Add task...",
     "subject_ph": "Subject name...",
-    "empty": "Add a subject from the top bar",
+    "empty_title": "No homework",
+    "empty": "Click the top bar to add a subject",
     "confirm_del": "Sure?",
     "history": "History"
   },
   "netspeed": {
     "title": "Network",
     "recv": "Recv",
-    "send": "Send"
+    "send": "Send",
+    "since_start": "Since start-up"
   },
   "dbmeter": {
     "title": "Study Noise",
@@ -1202,6 +1271,7 @@
     "confirm": "Confirm",
     "info": "Info",
     "done": "Done",
+    "today": "Today",
     "browse": "Browse",
     "off": "Off",
     "on": "On",
@@ -1226,7 +1296,12 @@
   },
   "media": {
     "not_playing": "Not Playing",
-    "unknown_song": "Unknown Song"
+    "unknown_song": "Unknown Song",
+    "source_netease": "NetEase Cloud Music",
+    "source_qq": "QQ Music",
+    "source_kugou": "Kugou Music",
+    "source_system": "System Media",
+    "play_hint": "Play something to see it here"
   },
   "quick_launch": {
     "app": "App",
@@ -1258,6 +1333,9 @@
   },
   "quick_launch_ii": {
     "add_app": "Add App",
+    "add_folder": "Add Folder",
+    "empty_title": "No apps",
+    "empty_hint": "Click to add apps or folders",
     "select_program": "Select Program",
     "rename": "Rename",
     "rename_title": "Rename App"
@@ -1615,9 +1693,12 @@
     "delete_confirm": "Delete \"{name}\"?"
   },
   "timer_countdown": {
+    "presets": "Quick set",
+    "ends_at": "ends",
     "title": "Timer & Countdown",
     "timer": "Timer",
     "countdown": "Countdown",
+    "stopwatch": "Stopwatch",
     "hours": "Hrs",
     "minutes": "Min",
     "seconds": "Sec",
@@ -1625,15 +1706,31 @@
     "pause": "Pause",
     "resume": "Continue",
     "cancel": "Cancel",
+    "paused": "Paused",
+    "time_up": "Time's up",
+    "ok": "OK",
+    "lap": "Lap",
+    "reset": "Reset",
+    "lap_n": "Time {n}",
+    "empty_laps": "Press Lap to record the current time",
+    "preset_min": "{n} min",
+    "preset_hour": "1 h",
+    "edit_hint": "Use minutes, m:ss or h:mm:ss",
+    "max_hint": "23:59:59 at most",
     "finished_title": "Countdown",
     "finished_body": "Countdown finished!",
-    "set_time_hint": "Please set countdown time"
+    "set_time_hint": "Please set countdown time",
+    "custom": "Custom",
+    "edit_time": "Tap the time to edit",
+    "confirm": "Done",
+    "edit_confirm_hint": "Enter to confirm · Esc to cancel"
   },
   "announcement": {
     "title": "Notices",
     "add": "Add notice",
     "item_ph": "Type a notice...",
     "empty": "No notices yet",
+    "empty_hint": "Click to add a notice",
     "clear": "Clear",
     "confirm_clear": "Sure?",
     "yesterday": "Yesterday",

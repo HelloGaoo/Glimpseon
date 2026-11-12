@@ -59,7 +59,7 @@ public partial class ScheduleWindow : GlimpseonWindow
     private (Control Icon, string Label, Action OnClick)[] PeriodCommands() =>
     [
         (FAIcons.IconCenter(FASymbol.Add, 13), Tr("timetable.btn_class"), () => AddPeriod("上课")),
-        (FAIcons.IconCenter(FASymbol.Clock, 13), Tr("timetable.btn_break"), () => AddPeriod("课间")),
+        (FAIcons.GlyphCenter(AppIcons.Clock, 13), Tr("timetable.btn_break"), () => AddPeriod("课间")),
         (FAIcons.IconCenter(FASymbol.Play, 13), Tr("timetable.btn_activity"), () => AddPeriod("活动")),
         (FAIcons.IconCenter(FASymbol.Delete, 13), Tr("timetable.btn_delete_row"), OnDeleteSelectedRow),
     ];
@@ -565,6 +565,21 @@ public partial class ScheduleWindow : GlimpseonWindow
         return btn;
     }
 
+    private static Button MakeToolButton(string glyph, string tip, Action action)
+    {
+        var btn = new Button
+        {
+            Content = FAIcons.Glyph(glyph, 14),
+            Width = 30,
+            Height = 30,
+            Padding = new Thickness(0),
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        ToolTip.SetTip(btn, tip);
+        btn.Click += (_, _) => action();
+        return btn;
+    }
+
     private static Button MakeSmallButton(string text, Action? action)
     {
         var btn = new Button
@@ -950,7 +965,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         };
         var cmdRow = MakeToolRow(PeriodCommands(), _courseWeekSwitch,
             MakeMenu(
-                (FAIcons.IconCenter(FASymbol.Save, 13), Tr("schedule.course_export_png"), OnExportPng),
+                (FAIcons.GlyphCenter(AppIcons.Save, 13), Tr("schedule.course_export_png"), OnExportPng),
                 (FAIcons.IconCenter(FASymbol.Download, 13), Tr("schedule.course_ai_import"), OnAiImport)));
         _courseCommandBar = cmdRow;
         var left = MakeTableArea(table, _courseStatus);
@@ -4283,7 +4298,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         {
             ops.Children.Add(MakeToolButton(FASymbol.Delete, Tr("schedule.profile_delete"), () => DeleteMaster(name)));
         }
-        ops.Children.Add(MakeToolButton(FASymbol.Save, Tr("schedule.profile_export"), () => ExportMaster(name)));
+        ops.Children.Add(MakeToolButton(AppIcons.Save, Tr("schedule.profile_export"), () => ExportMaster(name)));
         header.Children.Add(ops);
 
         // CI/CW 模式选择器
@@ -4547,7 +4562,7 @@ public partial class ScheduleWindow : GlimpseonWindow
         copyItem.Click += (_, _) => { if (bound.Length > 0) { ScheduleStore.CopySub(type, bound); } AfterSubChanged(); };
         var importItem = new FAMenuFlyoutItem { Text = Tr("schedule.sub_import"), IconSource = FAIcons.IconSource(FASymbol.Download) };
         importItem.Click += (_, _) => ImportSubTo(masterName, type);
-        var exportItem = new FAMenuFlyoutItem { Text = Tr("schedule.profile_export"), IconSource = FAIcons.IconSource(FASymbol.Save) };
+        var exportItem = new FAMenuFlyoutItem { Text = Tr("schedule.profile_export"), IconSource = FAIcons.IconSourceGlyph("E74E") };
         exportItem.Click += (_, _) => ExportSub(type, bound);
         menu.Items.Add(copyItem);
         menu.Items.Add(importItem);

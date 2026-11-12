@@ -203,7 +203,7 @@ public sealed class NeteaseCloudMusicSource : MediaSourceBase
         0x7C, 0x24,
     ];
 
-    private const string ApiBase = "https://music163.xuanmou.com.cn";
+    private const string ApiBase = "https://music.163.com/api";
 
     private Native.ProcessMemory? _pm;
     private int _pid;
@@ -273,29 +273,35 @@ public sealed class NeteaseCloudMusicSource : MediaSourceBase
         {
             return (Lyrics)cached;
         }
-        var data = await ApiGetAsync("/lyric", new Dictionary<string, string> { ["id"] = media.SongId });
+        var data = await ApiGetAsync("/song/lyric", new Dictionary<string, string>
+        {
+            ["id"] = media.SongId,
+            ["lv"] = "1",
+            ["kv"] = "1",
+            ["tv"] = "-1",
+        });
         if (data is { } lyricRoot)
         {
             var lrc = lyricRoot.TryGetProperty("lrc", out var l) && l.TryGetProperty("lyric", out var ll)
                 ? ll.GetString() ?? ""
                 : "";
-            if (lrc.Length == 0 && lyricRoot.TryGetProperty("tlyric", out var tl) && tl.TryGetProperty("lyric", out var tll))
+            var trans = lyricRoot.TryGetProperty("tlyric", out var tl) && tl.TryGetProperty("lyric", out var tll)
+                ? tll.GetString() ?? ""
+                : "";
+            var chosen = trans.Length > 0 ? trans : lrc;
+            if (chosen.Length > 0)
             {
-                lrc = tll.GetString() ?? "";
-            }
-            if (lrc.Length > 0)
-            {
-                var lines = LrcParser.ParseLrc(lrc);
+                var lines = LrcParser.ParseLrc(chosen);
                 if (lines.Count > 0)
                 {
-                    var ly = new Lyrics { Lines = lines, RawLrc = lrc, SongId = long.TryParse(media.SongId, out var sid) ? sid : null };
-                    Log.Info($"网易云歌词已获取 song_id={media.SongId} {lines.Count}行");
+                    var ly = new Lyrics { Lines = lines, RawLrc = chosen, SongId = long.TryParse(media.SongId, out var sid) ? sid : null };
+                    Log.Info($"网易云歌词已获取 song_id={media.SongId} {lines.Count}行 翻译={(trans.Length > 0 ? "是" : "否")}");
                     _cache.Set(key, ly);
                     return ly;
                 }
             }
         }
-        Log.Debug($"网易云歌词未命中 song_id={media.SongId}");
+        Log.Warning($"网易云歌词未命中 song_id={media.SongId}");
         return null;
     }
 
@@ -317,15 +323,27 @@ public sealed class NeteaseCloudMusicSource : MediaSourceBase
         var detail = await GetDetailAsync(media.SongId);
         if (detail is not null && detail.CoverUrl.Length > 0)
         {
-            var bytes = await DownloadAsync(detail.CoverUrl);
+            var url = detail.CoverUrl;
+            if (url.Contains("music.126.net", StringComparison.OrdinalIgnoreCase) && !url.Contains("param=", StringComparison.OrdinalIgnoreCase))
+            {
+                url += (url.Contains('?') ? "&" : "?") + "param=400y400";
+            }
+            var bytes = await DownloadAsync(url);
             if (bytes is not null)
             {
-                Log.Debug($"网易云封面已下载 song_id={media.SongId} {bytes.Length}字节");
+                Log.Info($"网易云封面已下载 song_id={media.SongId} {bytes.Length}字节");
                 _cache.Set(key, bytes);
                 return bytes;
             }
         }
-        Log.Debug($"网易云封面未命中 song_id={media.SongId}");
+        var thumb = await GsmTcSource.TryGetThumbnailAsync("cloudmusic");
+        if (thumb is { Length: > 0 })
+        {
+            Log.Info($"网易云封面改用系统缩略图 song_id={media.SongId} {thumb.Length}字节");
+            _cache.Set(key, thumb);
+            return thumb;
+        }
+        Log.Warning($"网易云封面未命中 song_id={media.SongId}");
         return null;
     }
 
@@ -340,11 +358,11 @@ public sealed class NeteaseCloudMusicSource : MediaSourceBase
             var detail = await GetDetailAsync(media.SongId);
             if (detail is not null)
             {
-                Log.Debug($"网易云时长补全 song_id={media.SongId} {detail.Duration} ms");
+                Log.Info($"网易云时长补全 song_id={media.SongId} {detail.Duration} ms");
                 return detail.Duration;
             }
         }
-        Log.Debug("网易云时长补全失败");
+        Log.Warning("网易云时长补全失败");
         return 0;
     }
 
@@ -668,10 +686,14 @@ public sealed class NeteaseCloudMusicSource : MediaSourceBase
                 await ApiWaitAsync();
                 var query = string.Join("&", parameters.Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value)}"));
                 var url = $"{ApiBase}{endpoint}?{query}";
-                using var response = await AppUtils.Http.GetAsync(url);
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.TryAddWithoutValidation("User-Agent",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36");
+                req.Headers.TryAddWithoutValidation("Referer", "https://music.163.com/");
+                using var response = await AppUtils.Http.SendAsync(req);
                 if ((int)response.StatusCode != 200)
                 {
-                    Log.Debug($"网易云api状态码异常 {endpoint} http {(int)response.StatusCode}");
+                    Log.Warning($"网易云api状态码异常 {endpoint} http {(int)response.StatusCode}");
                     return null;
                 }
                 var json = await response.Content.ReadAsStringAsync();
@@ -679,7 +701,7 @@ public sealed class NeteaseCloudMusicSource : MediaSourceBase
                 var root = doc.RootElement.Clone();
                 if (root.TryGetProperty("code", out var code) && code.GetInt32() != 200)
                 {
-                    Log.Debug($"网易云api业务码异常 {endpoint} code={code.GetInt32()}");
+                    Log.Warning($"网易云api业务码异常 {endpoint} code={code.GetInt32()}");
                     return null;
                 }
                 return root;
@@ -691,7 +713,7 @@ public sealed class NeteaseCloudMusicSource : MediaSourceBase
         }
         catch (Exception e)
         {
-            Log.Debug($"api请求失败: {endpoint} - {e.Message}");
+            Log.Warning($"网易云api请求失败: {endpoint} - {e.Message}");
             return null;
         }
     }
@@ -704,23 +726,51 @@ public sealed class NeteaseCloudMusicSource : MediaSourceBase
             Log.Debug($"网易云歌曲详情命中缓存 song_id={songId}");
             return (SongDetail)cached;
         }
-        var data = await ApiGetAsync("/song/detail", new Dictionary<string, string> { ["ids"] = songId });
-        if (data is { } root && root.TryGetProperty("songs", out var songs) && songs.GetArrayLength() > 0)
+        var data = await ApiGetAsync("/song/detail/", new Dictionary<string, string>
+        {
+            ["id"] = songId,
+            ["ids"] = $"[{songId}]",
+        });
+        if (data is { } root && root.TryGetProperty("songs", out var songs) &&
+            songs.ValueKind == JsonValueKind.Array && songs.GetArrayLength() > 0)
         {
             var s = songs[0];
-            var al = s.TryGetProperty("al", out var a) ? a : default;
+            var al = s.TryGetProperty("al", out var a)
+                ? a
+                : s.TryGetProperty("album", out var album) ? album : default;
+            var ar = s.TryGetProperty("ar", out var a1)
+                ? a1
+                : s.TryGetProperty("artists", out var artists) ? artists : default;
+            var artistsList = new List<string>();
+            if (ar.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var x in ar.EnumerateArray())
+                {
+                    if (x.TryGetProperty("name", out var an))
+                    {
+                        var name = an.GetString();
+                        if (!string.IsNullOrWhiteSpace(name))
+                        {
+                            artistsList.Add(name);
+                        }
+                    }
+                }
+            }
+            var duration = s.TryGetProperty("dt", out var dt)
+                ? dt.GetInt64()
+                : s.TryGetProperty("duration", out var dur) ? dur.GetInt64() : 0;
             var detail = new SongDetail(
                 s.TryGetProperty("id", out var idEl) ? idEl.GetInt64() : 0,
                 s.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
-                s.TryGetProperty("ar", out var ar) ? ar.EnumerateArray().Select(x => x.TryGetProperty("name", out var an) ? an.GetString() ?? "" : "").ToList() : new List<string>(),
-                al.ValueKind != JsonValueKind.Undefined && al.TryGetProperty("name", out var aln) ? aln.GetString() ?? "" : "",
-                al.ValueKind != JsonValueKind.Undefined && al.TryGetProperty("picUrl", out var pic) ? pic.GetString() ?? "" : "",
-                s.TryGetProperty("dt", out var dt) ? dt.GetInt64() : 0);
+                artistsList,
+                al.ValueKind == JsonValueKind.Object && al.TryGetProperty("name", out var aln) ? aln.GetString() ?? "" : "",
+                al.ValueKind == JsonValueKind.Object && al.TryGetProperty("picUrl", out var pic) ? pic.GetString() ?? "" : "",
+                duration);
             _cache.Set(key, detail);
-            Log.Debug($"网易云详情已获取 song_id={songId} {detail.Name}");
+            Log.Info($"网易云详情已获取 song_id={songId} {detail.Name} {detail.Duration}ms");
             return detail;
         }
-        Log.Debug($"网易云歌曲详情获取失败 song_id={songId}");
+        Log.Warning($"网易云歌曲详情获取失败 song_id={songId}");
         return null;
     }
 
@@ -1101,8 +1151,7 @@ public sealed class GsmTcSource : MediaSourceBase
         var info = new MediaInfo();
         try
         {
-            var app = session.SourceAppUserModelId;
-            info.AppName = !string.IsNullOrEmpty(app) && app.Contains('.') ? app.Split('.')[^1] : app ?? "";
+            info.AppName = MapAppName(session.SourceAppUserModelId);
         }
         catch (Exception e)
         {
@@ -1135,8 +1184,24 @@ public sealed class GsmTcSource : MediaSourceBase
         try
         {
             var tl = session.GetTimelineProperties();
-            info.PositionMs = Math.Max(0, (long)tl.Position.TotalMilliseconds);
-            info.DurationMs = Math.Max(0, (long)tl.EndTime.TotalMilliseconds);
+            var pos = tl.Position;
+            var end = tl.EndTime;
+            // 部分播放器(HY/浏览器)只在切歌或暂停时刷新快照, 直接读 Position 会每秒回跳;
+            // 用 LastUpdatedTime 补上快照之后流逝的时间
+            if (info.IsPlaying && end > TimeSpan.Zero)
+            {
+                var age = DateTimeOffset.UtcNow - tl.LastUpdatedTime;
+                if (age > TimeSpan.Zero && age < TimeSpan.FromMinutes(5))
+                {
+                    pos += age;
+                }
+                if (pos > end)
+                {
+                    pos = end;
+                }
+            }
+            info.PositionMs = Math.Max(0, (long)pos.TotalMilliseconds);
+            info.DurationMs = Math.Max(0, (long)end.TotalMilliseconds);
         }
         catch (Exception e)
         {
@@ -1199,7 +1264,10 @@ public sealed class GsmTcSource : MediaSourceBase
     }
 
     // 发送play/pause/next/prev
-    public override async Task<bool> ControlAsync(string action)
+    public override Task<bool> ControlAsync(string action) => ControlAsync(action, null);
+
+    // 按来源应用匹配会话, 避免当前会话切到浏览器时控制错对象
+    public async Task<bool> ControlAsync(string action, string? appName)
     {
         if (!Available)
         {
@@ -1209,7 +1277,7 @@ public sealed class GsmTcSource : MediaSourceBase
         try
         {
             var manager = await GetManagerAsync();
-            var session = manager?.GetCurrentSession();
+            var session = FindSession(manager, appName);
             if (session is null)
             {
                 Log.Debug($"GSMTC 控制命令 {action} 无媒体会话");
@@ -1232,9 +1300,107 @@ public sealed class GsmTcSource : MediaSourceBase
         }
     }
 
-    public Task<bool> NextTrackAsync() => ControlAsync("next");
+    public Task<bool> NextTrackAsync(string? appName = null) => ControlAsync("next", appName);
 
-    public Task<bool> PrevTrackAsync() => ControlAsync("prev");
+    public Task<bool> PrevTrackAsync(string? appName = null) => ControlAsync("prev", appName);
+
+    private static Windows.Media.Control.GlobalSystemMediaTransportControlsSession? FindSession(
+        Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager? manager, string? appName)
+    {
+        if (manager is null)
+        {
+            return null;
+        }
+        var current = manager.GetCurrentSession();
+        var key = (appName ?? "").Trim().ToLowerInvariant();
+        if (key.Length == 0 || key == "gsmtc" || key == "smtc")
+        {
+            return current;
+        }
+        var filter = key switch
+        {
+            var a when a.Contains("netease") || a.Contains("cloudmusic") => "cloudmusic",
+            var a when a.Contains("qqmusic") || a == "qq音乐" => "qqmusic",
+            var a when a.Contains("kugou") || a.Contains("酷狗") => "kugou",
+            _ => "",
+        };
+        if (filter.Length == 0)
+        {
+            return current;
+        }
+        foreach (var session in manager.GetSessions())
+        {
+            var id = session.SourceAppUserModelId ?? "";
+            if (id.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            {
+                return session;
+            }
+        }
+        return current;
+    }
+
+    internal static string MapAppName(string? appUserModelId)
+    {
+        var raw = (appUserModelId ?? "").Trim();
+        var key = raw.ToLowerInvariant();
+        if (key.Contains("cloudmusic") || key.Contains("netease"))
+        {
+            return "NeteaseCloudMusic";
+        }
+        if (key.Contains("qqmusic"))
+        {
+            return "QQMusic";
+        }
+        if (key.Contains("kugou"))
+        {
+            return "KugouMusic";
+        }
+        if (key.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            return raw[..^4];
+        }
+        return raw;
+    }
+
+    // 从系统媒体会话取当前封面 供网易云 API 失败时兜底
+    internal static async Task<byte[]?> TryGetThumbnailAsync(string appFilter)
+    {
+        try
+        {
+            var manager = await GetManagerAsync();
+            if (manager is null)
+            {
+                return null;
+            }
+            foreach (var session in manager.GetSessions())
+            {
+                var id = session.SourceAppUserModelId ?? "";
+                if (!id.Contains(appFilter, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+                var props = await session.TryGetMediaPropertiesAsync();
+                if (props?.Thumbnail is null)
+                {
+                    continue;
+                }
+                using var stream = await props.Thumbnail.OpenReadAsync();
+                if (stream.Size <= 0 || stream.Size > 10 * 1024 * 1024)
+                {
+                    continue;
+                }
+                using var net = stream.AsStreamForRead();
+                using var ms = new MemoryStream();
+                await net.CopyToAsync(ms);
+                return ms.ToArray();
+            }
+        }
+        catch (Exception e)
+        {
+            Log.Debug($"GSMTC 缩略图兜底失败: {e.Message}");
+        }
+        return null;
+    }
 
     protected override void CloseResources()
     {
@@ -1657,12 +1823,12 @@ public static class MediaServices
         return GsmTc;
     }
 
-    // 发送控制命令
-    public static Task<bool> MediaControlAsync(string action) => GsmTc.ControlAsync(action);
+    // 发送控制命令 按当前媒体来源定位系统会话
+    public static Task<bool> MediaControlAsync(string action, string? appName = null) => GsmTc.ControlAsync(action, appName);
 
-    public static Task<bool> MediaNextAsync() => GsmTc.NextTrackAsync();
+    public static Task<bool> MediaNextAsync(string? appName = null) => GsmTc.NextTrackAsync(appName);
 
-    public static Task<bool> MediaPrevAsync() => GsmTc.PrevTrackAsync();
+    public static Task<bool> MediaPrevAsync(string? appName = null) => GsmTc.PrevTrackAsync(appName);
 
     public static void Close()
     {

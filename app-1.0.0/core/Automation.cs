@@ -283,19 +283,19 @@ public static class AutomationRegistry
             s => new IntervalTrigger(s),
             s => string.Format(AppUtils.Tr("automation.sum_interval"), s?.TryGet("minutes") ?? "30"),
             new JsonObject { ["minutes"] = 30 }));
-        Register(new TriggerInfo("startup", "E7C8", "automation.trigger_startup",
+        Register(new TriggerInfo("startup", "E7E8", "automation.trigger_startup",
             s => new StartupTrigger(s),
             s => string.Format(AppUtils.Tr("automation.sum_startup"), s?.TryGet("delay") ?? "10"),
             new JsonObject { ["delay"] = 10 }));
-        Register(new TriggerInfo("lesson_start", "E7E8", "automation.trigger_lesson_start",
+        Register(new TriggerInfo("lesson_start", "E7BE", "automation.trigger_lesson_start",
             s => new LessonStartTrigger(s),
             s => SummarizeLessonIndex(s),
             new JsonObject { ["index"] = 0 }));
-        Register(new TriggerInfo("lesson_end", "E112", "automation.trigger_lesson_end",
+        Register(new TriggerInfo("lesson_end", "E15B", "automation.trigger_lesson_end",
             s => new LessonEndTrigger(s),
             s => SummarizeLessonIndex(s),
             new JsonObject { ["index"] = 0 }));
-        Register(new TriggerInfo("pre_lesson", "EA92", "automation.trigger_pre_lesson",
+        Register(new TriggerInfo("pre_lesson", "E823", "automation.trigger_pre_lesson",
             s => new PreLessonTrigger(s),
             s => string.Format(AppUtils.Tr("automation.sum_pre_lesson"), s?.TryGet("minutes") ?? "2") + " " + SummarizeLessonIndex(s),
             new JsonObject { ["minutes"] = 2, ["index"] = 0 }));
@@ -303,7 +303,7 @@ public static class AutomationRegistry
             s => new IdleTrigger(s),
             s => string.Format(AppUtils.Tr("automation.sum_idle"), s?.TryGet("minutes") ?? "10"),
             new JsonObject { ["minutes"] = 10 }));
-        Register(new TriggerInfo("network", "E968", "automation.trigger_network",
+        Register(new TriggerInfo("network", "E701", "automation.trigger_network",
             s => new NetworkTrigger(s),
             s => (s?.TryGet("state") ?? "up") == "down" ? AppUtils.Tr("automation.state_down") : AppUtils.Tr("automation.state_up"),
             new JsonObject { ["state"] = "up" }));
@@ -321,17 +321,17 @@ public static class AutomationRegistry
             s => EvalDateRange(s),
             s => $"{s?.TryGet("start") ?? "09-01"} ~ {s?.TryGet("end") ?? "01-20"}",
             new JsonObject { ["start"] = "09-01", ["end"] = "01-20" }));
-        Register(new ConditionInfo("in_class", "E7E8", "automation.cond_in_class",
+        Register(new ConditionInfo("in_class", "E7BE", "automation.cond_in_class",
             _ => AutomationService.CurrentLesson is not null,
             _ => "", new JsonObject()));
-        Register(new ConditionInfo("in_break", "E1CD", "automation.cond_in_break",
+        Register(new ConditionInfo("in_break", "E823", "automation.cond_in_break",
             _ => AutomationService.CurrentBreakRow is not null,
             _ => "", new JsonObject()));
         Register(new ConditionInfo("subject_now", "E82D", "automation.cond_subject_now",
             s => AutomationService.CurrentLesson?.Subject?.Contains((string?)s?.TryGet("subject") ?? "") == true,
             s => (string?)s?.TryGet("subject") ?? "",
             new JsonObject { ["subject"] = "" }));
-        Register(new ConditionInfo("network_state", "E968", "automation.cond_network_state",
+        Register(new ConditionInfo("network_state", "E701", "automation.cond_network_state",
             s => AutomationService.IsNetworkUp == (((string?)s?.TryGet("state") ?? "up") == "up"),
             s => ((string?)s?.TryGet("state")) == "down" ? AppUtils.Tr("automation.state_down") : AppUtils.Tr("automation.state_up"),
             new JsonObject { ["state"] = "up" }));
@@ -345,7 +345,7 @@ public static class AutomationRegistry
             s => DoNotification(s),
             s => $"{(string?)s?.TryGet("content") ?? ""}",
             new JsonObject { ["content"] = "", ["type"] = NotifType.Corner, ["duration"] = 5, ["speak"] = false, ["font_size"] = 24 }));
-        Register(new ActionInfo("speak", "E720", "automation.action_speak",
+        Register(new ActionInfo("speak", "E767", "automation.action_speak",
             s => DoSpeak(s),
             s => (string?)s?.TryGet("text") ?? "",
             new JsonObject { ["text"] = "", ["voice"] = "zh-CN-XiaoxiaoNeural", ["rate"] = 100 }));
@@ -353,7 +353,7 @@ public static class AutomationRegistry
             s => DoOpen(s),
             s => (string?)s?.TryGet("target") ?? "",
             new JsonObject { ["target"] = "" }));
-        Register(new ActionInfo("builtin", "E71D", "automation.action_builtin",
+        Register(new ActionInfo("builtin", "E8B0", "automation.action_builtin",
             s => DoBuiltin(s),
             s => (string?)s?.TryGet("key") ?? "",
             new JsonObject { ["key"] = "schedule" }));
@@ -368,11 +368,11 @@ public static class AutomationRegistry
         Register(new ActionInfo("minimize_main", "E921", "automation.action_minimize_main",
             _ => DoMinimizeMain(),
             _ => "", new JsonObject()));
-        Register(new ActionInfo("recipe", "E931", "automation.action_recipe",
+        Register(new ActionInfo("recipe", "E768", "automation.action_recipe",
             s => DoRecipe(s),
             s => (string?)s?.TryGet("id") ?? "",
             new JsonObject { ["id"] = "" }));
-        Register(new ActionInfo("log", "E946", "automation.action_log",
+        Register(new ActionInfo("log", "E8A5", "automation.action_log",
             s => DoLog(s),
             s => (string?)s?.TryGet("text") ?? "",
             new JsonObject { ["text"] = "" }));

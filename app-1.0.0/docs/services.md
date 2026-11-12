@@ -125,8 +125,12 @@ API 常量 (WeatherApi):
 - 双通道取数:
   - 进程内存读取 > cloudmusic.exe > V2 按 V2Offsets 偏移表 V3 按 V3SchedulePattern/V3PlayerPattern 字节特征扫描 > Native.ProcessMemory (ReadF64/ReadU64/ReadI32) 读 SongId/播放时间/播放态 > 进程丢失自动重找 > 覆盖版本范围以偏移表为准
   - 窗口标题解析 > `标题 - 歌手`
-- API 网关 https://music163.xuanmou.com.cn > /lyric?id= 取 lrc.lyric (空则 tlyric.lyric) > 歌曲详情补封面 URL 与时长 > LruCache(50) 缓存 lyric_{song_id}/cover_{song_id} > SemaphoreSlim(1,1) 串行化 API > 封面经 CoverUrl 直接下载
-- 不支持 ControlAsync 恒 false
+- API 官方接口 https://music.163.com/api (请求带浏览器 UA + Referer)
+  - `/song/detail/?id={id}&ids=[{id}]` > 取 album/artists/duration (兼容 al/ar/dt 旧结构) > 封面 URL + 时长
+  - `/song/lyric?id={id}&lv=1&kv=1&tv=-1` > **tlyric.lyric 优先**(课堂中文字幕) > 空则回退 lrc.lyric
+  - 封面 music.126.net URL 追加 `?param=400y400` > 下载失败回退 GSMTC 缩略图
+  - LruCache(50) 缓存 lyric/cover/song detail > SemaphoreSlim(1,1) 串行化 API
+- 控制命令经 GsmTc.ControlAsync(action, appName) 定位 `cloudmusic` 会话
 
 ### 9.4 KugouMusicSource
 
@@ -146,7 +150,9 @@ API 常量 (WeatherApi):
 
 - Windows GSMTC > GlobalSystemMediaTransportControlsSessionManager.RequestAsync() > FindAllSessions 遍历系统任意播放器会话
 - ReadAsync 取 Title/Artist/Thumbnail (MediaProperties) 进度/播放态 (SessionTimeline/PlaybackInfo)
+- `GetTimelineProperties().Position` 是快照: 播放中用 `LastUpdatedTime` 补流逝时间并夹到 `EndTime`, 避免进度每秒回跳
 - 全部媒体控制命令经此源 (MediaControlAsync/MediaNextAsync/MediaPrevAsync 直通 GsmTc)
+- 按 appName 关键字在 GetSessions() 中匹配 cloudmusic/qqmusic/kugou 会话, 匹配不到回退当前会话
 
 ### 9.7 MediaServices 路由
 

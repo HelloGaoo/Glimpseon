@@ -1,4 +1,4 @@
-// Glimpseon
+﻿// Glimpseon
 // Copyright (C) 2026 HelloGaoo
 //
 // This program is free software: you can redistribute it and/or modify
@@ -44,6 +44,7 @@ using System.Globalization;
 using Avalonia.Controls.Primitives;
 using Avalonia.Styling;
 using Avalonia.Utilities;
+using Avalonia.VisualTree;
 
 namespace Glimpseon.UI;
 
@@ -191,8 +192,205 @@ public class DraggableContainer : ContentControl
 
         var dx = pos.X - _pressPoint.X;
         var dy = pos.Y - _pressPoint.Y;
-        SetCanvasPosition(_startPosition.X + dx, _startPosition.Y + dy);
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control) || Parent is not Panel host)
+        {
+            HideGuides();
+            SetCanvasPosition(_startPosition.X + dx, _startPosition.Y + dy);
+            e.Handled = true;
+            return;
+        }
+
+        // 8 DIP 吸附 屏幕边 屏幕中线 兄弟组件边与中线 并排隔 12 DIP
+        var wantX = _startPosition.X + dx;
+        var wantY = _startPosition.Y + dy;
+        var snap = ComputeSnap(host, wantX, wantY, 8, 12);
+        SetCanvasPosition(snap.X, snap.Y);
+        ShowGuides(host, snap.GuideX, snap.GuideY);
         e.Handled = true;
+    }
+
+    private readonly struct SnapResult
+    {
+        public readonly double X;
+        public readonly double Y;
+        public readonly double GuideX;
+        public readonly double GuideY;
+
+        public SnapResult(double x, double y, double guideX, double guideY)
+        {
+            X = x;
+            Y = y;
+            GuideX = guideX;
+            GuideY = guideY;
+        }
+    }
+
+    // 就近吸附: 边 / 中线 / 并排间隔 取 8 DIP 内最近候选
+    private SnapResult ComputeSnap(Panel host, double wantX, double wantY, double threshold, double gap)
+    {
+        var hostW = host.Bounds.Width;
+        var hostH = host.Bounds.Height;
+        var w = VisualWidth;
+        var h = VisualHeight;
+        var maxX = Math.Max(0, hostW - w);
+        var maxY = Math.Max(0, hostH - h);
+
+        var bestX = wantX;
+        var bestXd = threshold + 1;
+        var guideX = double.NaN;
+        void TryX(double candidate, double guide)
+        {
+            if (candidate < -0.5 || candidate > maxX + 0.5)
+            {
+                return;
+            }
+            var d = Math.Abs(candidate - wantX);
+            if (d <= threshold && d < bestXd)
+            {
+                bestXd = d;
+                bestX = Math.Clamp(candidate, 0, maxX);
+                guideX = guide;
+            }
+        }
+
+        TryX(0, 0);
+        TryX(maxX, hostW);
+        TryX((hostW - w) / 2, hostW / 2);
+
+        var bestY = wantY;
+        var bestYd = threshold + 1;
+        var guideY = double.NaN;
+        void TryY(double candidate, double guide)
+        {
+            if (candidate < -0.5 || candidate > maxY + 0.5)
+            {
+                return;
+            }
+            var d = Math.Abs(candidate - wantY);
+            if (d <= threshold && d < bestYd)
+            {
+                bestYd = d;
+                bestY = Math.Clamp(candidate, 0, maxY);
+                guideY = guide;
+            }
+        }
+
+        TryY(0, 0);
+        TryY(maxY, hostH);
+        TryY((hostH - h) / 2, hostH / 2);
+
+        foreach (var child in host.Children)
+        {
+            if (child is not DraggableContainer other || ReferenceEquals(other, this) || !other.IsVisible)
+            {
+                continue;
+            }
+            var ox = Canvas.GetLeft(other);
+            var oy = Canvas.GetTop(other);
+            if (double.IsNaN(ox) || double.IsNaN(oy))
+            {
+                continue;
+            }
+            var ow = other.VisualWidth;
+            var oh = other.VisualHeight;
+            // 左边 / 右边 / 中线 / 并排 12 DIP
+            TryX(ox, ox);
+            TryX(ox + ow - w, ox + ow);
+            TryX(ox + (ow - w) / 2, ox + ow / 2);
+            TryX(ox - w - gap, ox);
+            TryX(ox + ow + gap, ox + ow);
+            TryY(oy, oy);
+            TryY(oy + oh - h, oy + oh);
+            TryY(oy + (oh - h) / 2, oy + oh / 2);
+            TryY(oy - h - gap, oy);
+            TryY(oy + oh + gap, oy + oh);
+        }
+
+        return new SnapResult(bestX, bestY, guideX, guideY);
+    }
+
+    private Border? _guideV;
+    private Border? _guideH;
+
+    private void EnsureGuides(Panel host)
+    {
+        if (_guideV is null)
+        {
+            var accent = CardAccent.Value;
+            var glow = new BoxShadows(new BoxShadow
+            {
+                Blur = 6,
+                Color = Color.FromArgb(120, accent.R, accent.G, accent.B),
+            });
+            _guideV = new Border
+            {
+                Width = 2,
+                Background = new SolidColorBrush(accent, 0.95),
+                BoxShadow = glow,
+                IsHitTestVisible = false,
+                ZIndex = 10000,
+            };
+            _guideH = new Border
+            {
+                Height = 2,
+                Background = new SolidColorBrush(accent, 0.95),
+                BoxShadow = glow,
+                IsHitTestVisible = false,
+                ZIndex = 10000,
+            };
+            host.Children.Add(_guideV);
+            host.Children.Add(_guideH);
+        }
+    }
+
+    private void ShowGuides(Panel host, double guideX, double guideY)
+    {
+        EnsureGuides(host);
+        if (_guideV is null || _guideH is null)
+        {
+            return;
+        }
+        _guideV.IsVisible = !double.IsNaN(guideX);
+        if (_guideV.IsVisible)
+        {
+            Canvas.SetLeft(_guideV, guideX);
+            Canvas.SetTop(_guideV, 0);
+            _guideV.Height = host.Bounds.Height;
+        }
+        _guideH.IsVisible = !double.IsNaN(guideY);
+        if (_guideH.IsVisible)
+        {
+            Canvas.SetLeft(_guideH, 0);
+            Canvas.SetTop(_guideH, guideY);
+            _guideH.Width = host.Bounds.Width;
+        }
+    }
+
+    private void HideGuides()
+    {
+        if (_guideV is not null)
+        {
+            _guideV.IsVisible = false;
+        }
+        if (_guideH is not null)
+        {
+            _guideH.IsVisible = false;
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        if (_guideV?.Parent is Panel p1)
+        {
+            p1.Children.Remove(_guideV);
+        }
+        if (_guideH?.Parent is Panel p2)
+        {
+            p2.Children.Remove(_guideH);
+        }
+        _guideV = null;
+        _guideH = null;
+        base.OnDetachedFromVisualTree(e);
     }
 
     // 缩放: 按拖拽位移算 DPI(夹 1-300 且不超出父容器)
@@ -254,6 +452,7 @@ public class DraggableContainer : ContentControl
         _pressed = false;
         _resizing = false;
         e.Pointer.Capture(null);
+        HideGuides();
 
         if (wasResizing)
         {
@@ -498,7 +697,7 @@ public sealed class PlaceholderWidget : DraggableContainer
             VerticalAlignment = VerticalAlignment.Center,
             Spacing = 6,
         };
-        var homeIcon = FAIcons.Icon(FASymbol.Home, 22);
+        var homeIcon = FAIcons.Glyph(AppIcons.Home, 22);
         homeIcon.HorizontalAlignment = HorizontalAlignment.Center;
         content.Children.Add(homeIcon);
         content.Children.Add(new TextBlock
@@ -633,7 +832,7 @@ public sealed class ComponentManager
                 }
                 catch (Exception e)
                 {
-                    Log.Error($"创建组件失败: {e.Message}");
+                    Log.Error($"创建组件失败: {e}");
                 }
             }
         }
@@ -721,6 +920,126 @@ public sealed class ComponentManager
         Log.Info("[ComponentManager] 组件已保存");
     }
 
+    // 当前页按最短列瀑布流排开 16px 边距与间隔 超出高度时整体微缩 清除重叠
+    public void ArrangeCurrentPage(int pageIndex)
+    {
+        if (_home.GetInfoPagePanel(pageIndex) is not { } parent || parent.Bounds.Width <= 1)
+        {
+            return;
+        }
+        var hostW = parent.Bounds.Width;
+        var hostH = parent.Bounds.Height;
+        var list = Components
+            .Where(kv => _componentData.TryGetValue(kv.Key, out var d) && d.PageIndex == pageIndex && d.Enabled)
+            .Select(kv => kv.Value)
+            .OrderBy(c =>
+            {
+                var t = Canvas.GetTop(c);
+                return double.IsNaN(t) ? 0 : t;
+            })
+            .ThenBy(c =>
+            {
+                var l = Canvas.GetLeft(c);
+                return double.IsNaN(l) ? 0 : l;
+            })
+            .ToList();
+        if (list.Count == 0)
+        {
+            return;
+        }
+
+        const double inset = 16, gap = 16, bottomReserve = 96;
+        var availableH = Math.Max(200, hostH - inset * 2 - bottomReserve);
+        var maxVisualW = list.Max(c => Math.Max(1, c.VisualWidth));
+
+        // 枚举列数 取"整体缩得最少"的方案 宽卡按列宽先收
+        var bestCols = columnsFallback(hostW, inset, gap);
+        var bestColumnW = (hostW - inset * 2 - gap * (bestCols - 1)) / bestCols;
+        var bestShrink = 1.0;
+        var bestScore = 0.0;
+        for (var cols = 2; cols <= 8; cols++)
+        {
+            var cw = (hostW - inset * 2 - gap * (cols - 1)) / cols;
+            if (cw < 120)
+            {
+                break;
+            }
+            var hs = new double[cols];
+            for (var i = 0; i < cols; i++)
+            {
+                hs[i] = inset;
+            }
+            foreach (var c in list)
+            {
+                var fit = c.VisualWidth > cw ? cw / c.VisualWidth : 1.0;
+                var h = c.VisualHeight * fit;
+                var column = 0;
+                for (var i = 1; i < cols; i++)
+                {
+                    if (hs[i] < hs[column])
+                    {
+                        column = i;
+                    }
+                }
+                hs[column] += h + gap;
+            }
+            var totalH = hs.Max() - gap;
+            var shrink = totalH > 0 ? Math.Min(1.0, availableH / totalH) : 1.0;
+            var widthScale = Math.Min(1.0, cw / maxVisualW);
+            var score = shrink * widthScale;
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestCols = cols;
+                bestColumnW = cw;
+                bestShrink = shrink;
+            }
+        }
+
+        foreach (var c in list)
+        {
+            var fit = c.VisualWidth > bestColumnW ? bestColumnW / c.VisualWidth : 1.0;
+            c.DpiScale = Math.Max(1, Math.Round(c.DpiScale * fit * bestShrink));
+        }
+
+        var columns = bestCols;
+        var columnW = bestColumnW;
+        var heights = new double[columns];
+        for (var i = 0; i < columns; i++)
+        {
+            heights[i] = inset;
+        }
+        foreach (var c in list)
+        {
+            var column = 0;
+            for (var i = 1; i < columns; i++)
+            {
+                if (heights[i] < heights[column])
+                {
+                    column = i;
+                }
+            }
+            var x = inset + column * (columnW + gap) + Math.Max(0, (columnW - c.VisualWidth) / 2);
+            var y = heights[column];
+            c.SetCanvasPosition(x, y);
+            heights[column] = y + c.VisualHeight + gap;
+        }
+
+        SaveComponents();
+        Log.Info($"[CM] 布局整理 页={pageIndex} 组件={list.Count} 列={columns} 缩放={bestShrink:F2}");
+
+        static int columnsFallback(double hostW, double inset, double gap)
+        {
+            var cols = Math.Clamp((int)Math.Round(hostW / 380.0), 2, 6);
+            var columnW = (hostW - inset * 2 - gap * (cols - 1)) / cols;
+            return columnW < 120 ? 2 : cols;
+        }
+    }
+
+    // 组件类型(定义 ID) 供配置面板按类型出字段
+    public string GetComponentType(string compId) =>
+        Components.TryGetValue(compId, out var c) ? c.Type : "";
+
     // 组件配置读写
     public JsonObject GetComponentConfig(string compId)
     {
@@ -767,6 +1086,45 @@ public sealed class ComponentManager
         _home.AfterComponentRebuilt(fresh);
         SaveComponents();
         Log.Info($"[CM] 组件配置已更新: {compId}");
+    }
+
+    // 换肤后重建组件
+    public void RebuildAllForAppearance()
+    {
+        var rebuilt = 0;
+        foreach (var compId in Components.Keys.ToList())
+        {
+            if (!_componentData.TryGetValue(compId, out var data) || !Components.TryGetValue(compId, out var old))
+            {
+                continue;
+            }
+            try
+            {
+                var (px, py) = old.GetPositionPercent();
+                var scale = old.DpiScale;
+                var visible = old.IsVisible;
+                // 先建后删，防丢卡
+                var fresh = CreateWidget(data);
+                if (fresh is null)
+                {
+                    Log.Warning($"[CM] 外观重建跳过 {compId}: 工厂返回空");
+                    continue;
+                }
+                (old.Parent as Panel)?.Children.Remove(old);
+                Components[compId] = fresh;
+                fresh.SetPositionPercent(px, py);
+                fresh.ApplyPercent();
+                fresh.DpiScale = scale;
+                fresh.IsVisible = visible;
+                _home.AfterComponentRebuilt(fresh);
+                rebuilt++;
+            }
+            catch (Exception e)
+            {
+                Log.Error($"[CM] 外观重建失败 {compId}: {e.GetType().Name}: {e.Message}");
+            }
+        }
+        Log.Info($"[CM] 换肤重建 {rebuilt} 个组件");
     }
 
     public string? AddComponent(string compType, string compStyle, int pageIndex)
@@ -999,7 +1357,10 @@ public sealed class ComponentLibraryWindow : GlimpseonWindow
             Width = boxW,
             Height = boxH,
             CornerRadius = new CornerRadius(8),
-            Background = new SolidColorBrush(Avalonia.Media.Colors.Gray, 0.14),
+            Background = PreviewBackdrop(),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(Avalonia.Media.Colors.White, 0.07),
+            ClipToBounds = true,
             Child = new TextBlock
             {
                 Text = "…",
@@ -1014,22 +1375,32 @@ public sealed class ComponentLibraryWindow : GlimpseonWindow
         var nameText = new TextBlock
         {
             Text = def.DisplayName,
-            FontSize = 12,
+            FontSize = 12.5,
+            FontWeight = FontWeight.Medium,
             TextTrimming = TextTrimming.CharacterEllipsis,
             HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 6, 0, 2),
+            Margin = new Thickness(0, 7, 0, 2),
+        };
+
+        var metaText = new TextBlock
+        {
+            Text = $"{def.Category} · {def.DefaultWidth:0}×{def.DefaultHeight:0}",
+            FontSize = WidgetType.Micro,
+            Opacity = 0.5,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            HorizontalAlignment = HorizontalAlignment.Center,
         };
 
         var card = new Border
         {
             Width = 212,
             Margin = new Thickness(0, 0, 12, 12),
-            Padding = new Thickness(8, 8, 8, 6),
+            Padding = new Thickness(8, 8, 8, 8),
             CornerRadius = new CornerRadius(10),
             Background = new SolidColorBrush(Avalonia.Media.Colors.Gray, 0.10),
             BorderThickness = new Thickness(1),
             BorderBrush = new SolidColorBrush(Avalonia.Media.Colors.Gray, 0.22),
-            Child = new StackPanel { Children = { host, nameText } },
+            Child = new StackPanel { Children = { host, nameText, metaText } },
         };
 
         card.PointerPressed += (_, e) =>
@@ -1071,6 +1442,18 @@ public sealed class ComponentLibraryWindow : GlimpseonWindow
 
         return card;
     }
+
+    // 预览底色 中性深蓝渐变 不继承用户高饱和配色
+    private static IBrush PreviewBackdrop() => new LinearGradientBrush
+    {
+        StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+        EndPoint = new RelativePoint(1, 1, RelativeUnit.Relative),
+        GradientStops =
+        {
+            new GradientStop(Color.Parse("#1E2836"), 0),
+            new GradientStop(Color.Parse("#3A4C62"), 1),
+        },
+    };
 
     // 真控件实例缩放为主体(实时渲染 非图片)
     private Control BuildLivePreview(ComponentDefinition def)
@@ -1226,14 +1609,14 @@ public static class StyleWidgetFactory
         }
         DraggableContainer? widget = typeId switch
         {
-            "clock_digital" => new DigitalClockWidget(definition),
+            "clock_digital" => new DigitalClockWidget(definition, config),
             "clock_square_1" => new NativeSquareClock1Widget(definition),
-            "clock_square_2" => new NativeSquareClock2Widget(definition),
+            "clock_square_2" => new NativeSquareClock2Widget(definition, config),
             "clock_calendar_month" => new CalendarMonthWidget(definition),
             "clock_calendar_mini" => new NativeMiniCalendarWidget(definition),
             "clock_almanac" => new NativeAlmanacWidget(definition),
             "poetry_one_line" => new PoetryWidget(definition),
-            "weather_icon_temp" => new WeatherCurrentWidget(definition),
+            "weather_icon_temp" => new WeatherCurrentWidget(definition, config),
             "weather_hourly" => new WeatherHourlyWidget(definition),
             "weather_weekly" => new WeatherWeeklyWidget(definition),
             "countdown_event" => new CountdownEventWidget(definition, config),
@@ -1264,6 +1647,11 @@ public static class StyleWidgetFactory
             "study_meter" => new NativeDecibelMeterWidget(definition),
             _ => null,
         };
+        // 组件私有配置注入 通用外观覆盖由此生效
+        if (widget is WidgetCardBase cardWidget)
+        {
+            cardWidget.ApplyComponentConfig(config);
+        }
         return widget;
     }
 }
@@ -1273,8 +1661,9 @@ public abstract class WidgetCardBase : DraggableContainer
 {
     protected readonly Border Card;
 
-    // 组件级圆角覆盖
+    // 组件级圆角/底色不透明度覆盖
     protected int? CfgRadius;
+    private int? CfgOpacity;
 
     protected WidgetCardBase(ComponentDefinition definition)
     {
@@ -1288,11 +1677,26 @@ public abstract class WidgetCardBase : DraggableContainer
         ApplyCardStyle();
         Config.ComponentCardOpacity.ValueChanged += _ => ApplyCardStyle();
         Config.ComponentCardRadius.ValueChanged += _ => ApplyCardStyle();
+        // 全局外观项 改一处 全部卡片跟随
+        Config.ComponentCardColor.ValueChanged += _ => ApplyCardStyle();
+        Config.ComponentTextColor.ValueChanged += _ => ApplyCardStyle();
+        Config.ComponentCardShadow.ValueChanged += _ => ApplyCardStyle();
+        Config.ComponentCardBlur.ValueChanged += _ => ApplyCardStyle();
+        Config.ComponentCardBorder.ValueChanged += _ => ApplyCardStyle();
+        // 拖动/缩放后毛玻璃切片要跟着壁纸对齐
+        GeometryChanged += RefreshGlass;
         // 控件级事件: 构造时未挂树变体可能是 Light 挂树继承窗口 Dark 后必须重算
         ActualThemeVariantChanged += (_, _) => ApplyCardStyle();
     }
 
-    // 读圆角覆盖
+    // 由工厂在构造完成后注入组件 JSON 让所有卡片共享外观覆盖项
+    public void ApplyComponentConfig(JsonElement? config)
+    {
+        ReadBgOverride(config);
+        ApplyCardStyle();
+    }
+
+    // 读圆角与不透明度覆盖
     protected void ReadBgOverride(JsonElement? config)
     {
         if (config is not { ValueKind: JsonValueKind.Object } obj)
@@ -1303,23 +1707,201 @@ public abstract class WidgetCardBase : DraggableContainer
         {
             CfgRadius = r.GetInt32();
         }
+        if (obj.TryGetProperty("bg_opacity", out var o) && o.ValueKind == JsonValueKind.Number)
+        {
+            CfgOpacity = Math.Clamp(o.GetInt32(), 0, 100);
+        }
     }
 
     protected double EffectiveRadius =>
         CfgRadius is { } r ? Math.Max(8, r) : Math.Max(8, Config.ComponentCardRadius.Value);
 
+    // 卡片实际明暗: 自定义底色按亮度判定 否则随窗口主题
+    internal bool CardIsDark { get; private set; }
+
+    // 毛玻璃切片 brush 复用以免每次拖动重建
+    private ImageBrush? _glassBrush;
+
     // 卡片纯色 公用表面色
     protected virtual void ApplyCardStyle()
     {
-        var dark = ThemeSense.IsDark(this);
-        var p = WidgetSurfacePalette.Resolve(dark);
-        Card.Background = new SolidColorBrush(p.Card);
-        Card.BorderBrush = new SolidColorBrush(dark ? Colors.White : Colors.Black, dark ? 0.10 : 0.06);
+        var themeDark = WindowThemeDark();
+        var custom = TryParseColor(Config.ComponentCardColor.Value);
+        var alpha = Math.Clamp((CfgOpacity ?? Config.ComponentCardOpacity.Value) / 100.0, 0, 1);
+        var surface = custom ?? WidgetSurfacePalette.Resolve(themeDark).Card;
+        var blur = Config.ComponentCardBlur.Value;
+        var glass = blur > 0 && HomeView.GlassBackdrop is not null;
+
+        if (glass)
+        {
+            // 取壁纸模糊图对应切片 真背景模糊而非半透明
+            _glassBrush ??= new ImageBrush { Stretch = Stretch.Fill };
+            _glassBrush.Source = HomeView.GlassBackdrop;
+            Card.Background = _glassBrush;
+            CardIsDark = true;
+            RefreshGlass();
+        }
+        else
+        {
+            // 全透明时看不见底色 仍按窗口主题取字色
+            CardIsDark = custom is null || alpha < 0.15 ? themeDark : Luminance(surface) < 128;
+            var a = (byte)Math.Round(alpha * 255);
+            if (custom is null)
+            {
+                Card.Background = new SolidColorBrush(Color.FromArgb(a, surface.R, surface.G, surface.B));
+            }
+            else
+            {
+                // 自定义主题走同色系斜向渐变 比纯色平涂更有体积
+                var top = Common.ShiftColor(surface, CardIsDark ? 0.07 : 0.10);
+                var bottom = Common.ShiftColor(surface, CardIsDark ? -0.10 : -0.05);
+                Card.Background = new LinearGradientBrush
+                {
+                    StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+                    EndPoint = new RelativePoint(1, 1, RelativeUnit.Relative),
+                    GradientStops =
+                    {
+                        new GradientStop(Color.FromArgb(a, top.R, top.G, top.B), 0),
+                        new GradientStop(Color.FromArgb(a, bottom.R, bottom.G, bottom.B), 1),
+                    },
+                };
+            }
+        }
+
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        var borderMode = Config.ComponentCardBorder.Value;
+        var edgeColor = CardIsDark ? Colors.White : Colors.Black;
+        var accent = Common.ParseAccentColor(Config.ThemeColor.Value);
+
+        var borderWidth = borderMode switch { 0 => 0.0, 2 => 1.6, 3 => 1.4, _ => 1 };
+        Card.BorderThickness = new Thickness(borderWidth);
+        Card.BorderBrush = borderMode switch
+        {
+            3 => new SolidColorBrush(accent, 0.90),
+            4 => new SolidColorBrush(edgeColor, CardIsDark ? (glass ? 0.45 : 0.34) : 0.22),
+            2 => new SolidColorBrush(edgeColor, CardIsDark ? (glass ? 0.30 : 0.24) : 0.16),
+            _ => new SolidColorBrush(edgeColor, glass ? 0.10 : CardIsDark ? 0.07 : 0.06),
+        };
         Card.CornerRadius = new CornerRadius(EffectiveRadius);
         CardRadius = EffectiveRadius;
-        // 子文本继承卡片文字色
+
+        // 形态阴影
+        Card.BoxShadow = borderMode switch
+        {
+            3 => new BoxShadows(
+                new BoxShadow { Blur = 24, Spread = 3, Color = Color.FromArgb(84, accent.R, accent.G, accent.B) },
+                new[] { new BoxShadow { Blur = 6, Color = Color.FromArgb(140, accent.R, accent.G, accent.B) } }),
+            // 双框外线
+            4 => new BoxShadows(
+                new BoxShadow { OffsetY = 0, Blur = 0, Spread = 3, Color = Color.FromArgb(58, 0, 0, 0) },
+                new[] { new BoxShadow { OffsetY = 6, Blur = 16, Color = Color.FromArgb(70, 0, 0, 0) } }),
+            _ => Config.ComponentCardShadow.Value switch
+            {
+                2 => new BoxShadows(new BoxShadow { OffsetY = 3, Blur = 2, Color = Color.FromArgb(150, 0, 0, 0) }),
+                1 => new BoxShadows(new BoxShadow
+                {
+                    OffsetY = 10,
+                    Blur = 26,
+                    Color = Color.FromArgb(glass || CardIsDark ? (byte)87 : (byte)44, 0, 0, 0),
+                }),
+                _ => default,
+            },
+        };
+        // 文字色继承
         Card.SetValue(Avalonia.Controls.Documents.TextElement.ForegroundProperty,
-            new SolidColorBrush(p.Text));
+            new SolidColorBrush(TryParseColor(Config.ComponentTextColor.Value) ?? p.Text));
+
+        // 通知子组件重算字色
+        AppearanceChanged?.Invoke();
+    }
+
+    /// <summary>卡片外观重算完成</summary>
+    public event Action? AppearanceChanged;
+
+    // 纯白视为未设置
+    protected static Color? ConfiguredInk(string? hex)
+    {
+        var c = TryParseColor(hex);
+        return c is { R: 255, G: 255, B: 255 } ? null : c;
+    }
+
+    // 窗口明暗，避免卡片自判定递归
+    private bool WindowThemeDark()
+    {
+        if (TopLevel.GetTopLevel(this) is { } top)
+        {
+            return top.ActualThemeVariant == ThemeVariant.Dark;
+        }
+        return Application.Current?.ActualThemeVariant == ThemeVariant.Dark;
+    }
+
+    // 毛玻璃切片 按卡片在窗口中的位置对齐壁纸像素
+    private void RefreshGlass()
+    {
+        if (_glassBrush?.Source is null)
+        {
+            return;
+        }
+        if (TopLevel.GetTopLevel(this) is not { } tl)
+        {
+            return;
+        }
+        var winW = tl.Bounds.Width;
+        var winH = tl.Bounds.Height;
+        if (winW <= 1 || winH <= 1)
+        {
+            return;
+        }
+        var origin = this.TranslatePoint(new Point(0, 0), tl);
+        if (origin is null)
+        {
+            return;
+        }
+        var x = Math.Clamp(origin.Value.X / winW, 0, 0.999);
+        var y = Math.Clamp(origin.Value.Y / winH, 0, 0.999);
+        var w = Math.Clamp(Math.Max(1, VisualWidth) / winW, 0.001, 1 - x);
+        var h = Math.Clamp(Math.Max(1, VisualHeight) / winH, 0.001, 1 - y);
+        _glassBrush.SourceRect = new RelativeRect(x, y, w, h, RelativeUnit.Relative);
+    }
+
+    private static double Luminance(Color c) => c.R * 0.299 + c.G * 0.587 + c.B * 0.114;
+
+    // 同色系提亮/压暗 供自定义卡片底色渐变
+    private static Color ShiftColor(Color c, double k)
+    {
+        return Common.ShiftColor(c, k);
+    }
+
+    // 色串解析 空/非法 返回 null 由调用方走主题兜底
+    protected static Color? TryParseColor(string? hex)
+    {
+        if (string.IsNullOrWhiteSpace(hex))
+        {
+            return null;
+        }
+        try
+        {
+            return Color.Parse(hex);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    // 读取组件 JSON 布尔设置
+    protected static bool ReadBool(JsonElement? config, string key, bool fallback)
+    {
+        if (config is { ValueKind: JsonValueKind.Object } obj && obj.TryGetProperty(key, out var v))
+        {
+            return v.ValueKind switch
+            {
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                _ => fallback,
+            };
+        }
+        return fallback;
     }
 
     // 展开层支持
@@ -1360,99 +1942,401 @@ public abstract class WidgetCardBase : DraggableContainer
 }
 
 // 数字时钟
-// 规格: 400x200 时钟80px bold/日期16px 色ClockColor 竖排3:1 边距(32,24,32,24) 间距8
-// HH:mm:ss(ShowClockSeconds) 日期 {y}年{M}月{d}日 星期X + 农历(ShowLunarCalendar) ShowClock=false 整体隐藏
+// 400x200 日期左上 主时间左对齐 秒数降档共基线 24 格时间轴 ClockColor
+// 断点 高<120 隐时间轴 高<170 隐刻度文字 高<96 隐日期; 整秒对齐 切页停表
 
 public sealed class DigitalClockWidget : WidgetCardBase
 {
-    private readonly TextBlock _timeText = new();
-    private readonly TextBlock _dateText = new();
+    private const double PadX = WidgetSpace.Pad, PadY = 16;
+    // 主时间按可用框拟合 秒数降档共基线
+    private const double EmHm = 2.52, SecScale = 0.36;
+
+    private readonly TextBlock _timeText = new()
+    {
+        HorizontalAlignment = HorizontalAlignment.Left,
+        VerticalAlignment = VerticalAlignment.Center,
+        TextAlignment = TextAlignment.Left,
+        FontWeight = FontWeight.Light,
+        FontFamily = WidgetFonts.Num,
+    };
+    private readonly TextBlock _dateText = new()
+    {
+        HorizontalAlignment = HorizontalAlignment.Left,
+        TextAlignment = TextAlignment.Left,
+        TextWrapping = TextWrapping.NoWrap,
+        FontFamily = WidgetFonts.Ui,
+    };
+    private readonly DayProgressBar _dayBar = new();
     private readonly DispatcherTimer _timer;
 
-    private static readonly string[] Weekdays = { "日", "一", "二", "三", "四", "五", "六" };
+    private IBrush _secBrush = Brushes.White;
+    private IBrush _dateBrush = Brushes.White;
+    private IBrush _lunarBrush = Brushes.White;
+    private DateTime _now;
+    private string _hm = "--:--", _ss = "00";
+    private string _dateCore = "", _lunar = "";
+    private double _dateSize = WidgetType.Label;
+    private bool _showLunar;
+    private bool _showLunarPref = true;
+    private bool _showSeconds = true;
+    private bool _hiddenByConfig;
 
-    public DigitalClockWidget(ComponentDefinition definition) : base(definition)
+    public DigitalClockWidget(ComponentDefinition definition, JsonElement? config) : base(definition)
     {
-        // 原版 inner_layout: 时钟 stretch 3 + 日期 stretch 1
-        var grid = new Grid
+        _showSeconds = ReadBool(config, "show_seconds", true);
+        _showLunarPref = ReadBool(config, "show_lunar", true);
+        var root = new Grid
         {
-            Margin = new Thickness(32, 24, 32, 24),
-            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("3*,*"),
-            RowSpacing = 8,
+            Margin = new Thickness(PadX, PadY, PadX, 14),
+            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,*,Auto"),
+            RowSpacing = WidgetSpace.GapSm,
         };
-        _timeText.HorizontalAlignment = HorizontalAlignment.Stretch;
-        _timeText.TextAlignment = TextAlignment.Center;
-        _timeText.VerticalAlignment = VerticalAlignment.Stretch;
-        _dateText.HorizontalAlignment = HorizontalAlignment.Stretch;
-        _dateText.TextAlignment = TextAlignment.Center;
-        _dateText.VerticalAlignment = VerticalAlignment.Stretch;
-        Grid.SetRow(_timeText, 0);
-        Grid.SetRow(_dateText, 1);
-        grid.Children.Add(_timeText);
-        grid.Children.Add(_dateText);
-        Card.Child = grid;
+        Grid.SetRow(_dateText, 0);
+        Grid.SetRow(_timeText, 1);
+        Grid.SetRow(_dayBar, 2);
+        root.Children.Add(_dateText);
+        root.Children.Add(_timeText);
+        root.Children.Add(_dayBar);
+        Card.Child = root;
         Content = Card;
 
-        ApplyClockStyle();
-        Config.ClockColor.ValueChanged += _ => ApplyClockStyle();
-        Config.ClockSize.ValueChanged += _ => ApplyClockStyle();
-        Config.DateSize.ValueChanged += _ => ApplyClockStyle();
-        Config.ShowClockSeconds.ValueChanged += _ => UpdateTime();
+        _timer = new DispatcherTimer();
+        _timer.Tick += (_, _) => UpdateTime();
+
+        ApplyLook();
+        SizeChanged += (_, _) => Relayout();
+        ActualThemeVariantChanged += (_, _) => ApplyLook();
+
+        Config.ClockColor.ValueChanged += _ => ApplyLook();
+        // 全局换肤后重解 免浅底白字
+        Config.ComponentTextColor.ValueChanged += _ => ApplyLook();
+        Config.ComponentCardColor.ValueChanged += _ => ApplyLook();
+        Config.ClockSize.ValueChanged += _ => Relayout();
+        Config.DateSize.ValueChanged += _ => Relayout();
+        Config.ShowClockSeconds.ValueChanged += _ => { UpdateTime(); Relayout(); };
         Config.ShowLunarCalendar.ValueChanged += _ => UpdateTime();
         Config.ShowClock.ValueChanged += _ => UpdateTime();
 
-        _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _timer.Tick += (_, _) => UpdateTime();
-        _timer.Start();
         UpdateTime();
     }
 
-    // 原版 _apply_style: 时钟 bold 颜色 clockColor 字号 clockSize 日期 dateSize
-    private void ApplyClockStyle()
+    // 时钟色 + 进度条配色 主题切换重解
+    private void ApplyLook()
     {
-        IBrush brush;
-        try
-        {
-            brush = new SolidColorBrush(Color.Parse(Config.ClockColor.Value));
-        }
-        catch (Exception e)
-        {
-
-            Log.Debug($"[SW] 颜色解析失败 用白色: {e.Message}");
-            brush = Brushes.White;
-        }
-        _timeText.Foreground = brush;
-        _timeText.FontSize = Config.ClockSize.Value;
-        _timeText.FontWeight = FontWeight.Bold;
-        _dateText.Foreground = brush;
-        _dateText.FontSize = Config.DateSize.Value;
+        // 卡片明暗决定字色 与窗口主题解耦
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        // 空 = 跟随卡片文字色 全局换肤后仍保证对比度
+        var ink = TryParseColor(Config.ClockColor.Value) ?? p.Text;
+        _timeText.Foreground = new SolidColorBrush(ink);
+        _dateBrush = new SolidColorBrush(ink, CardInk.MutedOpacity);
+        _lunarBrush = new SolidColorBrush(ink, CardInk.FaintOpacity);
+        _secBrush = new SolidColorBrush(ink, CardInk.MutedOpacity);
+        _dayBar.ApplyPalette(ThemeAccent(), p.Line, p.Text);
+        PaintDate();
+        Relayout();
     }
 
-    private void UpdateTime()
+    // 强调色 走统一入口
+    private static Color ThemeAccent() => CardAccent.Value;
+
+    // 断点 + 字号拟合: 主时间取 min(宽约束, 高约束) 秒数按比例降档
+    private void Relayout()
     {
-        // 原版: showClock=false 组件整体隐藏(编辑模式显示占位)
-        if (!Config.ShowClock.Value)
+        var w = Bounds.Width - PadX * 2;
+        var h = Bounds.Height - PadY - 14;
+        if (w <= 1 || h <= 1)
         {
-            IsVisible = false;
             return;
         }
-        IsVisible = true;
 
-        var now = AppUtils.PreciseNow();
-        _timeText.Text = Config.ShowClockSeconds.Value ? now.ToString("HH:mm:ss") : now.ToString("HH:mm");
+        var compact = h < 96;
+        var showTicks = h >= 120;
+        var roomy = h >= 170;
 
-        // 原版 tr("date.format", y, M, d, w) = "{y}年{M}月{d}日 {w}"
-        var weekday = "星期" + Weekdays[(int)now.DayOfWeek];
-        var date = $"{now.Year}年{now.Month}月{now.Day}日 {weekday}";
-        if (Config.ShowLunarCalendar.Value)
+        _dateText.IsVisible = !compact;
+        _dayBar.IsVisible = showTicks;
+        _dayBar.ShowLabels = roomy;
+        _dayBar.Height = roomy ? 38 : 20;
+
+        var dateH = compact ? 0 : 20;
+        var barH = showTicks ? (roomy ? 38 : 20) : 0;
+        var gaps = (compact ? 0 : WidgetSpace.GapSm) + (showTicks ? WidgetSpace.GapSm : 0);
+        var timeH = Math.Max(14, h - dateH - barH - gaps);
+
+        var em = _showSeconds ? EmHm + SecScale * 0.62 + 0.30 : EmHm;
+        // 收进 4% 光学余量 数字"1"侧承大 纯居中会让右端贴边
+        var fitW = w * 0.96;
+        var size = Math.Min(fitW / em, timeH / 0.95);
+        // 字宽回退校正 真实字形测量后收敛一次
+        var real = MeasureTime(size);
+        if (real > 0 && real > fitW)
         {
-            var lunar = AlmanacService.GetToday(now);
+            size *= fitW / real;
+        }
+        size = Math.Clamp(Math.Round(size, 1), 12, 240);
+        _timeText.FontSize = size;
+        // 大数字收紧字距 让整块更像一体
+        _timeText.LetterSpacing = -Math.Round(size * 0.02, 1);
+
+        FitDate(w);
+        Paint();
+    }
+
+    // 主时间按固定宽度模板测量 数字跳变时不改字号 不位移
+    private double MeasureTime(double size)
+    {
+        var width = Measure("00:00", size);
+        if (_showSeconds)
+        {
+            width += Measure(" ", size * 0.30) + Measure("00", size * SecScale);
+        }
+        return width;
+    }
+
+    private double Measure(string text, double size, FontWeight weight = FontWeight.Light) =>
+        CardText.Width(text, _timeText.FontFamily, weight, size);
+
+    // 日期超宽 先舍农历 再降字号
+    private void FitDate(double availW)
+    {
+        if (!_dateText.IsVisible || string.IsNullOrEmpty(_dateCore))
+        {
+            return;
+        }
+        var size = Math.Clamp(Config.DateSize.Value, 10.5, 12);
+        while (size > 10.5 && Measure(_dateCore, size, FontWeight.Normal) > availW)
+        {
+            size -= 0.5;
+        }
+        _dateSize = Math.Round(size, 1);
+        _showLunar = _lunar.Length > 0
+                     && Bounds.Height >= 170
+                     && Measure(_dateCore, _dateSize, FontWeight.Normal)
+                     + Measure("  " + _lunar, _dateSize * 0.88, FontWeight.Normal) <= availW;
+        PaintDate();
+    }
+
+    // 日期一行 农历更弱 同一基线
+    private void PaintDate()
+    {
+        if (!_dateText.IsVisible)
+        {
+            return;
+        }
+        var inlines = _dateText.Inlines ??= new Avalonia.Controls.Documents.InlineCollection();
+        inlines.Clear();
+        inlines.Add(new Avalonia.Controls.Documents.Run(_dateCore)
+        {
+            FontSize = _dateSize,
+            Foreground = _dateBrush,
+        });
+        if (_showLunar)
+        {
+            inlines.Add(new Avalonia.Controls.Documents.Run("  ")
+            {
+                FontSize = _dateSize * 0.88,
+            });
+            inlines.Add(new Avalonia.Controls.Documents.Run(_lunar)
+            {
+                FontSize = _dateSize * 0.88,
+                Foreground = _lunarBrush,
+            });
+        }
+    }
+
+    // 整秒刷新 隐藏即停表
+    private void UpdateTime()
+    {
+        if (!Config.ShowClock.Value)
+        {
+            _hiddenByConfig = true;
+            if (IsVisible)
+            {
+                IsVisible = false;
+            }
+            _timer.Stop();
+            return;
+        }
+        if (_hiddenByConfig)
+        {
+            _hiddenByConfig = false;
+            IsVisible = true;
+        }
+
+        _now = AppUtils.PreciseNow();
+        _hm = _now.ToString("HH:mm");
+        _ss = _now.ToString("ss");
+
+        var weekday = AppUtils.Tr("weekday." + _now.DayOfWeek.ToString().ToLowerInvariant());
+        _dateCore = $"{_now:yyyy年M月d日} {weekday}";
+        _lunar = "";
+        if (_showLunarPref)
+        {
+            var lunar = AlmanacService.GetToday(_now);
             if (lunar is not null && !string.IsNullOrEmpty(lunar.LunarMonth))
             {
-                date += $" {lunar.LunarMonth}{lunar.LunarDay}";
+                _lunar = $"{lunar.LunarMonth}{lunar.LunarDay}";
             }
         }
-        _dateText.Text = date;
+
+        FitDate(Math.Max(1, Bounds.Width - PadX * 2));
+        Paint();
+        Schedule();
+    }
+
+    // Run 混排 显式按基线对齐 主时间与秒数共线
+    private void Paint()
+    {
+        var f = _timeText.FontSize;
+        var inlines = _timeText.Inlines ??= new Avalonia.Controls.Documents.InlineCollection();
+        inlines.Clear();
+        inlines.Add(new Avalonia.Controls.Documents.Run(_hm)
+        {
+            FontSize = f,
+            BaselineAlignment = Avalonia.Media.BaselineAlignment.Baseline,
+        });
+        if (_showSeconds)
+        {
+            inlines.Add(new Avalonia.Controls.Documents.Run(" ")
+            {
+                FontSize = f * 0.30,
+                BaselineAlignment = Avalonia.Media.BaselineAlignment.Baseline,
+            });
+            inlines.Add(new Avalonia.Controls.Documents.Run(_ss)
+            {
+                FontSize = f * SecScale,
+                Foreground = _secBrush,
+                BaselineAlignment = Avalonia.Media.BaselineAlignment.Baseline,
+            });
+        }
+        _dayBar.Update(_now);
+    }
+
+    // 对齐整秒 按余数重排 避免 DispatcherTimer 累积漂移
+    private void Schedule()
+    {
+        _timer.Stop();
+        if (!Config.ShowClock.Value)
+        {
+            return;
+        }
+        var phase = _showSeconds ? _now.Millisecond : _now.Second * 1000 + _now.Millisecond;
+        var period = _showSeconds ? 1000 : 60000;
+        _timer.Interval = TimeSpan.FromMilliseconds(Math.Clamp(period - phase + 10, 20, 60100));
+        _timer.Start();
+    }
+
+    // 宿主切页隐藏即停表 回到可见立刻追帧
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property != IsVisibleProperty || _timer is null)
+        {
+            return;
+        }
+        if (!IsVisible)
+        {
+            _timer.Stop();
+        }
+        else if (Config.ShowClock.Value && !_timer.IsEnabled)
+        {
+            UpdateTime();
+        }
+    }
+}
+
+// 今日 24 格进度 已过整格半透明 当前格按分钟填充 未到走轨道色
+public sealed class DayProgressBar : Grid
+{
+    private const int Cells = 24;
+    private readonly Border[] _ticks = new Border[Cells];
+    private readonly Grid _labelRow = new();
+    private readonly TextBlock[] _labels = new TextBlock[5];
+    private IBrush _past = Brushes.Transparent;
+    private IBrush _now = Brushes.Transparent;
+    private IBrush _rail = Brushes.Transparent;
+    private bool _showLabels;
+
+    public bool ShowLabels
+    {
+        get => _showLabels;
+        set
+        {
+            _showLabels = value;
+            _labelRow.IsVisible = value;
+        }
+    }
+
+    public DayProgressBar()
+    {
+        IsHitTestVisible = false;
+        RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("20,Auto");
+        RowSpacing = 2;
+
+        var tickHost = new Grid { ColumnSpacing = 3, VerticalAlignment = VerticalAlignment.Bottom };
+        for (var i = 0; i < Cells; i++)
+        {
+            tickHost.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var tick = new Border
+            {
+                Height = 9,
+                CornerRadius = new CornerRadius(2),
+                VerticalAlignment = VerticalAlignment.Bottom,
+                IsHitTestVisible = false,
+            };
+            SetColumn(tick, i);
+            tickHost.Children.Add(tick);
+            _ticks[i] = tick;
+        }
+        Children.Add(tickHost);
+
+        // 0 / 6 / 12 / 18 / 24 五个刻度 与 24 格等分对齐
+        _labelRow.ColumnDefinitions =
+            Avalonia.Controls.ColumnDefinitions.Parse("Auto,*,Auto,*,Auto,*,Auto,*,Auto");
+        var texts = new[] { "0", "6", "12", "18", "24" };
+        for (var i = 0; i < texts.Length; i++)
+        {
+            var label = new TextBlock
+            {
+                Text = texts[i],
+                FontSize = WidgetType.Micro,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = i == 0
+                    ? HorizontalAlignment.Left
+                    : i == texts.Length - 1 ? HorizontalAlignment.Right : HorizontalAlignment.Center,
+            };
+            SetColumn(label, i * 2);
+            _labelRow.Children.Add(label);
+            _labels[i] = label;
+        }
+        _labelRow.IsVisible = false;
+        SetRow(_labelRow, 1);
+        Children.Add(_labelRow);
+    }
+
+    // 轨道/已过/当前 三色
+    public void ApplyPalette(Color accent, Color track, Color ink)
+    {
+        _past = new SolidColorBrush(accent, 0.42);
+        _now = new SolidColorBrush(accent);
+        _rail = new SolidColorBrush(track, 0.55);
+        foreach (var label in _labels)
+        {
+            label.Foreground = new SolidColorBrush(ink, CardInk.FaintOpacity);
+        }
+    }
+
+    // 刷新到某时刻: 已过 9px 当前随时长长到 20px 未到轨道色
+    public void Update(DateTime now)
+    {
+        var hour = now.Hour;
+        var frac = (now.Minute * 60 + now.Second) / 3600.0;
+        for (var i = 0; i < Cells; i++)
+        {
+            var current = i == hour;
+            _ticks[i].Height = current ? 9 + 11 * frac : 9;
+            _ticks[i].Background = i < hour ? _past : current ? _now : _rail;
+        }
     }
 }
 
@@ -1461,29 +2345,87 @@ public sealed class DigitalClockWidget : WidgetCardBase
 
 public sealed class PoetryWidget : WidgetCardBase
 {
+    private const string FallbackContent = "山重水复疑无路，柳暗花明又一村。";
+    private const string FallbackAuthor = "陆游《游山西村》";
+
     private readonly TextBlock _contentText = new();
+    private readonly Border _authorBar = new();
     private readonly TextBlock _authorText = new();
+    private readonly StackPanel _authorRow;
+    private readonly StackPanel _stack;
+    private readonly Border _accentBar = new();
 
     public PoetryWidget(ComponentDefinition definition) : base(definition)
     {
-        var stack = new StackPanel
+        _contentText.TextWrapping = TextWrapping.Wrap;
+        _contentText.TextAlignment = TextAlignment.Left;
+        _contentText.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _contentText.FontWeight = FontWeight.Light;
+        _contentText.LetterSpacing = 0.6;
+        _contentText.Margin = new Thickness(16, 0, 0, 0);
+
+        _contentText.VerticalAlignment = VerticalAlignment.Center;
+
+        _stack = new StackPanel
         {
             VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
         };
-        // 原版 RichText: 正文 div + 出处 div(两行)
-        _contentText.TextAlignment = TextAlignment.Center;
-        _contentText.TextWrapping = TextWrapping.Wrap;
-        _authorText.TextAlignment = TextAlignment.Center;
-        // 原版两个 div 直接堆叠 无间距
-        stack.Children.Add(_contentText);
-        stack.Children.Add(_authorText);
-        Card.Child = stack;
+        _stack.Children.Add(_contentText);
+        _contentText.VerticalAlignment = VerticalAlignment.Center;
+        _stack.Transitions = new Transitions
+        {
+            new DoubleTransition
+            {
+                Property = Visual.OpacityProperty,
+                Duration = TimeSpan.FromMilliseconds(280),
+            },
+        };
+
+        _authorText.FontSize = 11.5;
+        _authorText.VerticalAlignment = VerticalAlignment.Center;
+        _authorBar.Width = 14;
+        _authorBar.Height = 1;
+        _authorBar.VerticalAlignment = VerticalAlignment.Center;
+        _authorRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        _authorRow.Children.Add(_authorBar);
+        _authorRow.Children.Add(_authorText);
+        _authorRow.HorizontalAlignment = HorizontalAlignment.Left;
+        _authorRow.Margin = new Thickness(16, 0, 0, 0);
+
+        var root = new Grid
+        {
+            Margin = new Thickness(24, 20, 24, 20),
+            RowDefinitions = RowDefinitions.Parse("Auto,*,Auto"),
+            RowSpacing = 8,
+        };
+        Grid.SetRow(_stack, 1);
+        Grid.SetRow(_authorRow, 2);
+        // 作者行固定在第二行
+        root.Children.Add(_stack);
+        root.Children.Add(_authorRow);
+        // 两行布局 正文区与作者行
+        _accentBar.Width = 3;
+        _accentBar.CornerRadius = new CornerRadius(2);
+        _accentBar.HorizontalAlignment = HorizontalAlignment.Left;
+        _accentBar.VerticalAlignment = VerticalAlignment.Stretch;
+        _accentBar.Margin = new Thickness(0, 2, 0, 2);
+        Grid.SetRowSpan(_accentBar, 3);
+        root.Children.Add(_accentBar);
+        Card.Child = root;
         Content = Card;
+        SizeChanged += (_, _) => FitText();
 
         ApplyPoetryStyle();
+        ActualThemeVariantChanged += (_, _) => ApplyPoetryStyle();
+        AppearanceChanged += ApplyPoetryStyle;
         Config.PoetryTextColor.ValueChanged += _ => ApplyPoetryStyle();
-        Config.PoetrySize.ValueChanged += _ => ApplyPoetryStyle();
+        Config.PoetrySize.ValueChanged += _ => FitText();
         Config.ShowPoetry.ValueChanged += _ => RefreshFromCache();
 
         // 原版 1s tick 读缓存
@@ -1516,25 +2458,27 @@ public sealed class PoetryWidget : WidgetCardBase
         FormatPoetry(text);
     }
 
-    // 原版 _format_poetry: —— / — 分离出处 逗号后换行
+    // 原版 _format_poetry: —— / — 分离出处 逗号后换行；无缓存时用本地名句兜底
     private void FormatPoetry(string? text)
     {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            _contentText.Text = "";
-            _authorText.Text = "";
-            return;
-        }
-        var content = text.Trim();
+        var content = text?.Trim() ?? "";
         var attribution = "";
-        foreach (var sep in new[] { "——", "—" })
+        if (string.IsNullOrWhiteSpace(content))
         {
-            var idx = content.IndexOf(sep, StringComparison.Ordinal);
-            if (idx >= 0)
+            content = FallbackContent;
+            attribution = FallbackAuthor;
+        }
+        else
+        {
+            foreach (var sep in new[] { "——", "—" })
             {
-                attribution = content[(idx + sep.Length)..].Trim();
-                content = content[..idx].Trim();
-                break;
+                var idx = content.IndexOf(sep, StringComparison.Ordinal);
+                if (idx >= 0)
+                {
+                    attribution = content[(idx + sep.Length)..].Trim();
+                    content = content[..idx].Trim();
+                    break;
+                }
             }
         }
         content = System.Text.RegularExpressions.Regex.Replace(content, "([,，])", "$1\n").Trim();
@@ -1542,27 +2486,57 @@ public sealed class PoetryWidget : WidgetCardBase
         {
             content = content[..^1].TrimEnd();
         }
-        _contentText.Text = content;
-        _authorText.Text = attribution;
+        var changed = _contentText.Text != content || _authorText.Text != attribution;
+        if (changed)
+        {
+            _stack.Opacity = 0;
+            _contentText.Text = content;
+            _authorText.Text = attribution;
+            _authorRow.IsVisible = attribution.Length > 0;
+            FitText();
+            Dispatcher.UIThread.Post(() => _stack.Opacity = 1);
+        }
+        else
+        {
+            FitText();
+        }
+    }
+
+    // 字号同时受宽与高约束 出处保持小字
+    private void FitText()
+    {
+        var w = Bounds.Width - 64;
+        var h = Bounds.Height - 64;
+        if (w <= 1 || h <= 1 || string.IsNullOrEmpty(_contentText.Text))
+        {
+            return;
+        }
+        var baseSize = Math.Clamp(Config.PoetrySize.Value * 1.6, 16, 30);
+        var lines = _contentText.Text.Split('\n');
+        double widest = 0;
+        foreach (var line in lines)
+        {
+            widest = Math.Max(widest, CardText.Width(line, Common.AppFontFamily, FontWeight.Light, baseSize));
+        }
+        var byWidth = widest > w ? baseSize * w / widest : baseSize;
+        var byHeight = h / (Math.Max(1, lines.Length) * 1.5);
+        var size = Math.Clamp(Math.Min(baseSize, Math.Min(byWidth, byHeight)), 12, 30);
+        _contentText.FontSize = Math.Round(size, 1);
+        _contentText.LineHeight = Math.Round(size * 1.5, 1);
     }
 
     private void ApplyPoetryStyle()
     {
-        IBrush brush;
-        try
-        {
-            brush = new SolidColorBrush(Color.Parse(Config.PoetryTextColor.Value));
-        }
-        catch (Exception e)
-        {
-
-            Log.Debug($"[SW] 颜色解析失败 用白色: {e.Message}");
-            brush = Brushes.White;
-        }
-        _contentText.Foreground = brush;
-        _authorText.Foreground = brush;
-        _contentText.FontSize = Config.PoetrySize.Value;
-        _authorText.FontSize = Config.PoetrySize.Value;
+        // 自定义色优先 兜底走色板 浅色卡防白字
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        var ink = ConfiguredInk(Config.PoetryTextColor.Value) ?? p.Text;
+        var muted = new SolidColorBrush(ink, CardInk.MutedOpacity);
+        _contentText.Foreground = new SolidColorBrush(ink);
+        _authorText.Foreground = muted;
+        // 作者行只留虚线短杆与出处
+        _authorBar.Background = CardAccent.Brush(0.45);
+        _accentBar.Background = CardAccent.Brush(0.75);
+        FitText();
     }
 }
 
@@ -1572,6 +2546,10 @@ public sealed class PoetryWidget : WidgetCardBase
 public abstract class WeatherWidgetBase : WidgetCardBase
 {
     protected readonly DispatcherTimer RefreshTimer;
+
+    // 图标随卡缩放 由各组件 Relayout 更新 刷新图标时沿用
+    protected double LeadIconPx = 60;
+    protected double SlotIconPx = 28;
 
     protected WeatherWidgetBase(ComponentDefinition definition) : base(definition)
     {
@@ -1584,6 +2562,8 @@ public abstract class WeatherWidgetBase : WidgetCardBase
         Config.WeatherTextColor.ValueChanged += _ => ApplyWeatherStyle();
         RefreshTimer.Start();
         ActualThemeVariantChanged += (_, _) => ApplyWeatherStyle();
+        // 卡片底色/明暗变了 自有字色跟着重算
+        AppearanceChanged += ApplyWeatherStyle;
     }
 
     // 原版 interval_map: "10s"=10s "30s"=30s "1m"=60s "5m"=300s "10m"=600s "30m"=1800s
@@ -1607,6 +2587,9 @@ public abstract class WeatherWidgetBase : WidgetCardBase
         }
         UpdateDisplay(AppUtils.GetCachedContent("weather", ignoreExpiry: true));
     }
+
+    /// <summary>城市名: 保持顶行干净 不再拼接缓存标记</summary>
+    protected string CityLabel() => Config.City.Value;
 
     protected abstract void UpdateDisplay(JsonElement? cached);
 
@@ -1711,87 +2694,326 @@ public abstract class WeatherWidgetBase : WidgetCardBase
 public sealed class WeatherCurrentWidget : WeatherWidgetBase
 {
     private readonly Avalonia.Svg.Skia.Svg _icon = MakeSvgIcon("2.svg", 64)!;
+    private readonly bool _showIcon = true;
+    private readonly TextBlock _cityText = new();
+    private readonly TextBlock _conditionText = new();
     private readonly TextBlock _tempText = new();
+    private readonly TextBlock _rangeText = new();
+    private readonly TextBlock _detailText = new();
+    private readonly Grid _hero = new();
 
-    public WeatherCurrentWidget(ComponentDefinition definition) : base(definition)
+    public WeatherCurrentWidget(ComponentDefinition definition, JsonElement? config = null) : base(definition)
     {
-        // 原版 WeatherIconTempComponent: horizontal 布局 AlignCenter 图标:温度=1:1 边距(24,20,24,20) 间距12
-        var grid = new Grid
+        _showIcon = ReadBool(config, "show_icon", true);
+        // 200x200 卡片: 城市/天气在上, 大温度+图标居中, 高低温/体感/湿度在底
+        var root = new Grid
         {
-            Margin = new Thickness(24, 20, 24, 20),
-            ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("*,*"),
-            ColumnSpacing = 12,
+            Margin = new Thickness(WidgetSpace.Pad, 14, WidgetSpace.Pad, 14),
+            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,*,Auto"),
+            RowSpacing = WidgetSpace.GapXs,
         };
+
+        // 顶行: 城市; 天气现象放到温度下方 单字在小字号下发糊
+        var top = new Grid();
+        _cityText.FontSize = WidgetType.Label;
+        _cityText.VerticalAlignment = VerticalAlignment.Center;
+        _cityText.TextTrimming = TextTrimming.CharacterEllipsis;
+        _cityText.MaxLines = 1;
+        top.Children.Add(_cityText);
+
+        _conditionText.FontSize = 13.5;
+        _conditionText.FontWeight = FontWeight.Medium;
+        _conditionText.VerticalAlignment = VerticalAlignment.Center;
+        _conditionText.TextTrimming = TextTrimming.CharacterEllipsis;
+        _conditionText.MaxLines = 1;
+        _conditionText.Margin = new Thickness(1, 0, 0, 2);
+
+        // 主区: 温度 + 天气现象 + 天气图标
+        _hero.ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("*,Auto");
+        _hero.ColumnSpacing = 8;
+        _tempText.VerticalAlignment = VerticalAlignment.Center;
+        _tempText.HorizontalAlignment = HorizontalAlignment.Left;
+        _tempText.TextAlignment = TextAlignment.Left;
+        _tempText.FontWeight = FontWeight.Light;
+        var tempStack = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 0,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        tempStack.Children.Add(_tempText);
+        tempStack.Children.Add(_conditionText);
         _icon.VerticalAlignment = VerticalAlignment.Center;
         _icon.HorizontalAlignment = HorizontalAlignment.Center;
-        _tempText.VerticalAlignment = VerticalAlignment.Center;
-        _tempText.HorizontalAlignment = HorizontalAlignment.Center;
-        _tempText.TextAlignment = TextAlignment.Center;
-        Grid.SetColumn(_icon, 0);
-        Grid.SetColumn(_tempText, 1);
-        grid.Children.Add(_icon);
-        grid.Children.Add(_tempText);
-        Card.Child = grid;
+        Grid.SetColumn(tempStack, 0);
+        Grid.SetColumn(_icon, 1);
+        _hero.Children.Add(tempStack);
+        _hero.Children.Add(_icon);
+        _icon.IsVisible = _showIcon;
+
+        // 底行: 最高/最低 + 体感/湿度
+        var bottom = new StackPanel { Spacing = 3, VerticalAlignment = VerticalAlignment.Bottom };
+        _rangeText.FontSize = 12;
+        _rangeText.TextTrimming = TextTrimming.CharacterEllipsis;
+        _rangeText.MaxLines = 1;
+        _detailText.FontSize = 11;
+        _detailText.TextTrimming = TextTrimming.CharacterEllipsis;
+        _detailText.MaxLines = 1;
+        bottom.Children.Add(_rangeText);
+        bottom.Children.Add(_detailText);
+
+        Grid.SetRow(top, 0);
+        Grid.SetRow(_hero, 1);
+        Grid.SetRow(bottom, 2);
+        root.Children.Add(top);
+        root.Children.Add(_hero);
+        root.Children.Add(bottom);
+        Card.Child = root;
         Content = Card;
 
         ApplyWeatherStyle();
+        AttachCityClick(_cityText);
         Config.WeatherSize.ValueChanged += _ => ApplyWeatherStyle();
-        Config.WeatherIconSize.ValueChanged += _ => RefreshFromCache();
+        Config.WeatherIconSize.ValueChanged += _ => Relayout();
+        Config.ThemeColor.ValueChanged += _ => _icon.InvalidateVisual();
+        SizeChanged += (_, _) => Relayout();
+        Relayout();
         RefreshFromCache();
+    }
+
+    private void Relayout()
+    {
+        var h = Bounds.Height - 28;
+        var w = Bounds.Width - 32;
+        if (h <= 1 || w <= 1)
+        {
+            return;
+        }
+
+        // 主区吃掉剩余高度 温度与图标按主区归一
+        var heroH = Math.Clamp(h * 0.56, 44, 112);
+        _hero.Height = heroH;
+        LeadIconPx = Math.Clamp(Math.Min(heroH * 0.78, w * 0.34), 20, 80);
+        _icon.Width = LeadIconPx;
+        _icon.Height = LeadIconPx;
+        // WeatherSize 作比例系数 默认 24=1.0
+        var temp = Math.Min(heroH * 0.76 * Config.WeatherSize.Value / 24.0, w * 0.52);
+        _tempText.FontSize = Math.Clamp(Math.Round(temp, 1), 22, 96);
+        _tempText.LetterSpacing = -Math.Round(_tempText.FontSize * 0.02, 1);
+        _cityText.FontSize = 12.5;
+        _conditionText.FontSize = 13.5;
+        _rangeText.FontSize = 12;
+        _detailText.FontSize = 11;
     }
 
     protected override void ApplyWeatherStyle()
     {
-        IBrush brush;
-        try
-        {
-            brush = new SolidColorBrush(Color.Parse(Config.WeatherTextColor.Value));
-        }
-        catch (Exception e)
-        {
-
-            Log.Debug($"[SW] 颜色解析失败 用白色: {e.Message}");
-            brush = Brushes.White;
-        }
-        _tempText.Foreground = brush;
-        _tempText.FontSize = Config.WeatherSize.Value;
+        // 自定义色优先 兜底走色板 浅色卡防白字
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        var ink = ConfiguredInk(Config.WeatherTextColor.Value) ?? p.Text;
+        var muted = new SolidColorBrush(ink, CardInk.MutedOpacity);
+        var faint = new SolidColorBrush(ink, CardInk.FaintOpacity);
+        _cityText.Foreground = muted;
+        _conditionText.Foreground = new SolidColorBrush(ink, 0.74);
+        _tempText.Foreground = new SolidColorBrush(ink);
+        _rangeText.Foreground = muted;
+        _detailText.Foreground = faint;
+        // 字号只在 Relayout 定 避免双头赋值互踩
+        Relayout();
     }
 
     protected override void UpdateDisplay(JsonElement? cached)
     {
         var (temp, code) = ParseCurrent(cached);
+        var hasData = cached is { ValueKind: JsonValueKind.Object };
+        _cityText.Text = CityLabel();
         _tempText.Text = temp is "--" ? "--°" : $"{temp}°";
-        var icon = cached is { ValueKind: JsonValueKind.Object } ? WeatherMaps.GetIcon(code) : null;
-        var svg = MakeSvgIcon(icon, Config.WeatherIconSize.Value);
+        _conditionText.Text = hasData ? WeatherMaps.GetWeatherText(code) : "";
+        _conditionText.IsVisible = _conditionText.Text.Length > 0;
+
+        var (high, low) = ReadDailyRange(cached);
+        _rangeText.Text = high == "--" && low == "--"
+            ? ""
+            : $"{AppUtils.Tr("weather.high")} {high}°   {AppUtils.Tr("weather.low")} {low}°";
+        _rangeText.IsVisible = _rangeText.Text.Length > 0;
+
+        var feels = ReadCurrentMetric(cached, "feelsLike");
+        var humidity = ReadCurrentMetric(cached, "humidity");
+        var details = new List<string>(2);
+        if (feels != "--")
+        {
+            details.Add($"{AppUtils.Tr("settings.weather_feels")} {feels}°");
+        }
+        if (humidity != "--")
+        {
+            details.Add($"{AppUtils.Tr("settings.weather_humidity")} {humidity}%");
+        }
+        _detailText.Text = string.Join(" · ", details);
+        _detailText.IsVisible = _detailText.Text.Length > 0;
+
+        var icon = hasData ? WeatherMaps.GetIcon(code) : null;
+        var svg = MakeSvgIcon(icon, LeadIconPx);
         _icon.SvgSource = svg?.SvgSource;
         _icon.Width = svg?.Width ?? 0;
         _icon.Height = svg?.Height ?? 0;
     }
+
+    private static (string High, string Low) ReadDailyRange(JsonElement? cached)
+    {
+        if (cached is { ValueKind: JsonValueKind.Object } root
+            && root.TryGetProperty("forecastDaily", out var daily)
+            && WeatherService.ParseDaily(daily) is { Days.Count: > 0 } parsed)
+        {
+            return (parsed.Days[0].High, parsed.Days[0].Low);
+        }
+        return ("--", "--");
+    }
+
+    private static string ReadCurrentMetric(JsonElement? cached, string name)
+    {
+        if (cached is not { ValueKind: JsonValueKind.Object } root
+            || !root.TryGetProperty("current", out var current)
+            || !current.TryGetProperty(name, out var metric)
+            || !metric.TryGetProperty("value", out var value))
+        {
+            return "--";
+        }
+        var text = value.ToString();
+        return string.IsNullOrWhiteSpace(text) ? "--" : text;
+    }
 }
 
-/// <summary>逐小时天气</summary>
+/// <summary>逐小时温度曲线 对齐 FullWidget weather 的 .chart: accent 2px 圆头 + 30% 渐隐面积 + 点温标 + 当前点实心</summary>
+internal sealed class TempCurve : Control
+{
+    private double?[] _points = Array.Empty<double?>();
+
+    public Func<bool>? DarkProvider { get; set; }
+
+    public void SetPoints(IReadOnlyList<double?> points)
+    {
+        _points = points.ToArray();
+        InvalidateVisual();
+    }
+
+    public override void Render(DrawingContext ctx)
+    {
+        var w = Bounds.Width;
+        var h = Bounds.Height;
+        if (w < 24 || h < 24 || _points.Length == 0)
+        {
+            return;
+        }
+        var valid = new List<(int Index, double Value)>();
+        for (var i = 0; i < _points.Length; i++)
+        {
+            if (_points[i] is { } v)
+            {
+                valid.Add((i, v));
+            }
+        }
+        if (valid.Count == 0)
+        {
+            return;
+        }
+
+        var dark = DarkProvider?.Invoke() ?? ThemeSense.IsDark(this);
+        var p = WidgetSurfacePalette.Resolve(dark);
+        var accent = CardAccent.Value;
+        var min = valid.Min(x => x.Value);
+        var max = valid.Max(x => x.Value);
+        var span = Math.Max(1, max - min);
+        const double PadX = 7, Top = 16, Bottom = 6;
+
+        double X(int i) => PadX + i * (w - PadX * 2) / Math.Max(1, _points.Length - 1);
+        double Y(double v) => Top + (1 - (v - min) / span) * (h - Top - Bottom);
+
+        if (valid.Count >= 2)
+        {
+            var area = new StreamGeometry();
+            using (var g = area.Open())
+            {
+                g.BeginFigure(new Point(X(valid[0].Index), h - Bottom), isFilled: true);
+                foreach (var (index, value) in valid)
+                {
+                    g.LineTo(new Point(X(index), Y(value)));
+                }
+                g.LineTo(new Point(X(valid[^1].Index), h - Bottom));
+                g.EndFigure(true);
+            }
+            var fill = new LinearGradientBrush
+            {
+                StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+                EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative),
+                GradientStops =
+                {
+                    new GradientStop(Color.FromArgb(72, accent.R, accent.G, accent.B), 0),
+                    new GradientStop(Color.FromArgb(0, accent.R, accent.G, accent.B), 1),
+                },
+            };
+            ctx.DrawGeometry(fill, null, area);
+
+            var line = new StreamGeometry();
+            using (var g = line.Open())
+            {
+                g.BeginFigure(new Point(X(valid[0].Index), Y(valid[0].Value)), isFilled: false);
+                foreach (var (index, value) in valid.Skip(1))
+                {
+                    g.LineTo(new Point(X(index), Y(value)));
+                }
+                g.EndFigure(false);
+            }
+            var pen = new Pen(new SolidColorBrush(accent), 2, null, PenLineCap.Round, PenLineJoin.Round);
+            ctx.DrawGeometry(null, pen, line);
+        }
+
+        var labelBrush = new SolidColorBrush(p.Text, 0.8);
+        var typeface = new Typeface(Common.AppFontFamily);
+        foreach (var (index, value) in valid)
+        {
+            var x = X(index);
+            var y = Y(value);
+            if (index == 0)
+            {
+                ctx.DrawEllipse(new SolidColorBrush(accent), null, new Point(x, y), 4, 4);
+            }
+            else
+            {
+                ctx.DrawEllipse(new SolidColorBrush(p.Card), new Pen(new SolidColorBrush(accent), 2),
+                    new Point(x, y), 2.5, 2.5);
+            }
+            var ft = new FormattedText($"{Math.Round(value)}°", CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight, typeface, 11.5, labelBrush);
+            var ty = Math.Clamp(y - 4 - ft.Height, 0, Math.Max(0, h - ft.Height));
+            ctx.DrawText(ft, new Point(Math.Clamp(x - ft.Width / 2, 0, Math.Max(0, w - ft.Width)), ty));
+        }
+    }
+}
+
+/// <summary>逐小时天气: 上区当前温度 / 中区温度曲线 / 下区时刻+图标</summary>
 public sealed class WeatherHourlyWidget : WeatherWidgetBase
 {
     private readonly TextBlock _cityText = new();
     private readonly TextBlock _tempText = new();
     private readonly Avalonia.Svg.Skia.Svg _currentIcon = MakeSvgIcon("2.svg", 60)!;
-    private readonly (TextBlock Time, Avalonia.Svg.Skia.Svg Icon, TextBlock Temp)[] _slots = new (TextBlock, Avalonia.Svg.Skia.Svg, TextBlock)[6];
+    private readonly TempCurve _curve = new();
+    private readonly Grid _top = new();
+    private readonly (TextBlock Time, Avalonia.Svg.Skia.Svg Icon)[] _slots = new (TextBlock, Avalonia.Svg.Skia.Svg)[6];
 
     public WeatherHourlyWidget(ComponentDefinition definition) : base(definition)
     {
         var root = new Grid
         {
             Margin = new Thickness(28, 18, 28, 18),
-            // 原版 addWidget(top,3)+addWidget(bottom,1) 但 bottom 需容纳时间+图标+温度 用 Auto 防裁切
-            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("*,Auto"),
-            RowSpacing = 6,
+            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,*,Auto"),
+            RowSpacing = 4,
         };
 
-        // 上行: 左(城市+温度) 右(图标60) 原版 AlignTop + 两侧尾部 addStretch -> 内容贴顶
-        var top = new Grid { ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("*,Auto") };
-        var left = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Top };
+        // 上行: 左(城市+温度) 右(图标) 原版 AlignTop
+        _top.ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("*,Auto");
+        var left = new StackPanel { Spacing = 0, VerticalAlignment = VerticalAlignment.Top };
         _cityText.FontSize = 16;
-        _cityText.Opacity = 0.7;
         _tempText.FontSize = 52;
         _tempText.FontWeight = FontWeight.Light;
         left.Children.Add(_cityText);
@@ -1801,27 +3023,33 @@ public sealed class WeatherHourlyWidget : WeatherWidgetBase
         _currentIcon.VerticalAlignment = VerticalAlignment.Top;
         Grid.SetColumn(left, 0);
         Grid.SetColumn(_currentIcon, 1);
-        top.Children.Add(left);
-        top.Children.Add(_currentIcon);
+        _top.Children.Add(left);
+        _top.Children.Add(_currentIcon);
 
-        // 下行: 6 槽 (时间/图标28/温度 均 12px) 原版 bottom 内容居中
+        // 中区: 6 小时温度曲线 点温标替代槽内温度 给曲线留出高度
+        _curve.DarkProvider = () => CardIsDark;
+        _curve.MinHeight = 28;
+
+        // 下区: 6 槽 时刻 + 天气图标
         var bottom = new Avalonia.Controls.Primitives.UniformGrid { Rows = 1, Columns = 6 };
         for (var i = 0; i < 6; i++)
         {
-            var col = new StackPanel { Spacing = 3, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-            var time = new TextBlock { FontSize = 12, Opacity = 0.7, TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+            var col = new StackPanel { Spacing = 2, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            var time = new TextBlock { FontSize = 12, TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
             var icon = MakeSvgIcon("2.svg", 28)!;
-            var temp = new TextBlock { FontSize = 12, TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
             col.Children.Add(time);
             col.Children.Add(icon);
-            col.Children.Add(temp);
-            _slots[i] = (time, icon, temp);
+            _slots[i] = (time, icon);
             bottom.Children.Add(col);
         }
+        SizeChanged += (_, _) => Relayout();
+        Config.ThemeColor.ValueChanged += _ => _curve.InvalidateVisual();
 
-        Grid.SetRow(top, 0);
-        Grid.SetRow(bottom, 1);
-        root.Children.Add(top);
+        Grid.SetRow(_top, 0);
+        Grid.SetRow(_curve, 1);
+        Grid.SetRow(bottom, 2);
+        root.Children.Add(_top);
+        root.Children.Add(_curve);
         root.Children.Add(bottom);
         Card.Child = root;
         Content = Card;
@@ -1833,32 +3061,53 @@ public sealed class WeatherHourlyWidget : WeatherWidgetBase
 
     protected override void ApplyWeatherStyle()
     {
-        IBrush brush;
-        try
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        var ink = ConfiguredInk(Config.WeatherTextColor.Value) ?? p.Text;
+        var muted = new SolidColorBrush(ink, CardInk.MutedOpacity);
+        _cityText.Foreground = muted;
+        _tempText.Foreground = new SolidColorBrush(ink);
+        foreach (var (time, _) in _slots)
         {
-            brush = new SolidColorBrush(Color.Parse(Config.WeatherTextColor.Value));
+            time.Foreground = muted;
         }
-        catch (Exception e)
-        {
+        _curve.InvalidateVisual();
+        Relayout();
+    }
 
-            Log.Debug($"[SW] 颜色解析失败 用白色: {e.Message}");
-            brush = Brushes.White;
-        }
-        _cityText.Foreground = brush;
-        _tempText.Foreground = brush;
-        foreach (var (time, _, temp) in _slots)
+    // 上区 42% 高度 曲线吃剩余 下区图标随卡高
+    private void Relayout()
+    {
+        var h = Bounds.Height - 36;
+        var w = Bounds.Width - 56;
+        if (h <= 1 || w <= 1)
         {
-            time.Foreground = brush;
-            temp.Foreground = brush;
+            return;
+        }
+
+        var topH = Math.Clamp(h * 0.46, 48, 116);
+        _top.Height = topH;
+        LeadIconPx = Math.Clamp(Math.Min(topH * 0.86, w * 0.2), 16, 88);
+        SlotIconPx = CardText.ByHeight(h, 0.11, 14, 30);
+        _currentIcon.Width = LeadIconPx;
+        _currentIcon.Height = LeadIconPx;
+        _tempText.FontSize = CardText.ByHeight(topH, 0.64, 20, 88);
+        _cityText.FontSize = CardText.ByHeight(h, 0.075, 9, 14);
+
+        var slotFont = CardText.ByHeight(h, 0.065, 11, 14);
+        foreach (var (time, icon) in _slots)
+        {
+            time.FontSize = slotFont;
+            icon.Width = SlotIconPx;
+            icon.Height = SlotIconPx;
         }
     }
 
     protected override void UpdateDisplay(JsonElement? cached)
     {
         var (temp, code) = ParseCurrent(cached);
-        _cityText.Text = Config.City.Value;
+        _cityText.Text = CityLabel();
         _tempText.Text = temp is "--" ? "--°" : $"{temp}°";
-        var curSvg = MakeSvgIcon(cached is { ValueKind: JsonValueKind.Object } ? WeatherMaps.GetIcon(code) : null, 60);
+        var curSvg = MakeSvgIcon(cached is { ValueKind: JsonValueKind.Object } ? WeatherMaps.GetIcon(code) : null, LeadIconPx);
         _currentIcon.SvgSource = curSvg?.SvgSource;
 
         // 原版: parse_hourly(forecastHourly) 6 槽 小时=(pubTime.hour+i)%24
@@ -1873,23 +3122,113 @@ public sealed class WeatherHourlyWidget : WeatherWidgetBase
         {
             startHour = pt.Hour;
         }
+        var temps = new double?[6];
         for (var i = 0; i < 6; i++)
         {
             if (i < hours.Count)
             {
                 var h = hours[i];
                 _slots[i].Time.Text = $"{(startHour + i) % 24:00}:00";
-                var svg = MakeSvgIcon(h.Icon, 28);
+                var svg = MakeSvgIcon(h.Icon, SlotIconPx);
                 _slots[i].Icon.SvgSource = svg?.SvgSource;
-                _slots[i].Temp.Text = h.Temp is "--" ? "--°" : $"{h.Temp}°";
+                if (double.TryParse(h.Temp?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var tv))
+                {
+                    temps[i] = tv;
+                }
             }
             else
             {
                 _slots[i].Time.Text = "--:00";
                 _slots[i].Icon.SvgSource = null;
-                _slots[i].Temp.Text = "--°";
             }
         }
+        _curve.SetPoints(temps);
+    }
+}
+
+/// <summary>温度区间条 共享刻度的 low→high 段 对齐 FullWidget forecast 的 .range</summary>
+internal sealed class TempRangeBar : Control
+{
+    private double _low = double.NaN;
+    private double _high = double.NaN;
+    private double _min;
+    private double _max;
+
+    public void Set(double low, double high, double min, double max)
+    {
+        _low = low;
+        _high = high;
+        _min = min;
+        _max = max;
+        InvalidateVisual();
+    }
+
+    public override void Render(DrawingContext ctx)
+    {
+        var w = Bounds.Width;
+        var h = Bounds.Height;
+        if (w < 8 || h < 3 || double.IsNaN(_low) || double.IsNaN(_high))
+        {
+            return;
+        }
+        var p = WidgetSurfacePalette.Resolve(ThemeSense.IsDark(this));
+        var thickness = Math.Min(h, 4);
+        var y = (h - thickness) / 2;
+        ctx.DrawRectangle(new SolidColorBrush(p.Line, 0.55), null, new Rect(0, y, w, thickness), thickness / 2, thickness / 2);
+
+        var span = Math.Max(1, _max - _min);
+        var x1 = Math.Clamp((_low - _min) / span, 0, 1) * w;
+        var x2 = Math.Clamp((_high - _min) / span, 0, 1) * w;
+        if (x2 < x1)
+        {
+            (x1, x2) = (x2, x1);
+        }
+        var segW = Math.Max(3, x2 - x1);
+        if (x1 + segW > w)
+        {
+            x1 = Math.Max(0, w - segW);
+        }
+        // 温度色带: 冷端青 中段绿 暖端黄 区间按绝对温度取渐变切片
+        static Color TempColor(double t)
+        {
+            (double P, Color C)[] stops =
+            {
+                (0.0, Color.Parse("#6FCFD9")),
+                (0.4, Color.Parse("#9FD9B0")),
+                (0.7, Color.Parse("#D4DE90")),
+                (1.0, Color.Parse("#EDDF7C")),
+            };
+            t = Math.Clamp(t, 0, 1);
+            for (var i = 1; i < stops.Length; i++)
+            {
+                if (t > stops[i].P)
+                {
+                    continue;
+                }
+                var a = stops[i - 1];
+                var b = stops[i];
+                var k = (t - a.P) / Math.Max(0.0001, b.P - a.P);
+                return Color.FromRgb(
+                    (byte)Math.Round(a.C.R + (b.C.R - a.C.R) * k),
+                    (byte)Math.Round(a.C.G + (b.C.G - a.C.G) * k),
+                    (byte)Math.Round(a.C.B + (b.C.B - a.C.B) * k));
+            }
+            return stops[^1].C;
+        }
+        var t1 = Math.Clamp((_low - _min) / span, 0, 1);
+        var t2 = Math.Clamp((_high - _min) / span, 0, 1);
+        var brush = new LinearGradientBrush
+        {
+            StartPoint = new RelativePoint(0, 0.5, RelativeUnit.Relative),
+            EndPoint = new RelativePoint(1, 0.5, RelativeUnit.Relative),
+            GradientStops =
+            {
+                new GradientStop(TempColor(t1), 0),
+                new GradientStop(TempColor((t1 + t2) / 2), 0.5),
+                new GradientStop(TempColor(t2), 1),
+            },
+        };
+        ctx.DrawRectangle(brush, null, new Rect(x1, y, segW, thickness), thickness / 2, thickness / 2);
     }
 }
 
@@ -1899,27 +3238,26 @@ public sealed class WeatherWeeklyWidget : WeatherWidgetBase
     private readonly TextBlock _cityText = new();
     private readonly TextBlock _tempText = new();
     private readonly Avalonia.Svg.Skia.Svg _currentIcon = MakeSvgIcon("2.svg", 60)!;
-    private readonly (TextBlock Day, Avalonia.Svg.Skia.Svg Icon, TextBlock Low, TextBlock High)[] _rows =
-        new (TextBlock, Avalonia.Svg.Skia.Svg, TextBlock, TextBlock)[4];
+    private readonly (TextBlock Day, Avalonia.Svg.Skia.Svg Icon, TextBlock Low, TextBlock High, TempRangeBar Bar)[] _rows =
+        new (TextBlock, Avalonia.Svg.Skia.Svg, TextBlock, TextBlock, TempRangeBar)[4];
 
-    private static readonly string[] WeekdayNames = { "周一", "周二", "周三", "周四", "周五", "周六", "周日" };
+    // 星期名走 locale 不再硬编码
 
     public WeatherWeeklyWidget(ComponentDefinition definition) : base(definition)
     {
         var root = new Grid
         {
-            Margin = new Thickness(14, 12, 14, 12),
-            // 原版 addWidget(top,3)+addWidget(bottom,1) 4行×20=80 用 Auto 防第4行裁切
+            Margin = new Thickness(WidgetSpace.PadCompact, 12, WidgetSpace.PadCompact, 12),
             RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("*,Auto"),
-            RowSpacing = 4,
+            RowSpacing = WidgetSpace.GapXs,
         };
 
         var top = new Grid { ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("*,Auto") };
         var left = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Top };
-        _cityText.FontSize = 14;
-        _cityText.Opacity = 0.7;
-        _tempText.FontSize = 48;
+        _cityText.FontSize = WidgetType.Label;
+        _tempText.FontSize = 42;
         _tempText.FontWeight = FontWeight.Light;
+        _tempText.LetterSpacing = -0.8;
         left.Children.Add(_cityText);
         left.Children.Add(_tempText);
         _currentIcon.Width = 48;
@@ -1930,27 +3268,41 @@ public sealed class WeatherWeeklyWidget : WeatherWidgetBase
         top.Children.Add(left);
         top.Children.Add(_currentIcon);
 
-        // 下行: 4 行 行高20 原版 row: day(40) | stretch | icon(18) | stretch | low | spacer(8) | high(28)
-        var bottom = new StackPanel { Spacing = 0 };
+        // 下行: day | icon | 区间条 | low | spacer | high 四行共享一条温度刻度
+        var bottom = new Grid { RowSpacing = 2 };
+        bottom.RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("*,*,*,*");
         for (var i = 0; i < 4; i++)
         {
-            var row = new Grid { Height = 20, ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("40,*,Auto,*,Auto,8,28") };
-            var day = new TextBlock { FontSize = 11, Opacity = 0.7, VerticalAlignment = VerticalAlignment.Center };
+            var row = new Grid { ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("Auto,Auto,*,Auto,6,Auto") };
+            var day = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
             var icon = MakeSvgIcon("2.svg", 18)!;
             icon.VerticalAlignment = VerticalAlignment.Center;
-            var low = new TextBlock { FontSize = 11, Opacity = 0.6, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
-            var high = new TextBlock { FontSize = 11, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+            icon.Margin = new Thickness(6, 0, 6, 0);
+            var bar = new TempRangeBar { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 6, 0) };
+            var low = new TextBlock { TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+            var high = new TextBlock { TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
             Grid.SetColumn(day, 0);
-            Grid.SetColumn(icon, 2);
-            Grid.SetColumn(low, 4);
-            Grid.SetColumn(high, 6);
+            Grid.SetColumn(icon, 1);
+            Grid.SetColumn(bar, 2);
+            Grid.SetColumn(low, 3);
+            Grid.SetColumn(high, 5);
             row.Children.Add(day);
             row.Children.Add(icon);
+            row.Children.Add(bar);
             row.Children.Add(low);
             row.Children.Add(high);
-            _rows[i] = (day, icon, low, high);
+            Grid.SetRow(row, i);
+            _rows[i] = (day, icon, low, high, bar);
             bottom.Children.Add(row);
         }
+        SizeChanged += (_, _) => Relayout();
+        Config.ThemeColor.ValueChanged += _ =>
+        {
+            foreach (var (_, _, _, _, bar) in _rows)
+            {
+                bar.InvalidateVisual();
+            }
+        };
 
         Grid.SetRow(top, 0);
         Grid.SetRow(bottom, 1);
@@ -1966,33 +3318,72 @@ public sealed class WeatherWeeklyWidget : WeatherWidgetBase
 
     protected override void ApplyWeatherStyle()
     {
-        IBrush brush;
-        try
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        var ink = ConfiguredInk(Config.WeatherTextColor.Value) ?? p.Text;
+        var muted = new SolidColorBrush(ink, CardInk.MutedOpacity);
+        _cityText.Foreground = muted;
+        _tempText.Foreground = new SolidColorBrush(ink);
+        for (var i = 0; i < _rows.Length; i++)
         {
-            brush = new SolidColorBrush(Color.Parse(Config.WeatherTextColor.Value));
+            var (day, _, low, high, bar) = _rows[i];
+            day.Foreground = i == 0 ? new SolidColorBrush(ink) : muted;
+            day.FontWeight = i == 0 ? FontWeight.SemiBold : FontWeight.Normal;
+            low.Foreground = muted;
+            high.Foreground = new SolidColorBrush(ink);
+            bar.InvalidateVisual();
         }
-        catch (Exception e)
-        {
+        Relayout();
+    }
 
-            Log.Debug($"[SW] 颜色解析失败 用白色: {e.Message}");
-            brush = Brushes.White;
-        }
-        _cityText.Foreground = brush;
-        _tempText.Foreground = brush;
-        foreach (var (day, _, low, high) in _rows)
+    // 顶部区占 46% 其余 4 行均分 字号图标随行高
+    private void Relayout()
+    {
+        var h = Bounds.Height - 24;
+        var w = Bounds.Width - 24;
+        if (h <= 1 || w <= 1)
         {
-            day.Foreground = brush;
-            low.Foreground = brush;
-            high.Foreground = brush;
+            return;
+        }
+
+        var topH = Math.Max(24, h * 0.46);
+        _tempText.FontSize = Math.Clamp(Math.Round(Math.Min(topH * 0.66, w * 0.42), 1), 20, 48);
+        _tempText.LetterSpacing = -Math.Round(_tempText.FontSize * 0.02, 1);
+        _cityText.FontSize = WidgetType.Label;
+        var curSize = Math.Max(16, _tempText.FontSize * 0.62);
+        LeadIconPx = curSize;
+        _currentIcon.Width = curSize;
+        _currentIcon.Height = curSize;
+
+        var rowH = Math.Max(10, (h - topH - WidgetSpace.GapXs) / 4);
+        var rowFont = Math.Clamp(Math.Round(rowH * 0.48, 1), 10, 12);
+        var rowIcon = Math.Clamp(Math.Round(rowH * 0.78, 1), 12, 20);
+        SlotIconPx = rowIcon;
+        var tempSlot = CardText.Width("-00°", WidgetFonts.Num, FontWeight.Normal, rowFont);
+        foreach (var (day, svg, low, high, bar) in _rows)
+        {
+            day.FontSize = rowFont;
+            low.FontSize = rowFont;
+            high.FontSize = rowFont;
+            low.FontFamily = WidgetFonts.Num;
+            high.FontFamily = WidgetFonts.Num;
+            low.MinWidth = tempSlot;
+            high.MinWidth = tempSlot;
+            svg.Width = rowIcon;
+            svg.Height = rowIcon;
+            bar.Height = Math.Clamp(rowH * 0.30, 4, 6);
         }
     }
+
+    private static bool TryNum(string? text, out double value) =>
+        double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value) ||
+        double.TryParse(text, out value);
 
     protected override void UpdateDisplay(JsonElement? cached)
     {
         var (temp, code) = ParseCurrent(cached);
-        _cityText.Text = Config.City.Value;
+        _cityText.Text = CityLabel();
         _tempText.Text = temp is "--" ? "--°" : $"{temp}°";
-        var curSvg = MakeSvgIcon(cached is { ValueKind: JsonValueKind.Object } ? WeatherMaps.GetIcon(code) : null, 48);
+        var curSvg = MakeSvgIcon(cached is { ValueKind: JsonValueKind.Object } ? WeatherMaps.GetIcon(code) : null, LeadIconPx);
         _currentIcon.SvgSource = curSvg?.SvgSource;
 
         WeatherDaily? parsed = null;
@@ -2002,60 +3393,119 @@ public sealed class WeatherWeeklyWidget : WeatherWidgetBase
         }
         var days = parsed?.Days ?? new List<WeatherDay>();
         var now = DateTime.Now;
+
+        // 四行共用刻度 1° 余量 温度全缺时不画条
+        var lows = new double[4];
+        var highs = new double[4];
+        var has = new bool[4];
+        var scaleMin = double.MaxValue;
+        var scaleMax = double.MinValue;
+        for (var i = 0; i < 4 && i < days.Count; i++)
+        {
+            var lowOk = TryNum(days[i].Low, out lows[i]);
+            var highOk = TryNum(days[i].High, out highs[i]);
+            has[i] = lowOk && highOk;
+            if (has[i])
+            {
+                scaleMin = Math.Min(scaleMin, Math.Min(lows[i], highs[i]));
+                scaleMax = Math.Max(scaleMax, Math.Max(lows[i], highs[i]));
+            }
+        }
+        if (scaleMin > scaleMax)
+        {
+            scaleMin = 0;
+            scaleMax = 1;
+        }
+        scaleMin -= 1;
+        scaleMax += 1;
+
         for (var i = 0; i < 4; i++)
         {
+            var row = _rows[i];
             if (i < days.Count)
             {
                 var d = now.AddDays(i);
-                _rows[i].Day.Text = i == 0 ? "今日" : WeekdayNames[((int)d.DayOfWeek + 6) % 7];
-                var svg = MakeSvgIcon(days[i].Icon, 18);
-                _rows[i].Icon.SvgSource = svg?.SvgSource;
-                _rows[i].Low.Text = days[i].Low ?? "--";
-                _rows[i].High.Text = $"{days[i].High ?? "--"}°";
+                row.Day.Text = i == 0 ? AppUtils.Tr("common.today") : AppUtils.Tr(AppUtils.WeekdayKey(d.DayOfWeek));
+                var svg = MakeSvgIcon(days[i].Icon, SlotIconPx);
+                row.Icon.SvgSource = svg?.SvgSource;
+                row.Low.Text = $"{days[i].Low ?? "--"}°";
+                row.High.Text = $"{days[i].High ?? "--"}°";
+                row.Bar.IsVisible = has[i];
+                if (has[i])
+                {
+                    row.Bar.Set(lows[i], highs[i], scaleMin, scaleMax);
+                }
             }
             else
             {
-                _rows[i].Day.Text = "--";
-                _rows[i].Icon.SvgSource = null;
-                _rows[i].Low.Text = "--";
-                _rows[i].High.Text = "--°";
+                row.Day.Text = "--";
+                row.Icon.SvgSource = null;
+                row.Low.Text = "--";
+                row.High.Text = "--°";
+                row.Bar.IsVisible = false;
             }
         }
     }
 }
 
 // 倒计时
-// 事件倒计时: 200x200 边距(24,20,24,20) 单label 居中wrap 1s tick 文本"{name}\n{d}天 {h}时 {m}分 {s}秒"
-// 倒数日: 三段式 顶标题条(title_bg #F98E1B 高44 上圆角 白17px 600) 中数字(72px bold 自适应缩字号) 底日期条(高34 下圆角)
+// 事件倒计时: 三层 事件名(SemiBold) / 大读数(Light 自适应) / 目标时间(muted) 1s tick
 
 public sealed class CountdownEventWidget : WidgetCardBase
 {
-    private readonly TextBlock _label = new();
+    private readonly TextBlock _eventText = new();
+    private readonly TextBlock _daysText = new();
+    private readonly TextBlock _targetText = new();
+    private readonly Grid _content;
+    private readonly CardEmptyState _emptyView;
     private string _eventName = "";
     private string _targetTime = "";
 
     public CountdownEventWidget(ComponentDefinition definition, JsonElement? config) : base(definition)
     {
-        _label.TextAlignment = TextAlignment.Center;
-        _label.TextWrapping = TextWrapping.Wrap;
-        _label.VerticalAlignment = VerticalAlignment.Center;
-        Card.Child = new ScrollViewer
+        _eventText.TextAlignment = TextAlignment.Center;
+        _eventText.FontWeight = FontWeight.SemiBold;
+        _daysText.TextAlignment = TextAlignment.Center;
+        _daysText.FontWeight = FontWeight.Light;
+        _daysText.VerticalAlignment = VerticalAlignment.Center;
+        _targetText.TextAlignment = TextAlignment.Center;
+
+        // 三层结构 大读数撑满中段
+        _content = new Grid
         {
-            Content = _label,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            Margin = new Thickness(20, 16, 20, 16),
+            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,*,Auto"),
+            RowSpacing = 4,
         };
+        Grid.SetRow(_eventText, 0);
+        Grid.SetRow(_daysText, 1);
+        Grid.SetRow(_targetText, 2);
+        _content.Children.Add(_eventText);
+        _content.Children.Add(_daysText);
+        _content.Children.Add(_targetText);
+
+        _emptyView = new CardEmptyState(
+            FAIcons.Glyph(AppIcons.Clock),
+            AppUtils.Tr("countdown.no_events"),
+            AppUtils.Tr("countdown.click_to_config"));
+
+        var host = new Grid();
+        host.Children.Add(_content);
+        host.Children.Add(_emptyView);
+        Card.Child = host;
         Content = Card;
 
         ReadConfig(config);
         ApplyStyle();
         Config.CountdownTextColor.ValueChanged += _ => ApplyStyle();
-        Config.CountdownTextSize.ValueChanged += _ => ApplyStyle();
+        Config.CountdownTextSize.ValueChanged += _ => FitDays();
+        SizeChanged += (_, _) => FitDays();
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         timer.Tick += (_, _) => UpdateCountdown();
         timer.Start();
         UpdateCountdown();
+        FitDays();
     }
 
     private void ReadConfig(JsonElement? config)
@@ -2070,45 +3520,52 @@ public sealed class CountdownEventWidget : WidgetCardBase
 
     private void ApplyStyle()
     {
-        IBrush brush;
-        try
-        {
-            brush = new SolidColorBrush(Color.Parse(Config.CountdownTextColor.Value));
-        }
-        catch (Exception e)
-        {
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        // 旧默认红色弃用 走色板 自定义色优先
+        var custom = TryParseColor(Config.CountdownTextColor.Value);
+        var ink = custom is { } c && c != Color.FromRgb(255, 0, 0) ? c : p.Text;
+        _eventText.Foreground = new SolidColorBrush(ink);
+        _daysText.Foreground = new SolidColorBrush(ink);
+        _targetText.Foreground = new SolidColorBrush(ink, CardInk.MutedOpacity);
+        _eventText.FontSize = 13;
+        _targetText.FontSize = 12;
+        _emptyView.Apply(p);
+    }
 
-            Log.Debug($"[SW] 颜色解析失败 用白色: {e.Message}");
-            brush = Brushes.White;
+    // 大读数字号按最宽样本拟合 秒级刷新不重排
+    private void FitDays()
+    {
+        var w = Bounds.Width - 40;
+        if (w <= 1)
+        {
+            return;
         }
-        _label.Foreground = brush;
-        _label.FontSize = Config.CountdownTextSize.Value;
+        var prefer = Math.Max(20, Config.CountdownTextSize.Value * 1.15);
+        _daysText.FontSize = CardText.Fit("99天 23:59:59", Common.AppFontFamily, FontWeight.Light, w, prefer, 14, 120);
     }
 
     private void UpdateCountdown()
     {
-        if (string.IsNullOrEmpty(_eventName) || string.IsNullOrEmpty(_targetTime))
+        var hasTarget = DateTime.TryParse(_targetTime, out var target);
+        if (string.IsNullOrEmpty(_eventName) || string.IsNullOrEmpty(_targetTime) || !hasTarget)
         {
-            _label.Text = AppUtils.Tr("countdown.click_to_config");
+            _content.IsVisible = false;
+            _emptyView.IsVisible = true;
             return;
         }
-        if (!DateTime.TryParse(_targetTime, out var target))
-        {
-            _label.Text = _eventName;
-            return;
-        }
+        _content.IsVisible = true;
+        _emptyView.IsVisible = false;
+        _eventText.Text = _eventName;
         var delta = target - DateTime.Now;
         if (delta.TotalSeconds > 0)
         {
-            var days = delta.Days;
-            var hours = delta.Hours;
-            var minutes = delta.Minutes;
-            var seconds = delta.Seconds;
-            _label.Text = $"{_eventName}\n{days}天 {hours}时 {minutes}分 {seconds}秒";
+            _daysText.Text = $"{(int)delta.TotalDays}天 {delta.Hours:D2}:{delta.Minutes:D2}:{delta.Seconds:D2}";
+            _targetText.Text = $"{AppUtils.Tr("days_matter.target_date")}: {target:yyyy-MM-dd HH:mm}";
         }
         else
         {
-            _label.Text = $"{_eventName}\n{AppUtils.Tr("countdown.expired")}";
+            _daysText.Text = AppUtils.Tr("countdown.expired");
+            _targetText.Text = $"{target:yyyy-MM-dd HH:mm}";
         }
     }
 
@@ -2122,6 +3579,11 @@ public sealed class CountdownDaysWidget : WidgetCardBase
     private readonly TextBlock _headerText = new();
     private readonly TextBlock _numText = new();
     private readonly TextBlock _footerText = new();
+    private readonly Grid _content;
+    private readonly CardEmptyState _emptyView = new(
+        FAIcons.Glyph(AppIcons.Calendar),
+        AppUtils.Tr("days_matter.empty_title"),
+        AppUtils.Tr("days_matter.empty_hint"));
     private string _eventName = "";
     private string _targetDate = "";
     private string _titleBg = "#F98E1B";
@@ -2140,18 +3602,24 @@ public sealed class CountdownDaysWidget : WidgetCardBase
         _footerText.VerticalAlignment = VerticalAlignment.Center;
         _footerBorder.Child = _footerText;
 
-        // 原版 headerWidget / numLabel(Expanding) / footerWidget 三段 中段撑满居中
-        var grid = new Grid
+        // 平面三层: 事件名 / 大数字 / 日期 不再用色块
+        _content = new Grid
         {
-            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("44,*,34"),
+            Margin = new Thickness(16, 14, 16, 12),
+            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,*,Auto"),
+            RowSpacing = 4,
         };
         Grid.SetRow(_headerBorder, 0);
         Grid.SetRow(_numText, 1);
         Grid.SetRow(_footerBorder, 2);
-        grid.Children.Add(_headerBorder);
-        grid.Children.Add(_numText);
-        grid.Children.Add(_footerBorder);
-        Card.Child = grid;
+        _content.Children.Add(_headerBorder);
+        _content.Children.Add(_numText);
+        _content.Children.Add(_footerBorder);
+
+        var host = new Grid();
+        host.Children.Add(_content);
+        host.Children.Add(_emptyView);
+        Card.Child = host;
         Content = Card;
 
         ReadConfig(config);
@@ -2178,11 +3646,12 @@ public sealed class CountdownDaysWidget : WidgetCardBase
     {
         if (!DateTime.TryParse(_targetDate, out var target))
         {
-            _headerText.Text = AppUtils.Tr("days_matter.default_title");
-            _numText.Text = "· · ·";
-            _footerText.Text = AppUtils.Tr("countdown.click_to_config");
+            _content.IsVisible = false;
+            _emptyView.IsVisible = true;
             return;
         }
+        _content.IsVisible = true;
+        _emptyView.IsVisible = false;
         var today = DateTime.Today;
         var diff = (target.Date - today).Days;
         var days = Math.Abs(diff);
@@ -2220,34 +3689,29 @@ public sealed class CountdownDaysWidget : WidgetCardBase
             px -= 2;
         }
         _numText.FontSize = px;
-        _numText.FontWeight = FontWeight.Bold;
+        _numText.FontWeight = FontWeight.Light;
         _numText.Text = numberText;
+        // 今天当天 数字染强调色 数据驱动
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        _numText.Foreground = diff == 0 ? CardAccent.Brush() : CardInk.Fg(p);
     }
 
     protected override void ApplyCardStyle()
     {
         base.ApplyCardStyle();
-        // 原版: 倒数日卡片 opacity 强制 100
-        var dark = ThemeSense.IsDark(this);
-        Card.Background = dark
-            ? new SolidColorBrush(Color.FromRgb(30, 30, 30), 1.0)
-            : new SolidColorBrush(Colors.White, 1.0);
-        _headerBorder.Background = new SolidColorBrush(Color.Parse(_titleBg));
-        _headerBorder.CornerRadius = new CornerRadius(Math.Max(8, Config.ComponentCardRadius.Value), Math.Max(8, Config.ComponentCardRadius.Value), 0, 0);
-        // header/footer 固定高 顶/底对齐 保证中间 * 行充分撑开
-        _headerBorder.VerticalAlignment = VerticalAlignment.Top;
-        _headerBorder.Height = 44;
-        _footerBorder.VerticalAlignment = VerticalAlignment.Bottom;
-        _footerBorder.Height = 34;
-        _headerText.Foreground = Brushes.White;
-        _headerText.FontSize = 17;
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        // 平面化: 标题条/日期条透明 字色走令牌
+        _headerBorder.Background = Brushes.Transparent;
+        _headerBorder.CornerRadius = new CornerRadius(0);
+        _footerBorder.Background = Brushes.Transparent;
+        _footerBorder.CornerRadius = new CornerRadius(0);
+        _headerText.Foreground = CardInk.Muted(p);
+        _headerText.FontSize = 14;
         _headerText.FontWeight = FontWeight.SemiBold;
-        _headerText.LetterSpacing = 1;
-        _numText.Foreground = new SolidColorBrush(dark ? Color.Parse("#f0f0f0") : Color.Parse("#111111"));
-        _footerBorder.Background = new SolidColorBrush(dark ? Color.Parse("#2d2d2d") : Color.Parse("#f5f5f5"));
-        _footerBorder.CornerRadius = new CornerRadius(0, 0, Math.Max(8, Config.ComponentCardRadius.Value), Math.Max(8, Config.ComponentCardRadius.Value));
-        _footerText.Foreground = new SolidColorBrush(dark ? Color.Parse("#9a9a9a") : Color.Parse("#8e8e93"));
-        _footerText.FontSize = Math.Max(8, 11.5);
+        _headerText.LetterSpacing = 0.5;
+        _footerText.Foreground = CardInk.Muted(p);
+        _footerText.FontSize = 12;
+        _emptyView.Apply(p);
     }
 }
 
@@ -2258,11 +3722,18 @@ public sealed class CountdownDaysWidget : WidgetCardBase
 
 public sealed class SchoolInfoWidget : WidgetCardBase
 {
-    private readonly Border _topBg = new();
+    private readonly Grid _content;
+    private readonly Grid _empty;
     private readonly TextBlock _classText = new();
     private readonly TextBlock _countText = new();
     private readonly TextBlock _schoolText = new();
     private readonly TextBlock _sloganText = new();
+    private readonly TextBlock _watermark = new();
+    private readonly Border _badge = new();
+    private readonly TextBlock _badgeText = new();
+    private readonly Border _countChip = new();
+    private readonly Border _sloganBar = new();
+    private readonly CardEmptyState _emptyView;
 
     private string _class = "";
     private string _school = "";
@@ -2277,41 +3748,110 @@ public sealed class SchoolInfoWidget : WidgetCardBase
 
     public SchoolInfoWidget(ComponentDefinition definition, JsonElement? config) : base(definition)
     {
-        // 原版 inner_layout: topWidget stretch 3 + slogan stretch 1
-        var root = new Grid
-        {
-            Margin = new Thickness(8, 8, 8, 8),
-            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("3*,*"),
-            RowSpacing = 6,
-        };
+        _content = BuildContent();
+        _emptyView = new CardEmptyState(
+            FAIcons.Glyph(AppIcons.People),
+            AppUtils.Tr("school_info_component.empty_title"),
+            AppUtils.Tr("school_info_component.click_to_config"));
+        _empty = BuildEmpty();
 
-        // 上层背景: 班级 人数 / 学校名
-        var topInner = new StackPanel { Margin = new Thickness(20, 16, 20, 12), Spacing = 4 };
-        var classRow = new Grid { ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("*,Auto") };
-        Grid.SetColumn(_classText, 0);
-        Grid.SetColumn(_countText, 1);
-        classRow.Children.Add(_classText);
-        classRow.Children.Add(_countText);
-        topInner.Children.Add(classRow);
-        topInner.Children.Add(_schoolText);
-        _topBg.Child = topInner;
-
-        // 口号 独立边距(20,4,20,4) 换行 拉伸
-        _sloganText.Margin = new Thickness(20, 4, 20, 4);
-        _sloganText.TextWrapping = TextWrapping.Wrap;
-        _sloganText.VerticalAlignment = VerticalAlignment.Top;
-
-        Grid.SetRow(_topBg, 0);
-        Grid.SetRow(_sloganText, 1);
-        root.Children.Add(_topBg);
-        root.Children.Add(_sloganText);
-        Card.Child = root;
+        var host = new Grid();
+        host.Children.Add(_content);
+        host.Children.Add(_empty);
+        Card.Child = host;
         Content = Card;
 
         ReadConfig(config);
         ApplyCardStyle();
         ApplyStyle();
         UpdateInfo();
+        ActualThemeVariantChanged += (_, _) => ApplyStyle();
+    }
+
+    private Grid BuildContent()
+    {
+        var root = new Grid
+        {
+            Margin = new Thickness(20, 16, 20, 14),
+            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,*,Auto"),
+            RowSpacing = 6,
+        };
+
+        // 超大班级首字水印 让空余区域有层次
+        _watermark.FontSize = 96;
+        _watermark.FontWeight = FontWeight.Bold;
+        _watermark.HorizontalAlignment = HorizontalAlignment.Right;
+        _watermark.VerticalAlignment = VerticalAlignment.Center;
+        _watermark.IsHitTestVisible = false;
+        Grid.SetRowSpan(_watermark, 3);
+
+        var header = new Grid
+        {
+            ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("Auto,*,Auto"),
+            ColumnSpacing = 12,
+        };
+        _badge.Width = 54;
+        _badge.Height = 54;
+        _badge.CornerRadius = new CornerRadius(17);
+        _badge.VerticalAlignment = VerticalAlignment.Center;
+        _badge.ClipToBounds = true;
+        _badgeText.FontSize = 24;
+        _badgeText.FontWeight = FontWeight.SemiBold;
+        _badgeText.HorizontalAlignment = HorizontalAlignment.Center;
+        _badgeText.VerticalAlignment = VerticalAlignment.Center;
+        _badge.Child = _badgeText;
+
+        var identity = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
+        _classText.FontWeight = FontWeight.Light;
+        _classText.TextTrimming = TextTrimming.CharacterEllipsis;
+        _classText.MaxLines = 1;
+        _schoolText.TextTrimming = TextTrimming.CharacterEllipsis;
+        _schoolText.MaxLines = 1;
+        identity.Children.Add(_classText);
+        identity.Children.Add(_schoolText);
+
+        _countChip.Padding = new Thickness(10, 4, 10, 4);
+        _countChip.CornerRadius = new CornerRadius(12);
+        _countChip.VerticalAlignment = VerticalAlignment.Center;
+        _countChip.Child = _countText;
+
+        Grid.SetColumn(_badge, 0);
+        Grid.SetColumn(identity, 1);
+        Grid.SetColumn(_countChip, 2);
+        header.Children.Add(_badge);
+        header.Children.Add(identity);
+        header.Children.Add(_countChip);
+
+        var slogan = new Grid
+        {
+            ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("Auto,*"),
+            ColumnSpacing = 10,
+            VerticalAlignment = VerticalAlignment.Bottom,
+        };
+        _sloganBar.Width = 3;
+        _sloganBar.CornerRadius = new CornerRadius(2);
+        _sloganBar.VerticalAlignment = VerticalAlignment.Stretch;
+        _sloganText.TextWrapping = TextWrapping.Wrap;
+        _sloganText.TextTrimming = TextTrimming.CharacterEllipsis;
+        _sloganText.MaxLines = 2;
+        _sloganText.VerticalAlignment = VerticalAlignment.Center;
+        slogan.Children.Add(_sloganBar);
+        Grid.SetColumn(_sloganText, 1);
+        slogan.Children.Add(_sloganText);
+
+        Grid.SetRow(header, 0);
+        Grid.SetRow(slogan, 2);
+        root.Children.Add(_watermark);
+        root.Children.Add(header);
+        root.Children.Add(slogan);
+        return root;
+    }
+
+    private Grid BuildEmpty()
+    {
+        var root = new Grid { Margin = new Thickness(20, 16, 20, 16) };
+        root.Children.Add(_emptyView);
+        return root;
     }
 
     private void ReadConfig(JsonElement? config)
@@ -2367,51 +3907,58 @@ public sealed class SchoolInfoWidget : WidgetCardBase
 
     private void UpdateInfo()
     {
-        if (!IsConfigured)
+        var configured = IsConfigured;
+        _content.IsVisible = configured;
+        _empty.IsVisible = !configured;
+        if (!configured)
         {
-            // 未配置 提示文本居中 其余空
-            _classText.Text = AppUtils.Tr("school_info_component.click_to_config");
-            _classText.TextAlignment = TextAlignment.Center;
-            _countText.Text = "";
-            _schoolText.Text = "";
-            _sloganText.Text = "";
             return;
         }
-        _classText.TextAlignment = TextAlignment.Left;
+
         _classText.Text = _class;
         _schoolText.Text = _school;
         _sloganText.Text = _slogan;
-        _countText.Text = _count.Length > 0 ? $"{_count}人" : "";
+        _sloganText.IsVisible = _slogan.Length > 0;
+        _sloganBar.IsVisible = _slogan.Length > 0;
+        _badge.IsVisible = _class.Length > 0 || _school.Length > 0;
+        _badgeText.Text = _class.Length > 0 ? _class[..1] : _school.Length > 0 ? _school[..1] : "";
+        _watermark.Text = _badgeText.Text;
+        _countText.Text = _count.Length > 0
+            ? AppUtils.Tr("school_info_component.student_count", ("count", _count))
+            : "";
+        _countChip.IsVisible = _count.Length > 0;
     }
 
     private void ApplyStyle()
     {
-        var dark = ThemeSense.IsDark(this);
+        var dark = CardIsDark;
         var scale = _fontScale / 100.0;
         double S(int px) => Math.Max(1, px * scale);
+        var p = WidgetSurfacePalette.Resolve(dark);
 
-        var textColor = _textColor.Length > 0 ? _textColor : dark ? "#e0e0e0" : "#1a1a1a";
-        var subColor = dark ? "#aaaaaa" : "#666666";
-        var countColor = dark ? "#777777" : "#999999";
+        // 自定义色优先 次级走 62% 令牌
+        var textColor = TryParseColor(_textColor) ?? p.Text;
+        var muted = new SolidColorBrush(textColor, CardInk.MutedOpacity);
+        var faint = new SolidColorBrush(textColor, 0.07);
 
-        IBrush B(string hex) => new SolidColorBrush(Color.Parse(hex));
+        _classText.Foreground = new SolidColorBrush(textColor);
+        _classText.FontSize = Math.Clamp(S(_classSize), 20, 52);
+        _schoolText.Foreground = muted;
+        _schoolText.FontSize = Math.Clamp(S(_schoolSize), 12, 22);
+        _countText.Foreground = muted;
+        _countText.FontSize = Math.Clamp(S(_countSize), 10, 16);
+        _sloganText.Foreground = new SolidColorBrush(textColor, 0.84);
+        _sloganText.FontSize = Math.Clamp(S(_sloganSize), 12, 20);
+        _watermark.Foreground = faint;
 
-        _classText.Foreground = B(textColor);
-        _classText.FontSize = S(_classSize);
-        _classText.FontWeight = FontWeight.Bold;
-        _schoolText.Foreground = B(subColor);
-        _schoolText.FontSize = S(_schoolSize);
-        _countText.Foreground = B(countColor);
-        _countText.FontSize = S(_countSize);
-        _sloganText.Foreground = B(subColor);
-        _sloganText.FontSize = S(_sloganSize);
+        _badge.Background = CardAccent.Brush(0.16);
+        _badgeText.Foreground = CardAccent.Brush();
+        _countChip.Background = new SolidColorBrush(textColor, 0.055);
+        _countChip.BorderBrush = new SolidColorBrush(textColor, 0.09);
+        _countChip.BorderThickness = new Thickness(1);
+        _sloganBar.Background = CardAccent.Brush(0.8);
 
-        // 上层背景 默认 opacity 模式 与卡片同色再叠一层
-        var op = Math.Clamp(Config.ComponentCardOpacity.Value / 100.0, 0, 1);
-        _topBg.Background = dark
-            ? new SolidColorBrush(Color.FromRgb(30, 30, 30), op)
-            : new SolidColorBrush(Colors.White, op);
-        _topBg.CornerRadius = new CornerRadius(Math.Max(8, Config.ComponentCardRadius.Value));
+        _emptyView.Apply(p, textColor);
     }
 }
 
@@ -2996,24 +4543,26 @@ public sealed class NewsWidget : WidgetCardBase
     // 原版 _render_items: 序号 12px 半透明 + 标题 15px 主题对色
     private void RenderItem(int index, string title)
     {
-        var dark = ThemeSense.IsDark(this);
+        var dark = CardIsDark;
         var label = _itemLabels[index];
         label.Inlines ??= new Avalonia.Controls.Documents.InlineCollection();
             label.Inlines.Clear();
         var num = new Avalonia.Controls.Documents.Run($"{index + 1}. ")
         {
-            FontSize = 12,
-            Foreground = new SolidColorBrush(dark
-                ? Color.FromArgb(140, 255, 255, 255)
-                : Color.FromArgb(115, 0, 0, 0)),
+            FontSize = WidgetType.Label,
+            Foreground = new SolidColorBrush(
+                dark ? Colors.White : Colors.Black, CardInk.MutedOpacity),
         };
         var text = new Avalonia.Controls.Documents.Run(title)
         {
-            FontSize = 15,
+            FontSize = WidgetType.Body,
             Foreground = new SolidColorBrush(dark ? Color.Parse("#ffffff") : Color.Parse("#1a1a1a")),
         };
         label.Inlines.Add(num);
         label.Inlines.Add(text);
+        label.LineHeight = 19;
+        label.MaxLines = 2;
+        label.TextTrimming = TextTrimming.CharacterEllipsis;
     }
 
     private void OpenNews(int index)
@@ -3234,7 +4783,11 @@ public sealed class WeekTimetablePanel : UserControl
 public sealed class TimetablePreviewWidget : WidgetCardBase
 {
     private readonly TextBlock _titleText = new();
-    private readonly StackPanel _rowsHost = new() { Spacing = 4 };
+    private readonly TextBlock _dateText = new();
+    private readonly TextBlock _countText = new();
+    private readonly Border _countChip = new();
+    // Grid 行宿主: 星号均分 课少时撑满整卡
+    private readonly Grid _rowsHost = new() { RowSpacing = 6, ClipToBounds = true };
     private readonly List<(Border Row, ProgressBar Bar, bool IsCurrent)> _rows = new();
     private (string Start, string End)? _currentTimes;
 
@@ -3246,30 +4799,52 @@ public sealed class TimetablePreviewWidget : WidgetCardBase
     {
         var root = new Grid
         {
-            Margin = new Thickness(10, 10, 10, 10),
+            Margin = new Thickness(12, 10, 12, 12),
             RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,*"),
-            RowSpacing = 6,
+            RowSpacing = 8,
         };
+
+        // 头部: 标题 + 日期, 右侧课程数胶囊
+        var header = new Grid
+        {
+            ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("*,Auto"),
+            ColumnSpacing = 10,
+        };
+        var titleStack = new StackPanel { Spacing = 1 };
         _titleText.Text = AppUtils.Tr("timetable.today_schedule");
         _titleText.FontSize = 17;
         _titleText.FontWeight = FontWeight.SemiBold;
-        var scroll = new ScrollViewer
-        {
-            Content = _rowsHost,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-        };
-        Grid.SetRow(_titleText, 0);
-        Grid.SetRow(scroll, 1);
-        root.Children.Add(_titleText);
-        root.Children.Add(scroll);
+        _dateText.FontSize = 11;
+        titleStack.Children.Add(_titleText);
+        titleStack.Children.Add(_dateText);
+
+        _countText.FontSize = 11;
+        _countChip.Padding = new Thickness(9, 4, 9, 4);
+        _countChip.CornerRadius = new CornerRadius(10);
+        _countChip.VerticalAlignment = VerticalAlignment.Center;
+        _countChip.Child = _countText;
+
+        Grid.SetColumn(titleStack, 0);
+        Grid.SetColumn(_countChip, 1);
+        header.Children.Add(titleStack);
+        header.Children.Add(_countChip);
+
+        Grid.SetRow(header, 0);
+        Grid.SetRow(_rowsHost, 1);
+        root.Children.Add(header);
+        root.Children.Add(_rowsHost);
         Card.Child = root;
         Content = Card;
 
         ApplyRowStyle();
-        ActualThemeVariantChanged += (_, _) => ApplyRowStyle();
-        Config.ComponentCardOpacity.ValueChanged += _ => ApplyRowStyle();
-        Config.ComponentCardRadius.ValueChanged += _ => ApplyRowStyle();
+        ActualThemeVariantChanged += (_, _) =>
+        {
+            ApplyRowStyle();
+            _sig = "";
+            RefreshSchedule();
+        };
+        Config.ComponentCardOpacity.ValueChanged += _ => { _sig = ""; RefreshSchedule(); };
+        Config.ComponentCardRadius.ValueChanged += _ => { _sig = ""; RefreshSchedule(); };
 
         // 原版 showEvent: 5s 刷新 + 1s 进度
         _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
@@ -3288,6 +4863,7 @@ public sealed class TimetablePreviewWidget : WidgetCardBase
     {
         var schedule = TimetableScheduleProvider.GetTodaySchedule();
         var now = AppUtils.PreciseNow();
+        UpdateHeader(schedule, now);
 
         // 重建签名
         var parts = new List<string>();
@@ -3301,7 +4877,7 @@ public sealed class TimetablePreviewWidget : WidgetCardBase
             parts.Add($"{row.Subject}|{row.StartTime}|{row.EndTime}|{row.Index}|{row.IsBreak}|{row.BreakName}|{isPast}");
         }
         var sig = string.Join(";", parts);
-        if (sig == _sig)
+        if (sig == _sig && _rowsHost.Children.Count > 0)
         {
             UpdateProgress();
             return;
@@ -3310,14 +4886,23 @@ public sealed class TimetablePreviewWidget : WidgetCardBase
         RebuildRows(schedule, now);
     }
 
+    private void UpdateHeader(List<ScheduleRow> schedule, DateTime now)
+    {
+        _dateText.Text = $"{now:MM/dd} · {AppUtils.Tr(AppUtils.WeekdayKey(now.DayOfWeek))}";
+        var courses = schedule.Count(r => !r.IsBreak && r.Subject.Trim().Length > 0);
+        _countText.Text = AppUtils.Tr("timetable.lessons_count", ("n", courses));
+        _countChip.IsVisible = courses > 0;
+    }
+
     private void RebuildRows(List<ScheduleRow> schedule, DateTime now)
     {
         _rowsHost.Children.Clear();
+        _rowsHost.RowDefinitions.Clear();
         _rows.Clear();
         _currentTimes = null;
         ScheduleRow? currentRow = null;
 
-        // 先找最后一个 current(
+        // 先找最后一个 current
         foreach (var row in schedule)
         {
             if (row.IsCurrent)
@@ -3326,19 +4911,21 @@ public sealed class TimetablePreviewWidget : WidgetCardBase
             }
         }
 
-        if (schedule.Count == 0)
+        // 没有课程时, 不再把唯一的空节次拉满整张卡, 改为完整空态
+        var hasCourse = schedule.Any(r => !r.IsBreak && r.Subject.Trim().Length > 0);
+        if (schedule.Count == 0 || !hasCourse)
         {
-            _rowsHost.Children.Add(new TextBlock
-            {
-                Text = "今天没有课程",
-                FontSize = 15,
-                Foreground = new SolidColorBrush(Color.Parse("#888888")),
-                TextAlignment = TextAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                Margin = new Thickness(0, 8, 0, 8),
-            });
+            _rowsHost.RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
+            var empty = BuildEmptyState();
+            Grid.SetRow(empty, 0);
+            _rowsHost.Children.Add(empty);
             return;
         }
+
+        // 行数少 -> 星号均分撑满; 多 -> 定量高避免压扁
+        var visible = schedule.Count(r => !(r.IsBreak && !r.IsCurrent));
+        var stretch = visible <= 9;
+        var rowIdx = 0;
 
         foreach (var row in schedule)
         {
@@ -3356,23 +4943,29 @@ public sealed class TimetablePreviewWidget : WidgetCardBase
 
             var content = new Grid
             {
-                Margin = new Thickness(10, 7, 10, 7),
-                ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("68,*,Auto"),
-                ColumnSpacing = 12,
+                Margin = new Thickness(12, 8, 12, 8),
+                ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("4,58,*,Auto"),
+                ColumnSpacing = 10,
+            };
+            var status = new Border
+            {
+                Width = 3,
+                CornerRadius = new CornerRadius(2),
+                VerticalAlignment = VerticalAlignment.Stretch,
             };
             TextBlock idx;
-            if (row.IsBreak && isCurrentRow)
-            {
-                // 课间当前行 空占位对齐原版 pad
-                idx = new TextBlock();
-            }
-            else if (row.IsBreak)
+            if (row.IsBreak)
             {
                 idx = new TextBlock();
             }
             else
             {
-                idx = new TextBlock { Text = $"第{row.Index}节", TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                idx = new TextBlock
+                {
+                    Text = $"第{row.Index}节",
+                    TextAlignment = TextAlignment.Left,
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
             }
             var subj = new TextBlock
             {
@@ -3383,13 +4976,15 @@ public sealed class TimetablePreviewWidget : WidgetCardBase
             };
             var time = new TextBlock
             {
-                Text = $"{row.StartTime}~{row.EndTime}",
+                Text = $"{row.StartTime}–{row.EndTime}",
                 TextAlignment = TextAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Center,
             };
-            Grid.SetColumn(idx, 0);
-            Grid.SetColumn(subj, 1);
-            Grid.SetColumn(time, 2);
+            Grid.SetColumn(status, 0);
+            Grid.SetColumn(idx, 1);
+            Grid.SetColumn(subj, 2);
+            Grid.SetColumn(time, 3);
+            content.Children.Add(status);
             content.Children.Add(idx);
             content.Children.Add(subj);
             content.Children.Add(time);
@@ -3401,6 +4996,7 @@ public sealed class TimetablePreviewWidget : WidgetCardBase
                 Minimum = 0,
                 Maximum = 100,
                 Value = 0,
+                CornerRadius = new CornerRadius(2),
                 IsVisible = isCurrentRow,
             };
             Grid.SetRow(content, 0);
@@ -3409,53 +5005,76 @@ public sealed class TimetablePreviewWidget : WidgetCardBase
             rowGrid.Children.Add(bar);
 
             var border = new Border { Child = rowGrid };
+            _rowsHost.RowDefinitions.Add(new RowDefinition(
+                stretch ? new GridLength(1, GridUnitType.Star) : GridLength.Auto));
+            Grid.SetRow(border, rowIdx++);
             _rowsHost.Children.Add(border);
             _rows.Add((border, bar, isCurrentRow));
-            StyleRow(border, subj, time, idx, bar, isCurrentRow, isPast);
+            StyleRow(border, subj, time, idx, status, bar, isCurrentRow, isPast);
         }
         UpdateProgress();
     }
 
-    // 行样式
-    private void StyleRow(Border border, TextBlock subj, TextBlock time, TextBlock idx, ProgressBar bar,
-        bool isCurrentRow, bool isPast)
+    private Grid BuildEmptyState()
     {
-        var dark = ThemeSense.IsDark(this);
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        var root = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+
+        var empty = new CardEmptyState(
+            FAIcons.Glyph(AppIcons.Calendar),
+            AppUtils.Tr("timetable.day_empty"),
+            AppUtils.Tr("component.click_to_settings"));
+        empty.Apply(p);
+        root.Children.Add(empty);
+        return root;
+    }
+
+    // 行样式
+    private void StyleRow(Border border, TextBlock subj, TextBlock time, TextBlock idx, Border status,
+        ProgressBar bar, bool isCurrentRow, bool isPast)
+    {
+        var dark = CardIsDark;
+        var p = WidgetSurfacePalette.Resolve(dark);
         var op = Math.Clamp(Config.ComponentCardOpacity.Value / 100.0, 0, 1);
-        double bg;
+        IBrush bg;
         if (isCurrentRow)
         {
-            bg = op * (dark ? 0.18 : 0.10);
+            bg = CardAccent.Brush(dark ? 0.14 : 0.09);
         }
         else if (isPast)
         {
-            bg = op * (dark ? 0.04 : 0.02);
+            bg = new SolidColorBrush(dark ? Colors.White : Colors.Black, op * (dark ? 0.025 : 0.018));
         }
         else
         {
-            bg = op * (dark ? 0.08 : 0.04);
+            bg = new SolidColorBrush(dark ? Colors.White : Colors.Black, op * (dark ? 0.055 : 0.035));
         }
-        border.Background = new SolidColorBrush(dark ? Colors.White : Colors.Black, bg);
-        border.CornerRadius = new CornerRadius(Math.Max(8, Config.ComponentCardRadius.Value));
+        border.Background = bg;
+        border.CornerRadius = new CornerRadius(Math.Max(9, Config.ComponentCardRadius.Value - 2));
 
-        var textColor = dark ? "#e0e0e0" : "#1a1a1a";
-        var pastColor = "#999999";
-        var c = isPast ? pastColor : textColor;
-        subj.Foreground = new SolidColorBrush(Color.Parse(c));
-        subj.FontSize = 20;
-        time.Foreground = new SolidColorBrush(Color.Parse(textColor));
-        time.FontSize = 15;
-        idx.Foreground = new SolidColorBrush(Color.Parse(c));
-        idx.FontSize = 15;
-        bar.Foreground = new SolidColorBrush(Color.Parse("#4cc2ff"));
+        var ink = isPast ? new SolidColorBrush(p.Text, 0.42) : CardInk.Fg(p);
+        subj.Foreground = ink;
+        subj.FontSize = WidgetType.Body;
+        subj.FontWeight = isCurrentRow ? FontWeight.SemiBold : FontWeight.Medium;
+        time.Foreground = isPast ? new SolidColorBrush(p.Text, 0.38) : CardInk.Muted(p);
+        time.FontSize = 12;
+        idx.Foreground = isCurrentRow ? CardAccent.Brush() : new SolidColorBrush(p.Text, 0.45);
+        idx.FontSize = 11;
+        status.Background = isCurrentRow ? CardAccent.Brush() : new SolidColorBrush(p.Text, 0.12);
+        bar.Foreground = CardAccent.Brush();
         bar.Background = new SolidColorBrush(dark ? Colors.White : Colors.Black, dark ? 0.06 : 0.05);
-        bar.CornerRadius = new CornerRadius(1);
+        bar.CornerRadius = new CornerRadius(2);
     }
 
     private void ApplyRowStyle()
     {
-        var dark = ThemeSense.IsDark(this);
-        _titleText.Foreground = new SolidColorBrush(Color.Parse(dark ? "#e0e0e0" : "#1a1a1a"));
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        _titleText.Foreground = CardInk.Fg(p);
+        _dateText.Foreground = CardInk.Muted(p);
+        _countText.Foreground = CardInk.Muted(p);
+        _countChip.Background = CardAccent.Brush(0.10);
+        _countChip.BorderBrush = CardAccent.Brush(0.16);
+        _countChip.BorderThickness = new Thickness(1);
     }
 
     // 当前行进度
@@ -3506,6 +5125,9 @@ public sealed class TimetableNowLessonWidget : WidgetCardBase
     private readonly TextBlock _nextText = new();
     private readonly ProgressBar _bottomProgress = new();
     private readonly DispatcherTimer _timer;
+    private readonly Grid _main = new() { ColumnSpacing = 14 };
+    private readonly Grid _left = new() { RowSpacing = 4, MinWidth = 100 };
+    private readonly Grid _right = new() { RowSpacing = 8 };
 
     private bool _showTeacher = true;
     private bool _showNext = true;
@@ -3522,19 +5144,10 @@ public sealed class TimetableNowLessonWidget : WidgetCardBase
             Margin = new Thickness(16, 10, 16, 8),
             RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("*,Auto"),
         };
-        var main = new Grid
-        {
-            ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("*,*"),
-            ColumnSpacing = 14,
-        };
+        _main.ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("*,*");
 
         // 左: 课程名(3) 倒计时(1) 时间进度(1) 原版均 AlignLeft|AlignVCenter
-        var left = new Grid
-        {
-            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("3*,*,*"),
-            RowSpacing = 4,
-            MinWidth = 100,
-        };
+        _left.RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("3*,*,*");
         _subjectText.Margin = new Thickness(0, 20, 0, 4);
         _subjectText.TextWrapping = TextWrapping.Wrap;
         _subjectText.VerticalAlignment = VerticalAlignment.Center;
@@ -3545,16 +5158,12 @@ public sealed class TimetableNowLessonWidget : WidgetCardBase
         Grid.SetRow(_subjectText, 0);
         Grid.SetRow(_countdownText, 1);
         Grid.SetRow(_timeProgressText, 2);
-        left.Children.Add(_subjectText);
-        left.Children.Add(_countdownText);
-        left.Children.Add(_timeProgressText);
+        _left.Children.Add(_subjectText);
+        _left.Children.Add(_countdownText);
+        _left.Children.Add(_timeProgressText);
 
         // 右: 老师 时间段 下节课 + 尾部留白(原版 addStretch) -> 4 等分行 内容垂直居中
-        var right = new Grid
-        {
-            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("*,*,*,*"),
-            RowSpacing = 8,
-        };
+        _right.RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("*,*,*,*");
         _teacherText.Margin = new Thickness(0, 2, 0, 2);
         _teacherText.VerticalAlignment = VerticalAlignment.Center;
         _timeText.Margin = new Thickness(0, 2, 0, 2);
@@ -3564,22 +5173,23 @@ public sealed class TimetableNowLessonWidget : WidgetCardBase
         Grid.SetRow(_teacherText, 0);
         Grid.SetRow(_timeText, 1);
         Grid.SetRow(_nextText, 2);
-        right.Children.Add(_teacherText);
-        right.Children.Add(_timeText);
-        right.Children.Add(_nextText);
+        _right.Children.Add(_teacherText);
+        _right.Children.Add(_timeText);
+        _right.Children.Add(_nextText);
 
-        Grid.SetColumn(left, 0);
-        Grid.SetColumn(right, 1);
-        main.Children.Add(left);
-        main.Children.Add(right);
+        Grid.SetColumn(_left, 0);
+        Grid.SetColumn(_right, 1);
+        _main.Children.Add(_left);
+        _main.Children.Add(_right);
 
-        _bottomProgress.Height = 6;
+        _bottomProgress.Height = 4;
+        _bottomProgress.CornerRadius = new CornerRadius(2);
         _bottomProgress.Minimum = 0;
         _bottomProgress.Maximum = 100;
         _bottomProgress.Value = 0;
-        Grid.SetRow(main, 0);
+        Grid.SetRow(_main, 0);
         Grid.SetRow(_bottomProgress, 1);
-        root.Children.Add(main);
+        root.Children.Add(_main);
         root.Children.Add(_bottomProgress);
         Card.Child = root;
         Content = Card;
@@ -3588,6 +5198,7 @@ public sealed class TimetableNowLessonWidget : WidgetCardBase
         ApplyCardStyle();
         ApplyStyle();
         ActualThemeVariantChanged += (_, _) => ApplyStyle();
+        SizeChanged += (_, _) => Relayout();
 
         // 原版 1s 起步 正常态 5s
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -3687,13 +5298,74 @@ public sealed class TimetableNowLessonWidget : WidgetCardBase
         }
         else
         {
-            _subjectText.Text = "--";
+            _subjectText.Text = AppUtils.Tr("timetable.day_empty");
             _countdownText.Text = "";
-            _teacherText.Text = "--";
-            _timeText.Text = "--:-- ~ --:--";
+            _teacherText.Text = "";
+            _timeText.Text = "";
             _nextText.Text = "下节课 --";
-            _timeProgressText.Text = "-- min / -- min";
+            _timeProgressText.Text = "";
             _bottomProgress.Value = 0;
+        }
+        FitSubject();
+    }
+
+    // 断点 + 字号: 窄卡收右栏 科目按左列宽收敛 其余按卡高分档
+    private void Relayout()
+    {
+        var w = Bounds.Width - 32;
+        var h = Bounds.Height - 18;
+        if (w <= 1 || h <= 1)
+        {
+            return;
+        }
+
+        var narrow = w < 300;
+        _right.IsVisible = !narrow;
+        Grid.SetColumnSpan(_left, narrow ? 2 : 1);
+        _timeProgressText.IsVisible = h >= 96;
+
+        var scale = _fontScale / 100.0;
+        _countdownText.FontSize = CardText.ByHeight(h, 0.11 * scale, 12, 30);
+        _timeProgressText.FontSize = CardText.ByHeight(h, 0.095 * scale, 10, 26);
+        var sideSize = CardText.ByHeight(h / 4.0, 0.48 * scale, 11, 24);
+        _teacherText.FontSize = sideSize;
+        _timeText.FontSize = sideSize;
+        _nextText.FontSize = sideSize;
+        _subjectText.Margin = new Thickness(0, h < 110 ? 2 : 20, 0, 4);
+
+        FitSubject();
+    }
+
+    // 科目名单行收敛 优先占满左列
+    private void FitSubject()
+    {
+        var w = Bounds.Width - 32;
+        if (w <= 1)
+        {
+            return;
+        }
+        var leftW = (w < 300 ? w : (w - 14) / 2) - 8;
+        var scale = _fontScale / 100.0;
+        _subjectText.FontSize = CardText.Fit(_subjectText.Text, Common.AppFontFamily, FontWeight.SemiBold,
+            Math.Max(40, leftW), 40 * scale, 14, 96);
+    }
+
+    // 切页隐藏即停表 回页补刷
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property != IsVisibleProperty || _timer is null)
+        {
+            return;
+        }
+        if (!IsVisible)
+        {
+            _timer.Stop();
+        }
+        else if (!_timer.IsEnabled)
+        {
+            Refresh();
+            _timer.Start();
         }
     }
 
@@ -3819,33 +5491,30 @@ public sealed class TimetableNowLessonWidget : WidgetCardBase
 
     private void ApplyStyle()
     {
-        var dark = ThemeSense.IsDark(this);
-        var text = dark ? "#e0e0e0" : "#1a1a1a";
-        var subText = dark ? "#aaaaaa" : "#777777";
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        var text = p.Text;
+        var muted = new SolidColorBrush(text, CardInk.MutedOpacity);
         var scale = _fontScale / 100.0;
         double S(int px) => Math.Max(1, px * scale);
-        IBrush B(string hex) => new SolidColorBrush(Color.Parse(hex));
 
-        _subjectFg = B(text);
+        // 课名是英雄字 Light 其余分级: 正文全值 / 次级 62%
+        _subjectFg = new SolidColorBrush(text);
         _subjectText.Foreground = _subjectFg;
         _subjectText.FontSize = S(40);
-        _subjectText.FontWeight = FontWeight.SemiBold;
-        _countdownText.Foreground = B("#4cc2ff");
+        _subjectText.FontWeight = FontWeight.Light;
+        _countdownText.Foreground = CardAccent.Brush();
         _countdownText.FontSize = S(18);
         _countdownText.FontWeight = FontWeight.SemiBold;
-        _timeProgressText.Foreground = B(text);
+        _timeProgressText.Foreground = muted;
         _timeProgressText.FontSize = S(15);
-        _timeProgressText.FontWeight = FontWeight.SemiBold;
-        _teacherText.Foreground = B(text);
+        _teacherText.Foreground = muted;
         _teacherText.FontSize = S(19);
-        _teacherText.FontWeight = FontWeight.SemiBold;
-        _timeText.Foreground = B(text);
+        _timeText.Foreground = muted;
         _timeText.FontSize = S(19);
-        _timeText.FontWeight = FontWeight.SemiBold;
-        _nextText.Foreground = B(subText);
+        _nextText.Foreground = muted;
         _nextText.FontSize = S(19);
-        _nextText.FontWeight = FontWeight.SemiBold;
-        _bottomProgress.Foreground = B("#4cc2ff");
+        _bottomProgress.Foreground = CardAccent.Brush();
+        Relayout();
     }
 }
 
@@ -3857,22 +5526,207 @@ public sealed class TimetableNowLessonWidget : WidgetCardBase
 //       浅色 标题#1F1F1F 歌手rgba(60,60,67,214) 时间rgba(60,60,67,138) 歌词rgba(44,44,46,153)
 // 默认封面 深(40,40,48)/浅(230,230,235) 音符 手绘音符形状
 
+/// <summary>媒体进度条: 3px 细轨 + 强调色已播放段 + 末端圆点</summary>
+internal sealed class MediaProgressBar : Control
+{
+    private double _progress;
+
+    public Func<bool>? DarkProvider { get; set; }
+
+    public double Progress
+    {
+        get => _progress;
+        set
+        {
+            var v = Math.Clamp(value, 0, 1);
+            if (Math.Abs(v - _progress) < 0.0001)
+            {
+                return;
+            }
+            _progress = v;
+            InvalidateVisual();
+        }
+    }
+
+    public override void Render(DrawingContext ctx)
+    {
+        var w = Bounds.Width;
+        var h = Bounds.Height;
+        if (w < 20 || h < 3)
+        {
+            return;
+        }
+
+        var dark = DarkProvider?.Invoke() ?? ThemeSense.IsDark(this);
+        var p = WidgetSurfacePalette.Resolve(dark);
+        var accent = CardAccent.Value;
+        var trackH = Math.Min(3, h);
+        var y = (h - trackH) / 2;
+        var radius = trackH / 2;
+
+        ctx.DrawRectangle(new SolidColorBrush(p.Text, dark ? 0.12 : 0.09), null,
+            new Rect(0, y, w, trackH), radius, radius);
+        if (_progress <= 0)
+        {
+            return;
+        }
+        var fillW = Math.Max(trackH, w * _progress);
+        ctx.DrawRectangle(new SolidColorBrush(accent), null,
+            new Rect(0, y, fillW, trackH), radius, radius);
+        var knob = trackH + 3;
+        ctx.DrawEllipse(new SolidColorBrush(accent), null,
+            new Point(Math.Clamp(fillW, knob / 2, w - knob / 2), h / 2), knob / 2, knob / 2);
+    }
+}
+
+// 媒体控制圆键: 不继承 Fluent Button 模板, 避免悬停时绿色的播放键被主题灰底盖掉
+internal sealed class MediaTransportButton : Border
+{
+    private readonly TextBlock _glyph = new();
+    private readonly bool _accent;
+    private bool _hover;
+    private bool _pressed;
+    private Color _accentColor = Color.Parse("#68C31F");
+    private Color _glyphColor = Colors.White;
+
+    public event Action? Clicked;
+
+    public MediaTransportButton(bool accent)
+    {
+        _accent = accent;
+        Child = _glyph;
+        Background = Brushes.Transparent;
+        Cursor = new Cursor(StandardCursorType.Hand);
+        _glyph.FontFamily = FAIcons.SymbolsFont;
+        _glyph.HorizontalAlignment = HorizontalAlignment.Center;
+        _glyph.VerticalAlignment = VerticalAlignment.Center;
+        _glyph.TextAlignment = TextAlignment.Center;
+        _glyph.IsHitTestVisible = false;
+    }
+
+    public string Glyph
+    {
+        get => _glyph.Text ?? "";
+        set => _glyph.Text = value;
+    }
+
+    public void Configure(double size, double glyphSize, Color accent, Color glyphColor)
+    {
+        Width = size;
+        Height = size;
+        CornerRadius = new CornerRadius(size / 2);
+        _glyph.FontSize = glyphSize;
+        _accentColor = accent;
+        _glyphColor = glyphColor;
+        Refresh();
+    }
+
+    private void Refresh()
+    {
+        if (_accent)
+        {
+            Background = new SolidColorBrush(_accentColor, _pressed ? 0.82 : 1.0);
+            _glyph.Foreground = new SolidColorBrush(_glyphColor);
+            BoxShadow = _hover
+                ? new BoxShadows(new BoxShadow
+                {
+                    Blur = 14,
+                    Color = Color.FromArgb(110, _accentColor.R, _accentColor.G, _accentColor.B),
+                })
+                : default;
+        }
+        else
+        {
+            Background = _hover ? new SolidColorBrush(_glyphColor, 0.12) : Brushes.Transparent;
+            _glyph.Foreground = new SolidColorBrush(_glyphColor, _pressed ? 1.0 : _hover ? 0.95 : 0.72);
+            BoxShadow = default;
+        }
+        RenderTransformOrigin = RelativePoint.Center;
+        RenderTransform = _pressed ? new ScaleTransform(0.92, 0.92) : null;
+    }
+
+    protected override void OnPointerEntered(PointerEventArgs e)
+    {
+        base.OnPointerEntered(e);
+        _hover = true;
+        Refresh();
+    }
+
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+        _hover = false;
+        _pressed = false;
+        e.Pointer.Capture(null);
+        Refresh();
+    }
+
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    {
+        base.OnPointerPressed(e);
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+        _pressed = true;
+        e.Pointer.Capture(this);
+        Refresh();
+        e.Handled = true;
+    }
+
+    protected override void OnPointerReleased(PointerReleasedEventArgs e)
+    {
+        base.OnPointerReleased(e);
+        var fire = _pressed;
+        _pressed = false;
+        e.Pointer.Capture(null);
+        Refresh();
+        if (fire)
+        {
+            var p = e.GetPosition(this);
+            if (p.X >= 0 && p.Y >= 0 && p.X <= Bounds.Width && p.Y <= Bounds.Height)
+            {
+                Clicked?.Invoke();
+            }
+        }
+        e.Handled = true;
+    }
+}
+
 public sealed class MediaPlayerWidget : WidgetCardBase
 {
     private sealed record MediaDetail(Lyrics? Lyrics, byte[]? Cover, long Duration);
 
     private readonly Border _coverHost = new();
+    private readonly StackPanel _appPanel = new()
+    {
+        Orientation = Orientation.Horizontal,
+        Spacing = 5,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+    private readonly Border _appDot = new()
+    {
+        Width = 6,
+        Height = 6,
+        CornerRadius = new CornerRadius(3),
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+    private readonly TextBlock _appText = new();
     private readonly TextBlock _titleText = new();
     private readonly TextBlock _artistText = new();
     private readonly TextBlock _lyricsText = new();
     private readonly TextBlock _timeText = new();
-    private readonly ProgressBar _bar = new();
-    private readonly Button _btnPrev;
-    private readonly Button _btnPlay;
-    private readonly Button _btnNext;
-    private readonly TextBlock _playGlyph = new();
-    private readonly TextBlock _prevGlyph = new();
-    private readonly TextBlock _nextGlyph = new();
+    private readonly MediaProgressBar _wave = new();
+    private readonly StackPanel _centerBlock = new()
+    {
+        Orientation = Orientation.Vertical,
+        Spacing = 4,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+    private readonly Grid _bottomRow;
+    private readonly MediaTransportButton _btnPrev;
+    private readonly MediaTransportButton _btnPlay;
+    private readonly MediaTransportButton _btnNext;
 
     private readonly DispatcherTimer _pollTimer;
     private readonly DispatcherTimer _progTimer;
@@ -3884,81 +5738,120 @@ public sealed class MediaPlayerWidget : WidgetCardBase
     private bool _playing;
     private long _position;
     private long _duration;
-    private bool _detailFetching;
+    private bool _polling;
+    private bool _controlBusy;
+    private int _detailVersion;
+    private long _stateHoldUntil;
     private readonly Dictionary<string, MediaDetail> _infoCache = new();
 
     public MediaPlayerWidget(ComponentDefinition definition) : base(definition)
     {
-        // 内容层: 边框对齐原版 1px rgba(255,255,255,0.06)/rgba(0,0,0,0.06)
-        var root = new StackPanel
+        // 左封面 + 右信息: 来源/标题/歌手/歌词/波形/控制键
+        var root = new Grid
         {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(16, 20, 12, 20),
-            Spacing = 14,
+            Margin = new Thickness(14),
+            ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("Auto,*"),
+            ColumnSpacing = 14,
         };
 
-        // 左侧封面 160x160 圆角10
-        _coverHost.Width = 160;
-        _coverHost.Height = 160;
-        _coverHost.CornerRadius = new CornerRadius(10);
+        _coverHost.CornerRadius = new CornerRadius(12);
+        _coverHost.BorderThickness = new Thickness(1);
         _coverHost.ClipToBounds = true;
         _coverHost.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(_coverHost, 0);
         root.Children.Add(_coverHost);
 
-        // 右列
         var right = new Grid
         {
-            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,Auto,Auto,*"),
-            Margin = new Thickness(0, 0, 2, 0),
+            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,Auto,Auto,*,Auto,Auto"),
+            RowSpacing = 2,
+            Margin = new Thickness(0, 1, 0, 1),
         };
-        var topBlock = new StackPanel { Spacing = 2 };
-        _titleText.Height = 28;
+        // 关键: 右侧信息必须放在第 2 列, 否则会和封面叠在同一格
+        Grid.SetColumn(right, 1);
+        root.Children.Add(right);
+
+        _appText.FontSize = 10.5;
+        _appText.FontWeight = FontWeight.Medium;
+        _appPanel.Children.Add(_appDot);
+        _appPanel.Children.Add(_appText);
+        Grid.SetRow(_appPanel, 0);
+        right.Children.Add(_appPanel);
+
         _titleText.VerticalAlignment = VerticalAlignment.Center;
-        _artistText.Height = 16;
+        _titleText.TextWrapping = TextWrapping.Wrap;
+        _titleText.TextTrimming = TextTrimming.CharacterEllipsis;
+        _titleText.MaxLines = 2;
+        Grid.SetRow(_titleText, 1);
+        right.Children.Add(_titleText);
+
         _artistText.VerticalAlignment = VerticalAlignment.Center;
-        topBlock.Children.Add(_titleText);
-        topBlock.Children.Add(_artistText);
-        Grid.SetRow(topBlock, 0);
-        right.Children.Add(topBlock);
+        _artistText.TextWrapping = TextWrapping.NoWrap;
+        _artistText.TextTrimming = TextTrimming.CharacterEllipsis;
+        _artistText.MaxLines = 1;
+        Grid.SetRow(_artistText, 2);
+        right.Children.Add(_artistText);
 
-        _lyricsText.VerticalAlignment = VerticalAlignment.Bottom;
-        _lyricsText.TextWrapping = TextWrapping.Wrap;
-        _lyricsText.Margin = new Thickness(0, 8, 0, 0);
-        Grid.SetRow(_lyricsText, 1);
-        right.Children.Add(_lyricsText);
+        _lyricsText.TextWrapping = TextWrapping.NoWrap;
+        _lyricsText.TextTrimming = TextTrimming.CharacterEllipsis;
+        _lyricsText.MaxLines = 1;
+        _lyricsText.Transitions = new Transitions
+        {
+            new DoubleTransition
+            {
+                Property = Visual.OpacityProperty,
+                Duration = TimeSpan.FromMilliseconds(180),
+                Easing = new Avalonia.Animation.Easings.CubicEaseOut(),
+            },
+        };
+        _centerBlock.Children.Add(_lyricsText);
+        Grid.SetRow(_centerBlock, 3);
+        right.Children.Add(_centerBlock);
 
-        var bottomBlock = new StackPanel { Spacing = 4 };
-        _bar.Height = 3;
-        _bar.Minimum = 0;
-        _bar.Maximum = 100;
-        bottomBlock.Children.Add(_bar);
-        _timeText.TextAlignment = TextAlignment.Right;
-        _timeText.MinHeight = 14;
-        bottomBlock.Children.Add(_timeText);
+        // 进度条独立一行 紧贴控制键上方 比伪波形更安静
+        _wave.Margin = new Thickness(0, 3, 0, 2);
+        Grid.SetRow(_wave, 4);
+        right.Children.Add(_wave);
 
-        var btnRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16, Margin = new Thickness(0, 2, 0, 0) };
-        _btnPrev = MakeButton(_prevGlyph, 28, 20);
-        _btnPlay = MakeButton(_playGlyph, 32, 24);
-        _btnNext = MakeButton(_nextGlyph, 28, 20);
-        // 两侧拉伸居中
-        var leftStretch = new StackPanel();
-        var rightStretch = new StackPanel();
-        btnRow.Children.Add(leftStretch);
+        var btnRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        _btnPrev = new MediaTransportButton(false);
+        _btnPlay = new MediaTransportButton(true);
+        _btnNext = new MediaTransportButton(false);
         btnRow.Children.Add(_btnPrev);
         btnRow.Children.Add(_btnPlay);
         btnRow.Children.Add(_btnNext);
-        btnRow.Children.Add(rightStretch);
-        bottomBlock.Children.Add(btnRow);
-        Grid.SetRow(bottomBlock, 3);
-        right.Children.Add(bottomBlock);
 
-        root.Children.Add(right);
+        _timeText.TextAlignment = TextAlignment.Right;
+        _timeText.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _timeText.VerticalAlignment = VerticalAlignment.Center;
+        _timeText.TextTrimming = TextTrimming.CharacterEllipsis;
+        _timeText.MaxLines = 1;
+        _timeText.Margin = new Thickness(8, 0, 0, 0);
+
+        _bottomRow = new Grid
+        {
+            ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("Auto,*"),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(btnRow, 0);
+        Grid.SetColumn(_timeText, 1);
+        _bottomRow.Children.Add(btnRow);
+        _bottomRow.Children.Add(_timeText);
+        Grid.SetRow(_bottomRow, 5);
+        right.Children.Add(_bottomRow);
+
         Card.Child = root;
         Content = Card;
 
-        _btnPrev.Click += (_, _) => _ = ControlAsync("prev");
-        _btnPlay.Click += (_, _) => _ = TogglePlayAsync();
-        _btnNext.Click += (_, _) => _ = ControlAsync("next");
+        _btnPrev.Clicked += () => _ = ControlAsync("prev");
+        _btnPlay.Clicked += () => _ = TogglePlayAsync();
+        _btnNext.Clicked += () => _ = ControlAsync("next");
 
         // 轮询间隔 = cfg.mediaUpdateInterval 秒
         _pollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(Math.Max(1, Config.MediaUpdateInterval.Value)) };
@@ -3966,67 +5859,106 @@ public sealed class MediaPlayerWidget : WidgetCardBase
         _progTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _progTimer.Tick += (_, _) => UpdateProgress();
 
+        _wave.DarkProvider = () => CardIsDark;
         Config.ShowMediaInfo.ValueChanged += _ => IsVisible = Config.ShowMediaInfo.Value;
-        Config.ShowMediaCover.ValueChanged += _ => _coverHost.IsVisible = Config.ShowMediaCover.Value;
-        ActualThemeVariantChanged += (_, _) => { ApplyStyle(); UpdatePlayGlyph(); };
+        Config.ShowMediaCover.ValueChanged += _ =>
+        {
+            _coverHost.IsVisible = Config.ShowMediaCover.Value;
+            ApplyStyle();
+        };
+        Config.ShowMediaLyrics.ValueChanged += _ =>
+        {
+            UpdateLyrics(_position);
+            UpdateProgressUi();
+        };
+        Config.MediaCoverBorderRadius.ValueChanged += _ => ApplyStyle();
+        Config.MediaCoverBorderColor.ValueChanged += _ => ApplyStyle();
+        Config.MediaUseCustomBg.ValueChanged += _ =>
+        {
+            if (!Config.MediaUseCustomBg.Value)
+            {
+                ApplyCardStyle();
+            }
+            ApplyStyle();
+        };
+        Config.MediaBgOpacity.ValueChanged += _ => ApplyStyle();
+        Config.MediaBorderRadius.ValueChanged += _ => ApplyStyle();
+        Config.MediaUpdateInterval.ValueChanged += _ =>
+            _pollTimer.Interval = TimeSpan.FromSeconds(Math.Max(1, Config.MediaUpdateInterval.Value));
+        Config.ThemeColor.ValueChanged += _ =>
+        {
+            _wave.InvalidateVisual();
+            if (!_hasThumb)
+            {
+                SetDefaultCover();
+            }
+            ApplyStyle();
+        };
+        ActualThemeVariantChanged += (_, _) =>
+        {
+            ApplyStyle();
+            if (!_hasThumb)
+            {
+                SetDefaultCover();
+            }
+        };
+        SizeChanged += (_, _) => ApplyStyle();
         ApplyStyle();
-        SetDefaultCover();
+        UpdatePlayState();
         IsVisible = Config.ShowMediaInfo.Value;
         _pollTimer.Start();
         _progTimer.Start();
         _ = PollAsync();
     }
 
-    private static Button MakeButton(TextBlock glyph, double size, double icon)
+    // 默认封面: 强调色薄雾 + 唱片环 + 音符
+    private void SetDefaultCover(bool muted = false)
     {
-        glyph.Text = "";
-        glyph.FontFamily = FAIcons.SymbolsFont;
-        glyph.FontSize = icon;
-        return new Button
-        {
-            Content = glyph,
-            Width = size,
-            Height = size,
-            Padding = new Thickness(0),
-            Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            VerticalContentAlignment = VerticalAlignment.Center,
-            HorizontalContentAlignment = HorizontalAlignment.Center,
-        };
-    }
+        var dark = CardIsDark;
+        var p = WidgetSurfacePalette.Resolve(dark);
+        var accent = CardAccent.Value;
+        var tintA = muted ? (byte)16 : (byte)44;
+        var tintB = muted ? (byte)3 : (byte)8;
+        var ink = new SolidColorBrush(p.Text, muted ? 0.22 : 0.42);
+        var ringInk = new SolidColorBrush(p.Text, muted ? 0.10 : 0.16);
+        var cover = _coverHost.Width > 1 ? _coverHost.Width : 140;
 
-    // 手绘默认封面
-    private void SetDefaultCover()
-    {
-        var dark = ThemeSense.IsDark(this);
-        var bg = dark ? Color.FromRgb(40, 40, 48) : Color.FromRgb(230, 230, 235);
-        var iconC = dark ? Color.FromArgb(160, 180, 180, 190) : Color.FromArgb(140, 120, 120, 130);
-        var brush = new SolidColorBrush(iconC);
-
-        var grid = new Grid { Width = 100, Height = 100 };
-        var head = new Avalonia.Controls.Shapes.Ellipse
+        var grid = new Grid();
+        var background = new Border
         {
-            Width = 18, Height = 13, Fill = brush,
-            HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(27, 56, 0, 0),
+            Background = new LinearGradientBrush
+            {
+                StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+                EndPoint = new RelativePoint(1, 1, RelativeUnit.Relative),
+                GradientStops =
+                {
+                    new GradientStop(Color.FromArgb(tintA, accent.R, accent.G, accent.B), 0),
+                    new GradientStop(Color.FromArgb(tintB, accent.R, accent.G, accent.B), 1),
+                },
+            },
         };
-        var stem = new Avalonia.Controls.Shapes.Rectangle
+        var ring = new Avalonia.Controls.Shapes.Ellipse
         {
-            Width = 2.5, Height = 38, Fill = brush,
-            HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(58.7, 27.2, 0, 0),
+            Width = cover * 0.66,
+            Height = cover * 0.66,
+            Stroke = ringInk,
+            StrokeThickness = 1.2,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
         };
-        var flag = new Avalonia.Controls.Shapes.Path
+        var note = new TextBlock
         {
-            Stroke = brush,
-            StrokeThickness = 2.5,
-            StrokeLineCap = PenLineCap.Round,
-            Data = Avalonia.Media.Geometry.Parse("M 61.2 27.2 C 73 31 75 41 68 50"),
+            Text = "♪",
+            FontSize = cover * 0.40,
+            Foreground = ink,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            IsHitTestVisible = false,
         };
-        grid.Children.Add(head);
-        grid.Children.Add(stem);
-        grid.Children.Add(flag);
-        _coverHost.Background = new SolidColorBrush(bg);
+        grid.Children.Add(background);
+        grid.Children.Add(ring);
+        grid.Children.Add(note);
+        _coverHost.Background = null;
         _coverHost.Child = grid;
     }
 
@@ -4051,14 +5983,15 @@ public sealed class MediaPlayerWidget : WidgetCardBase
                     Log.Warning($"[MP] 封面数据解码失败 ({data.Length}B)");
                     return;
                 }
+                _hasThumb = true;
                 _coverHost.Transitions = null;
                 _coverHost.Opacity = 0;
                 _coverHost.Child = new Image
                 {
                     Source = bitmap,
-                    Width = 160,
-                    Height = 160,
                     Stretch = Stretch.UniformToFill,
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    VerticalAlignment = VerticalAlignment.Stretch,
                 };
                 _coverHost.Transitions = new Transitions
                 {
@@ -4074,41 +6007,99 @@ public sealed class MediaPlayerWidget : WidgetCardBase
         }
         catch (Exception e)
         {
-
-            Log.Debug($"[SW] 应用失败 控件已卸载: {e.Message}");
-            // 控件已卸载
+            Log.Debug($"[MP] 应用封面失败 控件已卸载: {e.Message}");
         }
     }
 
-    private void UpdatePlayGlyph()
+    private static string DisplayAppName(string? app)
     {
-        // FluentIcon PLAY/PAUSE_BOLD 等价字形
-        _playGlyph.Text = _playing ? "\uE769" : "\uE768";
-        _prevGlyph.Text = "\uE892";
-        _nextGlyph.Text = "\uE893";
+        var raw = (app ?? "").Trim();
+        var key = raw.ToLowerInvariant();
+        if (key.Contains("cloudmusic") || key.Contains("netease"))
+        {
+            return AppUtils.Tr("media.source_netease");
+        }
+        if (key.Contains("qqmusic") || key is "qq音乐" or "qq音乐播放器")
+        {
+            return AppUtils.Tr("media.source_qq");
+        }
+        if (key.Contains("kugou") || key.Contains("酷狗"))
+        {
+            return AppUtils.Tr("media.source_kugou");
+        }
+        if (key is "gsmtc" or "smtc")
+        {
+            return AppUtils.Tr("media.source_system");
+        }
+        return raw.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? raw[..^4] : raw;
+    }
+
+    private static string FormatArtist(string? artist)
+    {
+        var raw = (artist ?? "").Trim();
+        if (raw.Length == 0)
+        {
+            return "";
+        }
+        var parts = raw.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Length > 1 ? string.Join(" / ", parts) : raw;
     }
 
     private void ApplyStyle()
     {
-        var dark = ThemeSense.IsDark(this);
-        _titleText.Foreground = new SolidColorBrush(dark ? Color.Parse("#F5F5FA") : Color.Parse("#1F1F1F"));
-        _titleText.FontSize = 19;
-        _titleText.FontWeight = FontWeight.Bold;
-        _artistText.Foreground = new SolidColorBrush(dark ? Color.FromArgb(200, 230, 230, 235) : Color.FromArgb(214, 60, 60, 67));
-        _artistText.FontSize = 11;
-        _artistText.FontWeight = FontWeight.Medium;
-        _lyricsText.Foreground = new SolidColorBrush(dark ? Color.FromArgb(170, 235, 235, 240) : Color.FromArgb(153, 44, 44, 46));
-        _lyricsText.FontSize = 12;
-        _lyricsText.FontWeight = FontWeight.Bold;
-        _timeText.Foreground = new SolidColorBrush(dark ? Color.FromArgb(150, 220, 220, 225) : Color.FromArgb(138, 60, 60, 67));
-        _timeText.FontSize = 10;
+        var dark = CardIsDark;
+        var p = WidgetSurfacePalette.Resolve(dark);
+        // 字号与封面按卡高等比 基准 200 高
+        var h = Bounds.Height > 1 ? Bounds.Height : 200;
+        var w = Bounds.Width > 1 ? Bounds.Width : 400;
+        var k = Math.Clamp(h / 200.0, 0.62, 1.5);
+        var compact = h < 150 || w < 340;
+        var cover = Math.Clamp(Math.Min(h - (compact ? 24 : 34), w * (compact ? 0.28 : 0.32)), 56, 128);
+        _coverHost.Width = cover;
+        _coverHost.Height = cover;
+        _coverHost.CornerRadius = new CornerRadius(Math.Clamp(Config.MediaCoverBorderRadius.Value, 8, 18));
+        var coverBorder = ParseRgba(Config.MediaCoverBorderColor.Value);
+        _coverHost.BorderBrush = coverBorder is { } cb
+            ? new SolidColorBrush(cb)
+            : new SolidColorBrush(p.Text, dark ? 0.10 : 0.08);
+        _coverHost.BoxShadow = new BoxShadows(new BoxShadow
+        {
+            OffsetY = 4,
+            Blur = 16,
+            Color = Color.FromArgb(dark ? (byte)85 : (byte)36, 0, 0, 0),
+        });
+        _coverHost.IsVisible = Config.ShowMediaCover.Value;
+
+        var ink = p.Text;
+        var muted = new SolidColorBrush(ink, CardInk.MutedOpacity);
+        var faint = new SolidColorBrush(ink, CardInk.FaintOpacity);
+        _appText.Foreground = muted;
+        _appText.FontSize = Math.Clamp(Math.Round(10 * k, 1), 9, 12);
+        _appText.FontWeight = FontWeight.Medium;
+        _titleText.Foreground = new SolidColorBrush(ink);
+        var titleSize = Math.Clamp(Math.Round(15.5 * k, 1), 13, 22);
+        _titleText.FontSize = titleSize;
+        _titleText.LineHeight = Math.Round(titleSize * 1.25, 1);
+        _titleText.FontWeight = FontWeight.SemiBold;
+        _titleText.MaxLines = compact ? 1 : 2;
+        _titleText.TextWrapping = compact ? TextWrapping.NoWrap : TextWrapping.Wrap;
+        _artistText.Foreground = muted;
+        _artistText.FontSize = Math.Clamp(Math.Round(11 * k, 1), 9.5, 14);
+        _lyricsText.Foreground = new SolidColorBrush(ink, 0.80);
+        _lyricsText.FontSize = Math.Clamp(Math.Round(11.5 * k, 1), 10, 15);
+        _lyricsText.FontWeight = FontWeight.Normal;
+        _timeText.Foreground = new SolidColorBrush(ink, 0.45);
+        _timeText.FontSize = Math.Clamp(Math.Round(10.5 * k, 1), 9.5, 12.5);
         _timeText.FontWeight = FontWeight.Medium;
-        var btnFg = new SolidColorBrush(dark ? Color.FromArgb(235, 255, 255, 255) : Color.FromArgb(220, 0, 0, 0));
-        _prevGlyph.Foreground = btnFg;
-        _playGlyph.Foreground = btnFg;
-        _nextGlyph.Foreground = btnFg;
-        _bar.Foreground = new SolidColorBrush(Color.Parse("#4cc2ff"));
-        _bar.Background = new SolidColorBrush(dark ? Colors.White : Colors.Black, dark ? 0.06 : 0.05);
+        _wave.Height = 6;
+        _wave.InvalidateVisual();
+
+        var playSize = Math.Clamp(32 * k, 26, 44);
+        var sideSize = Math.Clamp(28 * k, 22, 36);
+        _btnPlay.Configure(playSize, playSize * 0.44, CardAccent.Value, OnAccentColor(CardAccent.Value));
+        _btnPrev.Configure(sideSize, sideSize * 0.64, CardAccent.Value, ink);
+        _btnNext.Configure(sideSize, sideSize * 0.64, CardAccent.Value, ink);
+
         // 自定义背景模式
         if (Config.MediaUseCustomBg.Value)
         {
@@ -4119,26 +6110,96 @@ public sealed class MediaPlayerWidget : WidgetCardBase
         }
         else
         {
-            Card.BorderBrush = new SolidColorBrush(dark ? Colors.White : Colors.Black, dark ? 0.06 : 0.06);
+            Card.BorderThickness = new Thickness(1);
         }
+
+        if (!_hasThumb)
+        {
+            SetDefaultCover();
+        }
+        UpdatePlayState();
+    }
+
+    private static Color OnAccentColor(Color accent)
+    {
+        var luminance = (0.299 * accent.R + 0.587 * accent.G + 0.114 * accent.B) / 255.0;
+        return luminance > 0.62 ? Color.FromRgb(22, 22, 22) : Colors.White;
+    }
+
+    private void UpdatePlayState()
+    {
+        // FluentIcon PLAY/PAUSE_BOLD 等价字形
+        _btnPlay.Glyph = _playing ? "\uE769" : "\uE768";
+        _btnPrev.Glyph = "\uE892";
+        _btnNext.Glyph = "\uE893";
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        _appDot.Background = _media is null
+            ? new SolidColorBrush(p.Text, 0.25)
+            : _playing ? CardAccent.Brush() : new SolidColorBrush(p.Text, 0.35);
+        var has = _media is not null;
+        _btnPrev.IsHitTestVisible = has;
+        _btnPlay.IsHitTestVisible = has;
+        _btnNext.IsHitTestVisible = has;
+        _btnPrev.Opacity = has ? 1 : 0.35;
+        _btnNext.Opacity = has ? 1 : 0.35;
+        _btnPlay.Opacity = has ? 1 : 0.45;
+    }
+
+    // 媒体配色沿用 #RRGGBBAA 书写习惯, 与 Avalonia 的 #AARRGGBB 区分开
+    private static Color? ParseRgba(string? hex)
+    {
+        var s = (hex ?? "").Trim();
+        if (s.StartsWith('#'))
+        {
+            s = s[1..];
+        }
+        if (s.Length == 8)
+        {
+            try
+            {
+                var r = Convert.ToByte(s[..2], 16);
+                var g = Convert.ToByte(s[2..4], 16);
+                var b = Convert.ToByte(s[4..6], 16);
+                var a = Convert.ToByte(s[6..8], 16);
+                return Color.FromArgb(a, r, g, b);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+        return TryParseColor(hex);
     }
 
     private async Task PollAsync()
     {
+        if (_polling)
+        {
+            return;
+        }
+        _polling = true;
         MediaInfo? m = null;
         try
         {
-            m = await MediaServices.GetMediaInfoAsync();
-            if (m is not null && !m.IsValid())
+            // 网易云首次读取要扫 40MB dll, 放后台线程避免卡 UI
+            m = await Task.Run(async () =>
             {
-                m = null;
-            }
+                var info = await MediaServices.GetMediaInfoAsync();
+                return info is not null && info.IsValid() ? info : null;
+            });
         }
         catch (Exception e)
         {
             Log.Error($"媒体信息获取异常: {e.Message}");
         }
-        await Dispatcher.UIThread.InvokeAsync(() => OnMedia(m));
+        try
+        {
+            await Dispatcher.UIThread.InvokeAsync(() => OnMedia(m));
+        }
+        finally
+        {
+            _polling = false;
+        }
     }
 
     private void OnMedia(MediaInfo? m)
@@ -4153,48 +6214,61 @@ public sealed class MediaPlayerWidget : WidgetCardBase
             return;
         }
         _media = m;
-        if (m.TitleArtist != _lastTa)
+        var newSong = m.TitleArtist != _lastTa;
+        if (newSong)
         {
             DisplayNewSong(m);
         }
-        if (m.PositionMs > 0)
+        else
         {
-            _position = m.PositionMs;
+            SyncPosition(m.PositionMs, m.IsPlaying);
+            // 刚点过播放/暂停时先保持本地乐观状态, 等系统会话追上再换图标
+            if (Environment.TickCount64 >= _stateHoldUntil)
+            {
+                _playing = m.IsPlaying;
+            }
         }
-        _playing = m.IsPlaying;
         if (m.DurationMs > 0)
         {
             _duration = m.DurationMs;
         }
-        UpdatePlayGlyph();
-        if (m.ThumbnailData is { Length: > 0 } && !_hasThumb)
-        {
-            _hasThumb = true;
-            _ = LoadCoverAsync(m.ThumbnailData);
-        }
+        UpdatePlayState();
         UpdateProgressUi();
-        if (_playing && _lyrics is not null && !_lyrics.IsEmpty())
+        if (_lyrics is not null)
         {
             UpdateLyrics(_position);
         }
         _coverHost.IsVisible = Config.ShowMediaCover.Value;
     }
 
+    // 系统时间轴偶尔是旧快照: 小回跳直接忽略, 大跳变才认作拖动/切段
+    private void SyncPosition(long reportedMs, bool playing)
+    {
+        var reported = Math.Max(0, reportedMs);
+        if (!playing)
+        {
+            if (Math.Abs(reported - _position) > 2500)
+            {
+                _position = reported;
+            }
+            return;
+        }
+        if (reported > _position + 700 || reported < _position - 3000)
+        {
+            _position = reported;
+        }
+    }
+
     // 新歌
     private void DisplayNewSong(MediaInfo m)
     {
         _lastTa = m.TitleArtist;
-        _position = m.PositionMs;
+        _detailVersion++;
+        _stateHoldUntil = 0;
+        _position = Math.Max(0, m.PositionMs);
         _playing = m.IsPlaying;
-        if (m.DurationMs > 0)
-        {
-            _duration = m.DurationMs;
-        }
+        _duration = Math.Max(0, m.DurationMs);
         _hasThumb = false;
-
-        var appName = (m.AppName ?? "").ToLowerInvariant();
-        var isWebBrowser = appName.Contains("chrome") || appName.Contains("edge")
-            || appName.Contains("firefox") || appName.Contains("msedge");
 
         // 淡入复位 + 默认封面
         _coverHost.Transitions = null;
@@ -4202,37 +6276,33 @@ public sealed class MediaPlayerWidget : WidgetCardBase
         SetDefaultCover();
         _lyrics = null;
         _lyricsText.Text = "";
+        _lyricsText.Opacity = 1;
+        _lyricsText.IsVisible = false;
+        _centerBlock.IsVisible = true;
+        _wave.Progress = 0;
+
+        var appName = DisplayAppName(m.AppName);
+        _appText.Text = appName;
+        _appPanel.IsVisible = appName.Length > 0;
 
         var title = m.Title.Length > 0 ? m.Title : AppUtils.Tr("media.unknown_song");
         _titleText.Text = title;
-        if (isWebBrowser && m.Artist.Length == 0)
-        {
-            // 浏览器无歌手 标题换行 隐藏歌手/歌词
-            _titleText.TextWrapping = TextWrapping.Wrap;
-            _artistText.IsVisible = false;
-            _lyricsText.IsVisible = false;
-        }
-        else
-        {
-            _titleText.TextWrapping = TextWrapping.NoWrap;
-            _titleText.TextTrimming = TextTrimming.CharacterEllipsis;
-            _artistText.Text = m.Artist;
-            _artistText.IsVisible = true;
-            _lyricsText.IsVisible = true;
-        }
+        _artistText.Text = FormatArtist(m.Artist);
+        _artistText.IsVisible = _artistText.Text.Length > 0;
+        Log.Info($"[MP] 新曲 {appName} · {title} · {_artistText.Text} · song_id={m.SongId} · pos={_position}ms");
 
+        UpdatePlayState();
         if (m.ThumbnailData is { Length: > 0 })
         {
-            _hasThumb = true;
             _ = LoadCoverAsync(m.ThumbnailData);
         }
-        else if (isWebBrowser)
+        if (_infoCache.TryGetValue(m.TitleArtist, out var cached))
         {
-            _hasThumb = true;
+            ApplyDetail(cached);
         }
         else
         {
-            _ = FetchDetailAsync(m);
+            _ = FetchDetailAsync(m, _detailVersion);
         }
     }
 
@@ -4242,23 +6312,30 @@ public sealed class MediaPlayerWidget : WidgetCardBase
         {
             Log.Info("[MP] 无媒体播放 重置为空状态");
         }
+        _appText.Text = "";
+        _appPanel.IsVisible = false;
         _titleText.Text = AppUtils.Tr("media.not_playing");
-        _titleText.TextWrapping = TextWrapping.NoWrap;
-        _artistText.Text = "";
-        _artistText.IsVisible = true;
+        _artistText.Text = AppUtils.Tr("media.play_hint");
+        _artistText.IsVisible = _artistText.Text.Length > 0;
         _lyricsText.Text = "";
-        _lyricsText.IsVisible = true;
-        _bar.Value = 0;
-        _timeText.Text = "00:00 / 00:00";
-        SetDefaultCover();
+        _lyricsText.IsVisible = false;
+        _wave.Progress = 0;
+        _wave.IsVisible = false;
+        _timeText.Text = "";
+        _timeText.IsVisible = false;
+        _centerBlock.IsVisible = false;
         _media = null;
         _lyrics = null;
         _lastTa = "";
         _hasThumb = false;
+        _stateHoldUntil = 0;
         _playing = false;
         _duration = 0;
         _position = 0;
-        UpdatePlayGlyph();
+        _detailVersion++;
+        SetDefaultCover(muted: true);
+        _coverHost.IsVisible = Config.ShowMediaCover.Value;
+        UpdatePlayState();
     }
 
     // 进度秒推
@@ -4269,7 +6346,7 @@ public sealed class MediaPlayerWidget : WidgetCardBase
             _position = Math.Min(_position + 1000, _duration);
         }
         UpdateProgressUi();
-        if (_playing && _lyrics is not null && !_lyrics.IsEmpty())
+        if (_lyrics is not null)
         {
             UpdateLyrics(_position);
         }
@@ -4277,49 +6354,63 @@ public sealed class MediaPlayerWidget : WidgetCardBase
 
     private void UpdateProgressUi()
     {
-        if (_duration > 0)
-        {
-            _bar.Value = Math.Min(100, _position / (double)_duration * 100);
-            _timeText.Text = $"{Fmt(_position)} / {Fmt(_duration)}";
-        }
-        else
-        {
-            _timeText.Text = $"{Fmt(_position)} / --:--";
-        }
+        var hasDuration = _duration > 0;
+        var hasMedia = _media is not null;
+        _wave.Progress = hasDuration ? Math.Min(1, _position / (double)_duration) : 0;
+        _wave.IsVisible = hasMedia;
+        _timeText.Text = hasMedia
+            ? hasDuration ? $"{Fmt(_position)} / {Fmt(_duration)}" : Fmt(_position)
+            : "";
+        _timeText.IsVisible = hasMedia && _timeText.Text.Length > 0;
+        _centerBlock.IsVisible = hasMedia;
     }
 
     private static string Fmt(long ms)
     {
-        var s = Math.Max(0, ms / 1000);
-        return $"{s / 60}:{s % 60:D2}";
+        var total = Math.Max(0, ms / 1000);
+        if (total >= 3600)
+        {
+            return $"{total / 3600}:{total % 3600 / 60:D2}:{total % 60:D2}";
+        }
+        return $"{total / 60}:{total % 60:D2}";
     }
 
     private void UpdateLyrics(long ms)
     {
-        if (_lyrics is null || _lyrics.IsEmpty())
+        var text = "";
+        if (Config.ShowMediaLyrics.Value && _lyrics is not null && !_lyrics.IsEmpty())
         {
-            return;
+            var advance = Config.MediaLyricsAdvance.Value;
+            var (_, idx) = _lyrics.GetLineAtTime(ms + advance);
+            if (idx >= 0 && idx < _lyrics.Lines.Count)
+            {
+                text = _lyrics.Lines[idx].Text;
+            }
         }
-        var advance = Config.MediaLyricsAdvance.Value;
-        var (_, idx) = _lyrics.GetLineAtTime(ms + advance);
-        _lyricsText.Text = idx >= 0 && idx < _lyrics.Lines.Count ? _lyrics.Lines[idx].Text : "";
+        if (text != _lyricsText.Text)
+        {
+            _lyricsText.Opacity = 0;
+            _lyricsText.Text = text;
+            _lyricsText.IsVisible = text.Length > 0;
+            Dispatcher.UIThread.Post(() => _lyricsText.Opacity = 1);
+        }
+        else
+        {
+            _lyricsText.IsVisible = text.Length > 0;
+        }
+        _centerBlock.IsVisible = _media is not null;
     }
 
     // 歌曲详情后台抓取
-    private async Task FetchDetailAsync(MediaInfo m)
+    private async Task FetchDetailAsync(MediaInfo m, int version)
     {
-        if (_detailFetching)
-        {
-            return;
-        }
-        _detailFetching = true;
         MediaDetail result = new(null, null, 0);
         try
         {
             var svc = MediaServices.GetService(m.AppName);
             if (svc is not null)
             {
-                var lyrics = await svc.LyricsAsync(m);
+                var lyrics = Config.ShowMediaLyrics.Value ? await svc.LyricsAsync(m) : null;
                 var cover = await svc.CoverAsync(m);
                 var dur = await svc.DurationAsync(m);
                 result = new MediaDetail(lyrics, cover is { Length: > 0 } ? cover : null, dur);
@@ -4327,16 +6418,20 @@ public sealed class MediaPlayerWidget : WidgetCardBase
         }
         catch (Exception e)
         {
-            Log.Debug($"获取歌曲信息失败: {e.Message}");
+            Log.Warning($"[MP] 获取歌曲信息失败: {e.Message}");
         }
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
-            _detailFetching = false;
+            if (version != _detailVersion)
+            {
+                return;
+            }
             _infoCache[m.TitleArtist] = result;
-            if (_infoCache.Count > 50)
+            if (_infoCache.Count > 60)
             {
                 _infoCache.Remove(_infoCache.Keys.First());
             }
+            Log.Info($"[MP] 详情完成 cover={(result.Cover is not null)} lyrics={(result.Lyrics is not null)} dur={result.Duration}ms");
             if (_media is not null && _media.TitleArtist == m.TitleArtist)
             {
                 ApplyDetail(result);
@@ -4352,7 +6447,10 @@ public sealed class MediaPlayerWidget : WidgetCardBase
         }
         if (Config.ShowMediaCover.Value && !_hasThumb && result.Cover is not null)
         {
-            _hasThumb = true;
+            _ = LoadCoverAsync(result.Cover);
+        }
+        else if (result.Cover is not null && !_hasThumb)
+        {
             _ = LoadCoverAsync(result.Cover);
         }
         if (result.Lyrics is not null)
@@ -4360,37 +6458,62 @@ public sealed class MediaPlayerWidget : WidgetCardBase
             _lyrics = result.Lyrics;
             UpdateLyrics(_position);
         }
+        UpdateProgressUi();
     }
 
     // 播放/暂停
     private async Task TogglePlayAsync()
     {
-        _playing = !_playing;
-        UpdatePlayGlyph();
+        if (_controlBusy)
+        {
+            return;
+        }
+        _controlBusy = true;
+        var targetPlaying = !_playing;
+        _playing = targetPlaying;
+        _stateHoldUntil = Environment.TickCount64 + 1600;
+        UpdatePlayState();
         try
         {
-            await MediaServices.MediaControlAsync(_playing ? "play" : "pause");
+            var ok = await MediaServices.MediaControlAsync(targetPlaying ? "play" : "pause", _media?.AppName);
+            if (!ok)
+            {
+                Log.Warning($"[MP] 控制命令 '{(targetPlaying ? "play" : "pause")}' 未确认");
+                // 命令没被系统接受时立刻回退图标, 不要让乐观状态停住
+                _playing = !targetPlaying;
+                _stateHoldUntil = 0;
+                UpdatePlayState();
+            }
         }
         catch (Exception e)
         {
             Log.Warning($"[MP] 控制命令执行失败: {e.Message}");
         }
-        await Task.Delay(800);
+        finally
+        {
+            _controlBusy = false;
+        }
+        await Task.Delay(600);
         await PollAsync();
     }
 
     // 切上下曲
     private async Task ControlAsync(string action)
     {
+        if (_controlBusy)
+        {
+            return;
+        }
+        _controlBusy = true;
         _coverHost.Transitions = null;
         _coverHost.Opacity = 1;
         try
         {
             var ok = action switch
             {
-                "next" => await MediaServices.MediaNextAsync(),
-                "prev" => await MediaServices.MediaPrevAsync(),
-                _ => await MediaServices.MediaControlAsync(action),
+                "next" => await MediaServices.MediaNextAsync(_media?.AppName),
+                "prev" => await MediaServices.MediaPrevAsync(_media?.AppName),
+                _ => await MediaServices.MediaControlAsync(action, _media?.AppName),
             };
             if (!ok)
             {
@@ -4401,7 +6524,11 @@ public sealed class MediaPlayerWidget : WidgetCardBase
         {
             Log.Warning($"[MP] 控制命令 '{action}' 执行失败: {e.Message}");
         }
-        await Task.Delay(800);
+        finally
+        {
+            _controlBusy = false;
+        }
+        await Task.Delay(600);
         await PollAsync();
     }
 }
@@ -4530,11 +6657,11 @@ public sealed class HistoryTodayWidget : WidgetCardBase
     // 富文本
     private void RenderItems()
     {
-        var dark = ThemeSense.IsDark(this);
+        var dark = CardIsDark;
         var titleColor = dark ? "#ffffff" : "#1a1a1a";
-        var dateColor = dark ? Color.FromArgb(153, 255, 255, 255) : Color.FromArgb(179, 40, 40, 40);
         _titleText.Foreground = new SolidColorBrush(Color.Parse(titleColor));
-        _dateText.Foreground = new SolidColorBrush(dateColor);
+        var p = WidgetSurfacePalette.Resolve(dark);
+        _dateText.Foreground = CardInk.Muted(p);
         _dateText.FontSize = 11;
         for (var i = 0; i < ItemCount; i++)
         {
@@ -4543,11 +6670,12 @@ public sealed class HistoryTodayWidget : WidgetCardBase
             label.Inlines.Clear();
             if (_years[i].Length > 0)
             {
+                // 年份是锚点 大号 Light 强调色 数据驱动
                 label.Inlines.Add(new Avalonia.Controls.Documents.Run($"{_years[i]} · ")
                 {
-                    FontSize = 12,
-                    FontWeight = FontWeight.Bold,
-                    Foreground = new SolidColorBrush(Color.Parse("#30c361")),
+                    FontSize = 16,
+                    FontWeight = FontWeight.Light,
+                    Foreground = CardAccent.Brush(),
                 });
             }
             label.Inlines.Add(new Avalonia.Controls.Documents.Run(_titles[i])
@@ -4555,6 +6683,9 @@ public sealed class HistoryTodayWidget : WidgetCardBase
                 FontSize = 14,
                 Foreground = new SolidColorBrush(Color.Parse(titleColor)),
             });
+            label.LineHeight = 19;
+            label.MaxLines = 2;
+            label.TextTrimming = TextTrimming.CharacterEllipsis;
         }
     }
 
@@ -4623,7 +6754,12 @@ public sealed class CalendarMonthWidget : WidgetCardBase
 
     private static readonly Dictionary<(int Y, int M, int D), string> DayInfoCache = new();
 
-    private readonly TextBlock _titleText = new();
+    private readonly TextBlock _monthText = new();
+    private readonly TextBlock _yearText = new();
+    private readonly TextBlock[] _weekdayTexts = new TextBlock[7];
+    private readonly List<TextBlock> _navGlyphs = new();
+    private readonly Grid _daysGrid = new();
+    private readonly List<RowDefinition> _weekRows = new();
     private readonly CalendarDayCell[,] _cells = new CalendarDayCell[6, 7];
     private readonly DispatcherTimer _timer;
     private int _displayYear;
@@ -4638,61 +6774,81 @@ public sealed class CalendarMonthWidget : WidgetCardBase
 
         var root = new Grid
         {
-            Margin = new Thickness(12, 10, 12, 8),
+            Margin = new Thickness(WidgetSpace.PadCompact, 10, WidgetSpace.PadCompact, 10),
             RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,Auto,*"),
-            RowSpacing = 4,
+            RowSpacing = 3,
         };
 
-        // 标题行
+        // 标题行: 月份 + 年份 + 翻页
         var titleRow = new Grid { ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("*,Auto") };
-        _titleText.VerticalAlignment = VerticalAlignment.Center;
-        titleRow.Children.Add(_titleText);
-        var btnCol = new StackPanel();
-        btnCol.Children.Add(MakeNavButton("\uE70E", -1));
-        btnCol.Children.Add(MakeNavButton("\uE70F", 1));
-        Grid.SetColumn(btnCol, 1);
-        titleRow.Children.Add(btnCol);
+        var caption = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        caption.Children.Add(_monthText);
+        caption.Children.Add(_yearText);
+        titleRow.Children.Add(caption);
+
+        var nav = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 2,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        nav.Children.Add(MakeNavButton("\uE76B", -1));
+        nav.Children.Add(MakeNavButton("\uE76C", 1));
+        Grid.SetColumn(nav, 1);
+        titleRow.Children.Add(nav);
         Grid.SetRow(titleRow, 0);
         root.Children.Add(titleRow);
 
         // 星期标题
         var wkNames = new[] { "日", "一", "二", "三", "四", "五", "六" };
-        var wkRow = new Avalonia.Controls.Primitives.UniformGrid { Rows = 1, Columns = 7 };
+        var wkRow = new Avalonia.Controls.Primitives.UniformGrid
+        {
+            Rows = 1,
+            Columns = 7,
+            Height = 14,
+        };
         for (var i = 0; i < 7; i++)
         {
-            wkRow.Children.Add(new TextBlock
+            var wk = new TextBlock
             {
                 Text = wkNames[i],
                 TextAlignment = TextAlignment.Center,
-                FontSize = 13,
-            });
+                VerticalAlignment = VerticalAlignment.Center,
+                FontSize = WidgetType.Micro,
+                FontWeight = FontWeight.Medium,
+            };
+            _weekdayTexts[i] = wk;
+            wkRow.Children.Add(wk);
         }
         Grid.SetRow(wkRow, 1);
         root.Children.Add(wkRow);
 
-        // 6x7 日期格
-        var grid = new Grid();
+        // 动态周数日期格
         for (var c = 0; c < 7; c++)
         {
-            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+            _daysGrid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
         }
         for (var r = 0; r < 6; r++)
         {
-            grid.RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
-        }
-        for (var r = 0; r < 6; r++)
-        {
+            var row = new RowDefinition(new GridLength(1, GridUnitType.Star));
+            _weekRows.Add(row);
+            _daysGrid.RowDefinitions.Add(row);
             for (var c = 0; c < 7; c++)
             {
-                var cell = new CalendarDayCell();
+                var cell = new CalendarDayCell { DarkProvider = () => CardIsDark };
                 Grid.SetRow(cell, r);
                 Grid.SetColumn(cell, c);
-                grid.Children.Add(cell);
+                _daysGrid.Children.Add(cell);
                 _cells[r, c] = cell;
             }
         }
-        Grid.SetRow(grid, 2);
-        root.Children.Add(grid);
+        Grid.SetRow(_daysGrid, 2);
+        root.Children.Add(_daysGrid);
         Card.Child = root;
         Content = Card;
 
@@ -4705,24 +6861,30 @@ public sealed class CalendarMonthWidget : WidgetCardBase
         RefreshCalendar();
     }
 
-    private Button MakeNavButton(string glyph, int delta)
+    private Border MakeNavButton(string glyph, int delta)
     {
         var g = new TextBlock
         {
             Text = glyph,
             FontFamily = FAIcons.SymbolsFont,
-            FontSize = 10,
+            FontSize = 11.5,
+            TextAlignment = TextAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
         };
-        var btn = new Button
+        _navGlyphs.Add(g);
+        var btn = new Border
         {
-            Content = g,
-            Width = 28,
-            Height = 18,
-            Padding = new Thickness(0),
-            Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
+            Width = 22,
+            Height = 20,
+            CornerRadius = new CornerRadius(5),
+            Child = g,
+            Cursor = new Cursor(StandardCursorType.Hand),
         };
-        btn.Click += (_, _) => GoMonth(delta);
+        btn.PointerEntered += (_, _) =>
+            btn.Background = new SolidColorBrush(CardTheme.T("hover", CardIsDark));
+        btn.PointerExited += (_, _) => btn.Background = null;
+        btn.PointerReleased += (_, _) => GoMonth(delta);
         return btn;
     }
 
@@ -4757,11 +6919,19 @@ public sealed class CalendarMonthWidget : WidgetCardBase
             return cached;
         }
         var sub = "";
-        // 对齐原版 _get_day_info 节日优先 节气兜底
+        // 节日 > 节气 > 农历 保证每格都有副文本
         var info = AlmanacService.GetToday(new DateTime(year, month, day));
         if (info is not null)
         {
-            sub = ShortHoliday(string.IsNullOrEmpty(info.Holiday) ? info.SolarTerm : info.Holiday);
+            sub = ShortHoliday(info.Holiday);
+            if (sub.Length == 0)
+            {
+                sub = ShortHoliday(info.SolarTerm);
+            }
+            if (sub.Length == 0)
+            {
+                sub = info.LunarDay == "初一" ? info.LunarMonth : info.LunarDay;
+            }
         }
         DayInfoCache[key] = sub;
         return sub;
@@ -4793,14 +6963,24 @@ public sealed class CalendarMonthWidget : WidgetCardBase
         var month = _displayMonth;
         var today = DateTime.Today;
 
-        _titleText.Text = $"{MonthNamesCn[month - 1]} {year}";
+        _monthText.Text = MonthNamesCn[month - 1];
+        _yearText.Text = year.ToString();
 
         // 周日=0
         var firstWd = ((int)new DateTime(year, month, 1).DayOfWeek) % 7;
         var dim = DateTime.DaysInMonth(year, month);
+        var weeks = (firstWd + dim + 6) / 7;
         var prevMonth = month > 1 ? month - 1 : 12;
         var prevYear = month > 1 ? year : year - 1;
         var prevDim = DateTime.DaysInMonth(prevYear, prevMonth);
+
+        // 只保留实际周数 避免底部空行
+        for (var r = 0; r < 6; r++)
+        {
+            _weekRows[r].Height = r < weeks
+                ? new GridLength(1, GridUnitType.Star)
+                : new GridLength(0);
+        }
 
         for (var r = 0; r < 6; r++)
         {
@@ -4810,28 +6990,31 @@ public sealed class CalendarMonthWidget : WidgetCardBase
             }
         }
 
-        // 上月末尾
-        for (var i = 0; i < firstWd; i++)
+        var lastIndex = weeks * 7;
+        for (var i = 0; i < lastIndex; i++)
         {
-            _cells[0, i].SetData(prevDim - firstWd + 1 + i, "", false, false, i == 0 || i == 6);
-        }
-
-        // 本月
-        var day = 1;
-        for (var r = 0; r < 6 && day <= dim; r++)
-        {
-            for (var c = 0; c < 7 && day <= dim; c++)
+            var r = i / 7;
+            var c = i % 7;
+            var weekend = c == 0 || c == 6;
+            if (i < firstWd)
             {
-                if (r == 0 && c < firstWd)
-                {
-                    continue;
-                }
+                // 上月末尾
+                _cells[r, c].SetData(prevDim - firstWd + 1 + i, "", false, false, weekend);
+            }
+            else if (i < firstWd + dim)
+            {
+                var day = i - firstWd + 1;
                 var isToday = year == today.Year && month == today.Month && day == today.Day;
-                _cells[r, c].SetData(day, GetDaySubText(year, month, day), true, isToday, c == 0 || c == 6);
-                day++;
+                _cells[r, c].SetData(day, GetDaySubText(year, month, day), true, isToday, weekend);
+            }
+            else
+            {
+                // 下月开头 补满最后一行
+                var day = i - firstWd - dim + 1;
+                _cells[r, c].SetData(day, "", false, false, weekend);
             }
         }
-        Log.Debug($"[CAL] 月历已刷新 {year}-{month:D2} 今日 {today:MM}-{today:dd}");
+        Log.Debug($"[CAL] 月历已刷新 {year}-{month:D2} 周数 {weeks} 今日 {today:MM}-{today:dd}");
     }
 
     private void RefreshCellsVisual()
@@ -4847,23 +7030,26 @@ public sealed class CalendarMonthWidget : WidgetCardBase
 
     private void ApplyStyle()
     {
-        var dark = ThemeSense.IsDark(this);
-        _titleText.Foreground = new SolidColorBrush(Color.Parse(dark ? "#f0f0f0" : "#1a1a1a"));
-        _titleText.FontSize = 20;
-        _titleText.FontWeight = FontWeight.SemiBold;
-        // 星期行颜色
-        var idx = 0;
-        foreach (var child in ((Avalonia.Controls.Primitives.UniformGrid)((Grid)Card.Child!).Children[1]).Children)
+        var dark = CardIsDark;
+        _monthText.Foreground = new SolidColorBrush(Color.Parse(dark ? "#f0f0f0" : "#1a1a1a"));
+        _monthText.FontSize = 14;
+        _monthText.FontWeight = FontWeight.SemiBold;
+        _yearText.Foreground = new SolidColorBrush(
+            dark ? Color.FromArgb(145, 255, 255, 255) : Color.FromArgb(125, 0, 0, 0));
+        _yearText.FontSize = WidgetType.Micro;
+        _yearText.Margin = new Thickness(0, 1, 0, 0);
+        foreach (var g in _navGlyphs)
         {
-            if (child is TextBlock wk)
-            {
-                var weekend = idx == 0 || idx == 6;
-                wk.Foreground = new SolidColorBrush(
-                    weekend
-                        ? (dark ? Color.FromArgb(115, 255, 255, 255) : Color.FromArgb(89, 0, 0, 0))
-                        : (dark ? Color.FromArgb(191, 255, 255, 255) : Color.FromArgb(140, 0, 0, 0)));
-                idx++;
-            }
+            g.Foreground = new SolidColorBrush(
+                dark ? Color.FromArgb(145, 255, 255, 255) : Color.FromArgb(125, 0, 0, 0));
+        }
+        for (var i = 0; i < _weekdayTexts.Length; i++)
+        {
+            var weekend = i == 0 || i == 6;
+            _weekdayTexts[i].Foreground = new SolidColorBrush(
+                weekend
+                    ? (dark ? Color.FromArgb(115, 255, 255, 255) : Color.FromArgb(89, 0, 0, 0))
+                    : (dark ? Color.FromArgb(191, 255, 255, 255) : Color.FromArgb(140, 0, 0, 0)));
         }
     }
 }
@@ -4871,6 +7057,8 @@ public sealed class CalendarMonthWidget : WidgetCardBase
 /// <summary>月历单格</summary>
 public sealed class CalendarDayCell : Control
 {
+    // 归属卡片明暗 由宿主注入
+    public Func<bool>? DarkProvider { get; set; }
     private int _day;
     private string _sub = "";
     private bool _isCurrentMonth = true;
@@ -4905,23 +7093,38 @@ public sealed class CalendarDayCell : Control
         {
             return;
         }
-        var sz = Math.Min(w, h);
-        var mid = h * 0.62; // 62% 给日期
-        var dark = ThemeSense.IsDark(this);
+        var dark = DarkProvider?.Invoke() ?? ThemeSense.IsDark(this);
+        var hasSub = _isCurrentMonth && _sub.Length > 0;
+        // 农历副文本在 168 级小卡上会掉到 6px 以下 变成灰糊 不够 7.5px 干脆不画
+        var subSize = Math.Min(w * 0.30, h * 0.26);
+        subSize = Math.Min(subSize, w * 0.94 / Math.Max(2, _sub.Length));
+        if (subSize < 7.5)
+        {
+            hasSub = false;
+        }
+        var dayRect = hasSub
+            ? new Rect(0, h * 0.02, w, h * 0.54)
+            : new Rect(0, 0, w, h);
+        var daySize = hasSub
+            ? Math.Min(w * 0.46, dayRect.Height * 0.86)
+            : Math.Min(w * 0.44, h * 0.58);
 
         if (_isToday)
         {
-            var cx = w / 2 + w * 0.02;
-            var cy = mid / 2;
-            context.DrawEllipse(new SolidColorBrush(Color.Parse("#00b7c3")), null,
-                new Point(cx, cy), sz * 0.40, sz * 0.40);
+            // 今日圆只包住日期 农历行留在圆外
+            var radius = Math.Min(w * 0.42, h * 0.25);
+            var cy = dayRect.Y + dayRect.Height / 2;
+            context.DrawEllipse(new SolidColorBrush(CardAccent.Value), null,
+                new Point(w / 2, cy), radius, radius);
         }
 
         // 日期文字色
         IBrush dayBrush;
         if (_isToday)
         {
-            dayBrush = Brushes.White;
+            var accent = CardAccent.Value;
+            var luminance = (0.299 * accent.R + 0.587 * accent.G + 0.114 * accent.B) / 255.0;
+            dayBrush = new SolidColorBrush(luminance > 0.58 ? Color.FromRgb(20, 20, 20) : Colors.White);
         }
         else if (!_isCurrentMonth)
         {
@@ -4935,17 +7138,16 @@ public sealed class CalendarDayCell : Control
         {
             dayBrush = new SolidColorBrush(dark ? Color.Parse("#e8e8e8") : Color.Parse("#1a1a1a"));
         }
-        // 原版 day_rect = QRect(r.left() + int(w*0.04), 0, w, int(mid)) 左侧留 4% 偏移
-        DrawCentered(context, _day.ToString(), sz * 0.46, FontWeight.Normal, dayBrush, new Rect(w * 0.04, 0, w, mid));
+        DrawCentered(context, _day.ToString(), daySize, FontWeight.Normal, dayBrush, dayRect);
 
-        // 角标(节日/节气)
-        if (_sub.Length > 0 && _isCurrentMonth)
+        // 副文本(节日/节气/农历)
+        if (hasSub)
         {
             var subBrush = _isToday
-                ? (IBrush)new SolidColorBrush(Colors.White)
-                : new SolidColorBrush(dark ? Color.Parse("#c0c0c0") : Color.FromArgb(170, 0, 0, 0));
-            // 原版 sub_rect = QRect(r.left(), int(mid), w, int(h - mid))
-            DrawCentered(context, _sub, sz * 0.35, FontWeight.Bold, subBrush, new Rect(0, mid, w, h - mid));
+                ? (IBrush)new SolidColorBrush(Color.FromArgb(235, 255, 255, 255))
+                : new SolidColorBrush(dark ? Color.Parse("#a8a8a8") : Color.FromArgb(150, 0, 0, 0));
+            DrawCentered(context, _sub, subSize, FontWeight.Medium, subBrush,
+                new Rect(0, h * 0.56, w, h * 0.40));
         }
     }
 
@@ -4965,6 +7167,123 @@ public sealed class CalendarDayCell : Control
     }
 }
 
+internal enum CalcKeyKind
+{
+    Digit,
+    Utility,
+    Operator,
+    Equals,
+}
+
+/// <summary>计算器按键 自绘表面 去掉 Fluent 按钮默认描边与厚底</summary>
+internal sealed class CalcKey : Border
+{
+    private readonly TextBlock _label;
+    private readonly CalcKeyKind _kind;
+    private IBrush _idle = Brushes.Transparent;
+    private IBrush _hover = Brushes.Transparent;
+    private bool _pressed;
+
+    public event Action? Invoked;
+
+    public CalcKey(string text, CalcKeyKind kind)
+    {
+        _kind = kind;
+        CornerRadius = new CornerRadius(12);
+        Cursor = new Cursor(StandardCursorType.Hand);
+        RenderTransformOrigin = RelativePoint.Center;
+        _label = new TextBlock
+        {
+            Text = text,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextAlignment = TextAlignment.Center,
+            FontFamily = WidgetFonts.Num,
+        };
+        Child = _label;
+
+        PointerEntered += (_, _) =>
+        {
+            if (!_pressed)
+            {
+                Background = _hover;
+            }
+        };
+        PointerExited += (_, _) =>
+        {
+            if (!_pressed)
+            {
+                Background = _idle;
+            }
+        };
+        PointerPressed += (_, e) =>
+        {
+            _pressed = true;
+            Background = _hover;
+            RenderTransform = new ScaleTransform(0.96, 0.96);
+            e.Pointer.Capture(this);
+            e.Handled = true;
+        };
+        PointerReleased += (_, e) =>
+        {
+            if (!_pressed)
+            {
+                return;
+            }
+            _pressed = false;
+            e.Pointer.Capture(null);
+            Background = _hover;
+            RenderTransform = new ScaleTransform(1, 1);
+            Invoked?.Invoke();
+            e.Handled = true;
+        };
+        PointerCaptureLost += (_, _) =>
+        {
+            _pressed = false;
+            RenderTransform = new ScaleTransform(1, 1);
+            Background = _idle;
+        };
+    }
+
+    public void SetFontSize(double size) => _label.FontSize = size;
+
+    public void Apply(WidgetSurfacePalette p, Color accent, bool dark)
+    {
+        var ink = p.Text;
+        switch (_kind)
+        {
+            case CalcKeyKind.Digit:
+                _idle = new SolidColorBrush(ink, dark ? 0.06 : 0.04);
+                _hover = new SolidColorBrush(ink, dark ? 0.12 : 0.09);
+                _label.Foreground = new SolidColorBrush(ink);
+                _label.FontWeight = FontWeight.Normal;
+                break;
+            case CalcKeyKind.Utility:
+                _idle = new SolidColorBrush(ink, dark ? 0.03 : 0.02);
+                _hover = new SolidColorBrush(ink, dark ? 0.08 : 0.06);
+                _label.Foreground = new SolidColorBrush(ink, CardInk.MutedOpacity);
+                _label.FontWeight = FontWeight.Normal;
+                break;
+            case CalcKeyKind.Operator:
+                _idle = new SolidColorBrush(accent, 0.12);
+                _hover = new SolidColorBrush(accent, 0.20);
+                _label.Foreground = new SolidColorBrush(ink);
+                _label.FontWeight = FontWeight.Medium;
+                break;
+            case CalcKeyKind.Equals:
+                _idle = new SolidColorBrush(accent);
+                _hover = new SolidColorBrush(accent);
+                _label.Foreground = CardAccent.Ink();
+                _label.FontWeight = FontWeight.SemiBold;
+                break;
+        }
+        if (!_pressed)
+        {
+            Background = _idle;
+        }
+    }
+}
+
 /// <summary>
 /// 计算器
 /// 语义对齐: 表达式串 数字<=15位 % -> (n/100) ± ⌫ 千分位/科学计数显示
@@ -4975,8 +7294,10 @@ public sealed class CalculatorWidget : WidgetCardBase
     {
         TextAlignment = TextAlignment.Right,
         VerticalAlignment = VerticalAlignment.Center,
-        MaxHeight = 36,
+        MaxHeight = 20,
         TextTrimming = TextTrimming.CharacterEllipsis,
+        FontSize = WidgetType.Label,
+        FontFamily = WidgetFonts.Num,
     };
     private readonly TextBlock _display = new()
     {
@@ -4984,55 +7305,87 @@ public sealed class CalculatorWidget : WidgetCardBase
         VerticalAlignment = VerticalAlignment.Center,
         Text = "0",
         FontWeight = FontWeight.Light,
+        FontFamily = WidgetFonts.Num,
+        TextTrimming = TextTrimming.CharacterEllipsis,
     };
+    private readonly Border _screen = new()
+    {
+        CornerRadius = new CornerRadius(12),
+        Padding = new Thickness(12, 10, 12, 10),
+    };
+    private readonly List<CalcKey> _keys = new();
     private string _expression = "";
     private bool _resultShown;
 
-    private static readonly (string Text, int Row, int Col)[] ButtonSpecs =
+    private static readonly (string Text, int Row, int Col, CalcKeyKind Kind)[] ButtonSpecs =
     {
-        ("⌫", 0, 0), ("C", 0, 1), ("%", 0, 2), ("÷", 0, 3),
-        ("7", 1, 0), ("8", 1, 1), ("9", 1, 2), ("×", 1, 3),
-        ("4", 2, 0), ("5", 2, 1), ("6", 2, 2), ("−", 2, 3),
-        ("1", 3, 0), ("2", 3, 1), ("3", 3, 2), ("+", 3, 3),
-        ("±", 4, 0), ("0", 4, 1), (".", 4, 2), ("=", 4, 3),
+        ("⌫", 0, 0, CalcKeyKind.Utility), ("C", 0, 1, CalcKeyKind.Utility), ("%", 0, 2, CalcKeyKind.Utility), ("÷", 0, 3, CalcKeyKind.Operator),
+        ("7", 1, 0, CalcKeyKind.Digit), ("8", 1, 1, CalcKeyKind.Digit), ("9", 1, 2, CalcKeyKind.Digit), ("×", 1, 3, CalcKeyKind.Operator),
+        ("4", 2, 0, CalcKeyKind.Digit), ("5", 2, 1, CalcKeyKind.Digit), ("6", 2, 2, CalcKeyKind.Digit), ("−", 2, 3, CalcKeyKind.Operator),
+        ("1", 3, 0, CalcKeyKind.Digit), ("2", 3, 1, CalcKeyKind.Digit), ("3", 3, 2, CalcKeyKind.Digit), ("+", 3, 3, CalcKeyKind.Operator),
+        ("±", 4, 0, CalcKeyKind.Utility), ("0", 4, 1, CalcKeyKind.Digit), (".", 4, 2, CalcKeyKind.Digit), ("=", 4, 3, CalcKeyKind.Equals),
     };
 
     public CalculatorWidget(ComponentDefinition definition) : base(definition)
     {
-        var grid = new Grid
+        var root = new Grid
         {
-            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,Auto,*,Auto"),
-            Margin = new Thickness(12, 20, 12, 12),
+            Margin = new Thickness(WidgetSpace.Pad, 14, WidgetSpace.Pad, WidgetSpace.Pad),
+            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,*"),
+            RowSpacing = WidgetSpace.Gap,
         };
-        grid.Children.Add(_history);
-        Grid.SetRow(_history, 0);
-        grid.Children.Add(_display);
-        Grid.SetRow(_display, 1);
+
+        _screen.Child = new StackPanel
+        {
+            Spacing = 2,
+            Children = { _history, _display },
+        };
+        Grid.SetRow(_screen, 0);
+        root.Children.Add(_screen);
+
         var buttons = new Grid
         {
             RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("*,*,*,*,*"),
             ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("*,*,*,*"),
+            RowSpacing = WidgetSpace.GapSm,
+            ColumnSpacing = WidgetSpace.GapSm,
+            Margin = new Thickness(0, WidgetSpace.GapXs, 0, 0),
         };
-        Grid.SetRow(buttons, 3);
-        foreach (var (text, row, col) in ButtonSpecs)
+        Grid.SetRow(buttons, 1);
+        foreach (var (text, row, col, kind) in ButtonSpecs)
         {
-            var btn = new Button
-            {
-                Content = text,
-                HorizontalContentAlignment = HorizontalAlignment.Center,
-                VerticalContentAlignment = VerticalAlignment.Center,
-                Padding = new Thickness(0),
-                Margin = new Thickness(2),
-            };
-            btn.Click += (_, _) => OnButtonClick(text);
-            Grid.SetRow(btn, row);
-            Grid.SetColumn(btn, col);
-            buttons.Children.Add(btn);
+            var key = new CalcKey(text, kind);
+            key.Invoked += () => OnButtonClick(text);
+            Grid.SetRow(key, row);
+            Grid.SetColumn(key, col);
+            buttons.Children.Add(key);
+            _keys.Add(key);
         }
-        grid.Children.Add(buttons);
-        Card.Child = grid;
+        root.Children.Add(buttons);
+        Card.Child = root;
         Content = Card;
+
+        SizeChanged += (_, _) => Relayout();
         ApplyCardStyle();
+    }
+
+    private void Relayout()
+    {
+        var innerW = Bounds.Width - WidgetSpace.Pad * 2;
+        if (innerW <= 1)
+        {
+            return;
+        }
+        var displayW = Math.Max(40, innerW - 24);
+        var prefer = Math.Clamp(innerW * 0.20, 26, 48);
+        _display.FontSize = CardText.Fit(_display.Text, WidgetFonts.Num, FontWeight.Light,
+            displayW, prefer, 18, 48);
+        _display.LetterSpacing = -Math.Round(_display.FontSize * 0.02, 1);
+        var keySize = Math.Clamp(Math.Round(innerW / 14.5), 14, 22);
+        foreach (var key in _keys)
+        {
+            key.SetFontSize(keySize);
+        }
     }
 
     private void OnButtonClick(string key)
@@ -5162,9 +7515,10 @@ public sealed class CalculatorWidget : WidgetCardBase
         var result = Eval(expr);
         if (result is null)
         {
-            _display.Text = "错误";
+            _display.Text = AppUtils.Tr("common.error");
             _expression = "";
             _resultShown = false;
+            Relayout();
             return;
         }
         var v = result.Value;
@@ -5305,11 +7659,13 @@ public sealed class CalculatorWidget : WidgetCardBase
         {
             _history.Text = "";
             _display.Text = "0";
+            Relayout();
             return;
         }
         var head = SplitExpression(out var current);
         _history.Text = head.Length > 0 ? DisplayExpr(head) : "";
         _display.Text = current.Length > 0 ? DisplayExpr(current) : "0";
+        Relayout();
     }
 
     private string SplitExpression(out string current)
@@ -5336,11 +7692,15 @@ public sealed class CalculatorWidget : WidgetCardBase
     protected override void ApplyCardStyle()
     {
         base.ApplyCardStyle();
-        var dark = ThemeSense.IsDark(this);
-        _history.Foreground = new SolidColorBrush(Color.Parse(dark ? "#99FFFFFF" : "#99000000"));
-        _display.Foreground = new SolidColorBrush(Color.Parse(dark ? "#F2FFFFFF" : "#E6000000"));
-        _history.FontSize = 14;
-        _display.FontSize = 28;
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        _history.Foreground = WidgetInk.Muted(p.Text);
+        _display.Foreground = WidgetInk.Fg(p.Text);
+        _screen.Background = new SolidColorBrush(p.Text, CardIsDark ? 0.05 : 0.04);
+        foreach (var key in _keys)
+        {
+            key.Apply(p, CardAccent.Value, CardIsDark);
+        }
+        Relayout();
     }
 }
 
@@ -5704,97 +8064,86 @@ internal static class MicSampler
     }
 }
 
-/// <summary>进度圆环</summary>
-internal sealed class PerfRing : Control
+/// <summary>便签横线 纸感</summary>
+internal sealed class NoteRules : Control
 {
-    private double _value;
-
-    public string Label { get; set; } = "";
-    public string Color { get; set; } = "#0078d4";
-
-    public double Value
-    {
-        get => _value;
-        set
-        {
-            _value = Math.Clamp(value, 0, 100);
-            InvalidateVisual();
-        }
-    }
+    public AvColor Line { get; set; } = AvColor.Parse("#E7C56A");
+    public double Spacing { get; set; } = 21;
 
     public override void Render(DrawingContext ctx)
     {
-        var side = Math.Min(Bounds.Width, Bounds.Height);
-        if (side < 8)
+        var w = Bounds.Width;
+        var h = Bounds.Height;
+        if (w < 2 || h < 2)
         {
             return;
         }
-        var stroke = Math.Max(4, side * 0.087); // 92px 时 8px
-        var r = (side - stroke) / 2;
-        var center = new Point(Bounds.Width / 2, Bounds.Height / 2);
-        var trackPen = new Pen(new SolidColorBrush(ThemeSense.IsDark(this)
-            ? AvColor.FromRgb(60, 60, 60)
-            : AvColor.FromRgb(225, 225, 225)), stroke);
-        ctx.DrawEllipse(null, trackPen, center, r, r);
-        if (_value > 0.5)
+        var pen = new Pen(new SolidColorBrush(Line, 0.13), 1);
+        for (var y = Spacing; y < h; y += Spacing)
         {
-            var sweep = _value / 100 * 360 - 0.5;
-            var start = -90;
-            var pen = new Pen(new SolidColorBrush(AvColor.Parse(Color)), stroke)
-            {
-                LineCap = PenLineCap.Round,
-            };
-            var geo = new StreamGeometry();
-            using (var g = geo.Open())
-            {
-                var a1 = start * Math.PI / 180;
-                var a2 = (start + sweep) * Math.PI / 180;
-                var p1 = new Point(center.X + r * Math.Cos(a1), center.Y + r * Math.Sin(a1));
-                var p2 = new Point(center.X + r * Math.Cos(a2), center.Y + r * Math.Sin(a2));
-                g.BeginFigure(p1, false);
-                g.ArcTo(p2, new Size(r, r), 0, sweep > 180, SweepDirection.Clockwise);
-                g.EndFigure(false);
-            }
-            ctx.DrawGeometry(null, pen, geo);
+            ctx.DrawLine(pen, new Point(0, y), new Point(w, y));
         }
-        var ft = new FormattedText(
-            $"{(int)Math.Round(_value)}%",
-            System.Globalization.CultureInfo.CurrentCulture,
-            FlowDirection.LeftToRight,
-            new Typeface(Common.AppFontFamily, FontStyle.Normal, FontWeight.Bold),
-            side * 0.21,
-            ThemeSense.IsDark(this) ? Brushes.White : Brushes.Black);
-        ctx.DrawText(ft, new Point(center.X - ft.Width / 2, center.Y - ft.Height / 2));
     }
 }
 
 /// <summary>便签</summary>
 public sealed class StickyNoteWidget : WidgetCardBase
 {
-    private static readonly Dictionary<string, (string Bg, string Header, string Text)> Colors = new()
+    // 便签只保留一个强调色 纸面走全局卡片皮肤 不再自绘纯色底
+    private static readonly Dictionary<string, string> Colors = new()
     {
-        ["yellow"] = ("#FFF9C4", "#FFF176", "#5D4037"),
-        ["green"] = ("#C8E6C9", "#A5D6A7", "#2E7D32"),
-        ["blue"] = ("#BBDEFB", "#90CAF9", "#1565C0"),
-        ["pink"] = ("#F8BBD0", "#F48FB1", "#880E4F"),
-        ["orange"] = ("#FFE0B2", "#FFCC80", "#E65100"),
-        ["purple"] = ("#E1BEE7", "#CE93D8", "#4A148C"),
+        ["yellow"] = "#E7C56A",
+        ["green"] = "#A9C48A",
+        ["blue"] = "#93B7D6",
+        ["pink"] = "#DDA3AD",
+        ["orange"] = "#E2B183",
+        ["purple"] = "#B7A6D0",
     };
 
-    private readonly Border _header = new() { Height = 36 };
-    private readonly Border _dot = new() { Width = 10, Height = 10, CornerRadius = new CornerRadius(5) };
-    private readonly TextBlock _date = new() { Text = DateTime.Today.ToString("yyyy-MM-dd"), FontSize = 11 };
+    private readonly Border _header = new() { Height = 38 };
+    private readonly Border _dot = new() { Width = 18, Height = 3, CornerRadius = new CornerRadius(1.5) };
+    private readonly TextBlock _date = new()
+    {
+        Text = DateTime.Today.ToString("yyyy-MM-dd"),
+        FontSize = 11,
+        LetterSpacing = 0.4,
+        FontFamily = WidgetFonts.Ui,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
     private readonly TextBox _editor = new()
     {
         AcceptsReturn = true,
+        AcceptsTab = false,
         TextWrapping = TextWrapping.Wrap,
         Background = Brushes.Transparent,
         BorderThickness = new Thickness(0),
-        FontSize = 13,
-        Padding = new Thickness(12, 4, 12, 12),
-        PlaceholderText = "记录内容...",
+        FontSize = 14,
+        Padding = new Thickness(WidgetSpace.Pad, 10, WidgetSpace.Pad, 14),
+        PlaceholderText = AppUtils.Tr("sticky_note.placeholder"),
+        FontFamily = WidgetFonts.Ui,
+        LineHeight = 23,
+        VerticalContentAlignment = VerticalAlignment.Top,
+        MinHeight = 0,
+        VerticalAlignment = VerticalAlignment.Stretch,
     };
-    private (string Bg, string Header, string Text) _c = ("#FFF9C4", "#FFF176", "#5D4037");
+    private string _c = "#E7C56A";
+    private readonly NoteRules _rules = new()
+    {
+        IsHitTestVisible = false,
+        Spacing = 23,
+        Margin = new Thickness(WidgetSpace.Pad, 10, WidgetSpace.Pad, 14),
+    };
+    private readonly TextBlock _count = new()
+    {
+        Text = "0 字",
+        FontSize = WidgetType.Micro,
+        FontFamily = WidgetFonts.Ui,
+        HorizontalAlignment = HorizontalAlignment.Right,
+        VerticalAlignment = VerticalAlignment.Bottom,
+        Margin = new Thickness(0, 0, WidgetSpace.Pad, 7),
+        IsHitTestVisible = false,
+        Opacity = 0,
+    };
     private string? _dataFile;
     private readonly DispatcherTimer _saveTimer;
 
@@ -5809,23 +8158,67 @@ public sealed class StickyNoteWidget : WidgetCardBase
         }
         _c = Colors.GetValueOrDefault(colorKey, Colors["yellow"]);
 
-        var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
+        // 覆盖 Fluent TextBox 各状态底色 便签纸面必须透出卡片皮肤
+        foreach (var key in new[]
+                 {
+                     "TextControlBackground", "TextControlBackgroundPointerOver",
+                     "TextControlBackgroundFocused", "TextControlBackgroundDisabled",
+                 })
+        {
+            _editor.Resources[key] = Brushes.Transparent;
+        }
+        foreach (var key in new[]
+                 {
+                     "TextControlBorderBrush", "TextControlBorderBrushPointerOver",
+                     "TextControlBorderBrushFocused", "TextControlBorderBrushDisabled",
+                 })
+        {
+            _editor.Resources[key] = Brushes.Transparent;
+        }
+
+        var headerRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(WidgetSpace.Pad, 0, WidgetSpace.Pad, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Spacing = WidgetSpace.GapXs,
+        };
         headerRow.Children.Add(_dot);
-        headerRow.Children.Add(new Border { Width = 6 });
         headerRow.Children.Add(_date);
         _header.Child = headerRow;
 
-        var stack = new StackPanel { Orientation = Orientation.Vertical };
-        stack.Children.Add(_header);
-        stack.Children.Add(_editor);
-        Card.Child = stack;
+        var root = new Grid
+        {
+            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,*"),
+        };
+        Grid.SetRow(_header, 0);
+        Grid.SetRow(_rules, 1);
+        Grid.SetRow(_editor, 1);
+        Grid.SetRow(_count, 1);
+        root.Children.Add(_header);
+        root.Children.Add(_rules);
+        root.Children.Add(_editor);
+        root.Children.Add(_count);
+        Card.Child = root;
         Content = Card;
 
         _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _editor.TextChanged += (_, _) =>
         {
+            UpdateCount();
             _saveTimer.Stop();
             _saveTimer.Start();
+        };
+        // 计数只在悬停或聚焦时出现 不打扰书写
+        _editor.GotFocus += (_, _) => _count.Opacity = 1;
+        _editor.LostFocus += (_, _) => _count.Opacity = 0;
+        PointerEntered += (_, _) => _count.Opacity = 1;
+        PointerExited += (_, _) =>
+        {
+            if (!_editor.IsFocused)
+            {
+                _count.Opacity = 0;
+            }
         };
         _saveTimer.Tick += (_, _) =>
         {
@@ -5833,6 +8226,13 @@ public sealed class StickyNoteWidget : WidgetCardBase
             Save();
         };
         ApplyStickyStyle();
+        UpdateCount();
+    }
+
+    private void UpdateCount()
+    {
+        var count = _editor.Text?.Length ?? 0;
+        _count.Text = AppUtils.Tr("sticky_note.char_count", ("count", count));
     }
 
     protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
@@ -5876,17 +8276,25 @@ public sealed class StickyNoteWidget : WidgetCardBase
         }
     }
 
-    // 自定义底色(不随主题)
+    // 纸面跟随全局卡片皮肤 便签色只做强调
     protected override void ApplyCardStyle()
     {
-        _dot.Background = new SolidColorBrush(AvColor.Parse(_c.Header));
-        _date.Foreground = new SolidColorBrush(AvColor.Parse(_c.Text));
-        _editor.Foreground = new SolidColorBrush(AvColor.Parse(_c.Text));
-        _editor.CaretBrush = new SolidColorBrush(AvColor.Parse(_c.Text));
-        Card.Background = new SolidColorBrush(AvColor.Parse(_c.Bg));
-        Card.BorderBrush = new SolidColorBrush(AvColor.Parse(_c.Header));
-        Card.BorderThickness = new Thickness(1);
-        Card.CornerRadius = new CornerRadius(Math.Max(8, Config.ComponentCardRadius.Value));
+        base.ApplyCardStyle();
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        var header = AvColor.Parse(_c);
+        _dot.Background = new SolidColorBrush(header);
+        _date.Foreground = WidgetInk.Muted(p.Text);
+        _header.BorderBrush = new SolidColorBrush(p.Line);
+        _header.BorderThickness = new Thickness(0, 0, 0, 1);
+        _rules.Line = p.Text;
+        _rules.IsVisible = !CardIsDark;
+        _rules.InvalidateVisual();
+        _editor.Foreground = new SolidColorBrush(p.Text);
+        _editor.CaretBrush = new SolidColorBrush(p.Text);
+        _editor.PlaceholderForeground = new SolidColorBrush(p.Text, CardInk.FaintOpacity);
+        _editor.SelectionBrush = new SolidColorBrush(header, 0.30);
+        _editor.SelectionForegroundBrush = new SolidColorBrush(p.Text);
+        _count.Foreground = WidgetInk.Muted(p.Text);
     }
 
     private void ApplyStickyStyle() => ApplyCardStyle();
@@ -5897,6 +8305,14 @@ internal sealed class QuickLaunchItem
 {
     public string Name = "";
     public string Path = "";
+    // 默认项存语言键 切换语言后名称仍跟随
+    public string NameKey = "";
+
+    public string DisplayName => Name.Length > 0
+        ? Name
+        : NameKey.Length > 0
+            ? AppUtils.Tr(NameKey)
+            : IOPath.GetFileNameWithoutExtension(Path);
 }
 
 /// <summary>AI 问答 气泡会话持久化</summary>
@@ -5950,7 +8366,7 @@ public sealed class AiChatWidget : WidgetCardBase
         CornerRadius = new CornerRadius(16),
         HorizontalContentAlignment = HorizontalAlignment.Center,
         VerticalContentAlignment = VerticalAlignment.Center,
-        Content = FAIcons.IconGlyph("E110", 14),
+        Content = FAIcons.IconGlyph("E724", 14),
     };
     private readonly List<ChatSession> _sessions = new();
     private string _currentId = "";
@@ -6041,7 +8457,7 @@ public sealed class AiChatWidget : WidgetCardBase
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
             CornerRadius = new CornerRadius(15),
-            Content = FAIcons.IconGlyph("E8BB", 13),
+            Content = FAIcons.IconGlyph("E711", 13),
             Opacity = 0.6,
             Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
@@ -6109,7 +8525,7 @@ public sealed class AiChatWidget : WidgetCardBase
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
             CornerRadius = new CornerRadius(15),
-            Content = FAIcons.IconGlyph("E121", 14),
+            Content = FAIcons.IconGlyph("E81C", 14),
             Opacity = 0.6,
         };
         ToolTip.SetTip(historyBtn, AppUtils.Tr("ai_chat.history_tip"));
@@ -6128,7 +8544,7 @@ public sealed class AiChatWidget : WidgetCardBase
         Grid.SetRow(_scroll, 1);
 
         // 空态欢迎页
-        var logo = FAIcons.IconGlyph("E8BD", 34);
+        var logo = FAIcons.IconGlyph("E99A", 34);
         logo.Foreground = new SolidColorBrush(AvColor.Parse(Config.ThemeColor.Value));
         logo.HorizontalAlignment = HorizontalAlignment.Center;
         var hi = new TextBlock
@@ -6378,8 +8794,8 @@ public sealed class AiChatWidget : WidgetCardBase
     // composer 主题化
     private void StyleComposer()
     {
-        var p = WidgetSurfacePalette.Resolve(ThemeSense.IsDark(this));
-        var dark = ThemeSense.IsDark(this);
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        var dark = CardIsDark;
         var accent = AvColor.Parse(Config.ThemeColor.Value);
         _composer.Background = new SolidColorBrush(p.BandB);
         var channel = dark ? (byte)255 : (byte)0;
@@ -6396,7 +8812,7 @@ public sealed class AiChatWidget : WidgetCardBase
 
     private Control BuildMsg(ChatMsg m, bool isLast = false, bool showActions = true)
     {
-        var p = WidgetSurfacePalette.Resolve(ThemeSense.IsDark(this));
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
         var textCol = p.Text;
         var userBg = p.Blend(AvColor.Parse(Config.ThemeColor.Value), 0.22);
         if (m.Role != "user")
@@ -6503,13 +8919,13 @@ public sealed class AiChatWidget : WidgetCardBase
     // 思考块 官方规格 竖线+缩进
     private Control BuildThinkBlock(string title, string reasoning, bool expanded)
     {
-        var p = WidgetSurfacePalette.Resolve(ThemeSense.IsDark(this));
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
         var accent = AvColor.Parse(Config.ThemeColor.Value);
         var sub = new SolidColorBrush(p.Sub);
         var titleTb = new TextBlock { Text = title, FontSize = 12, Foreground = sub, VerticalAlignment = VerticalAlignment.Center };
         var chev = FAIcons.IconGlyph("E76C", 10);
         chev.VerticalAlignment = VerticalAlignment.Center;
-        var icon = FAIcons.IconGlyph("E8BD", 13);
+        var icon = FAIcons.IconGlyph("E99A", 13);
         icon.Foreground = new SolidColorBrush(accent);
         icon.VerticalAlignment = VerticalAlignment.Center;
         var headRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
@@ -6627,8 +9043,8 @@ public sealed class AiChatWidget : WidgetCardBase
             _flow.Children.Add(BuildMsg(_history[i], showActions: false));
         }
         SetSendBusy(true);
-        var p = WidgetSurfacePalette.Resolve(ThemeSense.IsDark(this));
-        var thinkIcon = FAIcons.IconGlyph("E8BD", 13);
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        var thinkIcon = FAIcons.IconGlyph("E99A", 13);
         thinkIcon.Foreground = new SolidColorBrush(AvColor.Parse(Config.ThemeColor.Value));
         thinkIcon.VerticalAlignment = VerticalAlignment.Center;
         _liveHead = new TextBlock
@@ -6832,7 +9248,7 @@ public sealed class AiChatWidget : WidgetCardBase
     private void FillHistoryList(StackPanel list)
     {
         list.Children.Clear();
-        var p = WidgetSurfacePalette.Resolve(ThemeSense.IsDark(this));
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
         var ordered = _sessions.Where(s => s.Msgs.Count > 0).OrderByDescending(s => s.Ts).ToList();
         if (ordered.Count == 0)
         {
@@ -7048,14 +9464,10 @@ public sealed class QuickLaunchDockWidget : WidgetCardBase
         HorizontalAlignment = HorizontalAlignment.Center,
         VerticalAlignment = VerticalAlignment.Center,
     };
-    private readonly TextBlock _placeholder = new()
-    {
-        Text = AppUtils.Tr("quick_launch_component.click_to_config"),
-        TextAlignment = TextAlignment.Center,
-        TextWrapping = TextWrapping.Wrap,
-        HorizontalAlignment = HorizontalAlignment.Center,
-        VerticalAlignment = VerticalAlignment.Center,
-    };
+    private readonly CardEmptyState _empty = new(
+        FAIcons.IconGlyph("E8A1", 20),
+        AppUtils.Tr("quick_launch_component.empty_title"),
+        AppUtils.Tr("quick_launch_component.empty_hint"));
 
     public QuickLaunchDockWidget(ComponentDefinition definition) : base(definition)
     {
@@ -7067,7 +9479,7 @@ public sealed class QuickLaunchDockWidget : WidgetCardBase
             VerticalAlignment = VerticalAlignment.Center,
         };
         host.Children.Add(_dock);
-        host.Children.Add(_placeholder);
+        host.Children.Add(_empty);
         Card.Child = host;
         Content = Card;
         UpdateApps();
@@ -7076,6 +9488,8 @@ public sealed class QuickLaunchDockWidget : WidgetCardBase
         Config.QuickLaunchIconSize.ValueChanged += _ => UpdateApps();
         Config.QuickLaunchIconSpacing.ValueChanged += _ => UpdateApps();
         Config.QuickLaunchShowLabels.ValueChanged += _ => UpdateApps();
+        Config.ThemeColor.ValueChanged += _ => UpdateApps();
+        ActualThemeVariantChanged += (_, _) => UpdateApps();
         ApplyCardStyle();
     }
 
@@ -7106,6 +9520,7 @@ public sealed class QuickLaunchDockWidget : WidgetCardBase
     {
         var apps = ReadApps();
         IsVisible = Config.ShowQuickLaunch.Value;
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
         _dock.Children.Clear();
         var size = (double)Config.QuickLaunchIconSize.Value;
         var spacing = Config.QuickLaunchIconSpacing.Value;
@@ -7113,11 +9528,12 @@ public sealed class QuickLaunchDockWidget : WidgetCardBase
         if (apps.Count == 0)
         {
             _dock.IsVisible = false;
-            _placeholder.IsVisible = true;
+            _empty.IsVisible = true;
+            UpdateEmptyStyle(p);
             return;
         }
         _dock.IsVisible = true;
-        _placeholder.IsVisible = false;
+        _empty.IsVisible = false;
         foreach (var app in apps)
         {
             var cell = new StackPanel
@@ -7131,7 +9547,7 @@ public sealed class QuickLaunchDockWidget : WidgetCardBase
                 Width = size,
                 Height = size,
                 CornerRadius = new CornerRadius(size * 0.2),
-                Background = new SolidColorBrush(ThemeSense.IsDark(this)
+                Background = new SolidColorBrush(CardIsDark
                     ? AvColor.FromRgb(50, 50, 50)
                     : AvColor.FromRgb(240, 240, 240)),
                 Child = new TextBlock
@@ -7141,7 +9557,7 @@ public sealed class QuickLaunchDockWidget : WidgetCardBase
                     FontWeight = FontWeight.Bold,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
-                    Foreground = ThemeSense.IsDark(this) ? Brushes.White : Brushes.DimGray,
+                    Foreground = CardIsDark ? Brushes.White : Brushes.DimGray,
                 },
             };
             TrySetExeIcon(app.Path, iconBorder);
@@ -7151,13 +9567,15 @@ public sealed class QuickLaunchDockWidget : WidgetCardBase
                 cell.Children.Add(new TextBlock
                 {
                     Text = app.Name,
-                    FontSize = 11,
+                    FontSize = 10.5,
                     TextAlignment = TextAlignment.Center,
                     MaxWidth = size + 16,
                     TextTrimming = TextTrimming.CharacterEllipsis,
                     Margin = new Thickness(0, 4, 0, 0),
+                    Foreground = CardInk.Fg(p),
                 });
             }
+            ToolTip.SetTip(cell, app.Path);
             var path = app.Path;
             cell.PointerReleased += (_, _) =>
             {
@@ -7172,6 +9590,11 @@ public sealed class QuickLaunchDockWidget : WidgetCardBase
             };
             _dock.Children.Add(cell);
         }
+    }
+
+    private void UpdateEmptyStyle(WidgetSurfacePalette p)
+    {
+        _empty.Apply(p);
     }
 
     private void TrySetExeIcon(string path, Border target)
@@ -7201,59 +9624,214 @@ public sealed class QuickLaunchDockWidget : WidgetCardBase
     }
 }
 
-/// <summary>快捷启动八宫格</summary>
+/// <summary>快捷启动 真实图标 + 常用应用 + 编辑态</summary>
 public sealed class QuickLaunchGridWidget : WidgetCardBase
 {
-    private const int CellCount = 8;
-    private const int ColumnCount = 4;
+    private const int MaxApps = 8;
+    private const double RootPadX = 10;
+    private const double RootPadY = 8;
 
-    private readonly Avalonia.Controls.Primitives.UniformGrid _grid = new() { Columns = ColumnCount, Rows = 2 };
-    private readonly List<QuickLaunchItem?> _apps = new(new QuickLaunchItem?[CellCount]);
+    private readonly WrapPanel _tiles = new()
+    {
+        Orientation = Orientation.Horizontal,
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Top,
+    };
+    private readonly ScrollViewer _scroll;
+    private readonly Grid _tileArea = new();
+    private readonly Border _empty = new();
+    private readonly StackPanel _adder = new()
+    {
+        Orientation = Orientation.Horizontal,
+        Spacing = 5,
+        Margin = new Thickness(0, 3, 0, 0),
+        HorizontalAlignment = HorizontalAlignment.Left,
+    };
+    private readonly TextBlock _editLabel = new()
+    {
+        FontSize = 12,
+        FontFamily = FAIcons.SymbolsFont,
+        VerticalAlignment = VerticalAlignment.Center,
+        HorizontalAlignment = HorizontalAlignment.Center,
+    };
+    private readonly Border _editButton;
+    private readonly Grid _footer = new();
+    private readonly List<QuickLaunchItem> _apps = new();
+    private readonly List<Border> _tileBorders = new();
+
     private string? _storeFile;
+    private bool _loaded;
+    private bool _editing;
+    private bool _hover;
+    private bool _ready;
 
     public QuickLaunchGridWidget(ComponentDefinition definition) : base(definition)
     {
-        Card.Child = _grid;
+        _scroll = new ScrollViewer
+        {
+            Content = _tiles,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
+        };
+        _empty.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _empty.VerticalAlignment = VerticalAlignment.Stretch;
+        _tileArea.Children.Add(_scroll);
+        _tileArea.Children.Add(_empty);
+
+        _editButton = new Border
+        {
+            Width = 24,
+            Height = 24,
+            Padding = new Thickness(0),
+            CornerRadius = new CornerRadius(12),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0),
+            Child = _editLabel,
+            Cursor = new Cursor(StandardCursorType.Hand),
+            ZIndex = 20,
+        };
+        ToolTip.SetTip(_editButton, Tr("quick_launch.edit"));
+        _editButton.AddHandler(PointerPressedEvent, (_, e) => e.Handled = true,
+            RoutingStrategies.Bubble);
+        _editButton.PointerReleased += (_, e) =>
+        {
+            e.Handled = true;
+            _editing = !_editing;
+            _hover = _editing;
+            RebuildCells();
+        };
+
+        _footer.ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("*,Auto");
+        Grid.SetColumn(_adder, 0);
+        _footer.Children.Add(_adder);
+        _footer.IsVisible = false;
+
+        var root = new Grid
+        {
+            Margin = new Thickness(RootPadX, RootPadY, RootPadX, RootPadY),
+            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("*,Auto"),
+        };
+        Grid.SetRow(_tileArea, 0);
+        Grid.SetRow(_footer, 1);
+        root.Children.Add(_tileArea);
+        root.Children.Add(_footer);
+        Card.Child = root;
         Content = Card;
+
+        PointerEntered += (_, _) =>
+        {
+            _hover = true;
+            UpdateEditChrome(WidgetSurfacePalette.Resolve(CardIsDark));
+        };
+        PointerExited += (_, _) =>
+        {
+            _hover = false;
+            UpdateEditChrome(WidgetSurfacePalette.Resolve(CardIsDark));
+        };
+        SizeChanged += (_, _) => UpdateMetrics();
+        Config.ThemeColor.ValueChanged += _ =>
+        {
+            if (_ready)
+            {
+                RebuildCells();
+            }
+        };
+
+        _ready = true;
         RebuildCells();
     }
 
     protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        if (_storeFile is null && !string.IsNullOrEmpty(ComponentId))
+        if (_loaded || string.IsNullOrEmpty(ComponentId))
         {
-            _storeFile = IOPath.Combine(Paths.DataUser, $"qlgrid_{ComponentId}.json");
-            try
+            return;
+        }
+        _loaded = true;
+        _storeFile = IOPath.Combine(Paths.DataUser, $"qlgrid_{ComponentId}.json");
+        try
+        {
+            if (File.Exists(_storeFile))
             {
-                if (File.Exists(_storeFile)
-                    && JsonNode.Parse(File.ReadAllText(_storeFile)) is JsonObject obj
-                    && obj["apps"] is JsonArray arr)
-                {
-                    _apps.Clear();
-                    foreach (var n in arr)
-                    {
-                        if (n is JsonObject o)
-                        {
-                            _apps.Add(new QuickLaunchItem
-                            {
-                                Name = (string?)o["name"] ?? "",
-                                Path = (string?)o["path"] ?? "",
-                            });
-                        }
-                        else
-                        {
-                            _apps.Add(null);
-                        }
-                    }
-                    RebuildCells();
-                }
+                LoadStore();
             }
-            catch (Exception ex)
+            else
             {
-                Log.Warning($"[QLG] 读取配置失败: {ex.Message}");
+                _apps.AddRange(DefaultApps());
+                Save();
             }
         }
+        catch (Exception ex)
+        {
+            Log.Warning($"[QLG] 读取配置失败: {ex.Message}");
+            _apps.Clear();
+            _apps.AddRange(DefaultApps());
+        }
+        RebuildCells();
+    }
+
+    private void LoadStore()
+    {
+        if (_storeFile is null
+            || JsonNode.Parse(File.ReadAllText(_storeFile)) is not JsonObject obj
+            || obj["apps"] is not JsonArray arr)
+        {
+            return;
+        }
+        _apps.Clear();
+        foreach (var n in arr)
+        {
+            if (n is not JsonObject o)
+            {
+                continue;
+            }
+            var path = (string?)o["path"] ?? "";
+            if (path.Length == 0)
+            {
+                continue;
+            }
+            _apps.Add(new QuickLaunchItem
+            {
+                Name = (string?)o["name"] ?? "",
+                NameKey = (string?)o["name_key"] ?? "",
+                Path = path,
+            });
+        }
+    }
+
+    private static List<QuickLaunchItem> DefaultApps()
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        if (windows.Length == 0)
+        {
+            windows = @"C:\Windows";
+        }
+        return new List<QuickLaunchItem>
+        {
+            new()
+            {
+                NameKey = "custom_action.builtin_explorer",
+                Path = IOPath.Combine(windows, "explorer.exe"),
+            },
+            new()
+            {
+                NameKey = "custom_action.builtin_downloads",
+                Path = IOPath.Combine(home, "Downloads"),
+            },
+            new()
+            {
+                NameKey = "custom_action.builtin_documents",
+                Path = IOPath.Combine(home, "Documents"),
+            },
+            new()
+            {
+                NameKey = "custom_action.builtin_notepad",
+                Path = IOPath.Combine(windows, "notepad.exe"),
+            },
+        };
     }
 
     private void Save()
@@ -7268,9 +9846,12 @@ public sealed class QuickLaunchGridWidget : WidgetCardBase
             var arr = new JsonArray();
             foreach (var a in _apps)
             {
-                arr.Add(a is null
-                    ? null
-                    : new JsonObject { ["name"] = a.Name, ["path"] = a.Path });
+                arr.Add(new JsonObject
+                {
+                    ["name"] = a.Name,
+                    ["name_key"] = a.NameKey,
+                    ["path"] = a.Path,
+                });
             }
             File.WriteAllText(_storeFile, new JsonObject { ["apps"] = arr }.ToJsonString());
         }
@@ -7282,55 +9863,310 @@ public sealed class QuickLaunchGridWidget : WidgetCardBase
 
     private void RebuildCells()
     {
-        _grid.Children.Clear();
-        var dark = ThemeSense.IsDark(this);
-        for (var i = 0; i < CellCount; i++)
+        if (!_ready)
         {
-            var app = i < _apps.Count ? _apps[i] : null;
-            var border = new Border
-            {
-                Margin = new Thickness(4),
-                CornerRadius = new CornerRadius(8),
-                Background = new SolidColorBrush(dark
-                    ? AvColor.FromRgb(255, 255, 255)
-                    : AvColor.FromRgb(0, 0, 0), app is null ? 0.04 : 0.06),
-                Child = new TextBlock
-                {
-                    Text = app is null ? "+" : (app.Name.Length > 0 ? app.Name[..1].ToUpperInvariant() : "?"),
-                    FontSize = 20,
-                    FontWeight = FontWeight.Bold,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Opacity = app is null ? 0.4 : 1,
-                },
-                Cursor = new Cursor(StandardCursorType.Hand),
-            };
-            var index = i;
-            var path = app?.Path ?? "";
-            border.PointerReleased += (_, ev) =>
-            {
-                ev.Handled = true;
-                if (app is not null && path.Length > 0)
-                {
-                    try
-                    {
-                        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Warning($"[QLG] 启动失败: {ex.Message}");
-                    }
-                }
-                else
-                {
-                    PickAndAssign(index);
-                }
-            };
-            _grid.Children.Add(border);
+            return;
         }
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        _tiles.Children.Clear();
+        _tileBorders.Clear();
+        var iconSize = _apps.Count > 4 ? 32 : 48;
+        foreach (var app in _apps)
+        {
+            _tiles.Children.Add(BuildTile(app, p, iconSize));
+        }
+
+        _scroll.IsVisible = _apps.Count > 0;
+        _empty.IsVisible = _apps.Count == 0;
+        if (_apps.Count == 0)
+        {
+            _editing = false;
+            _empty.Child = BuildEmptyState(p);
+        }
+
+        _adder.Children.Clear();
+        _adder.IsVisible = _editing && _apps.Count > 0 && _apps.Count < MaxApps;
+        if (_adder.IsVisible)
+        {
+            _adder.Children.Add(MakeMiniButton(Tr("quick_launch_ii.add_app"), true, PickApp, p));
+            _adder.Children.Add(MakeMiniButton(Tr("quick_launch_ii.add_folder"), false, PickFolder, p));
+            _adder.Children.Add(new TextBlock
+            {
+                Text = $"{_apps.Count}/{MaxApps}",
+                FontSize = 10,
+                Foreground = CardInk.Faint(p),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(5, 0, 0, 0),
+            });
+        }
+
+        AttachEditButton();
+        UpdateEditChrome(p);
+        UpdateMetrics();
     }
 
-    private async void PickAndAssign(int index)
+    private void AttachEditButton()
+    {
+        _tileArea.Children.Remove(_editButton);
+        _footer.Children.Remove(_editButton);
+        if (_apps.Count == 0)
+        {
+            _footer.IsVisible = false;
+            return;
+        }
+        if (_editing)
+        {
+            Grid.SetColumn(_editButton, 1);
+            _editButton.HorizontalAlignment = HorizontalAlignment.Right;
+            _editButton.VerticalAlignment = VerticalAlignment.Center;
+            _editButton.Margin = new Thickness(0);
+            _footer.Children.Add(_editButton);
+        }
+        else
+        {
+            _editButton.HorizontalAlignment = HorizontalAlignment.Right;
+            _editButton.VerticalAlignment = _apps.Count is > 4 and < 8
+                ? VerticalAlignment.Bottom
+                : VerticalAlignment.Top;
+            _editButton.Margin = _apps.Count is > 4 and < 8
+                ? new Thickness(0, 0, 0, 2)
+                : new Thickness(0, 2, 0, 0);
+            _tileArea.Children.Add(_editButton);
+        }
+        _footer.IsVisible = _editing;
+    }
+
+    private Border BuildTile(QuickLaunchItem app, WidgetSurfacePalette p, double iconSize)
+    {
+        var icon = new Border
+        {
+            Width = iconSize,
+            Height = iconSize,
+            Background = Brushes.Transparent,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Child = BuildFallbackIcon(app.DisplayName, iconSize, p),
+        };
+        var bitmap = FileIcon.For(app.Path);
+        if (bitmap is not null)
+        {
+            icon.Child = new Image
+            {
+                Source = bitmap,
+                Width = iconSize,
+                Height = iconSize,
+                Stretch = Stretch.Uniform,
+            };
+        }
+
+        var label = new TextBlock
+        {
+            Text = app.DisplayName,
+            FontSize = _apps.Count > 4 ? 11 : 12.5,
+            Foreground = CardInk.Fg(p),
+            TextWrapping = TextWrapping.Wrap,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            TextAlignment = TextAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            MaxWidth = 96,
+            MaxLines = 2,
+            LineHeight = 14,
+        };
+        var content = new StackPanel
+        {
+            Spacing = 4,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 3, 0, 0),
+        };
+        content.Children.Add(icon);
+        content.Children.Add(label);
+
+        var tile = new Grid();
+        tile.Children.Add(content);
+        var missing = !File.Exists(app.Path) && !Directory.Exists(app.Path);
+        if (_editing)
+        {
+            var removeLabel = new TextBlock
+            {
+                Text = "×",
+                FontSize = 13,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            var remove = new Border
+            {
+                Width = 18,
+                Height = 18,
+                CornerRadius = new CornerRadius(9),
+                Background = new SolidColorBrush(p.Card, 0.96),
+                BorderBrush = new SolidColorBrush(p.Line, 0.7),
+                BorderThickness = new Thickness(1),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Top,
+                Child = removeLabel,
+                Cursor = new Cursor(StandardCursorType.Hand),
+                ZIndex = 5,
+            };
+            ToolTip.SetTip(remove, Tr("quick_launch.delete"));
+            remove.PointerEntered += (_, _) =>
+            {
+                remove.Background = CardInk.Danger();
+                removeLabel.Foreground = Brushes.White;
+            };
+            remove.PointerExited += (_, _) =>
+            {
+                remove.Background = new SolidColorBrush(p.Card, 0.96);
+                removeLabel.Foreground = CardInk.Muted(p);
+            };
+            remove.AddHandler(PointerPressedEvent, (_, e) => e.Handled = true,
+                RoutingStrategies.Bubble);
+            remove.PointerReleased += (_, e) =>
+            {
+                e.Handled = true;
+                _apps.Remove(app);
+                Save();
+                RebuildCells();
+            };
+            removeLabel.Foreground = CardInk.Muted(p);
+            tile.Children.Add(remove);
+        }
+
+        var normalBg = Brushes.Transparent;
+        var hoverBg = new SolidColorBrush(p.Text, 0.055);
+        var tileBorder = new Border
+        {
+            Margin = new Thickness(2, 2),
+            Padding = new Thickness(3, 3),
+            CornerRadius = new CornerRadius(10),
+            Background = normalBg,
+            Child = tile,
+            Cursor = new Cursor(_editing ? StandardCursorType.Arrow : StandardCursorType.Hand),
+        };
+        if (missing)
+        {
+            tileBorder.Opacity = 0.45;
+        }
+        ToolTip.SetTip(tileBorder, missing
+            ? Tr("quick_launch.path_not_exist", ("path", app.Path))
+            : app.Path);
+        tileBorder.PointerEntered += (_, _) => tileBorder.Background = hoverBg;
+        tileBorder.PointerExited += (_, _) => tileBorder.Background = normalBg;
+        tileBorder.AddHandler(PointerPressedEvent, (_, e) => e.Handled = true,
+            RoutingStrategies.Bubble);
+        tileBorder.PointerReleased += (_, e) =>
+        {
+            e.Handled = true;
+            if (_editing || missing)
+            {
+                return;
+            }
+            try
+            {
+                Process.Start(new ProcessStartInfo(app.Path) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[QLG] 启动失败: {ex.Message}");
+            }
+        };
+        _tileBorders.Add(tileBorder);
+        return tileBorder;
+    }
+
+    private Control BuildFallbackIcon(string name, double size, WidgetSurfacePalette p)
+    {
+        var letter = name.Length > 0 ? name[..1].ToUpperInvariant() : "?";
+        return new Border
+        {
+            Width = size,
+            Height = size,
+            CornerRadius = new CornerRadius(size * 0.24),
+            Background = CardAccent.Brush(0.16),
+            Child = new TextBlock
+            {
+                Text = letter,
+                FontSize = size * 0.42,
+                FontWeight = FontWeight.SemiBold,
+                Foreground = CardAccent.Brush(),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            },
+        };
+    }
+
+    private Control BuildEmptyState(WidgetSurfacePalette p)
+    {
+        var empty = new CardEmptyState(
+            FAIcons.Glyph(AppIcons.Add),
+            Tr("quick_launch_ii.empty_title"),
+            Tr("quick_launch_ii.empty_hint"));
+        empty.AddAction(MakeMiniButton(Tr("quick_launch_ii.add_app"), true, PickApp, p));
+        empty.AddAction(MakeMiniButton(Tr("quick_launch_ii.add_folder"), false, PickFolder, p));
+        empty.Apply(p);
+        return empty;
+    }
+
+    private Border MakeMiniButton(string text, bool accent, Action onClick, WidgetSurfacePalette p)
+    {
+        var label = new TextBlock
+        {
+            Text = text,
+            FontSize = 11,
+            FontWeight = FontWeight.Medium,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Foreground = accent ? CardAccent.Brush() : CardInk.Muted(p),
+        };
+        var background = accent ? CardAccent.Brush(0.12) : new SolidColorBrush(p.Text, 0.055);
+        var hover = accent ? CardAccent.Brush(0.20) : new SolidColorBrush(p.Text, 0.10);
+        var button = new Border
+        {
+            Height = 25,
+            Padding = new Thickness(9, 0),
+            CornerRadius = new CornerRadius(8),
+            Background = background,
+            Child = label,
+            Cursor = new Cursor(StandardCursorType.Hand),
+        };
+        button.PointerEntered += (_, _) => button.Background = hover;
+        button.PointerExited += (_, _) => button.Background = background;
+        button.AddHandler(PointerPressedEvent, (_, e) => e.Handled = true,
+            RoutingStrategies.Bubble);
+        button.PointerReleased += (_, e) =>
+        {
+            e.Handled = true;
+            onClick();
+        };
+        return button;
+    }
+
+    private void UpdateEditChrome(WidgetSurfacePalette p)
+    {
+        _editLabel.Text = _editing ? AppIcons.Check : AppIcons.Edit;
+        _editLabel.FontSize = _editing ? 11 : 11.5;
+        _editLabel.Foreground = _editing ? CardAccent.Brush() : CardInk.Muted(p);
+        _editButton.Background = _editing
+            ? CardAccent.Brush(0.14)
+            : new SolidColorBrush(p.Text, 0.055);
+        _editButton.Opacity = _editing ? 1 : _hover ? 0.9 : 0.38;
+        ToolTip.SetTip(_editButton, Tr(_editing ? "custom_action.done" : "quick_launch.edit"));
+    }
+
+    private void UpdateMetrics()
+    {
+        if (!_ready || Bounds.Width <= 1)
+        {
+            return;
+        }
+        var avail = Math.Max(90, Bounds.Width - RootPadX * 2 - 2);
+        var columns = Math.Clamp((int)(avail / 88.0), 2, 6);
+        _tiles.ItemWidth = Math.Clamp(avail / columns, 68, 110);
+        _tiles.ItemHeight = _apps.Count > 4 ? 72 : 92;
+        _tiles.VerticalAlignment = VerticalAlignment.Center;
+        _scroll.VerticalAlignment = _apps.Count > 4 ? VerticalAlignment.Stretch : VerticalAlignment.Center;
+    }
+
+    private async void PickApp()
     {
         try
         {
@@ -7345,19 +10181,18 @@ public sealed class QuickLaunchGridWidget : WidgetCardBase
                     AllowMultiple = false,
                     FileTypeFilter = new List<Avalonia.Platform.Storage.FilePickerFileType>
                     {
-                        new("程序") { Patterns = new[] { "*.exe", "*.lnk" } },
+                        new("程序或快捷方式") { Patterns = new[] { "*.exe", "*.lnk" } },
+                        new("所有文件") { Patterns = new[] { "*" } },
                     },
                 });
             if (files is { Count: > 0 })
             {
                 var path = files[0].Path.LocalPath;
-                _apps[index] = new QuickLaunchItem
+                AddApp(new QuickLaunchItem
                 {
                     Name = IOPath.GetFileNameWithoutExtension(path),
                     Path = path,
-                };
-                Save();
-                RebuildCells();
+                });
             }
         }
         catch (Exception e)
@@ -7365,550 +10200,1550 @@ public sealed class QuickLaunchGridWidget : WidgetCardBase
             Log.Warning($"[QLG] 选择失败: {e.Message}");
         }
     }
-}
 
-/// <summary>计时与倒计时</summary>
-public sealed class TimerCountdownWidget : WidgetCardBase
-{
-    private readonly TextBlock _tabTimer = MakeTab("timer_countdown.timer");
-    private readonly TextBlock _tabCountdown = MakeTab("timer_countdown.countdown");
-
-    // 计时页: 显示 + 按钮栈(开始 / 暂停+取消)
-    private readonly TextBlock _timerDisplay = MakeDisplay();
-    private readonly StackPanel _timerStartRow = new()
+    private async void PickFolder()
     {
-        Orientation = Orientation.Horizontal,
-        HorizontalAlignment = HorizontalAlignment.Center,
-    };
-    private readonly StackPanel _timerRunRow = new()
-    {
-        Orientation = Orientation.Horizontal,
-        HorizontalAlignment = HorizontalAlignment.Center,
-        Spacing = 12,
-    };
-    private readonly Grid _timerBtnStack = new() { Height = 40 };
-
-    // 倒计时页: 设置(三列 + 开始) / 运行(显示 + 暂停·取消)
-    private readonly TextBlock _cdDisplay = MakeDisplay();
-    private readonly StackPanel _cdSetup = new()
-    {
-        Orientation = Orientation.Vertical,
-        HorizontalAlignment = HorizontalAlignment.Center,
-        VerticalAlignment = VerticalAlignment.Center,
-        Spacing = 8,
-    };
-    private readonly StackPanel _cdRun = new()
-    {
-        Orientation = Orientation.Vertical,
-        HorizontalAlignment = HorizontalAlignment.Center,
-        VerticalAlignment = VerticalAlignment.Center,
-        Spacing = 8,
-    };
-    private readonly Grid _cdContentStack = new();
-    private readonly StackPanel _cdRunBtns = new()
-    {
-        Orientation = Orientation.Horizontal,
-        HorizontalAlignment = HorizontalAlignment.Center,
-        Spacing = 12,
-    };
-
-    // 三列时间输入
-    private readonly TimeColumnWidget _hhCol = new("timer_countdown.hours", 0, 99, 0);
-    private readonly TimeColumnWidget _mmCol = new("timer_countdown.minutes", 0, 59, 0);
-    private readonly TimeColumnWidget _ssCol = new("timer_countdown.seconds", 0, 59, 0);
-
-    private readonly Grid _modeStack = new();
-
-    private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(1) };
-    private bool _countdownMode;
-    private bool _running;
-    private bool _paused;
-    private int _elapsed;
-    private int _remaining;
-
-    public TimerCountdownWidget(ComponentDefinition definition) : base(definition)
-    {
-        Width = 220;
-        Height = 170;
-
-        // ---- 顶部 Pivot 32px ----
-        var pivot = new StackPanel
+        try
         {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Height = 32,
-            Spacing = 24,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        pivot.Children.Add(_tabTimer);
-        pivot.Children.Add(_tabCountdown);
-
-        // ---- 计时页 ----
-        _timerPage = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Margin = new Thickness(0, 12, 0, 0),
-            Spacing = 4,
-        };
-        _timerPage.Children.Add(_timerDisplay);
-        _timerDisplay.HorizontalAlignment = HorizontalAlignment.Center;
-
-        // 计时按钮栈: 页0=开始(120x32) 页1=暂停+取消(80x30)
-        _timerStartRow.Children.Add(MakeButton("timer_countdown.start", 120, 32, OnTimerStart, primary: true));
-        _tsPause = MakeButton("timer_countdown.pause", 80, 30, () => TogglePause(_tsPause));
-        _timerRunRow.Children.Add(_tsPause);
-        _timerRunRow.Children.Add(MakeButton("timer_countdown.cancel", 80, 30, OnTimerCancel));
-        _timerBtnStack.Children.Add(_timerStartRow);
-        _timerBtnStack.Children.Add(_timerRunRow);
-        _timerPage.Children.Add(_timerBtnStack);
-
-        // ---- 倒计时页 ----
-        _cdPage = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Margin = new Thickness(0, 12, 0, 0),
-            Spacing = 4,
-        };
-
-        // 设置页: 三列 + 开始
-        var cols = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Spacing = 8,
-        };
-        cols.Children.Add(_hhCol);
-        cols.Children.Add(_mmCol);
-        cols.Children.Add(_ssCol);
-        _cdSetup.Children.Add(cols);
-        _cdSetup.Children.Add(MakeButton("timer_countdown.start", 120, 32, OnCountdownStart, primary: true));
-
-        // 运行页: 显示 + 暂停/取消
-        _cdRun.Children.Add(_cdDisplay);
-        _cdRun.Children.Add(_cdRunBtns);
-        _cdPause = MakeButton("timer_countdown.pause", 80, 30, () => TogglePause(_cdPause));
-        _cdRunBtns.Children.Add(_cdPause);
-        _cdRunBtns.Children.Add(MakeButton("timer_countdown.cancel", 80, 30, OnCountdownCancel));
-
-        _cdContentStack.Children.Add(_cdSetup);
-        _cdContentStack.Children.Add(_cdRun);
-        _cdPage.Children.Add(_cdContentStack);
-
-        // 外层: pivot(固定在顶) + modeStack(撑满)
-        var root = new Grid { RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,*") };
-        Grid.SetRow(pivot, 0);
-        Grid.SetRow(_modeStack, 1);
-        root.Children.Add(pivot);
-        root.Children.Add(_modeStack);
-        Card.Child = root;
-        Content = Card;
-
-        _tabTimer.PointerReleased += (_, e) => { e.Handled = true; SwitchMode(false); };
-        _tabCountdown.PointerReleased += (_, e) => { e.Handled = true; SwitchMode(true); };
-        _timer.Tick += (_, _) => Tick();
-        SwitchMode(false);
-    }
-
-    private Button? _tsPause;
-    private Button? _cdPause;
-    private StackPanel? _timerPage;
-    private StackPanel? _cdPage;
-
-    private static TextBlock MakeTab(string key)
-    {
-        return new TextBlock
-        {
-            Text = AppUtils.Tr(key),
-            FontSize = 14,
-            FontWeight = FontWeight.Medium,
-            VerticalAlignment = VerticalAlignment.Center,
-            Cursor = new Cursor(StandardCursorType.Hand),
-        };
-    }
-
-    // 数字显示 48pt bold
-    private static TextBlock MakeDisplay()
-    {
-        return new TextBlock
-        {
-            Text = "00:00:00",
-            FontSize = 48,
-            FontWeight = FontWeight.Bold,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            TextAlignment = TextAlignment.Center,
-        };
-    }
-
-    private static Button MakeButton(string key, double width, double height, Action onClick, bool primary = false)
-    {
-        var btn = new Button
-        {
-            Content = AppUtils.Tr(key),
-            Width = width,
-            Height = height,
-            HorizontalContentAlignment = HorizontalAlignment.Center,
-            VerticalContentAlignment = VerticalAlignment.Center,
-        };
-        if (primary)
-        {
-            // 对齐原版 PrimaryPushButton 强调色
-            TryApplyAccentForeground(btn);
-        }
-        btn.Click += (_, _) => onClick();
-        return btn;
-    }
-
-    // 应用主题强调色背景
-    private static void TryApplyAccentForeground(Button btn)
-    {
-        void Apply()
-        {
-            if (btn.TryFindResource("SystemAccentColor", out var accent) && accent is Color c)
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel is null)
             {
-                btn.Background = new SolidColorBrush(c);
-            }
-            if (btn.TryFindResource("TextOnAccentFillColorPrimaryBrush", out var fg) && fg is IBrush b)
-            {
-                btn.Foreground = b;
-            }
-        }
-        Apply();
-        btn.ActualThemeVariantChanged += (_, _) => Apply();
-    }
-
-    private void SwitchMode(bool countdown)
-    {
-        // 只有停止时能切 切后重置
-        if (_running)
-        {
-            ResetState();
-        }
-        _countdownMode = countdown;
-        UpdateTabs();
-        // 用可见性切换代替重建(原版 QStackedWidget) 避免重复挂父
-        _modeStack.Children.Clear();
-        if (_countdownMode)
-        {
-            if (_cdPage is not null)
-            {
-                _modeStack.Children.Add(_cdPage);
-            }
-            SetCdContent(0);
-            SetDisplay(_cdDisplay, 0, 0, 0);
-        }
-        else
-        {
-            if (_timerPage is not null)
-            {
-                _modeStack.Children.Add(_timerPage);
-            }
-            SetTimerBtn(0);
-            SetDisplay(_timerDisplay, 0, 0, 0);
-        }
-    }
-
-    private void SetTimerBtn(int idx)
-    {
-        _timerStartRow.IsVisible = idx == 0;
-        _timerRunRow.IsVisible = idx == 1;
-    }
-
-    private void SetCdContent(int idx)
-    {
-        _cdSetup.IsVisible = idx == 0;
-        _cdRun.IsVisible = idx == 1;
-    }
-
-    private void UpdateTabs()
-    {
-        var active = new SolidColorBrush(ThemeSense.IsDark(this) ? AvColor.FromRgb(255, 255, 255) : AvColor.FromRgb(0, 0, 0));
-        var idle = new SolidColorBrush(ThemeSense.IsDark(this)
-            ? AvColor.FromRgb(255, 255, 255)
-            : AvColor.FromRgb(0, 0, 0), 0.45);
-        _tabTimer.Foreground = !_countdownMode ? active : idle;
-        _tabCountdown.Foreground = _countdownMode ? active : idle;
-    }
-
-    private void OnTimerStart()
-    {
-        Log.Debug("[TIMER] 正计时启动");
-        _elapsed = 0;
-        SetTimerBtn(1);
-        if (_tsPause is not null)
-        {
-            _tsPause.Content = Tr("timer_countdown.pause");
-        }
-        _running = true;
-        _paused = false;
-        _timer.Start();
-    }
-
-    private void OnTimerCancel()
-    {
-        Log.Debug($"[TIMER] 正计时复位: 已计 {_elapsed}s");
-        ResetState();
-        SetTimerBtn(0);
-        SetDisplay(_timerDisplay, 0, 0, 0);
-    }
-
-    private void OnCountdownStart()
-    {
-        var total = _hhCol.Value * 3600 + _mmCol.Value * 60 + _ssCol.Value;
-        if (total <= 0)
-        {
-            Log.Warning("[TIMER] 未设置时长");
-            _cdDisplay.Text = Tr("timer_countdown.set_time_hint");
-            return;
-        }
-        Log.Debug($"[TIMER] 启动 {total}s");
-        _remaining = total;
-        if (_cdPause is not null)
-        {
-            _cdPause.Content = Tr("timer_countdown.pause");
-        }
-        SetCdContent(1);
-        UpdateDisplay();
-        _running = true;
-        _paused = false;
-        _timer.Start();
-    }
-
-    private void OnCountdownCancel()
-    {
-        Log.Debug($"[TIMER] 倒计时取消: 剩余 {_remaining}s");
-        ResetState();
-        SetCdContent(0);
-        SetDisplay(_cdDisplay, 0, 0, 0);
-    }
-
-    private void TogglePause(Button? btn)
-    {
-        if (!_running)
-        {
-            return;
-        }
-        _paused = !_paused;
-        Log.Debug($"[TIMER] {(_paused ? "暂停" : "恢复")}");
-        if (btn is not null)
-        {
-            btn.Content = Tr(_paused ? "timer_countdown.resume" : "timer_countdown.pause");
-        }
-        if (_paused)
-        {
-            _timer.Stop();
-        }
-        else
-        {
-            _timer.Start();
-        }
-    }
-
-    private static string Tr(string key) => AppUtils.Tr(key);
-
-    private void ResetState()
-    {
-        _timer.Stop();
-        _running = false;
-        _paused = false;
-        _elapsed = 0;
-        _remaining = 0;
-    }
-
-    private void Tick()
-    {
-        if (!_running || _paused)
-        {
-            return;
-        }
-        if (_countdownMode)
-        {
-            _remaining--;
-            if (_remaining <= 0)
-            {
-                _remaining = 0;
-                UpdateDisplay();
-                _timer.Stop();
-                _running = false;
-                Log.Info("[TIMER] 结束");
-                SetCdContent(0);
-                SetDisplay(_cdDisplay, 0, 0, 0);
                 return;
             }
+            var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(
+                new Avalonia.Platform.Storage.FolderPickerOpenOptions
+                {
+                    AllowMultiple = false,
+                });
+            if (folders is { Count: > 0 })
+            {
+                var path = folders[0].Path.LocalPath;
+                AddApp(new QuickLaunchItem
+                {
+                    Name = new DirectoryInfo(path).Name,
+                    Path = path,
+                });
+            }
         }
-        else
+        catch (Exception e)
         {
-            _elapsed++;
+            Log.Warning($"[QLG] 选择文件夹失败: {e.Message}");
         }
-        UpdateDisplay();
     }
 
-    private void UpdateDisplay()
+    private void AddApp(QuickLaunchItem item)
     {
-        var secs = _countdownMode ? _remaining : _elapsed;
-        var target = _countdownMode ? _cdDisplay : _timerDisplay;
-        SetDisplay(target, secs / 3600, secs % 3600 / 60, secs % 60);
-    }
-
-    private static void SetDisplay(TextBlock label, int h, int m, int s)
-    {
-        label.Text = $"{h:D2}:{m:D2}:{s:D2}";
+        if (_apps.Count >= MaxApps)
+        {
+            Log.Warning("[QLG] 已达到 8 个上限");
+            return;
+        }
+        if (_apps.Any(a => string.Equals(a.Path, item.Path, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+        _apps.Add(item);
+        Save();
+        RebuildCells();
     }
 
     protected override void ApplyCardStyle()
     {
         base.ApplyCardStyle();
-        var brush = ThemeSense.IsDark(this) ? Brushes.White : Brushes.Black;
-        _timerDisplay.Foreground = brush;
-        _cdDisplay.Foreground = brush;
-        UpdateTabs();
+        if (!_ready)
+        {
+            return;
+        }
+        RebuildCells();
     }
+
+    private static string Tr(string key) => AppUtils.Tr(key);
+    private static string Tr(string key, params (string Name, object? Value)[] args) => AppUtils.Tr(key, args);
 }
 
-/// <summary>计时器时间输入列</summary>
-public sealed class TimeColumnWidget : StackPanel
+/// <summary>倒计时 / 秒表: 分段标签 + 大读数 + 直接输入 + 计次</summary>
+public sealed class TimerCountdownWidget : WidgetCardBase
 {
-    private readonly int _min;
-    private readonly int _max;
-    private int _value;
-    private readonly TextBlock _valueLabel;
+    private static readonly int[] PresetMinutes = { 1, 3, 5, 10, 15, 30, 60 };
+    private const int DefaultDuration = 5 * 60;
+    private const int MaxDuration = 23 * 3600 + 59 * 60 + 59;
 
-    public int Value => _value;
+    private readonly TimerPill _tabCountdown;
+    private readonly TimerPill _tabStopwatch;
+    private readonly Border _modeBar;
+    private readonly Grid _pageHost = new();
 
-    public TimeColumnWidget(string labelKey, int minVal, int maxVal, int defaultValue)
+    // 倒计时
+    private readonly TextBlock _cdTime = new()
     {
-        _min = minVal;
-        _max = maxVal;
-        _value = Math.Clamp(defaultValue, minVal, maxVal);
+        Text = "05:00",
+        FontSize = 58,
+        FontWeight = FontWeight.Light,
+        HorizontalAlignment = HorizontalAlignment.Left,
+        VerticalAlignment = VerticalAlignment.Bottom,
+        Cursor = new Cursor(StandardCursorType.Hand),
+    };
+    private readonly TextBox _cdEdit = new()
+    {
+        FontSize = 58,
+        FontWeight = FontWeight.Light,
+        Background = Brushes.Transparent,
+        BorderThickness = new Thickness(1),
+        CornerRadius = new CornerRadius(8),
+        Padding = new Thickness(8, 0, 8, 0),
+        MinWidth = 120,
+        MaxLength = 8,
+        IsVisible = false,
+        VerticalAlignment = VerticalAlignment.Center,
+        VerticalContentAlignment = VerticalAlignment.Center,
+    };
+    private readonly TextBlock _cdHint = new()
+    {
+        FontSize = 10.5,
+        IsVisible = false,
+        VerticalAlignment = VerticalAlignment.Center,
+        TextWrapping = TextWrapping.Wrap,
+    };
+    private readonly TextBlock _cdEnds = new()
+    {
+        FontSize = 11,
+        IsVisible = false,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+    private readonly Grid _cdMeta = new()
+    {
+        MinHeight = 14,
+        Margin = new Thickness(0, 2, 0, 0),
+    };
+    private readonly CapsuleBar _cdProgress = new()
+    {
+        Height = 6,
+        Segments = 20,
+        HorizontalAlignment = HorizontalAlignment.Stretch,
+        Margin = new Thickness(0, 7, 0, 0),
+        IsVisible = false,
+    };
+    private readonly Grid _presetGrid = new()
+    {
+        VerticalAlignment = VerticalAlignment.Bottom,
+    };
+    private readonly List<TimerPill> _presetPills = new();
+    private readonly TimerPill _customPill;
+    private readonly TimerPill _cdMain;
+    private readonly TimerPill _cdReset;
+    private readonly StackPanel _cdButtons;
+    private readonly Grid _cdReadout;
+    private readonly Grid _cdPage;
+    private readonly Grid _root;
+    private readonly StackPanel _swButtons;
+    private bool _portrait;
+    private int _presetColumns;
 
-        Width = 80;
-        Orientation = Orientation.Vertical;
-        Spacing = 2;
-        Margin = new Thickness(2);
-        HorizontalAlignment = HorizontalAlignment.Center;
+    private int _cdDuration = DefaultDuration;
+    private int _cdRemaining = DefaultDuration;
+    private DateTime _cdEndAt;
+    private bool _cdRunning;
+    private bool _cdPaused;
+    private bool _cdDone;
+    private bool _cdEditing;
+    private int _lastCdSecond = -1;
 
-        Children.Add(new TextBlock
+    // 秒表
+    private readonly TextBlock _swTime = new()
+    {
+        Text = "00:00",
+        FontSize = 54,
+        FontWeight = FontWeight.Light,
+        VerticalAlignment = VerticalAlignment.Bottom,
+    };
+    private readonly TextBlock _swTenths = new()
+    {
+        Text = ".0",
+        FontSize = 22,
+        VerticalAlignment = VerticalAlignment.Bottom,
+        Margin = new Thickness(2, 0, 0, 5),
+    };
+    private readonly StackPanel _swReadout = new()
+    {
+        Orientation = Orientation.Horizontal,
+        HorizontalAlignment = HorizontalAlignment.Left,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+    private readonly StackPanel _lapStack = new() { Spacing = 0 };
+    private readonly TextBlock _lapEmpty = new()
+    {
+        FontSize = 10.5,
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center,
+        TextAlignment = TextAlignment.Center,
+        TextWrapping = TextWrapping.Wrap,
+        IsVisible = false,
+    };
+    private readonly Grid _lapHost = new();
+    private readonly ScrollViewer _lapScroll;
+    private readonly List<TimeSpan> _laps = new();
+    private readonly Stopwatch _stopwatch = new();
+    private readonly TimerPill _swMain;
+    private readonly TimerPill _swSecond;
+    private readonly Grid _swPage;
+
+    private readonly DispatcherTimer _ticker = new() { Interval = TimeSpan.FromMilliseconds(100) };
+    private bool _countdownMode = true;
+    private bool _ready;
+    private TopLevel? _topLevel;
+
+    public TimerCountdownWidget(ComponentDefinition definition) : base(definition)
+    {
+        _tabCountdown = new TimerPill(Tr("timer_countdown.countdown"), TimerPill.PillKind.Tab, 26, 12, 11);
+        _tabStopwatch = new TimerPill(Tr("timer_countdown.stopwatch"), TimerPill.PillKind.Tab, 26, 12, 11);
+        _tabCountdown.DarkProvider = () => CardIsDark;
+        _tabStopwatch.DarkProvider = () => CardIsDark;
+        _tabCountdown.Clicked += () => SwitchMode(true);
+        _tabStopwatch.Clicked += () => SwitchMode(false);
+
+        var tabs = new StackPanel
         {
-            Text = AppUtils.Tr(labelKey),
-            FontSize = 12,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            TextAlignment = TextAlignment.Center,
-        });
-
-        Children.Add(MakeChevron(true));
-        _valueLabel = new TextBlock
-        {
-            Text = $"{_value:D2}",
-            FontSize = 28,
-            FontWeight = FontWeight.Bold,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            TextAlignment = TextAlignment.Center,
-            Height = 44,
+            Orientation = Orientation.Horizontal,
+            Spacing = 2,
         };
-        Children.Add(_valueLabel);
-        Children.Add(MakeChevron(false));
+        tabs.Children.Add(_tabCountdown);
+        tabs.Children.Add(_tabStopwatch);
+        _modeBar = new Border
+        {
+            Padding = new Thickness(2),
+            CornerRadius = new CornerRadius(13),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Child = tabs,
+        };
+
+        // ── 倒计时页 ──
+        _cdTime.PointerPressed += (_, e) => e.Handled = true;
+        _cdTime.PointerReleased += (_, e) =>
+        {
+            e.Handled = true;
+            BeginCountdownEdit();
+        };
+        _cdEdit.AddHandler(PointerPressedEvent, (_, e) => e.Handled = true,
+            RoutingStrategies.Bubble);
+        _cdEdit.KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+                CommitCountdownEdit(true);
+            }
+            else if (e.Key == Key.Escape)
+            {
+                e.Handled = true;
+                CommitCountdownEdit(false);
+            }
+        };
+        _cdEdit.LostFocus += (_, _) =>
+        {
+            if (_cdEditing)
+            {
+                CommitCountdownEdit(true, leaving: true);
+            }
+        };
+        _cdReadout = new Grid
+        {
+            MinHeight = 64,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 4, 0, 0),
+        };
+        _cdReadout.Children.Add(_cdTime);
+        _cdReadout.Children.Add(_cdEdit);
+        _cdMeta.Children.Add(_cdEnds);
+        _cdMeta.Children.Add(_cdHint);
+
+        foreach (var minutes in PresetMinutes)
+        {
+            var pill = new TimerPill(PresetLabel(minutes), TimerPill.PillKind.Secondary, 25, 11, 6)
+            {
+                DarkProvider = () => CardIsDark,
+            };
+            var value = minutes * 60;
+            pill.Clicked += () =>
+            {
+                if (!_cdRunning && !_cdPaused && !_cdDone)
+                {
+                    SetCountdownDuration(value);
+                }
+            };
+            _presetPills.Add(pill);
+            _presetGrid.Children.Add(pill);
+        }
+
+        _customPill = new TimerPill(Tr("timer_countdown.custom"), TimerPill.PillKind.Secondary, 25, 11, 6)
+        {
+            DarkProvider = () => CardIsDark,
+        };
+        _customPill.Clicked += () =>
+        {
+            if (!_cdRunning && !_cdPaused && !_cdDone)
+            {
+                BeginCountdownEdit();
+            }
+        };
+        _presetGrid.Children.Add(_customPill);
+        ConfigurePresetGrid(false);
+
+        _cdMain = new TimerPill(Tr("timer_countdown.start"), TimerPill.PillKind.Primary, 34, 13, 16)
+        {
+            DarkProvider = () => CardIsDark,
+        };
+        _cdMain.Clicked += OnCountdownMain;
+        _cdReset = new TimerPill(Tr("timer_countdown.reset"), TimerPill.PillKind.Secondary, 34, 12, 12)
+        {
+            DarkProvider = () => CardIsDark,
+            IsVisible = false,
+        };
+        _cdReset.Clicked += OnCountdownReset;
+        _cdButtons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            Margin = new Thickness(0, 3, 0, 0),
+        };
+        _cdButtons.Children.Add(_cdMain);
+        _cdButtons.Children.Add(_cdReset);
+
+        _cdPage = new Grid
+        {
+            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("*,Auto,Auto,Auto,Auto"),
+            RowSpacing = 2,
+            ColumnSpacing = 12,
+        };
+        _cdPage.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
+        _cdPage.ColumnDefinitions.Add(new ColumnDefinition(0, GridUnitType.Auto));
+        Grid.SetRow(_cdReadout, 0);
+        Grid.SetRow(_cdProgress, 1);
+        Grid.SetRow(_cdMeta, 2);
+        Grid.SetRow(_cdButtons, 3);
+        Grid.SetRow(_presetGrid, 0);
+        Grid.SetColumn(_presetGrid, 1);
+        Grid.SetRowSpan(_presetGrid, 4);
+        _cdPage.Children.Add(_cdReadout);
+        _cdPage.Children.Add(_cdProgress);
+        _cdPage.Children.Add(_cdMeta);
+        _cdPage.Children.Add(_presetGrid);
+        _cdPage.Children.Add(_cdButtons);
+
+        // ── 秒表页 ──
+        _swReadout.Children.Add(_swTime);
+        _swReadout.Children.Add(_swTenths);
+        _lapScroll = new ScrollViewer
+        {
+            Content = _lapStack,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
+            Margin = new Thickness(0, 3, 0, 0),
+        };
+        _lapHost.Children.Add(_lapScroll);
+        _lapHost.Children.Add(_lapEmpty);
+        _swMain = new TimerPill(Tr("timer_countdown.start"), TimerPill.PillKind.Primary, 34, 13, 16)
+        {
+            DarkProvider = () => CardIsDark,
+        };
+        _swMain.Clicked += OnStopwatchMain;
+        _swSecond = new TimerPill(Tr("timer_countdown.lap"), TimerPill.PillKind.Secondary, 34, 12, 12)
+        {
+            DarkProvider = () => CardIsDark,
+            IsVisible = false,
+        };
+        _swSecond.Clicked += OnStopwatchSecond;
+        _swButtons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            Margin = new Thickness(0, 3, 0, 0),
+        };
+        _swButtons.Children.Add(_swMain);
+        _swButtons.Children.Add(_swSecond);
+        _swPage = new Grid
+        {
+            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("*,Auto,0"),
+            RowSpacing = 2,
+            ColumnSpacing = 12,
+        };
+        _swPage.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
+        _swPage.ColumnDefinitions.Add(new ColumnDefinition(0, GridUnitType.Auto));
+        Grid.SetRow(_swReadout, 0);
+        Grid.SetColumn(_swReadout, 0);
+        Grid.SetRow(_swButtons, 1);
+        Grid.SetColumn(_swButtons, 0);
+        Grid.SetRow(_lapHost, 0);
+        Grid.SetColumn(_lapHost, 1);
+        Grid.SetRowSpan(_lapHost, 2);
+        _swPage.Children.Add(_swReadout);
+        _swPage.Children.Add(_lapHost);
+        _swPage.Children.Add(_swButtons);
+
+        _pageHost.Children.Add(_cdPage);
+        _pageHost.Children.Add(_swPage);
+
+        _root = new Grid
+        {
+            Margin = new Thickness(18, 14, 18, 14),
+            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,*"),
+            RowSpacing = 6,
+        };
+        Grid.SetRow(_modeBar, 0);
+        Grid.SetRow(_pageHost, 1);
+        _root.Children.Add(_modeBar);
+        _root.Children.Add(_pageHost);
+        Card.Child = _root;
+        Content = Card;
+
+        _ticker.Tick += (_, _) => Tick();
+        SizeChanged += (_, _) => Relayout();
+        Config.ThemeColor.ValueChanged += _ =>
+        {
+            if (_ready)
+            {
+                ApplyCardStyle();
+            }
+        };
+
+        _ready = true;
+        ApplyCardStyle();
+        UpdateCountdownChrome();
+        UpdateStopwatchDisplay();
+        UpdateStopwatchChrome();
+        RebuildLaps();
+        SwitchMode(true);
     }
 
-    private Button MakeChevron(bool up)
+    protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
-        var glyph = new Avalonia.Controls.Shapes.Path
+        base.OnAttachedToVisualTree(e);
+        EnsureTicker();
+        _topLevel = TopLevel.GetTopLevel(this);
+        _topLevel?.AddHandler(PointerPressedEvent, OnTopLevelPointerPressed,
+            RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        _ticker.Stop();
+        if (_topLevel is not null)
         {
-            Data = Avalonia.Media.Geometry.Parse(up ? "M 4,10 L 10,4 L 16,10" : "M 4,4 L 10,10 L 16,4"),
-            Stroke = new SolidColorBrush(ThemeSense.IsDark(this) ? Colors.White : Colors.Black),
-            StrokeThickness = 1.6,
-            StrokeLineCap = PenLineCap.Round,
-            StrokeJoin = PenLineJoin.Round,
+            _topLevel.RemoveHandler(PointerPressedEvent, OnTopLevelPointerPressed);
+            _topLevel = null;
+        }
+    }
+
+    private void OnTopLevelPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!_cdEditing)
+        {
+            return;
+        }
+        if (IsWithin(_cdEdit, e.Source) || IsWithin(_cdMain, e.Source) || IsWithin(_cdReset, e.Source))
+        {
+            return;
+        }
+        CommitCountdownEdit(true);
+    }
+
+    private static bool IsWithin(Visual ancestor, object? source)
+    {
+        var v = source as Visual;
+        while (v is not null)
+        {
+            if (ReferenceEquals(v, ancestor))
+            {
+                return true;
+            }
+            v = v.GetVisualParent();
+        }
+        return false;
+    }
+
+    private static string PresetLabel(int minutes) => minutes >= 60
+        ? Tr("timer_countdown.preset_hour")
+        : Tr("timer_countdown.preset_min", ("n", minutes));
+
+    private void SwitchMode(bool countdown)
+    {
+        if (_cdEditing)
+        {
+            CommitCountdownEdit(false);
+        }
+        _countdownMode = countdown;
+        _cdPage.IsVisible = countdown;
+        _swPage.IsVisible = !countdown;
+        UpdateTabs();
+        Relayout();
+    }
+
+    private void UpdateTabs()
+    {
+        _tabCountdown.Active = _countdownMode;
+        _tabStopwatch.Active = !_countdownMode;
+        _tabCountdown.ApplyTheme();
+        _tabStopwatch.ApplyTheme();
+    }
+
+    private void OnCountdownMain()
+    {
+        if (_cdEditing)
+        {
+            CommitCountdownEdit(true);
+            return;
+        }
+        if (_cdDone)
+        {
+            ResetCountdown();
+            return;
+        }
+        if (_cdRunning)
+        {
+            PauseCountdown();
+            return;
+        }
+        if (_cdPaused)
+        {
+            _cdRunning = true;
+            _cdPaused = false;
+            _cdEndAt = DateTime.Now.AddSeconds(_cdRemaining);
+        }
+        else
+        {
+            _cdRemaining = _cdDuration;
+            _cdDone = false;
+            _cdRunning = true;
+            _cdPaused = false;
+            _cdEndAt = DateTime.Now.AddSeconds(_cdRemaining);
+        }
+        _lastCdSecond = -1;
+        _cdProgress.Value = _cdRemaining / (double)Math.Max(1, _cdDuration);
+        EnsureTicker();
+        UpdateCountdownDisplay();
+        UpdateCountdownChrome();
+    }
+
+    private void PauseCountdown()
+    {
+        _cdRemaining = CountdownLeft();
+        _cdRunning = false;
+        _cdPaused = true;
+        _cdProgress.Value = _cdRemaining / (double)Math.Max(1, _cdDuration);
+        if (!_stopwatch.IsRunning)
+        {
+            _ticker.Stop();
+        }
+        UpdateCountdownChrome();
+    }
+
+    private void OnCountdownReset()
+    {
+        if (_cdEditing)
+        {
+            CommitCountdownEdit(false);
+            return;
+        }
+        ResetCountdown();
+    }
+
+    private void ResetCountdown()
+    {
+        _cdRunning = false;
+        _cdPaused = false;
+        _cdDone = false;
+        _cdRemaining = _cdDuration;
+        _lastCdSecond = -1;
+        _cdEditing = false;
+        _cdEdit.IsVisible = false;
+        _cdTime.IsVisible = true;
+        _cdHint.IsVisible = false;
+        _cdProgress.Value = _cdRemaining / (double)Math.Max(1, _cdDuration);
+        if (!_stopwatch.IsRunning)
+        {
+            _ticker.Stop();
+        }
+        UpdateCountdownDisplay();
+        UpdateCountdownChrome();
+    }
+
+    private void SetCountdownDuration(int seconds)
+    {
+        _cdDuration = Math.Clamp(seconds, 1, MaxDuration);
+        _cdRemaining = _cdDuration;
+        _cdDone = false;
+        _cdRunning = false;
+        _cdPaused = false;
+        _lastCdSecond = -1;
+        _cdProgress.Value = 1;
+        UpdateCountdownDisplay();
+        UpdateCountdownChrome();
+    }
+
+    private int CountdownLeft() => _cdRunning
+        ? Math.Max(0, (int)Math.Ceiling((_cdEndAt - DateTime.Now).TotalSeconds))
+        : _cdRemaining;
+
+    private void Tick()
+    {
+        if (_cdRunning)
+        {
+            var left = CountdownLeft();
+            if (left <= 0)
+            {
+                CompleteCountdown();
+            }
+            else
+            {
+                _cdRemaining = left;
+                if (left != _lastCdSecond)
+                {
+                    _lastCdSecond = left;
+                    UpdateCountdownDisplay();
+                }
+                _cdProgress.Value = left / (double)Math.Max(1, _cdDuration);
+            }
+        }
+        if (_stopwatch.IsRunning)
+        {
+            UpdateStopwatchDisplay();
+        }
+        if (!_cdRunning && !_stopwatch.IsRunning)
+        {
+            _ticker.Stop();
+        }
+    }
+
+    private void CompleteCountdown()
+    {
+        _cdRunning = false;
+        _cdPaused = false;
+        _cdDone = true;
+        _cdRemaining = 0;
+        _cdProgress.Value = 0;
+        _lastCdSecond = 0;
+        Log.Info("[TIMER] 倒计时结束");
+        if (!_stopwatch.IsRunning)
+        {
+            _ticker.Stop();
+        }
+        UpdateCountdownDisplay();
+        UpdateCountdownChrome();
+    }
+
+    private void UpdateCountdownDisplay()
+    {
+        if (_cdEditing)
+        {
+            return;
+        }
+        _cdTime.Text = _cdDone ? Tr("timer_countdown.time_up") : FormatClock(_cdRemaining);
+        Relayout();
+    }
+
+    private void UpdateCountdownChrome()
+    {
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        var active = _cdRunning || _cdPaused;
+        _cdMain.Text = _cdEditing
+            ? Tr("timer_countdown.confirm")
+            : _cdDone
+                ? Tr("timer_countdown.ok")
+                : _cdRunning
+                    ? Tr("timer_countdown.pause")
+                    : _cdPaused
+                        ? Tr("timer_countdown.resume")
+                        : Tr("timer_countdown.start");
+        _cdReset.Text = _cdEditing ? Tr("timer_countdown.cancel") : Tr("timer_countdown.reset");
+        _cdReset.IsVisible = active || _cdEditing;
+        _cdProgress.IsVisible = active;
+        _cdEnds.IsVisible = !_cdDone;
+        _presetGrid.Opacity = active || _cdEditing ? 0.5 : 1;
+        _cdTime.Foreground = _cdDone ? CardAccent.Brush() : CardInk.Fg(p);
+        _cdTime.Cursor = new Cursor(active || _cdDone ? StandardCursorType.Arrow : StandardCursorType.Hand);
+        if (_cdEditing)
+        {
+            _cdEnds.Text = Tr("timer_countdown.edit_confirm_hint");
+        }
+        else if (_cdRunning)
+        {
+            _cdEnds.Text = $"{_cdEndAt:HH:mm} {Tr("timer_countdown.ends_at")}";
+        }
+        else if (_cdPaused)
+        {
+            _cdEnds.Text = Tr("timer_countdown.paused");
+        }
+        else
+        {
+            _cdEnds.Text = Tr("timer_countdown.edit_time");
+        }
+        foreach (var pill in _presetPills)
+        {
+            var minutes = PresetMinutes[_presetPills.IndexOf(pill)];
+            pill.Active = minutes * 60 == _cdDuration;
+            pill.ApplyTheme();
+        }
+        _customPill.ApplyTheme();
+        if (!_cdEditing)
+        {
+            _cdTime.Text = _cdDone ? Tr("timer_countdown.time_up") : FormatClock(_cdRemaining);
+        }
+        Relayout();
+    }
+
+    private void BeginCountdownEdit()
+    {
+        if (_cdRunning || _cdPaused || _cdDone || _cdEditing)
+        {
+            return;
+        }
+        _cdEditing = true;
+        _cdHint.IsVisible = false;
+        _cdEdit.Text = FormatClock(_cdDuration);
+        _cdEdit.IsVisible = true;
+        _cdTime.IsVisible = false;
+        UpdateCountdownChrome();
+        _cdEdit.Focus();
+        _cdEdit.SelectAll();
+    }
+
+    private void CommitCountdownEdit(bool apply, bool leaving = false)
+    {
+        if (!_cdEditing)
+        {
+            return;
+        }
+        if (!apply)
+        {
+            EndCountdownEdit();
+            return;
+        }
+        var value = ParseDuration(_cdEdit.Text, out var tooLong);
+        if (value is null)
+        {
+            if (leaving)
+            {
+                EndCountdownEdit();
+                return;
+            }
+            _cdHint.Text = tooLong
+                ? Tr("timer_countdown.max_hint")
+                : Tr("timer_countdown.edit_hint");
+            _cdHint.IsVisible = true;
+            _cdEdit.Focus();
+            _cdEdit.SelectAll();
+            return;
+        }
+        EndCountdownEdit();
+        SetCountdownDuration(value.Value);
+    }
+
+    private void EndCountdownEdit()
+    {
+        _cdEditing = false;
+        _cdEdit.IsVisible = false;
+        _cdTime.IsVisible = true;
+        _cdHint.IsVisible = false;
+        UpdateCountdownChrome();
+    }
+
+    private static int? ParseDuration(string? text, out bool tooLong)
+    {
+        tooLong = false;
+        var value = (text ?? "").Trim().Replace('：', ':').Replace('.', ':');
+        if (value.Length == 0)
+        {
+            return null;
+        }
+        var parts = value.Split(':', StringSplitOptions.TrimEntries);
+        if (parts.Length is < 1 or > 3 || parts.Any(p => p.Length == 0 || !p.All(char.IsDigit)))
+        {
+            return null;
+        }
+        var nums = new long[parts.Length];
+        for (var i = 0; i < parts.Length; i++)
+        {
+            if (!long.TryParse(parts[i], out nums[i]))
+            {
+                return null;
+            }
+        }
+        if (parts.Length > 1 && nums.Skip(1).Any(n => n >= 60))
+        {
+            return null;
+        }
+        var seconds = parts.Length switch
+        {
+            1 => nums[0] * 60,
+            2 => nums[0] * 60 + nums[1],
+            _ => nums[0] * 3600 + nums[1] * 60 + nums[2],
+        };
+        if (seconds <= 0)
+        {
+            return null;
+        }
+        if (seconds > MaxDuration)
+        {
+            tooLong = true;
+            return null;
+        }
+        return (int)seconds;
+    }
+
+    private void OnStopwatchMain()
+    {
+        if (_stopwatch.IsRunning)
+        {
+            _stopwatch.Stop();
+        }
+        else
+        {
+            _stopwatch.Start();
+        }
+        EnsureTicker();
+        UpdateStopwatchDisplay();
+        UpdateStopwatchChrome();
+    }
+
+    private void OnStopwatchSecond()
+    {
+        if (_stopwatch.IsRunning)
+        {
+            _laps.Add(_stopwatch.Elapsed);
+            RebuildLaps();
+        }
+        else
+        {
+            ResetStopwatch();
+        }
+    }
+
+    private void ResetStopwatch()
+    {
+        _stopwatch.Reset();
+        _laps.Clear();
+        if (!_cdRunning)
+        {
+            _ticker.Stop();
+        }
+        UpdateStopwatchDisplay();
+        UpdateStopwatchChrome();
+        RebuildLaps();
+    }
+
+    private void UpdateStopwatchDisplay()
+    {
+        var elapsed = _stopwatch.Elapsed;
+        var (main, tenths) = FormatStopwatch(elapsed);
+        _swTime.Text = main;
+        _swTenths.Text = tenths;
+        Relayout();
+    }
+
+    private void UpdateStopwatchChrome()
+    {
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        _swMain.Text = _stopwatch.IsRunning
+            ? Tr("timer_countdown.pause")
+            : _stopwatch.Elapsed > TimeSpan.Zero
+                ? Tr("timer_countdown.resume")
+                : Tr("timer_countdown.start");
+        _swSecond.Text = _stopwatch.IsRunning
+            ? Tr("timer_countdown.lap")
+            : Tr("timer_countdown.reset");
+        _swSecond.IsVisible = _stopwatch.IsRunning || _stopwatch.Elapsed > TimeSpan.Zero;
+        _swTime.Foreground = CardInk.Fg(p);
+        _swTenths.Foreground = CardInk.Muted(p);
+        _lapEmpty.Foreground = CardInk.Faint(p);
+        // 按钮显隐会改变主按钮的剩余宽度，必须立即重排，避免先拉满再缩回
+        Relayout();
+    }
+
+    private void RebuildLaps()
+    {
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        _lapStack.Children.Clear();
+        _lapEmpty.IsVisible = _laps.Count == 0;
+        if (_laps.Count == 0)
+        {
+            return;
+        }
+
+        for (var i = _laps.Count - 1; i >= 0; i--)
+        {
+            _lapStack.Children.Add(MakeLapRow(
+                Tr("timer_countdown.lap_n", ("n", i + 1)),
+                FormatStopwatch(_laps[i]),
+                current: i == _laps.Count - 1,
+                color: i == _laps.Count - 1 ? CardAccent.Brush() : null, p, out _));
+        }
+    }
+
+    private Border MakeLapRow(string label, (string Main, string Tenths) time, bool current,
+        IBrush? color, WidgetSurfacePalette p, out TextBlock? timeLabel)
+    {
+        var labelBlock = new TextBlock
+        {
+            Text = label,
+            FontSize = 11,
+            FontWeight = current ? FontWeight.Medium : FontWeight.Normal,
+            Foreground = current ? CardInk.Fg(p) : CardInk.Muted(p),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        timeLabel = new TextBlock
+        {
+            Text = time.Main + time.Tenths,
+            FontSize = 11,
+            FontWeight = current ? FontWeight.Medium : FontWeight.Normal,
+            Foreground = color ?? (current ? CardInk.Fg(p) : CardInk.Muted(p)),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var row = new Grid
+        {
+            ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("*,Auto"),
+        };
+        Grid.SetColumn(timeLabel, 1);
+        row.Children.Add(labelBlock);
+        row.Children.Add(timeLabel);
+        return new Border
+        {
+            Padding = new Thickness(0, 3),
+            BorderBrush = new SolidColorBrush(p.Line, 0.32),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Child = row,
+        };
+    }
+
+    private void EnsureTicker()
+    {
+        if (_cdRunning || _stopwatch.IsRunning)
+        {
+            if (!_ticker.IsEnabled)
+            {
+                _ticker.Start();
+            }
+        }
+    }
+
+    private static string FormatClock(int seconds)
+    {
+        var h = seconds / 3600;
+        var m = seconds % 3600 / 60;
+        var s = seconds % 60;
+        return h > 0 ? $"{h}:{m:D2}:{s:D2}" : $"{m:D2}:{s:D2}";
+    }
+
+    private static (string Main, string Tenths) FormatStopwatch(TimeSpan elapsed)
+    {
+        var totalSeconds = (long)Math.Floor(elapsed.TotalSeconds);
+        var h = totalSeconds / 3600;
+        var m = totalSeconds % 3600 / 60;
+        var s = totalSeconds % 60;
+        var main = h > 0 ? $"{h}:{m:D2}:{s:D2}" : $"{m:D2}:{s:D2}";
+        return (main, $".{elapsed.Milliseconds / 100}");
+    }
+
+    private void Relayout()
+    {
+        if (!_ready || Bounds.Width <= 1)
+        {
+            return;
+        }
+        var portrait = Bounds.Height >= Bounds.Width * 1.15;
+        var padX = portrait ? 14 : 16;
+        var width = Math.Max(80, Bounds.Width - padX * 2);
+        var rightWidth = portrait ? 0 : Math.Clamp(width * 0.37, 132, 156);
+        var leftWidth = Math.Max(96, width - (portrait ? 0 : rightWidth + 12));
+        var lapWidth = portrait ? 0 : Math.Clamp(width * 0.45, 148, 190);
+        var swLeftWidth = Math.Max(96, width - (portrait ? 0 : lapWidth + 12));
+        if (_portrait != portrait)
+        {
+            _portrait = portrait;
+            _root.Margin = new Thickness(padX, 14, padX, 14);
+            _cdPage.RowSpacing = portrait ? 4 : 2;
+            _swPage.RowSpacing = portrait ? 4 : 2;
+            ConfigurePresetGrid(portrait);
+            PlaceCountdownPage(portrait);
+            PlaceStopwatchPage(portrait);
+        }
+        _cdPage.ColumnDefinitions[1].Width = new GridLength(portrait ? 0 : rightWidth);
+        _cdPage.ColumnSpacing = portrait ? 0 : 12;
+        _cdPage.RowDefinitions[4].Height = portrait ? GridLength.Auto : new GridLength(0);
+        _swPage.ColumnDefinitions[1].Width = new GridLength(lapWidth);
+        _swPage.ColumnSpacing = portrait ? 0 : 12;
+        _swPage.RowDefinitions[0].Height = portrait ? GridLength.Auto : new GridLength(1, GridUnitType.Star);
+        _swPage.RowDefinitions[1].Height = portrait ? new GridLength(1, GridUnitType.Star) : GridLength.Auto;
+        _swPage.RowDefinitions[2].Height = portrait ? GridLength.Auto : new GridLength(0);
+
+        var cdPrefer = _cdDone
+            ? 42
+            : Math.Clamp(leftWidth * (portrait ? 0.36 : 0.3), 42, 58);
+        _cdTime.FontSize = CardText.Fit(_cdTime.Text, _cdTime.FontFamily, FontWeight.Light,
+            leftWidth, cdPrefer, 26, 70);
+        _cdEdit.FontSize = _cdTime.FontSize;
+        _cdEdit.Width = leftWidth;
+        var swPrefer = portrait ? Math.Clamp(width * 0.32, 38, 54) : 58;
+        _swTime.FontSize = CardText.Fit(_swTime.Text, _swTime.FontFamily, FontWeight.Light,
+            swLeftWidth - 30, swPrefer, 26, 62);
+        _swTenths.FontSize = Math.Max(14, _swTime.FontSize * 0.42);
+
+        SetPillHeight(_tabCountdown, portrait ? 30 : 26);
+        SetPillHeight(_tabStopwatch, portrait ? 30 : 26);
+        SetPillHeight(_cdMain, portrait ? 40 : 34);
+        SetPillHeight(_cdReset, portrait ? 40 : 34);
+        SetPillHeight(_swMain, portrait ? 40 : 34);
+        SetPillHeight(_swSecond, portrait ? 40 : 34);
+        foreach (var pill in _presetPills)
+        {
+            SetPillHeight(pill, portrait ? 34 : 30);
+        }
+        SetPillHeight(_customPill, portrait ? 34 : 30);
+
+        _modeBar.HorizontalAlignment = portrait ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
+        var tabWidth = (width - 6) / 2;
+        _tabCountdown.Width = portrait ? tabWidth : double.NaN;
+        _tabStopwatch.Width = portrait ? tabWidth : double.NaN;
+        FitButtonWidths(_cdMain, _cdReset, leftWidth);
+        FitButtonWidths(_swMain, _swSecond, swLeftWidth);
+        _presetGrid.IsVisible = true;
+    }
+
+    private void PlaceStopwatchPage(bool portrait)
+    {
+        Grid.SetColumn(_swReadout, 0);
+        Grid.SetRow(_swReadout, 0);
+        Grid.SetColumn(_swButtons, 0);
+        Grid.SetRow(_swButtons, portrait ? 2 : 1);
+        Grid.SetColumn(_lapHost, 0);
+        Grid.SetRow(_lapHost, 1);
+        foreach (var control in new Control[] { _swReadout, _swButtons, _lapHost })
+        {
+            Grid.SetColumnSpan(control, portrait ? 2 : 1);
+            Grid.SetRowSpan(control, 1);
+        }
+        if (portrait)
+        {
+            return;
+        }
+        Grid.SetColumn(_lapHost, 1);
+        Grid.SetRow(_lapHost, 0);
+        Grid.SetRowSpan(_lapHost, 2);
+    }
+
+    private void PlaceCountdownPage(bool portrait)
+    {
+        Grid.SetColumn(_cdReadout, 0);
+        Grid.SetRow(_cdReadout, 0);
+        Grid.SetColumn(_cdProgress, 0);
+        Grid.SetRow(_cdProgress, 1);
+        Grid.SetColumn(_cdMeta, 0);
+        Grid.SetRow(_cdMeta, 2);
+        Grid.SetColumn(_cdButtons, 0);
+        Grid.SetRow(_cdButtons, portrait ? 4 : 3);
+        Grid.SetColumn(_presetGrid, portrait ? 0 : 1);
+        Grid.SetRow(_presetGrid, portrait ? 3 : 0);
+        foreach (var control in new Control[] { _cdReadout, _cdProgress, _cdMeta, _cdButtons })
+        {
+            Grid.SetColumnSpan(control, portrait ? 2 : 1);
+            Grid.SetRowSpan(control, 1);
+        }
+        Grid.SetColumnSpan(_presetGrid, portrait ? 2 : 1);
+        Grid.SetRowSpan(_presetGrid, portrait ? 1 : 4);
+    }
+
+    private static void SetPillHeight(TimerPill pill, double height)
+    {
+        if (Math.Abs(pill.Height - height) < 0.1)
+        {
+            return;
+        }
+        pill.Height = height;
+        pill.CornerRadius = new CornerRadius(height / 2);
+    }
+
+    private static void FitButtonWidths(TimerPill main, TimerPill second, double width)
+    {
+        if (!second.IsVisible)
+        {
+            main.Width = width;
+            second.Width = double.NaN;
+            return;
+        }
+        main.Width = (width - 6) / 2;
+        second.Width = width - main.Width - 6;
+    }
+
+    private void ConfigurePresetGrid(bool portrait)
+    {
+        const int columns = 2;
+        const int rows = 4;
+        if (_presetColumns == columns && _presetGrid.RowDefinitions.Count == rows)
+        {
+            _presetGrid.ColumnSpacing = portrait ? 6 : 4;
+            _presetGrid.RowSpacing = portrait ? 6 : 4;
+            return;
+        }
+        _presetColumns = columns;
+        _presetGrid.ColumnDefinitions.Clear();
+        _presetGrid.RowDefinitions.Clear();
+        for (var i = 0; i < columns; i++)
+        {
+            _presetGrid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
+        }
+        for (var i = 0; i < rows; i++)
+        {
+            _presetGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        }
+        _presetGrid.ColumnSpacing = portrait ? 6 : 4;
+        _presetGrid.RowSpacing = portrait ? 6 : 4;
+        _presetGrid.VerticalAlignment = VerticalAlignment.Center;
+        _customPill.IsVisible = true;
+        var index = 0;
+        foreach (var pill in _presetPills)
+        {
+            pill.Margin = default;
+            Grid.SetColumn(pill, index % columns);
+            Grid.SetRow(pill, index / columns);
+            index++;
+        }
+        _customPill.Margin = default;
+        Grid.SetColumn(_customPill, index % columns);
+        Grid.SetRow(_customPill, index / columns);
+    }
+
+    protected override void ApplyCardStyle()
+    {
+        base.ApplyCardStyle();
+        if (!_ready)
+        {
+            return;
+        }
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        _modeBar.Background = new SolidColorBrush(p.Text, 0.045);
+        _cdTime.Foreground = _cdDone ? CardAccent.Brush() : CardInk.Fg(p);
+        _cdEdit.Foreground = CardInk.Fg(p);
+        _cdEdit.Background = new SolidColorBrush(p.Text, 0.06);
+        _cdEdit.BorderBrush = new SolidColorBrush(p.Text, 0.14);
+        _cdEdit.SelectionBrush = CardAccent.Brush(0.28);
+        _cdEdit.SelectionForegroundBrush = CardInk.Fg(p);
+        _cdEdit.CaretBrush = CardAccent.Brush();
+        _cdHint.Foreground = CardInk.Danger();
+        _cdEnds.Foreground = CardInk.Muted(p);
+        _lapEmpty.Foreground = CardInk.Faint(p);
+        _cdProgress.DarkProvider = () => CardIsDark;
+        _cdProgress.InvalidateVisual();
+        foreach (var pill in _presetPills)
+        {
+            pill.ApplyTheme();
+        }
+        _customPill.ApplyTheme();
+        _tabCountdown.ApplyTheme();
+        _tabStopwatch.ApplyTheme();
+        _cdMain.ApplyTheme();
+        _cdReset.ApplyTheme();
+        _swMain.ApplyTheme();
+        _swSecond.ApplyTheme();
+        _swTime.Foreground = CardInk.Fg(p);
+        _swTenths.Foreground = CardInk.Muted(p);
+        UpdateTabs();
+        RebuildLaps();
+        Relayout();
+    }
+
+    private static string Tr(string key) => AppUtils.Tr(key);
+    private static string Tr(string key, params (string Name, object? Value)[] args) => AppUtils.Tr(key, args);
+}
+
+/// <summary>计时器按钮/分段标签 统一圆角胶囊</summary>
+internal sealed class TimerPill : Border
+{
+    public enum PillKind
+    {
+        Primary,
+        Secondary,
+        Tab,
+    }
+
+    private readonly TextBlock _label;
+    private readonly PillKind _kind;
+    private bool _hover;
+
+    public Func<bool>? DarkProvider { get; set; }
+    public bool Active { get; set; }
+    public event Action? Clicked;
+
+    public string Text
+    {
+        get => _label.Text ?? "";
+        set => _label.Text = value;
+    }
+
+    public TimerPill(string text, PillKind kind = PillKind.Secondary, double height = 32,
+        double fontSize = 13, double paddingX = 12)
+    {
+        _kind = kind;
+        Height = height;
+        CornerRadius = new CornerRadius(height / 2);
+        Padding = new Thickness(paddingX, 0);
+        Cursor = new Cursor(StandardCursorType.Hand);
+        _label = new TextBlock
+        {
+            Text = text,
+            FontSize = fontSize,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        var btn = new Button
+        Child = _label;
+        AddHandler(PointerPressedEvent, (_, e) => e.Handled = true, RoutingStrategies.Bubble);
+        PointerEntered += (_, _) =>
         {
-            Content = glyph,
-            Width = 40,
-            Height = 28,
-            HorizontalContentAlignment = HorizontalAlignment.Center,
-            VerticalContentAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center,
+            _hover = true;
+            ApplyTheme();
         };
-        btn.Click += (_, _) => SetValue(_value + (up ? 1 : -1));
-        return btn;
+        PointerExited += (_, _) =>
+        {
+            _hover = false;
+            ApplyTheme();
+        };
+        PointerCaptureLost += (_, _) =>
+        {
+            _hover = false;
+            Opacity = 1;
+            ApplyTheme();
+        };
+        PointerReleased += (_, e) =>
+        {
+            e.Handled = true;
+            Opacity = 1;
+            Clicked?.Invoke();
+        };
+        ApplyTheme();
     }
 
-    public void SetValue(int val)
+    public void ApplyTheme()
     {
-        var old = _value;
-        _value = Math.Clamp(val, _min, _max);
-        if (_value != old)
+        var dark = DarkProvider?.Invoke() ?? ThemeSense.IsDark(this);
+        var p = WidgetSurfacePalette.Resolve(dark);
+        switch (_kind)
         {
-            _valueLabel.Text = $"{_value:D2}";
+            case PillKind.Primary:
+                Background = CardAccent.Brush();
+                _label.Foreground = CardAccent.Ink();
+                _label.FontWeight = FontWeight.SemiBold;
+                Opacity = _hover ? 0.86 : 1;
+                break;
+            case PillKind.Tab:
+                Background = Active
+                    ? new SolidColorBrush(p.Text, 0.09)
+                    : _hover
+                        ? new SolidColorBrush(p.Text, 0.055)
+                        : Brushes.Transparent;
+                _label.Foreground = Active || _hover ? CardInk.Fg(p) : CardInk.Muted(p);
+                _label.FontWeight = Active ? FontWeight.SemiBold : FontWeight.Normal;
+                break;
+            default:
+                Background = Active
+                    ? new SolidColorBrush(p.Text, 0.12)
+                    : _hover
+                        ? new SolidColorBrush(p.Text, 0.085)
+                        : new SolidColorBrush(p.Text, 0.055);
+                _label.Foreground = Active || _hover ? CardInk.Fg(p) : CardInk.Muted(p);
+                _label.FontWeight = Active ? FontWeight.Medium : FontWeight.Normal;
+                break;
         }
+    }
+}
+
+/// <summary>胶囊进度条 段数大于 1 时改为刻度点 全库统一形态</summary>
+internal sealed class CapsuleBar : Control
+{
+    public static readonly StyledProperty<double> ValueProperty =
+        AvaloniaProperty.Register<CapsuleBar, double>(nameof(Value));
+
+    public Func<bool>? DarkProvider { get; set; }
+
+    // 0 或 1 为整条 大于 1 按段绘制
+    public int Segments { get; set; }
+
+    public double Value
+    {
+        get => GetValue(ValueProperty);
+        set => SetValue(ValueProperty, Math.Clamp(value, 0, 1));
+    }
+
+    static CapsuleBar()
+    {
+        AffectsRender<CapsuleBar>(ValueProperty);
+    }
+
+    public override void Render(DrawingContext ctx)
+    {
+        var w = Bounds.Width;
+        var h = Bounds.Height;
+        if (w < 4 || h < 1)
+        {
+            return;
+        }
+        var p = WidgetSurfacePalette.Resolve(DarkProvider?.Invoke() ?? ThemeSense.IsDark(this));
+        var track = new SolidColorBrush(p.Line, 0.55);
+        var accent = new SolidColorBrush(CardAccent.Value);
+        var value = Math.Clamp(Value, 0, 1);
+
+        // 20 段刻度轨迹: 段间留 3px 已过段整段填充 当前段按比例填充
+        if (Segments > 1 && w >= Segments * 3)
+        {
+            const double gap = 3;
+            var segW = (w - gap * (Segments - 1)) / Segments;
+            var passed = value * Segments;
+            var radius = Math.Min(h / 2, segW / 2);
+            for (var i = 0; i < Segments; i++)
+            {
+                var x = i * (segW + gap);
+                ctx.DrawRectangle(track, null, new Rect(x, 0, segW, h), radius, radius);
+                var fill = Math.Clamp(passed - i, 0, 1);
+                if (fill > 0)
+                {
+                    ctx.DrawRectangle(accent, null, new Rect(x, 0, Math.Max(1, segW * fill), h), radius, radius);
+                }
+            }
+            return;
+        }
+
+        var r = h / 2;
+        ctx.DrawRectangle(track, null, new Rect(0, 0, w, h), r, r);
+        var width = value * w;
+        if (width > 0)
+        {
+            ctx.DrawRectangle(accent, null, new Rect(0, 0, Math.Max(h, width), h), r, r);
+        }
+    }
+}
+
+/// <summary>CPU 与内存走势 60 秒窗口 虚线网格 单强调色</summary>
+internal sealed class UsageChart : Control
+{
+    private const int Capacity = 60;
+    private readonly List<double> _cpu = new();
+    private readonly List<double> _ram = new();
+
+    public Func<bool>? DarkProvider { get; set; }
+
+    public void Push(double cpu, double ram)
+    {
+        _cpu.Add(Math.Clamp(cpu, 0, 100));
+        _ram.Add(Math.Clamp(ram, 0, 100));
+        if (_cpu.Count > Capacity)
+        {
+            _cpu.RemoveAt(0);
+        }
+        if (_ram.Count > Capacity)
+        {
+            _ram.RemoveAt(0);
+        }
+        InvalidateVisual();
+    }
+
+    public override void Render(DrawingContext ctx)
+    {
+        var w = Bounds.Width;
+        var h = Bounds.Height;
+        if (w < 8 || h < 8)
+        {
+            return;
+        }
+        var p = WidgetSurfacePalette.Resolve(DarkProvider?.Invoke() ?? ThemeSense.IsDark(this));
+        var gridPen = new Pen(new SolidColorBrush(p.Line, 0.55), 1)
+        {
+            DashStyle = new DashStyle(new double[] { 2, 4 }, 0),
+        };
+        for (var i = 1; i <= 3; i++)
+        {
+            var y = 6 + (h - 12) * i / 4.0;
+            ctx.DrawLine(gridPen, new Point(0, y), new Point(w, y));
+        }
+        if (_cpu.Count < 2)
+        {
+            return;
+        }
+
+        var hot = _cpu[^1] >= 85;
+        var accent = hot ? CardInk.Warn().Color : CardAccent.Value;
+        var n = _cpu.Count;
+        double X(int i) => n <= 1 ? 0 : w * i / (n - 1);
+        double Y(double v) => 6 + (h - 12) * (1 - Math.Clamp(v, 0, 100) / 100.0);
+        double Smoothed(List<double> v, int i) =>
+            (v[Math.Max(0, i - 1)] + v[i] * 2 + v[Math.Min(v.Count - 1, i + 1)]) / 4.0;
+
+        // CPU 面积
+        var area = new StreamGeometry();
+        using (var g = area.Open())
+        {
+            g.BeginFigure(new Point(0, h - 6), false);
+            for (var i = 0; i < n; i++)
+            {
+                g.LineTo(new Point(X(i), Y(Smoothed(_cpu, i))));
+            }
+            g.LineTo(new Point(w, h - 6));
+            g.EndFigure(true);
+        }
+        var areaBrush = new LinearGradientBrush
+        {
+            StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+            EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative),
+            GradientStops =
+            {
+                new GradientStop(accent, 0.24),
+                new GradientStop(accent, 0.02),
+            },
+        };
+        ctx.DrawGeometry(areaBrush, null, area);
+
+        ctx.DrawGeometry(null, new Pen(new SolidColorBrush(accent), 1.9)
+        {
+            LineJoin = PenLineJoin.Round,
+        }, Polyline(n, X, Y, _cpu));
+        ctx.DrawGeometry(null, new Pen(new SolidColorBrush(p.Text, 0.40), 1.3)
+        {
+            DashStyle = new DashStyle(new double[] { 3, 3 }, 0),
+            LineJoin = PenLineJoin.Round,
+        }, Polyline(n, X, Y, _ram));
+
+        // 末端点 提示当前值
+        ctx.DrawEllipse(new SolidColorBrush(accent), null, new Point(X(n - 1), Y(Smoothed(_cpu, n - 1))), 2.4, 2.4);
+    }
+
+    private static StreamGeometry Polyline(int n, Func<int, double> x, Func<double, double> y, List<double> values)
+    {
+        var geo = new StreamGeometry();
+        using var g = geo.Open();
+        double V(int i) => (values[Math.Max(0, i - 1)] + values[i] * 2 + values[Math.Min(values.Count - 1, i + 1)]) / 4.0;
+        g.BeginFigure(new Point(x(0), y(V(0))), false);
+        for (var i = 1; i < n; i++)
+        {
+            g.LineTo(new Point(x(i), y(V(i))));
+        }
+        g.EndFigure(false);
+        return geo;
     }
 }
 
 /// <summary>性能监测</summary>
 public sealed class PerformanceMonitorWidget : WidgetCardBase
 {
-    private static readonly (string Key, string Color, string Label)[] Metrics =
-    {
-        ("cpu", "#0078d4", "CPU"),
-        ("ram", "#8b5cf6", "RAM"),
-        ("gpu", "#10b981", "GPU"),
-    };
+    private readonly UsageChart _chart = new();
+    private readonly TextBlock _cpuValue = new();
+    private readonly TextBlock _ramValue = new();
+    private readonly TextBlock _gpuValue = new();
+    private readonly Border _cpuDot = MakeDot();
+    private readonly Border _ramDot = MakeDot();
+    private readonly Border _gpuDot = MakeDot();
+    private readonly TextBlock _cpuLabel = new();
+    private readonly TextBlock _ramLabel = new();
+    private readonly TextBlock _gpuLabel = new();
 
-    private readonly Dictionary<string, PerfRing> _rings = new();
+    private static Border MakeDot() => new()
+    {
+        Width = 6,
+        Height = 6,
+        CornerRadius = new CornerRadius(3),
+        VerticalAlignment = VerticalAlignment.Center,
+    };
 
     public PerformanceMonitorWidget(ComponentDefinition definition) : base(definition)
     {
-        var row = new StackPanel
+        var header = new Grid
         {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
+            ColumnDefinitions = ColumnDefinitions.Parse("Auto,Auto,*,Auto"),
+            ColumnSpacing = 16,
         };
-        foreach (var (key, color, label) in Metrics)
+        var cpuCell = MakeMetricCell(_cpuDot, _cpuLabel, _cpuValue, "CPU");
+        var ramCell = MakeMetricCell(_ramDot, _ramLabel, _ramValue, "RAM");
+        var gpuCell = MakeMetricCell(_gpuDot, _gpuLabel, _gpuValue, "GPU");
+        gpuCell.HorizontalAlignment = HorizontalAlignment.Right;
+        Grid.SetColumn(cpuCell, 0);
+        Grid.SetColumn(ramCell, 1);
+        Grid.SetColumn(gpuCell, 3);
+        header.Children.Add(cpuCell);
+        header.Children.Add(ramCell);
+        header.Children.Add(gpuCell);
+
+        _chart.DarkProvider = () => CardIsDark;
+        _chart.VerticalAlignment = VerticalAlignment.Stretch;
+        _chart.MinHeight = 24;
+
+        var root = new Grid
         {
-            var ring = new PerfRing { Label = label, Color = color, Width = 92, Height = 92 };
-            _rings[key] = ring;
-            var box = new StackPanel
-            {
-                Orientation = Orientation.Vertical,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-                Spacing = 6,
-                Width = 110,
-            };
-            box.Children.Add(ring);
-            box.Children.Add(new TextBlock
-            {
-                Text = label,
-                FontSize = 12,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Opacity = 0.75,
-            });
-            row.Children.Add(box);
-        }
-        Card.Child = row;
+            Margin = new Thickness(WidgetSpace.Pad, 14, WidgetSpace.Pad, 14),
+            RowDefinitions = RowDefinitions.Parse("Auto,*"),
+            RowSpacing = 10,
+        };
+        Grid.SetRow(header, 0);
+        Grid.SetRow(_chart, 1);
+        root.Children.Add(header);
+        root.Children.Add(_chart);
+        Card.Child = root;
         Content = Card;
 
+        _cpuValue.Text = "--";
+        _ramValue.Text = "--";
+        _gpuValue.Text = "--";
+        ApplyCardStyle();
         SystemSampler.PerfReady += OnPerf;
         SystemSampler.EnsureStarted();
+    }
+
+    private StackPanel MakeMetricCell(Border dot, TextBlock label, TextBlock value, string text)
+    {
+        label.Text = text;
+        label.FontSize = WidgetType.Label;
+        label.VerticalAlignment = VerticalAlignment.Center;
+        value.FontSize = 17;
+        value.FontWeight = FontWeight.Light;
+        value.FontFamily = WidgetFonts.Num;
+        value.VerticalAlignment = VerticalAlignment.Center;
+        var cell = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        cell.Children.Add(dot);
+        cell.Children.Add(label);
+        cell.Children.Add(value);
+        return cell;
+    }
+
+    protected override void ApplyCardStyle()
+    {
+        base.ApplyCardStyle();
+        var p = WidgetSurfacePalette.Resolve(CardIsDark);
+        _cpuDot.Background = CardAccent.Brush();
+        _ramDot.Background = new SolidColorBrush(p.Text, 0.45);
+        _gpuDot.Background = new SolidColorBrush(p.Text, 0.28);
+        _cpuLabel.Foreground = CardInk.Muted(p);
+        _ramLabel.Foreground = CardInk.Muted(p);
+        _gpuLabel.Foreground = CardInk.Muted(p);
+        _cpuValue.Foreground = CardInk.Fg(p);
+        _ramValue.Foreground = CardInk.Fg(p);
+        _gpuValue.Foreground = CardInk.Muted(p);
+        _chart.InvalidateVisual();
     }
 
     private void OnPerf(double cpu, double ram, double gpu)
     {
         Dispatcher.UIThread.Post(() =>
         {
-            if (_rings.TryGetValue("cpu", out var c))
-            {
-                c.Value = cpu;
-            }
-            if (_rings.TryGetValue("ram", out var r))
-            {
-                r.Value = ram;
-            }
-            if (_rings.TryGetValue("gpu", out var g))
-            {
-                g.Value = gpu;
-            }
+            var p = WidgetSurfacePalette.Resolve(CardIsDark);
+            _cpuValue.Text = $"{Math.Round(cpu)}%";
+            _ramValue.Text = $"{Math.Round(ram)}%";
+            _gpuValue.Text = gpu > 0 ? $"{Math.Round(gpu)}%" : "--";
+            // 85% 以上只有一处警示色
+            var hot = cpu >= 85;
+            var warn = CardInk.Warn().Color;
+            _cpuDot.Background = hot ? new SolidColorBrush(warn) : CardAccent.Brush();
+            _cpuValue.Foreground = hot ? new SolidColorBrush(warn) : CardInk.Fg(p);
+            _chart.Push(cpu, ram);
         });
     }
 }
@@ -8067,7 +11902,7 @@ public static class NativeTheme
 
 /// <summary>
 /// 方形钟表 I(模拟指针)
-/// 400x400 视口: 表盘/三档刻度/数字/三针+阴影/秒针金 #C9A66B
+/// 400x400 视口: 三档刻度/数字/三针+阴影/秒针金 #C9A66B; 不自绘表盘底 走 WidgetCardBase 卡片表面
 /// </summary>
 public sealed class NativeSquareClock1Widget : WidgetCardBase
 {
@@ -8081,8 +11916,7 @@ public sealed class NativeSquareClock1Widget : WidgetCardBase
         ActualThemeVariantChanged += (_, _) => _face.InvalidateVisual();
     }
 
-    private bool Dark() => ThemeSense.IsDark(this);
-    private int FaceRadius => Config.ComponentCardRadius.Value * 2;
+    private bool Dark() => CardIsDark;
 
     private sealed class ClockFaceControl : Control
     {
@@ -8144,26 +11978,19 @@ public sealed class NativeSquareClock1Widget : WidgetCardBase
         private static Point Rotate(double r, double deg)
         {
             var rad = deg * Math.PI / 180.0;
-            return new Point(Math.Sin(rad) * r, -Math.Cos(rad) * r);
+            return new Point(200 + Math.Sin(rad) * r, 200 - Math.Cos(rad) * r);
         }
 
-        private bool _renderLogged;
-        // 表盘(底色+刻度+数字)离屏缓存 尺寸/主题/圆角变更才重建 每帧只重绘指针
+        // 表盘(刻度+数字)离屏缓存 尺寸/主题变更才重建 每帧只重绘指针
         private RenderTargetBitmap? _dial;
         private PixelSize _dialPixels;
         private bool _dialDark;
-        private int _dialRadius;
         private bool _dialUnavailable;
 
         public override void Render(DrawingContext ctx)
         {
             var w = Bounds.Width;
             var h = Bounds.Height;
-            if (!_renderLogged)
-            {
-                _renderLogged = true;
-                Glimpseon.Core.Log.Debug($"[SQ1] Render bounds={w:F0}x{h:F0} dark={_owner.Dark()}");
-            }
             if (w < 10 || h < 10)
             {
                 return;
@@ -8172,9 +11999,9 @@ public sealed class NativeSquareClock1Widget : WidgetCardBase
             var scale = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
             var dial = _dialUnavailable ? null : DialLayer(w, h, dark, scale);
             var s = Math.Min(w, h) / 400.0;
-            var matrix = Matrix.CreateTranslation((float)(w / 2), (float)(h / 2))
+            var matrix = Matrix.CreateTranslation(-200, -200)
                          * Matrix.CreateScale((float)s, (float)s)
-                         * Matrix.CreateTranslation(-200, -200);
+                         * Matrix.CreateTranslation((float)(w / 2), (float)(h / 2));
             using (ctx.PushTransform(matrix))
             {
                 if (dial is null)
@@ -8189,22 +12016,23 @@ public sealed class NativeSquareClock1Widget : WidgetCardBase
 
         private RenderTargetBitmap? DialLayer(double w, double h, bool dark, double scale)
         {
+            // 2x 超采样 数字刻度缩放后不留彩边
+            var sample = Math.Max(1.0, Math.Round(scale * 2));
             var px = new PixelSize(
-                Math.Max(1, (int)Math.Round(w * scale)),
-                Math.Max(1, (int)Math.Round(h * scale)));
-            var radius = _owner.FaceRadius;
-            if (_dial is not null && _dialPixels == px && _dialDark == dark && _dialRadius == radius)
+                Math.Max(1, (int)Math.Round(w * sample)),
+                Math.Max(1, (int)Math.Round(h * sample)));
+            if (_dial is not null && _dialPixels == px && _dialDark == dark)
             {
                 return _dial;
             }
             try
             {
                 _dial?.Dispose();
-                var layer = new RenderTargetBitmap(px, new Vector(96 * scale, 96 * scale));
-                var s = Math.Min(w, h) / 400.0;
-                var matrix = Matrix.CreateTranslation((float)(w / 2), (float)(h / 2))
-                             * Matrix.CreateScale((float)s, (float)s)
-                             * Matrix.CreateTranslation(-200, -200);
+                var layer = new RenderTargetBitmap(px, new Vector(96, 96));
+                var ps = Math.Min(px.Width, px.Height) / 400.0;
+                var matrix = Matrix.CreateTranslation(-200, -200)
+                             * Matrix.CreateScale((float)ps, (float)ps)
+                             * Matrix.CreateTranslation((float)(px.Width / 2.0), (float)(px.Height / 2.0));
                 using (var dc = layer.CreateDrawingContext(true))
                 using (dc.PushTransform(matrix))
                 {
@@ -8213,7 +12041,6 @@ public sealed class NativeSquareClock1Widget : WidgetCardBase
                 _dial = layer;
                 _dialPixels = px;
                 _dialDark = dark;
-                _dialRadius = radius;
                 return _dial;
             }
             catch (Exception e)
@@ -8236,14 +12063,11 @@ public sealed class NativeSquareClock1Widget : WidgetCardBase
         // 静态部分
         private void RenderDial(DrawingContext ctx, bool dark)
         {
-            var face = NativeTheme.Parse(dark ? "#000000" : "#ffffff");
             var tickMajor = NativeTheme.Parse(dark ? "#ffffff" : "#1d1d1f");
             var tickMinor = NativeTheme.Parse(dark ? "#888888" : "#777777");
             var ink = NativeTheme.Parse(dark ? "#ffffff" : "#1d1d1f");
 
-            // 表盘 rx=$radius(卡片圆角 x2)
-            ctx.FillRectangle(NativeTheme.Brush(face), new Rect(0, 0, 400, 400), (float)_owner.FaceRadius);
-
+            // 不自绘整块表盘底色 交给 WidgetCardBase 的卡片表面(毛玻璃/纯色/透明度)
             // 刻度
             for (var a = 0; a < 360; a += 6)
             {
@@ -8265,7 +12089,6 @@ public sealed class NativeSquareClock1Widget : WidgetCardBase
         private void RenderHands(DrawingContext ctx, bool dark)
         {
             var ink = dark ? InkDarkBrush : InkLightBrush;
-            var face = dark ? FaceDarkBrush : FaceLightBrush;
 
             DrawHand(ctx, ink, HourHandGeo, _hourAngle, shadow: true);
             DrawHand(ctx, ink, MinuteHandGeo, _minuteAngle, shadow: true);
@@ -8277,9 +12100,8 @@ public sealed class NativeSquareClock1Widget : WidgetCardBase
                 ctx.DrawLine(SecondPen, new Point(0, 0), new Point(0, 32));
             }
 
-            // 中轴: r9 秒针色 + r4.5 表盘色
-            ctx.DrawEllipse(SecondBrush, null, new Point(200, 200), 9, 9);
-            ctx.DrawEllipse(face, null, new Point(200, 200), 4.5, 4.5);
+            // 中轴: 金色圆环 中心留空透出卡片表面 不再画纯色圆点
+            ctx.DrawEllipse(null, SecondHubPen, new Point(200, 200), 6, 6);
         }
 
         private static void DrawNumeral(DrawingContext ctx, Typeface typeface, string text, int cx, int cy, Color color)
@@ -8290,20 +12112,20 @@ public sealed class NativeSquareClock1Widget : WidgetCardBase
         }
 
         // 固定几何与刷子提为静态 每帧只做旋转变换 免逐帧新建 PathGeometry/刷子
-        private static readonly PathGeometry HourHandGeo = BuildHand(new Point(-5, 18),
-            [new Point(-3, -72), new Point(0, -82), new Point(3, -72), new Point(5, 18)]);
+        // 尾端只留 2~3 单位 收进中轴金环内 透明表盘下不会露出白色小旗
+        private static readonly PathGeometry HourHandGeo = BuildHand(new Point(-4, 2.5),
+            [new Point(-3, -72), new Point(0, -82), new Point(3, -72), new Point(4, 2.5)]);
 
-        private static readonly PathGeometry MinuteHandGeo = BuildHand(new Point(-3.5, 22),
-            [new Point(-2.5, -118), new Point(0, -128), new Point(2.5, -118), new Point(3.5, 22)]);
+        private static readonly PathGeometry MinuteHandGeo = BuildHand(new Point(-3, 3),
+            [new Point(-2.5, -118), new Point(0, -128), new Point(2.5, -118), new Point(3, 3)]);
 
         private static readonly IBrush ShadowDarkBrush = new SolidColorBrush(Colors.Black, 0.28);
         private static readonly IBrush ShadowLightBrush = new SolidColorBrush(Colors.Black, 0.12);
         private static readonly IBrush InkDarkBrush = NativeTheme.Brush(NativeTheme.Parse("#ffffff"));
         private static readonly IBrush InkLightBrush = NativeTheme.Brush(NativeTheme.Parse("#1d1d1f"));
-        private static readonly IBrush FaceDarkBrush = NativeTheme.Brush(NativeTheme.Parse("#000000"));
-        private static readonly IBrush FaceLightBrush = NativeTheme.Brush(NativeTheme.Parse("#ffffff"));
-        private static readonly IBrush SecondBrush = NativeTheme.Brush(NativeTheme.Parse("#C9A66B"));
         private static readonly Pen SecondPen = new(NativeTheme.Brush(NativeTheme.Parse("#C9A66B")), 2, null,
+            PenLineCap.Round, PenLineJoin.Round);
+        private static readonly Pen SecondHubPen = new(NativeTheme.Brush(NativeTheme.Parse("#C9A66B")), 2.6, null,
             PenLineCap.Round, PenLineJoin.Round);
 
         private static PathGeometry BuildHand(Point start, Point[] pts)
@@ -8339,25 +12161,41 @@ public sealed class NativeSquareClock1Widget : WidgetCardBase
 
 /// <summary>
 /// 方形钟表 II(数字式 渐隐刻度)
-/// 200x200 视口: 60 刻度按秒龄渐隐(R=90/max(|dx|,|dy|) 42/48°-5) HH:mm 52px w600
+/// 200x200 视口: 60 刻度按秒龄渐隐(R=90/max(|dx|,|dy|) 42/48°-5) HH:mm 52px Light; 不自绘表盘底
 /// </summary>
 public sealed class NativeSquareClock2Widget : WidgetCardBase
 {
     private readonly DigitalFaceControl _face;
+    private readonly bool _whiteFace;
 
-    public NativeSquareClock2Widget(ComponentDefinition definition) : base(definition)
+    public NativeSquareClock2Widget(ComponentDefinition definition, JsonElement? config = null) : base(definition)
     {
+        _whiteFace = ReadBool(config, "white_face", true);
         _face = new DigitalFaceControl(this);
         Card.Child = _face;
         Content = Card;
+        ApplyCardStyle();
     }
 
-    private bool Dark() => ThemeSense.IsDark(this);
-    private int FaceRadius => Config.ComponentCardRadius.Value * 2;
+    public bool WhiteFace => _whiteFace;
+
+    protected override void ApplyCardStyle()
+    {
+        base.ApplyCardStyle();
+        if (!_whiteFace)
+        {
+            return;
+        }
+        // 白色表盘皮肤 圆角与阴影仍由卡片表面提供
+        Card.Background = new SolidColorBrush(Color.Parse("#FFFFFF"));
+        Card.BorderBrush = new SolidColorBrush(Color.Parse("#E2E2E2"));
+        Card.BorderThickness = new Thickness(1);
+    }
+
+    private bool Dark() => CardIsDark;
 
     private sealed class DigitalFaceControl : Control
     {
-        private const int GradN = 35;
         private readonly NativeSquareClock2Widget _owner;
         private readonly DispatcherTimer _timer;
 
@@ -8383,9 +12221,9 @@ public sealed class NativeSquareClock2Widget : WidgetCardBase
                 return;
             }
             var s = Math.Min(w, h) / 200.0;
-            var matrix = Matrix.CreateTranslation((float)(w / 2), (float)(h / 2))
+            var matrix = Matrix.CreateTranslation(-100, -100)
                          * Matrix.CreateScale((float)s, (float)s)
-                         * Matrix.CreateTranslation(-100, -100);
+                         * Matrix.CreateTranslation((float)(w / 2), (float)(h / 2));
             using (ctx.PushTransform(matrix))
             {
                 RenderFace(ctx);
@@ -8395,50 +12233,55 @@ public sealed class NativeSquareClock2Widget : WidgetCardBase
         private void RenderFace(DrawingContext ctx)
         {
             var dark = _owner.Dark();
-            var face = NativeTheme.Parse(dark ? "#000000" : "#ffffff");
-            var ink = NativeTheme.Parse(dark ? "#ffffff" : "#000000");
-            var oldC = NativeTheme.Parse(dark ? "#333333" : "#dddddd");
-            var newC = NativeTheme.Parse(dark ? "#999999" : "#555555");
+            var p = WidgetSurfacePalette.Resolve(dark);
+            var ink = _owner.WhiteFace ? Color.Parse("#111111") : p.Text;
 
-            ctx.FillRectangle(NativeTheme.Brush(face), new Rect(0, 0, 200, 200), (float)_owner.FaceRadius);
-
-            var now = DateTime.Now;
-            var sec = now.Second;
+            // 60 刻度: 整点最长 5 分档次之 其余短刻度 同色不同明度
             for (var i = 0; i < 60; i++)
             {
                 var a = i * 6 * Math.PI / 180.0;
                 var dx = Math.Sin(a);
                 var dy = -Math.Cos(a);
-                var r = 90.0 / Math.Max(Math.Abs(dx), Math.Abs(dy));
-                var deg = (i * 6) % 90;
-                if (deg == 42 || deg == 48)
+                var r = 94.0 / Math.Max(Math.Abs(dx), Math.Abs(dy));
+                var hour = i % 15 == 0;
+                var five = i % 5 == 0;
+                var len = hour ? 16.0 : five ? 11.0 : 7.5;
+                var width = hour ? 3.4 : five ? 2.8 : 2.2;
+                var alpha = hour ? 0.90 : five ? 0.65 : 0.45;
+                var pen = new Pen(new SolidColorBrush(ink, alpha), width, null, PenLineCap.Round, PenLineJoin.Round);
+                ctx.DrawLine(pen,
+                    new Point(100 + dx * r, 100 + dy * r),
+                    new Point(100 + dx * (r - len), 100 + dy * (r - len)));
+            }
+
+            // HH:mm 窄体大数字 使用表盘专用 Bebas Neue 与竞品比例一致
+            var text = DateTime.Now.ToString("HH:mm");
+            var typeface = new Typeface(WidgetFonts.Display, FontStyle.Normal, FontWeight.Normal);
+            var size = FitText(text, typeface, 138, 122);
+            var ft = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+                typeface, size, new SolidColorBrush(ink));
+            ctx.DrawText(ft, new Point(100 - ft.Width / 2, 100 - ft.Height / 2));
+        }
+
+        private static double FitText(string text, Typeface typeface, double maxW, double maxH)
+        {
+            var lo = 12.0;
+            var hi = 160.0;
+            for (var i = 0; i < 14; i++)
+            {
+                var mid = (lo + hi) / 2;
+                var ft = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+                    typeface, mid, Brushes.Black);
+                if (ft.Width <= maxW && ft.Height <= maxH)
                 {
-                    r -= 5;
-                }
-                var age = (sec - i + 60) % 60;
-                Color c;
-                if (age <= GradN)
-                {
-                    var t = Math.Sqrt(age / (double)GradN);
-                    c = Color.FromRgb(
-                        (byte)Math.Round(newC.R + (oldC.R - newC.R) * t),
-                        (byte)Math.Round(newC.G + (oldC.G - newC.G) * t),
-                        (byte)Math.Round(newC.B + (oldC.B - newC.B) * t));
+                    lo = mid;
                 }
                 else
                 {
-                    c = oldC;
+                    hi = mid;
                 }
-                var pen = new Pen(NativeTheme.Brush(c), 2, null, PenLineCap.Round, PenLineJoin.Round);
-                ctx.DrawLine(pen, new Point(100 + dx * r, 100 + dy * r), new Point(100 + dx * (r - 8), 100 + dy * (r - 8)));
             }
-
-            // HH:mm 52px w600 letter-spacing -1
-            var typeface = new Typeface(Common.AppFontFamily, FontStyle.Normal, FontWeight.SemiBold);
-            var text = now.ToString("HH:mm");
-            var ft = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-                typeface, 52, NativeTheme.Brush(ink));
-            ctx.DrawText(ft, new Point(100 - ft.WidthIncludingTrailingWhitespace / 2 - 0.5, 100 - ft.Baseline));
+            return Math.Floor(lo * 10) / 10;
         }
     }
 }
@@ -8506,8 +12349,9 @@ public sealed class NativeMiniCalendarWidget : WidgetCardBase
         "hover" => NativeTheme.Rgba(255, 255, 255, 0.08),
         "btn" => NativeTheme.Parse("#a0a0a6"),
         "btnhover" => NativeTheme.Rgba(255, 255, 255, 0.10),
-        "today" => NativeTheme.Parse("#ff6b6b"),
-        "selected" => NativeTheme.Parse("#4ade80"),
+        // 今日/选中 走主题强调色 选中格用底色区分
+        "today" => CardAccent.Value,
+        "selected" => CardAccent.Value,
         _ => Colors.White,
     } : key switch
     {
@@ -8519,14 +12363,16 @@ public sealed class NativeMiniCalendarWidget : WidgetCardBase
         "hover" => NativeTheme.Parse("#f2f2f2"),
         "btn" => NativeTheme.Parse("#666666"),
         "btnhover" => NativeTheme.Parse("#f0f0f0"),
-        "today" => NativeTheme.Parse("#e5484d"),
-        "selected" => NativeTheme.Parse("#30c361"),
+        "today" => CardAccent.Value,
+        "selected" => CardAccent.Value,
         _ => Colors.Black,
     };
 
     private readonly TextBlock _title = new();
     private readonly UniformGrid _daysGrid = new() { Columns = 7, Rows = 6 };
     private readonly List<Border> _cells = new();
+    private readonly List<TextBlock> _dayTexts = new();
+    private readonly List<Ellipse> _dayDots = new();
     private readonly List<TextBlock> _weekdayTexts = new();
     private readonly Border _headerBorder = new();
     private readonly Border _prevBtn = new();
@@ -8548,7 +12394,7 @@ public sealed class NativeMiniCalendarWidget : WidgetCardBase
             var tb = new TextBlock
             {
                 Text = w,
-                FontSize = 9,
+                FontSize = 10,
                 FontWeight = FontWeight.Medium,
                 TextAlignment = TextAlignment.Center,
                 Height = 16,
@@ -8561,16 +12407,27 @@ public sealed class NativeMiniCalendarWidget : WidgetCardBase
 
         for (var i = 0; i < 42; i++)
         {
+            var dot = new Ellipse
+            {
+                Width = 20,
+                Height = 20,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                IsVisible = false,
+                IsHitTestVisible = false,
+            };
+            var dayText = new TextBlock
+            {
+                FontSize = 12.5,
+                TextAlignment = TextAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+            };
             var cell = new Border
             {
                 CornerRadius = new CornerRadius(4),
                 Cursor = new Cursor(StandardCursorType.Hand),
-                Child = new TextBlock
-                {
-                    FontSize = 11,
-                    TextAlignment = TextAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center,
-                },
+                Child = new Grid { Children = { dot, dayText } },
             };
             cell.PointerEntered += (_, _) =>
             {
@@ -8589,6 +12446,8 @@ public sealed class NativeMiniCalendarWidget : WidgetCardBase
                 }
             };
             _cells.Add(cell);
+            _dayTexts.Add(dayText);
+            _dayDots.Add(dot);
             _daysGrid.Children.Add(cell);
         }
 
@@ -8606,11 +12465,13 @@ public sealed class NativeMiniCalendarWidget : WidgetCardBase
         Card.Child = root;
         Content = Card;
         ActualThemeVariantChanged += (_, _) => { ApplyPalette(); RenderMonth(); };
+        Config.ThemeColor.ValueChanged += _ => RenderMonth();
+        SizeChanged += (_, _) => RenderMonth();
         ApplyPalette();
         RenderMonth();
     }
 
-    private bool IsDarkNow => ThemeSense.IsDark(this);
+    private bool IsDarkNow => CardIsDark;
 
     private void BuildHeader()
     {
@@ -8621,7 +12482,7 @@ public sealed class NativeMiniCalendarWidget : WidgetCardBase
         _prevBtn.Child = new TextBlock { Text = "‹", FontSize = 13, TextAlignment = TextAlignment.Center };
         _prevBtn.PointerEntered += (_, _) => _prevBtn.Background = new SolidColorBrush(T("btnhover", IsDarkNow));
         _prevBtn.PointerExited += (_, _) => _prevBtn.Background = null;
-        _prevBtn.PointerReleased += (_, _) => { _month--; if (_month < 0) { _month = 11; _year--; } RenderMonth(); };
+        _prevBtn.PointerReleased += (_, _) => { _month--; if (_month < 0) { _month = 11; _year--; } _selectedDay = null; RenderMonth(); };
 
         _nextBtn.Width = 22;
         _nextBtn.Height = 22;
@@ -8630,11 +12491,11 @@ public sealed class NativeMiniCalendarWidget : WidgetCardBase
         _nextBtn.Child = new TextBlock { Text = "›", FontSize = 13, TextAlignment = TextAlignment.Center };
         _nextBtn.PointerEntered += (_, _) => _nextBtn.Background = new SolidColorBrush(T("btnhover", IsDarkNow));
         _nextBtn.PointerExited += (_, _) => _nextBtn.Background = null;
-        _nextBtn.PointerReleased += (_, _) => { _month++; if (_month > 11) { _month = 0; _year++; } RenderMonth(); };
+        _nextBtn.PointerReleased += (_, _) => { _month++; if (_month > 11) { _month = 0; _year++; } _selectedDay = null; RenderMonth(); };
 
         _title.HorizontalAlignment = HorizontalAlignment.Center;
         _title.VerticalAlignment = VerticalAlignment.Center;
-        _title.FontSize = 12;
+        _title.FontSize = 13;
         _title.FontWeight = FontWeight.SemiBold;
 
         var header = new Grid
@@ -8672,15 +12533,29 @@ public sealed class NativeMiniCalendarWidget : WidgetCardBase
         var today = DateTime.Today;
         var startWeekday = (int)new DateTime(_year, _month + 1, 1).DayOfWeek;
         var daysInMonth = DateTime.DaysInMonth(_year, _month + 1);
-        var maxDay = Math.Min(daysInMonth, 42 - startWeekday);
+        var weeks = (startWeekday + daysInMonth + 6) / 7;
         var daysInPrev = (_month == 0 ? new DateTime(_year - 1, 12, 31) : new DateTime(_year, _month, 1).AddDays(-1)).Day;
+        var accent = CardAccent.Value;
+        var cellW = _daysGrid.Bounds.Width > 1 ? _daysGrid.Bounds.Width / 7 : 28;
+        var cellH = _daysGrid.Bounds.Height > 1 ? _daysGrid.Bounds.Height / weeks : 24;
+        var dotSize = Math.Clamp(Math.Min(cellW, cellH) * 0.82, 16, 30);
 
-        for (var i = 0; i < 42; i++)
+        // 只使用实际周数 避免底部空行
+        _daysGrid.Rows = weeks;
+        _daysGrid.Children.Clear();
+        for (var i = 0; i < weeks * 7; i++)
+        {
+            _daysGrid.Children.Add(_cells[i]);
+        }
+
+        for (var i = 0; i < weeks * 7; i++)
         {
             var cell = _cells[i];
-            var tb = (TextBlock)cell.Child!;
+            var tb = _dayTexts[i];
+            var dot = _dayDots[i];
             cell.Tag = null;
             cell.Background = null;
+            dot.IsVisible = false;
             string cls;
             int day;
             if (i < startWeekday)
@@ -8688,11 +12563,11 @@ public sealed class NativeMiniCalendarWidget : WidgetCardBase
                 day = daysInPrev - (startWeekday - 1 - i);
                 cls = "other";
             }
-            else if (i < startWeekday + maxDay)
+            else if (i < startWeekday + daysInMonth)
             {
                 day = i - startWeekday + 1;
-                cls = _year == today.Year && _month == today.Month && day == today.Day ? "today" : "day";
-                if (cls == "day" && _selectedDay == day && _year == today.Year && _month == today.Month)
+                cls = _year == today.Year && _month == today.Month - 1 && day == today.Day ? "today" : "day";
+                if (cls == "day" && _selectedDay == day)
                 {
                     cls = "selected";
                 }
@@ -8700,35 +12575,60 @@ public sealed class NativeMiniCalendarWidget : WidgetCardBase
             }
             else
             {
-                tb.Text = "";
-                continue;
+                day = i - startWeekday - daysInMonth + 1;
+                cls = "other";
             }
             tb.Text = day.ToString();
-            tb.Foreground = new SolidColorBrush(T(cls switch
+            tb.FontWeight = cls is "today" or "selected" ? FontWeight.SemiBold : FontWeight.Normal;
+            tb.Foreground = new SolidColorBrush(cls switch
             {
-                "other" => "other",
-                "today" => "today",
-                "selected" => "selected",
-                _ => "ink",
-            }, IsDarkNow));
-            tb.FontWeight = cls is "today" or "selected" ? FontWeight.Medium : FontWeight.Normal;
+                "other" => T("other", IsDarkNow),
+                "today" => OnAccentColor(accent),
+                "selected" => accent,
+                _ => T("ink", IsDarkNow),
+            });
+            if (cls == "today")
+            {
+                dot.Width = dotSize;
+                dot.Height = dotSize;
+                dot.Fill = new SolidColorBrush(accent);
+                dot.Stroke = null;
+                dot.IsVisible = true;
+            }
+            else if (cls == "selected")
+            {
+                dot.Width = dotSize;
+                dot.Height = dotSize;
+                dot.Fill = null;
+                dot.Stroke = new SolidColorBrush(accent);
+                dot.StrokeThickness = 1.25;
+                dot.IsVisible = true;
+            }
         }
+    }
+
+    // 今日圆点上的日期用对比色 浅强调色配深字 深强调色配白字
+    private static Color OnAccentColor(Color accent)
+    {
+        var luminance = (0.299 * accent.R + 0.587 * accent.G + 0.114 * accent.B) / 255.0;
+        return luminance > 0.58 ? Color.FromRgb(20, 20, 20) : Colors.White;
     }
 }
 
 /// <summary>
 /// 黄历
-/// 左列(农历 label 12px ls4 / lunar 30px bold / 干支 13px / 节气) + 竖虚线 + 右列(宜/忌 27x27 badge + 词条 13px)
-/// 右上角 Consolas 11px ls2 日期 30 分钟刷新
+/// 左列: 农历 label + 大号农历日期(按宽自适应) + 干支两行 + 节气(accent)
+/// 右列: 宜/忌小徽标 + 词条全量换行(字号随可用空间收敛, 实在放不下才整词截断)
+/// 竖虚线 + 行间横虚线; 右上角 mono 日期; 30 分钟刷新; 窄卡减信息
 /// </summary>
 public sealed class NativeAlmanacWidget : WidgetCardBase
 {
     private static Color T(string key, bool dark) => dark ? key switch
     {
         "fg" => NativeTheme.Rgba(255, 255, 255, 0.87),
-        "muted" => NativeTheme.Rgba(255, 255, 255, 0.52),
+        "muted" => NativeTheme.Rgba(255, 255, 255, 0.62),
         "faint" => NativeTheme.Rgba(255, 255, 255, 0.38),
-        "term_c" => NativeTheme.Rgba(255, 255, 255, 0.78),
+        "term_c" => NativeTheme.Rgba(255, 255, 255, 0.80),
         "yi" => NativeTheme.Parse("#e0554b"),
         "ji" => NativeTheme.Parse("#6f6f6f"),
         "div" => NativeTheme.Rgba(255, 255, 255, 0.18),
@@ -8737,9 +12637,9 @@ public sealed class NativeAlmanacWidget : WidgetCardBase
     } : key switch
     {
         "fg" => NativeTheme.Rgba(40, 40, 40, 0.88),
-        "muted" => NativeTheme.Rgba(40, 40, 40, 0.52),
-        "faint" => NativeTheme.Rgba(40, 40, 40, 0.4),
-        "term_c" => NativeTheme.Rgba(40, 40, 40, 0.8),
+        "muted" => NativeTheme.Rgba(40, 40, 40, 0.62),
+        "faint" => NativeTheme.Rgba(40, 40, 40, 0.40),
+        "term_c" => NativeTheme.Rgba(40, 40, 40, 0.80),
         "yi" => NativeTheme.Parse("#cf3838"),
         "ji" => NativeTheme.Parse("#3c3c3c"),
         "div" => NativeTheme.Rgba(0, 0, 0, 0.15),
@@ -8748,10 +12648,10 @@ public sealed class NativeAlmanacWidget : WidgetCardBase
     };
 
     private readonly TextBlock _sdate = new();
+    private readonly TextBlock _label = new();
     private readonly TextBlock _lunar = new();
     private readonly TextBlock _gzYear = new();
-    private readonly TextBlock _gzMonth = new();
-    private readonly TextBlock _gzDay = new();
+    private readonly TextBlock _gzRest = new();
     private readonly TextBlock _term = new();
     private readonly TextBlock _good = new();
     private readonly TextBlock _bad = new();
@@ -8759,10 +12659,16 @@ public sealed class NativeAlmanacWidget : WidgetCardBase
     private Border _jiBadge = null!;
     private readonly DashedRule _vdiv = new() { Vertical = true };
     private readonly DashedRule _hdiv = new();
+    private readonly Grid _leftCol = new() { MaxWidth = 150 };
+    private readonly Grid _main = new();
+    private readonly StackPanel _rightCol = new() { VerticalAlignment = VerticalAlignment.Center };
+    private string[]? _goodTerms;
+    private string[]? _badTerms;
 
     public NativeAlmanacWidget(ComponentDefinition definition) : base(definition)
     {
         BuildLayout();
+        SizeChanged += (_, _) => FitText();
         ActualThemeVariantChanged += (_, _) => Rebuild();
         // 原版 30 分钟定期刷新
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(30) };
@@ -8771,23 +12677,24 @@ public sealed class NativeAlmanacWidget : WidgetCardBase
         Rebuild();
     }
 
-    private bool IsDarkNow => ThemeSense.IsDark(this);
+    private bool IsDarkNow => CardIsDark;
 
-    private Border MakeBadge(string glyph, string key, bool dark)
+    private static Border MakeBadge(string glyph, string key, bool dark)
     {
         return new Border
         {
-            Width = 27,
-            Height = 27,
-            CornerRadius = new CornerRadius(6),
+            Width = 22,
+            Height = 22,
+            CornerRadius = new CornerRadius(5),
             Background = new SolidColorBrush(T(key, dark)),
             Child = new TextBlock
             {
                 Text = glyph,
-                FontSize = 14,
-                FontWeight = FontWeight.Bold,
+                FontSize = 12,
+                FontWeight = FontWeight.Medium,
                 Foreground = Brushes.White,
                 TextAlignment = TextAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
             },
         };
     }
@@ -8802,108 +12709,91 @@ public sealed class NativeAlmanacWidget : WidgetCardBase
         _sdate.HorizontalAlignment = HorizontalAlignment.Right;
         _sdate.Margin = new Thickness(0, 13, 16, 0);
 
-        _lunar.Margin = new Thickness(0, 4, 0, 0);
-        _lunar.FontSize = 30;
-        _lunar.FontWeight = FontWeight.Bold;
-        _lunar.TextTrimming = TextTrimming.CharacterEllipsis;
-        foreach (var gz in new[] { _gzYear, _gzMonth, _gzDay })
-        {
-            gz.Margin = gz == _gzYear ? new Thickness(0, 14, 0, 0) : new Thickness(0, 5, 0, 0);
-            gz.FontSize = 13;
-            gz.LetterSpacing = 1;
-            gz.TextTrimming = TextTrimming.CharacterEllipsis;
-        }
-        _term.Margin = new Thickness(0, 8, 0, 0);
+        _label.Text = "农历";
+        _label.FontSize = 11;
+        _label.LetterSpacing = 3;
+        _label.Margin = new Thickness(2, 0, 0, 3);
+        _lunar.FontWeight = FontWeight.Light;
+        _lunar.LetterSpacing = 1;
+        _lunar.Margin = new Thickness(0, 0, 0, 9);
+        _gzYear.FontSize = 13;
+        _gzYear.LetterSpacing = 1;
+        _gzYear.Margin = new Thickness(0, 0, 0, 4);
+        _gzRest.FontSize = 13;
+        _gzRest.LetterSpacing = 1;
         _term.FontSize = 12;
         _term.LetterSpacing = 2;
+        _term.Margin = new Thickness(0, 7, 0, 0);
 
         var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        left.Children.Add(new TextBlock
-        {
-            Text = "农历",
-            FontSize = 12,
-            LetterSpacing = 4,
-            Name = "almanacLabel",
-        });
+        left.Children.Add(_label);
         left.Children.Add(_lunar);
         left.Children.Add(_gzYear);
-        left.Children.Add(_gzMonth);
-        left.Children.Add(_gzDay);
+        left.Children.Add(_gzRest);
         left.Children.Add(_term);
+        _leftCol.Children.Add(left);
 
-        _good.FontSize = 13;
-        _good.LineHeight = 13 * 1.85;
         _good.TextWrapping = TextWrapping.Wrap;
-        _bad.FontSize = 13;
-        _bad.LineHeight = 13 * 1.85;
         _bad.TextWrapping = TextWrapping.Wrap;
 
         _yiBadge = MakeBadge("宜", "yi", dark);
         _jiBadge = MakeBadge("忌", "ji", dark);
-        _yiBadge.Margin = new Thickness(0, 2, 0, 0);
-        _jiBadge.Margin = new Thickness(0, 2, 0, 0);
 
         var rowYi = new Grid { ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("Auto,*") };
-        rowYi.ColumnSpacing = 11;
+        rowYi.ColumnSpacing = 10;
         Grid.SetColumn(_yiBadge, 0);
         Grid.SetColumn(_good, 1);
         rowYi.Children.Add(_yiBadge);
         rowYi.Children.Add(_good);
 
         var rowJi = new Grid { ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("Auto,*") };
-        rowJi.ColumnSpacing = 11;
+        rowJi.ColumnSpacing = 10;
         Grid.SetColumn(_jiBadge, 0);
         Grid.SetColumn(_bad, 1);
         rowJi.Children.Add(_jiBadge);
         rowJi.Children.Add(_bad);
 
-        _hdiv.Margin = new Thickness(0, 11);
+        _hdiv.Margin = new Thickness(0, 10);
 
-        var right = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        right.Children.Add(rowYi);
-        right.Children.Add(_hdiv);
-        right.Children.Add(rowJi);
+        _rightCol.Children.Add(rowYi);
+        _rightCol.Children.Add(_hdiv);
+        _rightCol.Children.Add(rowJi);
 
-        var main = new Grid
-        {
-            ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("132,Auto,*"),
-            Margin = new Thickness(20, 16),
-        };
-        Grid.SetColumn(left, 0);
+        _main.ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("Auto,10,*");
+        _main.Margin = new Thickness(18, 14);
+        Grid.SetColumn(_leftCol, 0);
         Grid.SetColumn(_vdiv, 1);
-        Grid.SetColumn(right, 2);
-        right.Margin = new Thickness(16, 0, 0, 0);
-        main.Children.Add(left);
-        main.Children.Add(_vdiv);
-        main.Children.Add(right);
+        _vdiv.HorizontalAlignment = HorizontalAlignment.Center;
+        Grid.SetColumn(_rightCol, 2);
+        _rightCol.Margin = new Thickness(14, 0, 0, 0);
+        _main.Children.Add(_leftCol);
+        _main.Children.Add(_vdiv);
+        _main.Children.Add(_rightCol);
 
         var root = new Grid();
-        root.Children.Add(main);
+        root.Children.Add(_main);
         root.Children.Add(_sdate);
         Card.Child = root;
         Content = Card;
     }
 
-    private static string TermsText(string[]? terms, int limit)
-    {
-        if (terms is null || terms.Length == 0)
-        {
-            return "--";
-        }
-        var joined = string.Join("  ", terms.Take(limit));
-        return terms.Length > limit ? joined + " …" : joined;
-    }
+    // 不再按固定个数截断; 词条全量给出, 空间由字号与整词截断兜底
+    // 词内插 word joiner(U+2060), 防止 "进人口" 在折行时被拆成 "进人 / 口"
+    private static string TermsText(string[]? terms) =>
+        terms is { Length: > 0 } ? JoinTerms(terms) : "--";
+
+    private static string JoinTerms(IEnumerable<string> terms) =>
+        string.Join(" ", terms.Select(Glue));
+
+    private static string Glue(string term) =>
+        term.Length <= 1 ? term : string.Join("\u2060", term.Select(c => c.ToString()));
 
     private void Rebuild()
     {
-        var dark = IsDarkNow;
         var d = AlmanacService.GetToday();
         var lunar = "--";
         var gzYear = "--";
-        var gzMonth = "--";
-        var gzDay = "--";
-        var good = "--";
-        var bad = "--";
+        var gzRest = "--";
         var date = DateTime.Today.ToString("yyyy-MM-dd");
         if (d is not null)
         {
@@ -8912,11 +12802,15 @@ public sealed class NativeAlmanacWidget : WidgetCardBase
             {
                 lunar = "--";
             }
-            gzYear = $"{d.YearGz}【{d.Zodiac}】年";
-            gzMonth = $"{d.MonthGz}月";
-            gzDay = $"{d.DayGz}日";
-            good = TermsText(d.Good, 10);
-            bad = TermsText(d.Bad, 8);
+            // 干支压成两行: 丙午马年 / 己亥月 丙戌日
+            gzYear = string.IsNullOrEmpty(d.YearGz) ? "--" : $"{d.YearGz}{d.Zodiac}年";
+            gzRest = $"{d.MonthGz}月 {d.DayGz}日".Trim();
+            if (gzRest.Length == 0)
+            {
+                gzRest = "--";
+            }
+            _goodTerms = d.Good;
+            _badTerms = d.Bad;
             if (!string.IsNullOrEmpty(d.Date) && DateTime.TryParse(d.Date, out var pd))
             {
                 date = pd.ToString("yyyy-MM-dd");
@@ -8925,20 +12819,21 @@ public sealed class NativeAlmanacWidget : WidgetCardBase
         _sdate.Text = NativeTheme.DotDate(date);
         _lunar.Text = lunar;
         _gzYear.Text = gzYear;
-        _gzMonth.Text = gzMonth;
-        _gzDay.Text = gzDay;
+        _gzRest.Text = gzRest;
         _term.Text = string.IsNullOrEmpty(d?.SolarTerm) ? "" : d!.SolarTerm;
-        _term.IsVisible = !string.IsNullOrEmpty(d?.SolarTerm);
-        _good.Text = good;
-        _bad.Text = bad;
+        ApplyPalette();
+        FitText();
+        InvalidateVisual();
+    }
 
-        // 主题色
+    private void ApplyPalette()
+    {
+        var dark = IsDarkNow;
         _sdate.Foreground = new SolidColorBrush(T("faint", dark));
+        _label.Foreground = new SolidColorBrush(T("muted", dark));
         _lunar.Foreground = new SolidColorBrush(T("fg", dark));
-        foreach (var gz in new[] { _gzYear, _gzMonth, _gzDay })
-        {
-            gz.Foreground = new SolidColorBrush(T("muted", dark));
-        }
+        _gzYear.Foreground = new SolidColorBrush(T("muted", dark));
+        _gzRest.Foreground = new SolidColorBrush(T("muted", dark));
         _term.Foreground = new SolidColorBrush(T("accent", dark));
         _good.Foreground = new SolidColorBrush(T("term_c", dark));
         _bad.Foreground = new SolidColorBrush(T("term_c", dark));
@@ -8947,12 +12842,87 @@ public sealed class NativeAlmanacWidget : WidgetCardBase
         var div = new SolidColorBrush(T("div", dark));
         _vdiv.Stroke = div;
         _hdiv.Stroke = div;
-        // 农历 label 色
-        if (((StackPanel)_lunar.Parent!).Children[0] is TextBlock label)
+    }
+
+    private void FitText()
+    {
+        var compact = Bounds.Width < 300;
+        var tiny = Bounds.Height < 150;
+        _label.IsVisible = !compact;
+        _term.IsVisible = !string.IsNullOrEmpty(_term.Text) && !compact && !tiny;
+        _main.Margin = compact ? new Thickness(14, 12) : new Thickness(18, 14);
+
+        // 左列: 农历日期/干支按可用宽收敛, 长农历日不再截断
+        var maxLeft = Math.Clamp(Bounds.Width - 36 - 10 - 14 - 120, 96, 150);
+        if (double.IsNaN(maxLeft))
         {
-            label.Foreground = new SolidColorBrush(T("muted", dark));
+            maxLeft = 148;
         }
-        InvalidateVisual();
+        _lunar.FontSize = CardText.Fit(_lunar.Text, Common.AppFontFamily, FontWeight.Light, maxLeft, compact ? 26 : 30, 18, 30);
+        var wide = Math.Max(
+            CardText.Width(_gzYear.Text, Common.AppFontFamily, FontWeight.Normal, 13),
+            CardText.Width(_gzRest.Text, Common.AppFontFamily, FontWeight.Normal, 13));
+        var gzSize = wide > maxLeft ? Math.Max(10.5, Math.Round(13 * maxLeft / wide, 1)) : 13;
+        _gzYear.FontSize = gzSize;
+        _gzRest.FontSize = gzSize;
+
+        // 右列: 词条全量换行; 字号从 13.5 收敛到 10.5, 仍放不下才整词截断
+        var rightW = _rightCol.Bounds.Width;
+        if (double.IsNaN(rightW) || rightW < 40)
+        {
+            rightW = Math.Max(60, Bounds.Width - _main.Margin.Left - _main.Margin.Right - maxLeft - 10 - 14);
+        }
+        var rightH = _rightCol.Bounds.Height;
+        if (double.IsNaN(rightH) || rightH < 20)
+        {
+            rightH = Math.Max(60, Bounds.Height - _main.Margin.Top - _main.Margin.Bottom);
+        }
+        var rowBudget = Math.Max(24, (rightH - 21) / 2);
+        var need = 0.0;
+        var size = 13.5;
+        foreach (var s in new[] { 13.5, 13, 12.5, 12, 11.5, 11, 10.5 })
+        {
+            size = s;
+            need = Math.Max(RowNeed(_goodTerms, rightW, s), RowNeed(_badTerms, rightW, s));
+            if (need <= rowBudget)
+            {
+                break;
+            }
+        }
+        var lineHeight = size * 1.45;
+        var allowLines = Math.Max(1, (int)Math.Floor(rowBudget / lineHeight));
+        _good.Text = need <= rowBudget ? TermsText(_goodTerms) : FitTerms(_goodTerms, rightW, size, allowLines);
+        _bad.Text = need <= rowBudget ? TermsText(_badTerms) : FitTerms(_badTerms, rightW, size, allowLines);
+        _good.FontSize = size;
+        _good.LineHeight = Math.Round(lineHeight, 1);
+        _bad.FontSize = size;
+        _bad.LineHeight = Math.Round(lineHeight, 1);
+    }
+
+    // 词条列在当前字号下的换行高度
+    private static double RowNeed(string[]? terms, double colW, double size)
+    {
+        var lines = Lines(TermsText(terms), colW, size);
+        return Math.Max(1, lines) * size * 1.45;
+    }
+
+    private static int Lines(string text, double colW, double size) =>
+        Math.Max(1, (int)Math.Ceiling(CardText.Width(text, Common.AppFontFamily, FontWeight.Normal, size) / Math.Max(1, colW)));
+
+    // 整词截断: 从尾部成词去掉, 不出现半词
+    private static string FitTerms(string[]? terms, double colW, double size, int maxLines)
+    {
+        if (terms is not { Length: > 0 })
+        {
+            return "--";
+        }
+        var count = terms.Length;
+        while (count > 1 && Lines(JoinTerms(terms[..count]), colW, size) > maxLines)
+        {
+            count--;
+        }
+        var text = JoinTerms(terms[..count]);
+        return count == terms.Length ? text : text + " …";
     }
 }
 
@@ -8962,6 +12932,8 @@ public sealed class NativeAlmanacWidget : WidgetCardBase
 /// <summary>图表控件基类: 填满父级 每帧按设备像素绘制(与原版 canvas 一致)</summary>
 internal abstract class ChartControl : Control
 {
+    // 归属卡片明暗 由宿主注入
+    public Func<bool>? DarkProvider { get; set; }
     protected override Size MeasureOverride(Size availableSize) => new(
         double.IsFinite(availableSize.Width) ? availableSize.Width : 200,
         double.IsFinite(availableSize.Height) ? availableSize.Height : 100);
@@ -8988,8 +12960,6 @@ internal abstract class ChartControl : Control
 public sealed class NativeNetworkSpeedWidget : WidgetCardBase
 {
     private const int MaxPts = 60;
-    private static readonly Color LineColor = NativeTheme.Parse("#e2543a");
-    private static readonly Color FillColor = NativeTheme.Rgba(226, 84, 58, 0.20);
 
     internal static Color T(string key, bool dark) => dark ? key switch
     {
@@ -9009,48 +12979,57 @@ public sealed class NativeNetworkSpeedWidget : WidgetCardBase
 
     private readonly TextBlock _title = new();
     private readonly TextBlock _downLabel = new();
-    private readonly TextBlock _downValue = new();
+    private readonly TextBlock _downNumber = new();
+    private readonly TextBlock _downUnit = new();
     private readonly TextBlock _upLabel = new();
-    private readonly TextBlock _upValue = new();
+    private readonly TextBlock _upNumber = new();
+    private readonly TextBlock _upUnit = new();
+    private readonly TextBlock _totals = new();
+    private readonly Border _downDot = new();
+    private readonly Border _upDot = new();
     private readonly NetChart _chart;
 
     public NativeNetworkSpeedWidget(ComponentDefinition definition) : base(definition)
     {
         _title.Text = AppUtils.Tr("netspeed.title");
-        _downLabel.Text = "↓" + AppUtils.Tr("netspeed.recv");
-        _upLabel.Text = "↑" + AppUtils.Tr("netspeed.send");
+        _downLabel.Text = AppUtils.Tr("netspeed.recv");
+        _upLabel.Text = AppUtils.Tr("netspeed.send");
 
-        _chart = new NetChart();
-        var downGroup = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
-        downGroup.Children.Add(_downLabel);
-        downGroup.Children.Add(_downValue);
-        var upGroup = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
-        upGroup.Children.Add(_upLabel);
-        upGroup.Children.Add(_upValue);
+        _chart = new NetChart { DarkProvider = () => CardIsDark };
+        var downGroup = MakeRateGroup(_downDot, _downLabel, _downNumber, _downUnit);
+        var upGroup = MakeRateGroup(_upDot, _upLabel, _upNumber, _upUnit);
+
+        var rates = new Grid
+        {
+            ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("Auto,Auto,*"),
+        };
+        Grid.SetColumn(downGroup, 0);
+        Grid.SetColumn(upGroup, 1);
+        upGroup.Margin = new Thickness(22, 0, 0, 0);
+        rates.Children.Add(downGroup);
+        rates.Children.Add(upGroup);
 
         var topbar = new Grid
         {
-            ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("Auto,*,Auto,Auto"),
-            Margin = new Thickness(0, 3, 0, 6),
+            ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("*,Auto"),
         };
-        Grid.SetColumn(_title, 0);
         _title.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(downGroup, 2);
-        Grid.SetColumn(upGroup, 3);
-        upGroup.Margin = new Thickness(10, 0, 0, 0);
         topbar.Children.Add(_title);
-        topbar.Children.Add(downGroup);
-        topbar.Children.Add(upGroup);
 
         var root = new Grid
         {
-            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,*"),
-            Margin = new Thickness(12, 2, 12, 8),
+            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,Auto,*,Auto"),
+            RowSpacing = 5,
+            Margin = new Thickness(14, 12, 14, 9),
         };
         Grid.SetRow(topbar, 0);
-        Grid.SetRow(_chart, 1);
+        Grid.SetRow(rates, 1);
+        Grid.SetRow(_chart, 2);
+        Grid.SetRow(_totals, 3);
         root.Children.Add(topbar);
+        root.Children.Add(rates);
         root.Children.Add(_chart);
+        root.Children.Add(_totals);
         Card.Child = root;
         Content = Card;
 
@@ -9064,50 +13043,148 @@ public sealed class NativeNetworkSpeedWidget : WidgetCardBase
         ApplyPalette();
     }
 
-    private bool IsDarkNow => ThemeSense.IsDark(this);
+    private static StackPanel MakeRateGroup(Border dot, TextBlock label, TextBlock number, TextBlock unit)
+    {
+        dot.Width = 7;
+        dot.Height = 7;
+        dot.CornerRadius = new CornerRadius(3.5);
+        dot.VerticalAlignment = VerticalAlignment.Center;
+        var head = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 5,
+            Children = { dot, label },
+        };
+        number.VerticalAlignment = VerticalAlignment.Bottom;
+        unit.VerticalAlignment = VerticalAlignment.Bottom;
+        unit.Margin = new Thickness(0, 0, 0, 2);
+        var value = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 3,
+            Children = { number, unit },
+        };
+        return new StackPanel
+        {
+            Spacing = 1,
+            Children = { head, value },
+        };
+    }
+
+    private bool IsDarkNow => CardIsDark;
 
     private void ApplyPalette()
     {
         var dark = IsDarkNow;
-        var sub = new SolidColorBrush(T("sub", dark));
-        var ink = new SolidColorBrush(T("ink", dark));
+        var p = WidgetSurfacePalette.Resolve(dark);
+        var sub = new SolidColorBrush(p.Text, CardInk.MutedOpacity);
+        var ink = new SolidColorBrush(p.Text);
         _title.Foreground = sub;
+        _title.FontSize = 12.5;
+        _title.FontWeight = FontWeight.SemiBold;
         _downLabel.Foreground = sub;
         _upLabel.Foreground = sub;
-        _downValue.Foreground = ink;
-        _upValue.Foreground = ink;
+        _downLabel.FontSize = 11;
+        _upLabel.FontSize = 11;
+        _downNumber.Foreground = ink;
+        _upNumber.Foreground = ink;
+        _downNumber.FontSize = 22;
+        _upNumber.FontSize = 22;
+        _downNumber.FontWeight = FontWeight.Light;
+        _upNumber.FontWeight = FontWeight.Light;
+        _downUnit.Foreground = sub;
+        _upUnit.Foreground = sub;
+        _downUnit.FontSize = 10.5;
+        _upUnit.FontSize = 10.5;
+        _totals.Foreground = sub;
+        _totals.FontSize = 10.5;
+        _totals.TextTrimming = TextTrimming.CharacterEllipsis;
+        _downDot.Background = CardAccent.Brush();
+        _upDot.Background = new SolidColorBrush(p.Text, 0.4);
     }
 
     private void OnNet(double down, double up)
     {
+        var totals = ReadTotals();
+        var downBytes = down / 8;
+        var upBytes = up / 8;
         Dispatcher.UIThread.Post(() =>
         {
-            _downValue.Text = FormatBytes(down / 8);
-            _upValue.Text = FormatBytes(up / 8);
-            _chart.Push(down, up);
+            (_downNumber.Text, _downUnit.Text) = FormatRate(downBytes);
+            (_upNumber.Text, _upUnit.Text) = FormatRate(upBytes);
+            _chart.Push(downBytes, upBytes);
+            _totals.Text = $"{AppUtils.Tr("netspeed.since_start")}  ↓ {FormatSize(totals.Down)}  ↑ {FormatSize(totals.Up)}";
         });
     }
 
-    internal static string FormatBytes(double v)
+    private static (double Down, double Up) ReadTotals()
+    {
+        double down = 0;
+        double up = 0;
+        try
+        {
+            foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (ni.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up ||
+                    ni.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Loopback)
+                {
+                    continue;
+                }
+                try
+                {
+                    var stats = ni.GetIPStatistics();
+                    down += stats.BytesReceived;
+                    up += stats.BytesSent;
+                }
+                catch
+                {
+                    // 个别虚拟网卡不提供统计 跳过
+                }
+            }
+        }
+        catch
+        {
+            // 整机统计不可用 保留 0
+        }
+        return (down, up);
+    }
+
+    private static (string Number, string Unit) FormatRate(double v)
     {
         if (v >= 1048576)
         {
-            return (v / 1048576).ToString("0.0", CultureInfo.CurrentCulture) + " MB/s";
+            return ((v / 1048576).ToString("0.0", CultureInfo.CurrentCulture), "MB/s");
         }
         if (v >= 1024)
         {
-            return (v / 1024).ToString("0.0", CultureInfo.CurrentCulture) + " KB/s";
+            return ((v / 1024).ToString("0.0", CultureInfo.CurrentCulture), "KB/s");
         }
-        return Math.Round(v).ToString(CultureInfo.CurrentCulture) + " B/s";
+        return (Math.Round(v).ToString(CultureInfo.CurrentCulture), "B/s");
     }
 
-    /// <summary>网速图表 绘制规格逐字取自模板 draw()/adaptScale()</summary>
+    private static string FormatSize(double v)
+    {
+        if (v >= 1073741824)
+        {
+            return (v / 1073741824).ToString("0.0", CultureInfo.CurrentCulture) + " GB";
+        }
+        if (v >= 1048576)
+        {
+            return (v / 1048576).ToString("0.0", CultureInfo.CurrentCulture) + " MB";
+        }
+        if (v >= 1024)
+        {
+            return (v / 1024).ToString("0.0", CultureInfo.CurrentCulture) + " KB";
+        }
+        return Math.Round(v).ToString(CultureInfo.CurrentCulture) + " B";
+    }
+
+    /// <summary>网速图表: 最近 60 秒 下载向上/上传向下的双柱</summary>
     private sealed class NetChart : ChartControl
     {
         private readonly List<double> _down = new();
         private readonly List<double> _up = new();
-        private double _scale = 50000;
-        private int _lowCount;
+        private double _scale = 100 * 1024;
 
         public void Push(double d, double u)
         {
@@ -9118,127 +13195,70 @@ public sealed class NativeNetworkSpeedWidget : WidgetCardBase
                 _down.RemoveAt(0);
                 _up.RemoveAt(0);
             }
-            // adaptScale 逐字: 超界翻倍 连续 4 次低于 1/4 且 >50000 才减半
-            var m = 1.0;
-            foreach (var v in _down.Concat(_up))
-            {
-                if (v > m)
-                {
-                    m = v;
-                }
-            }
-            while (m > _scale)
-            {
-                _scale *= 2;
-                _lowCount = 0;
-            }
-            if (m < _scale / 4)
-            {
-                if (_lowCount >= 4 && _scale > 50000)
-                {
-                    _scale /= 2;
-                    _lowCount = 0;
-                }
-                else
-                {
-                    _lowCount++;
-                }
-            }
-            else
-            {
-                _lowCount = 0;
-            }
+            _scale = ComputeScale();
             InvalidateVisual();
+        }
+
+        // 1/2/5/10 圆整刻度 最低 32KB/s 低流量也看得见柱形
+        private double ComputeScale()
+        {
+            var max = 32.0 * 1024;
+            foreach (var v in _down)
+            {
+                max = Math.Max(max, v);
+            }
+            foreach (var v in _up)
+            {
+                max = Math.Max(max, v);
+            }
+            var p = Math.Pow(10, Math.Floor(Math.Log10(max)));
+            foreach (var m in new[] { 1.0, 2, 5, 10 })
+            {
+                var top = m * p;
+                if (top >= max)
+                {
+                    return top;
+                }
+            }
+            return max;
         }
 
         protected override void DrawChart(DrawingContext ctx, double w, double h)
         {
-            var dark = ThemeSense.IsDark(this);
-            var gridPen = new Pen(new SolidColorBrush(T("grid", dark)), 1);
-            var gridVPen = new Pen(new SolidColorBrush(T("gridv", dark)), 1);
-            // 横向 4 格
-            for (var i = 0; i <= 4; i++)
-            {
-                var y = Math.Round(h * i / 4.0) + 0.5;
-                ctx.DrawLine(gridPen, new Point(0, y), new Point(w, y));
-            }
-            // 纵向每 10 点
-            var step = w / (MaxPts - 1);
-            for (var x = w; x > 0; x -= step * 10)
-            {
-                var gx = Math.Round(x) + 0.5;
-                ctx.DrawLine(gridVPen, new Point(gx, 0), new Point(gx, h));
-            }
-            if (_down.Count < 2)
+            var dark = DarkProvider?.Invoke() ?? ThemeSense.IsDark(this);
+            var p = WidgetSurfacePalette.Resolve(dark);
+            var mid = h / 2;
+            ctx.DrawLine(new Pen(new SolidColorBrush(p.Line, 0.55), 1), new Point(0, mid), new Point(w, mid));
+            if (_down.Count == 0 || h < 8)
             {
                 return;
             }
 
-            // 接收: 区域填充(下边闭合) + 1.6 实线
-            var area = new StreamGeometry();
-            using (var g = area.Open())
+            const int slots = MaxPts;
+            var step = w / slots;
+            var bar = Math.Max(1, step * 0.68);
+            var accent = CardAccent.Brush();
+            var muted = new SolidColorBrush(p.Text, 0.4);
+            var half = mid;
+            for (var i = 0; i < slots; i++)
             {
-                g.BeginFigure(new Point(w - (_down.Count - 1) * step, h), isFilled: true);
-                for (var i = 0; i < _down.Count; i++)
+                var idx = i - (slots - _down.Count);
+                if (idx < 0)
                 {
-                    var x = w - (_down.Count - 1 - i) * step;
-                    var y = h - Math.Min(_down[i] / _scale, 1) * h;
-                    g.LineTo(new Point(x, y));
+                    continue;
                 }
-                g.EndFigure(true);
-            }
-            ctx.DrawGeometry(new SolidColorBrush(FillColor), null, area);
-
-            var line = new StreamGeometry();
-            using (var g = line.Open())
-            {
-                g.BeginFigure(new Point(w - (_down.Count - 1) * step, h - Math.Min(_down[0] / _scale, 1) * h), isFilled: false);
-                for (var i = 1; i < _down.Count; i++)
+                var x = i * step + (step - bar) / 2;
+                var dh = Math.Min(1, _down[idx] / _scale) * half;
+                if (dh >= 0.5)
                 {
-                    var x = w - (_down.Count - 1 - i) * step;
-                    var y = h - Math.Min(_down[i] / _scale, 1) * h;
-                    g.LineTo(new Point(x, y));
+                    ctx.DrawRectangle(accent, null, new Rect(x, mid - dh, bar, dh), 1, 1);
                 }
-                g.EndFigure(false);
-            }
-            ctx.DrawGeometry(null, new Pen(new SolidColorBrush(LineColor), 1.6, null, PenLineCap.Round, PenLineJoin.Round), line);
-
-            // 发送: 1.3 虚线 3,3
-            var up = new StreamGeometry();
-            using (var g = up.Open())
-            {
-                g.BeginFigure(new Point(w - (_up.Count - 1) * step, h - Math.Min(_up[0] / _scale, 1) * h), isFilled: false);
-                for (var i = 1; i < _up.Count; i++)
+                var uh = Math.Min(1, _up[idx] / _scale) * half;
+                if (uh >= 0.5)
                 {
-                    var x = w - (_up.Count - 1 - i) * step;
-                    var y = h - Math.Min(_up[i] / _scale, 1) * h;
-                    g.LineTo(new Point(x, y));
+                    ctx.DrawRectangle(muted, null, new Rect(x, mid, bar, uh), 1, 1);
                 }
-                g.EndFigure(false);
             }
-            ctx.DrawGeometry(null, new Pen(new SolidColorBrush(LineColor), 1.3, new DashStyle(new double[] { 3, 3 }, 0), PenLineCap.Round, PenLineJoin.Round), up);
-
-            // 右上刻度 11px
-            var ft = new FormattedText(FormatBits(_scale), System.Globalization.CultureInfo.CurrentCulture,
-                FlowDirection.LeftToRight, new Typeface(Common.AppFontFamily), 11, new SolidColorBrush(T("sub", dark)));
-            ctx.DrawText(ft, new Point(w - 4 - ft.WidthIncludingTrailingWhitespace, 3));
-        }
-
-        private static string FormatBits(double v)
-        {
-            if (v >= 1e9)
-            {
-                return (v / 1e9).ToString("0.0", CultureInfo.CurrentCulture) + " Gbps";
-            }
-            if (v >= 1e6)
-            {
-                return (v / 1e6).ToString("0.0", CultureInfo.CurrentCulture) + " Mbps";
-            }
-            if (v >= 1e3)
-            {
-                return Math.Round(v / 1e3).ToString(CultureInfo.CurrentCulture) + " Kbps";
-            }
-            return Math.Round(v).ToString(CultureInfo.CurrentCulture) + " bps";
         }
     }
 }
@@ -9271,7 +13291,7 @@ public sealed class NativeDecibelMeterWidget : WidgetCardBase
         _curLabel.Text = AppUtils.Tr("dbmeter.cur");
         _peakLabel.Text = AppUtils.Tr("dbmeter.peak");
 
-        _chart = new DecibelChart();
+        _chart = new DecibelChart { DarkProvider = () => CardIsDark };
         var curGroup = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
         curGroup.Children.Add(_curLabel);
         curGroup.Children.Add(_curValue);
@@ -9313,9 +13333,26 @@ public sealed class NativeDecibelMeterWidget : WidgetCardBase
             _chart.InvalidateVisual();
         };
         ApplyPalette();
+        SizeChanged += (_, _) => Relayout();
+        Relayout();
     }
 
-    private bool IsDarkNow => ThemeSense.IsDark(this);
+    // 顶栏字号随卡高 数值加粗 原实现漏设字号
+    private void Relayout()
+    {
+        var h = Bounds.Height;
+        var k = Math.Clamp((h > 1 ? h : 200) / 200.0, 0.8, 1.5);
+        _title.FontSize = Math.Round(12.5 * k, 1);
+        _title.FontWeight = FontWeight.SemiBold;
+        _curLabel.FontSize = Math.Round(12 * k, 1);
+        _peakLabel.FontSize = Math.Round(12 * k, 1);
+        _curValue.FontSize = Math.Round(17 * k, 1);
+        _curValue.FontWeight = FontWeight.Light;
+        _peakValue.FontSize = Math.Round(17 * k, 1);
+        _peakValue.FontWeight = FontWeight.Light;
+    }
+
+    private bool IsDarkNow => CardIsDark;
 
     // T 定义在 NativeNetworkSpeedWidget 此处转发
     private static Color T(string key, bool dark) => NativeNetworkSpeedWidget.T(key, dark);
@@ -9375,7 +13412,7 @@ public sealed class NativeDecibelMeterWidget : WidgetCardBase
 
         protected override void DrawChart(DrawingContext ctx, double w, double h)
         {
-            var dark = ThemeSense.IsDark(this);
+            var dark = DarkProvider?.Invoke() ?? ThemeSense.IsDark(this);
             const double PL = 8, PR = 4, PT = 20, PB = 16;
             var pw = w - PL - PR;
             var ph = h - PT - PB;
@@ -9769,7 +13806,7 @@ public sealed class NativeDailyWordWidget : WidgetCardBase
         _ = RefreshAsync();
     }
 
-    private bool IsDarkNow => ThemeSense.IsDark(this);
+    private bool IsDarkNow => CardIsDark;
 
     private IBrush Gradient(Color c1, Color c2) => new LinearGradientBrush
     {
@@ -9816,7 +13853,7 @@ public sealed class NativeDailyWordWidget : WidgetCardBase
 
         _word.FontFamily = serif;
         _word.FontSize = 40;
-        _word.FontWeight = FontWeight.Bold;
+        _word.FontWeight = FontWeight.Light;
 
         _phoneticText.FontSize = 14;
         _phoneticChip.Child = _phoneticText;
@@ -10066,7 +14103,7 @@ public sealed class NativeDailySentenceWidget : WidgetCardBase
         _ = RefreshAsync();
     }
 
-    private bool IsDarkNow => ThemeSense.IsDark(this);
+    private bool IsDarkNow => CardIsDark;
 
     private IBrush Gradient(Color c1, Color c2) => new LinearGradientBrush
     {
@@ -10310,6 +14347,7 @@ internal static class CardTheme
                 Text = glyph,
                 FontSize = size * 0.58,
                 TextAlignment = TextAlignment.Center,
+                Foreground = new SolidColorBrush(T("sub", dark())),
             },
         };
         var isDel = glyph == "×";
@@ -10332,6 +14370,73 @@ internal static class CardTheme
             ((TextBlock)btn.Child!).Foreground = new SolidColorBrush(T("sub", dark()));
         };
         return btn;
+    }
+}
+
+/// <summary>组件统一空态: 强调色徽标 + 标题 + 说明 + 可选操作行</summary>
+internal sealed class CardEmptyState : StackPanel
+{
+    private readonly Border _badge = new();
+    private readonly FAFontIcon _icon;
+    private readonly TextBlock _title = new();
+    private readonly TextBlock _hint = new();
+
+    public StackPanel Actions { get; } = new()
+    {
+        Orientation = Orientation.Horizontal,
+        Spacing = 6,
+        HorizontalAlignment = HorizontalAlignment.Center,
+        Margin = new Thickness(0, 2, 0, 0),
+        IsVisible = false,
+    };
+
+    public CardEmptyState(FAFontIcon icon, string title, string hint, double badgeSize = 42)
+    {
+        _icon = icon;
+        // 只留一枚安静的字形图标 不再铺色块 避免绿底绿字
+        _icon.FontSize = Math.Round(badgeSize * 0.62);
+        _icon.HorizontalAlignment = HorizontalAlignment.Center;
+        _icon.VerticalAlignment = VerticalAlignment.Center;
+        _badge.Width = badgeSize;
+        _badge.Height = badgeSize;
+        _badge.CornerRadius = new CornerRadius(0);
+        _badge.HorizontalAlignment = HorizontalAlignment.Center;
+        _badge.Child = _icon;
+
+        _title.Text = title;
+        _title.FontSize = WidgetType.Title;
+        _title.FontWeight = FontWeight.Medium;
+        _title.TextAlignment = TextAlignment.Center;
+        _title.HorizontalAlignment = HorizontalAlignment.Center;
+
+        _hint.Text = hint;
+        _hint.FontSize = 11.5;
+        _hint.TextAlignment = TextAlignment.Center;
+        _hint.TextWrapping = TextWrapping.Wrap;
+        _hint.MaxWidth = 240;
+        _hint.HorizontalAlignment = HorizontalAlignment.Center;
+
+        Spacing = 6;
+        HorizontalAlignment = HorizontalAlignment.Center;
+        VerticalAlignment = VerticalAlignment.Center;
+        Children.Add(_badge);
+        Children.Add(_title);
+        Children.Add(_hint);
+        Children.Add(Actions);
+    }
+
+    public void AddAction(Control action)
+    {
+        Actions.Children.Add(action);
+        Actions.IsVisible = true;
+    }
+
+    public void Apply(WidgetSurfacePalette p, Color? ink = null)
+    {
+        _badge.Background = null;
+        _icon.Foreground = new SolidColorBrush(p.Text, CardInk.FaintOpacity);
+        _title.Foreground = ink is { } c ? new SolidColorBrush(c) : CardInk.Fg(p);
+        _hint.Foreground = ink is { } h ? new SolidColorBrush(h, CardInk.MutedOpacity) : CardInk.Muted(p);
     }
 }
 
@@ -10416,7 +14521,7 @@ public sealed class DailyLogPanel : Grid
         };
 
         // 空态
-        var emptyIcon = FAIcons.Icon(FASymbol.Calendar, 26);
+        var emptyIcon = FAIcons.Glyph(AppIcons.Calendar, 26);
         emptyIcon.Opacity = 0.22;
         emptyIcon.HorizontalAlignment = HorizontalAlignment.Center;
         _emptyStack = new StackPanel
@@ -10469,6 +14574,7 @@ public sealed class DailyLogPanel : Grid
         RebuildDates();
     }
 
+    // 弹层不随卡片底色 仍按窗口主题
     private bool IsDarkNow => ThemeSense.IsDark(this);
 
     private void ApplyTheme()
@@ -10829,7 +14935,10 @@ public sealed class NativeAnnouncementWidget : WidgetCardBase
     private readonly Border _addBtn = new();
     private readonly Border _clearBtn = new();
     private readonly TextBlock _clearText = new();
-    private readonly TextBlock _emptyHint = new();
+    private readonly CardEmptyState _emptyView = new(
+        FAIcons.IconGlyph("E789"),
+        AppUtils.Tr("announcement.empty"),
+        AppUtils.Tr("announcement.empty_hint"));
     private readonly StackPanel _list = new();
     private List<Announcement> _items = new();
     private string _lastSerialized = "";
@@ -10856,12 +14965,13 @@ public sealed class NativeAnnouncementWidget : WidgetCardBase
         Log.Debug($"[AN] 公告栏组件初始化(原生) id={ComponentId}");
     }
 
-    private bool IsDarkNow => ThemeSense.IsDark(this);
+    private bool IsDarkNow => CardIsDark;
 
     private void BuildLayout()
     {
-        _title.FontSize = 20;
-        _title.FontWeight = FontWeight.Bold;
+        _title.Text = AppUtils.Tr("announcement.title");
+        _title.FontSize = 14;
+        _title.FontWeight = FontWeight.SemiBold;
         _title.VerticalAlignment = VerticalAlignment.Center;
 
         _countBorder.Child = _countChip;
@@ -10915,11 +15025,6 @@ public sealed class NativeAnnouncementWidget : WidgetCardBase
         topGrid.Children.Add(_addBtn);
         topGrid.Children.Add(_clearBtn);
 
-        _emptyHint.Text = AppUtils.Tr("announcement.empty");
-        _emptyHint.FontSize = 15;
-        _emptyHint.HorizontalAlignment = HorizontalAlignment.Center;
-        _emptyHint.VerticalAlignment = VerticalAlignment.Center;
-
         var scroll = new ScrollViewer
         {
             Content = _list,
@@ -10927,7 +15032,7 @@ public sealed class NativeAnnouncementWidget : WidgetCardBase
         };
         var body = new Grid();
         body.Children.Add(scroll);
-        body.Children.Add(_emptyHint);
+        body.Children.Add(_emptyView);
 
         var root = new Grid
         {
@@ -11165,8 +15270,8 @@ public sealed class NativeAnnouncementWidget : WidgetCardBase
             _clearText.Foreground = new SolidColorBrush(CardTheme.T("sub", dark));
         }
         _clearBtn.IsVisible = _items.Count > 0;
-        _emptyHint.Foreground = new SolidColorBrush(CardTheme.T("empty", dark));
-        _emptyHint.IsVisible = _items.Count == 0;
+        _emptyView.Apply(WidgetSurfacePalette.Resolve(dark));
+        _emptyView.IsVisible = _items.Count == 0;
 
         _list.Children.Clear();
         for (var i = 0; i < _items.Count; i++)
@@ -11178,10 +15283,10 @@ public sealed class NativeAnnouncementWidget : WidgetCardBase
             var text = new TextBlock
             {
                 Text = it.Text,
-                FontSize = 18,
-                LineHeight = 18 * 1.45,
+                FontSize = 15,
+                LineHeight = 15 * 1.45,
                 TextWrapping = TextWrapping.Wrap,
-                MaxHeight = 18 * 1.45 * 3,
+                MaxHeight = 15 * 1.45 * 3,
                 ClipToBounds = true,
                 Cursor = new Cursor(StandardCursorType.Hand),
             };
@@ -11251,14 +15356,15 @@ public sealed class NativeAnnouncementWidget : WidgetCardBase
             itemGrid.Children.Add(dot);
             itemGrid.Children.Add(body);
 
+            // 平面列表: 透明底 最新条 accent 左缘 条目间 1px 分隔线
             var itemBorder = new Border
             {
-                Background = new SolidColorBrush(CardTheme.T("card", dark)),
-                BorderBrush = new SolidColorBrush(CardTheme.T("cardline", dark)),
-                BorderThickness = fresh ? new Thickness(4, 1, 1, 1) : new Thickness(1),
-                CornerRadius = new CornerRadius(10),
-                Padding = new Thickness(11, 9, 11, 8),
-                Margin = new Thickness(0, 0, 0, 8),
+                Background = Brushes.Transparent,
+                BorderBrush = fresh ? CardAccent.Brush() : new SolidColorBrush(CardTheme.T("line", dark)),
+                BorderThickness = fresh ? new Thickness(2, 0, 0, 0) : new Thickness(0, 0, 0, 1),
+                CornerRadius = new CornerRadius(0),
+                Padding = new Thickness(fresh ? 10 : 0, 9, 0, 9),
+                Margin = new Thickness(0, 0, 0, 0),
                 Child = itemGrid,
             };
             itemBorder.PointerEntered += (_, _) => btns.Opacity = 1;
@@ -11284,13 +15390,17 @@ public sealed class NativeHomeworkBoardWidget : WidgetCardBase
     };
 
     private readonly TextBlock _progText = new();
-    private readonly Border _progFill = new();
+    private readonly ProgressBar _progBar = new();
     private readonly Border _addSubBtn = new();
     private readonly Border _clearDoneBtn = new();
     private readonly TextBlock _clearDoneText = new();
-    private readonly TextBlock _emptyHint = new();
-    private readonly StackPanel _col0 = new();
-    private readonly StackPanel _col1 = new();
+    private readonly CardEmptyState _emptyView = new(
+        FAIcons.Glyph(AppIcons.Book),
+        AppUtils.Tr("homework.empty_title"),
+        AppUtils.Tr("homework.empty"));
+    // Grid 栏: 科目少时按星号均分整列高度 免留白
+    private readonly Grid _col0 = new();
+    private readonly Grid _col1 = new();
     private JsonArray _sections = new();
     private string? _dataFile;
     private readonly DispatcherTimer _saveTimer;
@@ -11317,7 +15427,7 @@ public sealed class NativeHomeworkBoardWidget : WidgetCardBase
         Log.Debug("[HW] 作业板组件初始化(原生)");
     }
 
-    private bool IsDarkNow => ThemeSense.IsDark(this);
+    private bool IsDarkNow => CardIsDark;
 
     private static JsonArray LoadFrom(string file)
     {
@@ -11435,9 +15545,12 @@ public sealed class NativeHomeworkBoardWidget : WidgetCardBase
         _progText.FontWeight = FontWeight.SemiBold;
         _progText.VerticalAlignment = VerticalAlignment.Center;
 
-        _progFill.Height = 3;
-        _progFill.CornerRadius = new CornerRadius(2);
-        _progFill.Width = 0;
+        _progBar.Height = 4;
+        _progBar.CornerRadius = new CornerRadius(2);
+        _progBar.Minimum = 0;
+        _progBar.Maximum = 100;
+        _progBar.Value = 0;
+        _progBar.Margin = new Thickness(2, 0, 2, 6);
 
         _addSubBtn.Child = new TextBlock { Text = "+ " + AppUtils.Tr("homework.add_subject"), FontSize = 11.5, FontWeight = FontWeight.SemiBold };
         _addSubBtn.Padding = new Thickness(10, 3);
@@ -11489,17 +15602,8 @@ public sealed class NativeHomeworkBoardWidget : WidgetCardBase
 
         var topGrid = new Grid { ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("Auto,Auto,*,Auto,Auto,Auto") };
         topGrid.ColumnSpacing = 8;
-        var progTrack = new Border
-        {
-            Width = 72,
-            Height = 3,
-            CornerRadius = new CornerRadius(2),
-            Child = _progFill,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
         var progGroup = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
         progGroup.Children.Add(_progText);
-        progGroup.Children.Add(progTrack);
         var historyBtn = CardTheme.TagButton(AppUtils.Tr("homework.history"), 11.5, IsDarkNow);
         historyBtn.PointerReleased += (_, _) => ComponentExpander.Show(this, AppUtils.Tr("homework.history"),
             DailyLogPanel.ForHomework(ComponentId));
@@ -11512,11 +15616,6 @@ public sealed class NativeHomeworkBoardWidget : WidgetCardBase
         topGrid.Children.Add(_addSubBtn);
         topGrid.Children.Add(_clearDoneBtn);
         topGrid.Margin = new Thickness(2, 3, 2, 8);
-
-        _emptyHint.Text = AppUtils.Tr("homework.empty");
-        _emptyHint.FontSize = 12;
-        _emptyHint.HorizontalAlignment = HorizontalAlignment.Center;
-        _emptyHint.VerticalAlignment = VerticalAlignment.Center;
 
         var colsGrid = new Grid { ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("*,10,*") };
         Grid.SetColumn(_col0, 0);
@@ -11531,16 +15630,19 @@ public sealed class NativeHomeworkBoardWidget : WidgetCardBase
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
         };
         body.Children.Add(scroll);
-        body.Children.Add(_emptyHint);
+        body.Children.Add(_emptyView);
 
         var root = new Grid
         {
-            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,*"),
+            RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,Auto,*"),
             Margin = new Thickness(12, 2, 12, 8),
+            RowSpacing = 2,
         };
         Grid.SetRow(topGrid, 0);
-        Grid.SetRow(body, 1);
+        Grid.SetRow(_progBar, 1);
+        Grid.SetRow(body, 2);
         root.Children.Add(topGrid);
+        root.Children.Add(_progBar);
         root.Children.Add(body);
         Card.Child = root;
         Content = Card;
@@ -11603,23 +15705,30 @@ public sealed class NativeHomeworkBoardWidget : WidgetCardBase
         var accent = NativeTheme.Accent();
         _progText.Foreground = new SolidColorBrush(CardTheme.T("sub", dark));
         _progText.Text = "";
-        _progFill.Background = new SolidColorBrush(accent);
+        _progBar.Foreground = new SolidColorBrush(accent);
+        _progBar.Background = new SolidColorBrush(CardTheme.T("chip", dark));
         _addSubBtn.Background = new SolidColorBrush(CardTheme.T("chip", dark));
         ((TextBlock)_addSubBtn.Child!).Foreground = new SolidColorBrush(CardTheme.T("sub", dark));
         _clearDoneBtn.Background = new SolidColorBrush(CardTheme.T("chip", dark));
         _clearDoneText.Foreground = new SolidColorBrush(CardTheme.T("sub", dark));
-        _emptyHint.Foreground = new SolidColorBrush(CardTheme.T("empty", dark));
+        _emptyView.Apply(WidgetSurfacePalette.Resolve(dark));
 
         var (total, done) = Progress();
         _progText.Text = $"{done}/{total}";
-        _progFill.Width = total > 0 ? 72.0 * done / total : 0;
+        _progBar.Value = total > 0 ? done * 100.0 / total : 0;
         _clearDoneBtn.IsVisible = done > 0;
-        _emptyHint.IsVisible = _sections.Count == 0;
+        _emptyView.IsVisible = _sections.Count == 0;
 
         _col0.Children.Clear();
         _col1.Children.Clear();
+        _col0.RowDefinitions.Clear();
+        _col1.RowDefinitions.Clear();
 
-        // 双栏平衡分配(
+        // 单科目横跨整卡 免右半留白
+        var single = _sections.Count == 1;
+        Grid.SetColumnSpan(_col0, single ? 3 : 1);
+
+        // 双栏平衡分配: 按估算高 落列
         var h0 = 0.0;
         var h1 = 0.0;
         for (var si = 0; si < _sections.Count; si++)
@@ -11630,7 +15739,7 @@ public sealed class NativeHomeworkBoardWidget : WidgetCardBase
             }
             var itemCount = sec["items"] is JsonArray arr ? arr.Count : 0;
             var est = 30 + itemCount * 22;
-            var target = h0 <= h1 ? _col0 : _col1;
+            var target = single || h0 <= h1 ? _col0 : _col1;
             if (target == _col0)
             {
                 h0 += est;
@@ -11641,7 +15750,27 @@ public sealed class NativeHomeworkBoardWidget : WidgetCardBase
             }
             target.Children.Add(BuildSection(si, sec));
         }
+
+        // 该栏只放一个科目 -> 撑满列高; 多个则按内容高 由 ScrollViewer 接管
+        FitColumn(_col0);
+        FitColumn(_col1);
         InvalidateVisual();
+    }
+
+    // 单科目列 星号均分; 多科目 定量高
+    private static void FitColumn(Grid col)
+    {
+        col.RowDefinitions.Clear();
+        if (col.Children.Count == 0)
+        {
+            return;
+        }
+        var stretch = col.Children.Count == 1;
+        for (var i = 0; i < col.Children.Count; i++)
+        {
+            col.RowDefinitions.Add(new RowDefinition(stretch ? new GridLength(1, GridUnitType.Star) : GridLength.Auto));
+            Grid.SetRow(col.Children[i], i);
+        }
     }
 
     private Border BuildSection(int si, JsonObject sec)
@@ -11778,13 +15907,16 @@ public sealed class NativeHomeworkBoardWidget : WidgetCardBase
         head.Children.Add(delBtn);
         head.Margin = new Thickness(1, 0, 1, 5);
 
-        var body = new StackPanel();
-        body.Children.Add(head);
+        // 三段: 标题顶格 / 条目居中吸收余高 / 添加行贴底
+        var itemsHost = new StackPanel
+        {
+            VerticalAlignment = _sections.Count == 1 ? VerticalAlignment.Center : VerticalAlignment.Top,
+        };
         for (var ii = 0; ii < items.Count; ii++)
         {
             if (items[ii] is JsonObject it)
             {
-                body.Children.Add(BuildItemRow(si, ii, it));
+                itemsHost.Children.Add(BuildItemRow(si, ii, it));
             }
         }
 
@@ -11832,16 +15964,23 @@ public sealed class NativeHomeworkBoardWidget : WidgetCardBase
             input.LostFocus += (_, _) => finish(true);
         };
 
+        var body = new Grid { RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,*,Auto") };
+        Grid.SetRow(head, 0);
+        Grid.SetRow(itemsHost, 1);
+        Grid.SetRow(addRow, 2);
+        body.Children.Add(head);
+        body.Children.Add(itemsHost);
         body.Children.Add(addRow);
 
+        // 平面分组: 色点+标题即分组 科目间 1px 分隔线
         var secBorder = new Border
         {
-            Background = new SolidColorBrush(CardTheme.T("card", dark)),
-            BorderBrush = new SolidColorBrush(CardTheme.T("cardline", dark)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(9, 8, 9, 7),
-            Margin = new Thickness(0, 0, 0, 10),
+            Background = Brushes.Transparent,
+            BorderBrush = new SolidColorBrush(CardTheme.T("line", dark)),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            CornerRadius = new CornerRadius(0),
+            Padding = new Thickness(0, 8, 0, 8),
+            Margin = new Thickness(2, 0, 2, 6),
             Child = body,
         };
         secBorder.PointerEntered += (_, _) => delBtn.Opacity = 1;
@@ -12004,17 +16143,15 @@ public sealed class NativeTimetableTimelineWidget : WidgetCardBase
     private readonly TimelineCanvas _canvas;
     private readonly DispatcherTimer _refreshTimer;
     private readonly DispatcherTimer _renderTimer;
-    private readonly TextBlock _emptyHint = new();
+    private readonly CardEmptyState _emptyView = new(
+        FAIcons.Glyph(AppIcons.Clock),
+        AppUtils.Tr("timetable.day_empty"),
+        AppUtils.Tr("component.click_to_settings"));
 
     public NativeTimetableTimelineWidget(ComponentDefinition definition) : base(definition)
     {
         _canvas = new TimelineCanvas(this);
-        _emptyHint.Text = "今日课表未配置";
-        _emptyHint.FontSize = 15;
-        _emptyHint.FontWeight = FontWeight.SemiBold;
-        _emptyHint.LetterSpacing = 4;
-        _emptyHint.HorizontalAlignment = HorizontalAlignment.Center;
-        _emptyHint.VerticalAlignment = VerticalAlignment.Center;
+        _emptyView.Apply(WidgetSurfacePalette.Resolve(CardIsDark));
 
         var host = new Border
         {
@@ -12035,10 +16172,14 @@ public sealed class NativeTimetableTimelineWidget : WidgetCardBase
         };
         var root = new Grid();
         root.Children.Add(host);
-        root.Children.Add(_emptyHint);
+        root.Children.Add(_emptyView);
         Card.Child = root;
         Content = Card;
-        ActualThemeVariantChanged += (_, _) => _canvas.InvalidateVisual();
+        ActualThemeVariantChanged += (_, _) =>
+        {
+            _emptyView.Apply(WidgetSurfacePalette.Resolve(CardIsDark));
+            _canvas.InvalidateVisual();
+        };
 
         // 原版 1s 起步 空数据指数退避到 30s
         _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -12058,7 +16199,7 @@ public sealed class NativeTimetableTimelineWidget : WidgetCardBase
         var nodes = TimetableScheduleProvider.BuildTimelineNodes();
         _nodes = nodes;
         // 空态提示必须在渲染过程外切换: Render 内改 IsVisible 会触发渲染期失效异常(crash)
-        _emptyHint.IsVisible = nodes.Count == 0;
+        _emptyView.IsVisible = nodes.Count == 0;
         _canvas.InvalidateVisual();
         if (nodes.Count == 0)
         {
@@ -12162,7 +16303,8 @@ public sealed class NativeTimetableTimelineWidget : WidgetCardBase
             {
                 return;
             }
-            var dark = ThemeSense.IsDark(this);
+            // 自绘取色跟随卡片底色 非窗口主题
+            var dark = _owner.CardIsDark;
             var nodes = _owner._nodes;
             var st = Compute();
             if (nodes.Count == 0)
@@ -12384,6 +16526,7 @@ public abstract class ConfigField
     public abstract Control Build();
     public abstract void Load(JsonObject config);
     public abstract void Save(JsonObject result);
+    public abstract void Reset();
 
     protected static JsonValue? Node(JsonObject o, string k) =>
         o.TryGetPropertyValue(k, out var n) ? n as JsonValue : null;
@@ -12447,6 +16590,7 @@ public sealed class SwitchField : ConfigField
 
     public override void Load(JsonObject c) => _w!.IsChecked = GetBool(c, Key, _default);
     public override void Save(JsonObject r) => r[Key] = _w!.IsChecked == true;
+    public override void Reset() => _w!.IsChecked = _default;
 }
 
 /// <summary>数值输入字段</summary>
@@ -12484,6 +16628,7 @@ public sealed class SpinField : ConfigField
 
     public override void Load(JsonObject c) => _w!.Value = GetInt(c, Key, _default);
     public override void Save(JsonObject r) => r[Key] = (int)(_w!.Value ?? _default);
+    public override void Reset() => _w!.Value = _default;
 }
 
 /// <summary>下拉选择字段 options: [(存值, 显示文本)]</summary>
@@ -12527,6 +16672,12 @@ public sealed class ComboField : ConfigField
     }
 
     public override void Save(JsonObject r) => r[Key] = ItemValue(_w!.SelectedItem) ?? _default;
+
+    public override void Reset()
+    {
+        var idx = Array.FindIndex(_options, o => o.Value == _default);
+        _w!.SelectedIndex = Math.Max(0, idx);
+    }
 }
 
 /// <summary>文本字段(inline=true 时标签与输入框同行)</summary>
@@ -12566,6 +16717,7 @@ public sealed class TextField : ConfigField
 
     public override void Load(JsonObject c) => _w!.Text = GetStr(c, Key, _default);
     public override void Save(JsonObject r) => r[Key] = _w!.Text ?? "";
+    public override void Reset() => _w!.Text = _default;
 }
 
 /// <summary>滑块字段</summary>
@@ -12627,6 +16779,15 @@ public sealed class SliderField : ConfigField
     }
 
     public override void Save(JsonObject r) => r[Key] = (int)Math.Round(_w!.Value);
+
+    public override void Reset()
+    {
+        _w!.Value = _default;
+        if (_val is not null)
+        {
+            _val.Text = $"{_default}{_suffix}";
+        }
+    }
 }
 
 /// <summary>纯颜色字段(十六进制输入 + 色块预览; 未引 ColorPicker 包故不做取色器)</summary>
@@ -12677,6 +16838,7 @@ public sealed class PlainColorField : ConfigField
 
     public override void Load(JsonObject c) => _w!.Text = GetStr(c, Key, _default);
     public override void Save(JsonObject r) => r[Key] = _w!.Text ?? _default;
+    public override void Reset() => _w!.Text = _default;
 }
 
 /// <summary>颜色字段(跟随不透明度/自定义颜色 + 颜色值)</summary>
@@ -12725,6 +16887,12 @@ public sealed class ColorField : ConfigField
         r[Key + "_mode"] = _combo!.SelectedIndex == 1 ? "custom" : "opacity";
         _picker!.Save(r);
     }
+
+    public override void Reset()
+    {
+        _combo!.SelectedIndex = _defaultMode == "custom" ? 1 : 0;
+        _picker!.Reset();
+    }
 }
 
 /// <summary>日期字段 yyyy-MM-dd</summary>
@@ -12760,21 +16928,31 @@ public sealed class DateField : ConfigField
 
     public override void Save(JsonObject r) =>
         r[Key] = _w!.SelectedDate?.ToString("yyyy-MM-dd") ?? _default;
+
+    public override void Reset()
+    {
+        if (DateTime.TryParse(_default, out var d))
+        {
+            _w!.SelectedDate = new DateTimeOffset(d);
+        }
+    }
 }
 
 /// <summary>组件配置面板</summary>
 public sealed class ComponentConfigDialog
 {
     private readonly JsonObject _config;
+    private readonly string _componentId;
     private readonly List<ConfigField> _fields = new();
     private readonly StackPanel _basicHost = new() { Spacing = 14, Margin = new Thickness(0, 8, 0, 0) };
     private readonly StackPanel _advancedHost = new() { Spacing = 14, Margin = new Thickness(0, 8, 0, 0) };
 
     public Control Content { get; }
 
-    private ComponentConfigDialog(JsonObject config)
+    private ComponentConfigDialog(JsonObject config, string componentId)
     {
         _config = config;
+        _componentId = componentId;
 
         var tabBasic = MakeTab("component_edit.config_basic");
         var tabAdvanced = MakeTab("component_edit.config_advanced");
@@ -12782,8 +16960,8 @@ public sealed class ComponentConfigDialog
         var basicScroll = new ScrollViewer { Content = _basicHost, Padding = new Thickness(2, 0, 12, 0) };
         var advancedScroll = new ScrollViewer { Content = _advancedHost, Padding = new Thickness(2, 0, 12, 0) };
 
-        BuildPage(_basicHost, BasicDefs());
-        BuildPage(_advancedHost, AdvancedDefs());
+        BuildPage(_basicHost, BasicDefs(_componentId));
+        BuildPage(_advancedHost, AdvancedDefs(_componentId));
 
         void Select(bool basic)
         {
@@ -12806,7 +16984,7 @@ public sealed class ComponentConfigDialog
 
         var root = new Grid
         {
-            RowDefinitions = RowDefinitions.Parse("Auto,*"),
+            RowDefinitions = RowDefinitions.Parse("Auto,*,Auto"),
             MinWidth = 460,
             MinHeight = 340,
         };
@@ -12814,6 +16992,36 @@ public sealed class ComponentConfigDialog
         Grid.SetRow(pages, 1);
         root.Children.Add(tabs);
         root.Children.Add(pages);
+
+        // 恢复默认 只重置字段 仍需点保存生效
+        var resetBtn = new Button
+        {
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 10, 0, 0),
+            Content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
+                Children =
+                {
+                    FAIcons.Glyph(AppIcons.Refresh, 14),
+                    new TextBlock
+                    {
+                        Text = AppUtils.Tr("component_edit.config_reset"),
+                        VerticalAlignment = VerticalAlignment.Center,
+                    },
+                },
+            },
+        };
+        resetBtn.Click += (_, _) =>
+        {
+            foreach (var f in _fields)
+            {
+                f.Reset();
+            }
+        };
+        Grid.SetRow(resetBtn, 2);
+        root.Children.Add(resetBtn);
         Content = root;
 
         foreach (var f in _fields)
@@ -12824,9 +17032,9 @@ public sealed class ComponentConfigDialog
     }
 
     /// <summary>弹出配置面板; 保存返回写回后的配置, 取消返回 null</summary>
-    public static async Task<JsonObject?> ShowAsync(Window owner, JsonObject config)
+    public static async Task<JsonObject?> ShowAsync(Window owner, JsonObject config, string componentId)
     {
-        var dlg = new ComponentConfigDialog(config);
+        var dlg = new ComponentConfigDialog(config, componentId);
         var cd = new FAContentDialog
         {
             Title = AppUtils.Tr("component_edit.config_title"),
@@ -12866,22 +17074,107 @@ public sealed class ComponentConfigDialog
 
     private static Color FadedColor() => Color.FromArgb(120, 128, 128, 128);
 
-    /// <summary>基础页字段定义 各组件专属: 按用户要求暂留空</summary>
-    private static List<(string? Title, List<ConfigField> Fields)> BasicDefs() => new();
-
-    /// <summary>进阶页字段定义 对齐原版 _advanced_defs 默认: 外观 + 字体</summary>
-    private static List<(string? Title, List<ConfigField> Fields)> AdvancedDefs() => new()
+    /// <summary>基础页字段: 按组件类型出各自业务设置</summary>
+    private static List<(string? Title, List<ConfigField> Fields)> BasicDefs(string type)
     {
-        (AppUtils.Tr("component_edit.group_appearance"), new List<ConfigField>
+        var groups = new List<(string? Title, List<ConfigField> Fields)>();
+        switch (type)
         {
-            new SliderField("bg_opacity", AppUtils.Tr("component_edit.config_bg_opacity"), 55, 0, 100, "%"),
-            new SliderField("corner_radius", AppUtils.Tr("component_edit.config_corner_radius"), 16, 0, 29, "px"),
-        }),
-        (AppUtils.Tr("component_edit.group_font"), new List<ConfigField>
+            case "clock_digital":
+                groups.Add((AppUtils.Tr("component_edit.group_display"), new List<ConfigField>
+                {
+                    new SwitchField("show_seconds", AppUtils.Tr("component_edit.config_show_seconds"), true),
+                    new SwitchField("show_lunar", AppUtils.Tr("component_edit.config_show_lunar"), true),
+                }));
+                break;
+            case "clock_square_2":
+                groups.Add((AppUtils.Tr("component_edit.group_display"), new List<ConfigField>
+                {
+                    new SwitchField("white_face", AppUtils.Tr("component_edit.config_white_face"), true),
+                }));
+                break;
+            case "weather_icon_temp":
+                groups.Add((AppUtils.Tr("component_edit.group_display"), new List<ConfigField>
+                {
+                    new SwitchField("show_icon", AppUtils.Tr("component_edit.config_show_icon"), true),
+                }));
+                break;
+            case "countdown_event":
+                groups.Add((AppUtils.Tr("component_edit.group_countdown"), new List<ConfigField>
+                {
+                    new TextField("event_name", AppUtils.Tr("component_edit.config_event_name"), "",
+                        AppUtils.Tr("component_edit.config_event_name"), true),
+                    new TextField("target_time", AppUtils.Tr("component_edit.config_target_time"), "",
+                        "2026-12-31 08:00", true),
+                }));
+                break;
+            case "countdown_days":
+                groups.Add((AppUtils.Tr("component_edit.group_countdown"), new List<ConfigField>
+                {
+                    new TextField("event_name", AppUtils.Tr("component_edit.config_event_name"), "",
+                        AppUtils.Tr("component_edit.config_event_name"), true),
+                    new TextField("target_date", AppUtils.Tr("component_edit.config_target_date"), "",
+                        "2026-12-31", true),
+                    new PlainColorField("title_bg_color", AppUtils.Tr("component_edit.config_title_bg"), "#F98E1B"),
+                }));
+                break;
+            case "school_info_class_info":
+                groups.Add((AppUtils.Tr("component_edit.group_info"), new List<ConfigField>
+                {
+                    new TextField("school", AppUtils.Tr("component_edit.config_school"), "", "", true),
+                    new TextField("class", AppUtils.Tr("component_edit.config_class"), "", "", true),
+                }));
+                break;
+            case "linkage_timetable_nowlesson":
+                groups.Add((AppUtils.Tr("component_edit.group_display"), new List<ConfigField>
+                {
+                    new SwitchField("show_teacher", AppUtils.Tr("component_edit.config_show_teacher"), true),
+                    new SwitchField("show_next", AppUtils.Tr("component_edit.config_show_next"), true),
+                    new SwitchField("show_duration", AppUtils.Tr("component_edit.config_show_duration"), true),
+                    new SwitchField("show_countdown", AppUtils.Tr("component_edit.config_show_countdown"), true),
+                }));
+                break;
+            case "sticky_note":
+                groups.Add((AppUtils.Tr("component_edit.group_content"), new List<ConfigField>
+                {
+                    new ComboField("color", AppUtils.Tr("component_edit.config_note_color"),
+                        new[]
+                        {
+                            ("yellow", AppUtils.Tr("component_edit.note_yellow")),
+                            ("green", AppUtils.Tr("component_edit.note_green")),
+                            ("blue", AppUtils.Tr("component_edit.note_blue")),
+                            ("pink", AppUtils.Tr("component_edit.note_pink")),
+                            ("orange", AppUtils.Tr("component_edit.note_orange")),
+                            ("purple", AppUtils.Tr("component_edit.note_purple")),
+                        }, "yellow"),
+                }));
+                break;
+        }
+        return groups;
+    }
+
+    /// <summary>进阶页字段: 通用外观 + 仅读取该值的组件才出字号缩放</summary>
+    private static List<(string? Title, List<ConfigField> Fields)> AdvancedDefs(string type)
+    {
+        var groups = new List<(string? Title, List<ConfigField> Fields)>
         {
-            new SliderField("font_scale", AppUtils.Tr("component_edit.config_font_scale"), 100, 50, 200, "%"),
-        }),
-    };
+            (AppUtils.Tr("component_edit.group_appearance"), new List<ConfigField>
+            {
+                new SliderField("bg_opacity", AppUtils.Tr("component_edit.config_bg_opacity"),
+                    Config.ComponentCardOpacity.Value, 0, 100, "%"),
+                new SliderField("corner_radius", AppUtils.Tr("component_edit.config_corner_radius"),
+                    Config.ComponentCardRadius.Value, 0, 29, "px"),
+            }),
+        };
+        if (type is "school_info_class_info" or "linkage_timetable_nowlesson")
+        {
+            groups.Add((AppUtils.Tr("component_edit.group_font"), new List<ConfigField>
+            {
+                new SliderField("font_scale", AppUtils.Tr("component_edit.config_font_scale"), 100, 50, 200, "%"),
+            }));
+        }
+        return groups;
+    }
 
 
     private void BuildPage(StackPanel host, List<(string? Title, List<ConfigField> Fields)> groups)

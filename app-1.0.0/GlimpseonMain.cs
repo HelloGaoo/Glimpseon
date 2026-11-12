@@ -52,6 +52,12 @@ internal static class GlimpseonMain
 
     public static AppBuilder BuildAvaloniaApp(bool gpuEnabled = true) => AppBuilder.Configure<App>()
         .UsePlatformDetect()
+        // 字体先于窗口登记
+        .ConfigureFonts(fontManager =>
+        {
+            fontManager.AddFontCollection(new HarmonyFontCollection());
+            fontManager.AddFontCollection(new ClockFontCollection());
+        })
         .With(new Win32PlatformOptions
         {
             RenderingMode = gpuEnabled

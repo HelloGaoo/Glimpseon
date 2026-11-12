@@ -12,7 +12,7 @@
   </Design.DataContext>
   <Grid Margin="24,24,24,20" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="14">
     <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12">
-      <fa:FAFontIcon FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE783;" FontSize="30" VerticalAlignment="Center" Foreground="#E81123" />
+      <fa:FAFontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE783;" FontSize="30" VerticalAlignment="Center" Foreground="#E81123" />
       <TextBlock x:Name="TitleText" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center" />
     </StackPanel>
     <StackPanel Grid.Row="1" Spacing="4">
@@ -29,25 +29,25 @@
     <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
       <Button x:Name="CopyBtn" Grid.Column="0" MinWidth="92">
         <StackPanel Orientation="Horizontal" Spacing="6">
-          <fa:FAFontIcon FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE8C8;" FontSize="16" />
+          <fa:FAFontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE77F;" FontSize="16" />
           <TextBlock x:Name="CopyText" Text="复制日志" VerticalAlignment="Center" />
         </StackPanel>
       </Button>
       <Button x:Name="IgnoreBtn" Grid.Column="2" MinWidth="92">
         <StackPanel Orientation="Horizontal" Spacing="6">
-          <fa:FAFontIcon FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE711;" FontSize="16" />
+          <fa:FAFontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE711;" FontSize="16" />
           <TextBlock x:Name="IgnoreText" Text="忽略" VerticalAlignment="Center" />
         </StackPanel>
       </Button>
       <Button x:Name="ExitBtn" Grid.Column="3" MinWidth="92">
         <StackPanel Orientation="Horizontal" Spacing="6">
-          <fa:FAFontIcon FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE7E8;" FontSize="16" />
+          <fa:FAFontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE7E8;" FontSize="16" />
           <TextBlock x:Name="ExitText" Text="退出应用" VerticalAlignment="Center" />
         </StackPanel>
       </Button>
       <Button x:Name="RestartBtn" Grid.Column="4" MinWidth="92" Classes="accent">
         <StackPanel Orientation="Horizontal" Spacing="6">
-          <fa:FAFontIcon FontFamily="avares://FluentAvalonia/Fonts#Symbols" Glyph="&#xE72C;" FontSize="16" />
+          <fa:FAFontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE72C;" FontSize="16" />
           <TextBlock x:Name="RestartText" Text="重启应用" VerticalAlignment="Center" />
         </StackPanel>
       </Button>

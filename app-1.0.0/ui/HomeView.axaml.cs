@@ -59,6 +59,8 @@ public partial class HomeView : UserControl
     private double _swipeLastDx;
     private Bitmap? _originalBitmap;
     private string? _draggingDefinitionId;
+    // 底部岛毛玻璃切片 brush
+    private ImageBrush? _islandGlass;
 
     private readonly GridOverlay _gridOverlay;
 
@@ -125,11 +127,58 @@ public partial class HomeView : UserControl
             _originalBitmap = new Bitmap(path);
             _wallpaperPath = path;
             ApplyBackgroundEffects();
+            BuildGlassBackdrop(path);
+            // 底图换实例 岛切片要换源
+            ApplyIslandStyle();
             Log.Info($"[HOME] 壁纸已应用: {path}");
         }
         catch (Exception e)
         {
             Log.Error($"[HOME] 壁纸应用失败: {e.Message}");
+        }
+    }
+
+    // 毛玻璃底图: 壁纸降采样后高斯模糊并压暗 供全部卡片取局部 一次生成零运行时开销
+    public static Bitmap? GlassBackdrop { get; private set; }
+
+    private static void BuildGlassBackdrop(string path)
+    {
+        try
+        {
+            using var src = SkiaSharp.SKBitmap.Decode(path);
+            if (src is null)
+            {
+                return;
+            }
+            const int targetW = 520;
+            var scale = Math.Min(1f, targetW / (float)src.Width);
+            var w = Math.Max(1, (int)(src.Width * scale));
+            var h = Math.Max(1, (int)(src.Height * scale));
+            using var surface = SkiaSharp.SKSurface.Create(new SkiaSharp.SKImageInfo(w, h));
+            var canvas = surface.Canvas;
+            canvas.Clear(SkiaSharp.SKColors.Black);
+            canvas.Scale(scale);
+            using var paint = new SkiaSharp.SKPaint
+            {
+                // ImageFilter 的 sigma 走设备空间 会被 canvas.Scale 再乘一次 故按原尺寸给
+                ImageFilter = SkiaSharp.SKImageFilter.CreateBlur(26f, 26f),
+            };
+            canvas.DrawBitmap(src, 0, 0, paint);
+            // 压暗: 白字压在模糊底上才有对比 155≈61%
+            using var dim = new SkiaSharp.SKPaint { Color = new SkiaSharp.SKColor(0, 0, 0, 155) };
+            canvas.DrawRect(new SkiaSharp.SKRect(0, 0, src.Width, src.Height), dim);
+            canvas.Flush();
+            using var img = surface.Snapshot();
+            using var data = img.Encode(SkiaSharp.SKEncodedImageFormat.Png, 90);
+            using var ms = new MemoryStream(data.ToArray());
+            var bmp = new Bitmap(ms);
+            GlassBackdrop?.Dispose();
+            GlassBackdrop = bmp;
+            Log.Debug($"[HOME] 毛玻璃底图 {w}x{h}");
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"[HOME] 毛玻璃底图生成失败: {e.Message}");
         }
     }
 
@@ -448,21 +497,40 @@ public partial class HomeView : UserControl
 
     private void InitBottomBar()
     {
-        BackToDesktopBtn.Content = AppUtils.Tr("home.back_to_desktop");
-        AddPageBtn.Content = AppUtils.Tr("home.add_page_with_count", ("count", Count));
-        RenamePageBtn.Content = AppUtils.Tr("home.rename_page");
-        DelPageBtn.Content = AppUtils.Tr("home.delete_page");
+        SetButtonLabel(BackToDesktopBtn, AppIcons.Desktop, AppUtils.Tr("home.back_to_desktop"));
+        SetButtonLabel(AddPageBtn, AppIcons.Add, AppUtils.Tr("home.add_page_with_count", ("count", Count)));
+        SetButtonLabel(ArrangeBtn, AppIcons.Grid, AppUtils.Tr("home.arrange_layout"));
+        SetButtonLabel(RenamePageBtn, "\uE13E", AppUtils.Tr("home.rename_page"));
+        SetButtonLabel(DelPageBtn, AppIcons.Delete, AppUtils.Tr("home.delete_page"));
         PageIndicator.SetCount(Count);
         PageIndicator.SetCurrent(_currentPageIndex);
         PageIndicator.PageClicked += index => GoToPage(index, animate: true);
 
-        // 岛样式跟随组件不透明度/圆角/主题
+        // 岛样式跟随组件不透明度/圆角/主题/毛玻璃
         ApplyIslandStyle();
         Config.ComponentCardOpacity.ValueChanged += _ => ApplyIslandStyle();
         Config.ComponentCardRadius.ValueChanged += _ => ApplyIslandStyle();
+        Config.ComponentCardBlur.ValueChanged += _ => ApplyIslandStyle();
         ActualThemeVariantChanged += (_, _) => ApplyIslandStyle();
+        // 底岛居中 定宽随窗口变 切片要跟排布重对齐
+        BottomBar.LayoutUpdated += (_, _) => RefreshIslandGlass();
 
         InitProfileMenu();
+    }
+
+    // 底栏按钮统一 图标 + 文字
+    private static void SetButtonLabel(Button button, string glyph, string text)
+    {
+        button.Content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            Children =
+            {
+                FAIcons.Glyph(glyph, 14),
+                new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center },
+            },
+        };
     }
 
     // 底部岛
@@ -470,10 +538,24 @@ public partial class HomeView : UserControl
     {
         var dark = ThemeSense.IsDark(this);
         var op = Math.Clamp(Config.ComponentCardOpacity.Value / 100.0, 0, 1);
-        BottomBar.Background = dark
-            ? new SolidColorBrush(Color.FromRgb(30, 30, 30), op)
-            : new SolidColorBrush(Colors.White, op);
-        BottomBar.BorderBrush = new SolidColorBrush(dark ? Colors.White : Colors.Black, dark ? 0.10 : 0.06);
+        var glass = Config.ComponentCardBlur.Value > 0 && GlassBackdrop is not null;
+        if (glass)
+        {
+            // 毛玻璃档 复用壁纸模糊底图切片 与卡片同一管线
+            _islandGlass ??= new ImageBrush { Stretch = Stretch.Fill };
+            _islandGlass.Source = GlassBackdrop;
+            BottomBar.Background = _islandGlass;
+            RefreshIslandGlass();
+        }
+        else
+        {
+            BottomBar.Background = dark
+                ? new SolidColorBrush(Color.FromRgb(30, 30, 30), op)
+                : new SolidColorBrush(Colors.White, op);
+        }
+        // 玻璃底偏暗 描边亮一档才看得出边界
+        BottomBar.BorderBrush = new SolidColorBrush(glass ? Colors.White : dark ? Colors.White : Colors.Black,
+            glass ? 0.24 : dark ? 0.10 : 0.06);
         BottomBar.BorderThickness = new Thickness(1);
         BottomBar.CornerRadius = new CornerRadius(Math.Max(8, Config.ComponentCardRadius.Value));
 
@@ -492,6 +574,30 @@ public partial class HomeView : UserControl
             : new SolidColorBrush(Color.Parse("#333333"));
     }
 
+    // 底部岛切片 按窗口坐标对齐壁纸像素
+    private void RefreshIslandGlass()
+    {
+        if (_islandGlass?.Source is null)
+        {
+            return;
+        }
+        var tl = TopLevel.GetTopLevel(this);
+        if (tl is null || tl.Bounds.Width <= 1 || tl.Bounds.Height <= 1 || BottomBar.Bounds.Width <= 1)
+        {
+            return;
+        }
+        var origin = BottomBar.TranslatePoint(new Point(0, 0), tl);
+        if (origin is null)
+        {
+            return;
+        }
+        var x = Math.Clamp(origin.Value.X / tl.Bounds.Width, 0, 0.999);
+        var y = Math.Clamp(origin.Value.Y / tl.Bounds.Height, 0, 0.999);
+        var w = Math.Clamp(BottomBar.Bounds.Width / tl.Bounds.Width, 0.001, 1 - x);
+        var h = Math.Clamp(BottomBar.Bounds.Height / tl.Bounds.Height, 0.001, 1 - y);
+        _islandGlass.SourceRect = new RelativeRect(x, y, w, h, RelativeUnit.Relative);
+    }
+
     private void OnBackToDesktopClicked(object? sender, RoutedEventArgs e) => MainWindow.MinimizeToDesktop();
 
     private void OnAddPageClicked(object? sender, RoutedEventArgs e)
@@ -504,8 +610,14 @@ public partial class HomeView : UserControl
         _pageWidgets[newIndex] = CreatePageWidget(newIndex);
         LayoutPages();
         PageIndicator.SetCount(Count);
-        AddPageBtn.Content = AppUtils.Tr("home.add_page_with_count", ("count", Count));
+        SetButtonLabel(AddPageBtn, AppIcons.Add, AppUtils.Tr("home.add_page_with_count", ("count", Count)));
         GoToPage(newIndex, animate: true);
+    }
+
+    private void OnArrangeLayoutClicked(object? sender, RoutedEventArgs e)
+    {
+        DeselectAll();
+        ComponentManager.ArrangeCurrentPage(_currentPageIndex);
     }
 
     private async void OnRenamePageClicked(object? sender, RoutedEventArgs e)
@@ -585,7 +697,7 @@ public partial class HomeView : UserControl
         }
 
         PageIndicator.SetCount(Count);
-        AddPageBtn.Content = AppUtils.Tr("home.add_page_with_count", ("count", Count));
+        SetButtonLabel(AddPageBtn, AppIcons.Add, AppUtils.Tr("home.add_page_with_count", ("count", Count)));
         var newCur = PageManager.GetCurrentPage();
         _currentPageIndex = newCur;
         LayoutPages();
@@ -942,6 +1054,7 @@ public partial class HomeView : UserControl
             _gridOverlay.IsVisible = false;
         }
         AddPageBtn.IsVisible = true;
+        ArrangeBtn.IsVisible = true;
         RenamePageBtn.IsVisible = true;
         DelPageBtn.IsVisible = true;
         SetAllDraggable(true);
@@ -954,6 +1067,7 @@ public partial class HomeView : UserControl
         DeselectAll();
         _gridOverlay.IsVisible = false;
         AddPageBtn.IsVisible = false;
+        ArrangeBtn.IsVisible = false;
         RenamePageBtn.IsVisible = false;
         DelPageBtn.IsVisible = false;
         SetAllDraggable(false);
@@ -1162,7 +1276,7 @@ public partial class HomeView : UserControl
         }
         var id = _selectedPlacementId;
         var cfg = ComponentManager.GetComponentConfig(id);
-        var saved = await ComponentConfigDialog.ShowAsync(MainWindow, cfg);
+        var saved = await ComponentConfigDialog.ShowAsync(MainWindow, cfg, ComponentManager.GetComponentType(id));
         if (saved is null)
         {
             return;
