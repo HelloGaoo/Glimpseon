@@ -405,6 +405,7 @@ public static class Config
     public static readonly ConfigItem<bool> ShowClock = new("Time", "ShowClock", true);
     public static readonly ConfigItem<bool> ShowClockSeconds = new("Time", "ShowClockSeconds", true);
     public static readonly ConfigItem<bool> ShowLunarCalendar = new("Time", "ShowLunarCalendar", true);
+    // 空 = 跟随卡片文字色 全局换肤后仍保证对比度
     public static readonly ConfigItem<string> ClockColor = new("Time", "ClockColor", "");
     public static readonly ConfigItem<int> ClockSize = new("Time", "ClockSize", 80, min: 40, max: 120);
     public static readonly ConfigItem<int> DateSize = new("Time", "DateSize", 16, min: 10, max: 40);

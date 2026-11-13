@@ -142,101 +142,26 @@ public partial class SettingsWindow : GlimpseonWindow
         };
     }
 
-    private static FASettingsExpander Card(FASymbol icon, string header, string? description, Control? footer)
-    {
-        var card = new FASettingsExpander
-        {
-            IconSource = FAIcons.IconSource(icon),
-            Header = header,
-        };
-        if (!string.IsNullOrEmpty(description))
-        {
-            card.Description = description;
-        }
-        if (footer is not null)
-        {
-            card.Footer = footer;
-        }
-        return card;
-    }
+    private static string HexOf(FASymbol symbol) => ((int)symbol).ToString("X");
+
+    private static FASettingsExpander Card(FASymbol icon, string header, string? description, Control? footer) =>
+        Card(HexOf(icon), header, description, footer);
 
     /// <summary>开关卡片</summary>
-    private static FASettingsExpander CardSwitch(FASymbol icon, string header, string description, ConfigItem<bool> item)
-    {
-        var toggle = new ToggleSwitch { IsChecked = item.Value, OnContent = null, OffContent = null };
-        toggle.IsCheckedChanged += (_, _) => item.Value = toggle.IsChecked == true;
-        return Card(icon, header, description, toggle);
-    }
+    private static FASettingsExpander CardSwitch(FASymbol icon, string header, string description, ConfigItem<bool> item) =>
+        CardSwitch(HexOf(icon), header, description, item);
 
     /// <summary>数值卡片</summary>
-    private static FASettingsExpander CardSpin(FASymbol icon, string header, string description, ConfigItem<int> item, double min, double max)
-    {
-        var num = new NumericUpDown
-        {
-            Value = item.Value,
-            Minimum = (decimal)min,
-            Maximum = (decimal)max,
-            Increment = 1,
-            Width = 150,
-            FormatString = "0",
-        };
-        num.ValueChanged += (_, e) => item.Value = (int)(e.NewValue ?? 0);
-        // 预设整组套用时要回写 否则界面停在旧值
-        item.ValueChanged += v => Dispatcher.UIThread.Post(() =>
-        {
-            if ((int)(num.Value ?? 0) != v)
-            {
-                num.Value = v;
-            }
-        });
-        return Card(icon, header, description, num);
-    }
+    private static FASettingsExpander CardSpin(FASymbol icon, string header, string description, ConfigItem<int> item, double min, double max) =>
+        CardSpin(HexOf(icon), header, description, item, min, max);
 
     /// <summary>文本行卡片</summary>
-    private static FASettingsExpander CardText(FASymbol icon, string header, string description, ConfigItem<string> item)
-    {
-        var box = new TextBox { Text = item.Value, Width = 260 };
-        box.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == TextBox.TextProperty)
-            {
-                item.Value = box.Text ?? "";
-            }
-        };
-        item.ValueChanged += v => Dispatcher.UIThread.Post(() =>
-        {
-            if (box.Text != v)
-            {
-                box.Text = v;
-            }
-        });
-        return Card(icon, header, description, box);
-    }
+    private static FASettingsExpander CardText(FASymbol icon, string header, string description, ConfigItem<string> item) =>
+        CardText(HexOf(icon), header, description, item);
 
     /// <summary>下拉卡片</summary>
-    private static FASettingsExpander CardCombo<T>(FASymbol icon, string header, string description, ConfigItem<T> item, (string Text, T Value)[] options)
-    {
-        var combo = new ComboBox { MinWidth = 180 };
-        combo.ItemsSource = options.Select(o => o.Text).ToList();
-        var idx = Array.FindIndex(options, o => EqualityComparer<T>.Default.Equals(o.Value, item.Value));
-        combo.SelectedIndex = idx < 0 ? 0 : idx;
-        combo.SelectionChanged += (_, _) =>
-        {
-            if (combo.SelectedIndex >= 0 && combo.SelectedIndex < options.Length)
-            {
-                item.Value = options[combo.SelectedIndex].Value;
-            }
-        };
-        item.ValueChanged += v => Dispatcher.UIThread.Post(() =>
-        {
-            var i = Array.FindIndex(options, o => EqualityComparer<T>.Default.Equals(o.Value, v));
-            if (i >= 0 && combo.SelectedIndex != i)
-            {
-                combo.SelectedIndex = i;
-            }
-        });
-        return Card(icon, header, description, combo);
-    }
+    private static FASettingsExpander CardCombo<T>(FASymbol icon, string header, string description, ConfigItem<T> item, (string Text, T Value)[] options) =>
+        CardCombo(HexOf(icon), header, description, item, options);
 
     /// <summary>文本行卡片 码位直引</summary>
     private static FASettingsExpander CardText(string hexIcon, string header, string description, ConfigItem<string> item)
@@ -315,27 +240,8 @@ public partial class SettingsWindow : GlimpseonWindow
     }
 
     /// <summary>颜色卡片</summary>
-    private static FASettingsExpander CardColor(FASymbol icon, string header, string description, ConfigItem<string> item)
-    {
-        // 直接用控件默认形态: 页签 光谱/调色板/分量 + 预览 + Hex 全都有, 无需逐个开关
-        var picker = new ColorPicker
-        {
-            Color = ParseColor(item.Value),
-            IsAlphaEnabled = true,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        picker.ColorChanged += (_, e) => item.Value = ToHex(e.NewColor);
-        item.ValueChanged += v => Dispatcher.UIThread.Post(() =>
-        {
-            var c = ParseColor(v);
-            if (picker.Color != c)
-            {
-                picker.Color = c;
-            }
-        });
-        return Card(icon, header, description, picker);
-    }
+    private static FASettingsExpander CardColor(FASymbol icon, string header, string description, ConfigItem<string> item) =>
+        CardColor(HexOf(icon), header, description, item);
 
     /// <summary>Color → 配置用十六进制串(不透明输出 #RRGGBB, 否则 #AARRGGBB)</summary>
     private static string ToHex(Color c) => c.A == 255
@@ -366,24 +272,19 @@ public partial class SettingsWindow : GlimpseonWindow
     {
         var toggle = new ToggleSwitch { IsChecked = item.Value, OnContent = null, OffContent = null };
         toggle.IsCheckedChanged += (_, _) => item.Value = toggle.IsChecked == true;
+        item.ValueChanged += v => Dispatcher.UIThread.Post(() =>
+        {
+            if (toggle.IsChecked != v)
+            {
+                toggle.IsChecked = v;
+            }
+        });
         return Card(hexIcon, header, description, toggle);
     }
 
     /// <summary>小数数值卡片</summary>
-    private static FASettingsExpander CardSpin(FASymbol icon, string header, string description, ConfigItem<double> item, double min, double max, double increment, string format = "0.0")
-    {
-        var num = new NumericUpDown
-        {
-            Value = (decimal)item.Value,
-            Minimum = (decimal)min,
-            Maximum = (decimal)max,
-            Increment = (decimal)increment,
-            FormatString = format,
-            Width = 150,
-        };
-        num.ValueChanged += (_, e) => item.Value = (double)(e.NewValue ?? 0);
-        return Card(icon, header, description, num);
-    }
+    private static FASettingsExpander CardSpin(FASymbol icon, string header, string description, ConfigItem<double> item, double min, double max, double increment, string format = "0.0") =>
+        CardSpin(HexOf(icon), header, description, item, min, max, increment, format);
 
     /// <summary>小数数值卡片 码位直引</summary>
     private static FASettingsExpander CardSpin(string hexIcon, string header, string description, ConfigItem<double> item, double min, double max, double increment, string format = "0.0")
@@ -398,6 +299,13 @@ public partial class SettingsWindow : GlimpseonWindow
             Width = 150,
         };
         num.ValueChanged += (_, e) => item.Value = (double)(e.NewValue ?? 0);
+        item.ValueChanged += v => Dispatcher.UIThread.Post(() =>
+        {
+            if ((double)(num.Value ?? 0) != v)
+            {
+                num.Value = (decimal)v;
+            }
+        });
         return Card(hexIcon, header, description, num);
     }
 
@@ -414,6 +322,13 @@ public partial class SettingsWindow : GlimpseonWindow
             FormatString = "0",
         };
         num.ValueChanged += (_, e) => item.Value = (int)(e.NewValue ?? 0);
+        item.ValueChanged += v => Dispatcher.UIThread.Post(() =>
+        {
+            if ((int)(num.Value ?? 0) != v)
+            {
+                num.Value = v;
+            }
+        });
         return Card(hexIcon, header, description, num);
     }
 
@@ -681,18 +596,18 @@ public partial class SettingsWindow : GlimpseonWindow
 
     private static readonly SkinPreset[] Skins =
     {
-        // 对齐 FullWidget: 每套是一种材质 不靠色相凑数
-        // 真背景模糊 底图由壁纸降采样模糊而来
+        // 每套一种材质
+        // 壁纸模糊底图
         new("settings.skin.glass", "settings.skin.glass_desc", "#101216", 100, "#E8ECEF", 20, 1, 20, 1),
-        // 深空: 半透石墨玻璃 + 薄荷点缀 卡片本身很淡 靠阴影浮起来
+        // 深空 半透石墨玻璃
         new("settings.skin.instrument", "settings.skin.instrument_desc", "#101216", 74, "#E8ECEF", 22, 1, 0, 1),
-        // 纸感: 米白纸卡 极淡边线 墨色字
+        // 纸感 米白纸卡
         new("settings.skin.paper", "settings.skin.paper_desc", "#F7F3EA", 92, "#1F1C18", 18, 1, 0, 1),
-        // 线框: 只有一圈描边没有底色
+        // 线框 仅描边
         new("settings.skin.wire", "settings.skin.wire_desc", "#FFFFFF", 5, "#F2F2F2", 16, 0, 0, 2),
-        // 贴纸: 白卡黑字 近直角 硬投影
+        // 贴纸 白卡黑字
         new("settings.skin.sticker", "settings.skin.sticker_desc", "#FFFFFF", 100, "#111111", 5, 2, 0, 1),
-        // 极简: 没有卡片
+        // 极简 无卡片
         new("settings.skin.type", "settings.skin.type_desc", "#000000", 0, "#F2F2F2", 0, 0, 0, 0),
     };
 
@@ -907,11 +822,11 @@ public partial class SettingsWindow : GlimpseonWindow
                 },
                 BoxShadow = skin.Border switch
                 {
-                    // 霓虹: 强调色外发光
+                // 霓虹 外发光
                     3 => new BoxShadows(
                         new BoxShadow { Blur = 16, Spread = 2, Color = Color.FromArgb(90, accent.R, accent.G, accent.B) },
                         new[] { new BoxShadow { Blur = 5, Color = Color.FromArgb(150, accent.R, accent.G, accent.B) } }),
-                    // 双框: 内线由外层再叠一个细框示意
+                // 双框
                     4 => new BoxShadows(new BoxShadow
                     {
                         OffsetY = 5,
@@ -1056,8 +971,8 @@ public partial class SettingsWindow : GlimpseonWindow
         else
         {
             var bg = ParseColor(skin.Bg);
-            top = ShiftColor(bg, 0.12);
-            bottom = ShiftColor(bg, -0.12);
+            top = Common.ShiftColor(bg, 0.12);
+            bottom = Common.ShiftColor(bg, -0.12);
         }
         var a = (byte)Math.Round(skin.Opacity / 100.0 * 255);
         return new LinearGradientBrush
@@ -1071,8 +986,6 @@ public partial class SettingsWindow : GlimpseonWindow
             },
         };
     }
-
-    private static Color ShiftColor(Color c, double k) => Common.ShiftColor(c, k);
 
     // 选中态
     private void RefreshSkinMarks(Border[] hosts, Border[] checks)

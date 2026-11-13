@@ -301,7 +301,7 @@ public sealed class NeteaseCloudMusicSource : MediaSourceBase
                 }
             }
         }
-        Log.Warning($"网易云歌词未命中 song_id={media.SongId}");
+        Log.Debug($"网易云歌词未命中 song_id={media.SongId}");
         return null;
     }
 
@@ -343,7 +343,7 @@ public sealed class NeteaseCloudMusicSource : MediaSourceBase
             _cache.Set(key, thumb);
             return thumb;
         }
-        Log.Warning($"网易云封面未命中 song_id={media.SongId}");
+        Log.Debug($"网易云封面未命中 song_id={media.SongId}");
         return null;
     }
 
@@ -362,7 +362,7 @@ public sealed class NeteaseCloudMusicSource : MediaSourceBase
                 return detail.Duration;
             }
         }
-        Log.Warning("网易云时长补全失败");
+        Log.Debug("网易云时长补全失败");
         return 0;
     }
 
@@ -726,9 +726,8 @@ public sealed class NeteaseCloudMusicSource : MediaSourceBase
             Log.Debug($"网易云歌曲详情命中缓存 song_id={songId}");
             return (SongDetail)cached;
         }
-        var data = await ApiGetAsync("/song/detail/", new Dictionary<string, string>
+        var data = await ApiGetAsync("/song/detail", new Dictionary<string, string>
         {
-            ["id"] = songId,
             ["ids"] = $"[{songId}]",
         });
         if (data is { } root && root.TryGetProperty("songs", out var songs) &&
@@ -770,7 +769,7 @@ public sealed class NeteaseCloudMusicSource : MediaSourceBase
             Log.Info($"网易云详情已获取 song_id={songId} {detail.Name} {detail.Duration}ms");
             return detail;
         }
-        Log.Warning($"网易云歌曲详情获取失败 song_id={songId}");
+        Log.Debug($"网易云歌曲详情获取失败 song_id={songId}");
         return null;
     }
 
@@ -1186,8 +1185,7 @@ public sealed class GsmTcSource : MediaSourceBase
             var tl = session.GetTimelineProperties();
             var pos = tl.Position;
             var end = tl.EndTime;
-            // 部分播放器(HY/浏览器)只在切歌或暂停时刷新快照, 直接读 Position 会每秒回跳;
-            // 用 LastUpdatedTime 补上快照之后流逝的时间
+            // 快照补偿 防进度回跳
             if (info.IsPlaying && end > TimeSpan.Zero)
             {
                 var age = DateTimeOffset.UtcNow - tl.LastUpdatedTime;
@@ -1266,7 +1264,7 @@ public sealed class GsmTcSource : MediaSourceBase
     // 发送play/pause/next/prev
     public override Task<bool> ControlAsync(string action) => ControlAsync(action, null);
 
-    // 按来源应用匹配会话, 避免当前会话切到浏览器时控制错对象
+    // 按来源匹配会话
     public async Task<bool> ControlAsync(string action, string? appName)
     {
         if (!Available)
@@ -1359,10 +1357,12 @@ public sealed class GsmTcSource : MediaSourceBase
         {
             return raw[..^4];
         }
-        return raw;
+        // AUMID 取应用段
+        var bang = raw.LastIndexOf('!');
+        return bang >= 0 && bang < raw.Length - 1 ? raw[(bang + 1)..] : raw;
     }
 
-    // 从系统媒体会话取当前封面 供网易云 API 失败时兜底
+    // 系统会话封面 备用
     internal static async Task<byte[]?> TryGetThumbnailAsync(string appFilter)
     {
         try
@@ -1397,7 +1397,7 @@ public sealed class GsmTcSource : MediaSourceBase
         }
         catch (Exception e)
         {
-            Log.Debug($"GSMTC 缩略图兜底失败: {e.Message}");
+            Log.Debug($"GSMTC 缩略图获取失败: {e.Message}");
         }
         return null;
     }

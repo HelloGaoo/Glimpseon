@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// 卡片排字 真实字形测量 + 按可用框收敛字号 免逐组件硬编码
+// 卡片排字 字形测量与收敛
 using System.Globalization;
 using Avalonia;
 using Avalonia.Media;
@@ -24,7 +24,7 @@ namespace Glimpseon.UI;
 
 internal static class CardText
 {
-    /// <summary>单行字宽(px) 失败回退经验值</summary>
+    /// <summary>单行字宽 失败估算</summary>
     public static double Width(string? text, FontFamily family, FontWeight weight, double size, FontStyle style = FontStyle.Normal)
     {
         if (string.IsNullOrEmpty(text) || size <= 0)
@@ -44,7 +44,7 @@ internal static class CardText
         }
     }
 
-    /// <summary>超宽按比例回缩 返回钳制后字号</summary>
+    /// <summary>超宽回缩 返回字号</summary>
     public static double Fit(string? text, FontFamily family, FontWeight weight, double maxWidth, double prefer,
         double min = 10, double max = 240)
     {
@@ -57,7 +57,7 @@ internal static class CardText
         return Math.Clamp(Math.Round(size, 1), min, max);
     }
 
-    /// <summary>按高度取一档 行高换算字面高</summary>
+    /// <summary>按高度取字号</summary>
     public static double ByHeight(double height, double ratio, double min, double max) =>
         Math.Clamp(Math.Round(height * ratio, 1), min, max);
 }
