@@ -826,9 +826,9 @@ public sealed class WidgetSurfacePalette
 /// <summary>字色四档: Fg 全值 / Muted 0.62 / Faint 0.30 / Sub 走色板</summary>
 public static class CardInk
 {
-    // 次要墨色 58% / 26%
-    public const double MutedOpacity = 0.58;
-    public const double FaintOpacity = 0.26;
+    // 与 WidgetInk 同源 避免两套弱化档位
+    public const double MutedOpacity = WidgetInk.MutedOpacity;
+    public const double FaintOpacity = WidgetInk.FaintOpacity;
 
     public static SolidColorBrush Fg(WidgetSurfacePalette p) => new(p.Text);
 

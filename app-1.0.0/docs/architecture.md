@@ -51,7 +51,7 @@ app-1.0.0/
     App.axaml(.cs)            应用定义
     MainWindow                主窗口
     HomeView                  主界面
-    Components.axaml.cs       组件系统
+    Components/               组件系统分域模块
     WallpaperView             壁纸页
     ScheduleWindow            课程表窗口
     DownloadView              下载页

@@ -66,7 +66,12 @@ GlimpseonMain.exe/.dll
 | App.axaml(.cs)                                                  | Application 定义 挂接 RunStartupAsync |
 | MainWindow                                                      | 导航壳 FluentaSideBar 页面切换           |
 | HomeView                                                        | 主界面 壁纸背景 页面容器 底部栏                 |
-| Components.axaml.cs                                             | 组件控件实现 + ComponentManager (最大文件)  |
+| Components/                                                     | 组件系统目录 (一个组件一个文件夹)              |
+| ├ Core/                                                         | 拖拽底座 组件管理器 工厂 卡片底座                 |
+| ├ Widgets/Clock/DigitalClock/                                   | 示例: 数字时钟主控件 + DayProgressBar 子部件    |
+| ├ Widgets/Info/Poetry/                                          | 示例: 一言组件独立目录                        |
+| ├ Widgets/School/TimetablePreview/                              | 示例: 课表预览 + 周课表面板                    |
+| └ Shared/ Config/ Views/ Library/                               | 共用主题 配置弹窗 环形进度 组件库                 |
 | WallpaperView / DownloadView / NotificationView                | 功能页                               |
 | SettingsWindow                                                  | 设置 FluentWindow 多子页               |
 | ScheduleWindow                                                  | 课程表窗口        |

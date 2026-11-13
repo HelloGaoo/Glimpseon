@@ -3,6 +3,13 @@
 > [!NOTE]
 > 编写者：HelloGaoo 最后修改：2026/10/05
 
+## 0 目录约定
+
+- 一个组件一个文件夹 > `ui/Components/Widgets/<分类>/<组件名>/`
+- 文件夹内放该组件的主控件与专属模块 > 主控件 `XxxWidget.cs` 子部件/渲染器同目录 > 仅跨组件复用的放 `Shared/`
+- 工厂与卡片底座在 `Core/` > 组件库在 `Library/` > 配置字段与弹窗在 `Config/`
+- 示例 > `Widgets/Clock/DigitalClock/` 下 `DigitalClockWidget.cs` + `DayProgressBar.cs` > `Widgets/Media/MediaPlayer/` 下主控件 + 进度条 + 传输按钮
+
 ## 1 网格布局算法 (GridLayoutService)
 
 - 输入 > 宿主宽高 + GridSettings { ShortSideCells 默认6 GapRatio 0.12 InsetPercent 默认5 }
@@ -176,7 +183,7 @@ flowchart TD
 ## 10 扩展新组件步骤
 
 1. ComponentModels.cs > All 数组追加 Def(id 显示名 分类 图标 尺寸约束 ResizeMode DefaultConfig)
-2. Components.axaml.cs > StyleWidgetFactory.Create 加 `{type}_{style}` 分支返回 DraggableContainer 派生控件 > 继承 WidgetCardBase (ApplyTheme/BindOpacity 自动生效) > 未完成可暂用 PlaceholderWidget 占位
+2. ui/Components/Core/StyleWidgetFactory.cs > Create 加 `{type}_{style}` 分支返回 DraggableContainer 派生控件 > 继承 WidgetCardBase (ApplyTheme/BindOpacity 自动生效) > 未完成可暂用 PlaceholderWidget 占位
 3. 数据读取 > 服务缓存 (GetCachedContent) 或组件私有文件 > 禁止直连 UI 外部状态
 4. locale > 新文案补 zh\_CN/zh\_TW/en\_US 三份
 5. 验证 > DebugMode 启动 > 编辑态添加 > 拖拽缩放 (缩放上限 300%) > 改配置 (确认重建后位置保留) > 重启确认 home\_layout.json 回读无丢失

@@ -82,7 +82,7 @@ data/
 | GlimpseonMain.cs | 修改 | RunStartupAsync 在 LogConfigSummary() 之后调用 PluginService.InitializePlugins() |
 | core/AppConfig.cs | 修改 | 新增 Plugins/MarketSource 配置项 (默认官方索引 raw 地址) |
 | ui/HomeView.axaml.cs | 修改 | 构造中 RegisterBatch(内置) 之后追加 RegisterBatch(PluginService.PluginComponentDefinitions) |
-| ui/Components.axaml.cs | 修改 | StyleWidgetFactory.Create 开头前置插件工厂查询 TimetableScheduleProvider.GetTodaySchedule 增插件来源分发 |
+| ui/Components/Core/StyleWidgetFactory.cs | 修改 | Create 开头前置插件工厂查询 TimetableScheduleProvider.GetTodaySchedule 增插件来源分发 |
 | ui/ScheduleWindow.axaml.cs | 修改 | 档案页来源下拉动态追加插件提供者选项 |
 | ui/SettingsWindow.axaml | 修改 | 追加 NavPlugins 页签 (Tag="plugins") |
 | ui/SettingsWindow.axaml.cs | 修改 | NavItems / SetNavLabels / BuildPages 追加插件页 BuildPluginsPage (已安装/市场分区切换) |

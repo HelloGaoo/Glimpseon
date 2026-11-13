@@ -64,10 +64,10 @@ DragDrop 允许 + Pointer 事件 Tunnel 挂接 (Pressed/Moved/Released/Wheel)
 - LayoutPages > 页宽高=容器尺寸 Canvas.SetLeft(page i*w) \_pagesStack 平移 -currentPage*w > GoToPage 动画切页
 - ApplyPageVisibility > 只显示当前页组件 且 enabled
 
-## 5 Components.axaml.cs — 组件实现库 (约 9000+ 行)
+## 5 ui/Components/ — 组件实现库 (一个组件一个文件夹)
 
 - 网格算法 组件定义 注册表 实例化链路 编辑交互 组件清单与私有持久化 见 component-system.md 此处不重复
-- 本文件要点:
+- 本目录要点:
   - DraggableContainer 坐标唯一真源是百分比 (0-1) 像素拖拽反算百分比落库 布局未完成 (Bounds=0) 时跳过等 SizeChanged 重放
   - DpiScale (1-300) 经 ScaleTransform 矢量缩放 VisualWidth/Height = Width\*Dpi/100
   - SelectionAdorner 命中测试只认右下手柄区 其余穿透 (可直接拖动卡片)

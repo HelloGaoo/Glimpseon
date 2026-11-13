@@ -197,7 +197,7 @@ public static class BuiltinComponentDefinitions
         Def("clock_digital", "数字时钟", "Clock", "Clock", 2, 2, 2, 2, wPx: 400, hPx: 200, config: Cfg("""{"show_seconds":true,"show_lunar":true}""")),
         Def("clock_square_1", "方形钟表I", "Clock", "Clock", wPx: 200, hPx: 200),
         Def("clock_square_2", "方形钟表II", "Clock", "Clock", wPx: 200, hPx: 200, config: Cfg("""{"white_face":true}""")),
-        Def("clock_calendar_month", "月历", "Clock", "Calendar", 2, 2, 2, 3, wPx: 200, hPx: 200),
+        Def("clock_calendar_month", "月历", "Clock", "Calendar", 2, 2, 2, 3, wPx: 300, hPx: 300),
         Def("clock_calendar_mini", "简约月历", "Clock", "Calendar", wPx: 200, hPx: 200),
         Def("clock_almanac", "黄历", "Clock", "Calendar", wPx: 400, hPx: 200),
         Def("countdown_event", "倒计时", "Clock", "Calendar", wPx: 200, hPx: 200, config: Cfg("""{"event_name":"","target_time":""}""")),
