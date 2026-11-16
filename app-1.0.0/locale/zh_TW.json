@@ -1225,7 +1225,6 @@
     "config_zones": "時區列表",
     "config_zones_hint": "英文逗號分隔，最多 4 個",
     "config_show_left": "顯示剩餘時間",
-    "config_habits": "習慣（逗號分隔）",
     "config_list_six_hint": "最多 6 個",
     "group_search": "搜尋",
     "config_engine": "預設引擎",

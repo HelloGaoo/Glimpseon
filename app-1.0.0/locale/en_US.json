@@ -1036,7 +1036,6 @@
     "config_zones": "Time Zone List",
     "config_zones_hint": "Comma-separated, up to 4",
     "config_show_left": "Show Time Left",
-    "config_habits": "Habits (comma-separated)",
     "config_list_six_hint": "Up to 6",
     "group_search": "Search",
     "config_engine": "Default Engine",

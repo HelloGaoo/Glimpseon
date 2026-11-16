@@ -116,7 +116,7 @@ public sealed class ComponentManager
         "system_disk", "system_battery", "system_link", "system_device", "system_volume",
         "system_power", "system_recycle", "clock_flip", "clock_round", "clock_zones",
         "clock_dayprogress", "weather_air", "weather_sun",
-        "tools_habit", "tools_search", "tools_text", "info_exchange",
+        "tools_search", "tools_text", "info_exchange",
         "info_picday",
     };
 

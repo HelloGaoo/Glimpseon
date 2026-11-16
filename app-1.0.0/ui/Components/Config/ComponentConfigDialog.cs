@@ -260,13 +260,6 @@ public sealed class ComponentConfigDialog
                     new SwitchField("show_left", AppUtils.Tr("component_edit.config_show_left"), true),
                 }));
                 break;
-            case "tools_habit":
-                groups.Add((AppUtils.Tr("component_edit.group_content"), new List<ConfigField>
-                {
-                    new TextField("habits", AppUtils.Tr("component_edit.config_habits"), ComponentDefaults.Habits,
-                        AppUtils.Tr("component_edit.config_list_six_hint")),
-                }));
-                break;
             case "tools_search":
                 groups.Add((AppUtils.Tr("component_edit.group_search"), new List<ConfigField>
                 {

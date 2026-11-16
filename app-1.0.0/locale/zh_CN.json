@@ -1036,7 +1036,6 @@
     "config_zones": "时区列表",
     "config_zones_hint": "英文逗号分隔, 最多 4 个",
     "config_show_left": "显示剩余时间",
-    "config_habits": "习惯(逗号分隔)",
     "config_list_six_hint": "最多 6 个",
     "group_search": "搜索",
     "config_engine": "默认引擎",

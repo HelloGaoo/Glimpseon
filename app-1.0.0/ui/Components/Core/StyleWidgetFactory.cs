@@ -86,7 +86,6 @@ public static class StyleWidgetFactory
             "weather_air" => new AirQualityWidget(definition),
             "weather_sun" => new SunCycleWidget(definition),
             // 效率工具
-            "tools_habit" => new HabitTrackerWidget(definition, config),
             "tools_search" => new QuickSearchWidget(definition, config),
             "tools_text" => new TextLabelWidget(definition, config),
             // 内容与媒体
