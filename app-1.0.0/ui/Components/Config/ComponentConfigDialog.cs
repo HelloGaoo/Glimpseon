@@ -15,36 +15,14 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 // ComponentConfigDialog
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using FluentAvalonia.UI.Controls;
 using Glimpseon.Core;
-using System.Diagnostics;
-using System.Threading.Tasks;
-using System.IO;
-using Avalonia.Media.Imaging;
-using IOPath = System.IO.Path;
-using Avalonia.Controls.Shapes;
-using System.Text.RegularExpressions;
-using Avalonia.Animation;
-using Avalonia.Threading;
-using Glimpseon.Core.Services;
-using Markdown.Avalonia;
-using Avalonia.Input.Platform;
-using System.Runtime.InteropServices;
-using AvColor = Avalonia.Media.Color;
-using System.Globalization;
-using Avalonia.Controls.Primitives;
-using Avalonia.Styling;
-using Avalonia.Utilities;
-using Avalonia.VisualTree;
-
 
 namespace Glimpseon.UI;
 
@@ -52,17 +30,17 @@ namespace Glimpseon.UI;
 public sealed class ComponentConfigDialog
 {
     private readonly JsonObject _config;
-    private readonly string _componentId;
+    private readonly string _definitionKey;
     private readonly List<ConfigField> _fields = new();
     private readonly StackPanel _basicHost = new() { Spacing = WidgetSpace.Pad, Margin = new Thickness(0, WidgetSpace.Gap, 0, 0) };
     private readonly StackPanel _advancedHost = new() { Spacing = WidgetSpace.Pad, Margin = new Thickness(0, WidgetSpace.Gap, 0, 0) };
 
     public Control Content { get; }
 
-    private ComponentConfigDialog(JsonObject config, string componentId)
+    private ComponentConfigDialog(JsonObject config, string definitionKey)
     {
         _config = config;
-        _componentId = componentId;
+        _definitionKey = definitionKey;
 
         var tabBasic = MakeTab("component_edit.config_basic");
         var tabAdvanced = MakeTab("component_edit.config_advanced");
@@ -70,8 +48,8 @@ public sealed class ComponentConfigDialog
         var basicScroll = new ScrollViewer { Content = _basicHost, Padding = new Thickness(0, 0, WidgetSpace.Gap, 0) };
         var advancedScroll = new ScrollViewer { Content = _advancedHost, Padding = new Thickness(0, 0, WidgetSpace.Gap, 0) };
 
-        BuildPage(_basicHost, BasicDefs(_componentId));
-        BuildPage(_advancedHost, AdvancedDefs(_componentId));
+        BuildPage(_basicHost, BasicDefs(_definitionKey));
+        BuildPage(_advancedHost, AdvancedDefs(_definitionKey));
 
         void Select(bool basic)
         {
@@ -103,7 +81,7 @@ public sealed class ComponentConfigDialog
         root.Children.Add(tabs);
         root.Children.Add(pages);
 
-        // 恢复默认 只重置字段 仍需点保存生效
+        // 重置字段, 保存生效
         var resetBtn = new Button
         {
             HorizontalAlignment = HorizontalAlignment.Left,
@@ -141,10 +119,10 @@ public sealed class ComponentConfigDialog
         Log.Debug($"[CFG] 配置面板构建: 字段数={_fields.Count}");
     }
 
-    /// <summary>弹出配置面板; 保存返回写回后的配置, 取消返回 null</summary>
-    public static async Task<JsonObject?> ShowAsync(Window owner, JsonObject config, string componentId)
+    /// <summary>保存返回, 取消为空</summary>
+    public static async Task<JsonObject?> ShowAsync(Window owner, JsonObject config, string definitionKey)
     {
-        var dlg = new ComponentConfigDialog(config, componentId);
+        var dlg = new ComponentConfigDialog(config, definitionKey);
         var cd = new FAContentDialog
         {
             Title = AppUtils.Tr("component_edit.config_title"),
@@ -184,11 +162,11 @@ public sealed class ComponentConfigDialog
 
     private static Color FadedColor() => Color.FromArgb(120, 128, 128, 128);
 
-    /// <summary>基础页字段: 按组件类型出各自业务设置</summary>
-    private static List<(string? Title, List<ConfigField> Fields)> BasicDefs(string type)
+    /// <summary>基础页业务字段</summary>
+    private static List<(string? Title, List<ConfigField> Fields)> BasicDefs(string definitionKey)
     {
         var groups = new List<(string? Title, List<ConfigField> Fields)>();
-        switch (type)
+        switch (definitionKey)
         {
             case "clock_digital":
                 groups.Add((AppUtils.Tr("component_edit.group_display"), new List<ConfigField>
@@ -212,17 +190,15 @@ public sealed class ComponentConfigDialog
             case "countdown_event":
                 groups.Add((AppUtils.Tr("component_edit.group_countdown"), new List<ConfigField>
                 {
-                    new TextField("event_name", AppUtils.Tr("component_edit.config_event_name"), "",
-                        AppUtils.Tr("component_edit.config_event_name"), true),
+                    new TextField("event_name", AppUtils.Tr("component_edit.config_event_name"), "", "", true),
                     new TextField("target_time", AppUtils.Tr("component_edit.config_target_time"), "",
-                        "2026-12-31 08:00", true),
+                        AppUtils.Tr("component_edit.config_target_time_placeholder"), true),
                 }));
                 break;
             case "countdown_days":
                 groups.Add((AppUtils.Tr("component_edit.group_countdown"), new List<ConfigField>
                 {
-                    new TextField("event_name", AppUtils.Tr("component_edit.config_event_name"), "",
-                        AppUtils.Tr("component_edit.config_event_name"), true),
+                    new TextField("event_name", AppUtils.Tr("component_edit.config_event_name"), "", "", true),
                     new TextField("target_date", AppUtils.Tr("component_edit.config_target_date"), "",
                         "2026-12-31", true),
                     new PlainColorField("title_bg_color", AppUtils.Tr("component_edit.config_title_bg"), "#F98E1B"),
@@ -259,12 +235,73 @@ public sealed class ComponentConfigDialog
                         }, "yellow"),
                 }));
                 break;
+            case "clock_flip":
+                groups.Add((AppUtils.Tr("component_edit.group_display"), new List<ConfigField>
+                {
+                    new SwitchField("show_seconds", AppUtils.Tr("component_edit.config_show_seconds"), true),
+                }));
+                break;
+            case "clock_round":
+                groups.Add((AppUtils.Tr("component_edit.group_display"), new List<ConfigField>
+                {
+                    new SwitchField("show_seconds", AppUtils.Tr("component_edit.config_show_second_hand"), true),
+                }));
+                break;
+            case "clock_zones":
+                groups.Add((AppUtils.Tr("component_edit.group_timezone"), new List<ConfigField>
+                {
+                    new TextField("zones", AppUtils.Tr("component_edit.config_zones"), ComponentDefaults.TimeZones,
+                        AppUtils.Tr("component_edit.config_zones_hint")),
+                }));
+                break;
+            case "clock_dayprogress":
+                groups.Add((AppUtils.Tr("component_edit.group_display"), new List<ConfigField>
+                {
+                    new SwitchField("show_left", AppUtils.Tr("component_edit.config_show_left"), true),
+                }));
+                break;
+            case "tools_habit":
+                groups.Add((AppUtils.Tr("component_edit.group_content"), new List<ConfigField>
+                {
+                    new TextField("habits", AppUtils.Tr("component_edit.config_habits"), ComponentDefaults.Habits,
+                        AppUtils.Tr("component_edit.config_list_six_hint")),
+                }));
+                break;
+            case "tools_search":
+                groups.Add((AppUtils.Tr("component_edit.group_search"), new List<ConfigField>
+                {
+                    new ComboField("engine", AppUtils.Tr("component_edit.config_engine"), QuickSearchWidget.EngineOptions, "bing"),
+                    new TextField("placeholder", AppUtils.Tr("component_edit.config_placeholder"),
+                        AppUtils.Tr("component_edit.search_placeholder")),
+                }));
+                break;
+            case "tools_text":
+                groups.Add((AppUtils.Tr("component_edit.group_content"), new List<ConfigField>
+                {
+                    new TextField("text", AppUtils.Tr("component_edit.config_text"), ComponentDefaults.Text),
+                    new ComboField("align", AppUtils.Tr("component_edit.config_align"),
+                        new[]
+                        {
+                            ("left", AppUtils.Tr("component_edit.align_left")),
+                            ("center", AppUtils.Tr("component_edit.align_center")),
+                            ("right", AppUtils.Tr("component_edit.align_right")),
+                        }, "center"),
+                    new SliderField("size", AppUtils.Tr("component_edit.config_size"), ComponentDefaults.TextSize, 12, 72, "px"),
+                }));
+                break;
+            case "info_exchange":
+                groups.Add((AppUtils.Tr("component_edit.group_currency"), new List<ConfigField>
+                {
+                    new TextField("currencies", AppUtils.Tr("component_edit.config_currencies"), ComponentDefaults.Currencies,
+                        AppUtils.Tr("component_edit.config_list_six_hint")),
+                }));
+                break;
         }
         return groups;
     }
 
-    /// <summary>进阶页字段: 通用外观 + 仅读取该值的组件才出字号缩放</summary>
-    private static List<(string? Title, List<ConfigField> Fields)> AdvancedDefs(string type)
+    /// <summary>进阶页外观字段</summary>
+    private static List<(string? Title, List<ConfigField> Fields)> AdvancedDefs(string definitionKey)
     {
         var groups = new List<(string? Title, List<ConfigField> Fields)>
         {
@@ -276,7 +313,7 @@ public sealed class ComponentConfigDialog
                     Config.ComponentCardRadius.Value, 0, 29, "px"),
             }),
         };
-        if (type is "school_info_class_info" or "linkage_timetable_nowlesson")
+        if (definitionKey is "school_info_class_info" or "linkage_timetable_nowlesson")
         {
             groups.Add((AppUtils.Tr("component_edit.group_font"), new List<ConfigField>
             {

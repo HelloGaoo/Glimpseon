@@ -1276,7 +1276,8 @@ public partial class HomeView : UserControl
         }
         var id = _selectedPlacementId;
         var cfg = ComponentManager.GetComponentConfig(id);
-        var saved = await ComponentConfigDialog.ShowAsync(MainWindow, cfg, ComponentManager.GetComponentType(id));
+        var definitionKey = ComponentManager.GetDefinitionKey(id);
+        var saved = await ComponentConfigDialog.ShowAsync(MainWindow, cfg, definitionKey);
         if (saved is null)
         {
             return;

@@ -16,43 +16,11 @@
 
 // StyleWidgetFactory
 using System.Text.Json;
-using System.Text.Json.Nodes;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Input;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
-using FluentAvalonia.UI.Controls;
 using Glimpseon.Core;
-using System.Diagnostics;
-using System.Threading.Tasks;
-using System.IO;
-using Avalonia.Media.Imaging;
-using IOPath = System.IO.Path;
-using Avalonia.Controls.Shapes;
-using System.Text.RegularExpressions;
-using Avalonia.Animation;
-using Avalonia.Threading;
-using Glimpseon.Core.Services;
-using Markdown.Avalonia;
-using Avalonia.Input.Platform;
-using System.Runtime.InteropServices;
-using AvColor = Avalonia.Media.Color;
-using System.Globalization;
-using Avalonia.Controls.Primitives;
-using Avalonia.Styling;
-using Avalonia.Utilities;
-using Avalonia.VisualTree;
-
 
 namespace Glimpseon.UI;
 
-// StyleWidgets.cs
-
-/// <summary>
-/// 样式组件工厂: 按 type_style 生成真身控件 返回 null 走占位兜底
-/// </summary>
+/// <summary>按定义键创建控件</summary>
 public static class StyleWidgetFactory
 {
     public static DraggableContainer? Create(string typeId, ComponentDefinition definition, JsonElement? config)
@@ -101,9 +69,32 @@ public static class StyleWidgetFactory
             "system_performance" => new PerformanceMonitorWidget(definition),
             "system_netspeed" => new NativeNetworkSpeedWidget(definition),
             "study_meter" => new NativeDecibelMeterWidget(definition),
+            // 系统状态
+            "system_disk" => new DiskUsageWidget(definition),
+            "system_battery" => new BatteryStatusWidget(definition),
+            "system_link" => new LinkStatusWidget(definition),
+            "system_device" => new DeviceInfoWidget(definition),
+            "system_volume" => new VolumeControlWidget(definition),
+            "system_power" => new PowerCenterWidget(definition),
+            "system_recycle" => new RecycleBinWidget(definition),
+            // 时钟扩展
+            "clock_flip" => new FlipClockWidget(definition, config),
+            "clock_round" => new RoundClockWidget(definition, config),
+            "clock_zones" => new WorldClockWidget(definition, config),
+            "clock_dayprogress" => new DayProgressWidget(definition, config),
+            // 天气扩展
+            "weather_air" => new AirQualityWidget(definition),
+            "weather_sun" => new SunCycleWidget(definition),
+            // 效率工具
+            "tools_habit" => new HabitTrackerWidget(definition, config),
+            "tools_search" => new QuickSearchWidget(definition, config),
+            "tools_text" => new TextLabelWidget(definition, config),
+            // 内容与媒体
+            "info_exchange" => new ExchangeRateWidget(definition, config),
+            "info_picday" => new DailyPhotoWidget(definition),
             _ => null,
         };
-        // 组件私有配置注入 通用外观覆盖由此生效
+        // 应用组件配置
         if (widget is WidgetCardBase cardWidget)
         {
             cardWidget.ApplyComponentConfig(config);

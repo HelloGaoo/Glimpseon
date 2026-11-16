@@ -39,9 +39,9 @@ public sealed class ComponentDefinition
     public int MinWidthCells { get; init; } = 1;
     public int MinHeightCells { get; init; } = 1;
     public int DefaultWidthCells { get; init; } = 2;
-    /// <summary>原版默认像素宽(0=用 cells*110)</summary>
+    /// <summary>默认像素宽</summary>
     public int DefaultWidthPx { get; init; }
-    /// <summary>原版默认像素高(0=用 cells*110)</summary>
+    /// <summary>默认像素高</summary>
     public int DefaultHeightPx { get; init; }
     public int DefaultHeightCells { get; init; } = 2;
     public ResizeMode ResizeMode { get; init; } = ResizeMode.Free;
@@ -172,6 +172,16 @@ public sealed class ComponentRegistry
         _definitions.Values.Select(d => d.Category).Distinct().OrderBy(c => c).ToList();
 }
 
+/// <summary>组件默认配置</summary>
+public static class ComponentDefaults
+{
+    public const string TimeZones = "Asia/Shanghai,Asia/Tokyo,Europe/London,America/New_York";
+    public const string Currencies = "USD,EUR,JPY,HKD";
+    public const string Habits = "阅读,运动,早睡";
+    public const string Text = "无限进步";
+    public const int TextSize = 28;
+}
+
 public static class BuiltinComponentDefinitions
 {
     private static ComponentDefinition Def(string id, string displayName, string category, string icon,
@@ -233,6 +243,26 @@ public static class BuiltinComponentDefinitions
         Def("system_performance", "性能监测", "System", "Gauge", 4, 2, 4, 2, wPx: 400, hPx: 200),
         Def("system_netspeed", "网速监控", "System", "Globe", 3, 2, 4, 2, wPx: 400, hPx: 200),
         Def("study_meter", "分贝仪", "Study", "Microphone", 3, 2, 4, 2, wPx: 400, hPx: 200),
+        Def("system_disk", "磁盘容量", "System", "Save", 2, 1, 2, 1, ResizeMode.Horizontal, wPx: 400, hPx: 200),
+        Def("system_battery", "电池状态", "System", "Flash", 1, 1, 1, 1, ResizeMode.Fixed, wPx: 200, hPx: 200),
+        Def("system_link", "联网状态", "System", "Wifi", 2, 1, 2, 1, ResizeMode.Horizontal, wPx: 400, hPx: 200),
+        Def("system_device", "设备信息", "System", "Laptop", 2, 1, 2, 1, ResizeMode.Horizontal, wPx: 400, hPx: 200),
+        Def("system_volume", "音量控制", "System", "Volume", 2, 1, 2, 1, ResizeMode.Horizontal, wPx: 400, hPx: 100),
+        Def("system_power", "电源中心", "System", "Power", 2, 1, 2, 1, ResizeMode.Horizontal, wPx: 400, hPx: 100),
+        Def("system_recycle", "回收站", "System", "Delete", 1, 1, 1, 1, ResizeMode.Fixed, wPx: 200, hPx: 200),
+        Def("clock_flip", "翻页时钟", "Clock", "Clock", 2, 1, 2, 1, ResizeMode.Horizontal, wPx: 400, hPx: 200, config: Cfg("""{"show_seconds":true}""")),
+        Def("clock_round", "圆盘时钟", "Clock", "Clock", 1, 1, 1, 1, ResizeMode.Fixed, wPx: 200, hPx: 200, config: Cfg("""{"show_seconds":true}""")),
+        Def("clock_zones", "多时区时钟", "Clock", "Globe", 2, 1, 2, 1, ResizeMode.Horizontal, wPx: 400, hPx: 200, config: Cfg($$"""{"zones":"{{ComponentDefaults.TimeZones}}"}""")),
+        Def("clock_dayprogress", "今日进度", "Clock", "Sync", 2, 1, 2, 1, ResizeMode.Horizontal, wPx: 400, hPx: 100, config: Cfg("""{"show_left":true}""")),
+        // 天气扩展
+        Def("weather_air", "空气指数", "Weather", "Info", 2, 1, 2, 1, ResizeMode.Horizontal, wPx: 400, hPx: 200),
+        Def("weather_sun", "日照时刻", "Weather", "Sun", 2, 1, 2, 1, ResizeMode.Horizontal, wPx: 400, hPx: 200),
+        // 效率工具
+        Def("tools_habit", "习惯打卡", "Study", "Check", 2, 1, 2, 1, ResizeMode.Horizontal, wPx: 400, hPx: 200, config: Cfg($$"""{"habits":"{{ComponentDefaults.Habits}}"}""")),
+        Def("tools_search", "快捷搜索", "Tools", "Search", 2, 1, 2, 1, ResizeMode.Horizontal, wPx: 400, hPx: 100, config: Cfg("""{"engine":"bing","placeholder":"搜索"}""")),
+        Def("tools_text", "标语牌", "Tools", "Font", 2, 1, 2, 1, ResizeMode.Horizontal, wPx: 400, hPx: 100, config: Cfg($$"""{"text":"{{ComponentDefaults.Text}}","align":"center","size":{{ComponentDefaults.TextSize}}}""")),
+        Def("info_exchange", "汇率牌价", "Info", "Globe", 2, 1, 2, 1, ResizeMode.Horizontal, wPx: 400, hPx: 200, config: Cfg($$"""{"currencies":"{{ComponentDefaults.Currencies}}"}""")),
+        Def("info_picday", "每日一图", "Info", "Photo", 2, 1, 2, 1, ResizeMode.Horizontal, wPx: 400, hPx: 200),
     };
     private static JsonElement? Cfg(string json) => JsonSerializer.Deserialize<JsonElement>(json);
 }

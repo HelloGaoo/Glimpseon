@@ -17,33 +17,9 @@
 // ComponentManager
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
-using FluentAvalonia.UI.Controls;
 using Glimpseon.Core;
-using System.Diagnostics;
-using System.Threading.Tasks;
 using System.IO;
-using Avalonia.Media.Imaging;
-using IOPath = System.IO.Path;
-using Avalonia.Controls.Shapes;
-using System.Text.RegularExpressions;
-using Avalonia.Animation;
-using Avalonia.Threading;
-using Glimpseon.Core.Services;
-using Markdown.Avalonia;
-using Avalonia.Input.Platform;
-using System.Runtime.InteropServices;
-using AvColor = Avalonia.Media.Color;
-using System.Globalization;
-using Avalonia.Controls.Primitives;
-using Avalonia.Styling;
-using Avalonia.Utilities;
-using Avalonia.VisualTree;
 
 
 namespace Glimpseon.UI;
@@ -72,6 +48,8 @@ public sealed class ComponentManager
             return;
         }
         var total = 0;
+        // 存档条目数
+        var rawCount = 0;
         for (var pageIndex = 0; pageIndex < pm.Count; pageIndex++)
         {
             var meta = pm.GetPage(pageIndex);
@@ -91,15 +69,17 @@ public sealed class ComponentManager
                     var id = obj.ValueKind != default && obj.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
                     var type = obj.ValueKind != default && obj.TryGetProperty("type", out var typeEl) ? typeEl.GetString() : null;
                     var style = obj.ValueKind != default && obj.TryGetProperty("style", out var styleEl) ? styleEl.GetString() : null;
-                    if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(type) || string.IsNullOrEmpty(style))
+                    // style 可为空
+                    if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(type))
                     {
                         continue;
                     }
+                    rawCount++;
                     var data = new ComponentData
                     {
                         Id = id!,
                         Type = type!,
-                        Style = style!,
+                        Style = style ?? "",
                         PageIndex = pageIndex,
                         PosX = obj.TryGetProperty("position", out var pos) && pos.TryGetProperty("x", out var px) ? px.GetDouble() : 0.5,
                         PosY = obj.TryGetProperty("position", out var pos2) && pos2.TryGetProperty("y", out var py) ? py.GetDouble() : 0.5,
@@ -127,12 +107,109 @@ public sealed class ComponentManager
             }
         }
         Log.Info($"[ComponentManager] 共加载{total}个组件");
+        MigrateCompactLayout(rawCount);
+    }
+
+    // 紧凑布局迁移范围
+    private static readonly HashSet<string> LayoutMigrationKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "system_disk", "system_battery", "system_link", "system_device", "system_volume",
+        "system_power", "system_recycle", "clock_flip", "clock_round", "clock_zones",
+        "clock_dayprogress", "weather_air", "weather_sun",
+        "tools_habit", "tools_search", "tools_text", "info_exchange",
+        "info_picday",
+    };
+
+    // 组件定义键
+    private static string DefinitionKey(ComponentData data) =>
+        string.IsNullOrEmpty(data.Style) ? data.Type : $"{data.Type}_{data.Style}";
+
+    private void MigrateCompactLayout(int rawCount)
+    {
+        var flag = Path.Combine(Paths.DataConfig, "component_grid_v5.flag");
+        if (File.Exists(flag))
+        {
+            return;
+        }
+        try
+        {
+            var legacy = new List<DraggableContainer>();
+            foreach (var (id, widget) in Components)
+            {
+                if (!_componentData.TryGetValue(id, out var data) ||
+                    !LayoutMigrationKeys.Contains(DefinitionKey(data)))
+                {
+                    legacy.Add(widget);
+                }
+            }
+            var scale400 = MostCommonScale(legacy, 400);
+            var scale200 = MostCommonScale(legacy, 200);
+
+            // 下架/重复条目检测
+            var changed = rawCount > Components.Count;
+            foreach (var (id, widget) in Components)
+            {
+                if (!_componentData.TryGetValue(id, out var data))
+                {
+                    continue;
+                }
+                var defId = DefinitionKey(data);
+                if (!LayoutMigrationKeys.Contains(defId))
+                {
+                    continue;
+                }
+                var definition = _home.ComponentRegistry.GetDefinition(defId);
+                if (definition is null)
+                {
+                    continue;
+                }
+                var targetW = definition.DefaultWidth;
+                var targetH = definition.DefaultHeight;
+                // 同步存档尺寸
+                if (Math.Abs(data.Width - targetW) > 0.5 || Math.Abs(data.Height - targetH) > 0.5)
+                {
+                    data.Width = targetW;
+                    data.Height = targetH;
+                    changed = true;
+                }
+                var targetScale = targetW >= 350 ? scale400 : scale200;
+                if (targetScale > 0 && Math.Abs(widget.DpiScale - targetScale) > 0.5)
+                {
+                    widget.DpiScale = targetScale;
+                    data.Scale = targetScale;
+                    changed = true;
+                }
+            }
+            if (changed)
+            {
+                // 只保存现存组件
+                SaveComponents();
+            }
+            Directory.CreateDirectory(Paths.DataConfig);
+            File.WriteAllText(flag, DateTime.Now.ToString("O"));
+            Log.Info($"[CM] 紧凑布局迁移完成 400→{scale400} 200→{scale200}");
+        }
+        catch (Exception e)
+        {
+            Log.Warning($"[CM] 紧凑布局迁移失败: {e.Message}");
+        }
+    }
+
+    // 同宽众数缩放
+    private static double MostCommonScale(IEnumerable<DraggableContainer> components, double width)
+    {
+        var scales = components
+            .Where(c => Math.Abs(c.Width - width) < 1)
+            .Select(c => Math.Round(c.DpiScale))
+            .Where(s => s > 0)
+            .ToList();
+        return scales.Count == 0 ? 100 : scales.GroupBy(s => s).OrderByDescending(g => g.Count()).First().Key;
     }
 
     private DraggableContainer? CreateWidget(ComponentData data)
     {
-        // 还原 id 兼容无下划线旧存档
-        var defId = string.IsNullOrEmpty(data.Style) ? data.Type : $"{data.Type}_{data.Style}";
+        // 兼容旧存档
+        var defId = DefinitionKey(data);
         var definition = _home.ComponentRegistry.GetDefinition(defId)
             ?? _home.ComponentRegistry.GetDefinition(data.Type);
         if (definition is null)
@@ -140,7 +217,7 @@ public sealed class ComponentManager
             Log.Warning($"组件定义未注册: {defId}");
             return null;
         }
-        // 真身工厂优先 占位兜底(M6 未完成的样式)
+        // 工厂优先
         var widget = StyleWidgetFactory.Create(defId, definition, data.Config)
             ?? new PlaceholderWidget(definition, data.Config);
         widget.ComponentId = data.Id;
@@ -154,9 +231,9 @@ public sealed class ComponentManager
             return null;
         }
         parent.Children.Add(widget);
-        // 保存的是百分比坐标 用百分比落位(原 Canvas.SetLeft(data.PosX) 把 0.5 当 0.5px)
+        // 百分比坐标
         widget.SetPositionPercent(data.PosX, data.PosY);
-        // 页面已布局完成时立即生效 未完成时等 SizeChanged 重放
+        // 布局完成后生效
         widget.ApplyPercent();
         return widget;
     }
@@ -210,7 +287,7 @@ public sealed class ComponentManager
         Log.Info("[ComponentManager] 组件已保存");
     }
 
-    // 当前页按最短列瀑布流排开 16px 边距与间隔 超出高度时整体微缩 清除重叠
+    // 当前页瀑布流
     public void ArrangeCurrentPage(int pageIndex)
     {
         if (_home.GetInfoPagePanel(pageIndex) is not { } parent || parent.Bounds.Width <= 1)
@@ -242,8 +319,8 @@ public sealed class ComponentManager
         var availableH = Math.Max(200, hostH - inset * 2 - bottomReserve);
         var maxVisualW = list.Max(c => Math.Max(1, c.VisualWidth));
 
-        // 枚举列数 取"整体缩得最少"的方案 宽卡按列宽先收
-        var bestCols = columnsFallback(hostW, inset, gap);
+        // 枚举列数取最优
+        var bestCols = FallbackColumns(hostW, inset, gap);
         var bestColumnW = (hostW - inset * 2 - gap * (bestCols - 1)) / bestCols;
         var bestShrink = 1.0;
         var bestScore = 0.0;
@@ -318,7 +395,7 @@ public sealed class ComponentManager
         SaveComponents();
         Log.Info($"[CM] 布局整理 页={pageIndex} 组件={list.Count} 列={columns} 缩放={bestShrink:F2}");
 
-        static int columnsFallback(double hostW, double inset, double gap)
+        static int FallbackColumns(double hostW, double inset, double gap)
         {
             var cols = Math.Clamp((int)Math.Round(hostW / 380.0), 2, 6);
             var columnW = (hostW - inset * 2 - gap * (cols - 1)) / cols;
@@ -326,11 +403,7 @@ public sealed class ComponentManager
         }
     }
 
-    // 组件类型(定义 ID) 供配置面板按类型出字段
-    public string GetComponentType(string compId) =>
-        Components.TryGetValue(compId, out var c) ? c.Type : "";
-
-    // 组件配置读写
+    // 组件配置
     public JsonObject GetComponentConfig(string compId)
     {
         if (_componentData.TryGetValue(compId, out var d) && d.Config is { ValueKind: JsonValueKind.Object } cfg)
@@ -340,17 +413,10 @@ public sealed class ComponentManager
         return new JsonObject();
     }
 
-    public (string Type, string Style) GetComponentKey(string compId)
-    {
-        if (_componentData.TryGetValue(compId, out var d))
-        {
-            return (d.Type, d.Style);
-        }
-        return ("", "");
-    }
+    public string GetDefinitionKey(string compId) =>
+        _componentData.TryGetValue(compId, out var d) ? DefinitionKey(d) : "";
 
-    // 写回配置并立即生效(
-    // C# 组件无统一 apply_config → 用新配置重建容器(保留位置/尺寸/缩放)
+    // 写配置并重建
     public void UpdateComponentConfig(string compId, JsonObject config)
     {
         if (!_componentData.TryGetValue(compId, out var data) || !Components.TryGetValue(compId, out var old))
@@ -360,15 +426,14 @@ public sealed class ComponentManager
         data.Config = JsonSerializer.Deserialize<JsonElement>(config.ToJsonString());
         var (px, py) = old.GetPositionPercent();
         var scale = old.DpiScale;
-        (old.Parent as Panel)?.Children.Remove(old);
-        Components.Remove(compId);
-
+        // 先建后删
         var fresh = CreateWidget(data);
         if (fresh is null)
         {
             Log.Warning($"[CM] 配置重建失败: {compId}");
             return;
         }
+        (old.Parent as Panel)?.Children.Remove(old);
         Components[compId] = fresh;
         fresh.SetPositionPercent(px, py);
         fresh.ApplyPercent();
@@ -378,7 +443,7 @@ public sealed class ComponentManager
         Log.Info($"[CM] 组件配置已更新: {compId}");
     }
 
-    // 换肤后重建组件
+    // 换肤重建
     public void RebuildAllForAppearance()
     {
         var rebuilt = 0;
@@ -393,7 +458,7 @@ public sealed class ComponentManager
                 var (px, py) = old.GetPositionPercent();
                 var scale = old.DpiScale;
                 var visible = old.IsVisible;
-                // 先建后删，防丢卡
+                // 先建后删
                 var fresh = CreateWidget(data);
                 if (fresh is null)
                 {
@@ -431,7 +496,7 @@ public sealed class ComponentManager
             counter++;
         }
         var compId = $"comp_{compType}_{counter}";
-        var defId = $"{compType}_{compStyle}";
+        var defId = string.IsNullOrEmpty(compStyle) ? compType : $"{compType}_{compStyle}";
         var definition = _home.ComponentRegistry.GetDefinition(defId);
         var data = new ComponentData
         {
@@ -439,7 +504,7 @@ public sealed class ComponentManager
             Type = compType,
             Style = compStyle,
             PageIndex = pageIndex,
-            // 对齐原版 config or style_info.default_config
+            // 对齐默认配置
             Config = definition?.DefaultConfig,
         };
         var instance = CreateWidget(data);
@@ -448,6 +513,8 @@ public sealed class ComponentManager
             return null;
         }
         instance.IsVisible = true;
+        // 同宽众数缩放
+        instance.DpiScale = MostCommonScale(Components.Values, instance.Width);
         instance.SetPositionPercent(0.5, 0.5);
         Components[compId] = instance;
         _componentData[compId] = data;
