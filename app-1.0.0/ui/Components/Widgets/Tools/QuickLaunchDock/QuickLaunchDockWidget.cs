@@ -88,6 +88,16 @@ public sealed class QuickLaunchDockWidget : WidgetCardBase
 
     private static List<QuickLaunchItem> ReadApps()
     {
+        if (PreviewSamples.Active)
+        {
+            return
+            [
+                new QuickLaunchItem { Name = "浏览器", Path = "preview://browser" },
+                new QuickLaunchItem { Name = "微信", Path = "preview://wechat" },
+                new QuickLaunchItem { Name = "编辑器", Path = "preview://editor" },
+                new QuickLaunchItem { Name = "文件", Path = "preview://files" },
+            ];
+        }
         var list = new List<QuickLaunchItem>();
         var v = Config.QuickLaunchApps.Value;
         if (v.ValueKind != JsonValueKind.Array)

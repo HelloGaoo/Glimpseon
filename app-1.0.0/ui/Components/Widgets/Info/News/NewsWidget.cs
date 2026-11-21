@@ -106,7 +106,10 @@ public sealed class NewsWidget : WidgetCardBase
         // 原版 300000ms 定时刷新
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
         timer.Tick += (_, _) => RefreshNews();
-        timer.Start();
+        if (!PreviewSamples.Active)
+        {
+            timer.Start();
+        }
         RefreshNews();
     }
 
@@ -136,6 +139,11 @@ public sealed class NewsWidget : WidgetCardBase
 
     private async void RefreshNews()
     {
+        if (PreviewSamples.Active && PreviewSamples.TryGetCache($"news_{_source}", out var sample))
+        {
+            UpdateDisplay(sample);
+            return;
+        }
         JsonElement? data = null;
         try
         {
@@ -152,7 +160,7 @@ public sealed class NewsWidget : WidgetCardBase
         // 原版: 接口无数据用过期缓存
         if (data is null)
         {
-            data = AppUtils.LoadCache($"news_{_source}", ignoreExpiry: true);
+            data = AppUtils.GetCachedContent($"news_{_source}", ignoreExpiry: true);
         }
         UpdateDisplay(data);
     }

@@ -162,6 +162,10 @@ public sealed class QuickLaunchGridWidget : WidgetCardBase
             }
         };
 
+        if (PreviewSamples.Active && _apps.Count == 0)
+        {
+            _apps.AddRange(DefaultApps());
+        }
         _ready = true;
         RebuildCells();
     }

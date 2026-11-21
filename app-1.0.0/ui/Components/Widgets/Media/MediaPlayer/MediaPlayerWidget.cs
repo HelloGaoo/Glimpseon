@@ -261,8 +261,15 @@ public sealed class MediaPlayerWidget : WidgetCardBase
         ApplyStyle();
         UpdatePlayState();
         IsVisible = Config.ShowMediaInfo.Value;
-        _pollTimer.Start();
-        _progTimer.Start();
+        if (!PreviewSamples.Active)
+        {
+            _pollTimer.Start();
+            _progTimer.Start();
+        }
+        if (PreviewSamples.Active)
+        {
+            DisplayNewSong(PreviewSamples.Media);
+        }
         _ = PollAsync();
     }
 
@@ -759,6 +766,10 @@ public sealed class MediaPlayerWidget : WidgetCardBase
     // 歌曲详情后台抓取
     private async Task FetchDetailAsync(MediaInfo m, int version)
     {
+        if (PreviewSamples.Active)
+        {
+            return;
+        }
         MediaDetail result = new(null, null, 0);
         try
         {

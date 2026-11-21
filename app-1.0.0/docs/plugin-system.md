@@ -309,7 +309,7 @@ internal sealed class PluginLoadContext : AssemblyLoadContext
 
 ### 8.1 主界面组件
 
-- 定义注入 > HomeView 构造 RegisterBatch(内置) 后追加 `ComponentRegistry.RegisterBatch(PluginService.PluginComponentDefinitions)` 组件库 (ComponentLibraryWindow) 经 GetCategories/GetDefinitionsByCategory 自动展示插件组件
+- 定义注入 > HomeView 构造 RegisterBatch(内置) 后追加 `ComponentRegistry.RegisterBatch(PluginService.PluginComponentDefinitions)` 组件库 (ComponentLibraryWindow) 经 GetCategoryInfos/Search 自动展示插件组件
 - 实例创建 > StyleWidgetFactory.Create 开头前置:
 
 ```csharp

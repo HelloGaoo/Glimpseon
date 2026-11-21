@@ -129,14 +129,33 @@ public sealed class NativeNetworkSpeedWidget : WidgetCardBase
         Card.Child = root;
         Content = Card;
 
-        SystemSampler.NetReady += OnNet;
-        SystemSampler.EnsureStarted();
         ActualThemeVariantChanged += (_, _) =>
         {
             ApplyPalette();
             _chart.InvalidateVisual();
         };
         ApplyPalette();
+        if (PreviewSamples.Active)
+        {
+            SeedPreview();
+        }
+        else
+        {
+            SystemSampler.NetReady += OnNet;
+            SystemSampler.EnsureStarted();
+        }
+    }
+
+    private void SeedPreview()
+    {
+        (_downNumber.Text, _downUnit.Text) = FormatRate(6.4 * 1024 * 1024);
+        (_upNumber.Text, _upUnit.Text) = FormatRate(1.2 * 1024 * 1024);
+        for (var i = 0; i < 30; i++)
+        {
+            _chart.Push(5.2 * 1024 * 1024 + 1.6 * 1024 * 1024 * Math.Sin(i * 0.4),
+                0.9 * 1024 * 1024 + 0.4 * 1024 * 1024 * Math.Sin(i * 0.3));
+        }
+        _totals.Text = $"{AppUtils.Tr("netspeed.since_start")}  ↓ {FormatSize(8.2 * 1024 * 1024 * 1024)}  ↑ {FormatSize(1.1 * 1024 * 1024 * 1024)}";
     }
 
     private static StackPanel MakeRateGroup(Border dot, TextBlock label, TextBlock number, TextBlock unit)

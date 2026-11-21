@@ -89,7 +89,7 @@ GridWidthPx/HeightPx = n*cellSize + (n-1)*gap
 
 ## 4 注册与实例数据
 
-- ComponentRegistry > Dictionary<string ComponentDefinition> > RegisterBatch (空 Id 忽略 后注册覆盖) / GetDefinition / GetDefinitionsByCategory / GetCategories (排序去重) / Count
+- ComponentRegistry > Dictionary<string ComponentDefinition> > RegisterBatch (空 Id 忽略 后注册覆盖) / GetDefinition / All / GetCategoryInfos / GetCategoryCounts / Search / Count
 - 启动注入 > HomeView 构造中 RegisterBatch(BuiltinComponentDefinitions.All)
 - 实例数据 (PageMeta.Components 内 JSON):
 
@@ -155,7 +155,7 @@ flowchart TD
     I -->|"是 判点击"| J["Selected 事件 compId > SelectionAdorner 光晕+右下手柄 + 配置/删除按钮"]
     I -->|"否"| K["结束拖拽/缩放 GeometryChanged"]
     J --> L["宿主刷新 adorner 与编辑按钮"]
-    B --> M["组件库 分类骨架卡 BuildSkeletonCard + 实况预览 BuildLivePreview FillPreviewsAsync"]
+    B --> M["组件库 FANavigationView 分类 + ComponentCardPanel 卡片 + ComponentPreviewRenderer 缩略图"]
     M --> N["选择后 AddComponent 落点 0.5/0.5"]
     J --> O["配置对话框 DefaultConfig 生成表单 > UpdateComponentConfig 写回"]
     B --> P["拖入文件 DragDrop OnDragOver/OnDrop 相册等组件"]

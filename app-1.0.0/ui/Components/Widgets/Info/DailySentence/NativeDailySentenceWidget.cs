@@ -91,7 +91,10 @@ public sealed class NativeDailySentenceWidget : WidgetCardBase
         // 60s tick 本地包零网络
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
         timer.Tick += (_, _) => _ = RefreshAsync();
-        timer.Start();
+        if (!PreviewSamples.Active)
+        {
+            timer.Start();
+        }
         _ = RefreshAsync();
     }
 
@@ -206,7 +209,7 @@ public sealed class NativeDailySentenceWidget : WidgetCardBase
         }
         if (data is null)
         {
-            data = AppUtils.LoadCache("daily_sentence", ignoreExpiry: true);
+            data = AppUtils.GetCachedContent("daily_sentence", ignoreExpiry: true);
         }
         string content = "--", note = "";
         var date = DateTime.Today.ToString("yyyy-MM-dd");

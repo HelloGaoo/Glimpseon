@@ -139,7 +139,10 @@ public sealed class PoetryWidget : WidgetCardBase
         // 原版 1s tick 读缓存
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         timer.Tick += (_, _) => RefreshFromCache();
-        timer.Start();
+        if (!PreviewSamples.Active)
+        {
+            timer.Start();
+        }
 
         // 后台拉取(原版由主界面广播/interval刷新)
         _ = System.Threading.Tasks.Task.Run(async () =>
@@ -161,7 +164,7 @@ public sealed class PoetryWidget : WidgetCardBase
     private void RefreshFromCache()
     {
         IsVisible = Config.ShowPoetry.Value;
-        var cache = AppUtils.LoadCache("poetry", ignoreExpiry: true);
+        var cache = AppUtils.GetCachedContent("poetry", ignoreExpiry: true);
         var text = cache is { ValueKind: JsonValueKind.String } cacheStr ? cacheStr.GetString() : null;
         FormatPoetry(text);
     }

@@ -15,319 +15,499 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 // ComponentLibraryWindow
-using System.Text.Json;
-using System.Text.Json.Nodes;
+using System.IO;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using Avalonia.Styling;
+using Avalonia.Threading;
 using FluentAvalonia.UI.Controls;
 using Glimpseon.Core;
-using System.Diagnostics;
-using System.Threading.Tasks;
-using System.IO;
-using Avalonia.Media.Imaging;
-using IOPath = System.IO.Path;
-using Avalonia.Controls.Shapes;
-using System.Text.RegularExpressions;
-using Avalonia.Animation;
-using Avalonia.Threading;
-using Glimpseon.Core.Services;
-using Markdown.Avalonia;
-using Avalonia.Input.Platform;
-using System.Runtime.InteropServices;
-using AvColor = Avalonia.Media.Color;
-using System.Globalization;
-using Avalonia.Controls.Primitives;
-using Avalonia.Styling;
-using Avalonia.Utilities;
-using Avalonia.VisualTree;
-
 
 namespace Glimpseon.UI;
 
-public sealed class ComponentLibraryWindow : GlimpseonWindow
+public sealed partial class ComponentLibraryWindow : GlimpseonWindow
 {
-    private readonly ComponentRegistry _registry;
-    private Point _pressPoint;
-    private ComponentDefinition? _draggingDefinition;
-    private bool _dragStarted;
-    private PointerPressedEventArgs? _pressedArgs;
-    private readonly List<(ComponentDefinition Def, Border Host)> _pendingPreviews = new();
+    private const string AllCategory = ComponentRegistry.AllCategory;
+    private static readonly IReadOnlyDictionary<string, int> NoCounts = new Dictionary<string, int>();
 
-    // 双击卡片直接添加(由 HomeView 注入
+    private readonly ComponentRegistry _registry;
+    private readonly Func<IReadOnlyDictionary<string, int>>? _placedCounts;
+    private readonly Dictionary<string, ComponentCard> _cards = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _previewing = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ComponentPreviewRenderer _previews = new();
+    private CancellationTokenSource? _previewCts;
+    private IReadOnlyDictionary<string, int> _counts = NoCounts;
+    private ComponentDefinition? _selected;
+    private string _selectedCategory = AllCategory;
+    private ThemeVariant? _theme;
+    private int _detailVersion;
+    private bool _ready;
+    private bool _opened;
+    private Bitmap? _windowBitmap;
+
     public Action<string>? DefinitionActivated;
 
-    public ComponentLibraryWindow(ComponentRegistry registry)
+    public ComponentLibraryWindow(ComponentRegistry registry,
+        Func<IReadOnlyDictionary<string, int>>? placedCounts = null)
     {
         _registry = registry;
+        _placedCounts = placedCounts;
+
+        InitializeComponent();
+
         Title = AppUtils.Tr("component_library.title");
-        Width = 780;
-        Height = 640;
-        MinWidth = 560;
-        MinHeight = 420;
+        TitleLabel.Text = Title;
+        VersionText.Text = Paths.Version;
+        SearchBox.PlaceholderText = AppUtils.Tr("component_library.search_placeholder");
+        AddButton.Content = AppUtils.Tr("component_library.add");
+        DetailHint.Text = AppUtils.Tr("component_library.drag_hint");
+        DetailEmptyText.Text = AppUtils.Tr("component_library.select_hint");
+        MetaCategoryLabel.Text = AppUtils.Tr("component_library.category");
+        MetaSizeLabel.Text = AppUtils.Tr("component_library.size");
+        MetaIdLabel.Text = AppUtils.Tr("component_library.component_id");
+        LoadWindowIcon();
 
-        var scroll = new ScrollViewer { Padding = new Thickness(WidgetSpace.Pad, WidgetSpace.PadCompact, WidgetSpace.Pad, WidgetSpace.Pad) };
-        var stack = new StackPanel { Spacing = WidgetSpace.Gap };
-        scroll.Content = stack;
+        BuildNav();
+        BuildCards();
+        _ready = true;
+        _theme = ActualThemeVariant;
+        ApplyFilter();
+        RefreshPlaced();
 
-        // 先铺骨架卡片(名称立即可见 预览区空) 窗口秒开 真身后台逐个填充
-        foreach (var category in _registry.GetCategories())
+        SearchBox.TextChanged += (_, _) =>
         {
-            var defs = _registry.GetDefinitionsByCategory(category).ToList();
-            if (defs.Count == 0)
+            if (_ready)
             {
-                continue;
+                ApplyFilter();
             }
-            stack.Children.Add(new TextBlock
+        };
+        AddButton.Click += (_, _) =>
+        {
+            if (_selected is not null)
             {
-                Text = $"{category} · {defs.Count}",
-                FontSize = WidgetType.Title,
-                FontWeight = WidgetWeight.Title,
-                Opacity = 0.88,
-                Margin = new Thickness(4, 8, 0, 8),
-            });
-            var wrap = new WrapPanel { Orientation = Orientation.Horizontal };
-            foreach (var def in defs)
-            {
-                wrap.Children.Add(BuildSkeletonCard(def));
+                Activate(_selected);
             }
-            stack.Children.Add(wrap);
+        };
+        Opened += (_, _) =>
+        {
+            _opened = true;
+            RefreshPlaced();
+            _ = FillPreviewsAsync();
+        };
+        Activated += (_, _) =>
+        {
+            if (_ready)
+            {
+                RefreshPlaced();
+            }
+        };
+        Closed += (_, _) =>
+        {
+            _opened = false;
+            CancelPreviews();
+            _previews.Dispose();
+            _windowBitmap?.Dispose();
+        };
+        ActualThemeVariantChanged += (_, _) => OnThemeChanged();
+    }
+
+    public void RefreshPlaced()
+    {
+        _counts = GetPlacedCounts();
+        foreach (var (id, card) in _cards)
+        {
+            card.SetPlaced(_counts.GetValueOrDefault(id));
         }
-        // 与主窗口一致: 48px 自绘标题栏行(图标+标题+版本) + 内容区 (GlimpseonWindow 已 ExtendsContentIntoTitleBar)
-        var titleGrid = new Grid
-        {
-            VerticalAlignment = VerticalAlignment.Center,
-            ColumnDefinitions = Avalonia.Controls.ColumnDefinitions.Parse("Auto,Auto,*,Auto"),
-            Margin = new Thickness(12, 0, 0, 0),
-        };
-        var titleIcon = new Image { Width = 18, Height = 18, Margin = new Thickness(0, 2, 0, 0) };
-        var titleText = new TextBlock
-        {
-            Text = AppUtils.Tr("component_library.title"),
-            FontSize = WidgetType.Label,
-            Margin = new Thickness(10, 2, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-            Opacity = 0.85,
-        };
-        var titleVersion = new TextBlock
-        {
-            Text = Paths.Version,
-            FontSize = WidgetType.Label,
-            Margin = new Thickness(0, 2, 12, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Opacity = 0.55,
-        };
-        var titleCaptionReserve = new Border { Width = 140 };
-        Grid.SetColumn(titleIcon, 0);
-        Grid.SetColumn(titleText, 1);
-        Grid.SetColumn(titleVersion, 2);
-        Grid.SetColumn(titleCaptionReserve, 3);
-        titleGrid.Children.Add(titleIcon);
-        titleGrid.Children.Add(titleText);
-        titleGrid.Children.Add(titleVersion);
-        titleGrid.Children.Add(titleCaptionReserve);
+        UpdateDetailPlaced();
+    }
+
+    private void LoadWindowIcon()
+    {
         try
         {
-            var iconPath = Paths.GetResourcePath(Constants.AppIcon);
-            if (File.Exists(iconPath))
+            var path = Paths.GetResourcePath(Constants.AppIcon);
+            if (!File.Exists(path))
             {
-                var bitmap = new Bitmap(iconPath);
-                Icon = bitmap;
-                titleIcon.Source = bitmap;
+                return;
             }
+            _windowBitmap = new Bitmap(path);
+            Icon = _windowBitmap;
+            WindowIcon.Source = _windowBitmap;
         }
         catch (Exception e)
         {
             Log.Warning($"[组件库] 窗口图标加载失败: {e.Message}");
         }
-        var titleRow = new Border { Height = 48, Child = titleGrid, Margin = new Thickness(0, 0, 8, 0) };
-        var root = new Grid { RowDefinitions = Avalonia.Controls.RowDefinitions.Parse("Auto,*") };
-        root.Children.Add(titleRow);
-        Grid.SetRow(scroll, 1);
-        root.Children.Add(scroll);
-        Content = root;
-        _ = FillPreviewsAsync();
     }
 
-    // 后台逐卡填充真身预览 每张卡之间让出 UI 线程(重型的 HTML 表盘排最后)
-    private async Task FillPreviewsAsync()
+    private void BuildNav()
     {
-        var ordered = _pendingPreviews
-            .OrderBy(pair => pair.Def.Id.StartsWith("clock_square") ? 1 : 0)
-            .ToList();
-        foreach (var (def, host) in ordered)
+        var allItem = CreateNavItem(AllCategory, AppUtils.Tr("component_library.all_components"),
+            AppIcons.Library, _registry.Count);
+        Nav.MenuItems.Add(allItem);
+        var counts = _registry.GetCategoryCounts();
+        foreach (var category in _registry.GetCategoryInfos())
         {
-            await Task.Delay(30);
-            try
+            Nav.MenuItems.Add(CreateNavItem(category.Key, CategoryText(category),
+                CategoryGlyph(category.Icon), counts.GetValueOrDefault(category.Key)));
+        }
+        Nav.SelectedItem = allItem;
+    }
+
+    private static FANavigationViewItem CreateNavItem(string key, string label, string glyph, int count)
+    {
+        var icon = new FAFontIconSource
+        {
+            FontFamily = FAIcons.SymbolsFont,
+            Glyph = glyph,
+            FontSize = 20,
+        };
+        var item = new FANavigationViewItem
+        {
+            Content = label,
+            Tag = key,
+            IconSource = icon,
+        };
+        if (count > 0)
+        {
+            item.InfoBadge = new FAInfoBadge { Value = count };
+        }
+        return item;
+    }
+
+    private void OnNavSelectionChanged(object? sender, FANavigationViewSelectionChangedEventArgs e)
+    {
+        if (!_ready || e.SelectedItem is not FANavigationViewItem { Tag: string key })
+        {
+            return;
+        }
+        _selectedCategory = key;
+        ApplyFilter();
+        CardScroll.Offset = new Vector(0, 0);
+    }
+
+    private void BuildCards()
+    {
+        var labels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var category in _registry.GetCategoryInfos())
+        {
+            labels[category.Key] = CategoryText(category);
+        }
+        foreach (var definition in _registry.All)
+        {
+            var label = labels.GetValueOrDefault(definition.Category, definition.Category);
+            _cards[definition.Id] = new ComponentCard(definition, label, OnCardSelected, Activate);
+        }
+    }
+
+    private void ApplyFilter()
+    {
+        if (!_ready)
+        {
+            return;
+        }
+        var definitions = _registry.Search(SearchBox.Text, _selectedCategory);
+        CardPanel.Children.Clear();
+        foreach (var definition in definitions)
+        {
+            if (!_cards.TryGetValue(definition.Id, out var card))
             {
-                host.Child = BuildLivePreview(def);
+                continue;
             }
-            catch (Exception e)
+            CardPanel.Children.Add(card);
+            if (_opened && !card.HasPreview)
             {
-                Log.Warning($"[组件库] 预览填充失败 {def.Id}: {e.Message}\n{e.StackTrace}");
-                host.Child = MakeFallbackPreview(def);
+                var target = card;
+                Dispatcher.UIThread.Post(() => _ = FillCardPreviewAsync(target), DispatcherPriority.Background);
             }
         }
-        Log.Info($"[组件库] 预览填充完成 共{ordered.Count}张");
+        UpdateHeader(definitions.Count);
+        EmptyState.IsVisible = definitions.Count == 0;
+        EmptyText.Text = string.IsNullOrWhiteSpace(SearchBox.Text)
+            ? AppUtils.Tr("component_library.no_components")
+            : AppUtils.Tr("component_library.no_result");
+        if (_selected is not null && definitions.All(d => d.Id != _selected.Id))
+        {
+            ShowDetail(null);
+        }
     }
 
-    private static Control MakeFallbackPreview(ComponentDefinition def)
+    private void UpdateHeader(int count)
     {
-        return new TextBlock
-        {
-            Text = def.DisplayName,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            FontSize = WidgetType.Label,
-            Opacity = 0.6,
-        };
+        CategoryTitle.Text = _selectedCategory == AllCategory
+            ? AppUtils.Tr("component_library.all_components")
+            : CategoryLabel(_selectedCategory);
+        CategorySubtitle.Text = AppUtils.Tr("component_library.result_count", ("count", count));
     }
 
-    // 骨架卡片: 名称立即可见 预览区显示加载占位
-    private Control BuildSkeletonCard(ComponentDefinition def)
+    private void OnCardSelected(ComponentCard card) => ShowDetail(card.Definition);
+
+    private void Activate(ComponentDefinition definition)
     {
-        const double boxW = 196;
-        const double boxH = 136;
+        DefinitionActivated?.Invoke(definition.Id);
+        RefreshPlaced();
+    }
 
-        var host = new Border
+    private async Task FillPreviewsAsync()
+    {
+        CancelPreviews();
+        var cts = new CancellationTokenSource();
+        _previewCts = cts;
+        foreach (var card in _cards.Values.ToList())
         {
-            Width = boxW,
-            Height = boxH,
-            CornerRadius = new CornerRadius(8),
-            Background = PreviewBackdrop(),
-            BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(Avalonia.Media.Colors.White, 0.07),
-            ClipToBounds = true,
-            Child = new TextBlock
-            {
-                Text = "…",
-                FontSize = WidgetType.Headline,
-                Opacity = 0.35,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-            },
-        };
-        _pendingPreviews.Add((def, host));
-
-        var nameText = new TextBlock
-        {
-            Text = def.DisplayName,
-            FontSize = WidgetType.Label,
-            FontWeight = WidgetWeight.Emphasis,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 8, 0, 2),
-        };
-
-        var metaText = new TextBlock
-        {
-            Text = $"{def.Category} · {def.DefaultWidth:0}×{def.DefaultHeight:0}",
-            FontSize = WidgetType.Micro,
-            Opacity = 0.5,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            HorizontalAlignment = HorizontalAlignment.Center,
-        };
-
-        var card = new Border
-        {
-            Width = 212,
-            Margin = new Thickness(0, 0, 12, 12),
-            Padding = new Thickness(WidgetSpace.Gap),
-            CornerRadius = new CornerRadius(12),
-            Background = new SolidColorBrush(Avalonia.Media.Colors.Gray, 0.10),
-            BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(Avalonia.Media.Colors.Gray, 0.22),
-            Child = new StackPanel { Children = { host, nameText, metaText } },
-        };
-
-        card.PointerPressed += (_, e) =>
-        {
-            _pressPoint = e.GetPosition(this);
-            _dragStarted = false;
-            _pressedArgs = e;
-            _draggingDefinition = def;
-        };
-        card.PointerMoved += async (_, e) =>
-        {
-            if (_dragStarted || _draggingDefinition is null || _pressedArgs is null)
+            if (cts.IsCancellationRequested)
             {
                 return;
             }
-            if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            if (TopLevel.GetTopLevel(card) is null || card.HasPreview)
+            {
+                continue;
+            }
+            try
+            {
+                await Task.Delay(12, cts.Token);
+            }
+            catch (OperationCanceledException)
             {
                 return;
             }
-            var pos = e.GetPosition(this);
-            // 任一轴越过阈值即启动拖拽(用 || 会要求双轴同时超 8px 单方向拖动永远无效)
-            if (Math.Abs(pos.X - _pressPoint.X) < 8 && Math.Abs(pos.Y - _pressPoint.Y) < 8)
+            if (cts.IsCancellationRequested)
             {
                 return;
             }
-            _dragStarted = true;
-            var transfer = new DataTransfer();
-            transfer.Add(DataTransferItem.CreateText(_draggingDefinition.Id));
-            await DragDrop.DoDragDropAsync(_pressedArgs, transfer, DragDropEffects.Copy);
-            _draggingDefinition = null;
-            _pressedArgs = null;
-        };
-        card.PointerReleased += (_, _) =>
-        {
-            _pressedArgs = null;
-            _draggingDefinition = null;
-        };
-        card.DoubleTapped += (_, _) => DefinitionActivated?.Invoke(def.Id);
-
-        return card;
+            await FillCardPreviewAsync(card);
+        }
     }
 
-    // 预览底色 中性深蓝渐变 不继承用户高饱和配色
-    private static IBrush PreviewBackdrop() => new LinearGradientBrush
+    private async Task FillCardPreviewAsync(ComponentCard card)
     {
-        StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
-        EndPoint = new RelativePoint(1, 1, RelativeUnit.Relative),
-        GradientStops =
+        if (!_opened || card.HasPreview || !_previewing.Add(card.Definition.Id))
         {
-            new GradientStop(Color.Parse("#1E2836"), 0),
-            new GradientStop(Color.Parse("#3A4C62"), 1),
-        },
-    };
-
-    // 真控件实例缩放为主体(实时渲染 非图片)
-    private Control BuildLivePreview(ComponentDefinition def)
-    {
-        var naturalW = def.DefaultWidth;
-        var naturalH = def.DefaultHeight;
-        const double boxW = 196;
-        const double boxH = 136;
-        var scale = Math.Min(Math.Min(boxW / naturalW, boxH / naturalH), 1.0);
-
-        // 组件已全部原生化 真控件实例直接预览
-        Control widget;
+            return;
+        }
         try
         {
-            widget = StyleWidgetFactory.Create(def.Id, def, def.DefaultConfig)
-                     ?? new PlaceholderWidget(def, def.DefaultConfig);
+            var bitmap = await _previews.GetAsync(card.Definition);
+            if (bitmap is not null)
+            {
+                card.SetPreview(bitmap);
+            }
+        }
+        finally
+        {
+            _previewing.Remove(card.Definition.Id);
+        }
+    }
+
+    private void CancelPreviews()
+    {
+        _previewCts?.Cancel();
+        _previewCts?.Dispose();
+        _previewCts = null;
+    }
+
+    private void OnThemeChanged()
+    {
+        if (!_ready || ActualThemeVariant == _theme)
+        {
+            return;
+        }
+        _theme = ActualThemeVariant;
+        DetailPreviewImage.Source = null;
+        foreach (var card in _cards.Values)
+        {
+            card.ClearPreview();
+        }
+        _previewing.Clear();
+        _previews.Clear();
+        if (_selected is not null)
+        {
+            ShowDetail(_selected);
+        }
+        if (_opened)
+        {
+            _ = FillPreviewsAsync();
+        }
+    }
+
+    private async void ShowDetail(ComponentDefinition? definition)
+    {
+        _selected = definition;
+        var version = ++_detailVersion;
+        var hasDetail = definition is not null;
+        ContentGrid.ColumnDefinitions[1].Width = hasDetail ? new GridLength(300) : new GridLength(0);
+        ContentGrid.ColumnSpacing = hasDetail ? 20 : 0;
+        DetailColumn.IsVisible = hasDetail;
+        foreach (var card in _cards.Values)
+        {
+            card.SetSelected(ReferenceEquals(card.Definition, definition));
+        }
+        DetailBody.IsVisible = definition is not null;
+        DetailEmpty.IsVisible = definition is null;
+        DetailPreviewImage.Source = null;
+        if (definition is null)
+        {
+            return;
+        }
+
+        DetailName.Text = definition.DisplayName;
+        DetailDesc.Text = definition.Description;
+        DetailDesc.IsVisible = !string.IsNullOrWhiteSpace(definition.Description);
+        MetaCategoryValue.Text = CategoryLabel(definition.Category);
+        MetaSizeValue.Text = $"{definition.DefaultWidth:0} × {definition.DefaultHeight:0}";
+        MetaIdValue.Text = definition.Id;
+        var aspect = definition.DefaultWidth / Math.Max(1.0, definition.DefaultHeight);
+        DetailPreviewHost.Height = aspect < 0.8 ? 300 : aspect < 1.25 ? 220 : 176;
+        UpdateDetailPlaced();
+        var bitmap = await _previews.GetAsync(definition);
+        if (version == _detailVersion && ReferenceEquals(_selected, definition))
+        {
+            DetailPreviewImage.Source = bitmap;
+        }
+    }
+
+    private void UpdateDetailPlaced()
+    {
+        if (_selected is null)
+        {
+            return;
+        }
+        var count = _counts.GetValueOrDefault(_selected.Id);
+        DetailPlaced.Text = count > 0
+            ? AppUtils.Tr("component_library.placed_count", ("count", count))
+            : AppUtils.Tr("component_library.no_placed");
+    }
+
+    private IReadOnlyDictionary<string, int> GetPlacedCounts()
+    {
+        try
+        {
+            return _placedCounts?.Invoke() ?? NoCounts;
         }
         catch (Exception e)
         {
-            Log.Warning($"[组件库] 预览创建失败 {def.Id}: {e.Message}\n{e.StackTrace}");
-            try
+            Log.Warning($"[组件库] 已放置统计失败: {e.Message}");
+            return NoCounts;
+        }
+    }
+
+    private static string CategoryLabel(string key)
+    {
+        var category = ComponentCategories.All.FirstOrDefault(c =>
+            string.Equals(c.Key, key, StringComparison.OrdinalIgnoreCase));
+        return category is null ? key : CategoryText(category);
+    }
+
+    private static string CategoryText(ComponentCategoryInfo category)
+    {
+        var text = AppUtils.Tr(category.LocaleKey);
+        return text == category.LocaleKey ? category.Key : text;
+    }
+
+    private static string CategoryGlyph(string icon) => icon switch
+    {
+        "Clock" => AppIcons.Clock,
+        "Sun" => AppIcons.Sun,
+        "Info" => AppIcons.Info,
+        "Music" => AppIcons.Music,
+        "Grid" => AppIcons.Grid,
+        "Education" => AppIcons.Education,
+        "Wrench" => AppIcons.Wrench,
+        "Settings" => AppIcons.Settings,
+        "Books" => AppIcons.Books,
+        _ => AppIcons.Grid,
+    };
+}
+
+/// <summary>自适应卡片面板</summary>
+public sealed class ComponentCardPanel : Panel
+{
+    public double MinItemWidth { get; set; } = 196;
+
+    public double MaxItemWidth { get; set; } = 300;
+
+    public double ColumnSpacing { get; set; } = 14;
+
+    public double RowSpacing { get; set; } = 14;
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        var width = double.IsFinite(availableSize.Width) ? availableSize.Width : 0;
+        var count = Children.Count;
+        if (count == 0)
+        {
+            return new Size(width, 0);
+        }
+
+        var (columns, itemWidth, _) = Plan(width, count);
+        var total = 0.0;
+        for (var i = 0; i < count; i += columns)
+        {
+            var rowHeight = 0.0;
+            for (var j = 0; j < columns && i + j < count; j++)
             {
-                widget = new PlaceholderWidget(def, def.DefaultConfig);
+                var child = Children[i + j];
+                child.Measure(new Size(itemWidth, double.PositiveInfinity));
+                rowHeight = Math.Max(rowHeight, child.DesiredSize.Height);
             }
-            catch (Exception e2)
+            total += rowHeight;
+            if (i + columns < count)
             {
-                Log.Warning($"[组件库] 占位预览也失败 {def.Id}: {e2.Message}");
-                return MakeFallbackPreview(def);
+                total += RowSpacing;
             }
         }
-        widget.IsHitTestVisible = false; // 预览不接交互 拖拽由卡片接管
-        widget.Opacity = 0.98;
-        // Avalonia 12 缩放经 LayoutTransformControl
-        return new LayoutTransformControl { LayoutTransform = new ScaleTransform(scale, scale), Child = widget };
+        return new Size(width, total);
+    }
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        var width = double.IsFinite(finalSize.Width) ? finalSize.Width : 0;
+        var count = Children.Count;
+        if (count == 0)
+        {
+            return finalSize;
+        }
+
+        var (columns, itemWidth, offset) = Plan(width, count);
+        var y = 0.0;
+        for (var i = 0; i < count; i += columns)
+        {
+            var rowHeight = 0.0;
+            for (var j = 0; j < columns && i + j < count; j++)
+            {
+                rowHeight = Math.Max(rowHeight, Children[i + j].DesiredSize.Height);
+            }
+            for (var j = 0; j < columns && i + j < count; j++)
+            {
+                var child = Children[i + j];
+                child.Arrange(new Rect(offset + j * (itemWidth + ColumnSpacing), y, itemWidth, rowHeight));
+            }
+            y += rowHeight;
+            if (i + columns < count)
+            {
+                y += RowSpacing;
+            }
+        }
+        return finalSize;
+    }
+
+    private (int Columns, double ItemWidth, double Offset) Plan(double width, int count)
+    {
+        var columns = Math.Max(1,
+            (int)Math.Floor((width + ColumnSpacing) / (MinItemWidth + ColumnSpacing)));
+        columns = Math.Min(columns, count);
+        var itemWidth = (width - (columns - 1) * ColumnSpacing) / columns;
+        if (itemWidth > MaxItemWidth)
+        {
+            itemWidth = MaxItemWidth;
+        }
+        if (itemWidth < 1)
+        {
+            itemWidth = Math.Max(1, width);
+        }
+        var rowWidth = columns * itemWidth + (columns - 1) * ColumnSpacing;
+        var offset = Math.Max(0, (width - rowWidth) / 2);
+        return (columns, itemWidth, offset);
     }
 }

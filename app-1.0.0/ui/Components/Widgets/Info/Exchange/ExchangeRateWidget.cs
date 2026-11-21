@@ -381,7 +381,10 @@ public sealed class ExchangeRateWidget : WidgetCardBase
     protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        _refreshTimer.Start();
+        if (!PreviewSamples.Active)
+        {
+            _refreshTimer.Start();
+        }
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)

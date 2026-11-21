@@ -1768,6 +1768,10 @@ public static class MediaServices
 
     public static async Task<MediaInfo?> GetMediaInfoAsync()
     {
+        if (PreviewSamples.Active)
+        {
+            return PreviewSamples.Media;
+        }
         foreach (var source in Services)
         {
             if (!source.Available)

@@ -119,7 +119,10 @@ public sealed class BatteryStatusWidget : WidgetCardBase
     protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        _timer.Start();
+        if (!PreviewSamples.Active)
+        {
+            _timer.Start();
+        }
         Refresh();
     }
 

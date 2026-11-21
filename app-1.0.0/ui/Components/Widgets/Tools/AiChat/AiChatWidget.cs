@@ -372,6 +372,13 @@ public sealed class AiChatWidget : WidgetCardBase
         StyleComposer();
         Card.Child = root;
         Content = Card;
+        if (PreviewSamples.Active)
+        {
+            CreateSession();
+            _history.Add(new ChatMsg("user", "帮我制定一份期末复习计划"));
+            _history.Add(new ChatMsg("assistant", "可以按科目拆分 每天安排两科 先补薄弱科目 再用错题滚动复习"));
+            Rebuild();
+        }
     }
 
     protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)

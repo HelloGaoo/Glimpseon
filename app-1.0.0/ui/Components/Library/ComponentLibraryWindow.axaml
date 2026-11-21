@@ -1,0 +1,123 @@
+<ui:GlimpseonWindow x:Class="Glimpseon.UI.ComponentLibraryWindow"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:fa="using:FluentAvalonia.UI.Controls"
+        xmlns:ui="using:Glimpseon.UI"
+        Width="1120" Height="720"
+        MinWidth="1000" MinHeight="620"
+        WindowStartupLocation="CenterScreen">
+  <Grid RowDefinitions="Auto,*">
+    <Border Grid.Row="0" Height="48" Margin="0,0,8,0">
+      <Grid VerticalAlignment="Center" ColumnDefinitions="Auto,Auto,*,Auto" Margin="12,0,0,0">
+        <Image x:Name="WindowIcon" Width="18" Height="18" Margin="0,2,0,0" />
+        <TextBlock Grid.Column="1" x:Name="TitleLabel" FontSize="12" Margin="10,2,0,0" VerticalAlignment="Center" Opacity="0.85" />
+        <TextBlock Grid.Column="2" x:Name="VersionText" FontSize="12" Margin="0,2,12,0" VerticalAlignment="Center" HorizontalAlignment="Right" Opacity="0.55" />
+        <Border Grid.Column="3" Width="140" />
+      </Grid>
+    </Border>
+
+    <fa:FANavigationView Grid.Row="1" x:Name="Nav"
+                         PaneDisplayMode="Left"
+                         OpenPaneLength="208"
+                         IsPaneToggleButtonVisible="True"
+                         IsBackButtonVisible="False"
+                         IsSettingsVisible="False"
+                         SelectionChanged="OnNavSelectionChanged">
+      <fa:FANavigationView.Content>
+        <Grid x:Name="ContentGrid" Margin="24,12,24,20" ColumnDefinitions="*,0" ColumnSpacing="0">
+          <Grid RowDefinitions="Auto,Auto,*" RowSpacing="14">
+            <StackPanel Spacing="2">
+              <TextBlock x:Name="CategoryTitle" FontSize="22" FontWeight="SemiBold" LineHeight="28" />
+              <TextBlock x:Name="CategorySubtitle" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+
+            <Grid Grid.Row="1">
+              <TextBox x:Name="SearchBox" Height="36" FontSize="13" CornerRadius="8"
+                       Padding="36,0,12,0" VerticalContentAlignment="Center" />
+              <TextBlock Text="&#xE721;" FontFamily="Segoe Fluent Icons" FontSize="16"
+                         Margin="12,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center"
+                         IsHitTestVisible="False" Opacity="0.55" />
+            </Grid>
+
+            <Grid Grid.Row="2">
+              <ScrollViewer x:Name="CardScroll"
+                            HorizontalScrollBarVisibility="Disabled"
+                            VerticalScrollBarVisibility="Auto"
+                            Padding="0,0,4,0">
+                <ui:ComponentCardPanel x:Name="CardPanel" />
+              </ScrollViewer>
+              <StackPanel x:Name="EmptyState" Spacing="10" IsVisible="False"
+                          HorizontalAlignment="Center" VerticalAlignment="Center">
+                <fa:FAFontIcon Glyph="&#xE7C3;" FontFamily="Segoe Fluent Icons" FontSize="30"
+                               Opacity="0.35" HorizontalAlignment="Center" />
+                <TextBlock x:Name="EmptyText" FontSize="13"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+              </StackPanel>
+            </Grid>
+          </Grid>
+
+          <Grid x:Name="DetailColumn" Grid.Column="1" IsVisible="False">
+            <Border Width="1" HorizontalAlignment="Left" Margin="0,4,0,4"
+                    Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto"
+                          Margin="20,4,0,4"
+                          Padding="0,14,10,14">
+                <StackPanel x:Name="DetailBody" Spacing="0" IsVisible="False">
+                  <Border x:Name="DetailPreviewHost" Height="176" CornerRadius="8" ClipToBounds="True"
+                          BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                          BorderThickness="1">
+                    <Image x:Name="DetailPreviewImage" Stretch="Uniform" Margin="12" />
+                  </Border>
+
+                  <TextBlock x:Name="DetailName" FontSize="20" FontWeight="SemiBold" LineHeight="26"
+                             TextWrapping="Wrap" Margin="0,16,0,0" />
+                  <TextBlock x:Name="DetailDesc" FontSize="12.5" LineHeight="19" TextWrapping="Wrap"
+                             Margin="0,6,0,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                  <StackPanel x:Name="DetailMeta" Margin="0,14,0,0" Spacing="7">
+                    <Grid ColumnDefinitions="Auto,*">
+                      <TextBlock x:Name="MetaCategoryLabel" FontSize="12" VerticalAlignment="Center"
+                                 Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                      <TextBlock x:Name="MetaCategoryValue" Grid.Column="1" FontSize="12"
+                                 HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                    <Grid ColumnDefinitions="Auto,*">
+                      <TextBlock x:Name="MetaSizeLabel" FontSize="12" VerticalAlignment="Center"
+                                 Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                      <TextBlock x:Name="MetaSizeValue" Grid.Column="1" FontSize="12" FontFeatures="tnum"
+                                 HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                    <Grid ColumnDefinitions="Auto,*">
+                      <TextBlock x:Name="MetaIdLabel" FontSize="12" VerticalAlignment="Center"
+                                 Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                      <TextBlock x:Name="MetaIdValue" Grid.Column="1" FontSize="12" FontFamily="Consolas"
+                                 HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                  </StackPanel>
+
+                  <TextBlock x:Name="DetailPlaced" FontSize="12" Margin="0,12,0,0"
+                             Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                  <Button x:Name="AddButton" Classes="accent" Height="36" Margin="0,14,0,0"
+                          HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                          CornerRadius="8" FontSize="13" FontWeight="Medium" />
+                  <TextBlock x:Name="DetailHint" FontSize="11" Margin="0,8,0,0"
+                             HorizontalAlignment="Center"
+                             Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                </StackPanel>
+              </ScrollViewer>
+
+            <StackPanel x:Name="DetailEmpty" Spacing="10" Margin="20,0,0,0"
+                        HorizontalAlignment="Center" VerticalAlignment="Center">
+              <fa:FAFontIcon Glyph="&#xE1D3;" FontFamily="Segoe Fluent Icons" FontSize="30"
+                             Opacity="0.35" HorizontalAlignment="Center" />
+              <TextBlock x:Name="DetailEmptyText" FontSize="12" TextAlignment="Center"
+                         TextWrapping="Wrap" MaxWidth="200"
+                         Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+          </Grid>
+        </Grid>
+      </fa:FANavigationView.Content>
+    </fa:FANavigationView>
+  </Grid>
+</ui:GlimpseonWindow>

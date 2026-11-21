@@ -110,8 +110,6 @@ public sealed class NativeDecibelMeterWidget : WidgetCardBase
         Card.Child = root;
         Content = Card;
 
-        MicSampler.DbReady += OnDb;
-        SystemSampler.EnsureStarted();
         ActualThemeVariantChanged += (_, _) =>
         {
             ApplyPalette();
@@ -120,6 +118,27 @@ public sealed class NativeDecibelMeterWidget : WidgetCardBase
         ApplyPalette();
         SizeChanged += (_, _) => Relayout();
         Relayout();
+        if (PreviewSamples.Active)
+        {
+            SeedPreview();
+        }
+        else
+        {
+            MicSampler.DbReady += OnDb;
+            SystemSampler.EnsureStarted();
+        }
+    }
+
+    private void SeedPreview()
+    {
+        for (var i = 0; i < 30; i++)
+        {
+            _chart.Push(46 + 7 * Math.Sin(i * 0.35) + i % 3);
+        }
+        _curValue.Text = "46.8 dB";
+        _curValue.Foreground = new SolidColorBrush(LevelColor(46.8));
+        _peakValue.Text = "58.6 dB";
+        _peakValue.Foreground = new SolidColorBrush(LevelColor(58.6));
     }
 
     // 顶栏字号随卡高 数值加粗 原实现漏设字号

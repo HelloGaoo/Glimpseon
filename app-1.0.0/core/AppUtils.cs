@@ -333,6 +333,10 @@ public static class AppUtils
 
     public static JsonElement? GetCachedContent(string cacheName, bool ignoreExpiry = false)
     {
+        if (PreviewSamples.TryGetCache(cacheName, out var sample))
+        {
+            return sample;
+        }
         var data = LoadCache(cacheName, ignoreExpiry);
         if (data is { } root && root.ValueKind == JsonValueKind.Object && root.TryGetProperty("content", out var content))
         {

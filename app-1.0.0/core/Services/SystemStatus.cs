@@ -45,6 +45,10 @@ public static class BatteryService
 
     public static BatterySnapshot Read()
     {
+        if (PreviewSamples.Active)
+        {
+            return new BatterySnapshot(true, 76, false, true, 185);
+        }
         try
         {
             if (!GetSystemPowerStatus(out var s))

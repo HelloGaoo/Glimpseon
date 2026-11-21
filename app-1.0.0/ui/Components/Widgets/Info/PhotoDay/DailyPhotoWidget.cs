@@ -109,6 +109,15 @@ public sealed class DailyPhotoWidget : WidgetCardBase
         ActualThemeVariantChanged += (_, _) => ApplyPalette();
         AppearanceChanged += ApplyPalette;
         ApplyPalette();
+        if (PreviewSamples.Active && (HomeView.CurrentWallpaper ?? HomeView.GlassBackdrop) is { } sample)
+        {
+            _image.Source = sample;
+            _hasPhoto = true;
+            _title.Text = "每日一图";
+            _copyright.Text = "示例图片";
+            _shade.IsVisible = true;
+            _status.IsVisible = false;
+        }
 
         // 定时核对重试
         _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(30) };
@@ -118,6 +127,10 @@ public sealed class DailyPhotoWidget : WidgetCardBase
     protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        if (PreviewSamples.Active && _hasPhoto)
+        {
+            return;
+        }
         _refreshTimer.Start();
         _ = LoadAsync();
     }

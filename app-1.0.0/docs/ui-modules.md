@@ -75,7 +75,7 @@ DragDrop 允许 + Pointer 事件 Tunnel 挂接 (Pressed/Moved/Released/Wheel)
 
 | 区块   | 类                                                                                                                                                                |
 | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 框架   | DraggableContainer PlaceholderWidget SelectionAdorner ComponentLibraryWindow (预览骨架卡/实况卡) NavigationPage (items 跳转 LaunchItem) StyleWidgetFactory (typeId > 控件路由) |
+| 框架   | DraggableContainer PlaceholderWidget SelectionAdorner ComponentLibraryWindow (分类/卡片/详情) ComponentCardPanel (自适应网格) ComponentPreviewRenderer (缩略图) NavigationPage (items 跳转 LaunchItem) StyleWidgetFactory (typeId > 控件路由) |
 | 时钟   | DigitalClockWidget (中文星期表)                                                                                                                                       |
 | 一言   | PoetryWidget (RefreshFromCache/FormatPoetry)                                                                                                                     |
 | 天气   | WeatherWidgetBase > WeatherCurrentWidget / WeatherHourlyWidget / WeatherWeeklyWidget                                                                             |

@@ -87,6 +87,11 @@ public sealed class NativeHomeworkBoardWidget : WidgetCardBase
             Save();
         };
         BuildLayout();
+        if (PreviewSamples.Active)
+        {
+            _sections = PreviewSamples.HomeworkSections();
+            Render();
+        }
         ActualThemeVariantChanged += (_, _) => Render();
         AttachedToVisualTree += (_, _) =>
         {

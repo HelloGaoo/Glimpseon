@@ -109,8 +109,26 @@ public sealed class PerformanceMonitorWidget : WidgetCardBase
         _ramValue.Text = "--";
         _gpuValue.Text = "--";
         ApplyCardStyle();
-        SystemSampler.PerfReady += OnPerf;
-        SystemSampler.EnsureStarted();
+        if (PreviewSamples.Active)
+        {
+            SeedPreview();
+        }
+        else
+        {
+            SystemSampler.PerfReady += OnPerf;
+            SystemSampler.EnsureStarted();
+        }
+    }
+
+    private void SeedPreview()
+    {
+        _cpuValue.Text = "38%";
+        _ramValue.Text = "62%";
+        _gpuValue.Text = "24%";
+        for (var i = 0; i < 40; i++)
+        {
+            _chart.Push(34 + 10 * Math.Sin(i * 0.35) + i % 5, 58 + 6 * Math.Sin(i * 0.22));
+        }
     }
 
     private StackPanel MakeMetricCell(Border dot, TextBlock label, TextBlock value, string text)

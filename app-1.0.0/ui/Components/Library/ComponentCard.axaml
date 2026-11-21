@@ -1,0 +1,56 @@
+<UserControl x:Class="Glimpseon.UI.ComponentCard"
+             xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <UserControl.Styles>
+    <Style Selector="Border.card-root">
+      <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="8" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.12" />
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.12" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.card-root:pointerover">
+      <Setter Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorSecondaryBrush}" />
+    </Style>
+    <Style Selector="Border.card-root.selected">
+      <Setter Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+      <Setter Property="BorderThickness" Value="1.5" />
+    </Style>
+  </UserControl.Styles>
+
+  <Border x:Name="CardRoot" Classes="card-root">
+    <Grid RowDefinitions="Auto,Auto">
+      <Grid>
+        <Border x:Name="PreviewHost" Height="140" CornerRadius="8" ClipToBounds="True"
+                Background="Transparent">
+          <Image x:Name="PreviewImage" Stretch="Uniform" Margin="6" />
+        </Border>
+        <Border x:Name="PlacedBadge" Margin="7"
+                HorizontalAlignment="Right" VerticalAlignment="Top"
+                CornerRadius="999" Padding="7,2" IsVisible="False"
+                Background="{DynamicResource AccentFillColorDefaultBrush}">
+          <TextBlock x:Name="PlacedText" FontSize="10" FontWeight="Medium"
+                     Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+        </Border>
+      </Grid>
+
+      <StackPanel Grid.Row="1" Margin="4,8,4,2">
+        <TextBlock x:Name="NameText" FontSize="13" FontWeight="Medium" LineHeight="18"
+                   TextAlignment="Center" HorizontalAlignment="Center"
+                   MaxLines="1" TextTrimming="CharacterEllipsis" />
+        <TextBlock x:Name="MetaText" FontSize="10.5" FontWeight="Normal" LineHeight="15"
+                   LetterSpacing="0.4" TextAlignment="Center" HorizontalAlignment="Center"
+                   MaxLines="1" TextTrimming="CharacterEllipsis" Margin="0,3,0,0"
+                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+      </StackPanel>
+    </Grid>
+  </Border>
+</UserControl>

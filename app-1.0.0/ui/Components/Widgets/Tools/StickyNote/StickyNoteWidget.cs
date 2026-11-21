@@ -188,6 +188,10 @@ public sealed class StickyNoteWidget : WidgetCardBase
             Save();
         };
         ApplyStickyStyle();
+        if (PreviewSamples.Active)
+        {
+            _editor.Text = PreviewSamples.StickyNoteText;
+        }
         UpdateCount();
     }
 

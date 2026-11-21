@@ -36,6 +36,7 @@ public sealed class ComponentDefinition
     public string DisplayName { get; init; } = "";
     public string Category { get; init; } = "";
     public string Icon { get; init; } = "";
+    public string Description { get; init; } = "";
     public int MinWidthCells { get; init; } = 1;
     public int MinHeightCells { get; init; } = 1;
     public int DefaultWidthCells { get; init; } = 2;
@@ -46,6 +47,27 @@ public sealed class ComponentDefinition
     public int DefaultHeightCells { get; init; } = 2;
     public ResizeMode ResizeMode { get; init; } = ResizeMode.Free;
     public JsonElement? DefaultConfig { get; init; }
+}
+
+public sealed record ComponentCategoryInfo(string Key, string Icon)
+{
+    public string LocaleKey => $"component_library.category_{Key.ToLowerInvariant()}";
+}
+
+public static class ComponentCategories
+{
+    public static readonly ComponentCategoryInfo[] All =
+    [
+        new("Clock", "Clock"),
+        new("Weather", "Sun"),
+        new("Info", "Info"),
+        new("Media", "Music"),
+        new("Launcher", "Grid"),
+        new("School", "Education"),
+        new("Tools", "Wrench"),
+        new("System", "Settings"),
+        new("Study", "Books"),
+    ];
 }
 
 public sealed class GridSettings
@@ -146,30 +168,95 @@ public static class GridLayoutService
 
 public sealed class ComponentRegistry
 {
+    public const string AllCategory = "*";
     private readonly Dictionary<string, ComponentDefinition> _definitions = new();
+    private readonly List<ComponentDefinition> _ordered = new();
 
     public void RegisterBatch(IEnumerable<ComponentDefinition> definitions)
     {
         foreach (var d in definitions)
         {
-            if (!string.IsNullOrEmpty(d.Id))
+            if (string.IsNullOrEmpty(d.Id))
             {
-                _definitions[d.Id] = d;
+                continue;
             }
+            if (_definitions.TryGetValue(d.Id, out var old))
+            {
+                Log.Warning($"[ComponentRegistry] 组件 ID 重复: {d.Id}");
+                var index = _ordered.IndexOf(old);
+                if (index >= 0)
+                {
+                    _ordered[index] = d;
+                }
+            }
+            else
+            {
+                _ordered.Add(d);
+            }
+            _definitions[d.Id] = d;
         }
         Log.Debug($"[ComponentRegistry] 批量注册组件 当前总数 {Count}");
     }
 
     public int Count => _definitions.Count;
 
+    public IReadOnlyList<ComponentDefinition> All => _ordered;
+
     public ComponentDefinition? GetDefinition(string componentId) =>
         _definitions.TryGetValue(componentId, out var d) ? d : null;
 
-    public IEnumerable<ComponentDefinition> GetDefinitionsByCategory(string category) =>
-        _definitions.Values.Where(d => d.Category == category);
+    public IReadOnlyList<ComponentCategoryInfo> GetCategoryInfos()
+    {
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var d in _ordered)
+        {
+            if (!string.IsNullOrEmpty(d.Category))
+            {
+                used.Add(d.Category);
+            }
+        }
+        var list = new List<ComponentCategoryInfo>();
+        foreach (var category in ComponentCategories.All)
+        {
+            if (used.Remove(category.Key))
+            {
+                list.Add(category);
+            }
+        }
+        foreach (var key in used.OrderBy(k => k, StringComparer.OrdinalIgnoreCase))
+        {
+            list.Add(new ComponentCategoryInfo(key, "Grid"));
+        }
+        return list;
+    }
 
-    public List<string> GetCategories() =>
-        _definitions.Values.Select(d => d.Category).Distinct().OrderBy(c => c).ToList();
+    public Dictionary<string, int> GetCategoryCounts()
+    {
+        var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var d in _ordered)
+        {
+            if (string.IsNullOrEmpty(d.Category))
+            {
+                continue;
+            }
+            counts[d.Category] = counts.GetValueOrDefault(d.Category) + 1;
+        }
+        return counts;
+    }
+
+    public IReadOnlyList<ComponentDefinition> Search(string? query, string? category)
+    {
+        var q = query?.Trim() ?? "";
+        return _ordered.Where(d =>
+                (string.IsNullOrEmpty(category) || category == AllCategory ||
+                 string.Equals(d.Category, category, StringComparison.OrdinalIgnoreCase)) &&
+                (q.Length == 0 ||
+                 (d.DisplayName?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                 d.Id.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                 (d.Category?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                 (d.Description?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)))
+            .ToList();
+    }
 }
 
 /// <summary>组件默认配置</summary>
@@ -238,7 +325,7 @@ public static class BuiltinComponentDefinitions
         Def("quick_launch_grid", "快捷启动II", "Launcher", "App", 4, 2, 4, 2, wPx: 400, hPx: 200, config: Cfg("""{"apps":[]}""")),
         Def("Math_calculator", "计算器", "Tools", "Calculator", 2, 2, 2, 2, ResizeMode.Fixed, wPx: 280, hPx: 424),
         Def("sticky_note", "便签", "Tools", "Edit", 1, 1, 2, 2, wPx: 280, hPx: 280, config: Cfg("""{"color":"yellow"}""")),
-        Def("ai_chat", "AI 问答", "AI", "ChatBubblesQuestion", 2, 4, 3, 6, wPx: 352, hPx: 600),
+        Def("ai_chat", "AI 问答", "Tools", "ChatBubblesQuestion", 2, 4, 3, 6, wPx: 352, hPx: 600),
         Def("system_performance", "性能监测", "System", "Gauge", 4, 2, 4, 2, wPx: 400, hPx: 200),
         Def("system_netspeed", "网速监控", "System", "Globe", 3, 2, 4, 2, wPx: 400, hPx: 200),
         Def("study_meter", "分贝仪", "Study", "Microphone", 3, 2, 4, 2, wPx: 400, hPx: 200),

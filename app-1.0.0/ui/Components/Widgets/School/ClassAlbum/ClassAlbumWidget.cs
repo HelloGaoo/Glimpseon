@@ -87,6 +87,11 @@ public sealed class ClassAlbumWidget : WidgetCardBase
     private void LoadPhotos()
     {
         _photos.Clear();
+        if (PreviewSamples.Active)
+        {
+            ShowCurrent();
+            return;
+        }
         try
         {
             Directory.CreateDirectory(_photosDir);
@@ -118,6 +123,12 @@ public sealed class ClassAlbumWidget : WidgetCardBase
 
     private void ShowCurrent()
     {
+        if (_photos.Count == 0 && PreviewSamples.Active
+            && (HomeView.CurrentWallpaper ?? HomeView.GlassBackdrop) is { } sample)
+        {
+            _image.Source = sample;
+            return;
+        }
         try
         {
             _image.Source = _photos.Count > 0 ? new Bitmap(_photos[_index]) : null;

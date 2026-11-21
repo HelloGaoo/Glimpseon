@@ -49,8 +49,7 @@ using Avalonia.VisualTree;
 namespace Glimpseon.UI;
 
 // 月历
-// 规格: 300x300 边距(12,10,12,8) 间距4 标题20px w600 + 上下按钮28x18 星期13px 6x7 格
-// 格内: 日期占上62% 字号 sz*0.46 角标 sz*0.35 bold 今日 #00b7c3 圆 r=sz*0.40
+// 月历 300×300
 
 public sealed class CalendarMonthWidget : WidgetCardBase
 {

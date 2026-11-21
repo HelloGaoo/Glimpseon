@@ -102,7 +102,10 @@ public sealed class NativeDailyWordWidget : WidgetCardBase
         ActualThemeVariantChanged += (_, _) => Apply(_lastWord, _lastPhonetic, _lastTrans, _lastExText, _lastExTrans, _lastDate);
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
         timer.Tick += (_, _) => _ = RefreshAsync();
-        timer.Start();
+        if (!PreviewSamples.Active)
+        {
+            timer.Start();
+        }
         _ = RefreshAsync();
     }
 
@@ -244,7 +247,7 @@ public sealed class NativeDailyWordWidget : WidgetCardBase
         // 原版: 接口无数据用过期缓存
         if (data is null)
         {
-            data = AppUtils.LoadCache("daily_word", ignoreExpiry: true);
+            data = AppUtils.GetCachedContent("daily_word", ignoreExpiry: true);
         }
         string word = "--", phonetic = "", translation = "", exText = "", exTrans = "";
         var date = DateTime.Today.ToString("yyyy-MM-dd");

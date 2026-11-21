@@ -56,9 +56,23 @@ public static class TimetableScheduleProvider
     private static readonly ClassWidgetsBridge CwBridge = new();
     private static bool _bridgeStarted;
 
+    // 示例课表
+    private static List<ScheduleRow> PreviewRows() =>
+    [
+        new("语文", "张老师", "08:00", "08:45", 1, false, false, ""),
+        new("数学", "李老师", "08:55", "09:40", 2, true, false, ""),
+        new("英语", "王老师", "10:00", "10:45", 3, false, false, ""),
+        new("物理", "赵老师", "10:55", "11:40", 4, false, false, ""),
+        new("化学", "陈老师", "14:00", "14:45", 5, false, false, ""),
+    ];
+
     /// <summary>当日课表 按来源分发 联动/插件/本地</summary>
     public static List<ScheduleRow> GetTodaySchedule()
     {
+        if (PreviewSamples.Active)
+        {
+            return PreviewRows();
+        }
         var result = new List<ScheduleRow>();
         // 插件提供者来源
         var profileSource = Config.ProfileSource.Value ?? "";
@@ -160,6 +174,14 @@ public static class TimetableScheduleProvider
     public static Dictionary<string, List<ScheduleRow>> GetWeekSchedule()
     {
         var result = new Dictionary<string, List<ScheduleRow>>();
+        if (PreviewSamples.Active)
+        {
+            for (var wd = 1; wd <= 7; wd++)
+            {
+                result[DayKey(wd)] = PreviewRows();
+            }
+            return result;
+        }
         if (Config.ProfileSource.Value is "classisland" or "classwidgets" && !UseLocalScheduleData())
         {
             try

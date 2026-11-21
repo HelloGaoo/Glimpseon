@@ -76,6 +76,10 @@ public static class Announcements
 
     public static List<Announcement> Load()
     {
+        if (PreviewSamples.Active)
+        {
+            return PreviewSamples.AnnouncementItems();
+        }
         try
         {
             if (File.Exists(FilePath))

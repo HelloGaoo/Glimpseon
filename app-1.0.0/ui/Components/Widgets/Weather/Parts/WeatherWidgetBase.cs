@@ -68,7 +68,10 @@ public abstract class WeatherWidgetBase : WidgetCardBase
             RefreshTimer.Interval = TimeSpan.FromSeconds(ParseIntervalSeconds(v));
         Config.ShowWeather.ValueChanged += _ => RefreshFromCache();
         Config.WeatherTextColor.ValueChanged += _ => ApplyWeatherStyle();
-        RefreshTimer.Start();
+        if (!PreviewSamples.Active)
+        {
+            RefreshTimer.Start();
+        }
         ActualThemeVariantChanged += (_, _) => ApplyWeatherStyle();
         // 卡片底色/明暗变了 自有字色跟着重算
         AppearanceChanged += ApplyWeatherStyle;

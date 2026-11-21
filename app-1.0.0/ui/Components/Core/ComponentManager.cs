@@ -416,6 +416,21 @@ public sealed class ComponentManager
     public string GetDefinitionKey(string compId) =>
         _componentData.TryGetValue(compId, out var d) ? DefinitionKey(d) : "";
 
+    public Dictionary<string, int> GetDefinitionCountsOnPage(int pageIndex)
+    {
+        var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var data in _componentData.Values)
+        {
+            if (data.PageIndex != pageIndex)
+            {
+                continue;
+            }
+            var key = DefinitionKey(data);
+            counts[key] = counts.GetValueOrDefault(key) + 1;
+        }
+        return counts;
+    }
+
     // 写配置并重建
     public void UpdateComponentConfig(string compId, JsonObject config)
     {

@@ -49,8 +49,7 @@ using Avalonia.VisualTree;
 namespace Glimpseon.UI;
 
 // 历史上的今天
-// 规格: 360x240 边距(16,16,16,16) 间距6 头部(图标28+标题15px w600+日期11px 右) 5条富文本
-// 年份12px #30c361 w700 + 标题14px 点击开链接 30min 刷新+过期缓存
+// 历史上的今天 360×240
 
 public sealed class HistoryTodayWidget : WidgetCardBase
 {
@@ -113,7 +112,10 @@ public sealed class HistoryTodayWidget : WidgetCardBase
         // 原版 _setup_periodic_refresh 30 分钟
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(30) };
         timer.Tick += (_, _) => _ = RefreshAsync();
-        timer.Start();
+        if (!PreviewSamples.Active)
+        {
+            timer.Start();
+        }
         _ = RefreshAsync();
     }
 
@@ -133,7 +135,7 @@ public sealed class HistoryTodayWidget : WidgetCardBase
         // 原版: 接口无数据用过期缓存
         if (data is null)
         {
-            data = AppUtils.LoadCache("history_today", ignoreExpiry: true);
+            data = AppUtils.GetCachedContent("history_today", ignoreExpiry: true);
         }
         await Dispatcher.UIThread.InvokeAsync(() => UpdateDisplay(data));
     }

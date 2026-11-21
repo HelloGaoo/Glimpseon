@@ -125,6 +125,7 @@ public partial class HomeView : UserControl
         {
             _originalBitmap?.Dispose();
             _originalBitmap = new Bitmap(path);
+            CurrentWallpaper = _originalBitmap;
             _wallpaperPath = path;
             ApplyBackgroundEffects();
             BuildGlassBackdrop(path);
@@ -140,6 +141,8 @@ public partial class HomeView : UserControl
 
     // 毛玻璃底图: 壁纸降采样后高斯模糊并压暗 供全部卡片取局部 一次生成零运行时开销
     public static Bitmap? GlassBackdrop { get; private set; }
+
+    public static Bitmap? CurrentWallpaper { get; private set; }
 
     private static void BuildGlassBackdrop(string path)
     {
@@ -1003,7 +1006,8 @@ public partial class HomeView : UserControl
     public void OpenComponentEditWindow()
     {
         EnterEditMode();
-        var library = new ComponentLibraryWindow(ComponentRegistry);
+        var library = new ComponentLibraryWindow(ComponentRegistry,
+            () => ComponentManager.GetDefinitionCountsOnPage(_currentPageIndex));
         library.DefinitionActivated = AddComponentById;
         library.Closed += (_, _) => ExitEditMode();
         library.Show();
